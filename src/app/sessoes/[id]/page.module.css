@@ -14,7 +14,7 @@
 
 .heroWithArt {
 	min-height: 540px;
-	background: #0a0c0f;
+	background: var(--ds-canvas);
 }
 
 .art {
@@ -54,11 +54,11 @@
 }
 
 .heroWithArt .back {
-	color: #d7d2c9;
+	color: var(--ds-on-art-soft);
 }
 
 .heroWithArt .back:hover {
-	color: #fffdf8;
+	color: var(--ds-on-art-foreground);
 }
 
 .eyebrow {
@@ -66,7 +66,7 @@
 }
 
 .heroWithArt .eyebrow {
-	color: #f2c879;
+	color: var(--ds-on-art-accent);
 }
 
 .title {
@@ -82,7 +82,7 @@
 }
 
 .heroWithArt .title {
-	color: #fffdf8;
+	color: var(--ds-on-art-foreground);
 	text-shadow: 0 3px 26px rgba(0, 0, 0, 0.42);
 }
 
@@ -94,7 +94,7 @@
 }
 
 .heroWithArt .date {
-	color: #d7d2c9;
+	color: var(--ds-on-art-soft);
 }
 
 .body {
