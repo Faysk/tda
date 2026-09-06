@@ -6,6 +6,7 @@ import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 import "./design-tokens.css";
+import "./design-system.css";
 import "./theme.css";
 
 export const metadata: Metadata = {
