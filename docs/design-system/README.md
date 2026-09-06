@@ -1,8 +1,8 @@
 # Design System oficial do TDA
 
-> Status: canônico para direção visual; fundação runtime implementada e validada
+> Status: canônico; fundação runtime e superfícies públicas DS-5 implementadas
 > Owner: design-system / frontend
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 Este diretório registra a autoridade visual do **TDA — Tem Dado Aqui** no reboot `Faysk/tda`.
 
@@ -14,6 +14,7 @@ O fato de o Design System ter sido extraído do legado **não transforma a arqui
 
 - [Assets oficiais e Brand Pack](official-assets.md)
 - [Plano de migração para o reboot](migration-plan.md)
+- [Superfícies públicas — ownership visual](public-surfaces.md)
 - [World Explorer — composição e UX](world-explorer-ui.md)
 - [Feature World Explorer](../features/world-explorer.md)
 - [ADR React Flow](../adr/0006-react-flow-world-explorer.md)
@@ -138,27 +139,40 @@ Os tokens semânticos do pacote v1.0 são a base oficial do reboot e vivem opera
 
 `tools/check-design-system.mjs` verifica o contrato completo de valores do v1 em toda execução de `pnpm check`.
 
-## Extensão promovida pelo reboot — borda de controle
+## Extensão promovida — borda de controle
 
-A auditoria do `tokens/contrast-report.csv` confirmou que `--ds-border` tem contraste aproximado de apenas **1.47:1** no dark e **1.57:1** no light contra os canvases correspondentes. O próprio pacote marca essa borda como **decorativa**, não adequada como único delimitador de um controle essencial.
+A auditoria do `tokens/contrast-report.csv` confirmou que `--ds-border` é uma borda decorativa e não deve ser o único delimitador de um controle essencial.
 
-O pacote também forneceu `tokens/proposed-extensions.css`, com uma proposta específica de borda de controle. O reboot promove essa proposta após revisão porque ela resolve um requisito já declarado em `docs/08_formularios.md` e `docs/11_acessibilidade.md`:
+O próprio pacote forneceu `tokens/proposed-extensions.css`. O reboot promove:
 
-| Tema | Token | Valor | Contraste de referência |
-| --- | --- | --- | ---: |
-| dark | `--ds-control-border` | `#5f6772` | ~3.06:1 contra `#151a20` |
-| light | `--ds-control-border` | `#8b8379` | ~3.68:1 contra `#fffdf8` |
+| Tema | Token | Valor | Papel |
+| --- | --- | --- | --- |
+| dark | `--ds-control-border` | `#5f6772` | delimitar controles |
+| light | `--ds-control-border` | `#8b8379` | delimitar controles |
 | ambos | `--ds-control-focus-ring` | `var(--ds-accent-strong)` | foco oficial |
 
-Essa é uma **extensão do reboot**, não uma alegação de que o token fazia parte do arquivo canônico `tda-design-tokens.css` v1.0. A origem e a diferença ficam registradas deliberadamente.
-
-Uso aprovado nesta fundação:
-
-- theme toggle e futuros inputs/selects quando a borda for necessária para identificar o controle;
-- ações `secondary`, porque o contorno participa da identificação do botão contra a superfície;
-- `focus-visible` usa `--ds-control-focus-ring` como nome semântico do ring oficial.
+Essa é uma **extensão do reboot promovida a partir do pack**, não uma alegação de que o token fazia parte de `tda-design-tokens.css` v1.0.
 
 Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
+
+## Extensão semântica DS-5 — conteúdo sobre artwork
+
+Artwork de hero é deliberadamente escurecido por overlay. O texto sobre essa arte precisa manter contraste independente da preferência light/dark do usuário.
+
+O reboot define:
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `--ds-on-art-foreground` | `#fffdf8` | título/conteúdo principal sobre arte |
+| `--ds-on-art-soft` | `#d7d2c9` | metadata/corpo secundário sobre arte |
+| `--ds-on-art-accent` | `#f2c879` | eyebrow/acento sobre arte |
+
+Esses tokens são theme-independent. Eles **não criam um terceiro tema**; descrevem um contexto visual controlado.
+
+Usos iniciais:
+
+- hero da Home quando há artwork;
+- hero do detalhe de sessão quando há artwork.
 
 ## Tipografia
 
@@ -172,47 +186,85 @@ A narrativa e leitura longa usam caráter editorial. Controles, filtros, metadat
 
 ## Estado da implementação do reboot
 
-A fundação runtime implementada introduz:
+### Fundação runtime
 
-- `src/app/design-tokens.css` — tokens oficiais + aliases temporários + extensão auditada de control border;
-- `src/app/design-system.css` — base visual e classes dos primitives;
+Implementada:
+
+- `src/app/design-tokens.css`;
+- `src/app/design-system.css`;
 - `src/components/ui/action.tsx`;
 - `src/components/ui/surface.tsx`;
 - `src/components/ui/typography.tsx`;
 - `src/components/ui/status.tsx`;
-- `tools/check-design-system.mjs` — auditoria automatizada de tokens, extensão promovida e masters de marca;
-- E2E de light/dark, variante da marca e reduced motion.
+- `tools/check-design-system.mjs`;
+- E2E de tema, marca e reduced motion.
 
-Validação da fundação:
+### Superfícies públicas DS-5
 
-- `pnpm check` ✅;
-- auditoria de hashes/tokens/extensões ✅;
-- `next build` ✅;
-- Playwright ✅.
+A composição pública foi modularizada:
 
-A implementação antiga ainda contém declarações simplificadas (`--bg`, `--panel`, `--text`, `--gold`, `--line`) em CSS histórico. Elas deixam de ser autoridade porque `design-tokens.css` é carregado depois e redefine esses nomes como aliases para `--ds-*`.
+```text
+src/app/globals.css                      reset mínimo
+src/app/public-shell.css                 shell pública
+src/app/theme.css                        theme toggle + marca
+src/app/home.module.css                  Home
+src/components/session-list.module.css  cards
+src/app/sessoes/page.module.css          arquivo
+src/app/sessoes/[id]/page.module.css     detalhe
+src/app/story.css                        leitura longa
+```
 
-Isso é **compatibilidade de migração**, não um segundo Design System. A remoção física das declarações e dos consumers antigos pertence ao cleanup após as telas serem migradas.
+Detalhes e ownership em [public-surfaces.md](public-surfaces.md).
 
-O plano detalhado está em [migration-plan.md](migration-plan.md).
+### Cleanup de tokens históricos
+
+Os nomes pre-v1:
+
+```text
+--bg
+--panel
+--panel-soft
+--text
+--muted
+--gold
+--line
+```
+
+foram removidos de todo `src/`.
+
+`tools/check-design-system.mjs` percorre a árvore runtime e falha se declaração ou consumo desses nomes voltar a aparecer.
+
+Portanto, eles não são mais aliases de compatibilidade nem segunda camada de tokens.
+
+### Layout global
+
+O `<main>` não possui `max-width` global.
+
+Isso é deliberado:
+
+- Home/arquivo controlam seu container;
+- long-form controla sua largura de leitura;
+- `/mundo` poderá usar viewport ampla sem desfazer CSS de sessões.
 
 ## Tailwind
 
 O snapshot antigo documenta consumo de tokens via Tailwind. Isso é detalhe de implementação histórico, não requisito visual.
 
-O reboot atual não depende de Tailwind; a primeira migração consome tokens CSS diretamente. Adicionar Tailwind no futuro exige benefício próprio e decisão/documentação específica, não paridade artificial com o legado.
+O reboot atual não depende de Tailwind. Adicionar Tailwind no futuro exige benefício próprio e decisão/documentação específica, não paridade artificial com o legado.
 
 ## Regras de governança
 
 1. Semântica antes de hexadecimal.
 2. Se um papel visual já possui token, componentes não inventam cor local.
-3. Novo token precisa de papel definido, valores light/dark, origem e verificação de contraste.
+3. Novo token precisa de papel definido, valores/escopo, origem e verificação de contraste.
 4. Extensão do reboot deve ser distinguida explicitamente de token original do pack.
 5. Componentes repetidos viram primitives compartilhadas.
-6. Movimento comunica estado; não compete com narrativa.
-7. Mobile reorganiza composição; não comprime desktop.
-8. Marca não é redesenhada pelo Design System.
-9. Tela não está pronta apenas porque parece boa em desktop dark.
+6. Global define contrato; módulo define composição.
+7. Movimento comunica estado; não compete com narrativa.
+8. Mobile reorganiza composição; não comprime desktop.
+9. Navegação focável nunca pode ficar escondida apenas visualmente.
+10. Marca não é redesenhada pelo Design System.
+11. Tela não está pronta apenas porque parece boa em desktop dark.
 
 ## Definition of Done visual
 
@@ -235,9 +287,11 @@ Uma superfície nova deve ser verificada em:
 
 As referências visuais oficiais do World Explorer usam este Design System como base de composição, não como exceção. A especificação está em [world-explorer-ui.md](world-explorer-ui.md) e o comportamento da feature em [../features/world-explorer.md](../features/world-explorer.md).
 
-## Autoridade após a migração
+O World Explorer não deve herdar um container global de `1200px`; ele terá layout próprio full-width e reutilizará tokens/primitives existentes.
 
-A ordem de autoridade operacional do reboot será:
+## Autoridade operacional
+
+A ordem de autoridade do reboot é:
 
 1. documentos canônicos em `docs/design-system/`;
 2. tokens/componentes compartilhados implementados em `Faysk/tda`;
