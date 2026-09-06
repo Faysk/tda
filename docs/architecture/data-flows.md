@@ -150,19 +150,99 @@ OAuth/Auth
 
 `campaign_members.role` continua legado compatível para RPCs existentes. Nova UI não deve embutir regras do tipo `if role === 'master'` quando o comportamento pode ser expresso por capability.
 
-## 10. Relações futuras
+## 10. Relations first-class
 
-Quando implementado:
+Quando o schema for aprovado:
 
 ```text
-entity A
-  -> relation edge + type + direction + visibility + evidence/canon
-  -> entity B
+evidence
+  -> canon_candidate(type=relation)
+  -> revisão
+  -> canon_entry
+  -> entity_relation + source(s)
 ```
 
-Não criar edges automaticamente apenas porque duas entities aparecem no mesmo segmento. Coocorrência pode ser evidência, não relação canônica.
+A relation conecta entities canônicas e carrega semântica, direção/simetria, lifecycle e visibility.
 
-## 11. Conhecimento/audience futuro
+Não criar edges automaticamente apenas porque duas entities aparecem no mesmo segmento. Coocorrência pode sustentar sugestão de revisão, não relação canônica.
+
+Contrato proposto: [relations-data-contract.md](../features/relations-data-contract.md).
+
+## 11. World Explorer / graph projection
+
+O World Explorer não entrega rows cruas para React Flow.
+
+Fluxo:
+
+```text
+browser request
+  + identity/session/audience
+  + focus entity
+  + filters/depth
+        ↓
+Next.js server / feature case
+        ↓
+resolve focus entity
+        ↓
+query entities + relations autorizadas
+        ↓
+authorization/visibility filter
+        ↓
+projection DTO mínima
+  nodes[] + edges[]
+        ↓
+React Flow client canvas
+        ↓
+selection / focus / inspector
+```
+
+### Regra de segurança
+
+Filtrar **antes** da serialização.
+
+Não fazer:
+
+```text
+server -> envia relation secreta -> CSS/React esconde
+```
+
+A existência do edge pode revelar o segredo.
+
+### Projection
+
+A projection contém apenas apresentação necessária:
+
+- IDs opacos/UUID;
+- label;
+- tipo;
+- imagem autorizada;
+- route;
+- relation label/type/family;
+- direção.
+
+Não precisa carregar source transcript, reviewer notes, metadata integral ou confidence interna.
+
+### Interação
+
+Trocar foco pode disparar nova projection server-aware. Estado visual local (pan/zoom/selection) não altera canon nem relation.
+
+### Fixtures
+
+O primeiro vertical slice usa fixtures onde necessário. Fixture é fonte de UI/teste, não evidence/canon e nunca é persistida como relation real por conveniência.
+
+## 12. Perfil editorial de entity
+
+```text
+route tipada (/personagens/... etc.)
+  -> resolve entity por slug/type
+  -> aplica visibility/audience
+  -> compõe entity + canon + relations + moments + media autorizada
+  -> server-rendered profile
+```
+
+O inspector do World Explorer consome um subconjunto desse mesmo domínio; não deve duplicar uma segunda identidade da entity.
+
+## 13. Conhecimento/audience futuro
 
 O modelo futuro deverá conseguir responder separadamente:
 
@@ -173,7 +253,28 @@ O modelo futuro deverá conseguir responder separadamente:
 - é mentira?
 - é segredo do mestre?
 
+Fluxo conceitual:
+
+```text
+claim/canon/rumor
+  -> knowledge assertion por knower/perspectiva
+  -> authorization da audience do produto
+  -> projection específica da perspectiva
+```
+
 `visibility` atual é base de audiência, mas não substitui um modelo completo de conhecimento.
+
+## 14. Design System
+
+```text
+Design System v1.0 + Brand Pack
+  -> tokens/primitives oficiais no reboot
+  -> components/features
+  -> light/dark/system
+  -> UI validada por a11y/responsividade
+```
+
+O Design System não altera authority do conteúdo. Um estado visual nunca promove candidate para canon.
 
 ## Failure boundaries
 
@@ -182,4 +283,8 @@ O modelo futuro deverá conseguir responder separadamente:
 - falha de publicação não promove estado parcialmente;
 - falha de R2 não remove metadata/origem sem confirmação;
 - falha de companion não derruba leitura cloud já sincronizada;
-- falta de identidade resolvida deixa vínculo pendente, não inventa personagem/profile.
+- falta de identidade resolvida deixa vínculo pendente, não inventa personagem/profile;
+- falha do World Explorer não impede perfil/lista textual de relações quando disponível;
+- erro de layout React Flow não altera/persiste domain data;
+- filtro de UI não substitui authorization server-side;
+- asset visual ausente usa fallback, não remove entity/relation.
