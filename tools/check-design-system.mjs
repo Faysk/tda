@@ -25,7 +25,7 @@ function sourceFiles(root) {
 
 const officialAssets = {
 	"public/brand/tda-icon-duck-black.svg":
-		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6f6",
+		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6",
 	"public/brand/tda-icon-duck-white.svg":
 		"8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac",
 	"public/brand/tda-mark-black.svg":
@@ -46,7 +46,6 @@ for (const [filePath, expected] of Object.entries(officialAssets)) {
 
 const tokenCss = fs.readFileSync("src/app/design-tokens.css", "utf8");
 const canonicalTokenValues = [
-	// Dark theme — exact TDA Design System v1.0 values.
 	["--ds-canvas", "#0a0c0f"],
 	["--ds-canvas-subtle", "#101419"],
 	["--ds-surface", "#151a20"],
@@ -70,7 +69,6 @@ const canonicalTokenValues = [
 	["--ds-shadow", "0 24px 80px rgba(0, 0, 0, 0.28)"],
 	["--ds-ambient-accent", "rgba(215, 170, 97, 0.09)"],
 	["--ds-ambient-cool", "rgba(75, 91, 109, 0.08)"],
-	// Light theme — exact overridden values.
 	["--ds-canvas", "#f3efe7"],
 	["--ds-canvas-subtle", "#fffdf8"],
 	["--ds-surface", "#e9e3d8"],
@@ -94,7 +92,6 @@ const canonicalTokenValues = [
 	["--ds-shadow", "0 24px 70px rgba(48, 39, 28, 0.14)"],
 	["--ds-ambient-accent", "rgba(128, 88, 23, 0.08)"],
 	["--ds-ambient-cool", "rgba(92, 78, 58, 0.05)"],
-	// Theme-independent v1 values.
 	["--ds-radius-sm", "8px"],
 	["--ds-radius-md", "12px"],
 	["--ds-radius-lg", "18px"],
@@ -113,8 +110,6 @@ for (const [token, value] of canonicalTokenValues) {
 	}
 }
 
-// Promoted reboot extension from the official v1 proposed-extensions.css.
-// Keep this separate from canonicalTokenValues so provenance remains explicit.
 const promotedExtensions = [
 	["--ds-control-border", "#5f6772"],
 	["--ds-control-border", "#8b8379"],
@@ -126,8 +121,6 @@ for (const [token, value] of promotedExtensions) {
 	}
 }
 
-// DS-5 semantic extension owned by the reboot. Artwork is deliberately darkened,
-// so foreground roles stay stable regardless of the user's light/dark preference.
 const rebootSemanticExtensions = [
 	["--ds-on-art-foreground", "#fffdf8"],
 	["--ds-on-art-soft", "#d7d2c9"],
@@ -148,10 +141,6 @@ const legacyTokens = [
 	"--gold",
 	"--line",
 ];
-
-// DS-5/DS-7 invariant: aliases from the pre-v1 reboot are gone from all runtime
-// source. This intentionally scans every source domain so new features cannot
-// reintroduce compatibility debt.
 for (const filePath of sourceFiles("src")) {
 	const source = fs.readFileSync(filePath, "utf8");
 	for (const token of legacyTokens) {
