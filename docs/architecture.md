@@ -9,5 +9,8 @@ As tabelas possuem RLS sem políticas de leitura anônima. Nesta fundação usa-
 ## Mídias
 R2 armazena conteúdo binário; banco mantém relações e metadados. Buckets separados por visibilidade e teste. Nenhum upload público ou URL assinada é oferecido antes de implementar autorização do Edit. Durante a migração visual da etapa 2, capas e heróis já publicados podem continuar sendo lidos das origens legadas aprovadas registradas na sessão; isso não substitui a migração para o R2 e não libera os buckets novos. Áudio bruto não integra retenção cloud. SVGs oficiais pequenos ficam versionados com o app.
 
+## Compatibilidade de URLs
+O site legado usa fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo`. Fragmentos não chegam ao servidor HTTP, portanto o layout instala uma ponte client-side mínima que reconhece somente esses formatos e substitui a navegação por `/sessoes/{sourceSessionId}`. Hashes desconhecidos são ignorados. Isso permite preservar links antigos quando o domínio migrar para o reboot sem reintroduzir o frontend legado.
+
 ## Transcrição
 O companion local será modernizado preservando o fluxo atual. Esta fundação ainda não implementa upload de transcrição, jobs ou novo Edit. Conteúdo sincronizado deve funcionar com PC desligado.
