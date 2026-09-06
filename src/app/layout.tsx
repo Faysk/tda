@@ -31,14 +31,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 						<span className="brand-symbol" aria-hidden="true">
 							<Image
 								className="brand-symbol-image brand-symbol-image--dark"
-								src="/brand/tda-icon-duck-white.svg"
+								src="/brand/tda-mark-white.svg"
 								width={42}
 								height={42}
 								alt=""
 							/>
 							<Image
 								className="brand-symbol-image brand-symbol-image--light"
-								src="/brand/tda-icon-duck-black.svg"
+								src="/brand/tda-mark-black.svg"
 								width={42}
 								height={42}
 								alt=""
