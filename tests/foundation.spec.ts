@@ -38,6 +38,62 @@ test("theme preference cycles and persists", async ({ page }) => {
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
 });
 
+test("official design tokens and brand variant follow the resolved theme", async ({
+	page,
+}) => {
+	await page.emulateMedia({ colorScheme: "dark" });
+	await page.goto("/");
+
+	expect(
+		await page.evaluate(() =>
+			getComputedStyle(document.documentElement)
+				.getPropertyValue("--ds-canvas")
+				.trim(),
+		),
+	).toBe("#0a0c0f");
+	expect(
+		await page.locator(".brand-symbol-image--dark").evaluate((element) =>
+			getComputedStyle(element).display,
+		),
+	).not.toBe("none");
+	expect(
+		await page.locator(".brand-symbol-image--light").evaluate((element) =>
+			getComputedStyle(element).display,
+		),
+	).toBe("none");
+
+	await page
+		.getByRole("button", { name: /Tema do sistema \(escuro\)/ })
+		.click();
+	expect(
+		await page.evaluate(() =>
+			getComputedStyle(document.documentElement)
+				.getPropertyValue("--ds-canvas")
+				.trim(),
+		),
+	).toBe("#f3efe7");
+	expect(
+		await page.locator(".brand-symbol-image--dark").evaluate((element) =>
+			getComputedStyle(element).display,
+		),
+	).toBe("none");
+	expect(
+		await page.locator(".brand-symbol-image--light").evaluate((element) =>
+			getComputedStyle(element).display,
+		),
+	).not.toBe("none");
+});
+
+test("reduced motion removes decorative transitions", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await page.goto("/");
+	const action = page.getByRole("link", { name: "Explorar as sessões" });
+	await expect(action).toBeVisible();
+	expect(
+		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
+	).toBe("0s");
+});
+
 test("legacy session hashes map to reboot paths", async ({ page }) => {
 	await page.goto("/#/sessao/nonexistent/resumo");
 	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);
