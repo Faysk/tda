@@ -1,9 +1,3 @@
-.header-actions {
-	display: flex;
-	align-items: center;
-	gap: 22px;
-}
-
 .theme-toggle {
 	display: inline-flex;
 	align-items: center;
@@ -75,18 +69,6 @@
 	}
 }
 
-:root[data-theme="light"] .session-card-placeholder,
-:root[data-theme="light"] .hero-latest strong {
-	color: var(--ds-foreground);
-}
-
-@media (prefers-color-scheme: light) {
-	:root:not([data-theme]) .session-card-placeholder,
-	:root:not([data-theme]) .hero-latest strong {
-		color: var(--ds-foreground);
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
 	.theme-toggle {
 		transition: none;
@@ -94,10 +76,6 @@
 }
 
 @media (max-width: 650px) {
-	.header-actions {
-		gap: 12px;
-	}
-
 	.theme-toggle {
 		width: 44px;
 		padding-inline: 0;
