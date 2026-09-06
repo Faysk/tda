@@ -4,8 +4,8 @@ import Link from "next/link";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
-import "./design-tokens.css";
 import "./globals.css";
+import "./design-tokens.css";
 import "./theme.css";
 
 export const metadata: Metadata = {
