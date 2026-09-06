@@ -42,7 +42,9 @@ export default async function Home() {
 					</>
 				) : null}
 				<div className={styles.heroCopy}>
-					<Eyebrow>Nosso mundo, nossas histórias</Eyebrow>
+					<Eyebrow className={styles.heroEyebrow}>
+						Nosso mundo, nossas histórias
+					</Eyebrow>
 					<DisplayTitle className={styles.heroTitle}>
 						Toda jornada
 						<br />
