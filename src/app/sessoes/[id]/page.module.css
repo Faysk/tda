@@ -1,0 +1,150 @@
+.hero {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	min-height: 460px;
+	display: flex;
+	align-items: flex-end;
+	padding: 56px 32px;
+	border-bottom: 1px solid var(--line);
+	background:
+		radial-gradient(circle at 72% 28%, rgba(213, 181, 120, 0.18), transparent 30%),
+		linear-gradient(145deg, #14212a, #0b1217 72%);
+}
+
+.heroWithArt {
+	min-height: 540px;
+	background: #0b1115;
+}
+
+.art {
+	z-index: 0;
+	object-fit: cover;
+	object-position: center 42%;
+}
+
+.overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	background:
+		linear-gradient(0deg, rgba(8, 13, 17, 0.98) 0%, rgba(8, 13, 17, 0.72) 38%, rgba(8, 13, 17, 0.18) 74%),
+		linear-gradient(90deg, rgba(8, 13, 17, 0.66), transparent 62%);
+}
+
+.content {
+	position: relative;
+	z-index: 2;
+	width: 100%;
+	max-width: 880px;
+	margin: 0 auto;
+}
+
+.back {
+	display: inline-block;
+	color: var(--muted);
+	font-size: 0.85rem;
+}
+
+.eyebrow {
+	margin: 38px 0 0;
+}
+
+.title {
+	max-width: 900px;
+	margin: 14px 0 16px;
+	font-size: clamp(2.5rem, 5.6vw, 4.8rem);
+	text-wrap: balance;
+	text-shadow: 0 3px 26px rgba(0, 0, 0, 0.42);
+}
+
+.date {
+	display: block;
+	color: #d1d3d1;
+}
+
+.body {
+	padding-top: 48px;
+}
+
+.pagination {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 24px;
+	margin-top: 76px;
+	padding-top: 30px;
+	border-top: 1px solid var(--line);
+}
+
+.link {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	padding: 18px 0;
+}
+
+.next {
+	align-items: flex-end;
+	text-align: right;
+}
+
+.label {
+	color: var(--gold);
+	font-size: 0.72rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.linkTitle {
+	display: -webkit-box;
+	overflow: hidden;
+	max-width: 360px;
+	margin-top: 6px;
+	font-family: Georgia, serif;
+	font-size: 1.1rem;
+	font-weight: 400;
+	line-height: 1.35;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+@media (max-width: 650px) {
+	.hero,
+	.heroWithArt {
+		min-height: 430px;
+		padding: 42px 20px 34px;
+	}
+
+	.art {
+		object-position: 58% center;
+	}
+
+	.overlay {
+		background:
+			linear-gradient(0deg, rgba(8, 13, 17, 0.99) 0%, rgba(8, 13, 17, 0.74) 48%, rgba(8, 13, 17, 0.24) 100%),
+			linear-gradient(90deg, rgba(8, 13, 17, 0.46), transparent);
+	}
+
+	.eyebrow {
+		margin-top: 28px;
+	}
+
+	.title {
+		font-size: clamp(2.15rem, 11vw, 3.2rem);
+	}
+
+	.body {
+		padding-top: 34px;
+	}
+
+	.pagination {
+		grid-template-columns: 1fr;
+		gap: 8px;
+		margin-top: 56px;
+	}
+
+	.next {
+		align-items: flex-start;
+		text-align: left;
+	}
+}
