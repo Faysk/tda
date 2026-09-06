@@ -52,6 +52,11 @@
 	margin-top: 24px;
 }
 
+.heroWithArt .heroEyebrow,
+.heroWithArt .heroLatestLabel {
+	color: #f2c879;
+}
+
 .heroWithArt .heroTitle {
 	color: #fffdf8;
 	text-shadow: 0 4px 30px rgba(0, 0, 0, 0.38);
@@ -81,6 +86,7 @@
 }
 
 .heroWithArt .heroLatest {
+	border-left-color: #d7aa61;
 	color: #d7d2c9;
 }
 
