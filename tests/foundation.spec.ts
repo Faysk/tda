@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -14,6 +15,12 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 		),
 	).toBeTruthy();
 });
+
+test("legacy session hashes map to reboot paths", async ({ page }) => {
+	await page.goto("/#/sessao/nonexistent/resumo");
+	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);
+});
+
 test("unknown and private routes are not exposed", async ({ request }) => {
 	expect((await request.get("/api/transcripts")).status()).toBe(404);
 	expect((await request.get("/sessoes/nonexistent")).status()).toBe(404);
