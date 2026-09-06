@@ -139,7 +139,7 @@ for (const [token, value] of rebootSemanticExtensions) {
 	}
 }
 
-const legacyAliases = [
+const legacyTokens = [
 	"--bg",
 	"--panel",
 	"--panel-soft",
@@ -148,23 +148,15 @@ const legacyAliases = [
 	"--gold",
 	"--line",
 ];
-for (const alias of legacyAliases) {
-	if (!tokenCss.includes(`${alias}: var(--ds-`)) {
-		fail(`missing temporary compatibility alias ${alias}`);
-	}
-}
 
-// DS-5 invariant: public/runtime source may define compatibility aliases in the
-// token file, but must not consume them anymore. Future features start on --ds-*.
-for (const filePath of [
-	...sourceFiles("src/app"),
-	...sourceFiles("src/components"),
-]) {
-	if (filePath === path.normalize("src/app/design-tokens.css")) continue;
+// DS-5/DS-7 invariant: aliases from the pre-v1 reboot are gone from all runtime
+// source. This intentionally scans every source domain so new features cannot
+// reintroduce compatibility debt.
+for (const filePath of sourceFiles("src")) {
 	const source = fs.readFileSync(filePath, "utf8");
-	for (const alias of legacyAliases) {
-		if (source.includes(`var(${alias})`)) {
-			fail(`legacy token ${alias} is still consumed by ${filePath}`);
+	for (const token of legacyTokens) {
+		if (source.includes(`var(${token})`) || source.includes(`${token}:`)) {
+			fail(`legacy token ${token} is present in ${filePath}`);
 		}
 	}
 }
@@ -188,5 +180,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeConsumers=0`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeTokens=0`,
 );
