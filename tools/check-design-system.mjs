@@ -99,6 +99,19 @@ for (const [token, value] of canonicalTokenValues) {
 	}
 }
 
+// Promoted reboot extension from the official v1 proposed-extensions.css.
+// Keep this separate from canonicalTokenValues so provenance remains explicit.
+const promotedExtensions = [
+	["--ds-control-border", "#5f6772"],
+	["--ds-control-border", "#8b8379"],
+	["--ds-control-focus-ring", "var(--ds-accent-strong)"],
+];
+for (const [token, value] of promotedExtensions) {
+	if (!tokenCss.includes(`${token}: ${value};`)) {
+		fail(`missing promoted reboot extension ${token}: ${value}`);
+	}
+}
+
 for (const alias of [
 	"--bg",
 	"--panel",
@@ -130,5 +143,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} tokenAssertions=${canonicalTokenValues.length}`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length}`,
 );
