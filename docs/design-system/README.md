@@ -10,6 +10,14 @@ A fonte oficial recebida para esta revisão é o pacote **TDA Design System v1.0
 
 O fato de o Design System ter sido extraído do legado **não transforma a arquitetura antiga em vigente**. O que é promovido ao TDA são os contratos visuais, tokens, princípios e masters de marca aqui revalidados.
 
+## Índice do módulo
+
+- [Assets oficiais e Brand Pack](official-assets.md)
+- [Plano de migração para o reboot](migration-plan.md)
+- [World Explorer — composição e UX](world-explorer-ui.md)
+- [Feature World Explorer](../features/world-explorer.md)
+- [ADR React Flow](../adr/0006-react-flow-world-explorer.md)
+
 ## Fontes oficiais
 
 ### TDA Design System v1.0.0
@@ -142,6 +150,8 @@ A implementação atual ainda contém tokens históricos simplificados (`--bg`, 
 
 Isso é **dívida de migração visual**, não um segundo Design System.
 
+O plano detalhado está em [migration-plan.md](migration-plan.md).
+
 A migração deve:
 
 1. introduzir os tokens `--ds-*` sem quebrar light/dark;
@@ -152,6 +162,12 @@ A migração deve:
 6. manter a mesma hierarquia narrativa entre temas.
 
 Não fazer uma troca global destrutiva de CSS sem vertical slices verificáveis.
+
+## Tailwind
+
+O snapshot antigo documenta consumo de tokens via Tailwind. Isso é detalhe de implementação histórico, não requisito visual.
+
+O reboot atual não depende de Tailwind; a primeira migração consumirá tokens CSS diretamente. Adicionar Tailwind no futuro exige benefício próprio, não paridade artificial com o legado.
 
 ## Regras de governança
 
