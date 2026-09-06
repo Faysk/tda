@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { parseStoryMarkdown, type StoryBlock } from "@/features/sessions/story-markdown";
+import {
+	parseStoryMarkdown,
+	type StoryBlock,
+} from "@/features/sessions/story-markdown";
 
 function normalizeHeading(value: string) {
 	return value
@@ -12,7 +15,9 @@ function normalizeHeading(value: string) {
 }
 
 function renderInline(source: string): ReactNode[] {
-	const parts = source.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_|\n)/g);
+	const parts = source.split(
+		/(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_|\n)/g,
+	);
 	return parts.filter(Boolean).map((part, index) => {
 		const key = `${index}-${part.slice(0, 16)}`;
 		if (part === "\n") return <br key={key} />;
@@ -32,7 +37,11 @@ function renderInline(source: string): ReactNode[] {
 	});
 }
 
-function StoryHeading({ block }: { block: Extract<StoryBlock, { type: "heading" }> }) {
+function StoryHeading({
+	block,
+}: {
+	block: Extract<StoryBlock, { type: "heading" }>;
+}) {
 	const content = renderInline(block.text);
 	switch (block.level) {
 		case 1:
@@ -71,21 +80,23 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 					case "paragraph":
 						return <p key={key}>{renderInline(block.text)}</p>;
 					case "quote":
-						return <blockquote key={key}>{renderInline(block.text)}</blockquote>;
+						return (
+							<blockquote key={key}>{renderInline(block.text)}</blockquote>
+						);
 					case "list": {
 						const List = block.ordered ? "ol" : "ul";
 						return (
 							<List key={key}>
-								{block.items.map((item, itemIndex) => (
-									<li key={`${itemIndex}-${item.slice(0, 20)}`}>
-										{renderInline(item)}
-									</li>
+								{block.items.map((item) => (
+									<li key={item}>{renderInline(item)}</li>
 								))}
 							</List>
 						);
 					}
 					case "rule":
 						return <hr key={key} />;
+					default:
+						return null;
 				}
 			})}
 		</div>
