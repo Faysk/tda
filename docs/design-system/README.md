@@ -152,7 +152,13 @@ O pacote também forneceu `tokens/proposed-extensions.css`, com uma proposta esp
 
 Essa é uma **extensão do reboot**, não uma alegação de que o token fazia parte do arquivo canônico `tda-design-tokens.css` v1.0. A origem e a diferença ficam registradas deliberadamente.
 
-Uso inicial: controles cuja borda participa da identificação visual, começando pelo theme toggle. Separadores puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
+Uso aprovado nesta fundação:
+
+- theme toggle e futuros inputs/selects quando a borda for necessária para identificar o controle;
+- ações `secondary`, porque o contorno participa da identificação do botão contra a superfície;
+- `focus-visible` usa `--ds-control-focus-ring` como nome semântico do ring oficial.
+
+Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
 
 ## Tipografia
 
@@ -174,7 +180,7 @@ A fundação runtime em validação introduz:
 - `src/components/ui/surface.tsx`;
 - `src/components/ui/typography.tsx`;
 - `src/components/ui/status.tsx`;
-- `tools/check-design-system.mjs` — auditoria automatizada de tokens e masters de marca;
+- `tools/check-design-system.mjs` — auditoria automatizada de tokens, extensão promovida e masters de marca;
 - E2E de light/dark, variante da marca e reduced motion.
 
 A implementação antiga ainda contém declarações simplificadas (`--bg`, `--panel`, `--text`, `--gold`, `--line`) em CSS histórico. Elas deixam de ser autoridade porque `design-tokens.css` é carregado depois e redefine esses nomes como aliases para `--ds-*`.
