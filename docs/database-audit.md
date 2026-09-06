@@ -40,8 +40,10 @@ Após as migrations do reboot em 2026-09-06:
 ### Mundo narrativo
 `entities` aceita `pc`, `npc`, `location`, `item`, `organization`, `faction`, `arc`, `concept`, `song`, `quest` e `other`. Há suporte de audiência/visibilidade e ligação de `canon_entries` e `entity_mentions`. O reboot adicionou aliases à registry e unicidade de slug por campanha para preparar resolução/navegação.
 
+A identidade futura de uma entity deve ser UUID/slug, não o nome exibido. Entretanto o legado `tools/build_canon_entries.py` ainda usa `ON CONFLICT (campaign_id, name)` e faz lookup por `e.name`; por isso a constraint histórica `entities_campaign_id_name_key` foi preservada. Isso impede temporariamente dois nomes idênticos dentro da mesma campanha. O reboot mantém apenas um índice não único por `lower(name)` para busca. A constraint de nome deve ser removida somente quando o consolidator legado migrar para UUID/slug.
+
 ### Canon e revisão
-O banco possui o pipeline `segment_classifications` → candidatos → `review_decisions` → `canon_entries`/`publications`. `canon_candidates` mantém fontes de segmento/Roll20 e IDs de entidades relacionadas.
+O banco possui o pipeline `segment_classifications` → candidatos → `review_decisions` → `canon_entries`/`publications`. `canon_candidates` mantém fontes de segmento/Roll20 e IDs de entidades relacionadas. Na auditoria atual, os 159 candidatos existentes não possuem `related_entity_ids`; portanto nenhuma referência antiga precisou ser normalizada nesta etapa.
 
 ### Pessoas e personagens
 `profiles` representa pessoas/contas. `profile_characters` associa essas pessoas a entidades PC. `participants` representa uma aparição por sessão e pode apontar diretamente para a entidade do personagem mesmo quando o registro histórico não possui `profile_id`.
@@ -75,8 +77,9 @@ O scope antigo só pode ser encerrado depois da independência do legado.
 
 - `20260906210333_align_tda_domain_identity`
 - `20260906210427_backfill_narrative_entity_links`
+- `20260906211040_relax_reboot_entity_name_lookup`
 
-Os arquivos correspondentes ficam em `supabase/migrations` no repositório TDA.
+Os arquivos correspondentes ficam em `supabase/migrations` no repositório TDA e usam as mesmas versões registradas no Supabase.
 
 ## RLS
 
@@ -132,6 +135,7 @@ Referência: https://supabase.com/docs/guides/database/database-linter?lint=0001
 | PCs | `profile_characters` separado de entities | vinculado a `entities(type=pc)` |
 | NPCs e outros objetos | registry pronta | usar a mesma `entities` |
 | Participantes históricos | profile incompleto | preservar profile; recuperar apenas entity por nome/campanha |
+| Nome de entity | legacy exige unicidade por campanha | preservar temporariamente; migrar consolidator para UUID/slug antes de permitir homônimos |
 | Relations | roadmap/ideias históricas, sem schema aprovado | desenhar antes de migrar |
 | `intent` | não encontrado | não criar até definição explícita |
 | `item` | tipo de entity existente | manter |
@@ -142,6 +146,7 @@ Referência: https://supabase.com/docs/guides/database/database-linter?lint=0001
 
 - finalizar auth/capabilities do reboot usando scope `tda`;
 - revisar RPCs SECURITY DEFINER e grants antes de abrir o Edit;
+- migrar o consolidator legado de `(campaign_id, name)` para entity UUID/slug antes de remover a constraint histórica de nome;
 - revisar índices com tráfego real após o novo site começar a consultar entidades;
 - modelar relações/knowledge claims quando a feature entrar no roadmap executável;
 - decidir a grafia canônica `Screacky` vs `Screaky` e registrar a outra como alias se apropriado;
