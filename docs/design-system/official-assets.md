@@ -1,6 +1,6 @@
 # Assets oficiais da marca TDA
 
-> Status: canônico para marca
+> Status: canônico para marca; integração runtime parcial e verificável
 > Owner: brand / design-system
 > Última revisão: 2026-09-06
 
@@ -37,6 +37,38 @@ Checksums de referência:
 | `icons/favicon.svg` | `59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e` |
 | `pwa/site.webmanifest` | `57299027481c4cfa0550bbe69849ba7f9bcf708d94c8a8d5d39bec847b9545d6` |
 | `social/og-image.png` | `e576186bc924f21b930a01f3cf2466b19082434f643339b48521f29f3c8f7f0a` |
+
+## Estado da integração no reboot
+
+A fundação visual integra primeiro os assets SVG que podem permanecer byte-for-byte e ser auditados automaticamente.
+
+Assets runtime atualmente esperados em `public/brand/`:
+
+| Runtime | Origem no Brand Pack | SHA-256 oficial | Uso |
+| --- | --- | --- | --- |
+| `tda-icon-duck-black.svg` | `icons/tda-icon-duck-black.svg` | `10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6` | ícone compacto em fundo claro |
+| `tda-icon-duck-white.svg` | `icons/tda-icon-duck-white.svg` | `8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac` | ícone compacto em fundo escuro |
+| `tda-mark-black.svg` | `logos/tda-mark-black.svg` | `66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec` | símbolo principal em fundo claro |
+| `tda-mark-white.svg` | `logos/tda-mark-white.svg` | `8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff` | símbolo principal em fundo escuro |
+| `favicon.svg` | `icons/favicon.svg` | `59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e` | favicon adaptativo |
+
+`tools/check-design-system.mjs` valida esses hashes em toda execução de `pnpm check`. Alterar silenciosamente um desses masters passa a quebrar CI.
+
+O header do reboot usa o **mark oficial** com variante black/white real conforme tema. Não usa `filter: invert()` como substituto permanente de master.
+
+### Binários ainda não integrados nesta fase
+
+Permanecem pendentes para uma entrega própria de assets binários:
+
+- horizontal white/black;
+- stacked white/black;
+- favicon ICO/PNGs;
+- Apple Touch;
+- Android/PWA/maskable;
+- `site.webmanifest` e `browserconfig.xml` quando seus assets referenciados existirem no runtime;
+- Open Graph/Twitter cards.
+
+A aplicação **não aponta para manifest ou PNG ausente** enquanto essa importação não for concluída. O favicon SVG oficial já pode ser usado com segurança.
 
 ## Estrutura oficial do pacote
 
@@ -95,7 +127,7 @@ Favicons, ícones do pato, Apple Touch, Android/PWA, Safari e tiles.
 
 | Contexto | Asset recomendado |
 | --- | --- |
-| header/navbar desktop | `tda-horizontal-*` |
+| header/navbar desktop | `tda-horizontal-*` quando o binário oficial estiver integrado; até lá mark oficial + wordmark textual |
 | hero/institucional | `tda-stacked-*` ou `tda-horizontal-*` |
 | sidebar compacta | `tda-mark-*` ou pato isolado |
 | favicon/app | pato isolado / favicon oficial |
@@ -109,7 +141,7 @@ Favicons, ícones do pato, Apple Touch, Android/PWA, Safari e tiles.
 
 O próprio pacote recomenda copiar a estrutura para `public/brand/`. Esse continua sendo o destino alvo do TDA.
 
-Estrutura esperada:
+Estrutura esperada no estado final:
 
 ```text
 public/brand/
@@ -120,6 +152,8 @@ public/brand/
   pwa/
   docs/        # opcional no runtime; masters/docs permanecem preservados na origem
 ```
+
+Durante a migração incremental, alguns SVGs estão temporariamente no primeiro nível de `public/brand/` para não quebrar consumidores existentes. A reorganização física deve ocorrer junto da importação binária completa, com ajustes de paths na mesma PR.
 
 Para produção, podemos manter apenas assets usados pelo site em `public/brand`, desde que o pacote oficial original e seus checksums permaneçam preservados como fonte de auditoria fora do bundle público.
 
