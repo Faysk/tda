@@ -8,7 +8,7 @@ Revisão: 2026-09-06. Responsável: proprietário e implementador.
 | R2 tda-media-public | Criado Standard; acesso público desligado |
 | R2 tda-media-private | Criado Standard; privado |
 | R2 tda-media-preview | Criado Standard; privado, isolado |
-| Supabase existente | 11 sessões publicadas; duas migrations TDA aplicadas para identidade de projeto e domínio narrativo; sem alteração de conteúdo/canon |
+| Supabase existente | 11 sessões publicadas; três migrations TDA aplicadas para identidade de projeto, domínio narrativo e compatibilidade de entities; sem alteração de canon |
 | Site/domínio | Não publicado; domínio antigo preservado |
 
 Não migramos imagens nem apagamos objetos remanescentes do bucket legado. Nenhuma mudança de DNS ou conta paga. Preview sem chave de produção. Credenciais administrativas Cloudflare não devem ir ao app: usar token R2 limitado aos buckets necessários.
@@ -17,7 +17,8 @@ Não migramos imagens nem apagamos objetos remanescentes do bucket legado. Nenhu
 O projeto existente `dmrqnbdvbkfqzctcerbx` continua sendo a única base. Em 2026-09-06 o reboot passou a versionar mudanças novas em `supabase/migrations` e aplicou:
 
 - `20260906210333_align_tda_domain_identity`: adiciona `tda` como scope técnico canônico sem remover `dnd-scribe`, cria o vínculo de PCs com `entities` e prepara participantes para a identidade narrativa canônica;
-- `20260906210427_backfill_narrative_entity_links`: liga as 12 participações históricas dos três PCs às suas entities e cria índices do domínio narrativo.
+- `20260906210427_backfill_narrative_entity_links`: liga as 12 participações históricas dos três PCs às suas entities e cria índices do domínio narrativo;
+- `20260906211040_relax_reboot_entity_name_lookup`: mantém a constraint `(campaign_id, name)` exigida pelo consolidator legado, remove apenas a unicidade case-insensitive adicional e deixa índice de busca por `lower(name)`.
 
 `yuhara-main` permanece como slug da campanha. `craig`, `local_companion` e demais valores de proveniência permanecem inalterados. Nenhuma `canon_entry` ou `entity_mention` foi criada automaticamente.
 
