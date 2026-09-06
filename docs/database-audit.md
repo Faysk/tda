@@ -8,7 +8,7 @@ Este documento registra fatos observados no banco. Não transforma automaticamen
 
 O schema público tem RLS habilitado em todas as tabelas observadas. A maior parte das tabelas operacionais não possui policies e, portanto, permanece fechada para acesso direto por roles comuns; o site atual usa uma fronteira server-side controlada para conteúdo publicado.
 
-Dados relevantes observados:
+Dados relevantes observados antes do alinhamento:
 
 - campanhas: 1 (`yuhara-main`)
 - sessões: 11
@@ -22,20 +22,33 @@ Dados relevantes observados:
 - outtake candidates: 75
 - publications: 4
 - profile characters: 3
-- entities: 0 antes da migration de alinhamento
+- entities: 0
 - entity mentions: 0
 - canon entries: 0
+
+Após as migrations do reboot em 2026-09-06:
+
+- `entities`: 3, todos PCs (`Astel`, `Dandelion`, `Screacky`)
+- `profile_characters` ligados a entity: 3/3
+- participações históricas desses PCs ligadas a entity: 12/12
+- `project / tda`: 2 assignments técnicos ativos
+- `project / dnd-scribe`: 2 assignments técnicos ativos preservados para o legado
+- `entity_mentions` e `canon_entries`: continuam vazios; nenhuma memória/canon foi inventada pela migration
 
 ## O que já está implementado no schema
 
 ### Mundo narrativo
-`entities` já aceita `pc`, `npc`, `location`, `item`, `organization`, `faction`, `arc`, `concept`, `song`, `quest` e `other`. Há suporte de audiência/visibilidade e ligação de `canon_entries` e `entity_mentions`.
+`entities` aceita `pc`, `npc`, `location`, `item`, `organization`, `faction`, `arc`, `concept`, `song`, `quest` e `other`. Há suporte de audiência/visibilidade e ligação de `canon_entries` e `entity_mentions`. O reboot adicionou aliases à registry e unicidade de slug por campanha para preparar resolução/navegação.
 
 ### Canon e revisão
 O banco possui o pipeline `segment_classifications` → candidatos → `review_decisions` → `canon_entries`/`publications`. `canon_candidates` mantém fontes de segmento/Roll20 e IDs de entidades relacionadas.
 
 ### Pessoas e personagens
-`profiles` representa pessoas/contas. `profile_characters` já contém três PCs ativos, enquanto `entities` estava vazio. Isso criava duas identidades narrativas potenciais; a migration TDA passa a vincular essas camadas.
+`profiles` representa pessoas/contas. `profile_characters` associa essas pessoas a entidades PC. `participants` representa uma aparição por sessão e pode apontar diretamente para a entidade do personagem mesmo quando o registro histórico não possui `profile_id`.
+
+Os registros antigos de Astel, Dandelion e Screacky tinham apenas uma das quatro participações de cada PC vinculada a profile. A migration preservou essa lacuna humana e recuperou somente a identidade narrativa: 4/4 participações de cada PC agora apontam para a entity correta.
+
+Há uma inconsistência histórica de grafia a revisar: o banco usa `Screacky`, enquanto material legado contém referências a `Screaky`. Nenhuma grafia foi alterada nem adicionada como alias automaticamente.
 
 ### Autorização
 Há dois modelos coexistindo:
@@ -50,7 +63,20 @@ Scopes observados antes do alinhamento:
 - `campaign / yuhara-main`: 18 assignments
 - `project / dnd-scribe`: 2 assignments técnicos
 
-O legado ainda possui `PROJECT_SCOPE_ID='dnd-scribe'` hardcoded. Portanto `tda` é adicionado como scope canônico paralelo; o scope antigo só poderá ser removido quando o aplicativo legado deixar de depender dele.
+Estado pós-migration:
+
+- `campaign / yuhara-main` permanece inalterado;
+- `project / tda` possui os mesmos 2 assignments técnicos necessários ao reboot;
+- `project / dnd-scribe` foi preservado porque a API legada ainda possui `PROJECT_SCOPE_ID='dnd-scribe'` hardcoded.
+
+O scope antigo só pode ser encerrado depois da independência do legado.
+
+## Migrations do reboot aplicadas
+
+- `20260906210333_align_tda_domain_identity`
+- `20260906210427_backfill_narrative_entity_links`
+
+Os arquivos correspondentes ficam em `supabase/migrations` no repositório TDA.
 
 ## RLS
 
@@ -83,12 +109,14 @@ Referência: https://supabase.com/docs/guides/database/database-linter?lint=0029
 
 O advisor apontou várias foreign keys sem índice cobrindo a coluna. Não será criada uma bateria indiscriminada de índices: cada índice tem custo de escrita/manutenção e várias tabelas pertencem ao pipeline local/legado.
 
-Prioridade para futuras migrations:
+As migrations do reboot já cobrem os caminhos narrativos que passarão a ser usados por entities/mentions/canon: lookup de entities por campanha/tipo/status/nome/slug/aliases, foreign keys de `entity_mentions`, `profile_characters.profile_id` e busca GIN de `canon_candidates.related_entity_ids`.
 
-1. caminhos realmente usados pelo novo site/Edit;
-2. joins de entidades/mentions/canon;
-3. busca e paginação de transcrição;
-4. jobs consultados operacionalmente.
+Prioridade restante para futuras migrations:
+
+1. caminhos realmente usados pelo novo Edit;
+2. busca e paginação de transcrição;
+3. jobs consultados operacionalmente;
+4. foreign keys restantes comprovadamente quentes.
 
 Índices não utilizados não devem ser removidos apenas pelo advisor enquanto as features correspondentes ainda não entraram em uso.
 
@@ -98,11 +126,12 @@ Referência: https://supabase.com/docs/guides/database/database-linter?lint=0001
 
 | Tema | Estado observado | Decisão TDA |
 | --- | --- | --- |
-| Produto | scope técnico legado `dnd-scribe` | `tda` é canônico; legado fica como alias temporário |
+| Produto | scope técnico legado `dnd-scribe` | `tda` canônico + alias legado temporário |
 | Campanha | `yuhara-main` | manter |
 | Proveniência | `craig`, `local_companion`, Discord/Roll20 | manter |
-| PCs | `profile_characters`, sem entidade | vincular a `entities(type=pc)` |
-| NPCs e outros objetos | `entities` preparado, vazio | usar a mesma registry canônica |
+| PCs | `profile_characters` separado de entities | vinculado a `entities(type=pc)` |
+| NPCs e outros objetos | registry pronta | usar a mesma `entities` |
+| Participantes históricos | profile incompleto | preservar profile; recuperar apenas entity por nome/campanha |
 | Relations | roadmap/ideias históricas, sem schema aprovado | desenhar antes de migrar |
 | `intent` | não encontrado | não criar até definição explícita |
 | `item` | tipo de entity existente | manter |
@@ -111,8 +140,9 @@ Referência: https://supabase.com/docs/guides/database/database-linter?lint=0001
 
 ## Próximas auditorias
 
-- validar a migration `align_tda_domain_identity`;
+- finalizar auth/capabilities do reboot usando scope `tda`;
 - revisar RPCs SECURITY DEFINER e grants antes de abrir o Edit;
 - revisar índices com tráfego real após o novo site começar a consultar entidades;
 - modelar relações/knowledge claims quando a feature entrar no roadmap executável;
+- decidir a grafia canônica `Screacky` vs `Screaky` e registrar a outra como alias se apropriado;
 - arquivar o scope `dnd-scribe` somente depois da independência do legado ser comprovada.
