@@ -39,6 +39,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 ### Design System e marca
 
 - [Design System oficial](design-system/README.md) — TDA Design System v1.0.0, tokens, princípios e migração para o reboot.
+- [Plano de migração visual](design-system/migration-plan.md) — fases para introduzir tokens, primitives e assets sem big bang.
 - [Assets oficiais da marca](design-system/official-assets.md) — TDA Brand Pack, masters, logo, pato, favicon/PWA/social.
 - [World Explorer — composição e UX](design-system/world-explorer-ui.md) — tradução das referências visuais aprovadas para contrato de interface.
 
