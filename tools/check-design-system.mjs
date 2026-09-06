@@ -126,6 +126,19 @@ for (const [token, value] of promotedExtensions) {
 	}
 }
 
+// DS-5 semantic extension owned by the reboot. Artwork is deliberately darkened,
+// so foreground roles stay stable regardless of the user's light/dark preference.
+const rebootSemanticExtensions = [
+	["--ds-on-art-foreground", "#fffdf8"],
+	["--ds-on-art-soft", "#d7d2c9"],
+	["--ds-on-art-accent", "#f2c879"],
+];
+for (const [token, value] of rebootSemanticExtensions) {
+	if (!tokenCss.includes(`${token}: ${value};`)) {
+		fail(`missing reboot semantic extension ${token}: ${value}`);
+	}
+}
+
 const legacyAliases = [
 	"--bg",
 	"--panel",
@@ -175,5 +188,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} legacyRuntimeConsumers=0`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeConsumers=0`,
 );
