@@ -21,6 +21,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0003](0003-local-heavy-processing.md) | accepted | processamento pesado local, produto cloud |
 | [0004](0004-canonical-entities.md) | accepted | PC/NPC/mundo na registry única `entities` |
 | [0005](0005-canon-review-gate.md) | accepted | fonte → candidato → revisão → canon/publicação |
+| [0006](0006-react-flow-world-explorer.md) | accepted | React Flow visualiza o World Explorer sem definir domínio/schema |
 
 ## Quando criar ADR
 
@@ -31,10 +32,13 @@ Criar quando a decisão:
 - muda estratégia de Auth/security;
 - muda ownership de dados;
 - introduz compromisso difícil de reverter;
+- escolhe tecnologia que vira boundary importante da experiência;
 - altera processamento local vs cloud;
 - substitui uma decisão accepted anterior.
 
 Não criar ADR para detalhe puramente visual ou refactor local sem consequência arquitetural.
+
+A adoção de React Flow recebeu ADR porque define a engine de uma superfície principal e estabelece explicitamente que a biblioteca fica isolada atrás de uma projection layer, evitando acoplamento de schema.
 
 ## Regra histórica
 
