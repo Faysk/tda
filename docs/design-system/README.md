@@ -1,6 +1,6 @@
 # Design System oficial do TDA
 
-> Status: canônico para direção visual; fundação runtime em validação
+> Status: canônico para direção visual; fundação runtime implementada e validada
 > Owner: design-system / frontend
 > Última revisão: 2026-09-06
 
@@ -172,7 +172,7 @@ A narrativa e leitura longa usam caráter editorial. Controles, filtros, metadat
 
 ## Estado da implementação do reboot
 
-A fundação runtime em validação introduz:
+A fundação runtime implementada introduz:
 
 - `src/app/design-tokens.css` — tokens oficiais + aliases temporários + extensão auditada de control border;
 - `src/app/design-system.css` — base visual e classes dos primitives;
@@ -182,6 +182,13 @@ A fundação runtime em validação introduz:
 - `src/components/ui/status.tsx`;
 - `tools/check-design-system.mjs` — auditoria automatizada de tokens, extensão promovida e masters de marca;
 - E2E de light/dark, variante da marca e reduced motion.
+
+Validação da fundação:
+
+- `pnpm check` ✅;
+- auditoria de hashes/tokens/extensões ✅;
+- `next build` ✅;
+- Playwright ✅.
 
 A implementação antiga ainda contém declarações simplificadas (`--bg`, `--panel`, `--text`, `--gold`, `--line`) em CSS histórico. Elas deixam de ser autoridade porque `design-tokens.css` é carregado depois e redefine esses nomes como aliases para `--ds-*`.
 
