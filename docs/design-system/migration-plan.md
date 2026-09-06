@@ -1,6 +1,6 @@
 # Plano de migração do Design System para o reboot
 
-> Status: aprovado para execução incremental
+> Status: DS-1/DS-2/DS-3 concluídas na fundação; DS-4 parcial; DS-5 próxima
 > Owner: design-system / frontend
 > Última revisão: 2026-09-06
 
@@ -30,7 +30,7 @@ Primeira migração usa CSS variables semânticas e componentes React atuais. Ta
 
 ## Estado inicial observado
 
-### Tokens atuais do reboot
+### Tokens históricos do reboot
 
 Exemplos:
 
@@ -43,6 +43,8 @@ Exemplos:
 --gold
 --line
 ```
+
+Eles permanecem apenas como aliases temporários durante a migração.
 
 ### Tokens alvo oficiais
 
@@ -68,6 +70,15 @@ Exemplos:
 --ds-font-*
 ```
 
+Extensão promovida e documentada pelo reboot:
+
+```css
+--ds-control-border
+--ds-control-focus-ring
+```
+
+A extensão veio de `tokens/proposed-extensions.css` do próprio pack e foi promovida após auditoria de contraste. Ver [README do Design System](README.md).
+
 ## Estratégia
 
 Migração por compatibilidade, não big bang.
@@ -82,17 +93,15 @@ introduzir tokens oficiais
  -> remover aliases obsoletos
 ```
 
-## Fase DS-1 — Tokens
+## Fase DS-1 — Tokens — CONCLUÍDA NA FUNDAÇÃO
 
-Criar arquivo canônico da implementação, por exemplo:
+Implementação:
 
 `src/app/design-tokens.css`
 
-Conteúdo inicial deve refletir byte/semanticamente os tokens oficiais aprovados, adaptando apenas selectors necessários ao tema atual.
+O arquivo contém os valores oficiais do v1 para light/dark/system, aliases temporários e a extensão de control border aprovada.
 
 ### Aliases temporários
-
-Durante migração:
 
 ```css
 --bg: var(--ds-canvas);
@@ -106,42 +115,41 @@ Durante migração:
 
 Esses aliases são compatibilidade temporária. Componentes novos não devem nascer consumindo aliases antigos.
 
-### Critérios
+### Evidência
 
-- dark igual semanticamente ao pack;
-- light igual semanticamente ao pack;
-- system continua funcionando;
-- sem flash agressivo de tema;
-- nenhum componente quebra antes da migração individual.
+- `tools/check-design-system.mjs` valida tokens canônicos e extensões promovidas;
+- `pnpm check` executa essa auditoria;
+- Playwright valida resolução real de `--ds-canvas` em light e dark.
 
-## Fase DS-2 — Tipografia
+## Fase DS-2 — Tipografia — CONCLUÍDA NA FUNDAÇÃO
 
-Aplicar famílias oficiais:
+Famílias aplicadas:
 
 - display/body editorial: Georgia/Times;
 - UI: Inter/system stack.
 
-Não é necessário baixar/redistribuir fonte proprietária.
-
-### Regras
+Regras:
 
 - conteúdo narrativo longo usa body editorial;
 - buttons/inputs/nav/filter/metadata de sistema usam UI font;
 - heading hierarchy continua semântica, não apenas visual.
 
-## Fase DS-3 — Primitives
+A migração fina por componente continua em DS-5, mas a fundação tipográfica já está operacional.
 
-Recriar no reboot, sem copiar paths do legado como autoridade:
+## Fase DS-3 — Primitives — FUNDAÇÃO CONCLUÍDA
+
+Implementados em `src/components/ui/`:
 
 ```text
-src/components/ui/
-  action.tsx
-  surface.tsx
-  typography.tsx
-  status.tsx
+action.tsx
+surface.tsx
+typography.tsx
+status.tsx
 ```
 
-Depois, conforme necessidade real:
+Também existem helper de class names, barrel exports e cobertura unitária do contrato de Action.
+
+Próximos primitives entram somente conforme uso real exigir:
 
 - `icon-button`;
 - `tabs`;
@@ -153,34 +161,34 @@ Depois, conforme necessidade real:
 
 ### Regra de componente
 
-Reutilizar semântica do pack. Implementação deve seguir Next/React atuais do reboot e regras de acessibilidade vigentes.
+Reutilizar semântica do pack. Implementação segue Next/React atuais do reboot e regras de acessibilidade vigentes.
 
-## Fase DS-4 — Brand Pack
+## Fase DS-4 — Brand Pack — PARCIAL
 
-Copiar assets oficiais selecionados para `public/brand/` e verificar SHA-256.
+Integrado e protegido por checksum:
 
-Prioridade:
+- `tda-icon-duck-black.svg`;
+- `tda-icon-duck-white.svg`;
+- `tda-mark-black.svg`;
+- `tda-mark-white.svg`;
+- `favicon.svg`.
 
-1. `tda-mark.svg` / variações;
-2. horizontal white/black;
-3. favicon SVG/ICO/PNG;
+Header usa masters black/white reais conforme tema; favicon oficial está ligado à metadata.
+
+Pendente em entrega binária própria:
+
+1. horizontal white/black;
+2. stacked white/black;
+3. favicon ICO/PNGs;
 4. Apple/Android/PWA;
-5. manifest;
-6. Open Graph.
+5. manifest + browserconfig;
+6. Open Graph/Twitter.
 
-### Atualizações de app
+Não apontar a aplicação para manifest/PNG antes de importar todos os assets referenciados.
 
-- header/brand;
-- metadata icons;
-- manifest;
-- Open Graph default;
-- fallback social.
+## Fase DS-5 — Migrar telas existentes — PRÓXIMA
 
-Não redesenhar SVG nem usar filtros CSS como substituto permanente de variantes oficiais quando o asset correto existir.
-
-## Fase DS-5 — Migrar telas existentes
-
-Ordem recomendada:
+Ordem de execução:
 
 1. header/theme toggle;
 2. Home hero;
@@ -190,11 +198,23 @@ Ordem recomendada:
 6. auth controls;
 7. empty/error/loading.
 
-Motivo: estabilizar primitives e tokens antes do World Explorer, que é uma tela visualmente mais complexa.
+Parte do header/theme toggle já foi estabilizada pela fundação. DS-5 deve agora migrar as superfícies públicas para os primitives/tokens oficiais e eliminar hardcodes locais quando houver equivalente semântico.
+
+### Auditoria obrigatória de DS-5
+
+- light/dark/system;
+- 320px e desktop;
+- overflow horizontal;
+- keyboard/focus;
+- reduced motion;
+- sem artwork;
+- erro/empty;
+- texto curto/longo;
+- nenhuma informação editorial vazando para visitante.
 
 ## Fase DS-6 — World Explorer
 
-Só iniciar depois que tokens/primitives mínimos estiverem utilizáveis.
+Só iniciar depois que tokens/primitives mínimos e as superfícies públicas estiverem estáveis.
 
 Elementos que precisam do Design System:
 
@@ -215,6 +235,7 @@ Elementos que precisam do Design System:
 Quando não houver consumidores:
 
 - remover aliases `--bg`, `--panel`, `--gold` etc.;
+- remover declarações históricas equivalentes em `globals.css`;
 - remover hex duplicados equivalentes a tokens;
 - remover implementações locais duplicadas de button/surface/status;
 - atualizar docs para marcar migração concluída.
@@ -228,7 +249,8 @@ Cada fase valida:
 - 4.5:1 texto normal;
 - 3:1 texto grande;
 - 3:1 em componente/gráfico essencial quando fronteira é necessária;
-- foco 2px `accent-strong`, offset 3px ou equivalente mais forte;
+- foco 2px via `--ds-control-focus-ring`, offset 3px;
+- `--ds-control-border` quando a borda identifica o controle;
 - keyboard-only;
 - Escape em overlays;
 - 44px para ação principal/touch;
@@ -250,6 +272,7 @@ Layout muda pela necessidade da composição, não por nome de device.
 ### Automatizados
 
 - `pnpm check`;
+- `pnpm design:check`;
 - `pnpm build`;
 - `pnpm test:e2e`;
 - tests de component/model quando aplicável.
@@ -274,7 +297,7 @@ Layout muda pela necessidade da composição, não por nome de device.
 
 Cada fase deve ser reversível por commit/revert.
 
-Não misturar na mesma migration visual:
+Não misturar na mesma migração visual:
 
 - troca completa de tokens;
 - redesign de todas as telas;
@@ -284,7 +307,7 @@ Não misturar na mesma migration visual:
 
 Separar PRs reduz risco e permite descobrir divergências do pacote oficial com dados reais.
 
-## Definition of Done da migração
+## Definition of Done da migração completa
 
 - pack oficial registrado e verificável;
 - assets principais integrados;
