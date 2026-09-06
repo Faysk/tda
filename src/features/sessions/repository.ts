@@ -5,8 +5,11 @@ import {
 	toPublishedSession,
 	type PublishedSession,
 } from "./model";
-const columns =
-	"source_session_id,title,session_date,arc,summary_short,status,campaigns!inner(slug)";
+
+const publicMediaColumns =
+	"cover_image_url:metadata->>coverImageUrl,hero_image_url:metadata->>heroImageUrl";
+const columns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(slug)`;
+
 export async function listPublishedSessions(): Promise<
 	PublishedSession[] | null
 > {
@@ -26,6 +29,7 @@ export async function listPublishedSessions(): Promise<
 		return item ? [item] : [];
 	});
 }
+
 export async function findPublishedSession(id: string) {
 	if (!id || id.length > 220) return null;
 	const client = publishedDataClient();
@@ -33,7 +37,7 @@ export async function findPublishedSession(id: string) {
 	const { data, error } = await client
 		.from("sessions")
 		.select(
-			"source_session_id,title,session_date,arc,summary_short,summary_full,status,campaigns!inner(slug)",
+			`source_session_id,title,session_date,arc,summary_short,summary_full,${publicMediaColumns},status,campaigns!inner(slug)`,
 		)
 		.eq("status", "published")
 		.eq("campaigns.slug", CAMPAIGN_SLUG)
