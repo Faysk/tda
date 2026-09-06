@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { publishedDataClient } from "@/integrations/supabase/server";
 import {
 	CAMPAIGN_SLUG,
@@ -30,7 +31,7 @@ export async function listPublishedSessions(): Promise<
 	});
 }
 
-export async function findPublishedSession(id: string) {
+export const findPublishedSession = cache(async (id: string) => {
 	if (!id || id.length > 220) return null;
 	const client = publishedDataClient();
 	if (!client) return null;
@@ -45,4 +46,4 @@ export async function findPublishedSession(id: string) {
 		.maybeSingle();
 	if (error) throw new Error("Published session unavailable");
 	return data ? toPublishedSession(data, true) : null;
-}
+});
