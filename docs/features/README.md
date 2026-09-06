@@ -11,7 +11,10 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 | Feature | Estado | Spec |
 | --- | --- | --- |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
-| relations/grafo | em desenho | [Relações e grafo](relations-graph.md) |
+| perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
+| World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
+| relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
+| contrato de dados de relations | proposta para revisão | [Relations data contract](relations-data-contract.md) |
 | knowledge/audience | em desenho | [Conhecimento e audiência](knowledge-audience.md) |
 | timeline por entity | preparado | [Timeline](entity-timeline.md) |
 | busca semântica | em desenho | [Busca semântica](semantic-search.md) |
@@ -21,6 +24,12 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 | sessão ao vivo | histórico/planejado | [Live session](live-session.md) |
 | assistente Discord | histórico/planejado | [Discord assistant](discord-assistant.md) |
 | intents/intenção | não definido | [Intents](intents.md) |
+
+## Design e visualização
+
+Features com superfície visual forte devem apontar para o [Design System oficial](../design-system/README.md).
+
+O World Explorer possui também um contrato de composição em [world-explorer-ui.md](../design-system/world-explorer-ui.md).
 
 ## Template mínimo para feature futura
 
@@ -49,3 +58,5 @@ Toda spec deve registrar:
 4. migration/API/UI;
 5. testes;
 6. mudar status com evidência.
+
+`arquitetura aprovada` também não implica schema ou código em produção: significa que o boundary e a direção já foram aceitos, mas a implementação ainda precisa cumprir seus critérios de aceite.
