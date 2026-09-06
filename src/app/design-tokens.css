@@ -32,6 +32,10 @@
 	--ds-font-body: Georgia, "Times New Roman", serif;
 	--ds-font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
+	/* Reboot extension promoted from v1 proposed-extensions.css after contrast audit. */
+	--ds-control-border: #5f6772;
+	--ds-control-focus-ring: var(--ds-accent-strong);
+
 	/* Compatibility aliases for the pre-v1 reboot. Remove only after all consumers migrate. */
 	--bg: var(--ds-canvas);
 	--panel: var(--ds-surface);
@@ -67,6 +71,7 @@
 	--ds-shadow: 0 24px 70px rgba(48, 39, 28, 0.14);
 	--ds-ambient-accent: rgba(128, 88, 23, 0.08);
 	--ds-ambient-cool: rgba(92, 78, 58, 0.05);
+	--ds-control-border: #8b8379;
 }
 
 @media (prefers-color-scheme: light) {
@@ -95,5 +100,6 @@
 		--ds-shadow: 0 24px 70px rgba(48, 39, 28, 0.14);
 		--ds-ambient-accent: rgba(128, 88, 23, 0.08);
 		--ds-ambient-cool: rgba(92, 78, 58, 0.05);
+		--ds-control-border: #8b8379;
 	}
 }
