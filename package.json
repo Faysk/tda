@@ -1,0 +1,39 @@
+{
+	"name": "tda",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@12.3.4",
+	"engines": {
+		"node": "24.x"
+	},
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"typecheck": "next typegen && tsc --noEmit",
+		"lint": "biome lint .",
+		"test": "vitest run",
+		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm docs:check",
+		"docs:check": "node tools/check-docs.mjs",
+		"test:e2e": "playwright test",
+		"verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
+	},
+	"dependencies": {
+		"next": "16.3.4",
+		"react": "19.2.8",
+		"react-dom": "19.2.8",
+		"@supabase/supabase-js": "2.115.0",
+		"@aws-sdk/client-s3": "3.1127.0",
+		"server-only": "0.0.1"
+	},
+	"devDependencies": {
+		"typescript": "7.0.2",
+		"@types/node": "24.13.3",
+		"@types/react": "19.2.18",
+		"@types/react-dom": "19.2.7",
+		"vitest": "5.0.0",
+		"@biomejs/biome": "2.5.12",
+		"@playwright/test": "1.63.0"
+	}
+}

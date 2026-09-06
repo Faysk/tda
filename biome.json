@@ -1,0 +1,17 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
+	"files": {
+		"includes": [
+			"**",
+			"!!.next",
+			"!!node_modules",
+			"!!.local",
+			"!!test-results",
+			"!!playwright-report",
+			"!next-env.d.ts"
+		]
+	},
+	"formatter": { "enabled": true },
+	"assist": { "enabled": false },
+	"linter": { "enabled": true, "rules": { "preset": "recommended" } }
+}
