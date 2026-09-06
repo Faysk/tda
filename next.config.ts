@@ -1,6 +1,26 @@
 import type { NextConfig } from "next";
+
 const config: NextConfig = {
 	poweredByHeader: false,
+	images: {
+		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "dmrqnbdvbkfqzctcerbx.supabase.co",
+				pathname: "/storage/v1/object/public/session-images/**",
+			},
+			{
+				protocol: "https",
+				hostname: "raw.githubusercontent.com",
+				pathname: "/Faysk/dnd-scribe/**",
+			},
+			{
+				protocol: "https",
+				hostname: "dnd.faysk.dev",
+				pathname: "/assets/sessions/**",
+			},
+		],
+	},
 	async headers() {
 		return [
 			{
@@ -18,4 +38,5 @@ const config: NextConfig = {
 		];
 	},
 };
+
 export default config;
