@@ -8,6 +8,7 @@ import {
 	findPublishedSession,
 	listPublishedSessions,
 } from "@/features/sessions/repository";
+import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -69,57 +70,59 @@ export default async function Session({ params }: SessionParams) {
 	const date = formatSessionDate(session.date);
 
 	return (
-		<article className="story-page">
-			<header className={`story-hero${image ? " story-hero--with-art" : ""}`}>
+		<article>
+			<header className={`${styles.hero}${image ? ` ${styles.heroWithArt}` : ""}`}>
 				{image ? (
 					<>
 						<Image
-							className="story-hero-art"
+							className={styles.art}
 							src={image}
 							alt=""
 							fill
 							priority
 							sizes="(max-width: 1200px) 100vw, 1200px"
 						/>
-						<div className="story-hero-overlay" aria-hidden="true" />
+						<div className={styles.overlay} aria-hidden="true" />
 					</>
 				) : null}
-				<div className="story-hero-content">
-					<Link className="story-back" href="/sessoes">
+				<div className={styles.content}>
+					<Link className={styles.back} href="/sessoes">
 						← Todas as sessões
 					</Link>
-					<p className="eyebrow">{session.arc || "Memória da campanha"}</p>
-					<h1>{session.title}</h1>
+					<p className={`eyebrow ${styles.eyebrow}`}>
+						{session.arc || "Memória da campanha"}
+					</p>
+					<h1 className={styles.title}>{session.title}</h1>
 					{date ? (
-						<time className="date" dateTime={session.date}>
+						<time className={`date ${styles.date}`} dateTime={session.date}>
 							{date}
 						</time>
 					) : null}
 				</div>
 			</header>
 
-			<div className="page-section story story-body">
+			<div className={`page-section story ${styles.body}`}>
 				<StoryMarkdown source={story} title={session.title} />
 				{previous || next ? (
-					<nav className="story-pagination" aria-label="Navegação entre sessões">
+					<nav className={styles.pagination} aria-label="Navegação entre sessões">
 						{previous ? (
 							<Link
-								className="story-pagination-link story-pagination-link--previous"
+								className={styles.link}
 								href={`/sessoes/${encodeURIComponent(previous.id)}`}
 							>
-								<span>← Sessão anterior</span>
-								<strong>{previous.title}</strong>
+								<span className={styles.label}>← Sessão anterior</span>
+								<strong className={styles.linkTitle}>{previous.title}</strong>
 							</Link>
 						) : (
 							<span aria-hidden="true" />
 						)}
 						{next ? (
 							<Link
-								className="story-pagination-link story-pagination-link--next"
+								className={`${styles.link} ${styles.next}`}
 								href={`/sessoes/${encodeURIComponent(next.id)}`}
 							>
-								<span>Próxima sessão →</span>
-								<strong>{next.title}</strong>
+								<span className={styles.label}>Próxima sessão →</span>
+								<strong className={styles.linkTitle}>{next.title}</strong>
 							</Link>
 						) : null}
 					</nav>
