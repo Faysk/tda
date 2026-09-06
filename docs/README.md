@@ -12,7 +12,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 2. **Arquitetura** — limites do sistema, componentes, fluxos e invariantes.
 3. **Domínios** — regras de negócio e ownership conceitual.
 4. **Banco** — schema real, segurança, migrations e dívida técnica.
-5. **Features** — catálogo de capacidades implementadas, preparadas e planejadas.
+5. **Features** — catálogo e especificações de capacidades implementadas, preparadas e planejadas.
 6. **Integrações** — contratos com serviços externos.
 7. **Operação** — ambientes, release, deploy, rollback e runbooks.
 8. **Decisões** — ADRs que explicam por que escolhas estruturais foram feitas.
@@ -54,6 +54,21 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - [Entidades, personagens e mundo narrativo](domains/entities.md)
 - [Canon, revisão e publicação](domains/canon-review.md)
 - [Processamento, jobs e áudio](domains/processing.md)
+
+### Features e expansão
+
+- [Especificações de features — índice](features/README.md)
+- [Personagens e NPCs](features/characters-and-npcs.md)
+- [Relações e grafo](features/relations-graph.md)
+- [Conhecimento e audiência](features/knowledge-audience.md)
+- [Timeline por entidade](features/entity-timeline.md)
+- [Busca semântica](features/semantic-search.md)
+- [Mapas narrativos](features/maps.md)
+- [Músicas e performances](features/music-performances.md)
+- [Quests e ganchos](features/quests-hooks.md)
+- [Sessão ao vivo](features/live-session.md)
+- [Assistente Discord](features/discord-assistant.md)
+- [Intents / intenção — conceito ainda não definido](features/intents.md)
 
 ### Integrações
 
@@ -109,6 +124,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - Auditorias com data descrevem uma fotografia; contratos descrevem a regra vigente.
 - Não armazenar secrets, tokens, chaves ou dados privados na documentação.
 - Decisões irreversíveis ou de alto impacto recebem ADR.
+- `pnpm docs:check` valida recursivamente links Markdown e falha se houver documento órfão fora da árvore deste índice.
 
 ## Identidades fixas atuais
 
