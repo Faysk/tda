@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import "./globals.css";
+
 export const metadata: Metadata = {
 	title: { default: "TDA — Tem Dado Aqui", template: "%s · TDA" },
 	description: "Histórias, encontros e memórias da nossa campanha.",
 };
+
 export default function Layout({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="pt-BR">
 			<body>
+				<LegacyRouteBridge />
 				<a href="#conteudo" className="skip-link">
 					Pular para o conteúdo
 				</a>
