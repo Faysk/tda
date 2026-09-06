@@ -15,7 +15,6 @@ export const metadata: Metadata = {
 	icons: {
 		icon: "/brand/favicon.svg",
 	},
-	manifest: "/brand/site.webmanifest",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
