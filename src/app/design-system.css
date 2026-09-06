@@ -33,7 +33,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-	outline: 2px solid var(--ds-accent-strong);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 3px;
 }
 
@@ -111,7 +111,7 @@ textarea:focus-visible,
 }
 
 .ds-action--secondary {
-	border-color: var(--ds-border);
+	border-color: var(--ds-control-border);
 	background: var(--ds-surface);
 	color: var(--ds-foreground);
 }
