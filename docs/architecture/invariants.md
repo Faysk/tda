@@ -74,9 +74,33 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 43. Rollback deve ser definido antes de promover candidato importante.
 44. Mudança estrutural sem documentação correspondente não está completa.
 
-## Futuro
+## Memória e exploração
 
 45. Relations terão edge próprio com semântica, evidence e visibility; não serão escondidas em metadata.
 46. Knowledge/audience precisa distinguir jogador, personagem, público, rumor, mentira e segredo do mestre.
 47. Embedding/busca semântica nunca altera autoridade canônica do conteúdo indexado.
-48. Visualização (React Flow/mapa) não dita o modelo de dados.
+48. Visualização não dita o modelo de dados.
+49. A própria existência de uma relation pode ser secreta; autorização ocorre antes da projection entregue ao browser.
+50. Mention/coocorrência não cria relation canônica automaticamente.
+51. Fixture visual ou screenshot de referência não é fonte de canon.
+52. World Explorer mostra vizinhança controlada por padrão; não carrega o grafo completo sem necessidade explícita.
+53. O grafo nunca é a única forma de consumir relations; existe representação textual/navegável alternativa.
+
+## Design System e marca
+
+54. `TDA Design System v1.0.0` é a direção visual oficial enquanto não for superseded por versão/ADR documentada.
+55. O Brand Pack oficial é autoridade da geometria de logo/pato/lockups; componentes não redesenham a marca.
+56. Componentes usam papel semântico/token antes de hexadecimal local quando o token existe.
+57. Light e dark preservam a mesma hierarquia, não dois produtos diferentes.
+58. Visitante vê história; editor vê estado editorial.
+59. Dourado é acento raro, não decoração indiscriminada.
+60. Mobile reorganiza a composição; não é desktop apenas comprimido.
+61. Uma tela visual não está pronta sem teclado, foco, contraste e `prefers-reduced-motion`.
+
+## React Flow
+
+62. React Flow (`@xyflow/react`) é engine de apresentação do World Explorer, não contrato de domínio.
+63. `nodes[]`/`edges[]`, posições, handles e tipos visuais são DTO/estado de UI, não rows de `entities`/relations por definição.
+64. O modo público do World Explorer não expõe criação/delete de edges/nodes.
+65. A primeira estratégia de layout é radial e própria; nova engine de layout exige necessidade observada e documentação.
+66. A adoção de React Flow não obriga páginas editoriais ou o restante do domínio a se tornarem Client Components.
