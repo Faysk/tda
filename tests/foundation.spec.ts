@@ -16,6 +16,28 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	).toBeTruthy();
 });
 
+test("theme preference cycles and persists", async ({ page }) => {
+	await page.emulateMedia({ colorScheme: "dark" });
+	await page.goto("/");
+	const toggle = page.getByRole("button", { name: /Tema do sistema \(escuro\)/ });
+	await expect(toggle).toBeVisible();
+
+	await toggle.click();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
+		"light",
+	);
+
+	await page.reload();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	await page.getByRole("button", { name: /Tema claro/ }).click();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+	await page.getByRole("button", { name: /Tema escuro/ }).click();
+	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
+});
+
 test("legacy session hashes map to reboot paths", async ({ page }) => {
 	await page.goto("/#/sessao/nonexistent/resumo");
 	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);

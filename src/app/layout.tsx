@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
+import { ThemeBootstrap } from "@/components/theme-bootstrap";
+import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
+import "./theme.css";
 
 export const metadata: Metadata = {
 	title: { default: "TDA — Tem Dado Aqui", template: "%s · TDA" },
@@ -11,8 +14,9 @@ export const metadata: Metadata = {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="pt-BR">
+		<html lang="pt-BR" suppressHydrationWarning>
 			<body>
+				<ThemeBootstrap />
 				<LegacyRouteBridge />
 				<a href="#conteudo" className="skip-link">
 					Pular para o conteúdo
@@ -29,10 +33,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							TDA<small>Tem Dado Aqui</small>
 						</span>
 					</Link>
-					<nav aria-label="Navegação principal">
-						<Link href="/">Início</Link>
-						<Link href="/sessoes">Sessões</Link>
-					</nav>
+					<div className="header-actions">
+						<nav aria-label="Navegação principal">
+							<Link href="/">Início</Link>
+							<Link href="/sessoes">Sessões</Link>
+						</nav>
+						<ThemeToggle />
+					</div>
 				</header>
 				<main id="conteudo">{children}</main>
 				<footer>
