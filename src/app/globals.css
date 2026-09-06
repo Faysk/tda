@@ -155,11 +155,70 @@ nav {
 .story .eyebrow {
 	margin-top: 40px;
 }
-.summary {
-	white-space: pre-wrap;
+.story-content {
 	overflow-wrap: anywhere;
-	margin-top: 35px;
+	margin-top: 42px;
 	font-size: 1.05rem;
+}
+.story-content h2,
+.story-content h3,
+.story-content h4,
+.story-content h5,
+.story-content h6 {
+	font-family: Georgia, serif;
+	font-weight: 400;
+	line-height: 1.25;
+	text-wrap: balance;
+}
+.story-content h2 {
+	font-size: clamp(1.9rem, 4vw, 2.6rem);
+	margin: 64px 0 22px;
+}
+.story-content h3 {
+	font-size: 1.55rem;
+	margin: 46px 0 18px;
+}
+.story-content h4 {
+	font-size: 1.25rem;
+	margin: 34px 0 14px;
+}
+.story-content h5,
+.story-content h6 {
+	font-size: 1.05rem;
+	margin: 28px 0 12px;
+	color: var(--gold);
+}
+.story-content p {
+	margin: 0 0 1.25em;
+}
+.story-content blockquote {
+	margin: 30px 0;
+	padding: 18px 22px;
+	border-left: 3px solid var(--gold);
+	background: var(--panel);
+	color: var(--muted);
+}
+.story-content ul,
+.story-content ol {
+	margin: 0 0 1.5em;
+	padding-left: 1.6em;
+}
+.story-content li {
+	margin: 0.4em 0;
+}
+.story-content hr {
+	border: 0;
+	border-top: 1px solid var(--line);
+	margin: 48px 0;
+}
+.story-content strong {
+	color: var(--text);
+}
+.story-content code {
+	padding: 0.12em 0.32em;
+	border: 1px solid var(--line);
+	background: var(--panel);
+	font-size: 0.9em;
 }
 .page-section > h1 {
 	margin-bottom: 38px;
@@ -210,6 +269,20 @@ footer {
 	}
 	.session-card {
 		padding: 22px;
+	}
+	.story-content {
+		margin-top: 34px;
+		font-size: 1rem;
+	}
+	.story-content h2 {
+		margin-top: 48px;
+	}
+	.story-content h3 {
+		margin-top: 36px;
+	}
+	.story-content blockquote {
+		margin: 24px 0;
+		padding: 16px 18px;
 	}
 	footer {
 		flex-direction: column;
