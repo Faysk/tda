@@ -7,6 +7,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 import "./design-tokens.css";
 import "./design-system.css";
+import "./public-shell.css";
+import "./story.css";
 import "./theme.css";
 
 export const metadata: Metadata = {
