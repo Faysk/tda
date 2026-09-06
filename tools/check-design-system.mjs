@@ -1,17 +1,31 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 function fail(message) {
 	throw new Error(`Design system check failed: ${message}`);
 }
 
-function sha256(path) {
-	return crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+function sha256(filePath) {
+	return crypto
+		.createHash("sha256")
+		.update(fs.readFileSync(filePath))
+		.digest("hex");
+}
+
+function sourceFiles(root) {
+	const files = [];
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) files.push(...sourceFiles(fullPath));
+		else if (/\.(css|tsx?|mjs)$/.test(entry.name)) files.push(fullPath);
+	}
+	return files;
 }
 
 const officialAssets = {
 	"public/brand/tda-icon-duck-black.svg":
-		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6",
+		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6f6",
 	"public/brand/tda-icon-duck-white.svg":
 		"8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac",
 	"public/brand/tda-mark-black.svg":
@@ -22,11 +36,11 @@ const officialAssets = {
 		"59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
 };
 
-for (const [path, expected] of Object.entries(officialAssets)) {
-	if (!fs.existsSync(path)) fail(`missing official asset ${path}`);
-	const actual = sha256(path);
+for (const [filePath, expected] of Object.entries(officialAssets)) {
+	if (!fs.existsSync(filePath)) fail(`missing official asset ${filePath}`);
+	const actual = sha256(filePath);
 	if (actual !== expected) {
-		fail(`${path} checksum mismatch: expected ${expected}, got ${actual}`);
+		fail(`${filePath} checksum mismatch: expected ${expected}, got ${actual}`);
 	}
 }
 
@@ -112,7 +126,7 @@ for (const [token, value] of promotedExtensions) {
 	}
 }
 
-for (const alias of [
+const legacyAliases = [
 	"--bg",
 	"--panel",
 	"--panel-soft",
@@ -120,9 +134,25 @@ for (const alias of [
 	"--muted",
 	"--gold",
 	"--line",
-]) {
+];
+for (const alias of legacyAliases) {
 	if (!tokenCss.includes(`${alias}: var(--ds-`)) {
 		fail(`missing temporary compatibility alias ${alias}`);
+	}
+}
+
+// DS-5 invariant: public/runtime source may define compatibility aliases in the
+// token file, but must not consume them anymore. Future features start on --ds-*.
+for (const filePath of [
+	...sourceFiles("src/app"),
+	...sourceFiles("src/components"),
+]) {
+	if (filePath === path.normalize("src/app/design-tokens.css")) continue;
+	const source = fs.readFileSync(filePath, "utf8");
+	for (const alias of legacyAliases) {
+		if (source.includes(`var(${alias})`)) {
+			fail(`legacy token ${alias} is still consumed by ${filePath}`);
+		}
 	}
 }
 
@@ -135,6 +165,8 @@ const layout = fs.readFileSync("src/app/layout.tsx", "utf8");
 for (const requiredImport of [
 	'"./design-tokens.css"',
 	'"./design-system.css"',
+	'"./public-shell.css"',
+	'"./story.css"',
 ]) {
 	if (!layout.includes(requiredImport)) fail(`layout missing ${requiredImport}`);
 }
@@ -143,5 +175,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length}`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} legacyRuntimeConsumers=0`,
 );
