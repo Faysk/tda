@@ -46,7 +46,7 @@ Assets runtime atualmente esperados em `public/brand/`:
 
 | Runtime | Origem no Brand Pack | SHA-256 oficial | Uso |
 | --- | --- | --- | --- |
-| `tda-icon-duck-black.svg` | `icons/tda-icon-duck-black.svg` | `10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6f6` | ícone compacto em fundo claro |
+| `tda-icon-duck-black.svg` | `icons/tda-icon-duck-black.svg` | `10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6` | ícone compacto em fundo claro |
 | `tda-icon-duck-white.svg` | `icons/tda-icon-duck-white.svg` | `8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac` | ícone compacto em fundo escuro |
 | `tda-mark-black.svg` | `logos/tda-mark-black.svg` | `66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec` | símbolo principal em fundo claro |
 | `tda-mark-white.svg` | `logos/tda-mark-white.svg` | `8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff` | símbolo principal em fundo escuro |
@@ -153,7 +153,7 @@ public/brand/
   docs/        # opcional no runtime; masters/docs permanecem preservados na origem
 ```
 
-Durante a migração incremental, alguns SVGs estão temporariamente no primeiro nível de `public/brand/` para não quebrar consumidores existentes. A reorganização física deve ocorrer junto da importação binária completa, com redirects/ajustes de paths na mesma PR.
+Durante a migração incremental, alguns SVGs estão temporariamente no primeiro nível de `public/brand/` para não quebrar consumidores existentes. A reorganização física deve ocorrer junto da importação binária completa, com ajustes de paths na mesma PR.
 
 Para produção, podemos manter apenas assets usados pelo site em `public/brand`, desde que o pacote oficial original e seus checksums permaneçam preservados como fonte de auditoria fora do bundle público.
 
