@@ -16,7 +16,7 @@ describe("legacy session routes", () => {
 	});
 
 	it("cleans the old home hash", () => {
-		expect(legacyHashTarget("#/" )).toBe("/");
+		expect(legacyHashTarget("#/")).toBe("/");
 	});
 
 	it("ignores unrelated or malformed hashes", () => {
