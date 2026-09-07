@@ -3,6 +3,7 @@ import {
 	buildPublicMetadata,
 	PUBLIC_METADATA_FALLBACK_IMAGE,
 	SITE_NAME,
+	type VerifiedPublicMetadataImage,
 } from "./public-metadata";
 
 describe("public metadata contract", () => {
@@ -37,6 +38,21 @@ describe("public metadata contract", () => {
 		});
 		expect(metadata.openGraph.images[0]).not.toHaveProperty("verification");
 		expect(metadata.twitter.card).toBe("summary_large_image");
+	});
+
+	it("rejects a custom HTTPS image without positive verification evidence", () => {
+		const unverified = {
+			url: "https://media.example.test/unverified.png",
+			alt: "Imagem ainda não verificada",
+		} as VerifiedPublicMetadataImage;
+		const metadata = buildPublicMetadata({
+			title: "Lore pendente",
+			description: "Conteúdo público sem mídia promovida.",
+			pathname: "/lore/pendente",
+			image: unverified,
+		});
+
+		expect(metadata.openGraph.images[0]).toEqual(PUBLIC_METADATA_FALLBACK_IMAGE);
 	});
 
 	it("falls back when even a marked custom image is not HTTPS", () => {
