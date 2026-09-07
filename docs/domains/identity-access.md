@@ -64,7 +64,9 @@ Decisão narrativa sobre quem sabe ou pode ver determinado conteúdo. Não é in
 
 ## Providers
 
-A fotografia auditada do banco contém identities históricas de `google` e `discord`. Isso demonstra uso anterior, **não configuração atual garantida em todos os ambientes**.
+A fotografia auditada do banco contém identities históricas de `google` e `discord`. Isso demonstra uso anterior, não configuração atual garantida em todos os ambientes.
+
+Em 2026-09-07, o ambiente canônico foi verificado read-only pelo endpoint GoTrue `/auth/v1/settings`, usando a publishable key do projeto, e retornou `external.discord=true`. Portanto **Discord está confirmado como provider habilitado neste ambiente**. Essa evidência não confirma Google e não deve ser generalizada automaticamente para outro ambiente.
 
 Regra do reboot:
 
@@ -73,8 +75,6 @@ Regra do reboot:
 - botões de login só podem ser renderizados para providers cuja configuração do ambiente tenha sido verificada deliberadamente;
 - email, Discord handle, nome ou provider não substituem `auth.users.id` + `profiles.id`;
 - nenhuma chave secreta/service role chega ao browser.
-
-Enquanto a configuração ativa do provider não puder ser consultada com evidência, o runtime deve considerar esse provider indisponível em vez de inferir habilitação pela existência de identities antigas.
 
 ## Matriz de estados da aplicação
 
@@ -133,22 +133,28 @@ AND o scope é aplicável ao recurso solicitado
 
 ## Scope canônico
 
+A notação `project/tda` e `campaign/yuhara-main` é apenas um atalho documental para o par `scope_type + scope_id`. **A barra não faz parte de `scope_id`.**
+
 ### Projeto
 
-Código novo usa somente:
+Representação física canônica:
 
 ```text
-project / tda
+scope_type = "project"
+scope_id   = "tda"
 ```
 
-`project / dnd-scribe` é compatibilidade histórica e não deve entrar em resolver novo.
+`scope_type="project", scope_id="dnd-scribe"` é compatibilidade histórica e não deve entrar em resolver novo.
+
+A fotografia read-only de 2026-09-07 confirmou assignments ativos com `scope_id="tda"`; não existe contrato físico `scope_id="project/tda"`.
 
 ### Campanha
 
 Campanha principal atual:
 
 ```text
-campaign / yuhara-main
+scope_type = "campaign"
+scope_id   = "yuhara-main"
 ```
 
 ### Resolução de project capability
@@ -159,7 +165,7 @@ Contrato conceitual:
 has_project_capability(action, project = "tda")
 ```
 
-Considera apenas assignments ativos de `project/tda` cuja role contém exatamente a capability solicitada.
+Considera apenas assignments ativos de `scope_type="project", scope_id="tda"` cuja role contém exatamente a capability solicitada.
 
 ### Resolução de campaign capability
 
@@ -171,14 +177,29 @@ has_campaign_capability(campaign_slug, action)
 
 Pode ser satisfeito por:
 
-1. assignment ativo em `campaign/{campaign_slug}` cuja role possua a action;
-2. assignment ativo em `project/tda` cuja role possua **a mesma action**.
+1. assignment ativo em `scope_type="campaign", scope_id={campaign_slug}` cuja role possua a action;
+2. assignment ativo em `scope_type="project", scope_id="tda"` cuja role possua **a mesma action**.
 
 Não existe regra "platform owner pode tudo". Grant global só vale para capabilities realmente presentes na role.
 
 ### Session / resource / integration
 
 Não existe herança genérica aprovada. Cada resolver precisa provar a cadeia real de ownership antes de aceitar grant de campaign/project.
+
+## Resolver server-side transitório já existente
+
+A `main` já possui um boundary server-only estreito usado pelo Edit:
+
+- `loadEditAccessContext(authUserId)` resolve `profiles.auth_user_id` e carrega assignments ativos/temporalmente válidos mais `role_permissions` usando o client privilegiado do servidor;
+- `authorizeCampaignCapability(...)` aplica capability exata, validade temporal e cobertura de campaign/project;
+- nenhum `has_campaign_role*` legado é necessário nesse caminho;
+- as tabelas RBAC não são expostas diretamente ao browser.
+
+Esse boundary pode ser **reutilizado transitoriamente** por guards administrativos enquanto o resolver RPC/database canônico ainda não existe. Reutilizar não significa afirmar RLS capability nativa: a leitura privilegiada continua protegida pelo servidor e o banco de produção permanece sem nova policy/RPC por causa deste contrato.
+
+A implementação desse resolver deve usar a representação física `scopeType="project"` + `scopeId="tda"`. O valor composto `project/tda` não é um `scope_id` válido.
+
+A convergência futura para resolver RPC/database continua desejável para reduzir privilégio e centralizar autorização, mas não exige duplicar RBAC no login nem bloquear o guard server-only já existente.
 
 ## Contexto mínimo devolvido ao web
 
@@ -267,6 +288,8 @@ Esta frente não duplica esse inventário. Para Auth, os blockers relevantes sã
 - preservar coerência RBAC + membership enquanto o legado existir;
 - testar manipulação direta de RPC e cross-campaign.
 
+Não existe hoje RPC canônico `has_project_capability`, `has_campaign_capability` ou `authorization_context`; o resolver server-only do Edit é o boundary transitório aprovado até essa convergência.
+
 ## Boundary web mínimo
 
 O primeiro Auth web oficial deve ser pequeno:
@@ -275,18 +298,18 @@ O primeiro Auth web oficial deve ser pequeno:
 
 - `@supabase/supabase-js` ou integração SSR oficialmente suportada pela versão atual, conforme documentação consultada antes da edição Next;
 - `SUPABASE_URL` + chave **publishable** apropriada ao browser;
-- providers somente após verificação de configuração ativa;
+- neste ambiente, Discord pode ser apresentado porque `external.discord=true` foi verificado read-only;
 - sessão/OAuth conforme API oficial;
 - nenhum secret server-side em bundle ou resposta de configuração.
 
 ### Server
 
 - valida sessão usando mecanismo suportado, sem confiar em profile/role vindo da UI;
-- resolve profile por `auth_user_id`;
-- resolve somente capabilities do scope pedido;
+- reutiliza `loadEditAccessContext` + `authorizeCampaignCapability` como boundary transitório para guards de campaign, sem duplicar RBAC;
 - mantém estados `anonymous`, `unlinked`, `linked_no_grants`, `linked` distintos;
 - retorna dados mínimos;
-- mutation sensível continua server-first e revalida capability.
+- mutation sensível continua server-first e revalida capability;
+- não afirma que essa autorização é aplicada por RLS enquanto continuar sendo resolvida por query privilegiada no servidor.
 
 Evitar refactor de root layout enquanto a frente UX estiver trabalhando em paralelo; Auth deve integrar por componente/boundary pequeno.
 
@@ -303,7 +326,8 @@ Cada superfície autenticada deve cobrir:
 | mesma capability em campaign errada | negado |
 | assignment `eligible` | negado |
 | assignment expirado/revogado | negado |
-| project/tda com action explicitamente presente | permitido onde o contrato da action admitir projeto global |
+| `scope_type=project`, `scope_id=tda` com action explicitamente presente | permitido onde o contrato da action admitir projeto global |
+| string composta `scope_id=project/tda` | negado; representação física incorreta |
 | role global sem a action pedida | negado |
 | ID de recurso de outra campaign | `not_found`/negação sem vazamento |
 | RPC chamada com parâmetros manipulados | negado |
@@ -314,10 +338,12 @@ Cada superfície autenticada deve cobrir:
 O Edit Workbench já existe com bypass temporário e persistence canônica em evolução. A troca para Auth oficial só pode ocorrer quando:
 
 1. contexto server de Auth estiver implementado e testado;
-2. resolver de capability necessário ao Edit estiver disponível por migration serializada pelo dono do banco;
+2. o guard reutilizar o resolver server-only existente com `scope_id="tda"` e testes negativos/cross-campaign verdes;
 3. mutation canônica de Edit tiver concurrency/audit prontos;
-4. testes negativos/cross-campaign estiverem verdes;
+4. authorization continuar fail-closed para profile sem grants, scope errado e recurso de outra campaign;
 5. só então `TDA_EDIT_UNSAFE` e o adapter temporário podem ser removidos em recorte próprio.
+
+O futuro resolver RPC/database é convergência posterior e deve ser serializado pelo dono do banco; não é autorização para aplicar #44 nem para alterar RLS nesta frente.
 
 Até lá, esta frente não amplia o bypass nem cria segundo caminho de autorização.
 
@@ -329,7 +355,7 @@ Até lá, esta frente não amplia o bypass nem cria segundo caminho de autoriza�
 - RPCs antigas foram migradas/substituídas;
 - companion/Discord/Ordo consumidores foram verificados;
 - testes positivos/negativos cobrem login, profile resolution, scope e cross-campaign;
-- nenhum código novo depende de `project/dnd-scribe` ou role slug histórico.
+- nenhum código novo depende de `scope_type="project", scope_id="dnd-scribe"` ou role slug histórico.
 
 ## Referências
 
