@@ -117,8 +117,8 @@ test("theme follows the system by default and persists explicit toggles", async 
 	await expect(toggle).toHaveAttribute("title", "Usar tema claro");
 	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
-	expect(await sun.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
-	expect(await moon.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+	await expect(sun).toHaveCSS("opacity", "1");
+	await expect(moon).toHaveCSS("opacity", "0");
 
 	await toggle.click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -127,8 +127,8 @@ test("theme follows the system by default and persists explicit toggles", async 
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"light",
 	);
-	expect(await sun.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
-	expect(await moon.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+	await expect(sun).toHaveCSS("opacity", "0");
+	await expect(moon).toHaveCSS("opacity", "1");
 
 	await page.reload();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
