@@ -35,6 +35,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - [Contexto e limites do sistema](architecture/system-context.md)
 - [Fluxos ponta a ponta](architecture/data-flows.md)
 - [Princípios e invariantes](architecture/invariants.md)
+- [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
 
 ### Design System e marca
 
@@ -66,6 +67,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 ### Features e expansão
 
 - [Especificações de features — índice](features/README.md)
+- [Edit Workbench / administração](features/edit-workbench.md)
 - [Personagens e NPCs](features/characters-and-npcs.md)
 - [Perfis editoriais de entities](features/entity-profiles.md)
 - [World Explorer / Ecos da Jornada](features/world-explorer.md)
@@ -107,6 +109,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - [ADR-0004 — registry única de entities para PC/NPC/mundo](adr/0004-canonical-entities.md)
 - [ADR-0005 — canon exige fonte e revisão](adr/0005-canon-review-gate.md)
 - [ADR-0006 — React Flow como engine do World Explorer](adr/0006-react-flow-world-explorer.md)
+- [ADR-0007 — Edit como workbench server-first orientado a capabilities](adr/0007-edit-workbench.md)
 
 ### Governança da própria documentação
 
@@ -114,6 +117,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - [Template de documento](documentation/document-template.md)
 - [Template de ADR](documentation/adr-template.md)
 - [Registro de fontes históricas](legacy/README.md)
+- [Edit — matriz de paridade com o legado](legacy/edit-parity.md)
 
 ## Status usados em todos os docs
 
@@ -155,4 +159,4 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - Binários cloud: Cloudflare R2, separados por visibilidade/ambiente.
 - Vercel correta para futuras operações: conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 
-Última revisão estrutural: **2026-09-06**.
+Última revisão estrutural: **2026-09-07**.
