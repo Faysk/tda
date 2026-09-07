@@ -1,8 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { updateTranscriptSegmentAction } from "./actions";
+import {
+	beginTranscriptSave,
+	classifyTranscriptSaveFailure,
+	completeTranscriptSaveFailure,
+	completeTranscriptSaveSuccess,
+	createTranscriptEditorState,
+	editTranscriptDraft,
+	isTranscriptEditorDirty,
+	resetTranscriptDraft,
+	resolveTranscriptShortcut,
+	type TranscriptDraft,
+	type TranscriptReviewStatus,
+} from "./editor-state";
 import styles from "../workbench.module.css";
 
 type Segment = Readonly<{
@@ -11,7 +24,7 @@ type Segment = Readonly<{
 	endMs: number;
 	text: string;
 	speaker: string;
-	reviewStatus: "pending" | "approved" | "needs_review" | "discarded";
+	reviewStatus: TranscriptReviewStatus;
 }>;
 
 type TranscriptEditorProps = Readonly<{
@@ -19,8 +32,6 @@ type TranscriptEditorProps = Readonly<{
 	segments: readonly Segment[];
 	batchOffset: number;
 }>;
-
-type SaveState = "idle" | "saving" | "saved" | "error";
 
 const statusLabels = {
 	pending: "Pendente",
@@ -45,7 +56,38 @@ function issueMessage(issues: readonly string[]): string {
 	if (issues.includes("speaker_required")) return "Informe o speaker.";
 	if (issues.includes("speaker_too_long")) return "O speaker ultrapassa 160 caracteres.";
 	if (issues.includes("segment_not_found")) return "A fala não foi encontrada nesta sessão.";
-	return "Não foi possível salvar esta fala.";
+	if (issues.includes("dependency_unavailable")) return "O serviço de edição está indisponível. Tente novamente.";
+	return "Não foi possível salvar esta fala. Tente novamente.";
+}
+
+function toDraft(segment: Segment): TranscriptDraft {
+	return {
+		text: segment.text,
+		speaker: segment.speaker,
+		reviewStatus: segment.reviewStatus,
+	};
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) return false;
+	return (
+		target.isContentEditable ||
+		target instanceof HTMLInputElement ||
+		target instanceof HTMLTextAreaElement ||
+		target instanceof HTMLSelectElement ||
+		target instanceof HTMLButtonElement
+	);
+}
+
+function focusAdjacentSegment(current: HTMLElement, direction: -1 | 1) {
+	const list = current.parentElement;
+	if (!list) return;
+	const segments = Array.from(
+		list.querySelectorAll<HTMLElement>("[data-transcript-segment='true']"),
+	);
+	const currentIndex = segments.indexOf(current);
+	const next = segments[currentIndex + direction];
+	next?.focus();
 }
 
 function SegmentEditor({
@@ -57,74 +99,108 @@ function SegmentEditor({
 	sessionId: string;
 	position: number;
 }>) {
-	const [saved, setSaved] = useState(initial);
-	const [text, setText] = useState(initial.text);
-	const [speaker, setSpeaker] = useState(initial.speaker);
-	const [reviewStatus, setReviewStatus] = useState(initial.reviewStatus);
-	const [saveState, setSaveState] = useState<SaveState>("idle");
-	const [errorMessage, setErrorMessage] = useState("");
-	const dirty =
-		text !== saved.text ||
-		speaker !== saved.speaker ||
-		reviewStatus !== saved.reviewStatus;
+	const [editor, setEditor] = useState(() =>
+		createTranscriptEditorState(toDraft(initial)),
+	);
+	const textRef = useRef<HTMLTextAreaElement>(null);
+	const speakerRef = useRef<HTMLInputElement>(null);
+	const dirty = isTranscriptEditorDirty(editor);
+	const { draft } = editor;
 
 	async function save() {
-		if (!dirty || saveState === "saving") return;
-		setSaveState("saving");
-		setErrorMessage("");
+		const started = beginTranscriptSave(editor);
+		if (!started.submission) return;
+		const submission = started.submission;
+		setEditor(started.state);
 		const result = await updateTranscriptSegmentAction({
 			sessionId,
-			segmentId: saved.id,
-			text,
-			speaker,
-			reviewStatus,
+			segmentId: initial.id,
+			text: submission.text,
+			speaker: submission.speaker,
+			reviewStatus: submission.reviewStatus,
 		});
 		if (!result.ok) {
-			setSaveState("error");
-			setErrorMessage(issueMessage(result.issues));
+			const failure = classifyTranscriptSaveFailure(result);
+			const message =
+				failure === "conflict"
+					? "Conflito: existe uma versão mais nova desta fala. Seu rascunho foi preservado; recarregue os dados antes de salvar novamente."
+					: issueMessage(result.issues);
+			setEditor((current) =>
+				completeTranscriptSaveFailure(current, submission, failure, message),
+			);
 			return;
 		}
-		const next: Segment = {
-			...saved,
+		const persisted: TranscriptDraft = {
 			text: result.segment.text,
 			speaker: result.segment.speaker,
 			reviewStatus: result.segment.reviewStatus,
 		};
-		setSaved(next);
-		setText(next.text);
-		setSpeaker(next.speaker);
-		setReviewStatus(next.reviewStatus);
-		setSaveState("saved");
+		setEditor((current) =>
+			completeTranscriptSaveSuccess(current, submission, persisted),
+		);
 	}
 
-	const visibleState = saveState === "saving"
-		? "saving"
-		: saveState === "error"
-			? "error"
-			: dirty
-				? "dirty"
-				: saveState === "saved"
-					? "saved"
-					: "idle";
 	const stateLabel = {
-		idle: "Sem alterações",
+		clean: "Sem alterações",
 		dirty: "Alterado",
 		saving: "Salvando…",
 		saved: "Salvo ✓",
-		error: "Erro ao salvar",
-	}[visibleState];
+		error: editor.message ?? "Erro ao salvar",
+		conflict: editor.message ?? "Conflito de edição",
+	}[editor.phase];
 
 	return (
 		<article
+			aria-label={`Fala ${position}`}
 			className={styles.segment}
+			data-conflict={editor.phase === "conflict" ? "true" : "false"}
 			data-dirty={dirty ? "true" : "false"}
-			data-error={saveState === "error" ? "true" : "false"}
+			data-error={editor.phase === "error" ? "true" : "false"}
+			data-transcript-segment="true"
+			onKeyDown={(event) => {
+				const shortcut = resolveTranscriptShortcut({
+					key: event.key,
+					ctrlKey: event.ctrlKey,
+					metaKey: event.metaKey,
+					shiftKey: event.shiftKey,
+					editableTarget: isEditableTarget(event.target),
+				});
+				if (!shortcut) return;
+				event.preventDefault();
+				switch (shortcut) {
+					case "previous":
+						focusAdjacentSegment(event.currentTarget, -1);
+						break;
+					case "next":
+						focusAdjacentSegment(event.currentTarget, 1);
+						break;
+					case "edit_text":
+						textRef.current?.focus();
+						break;
+					case "edit_speaker":
+						speakerRef.current?.focus();
+						break;
+					case "mark_needs_review":
+						setEditor((current) =>
+							editTranscriptDraft(current, { reviewStatus: "needs_review" }),
+						);
+						break;
+					case "save":
+						void save();
+						break;
+					case "cancel":
+						setEditor((current) => resetTranscriptDraft(current));
+						event.currentTarget.focus();
+						break;
+				}
+			}}
+			tabIndex={0}
 		>
 			<div className={styles.segmentSide}>
 				<div>
 					<div className={styles.segmentNumber}>Fala {position}</div>
 					<div className={styles.segmentTime}>
-						{formatTimestamp(saved.startMs)} → {formatTimestamp(saved.endMs)}
+						{formatTimestamp(initial.startMs)} → {formatTimestamp(initial.endMs)}
 					</div>
 				</div>
 				<label className={styles.fieldLabel}>
@@ -132,11 +208,13 @@ function SegmentEditor({
 					<input
 						className={styles.control}
 						maxLength={160}
-						onChange={(event) => {
-							setSpeaker(event.target.value);
-							setSaveState("idle");
-						}}
-						value={speaker}
+						onChange={(event) =>
+							setEditor((current) =>
+								editTranscriptDraft(current, { speaker: event.target.value }),
+							)
+						}
+						ref={speakerRef}
+						value={draft.speaker}
 					/>
 				</label>
 			</div>
@@ -147,25 +225,26 @@ function SegmentEditor({
 					<textarea
 						className={styles.textarea}
 						maxLength={10_000}
-						onChange={(event) => {
-							setText(event.target.value);
-							setSaveState("idle");
-						}}
-						onKeyDown={(event) => {
-							if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-								event.preventDefault();
-								void save();
-							}
-						}}
-						value={text}
+						onChange={(event) =>
+							setEditor((current) =>
+								editTranscriptDraft(current, { text: event.target.value }),
+							)
+						}
+						ref={textRef}
+						value={draft.text}
 					/>
 				</label>
 				<div className={styles.segmentFooter}>
 					<span>
-						{text.trim() ? text.trim().split(/\s+/u).length : 0} palavras · {Array.from(text).length} caracteres
+						{draft.text.trim() ? draft.text.trim().split(/\s+/u).length : 0} palavras · {Array.from(draft.text).length} caracteres
 					</span>
-					<span className={styles.saveState} data-state={visibleState} title={errorMessage || undefined}>
-						{errorMessage || stateLabel}
+					<span
+						aria-live="polite"
+						className={styles.saveState}
+						data-state={editor.phase}
+						title={editor.message ?? undefined}
+					>
+						{stateLabel}
 					</span>
 				</div>
 			</div>
@@ -175,21 +254,34 @@ function SegmentEditor({
 					Revisão
 					<select
 						className={styles.control}
-						onChange={(event) => {
-							setReviewStatus(event.target.value as Segment["reviewStatus"]);
-							setSaveState("idle");
-						}}
-						value={reviewStatus}
+						onChange={(event) =>
+							setEditor((current) =>
+								editTranscriptDraft(current, {
+									reviewStatus: event.target.value as TranscriptReviewStatus,
+								}),
+							)
+						}
+						value={draft.reviewStatus}
 					>
 						{Object.entries(statusLabels).map(([value, label]) => (
 							<option key={value} value={value}>{label}</option>
 						))}
 					</select>
 				</label>
-				<Button disabled={!dirty || saveState === "saving"} onClick={() => void save()} variant="primary">
-					{saveState === "saving" ? "Salvando…" : "Salvar fala"}
+				<Button
+					disabled={!dirty || editor.phase === "saving" || editor.phase === "conflict"}
+					onClick={() => void save()}
+					variant="primary"
+				>
+					{editor.phase === "saving"
+						? "Salvando…"
+						: editor.phase === "error"
+							? "Tentar novamente"
+							: "Salvar fala"}
 				</Button>
-				<span className={styles.segmentNumber}>⌘/Ctrl + Enter salva</span>
+				<span className={styles.keyboardHint}>
+					↑/↓ navega · Enter texto · S speaker · Shift+Enter revisar · ⌘/Ctrl+Enter salva · Esc desfaz
+				</span>
 			</div>
 		</article>
 	);
