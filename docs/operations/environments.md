@@ -42,7 +42,7 @@ Recursos canônicos atuais/futuros:
 - Vercel correta `projeto-desenv-6905` / `projeto_desenv@outlook.com`;
 - campanha `yuhara-main`.
 
-Se `TDA_EDIT_UNSAFE=true` for habilitado em production durante esta fase, `/edit` deve ser considerado administrativamente exposto sem identidade por usuário. Isso é uma exceção temporária consciente, não estado final de segurança.
+Na produção anterior ao candidato de Auth, `TDA_EDIT_UNSAFE=true` expõe administração sem identidade. No candidato [Discord SSR](discord-auth.md), a flag não pula mais os guards de página/Server Action; ainda controla o adapter temporário. Não confundir implementação na branch com alteração já publicada.
 
 ## Runtime
 

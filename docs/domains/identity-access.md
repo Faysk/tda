@@ -39,6 +39,10 @@ Aparição em sessão. Pode resolver profile e entity independentemente.
 
 ## Login
 
+O candidato de 2026-09-07 implementa entrada **exclusivamente Discord**, sessão SSR e guards administrativos. Fluxo, configuração, evidências e limites estão no [runbook Discord](../operations/discord-auth.md). Preserva o contrato proposto na PR #43; não concede administração após login e não resolve os blockers de claim/RPC por conta própria.
+
+O resolver server-only existente usa a representação física `scope_type=project, scope_id=tda` para o scope conceitual `project/tda`; a action precisa estar explicitamente presente no grant ativo. O runtime diferencia anônimo, autenticado sem profile, profile sem capabilities efetivas e autorizado; indisponibilidade de serviço é estado operacional adicional e nega acesso.
+
 Direção vigente: OAuth/Auth do Supabase. Login bem-sucedido só prova identidade Auth; a aplicação ainda precisa resolver profile e capabilities.
 
 Fluxo:

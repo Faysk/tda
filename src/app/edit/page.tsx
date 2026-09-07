@@ -1,3 +1,5 @@
+import { requireCapability } from "@/features/auth/server";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { StatusPill } from "@/components/ui";
@@ -17,13 +19,14 @@ function DisabledEdit() {
 			<div className={styles.muted}>TDA / EDIT</div>
 			<h1>Edit desativado</h1>
 			<p className={styles.muted}>
-				Este ambiente não habilitou o workbench temporário sem autenticação.
+				Este espaço ainda está sendo preparado para acesso com sua conta.
 			</p>
 		</section>
 	);
 }
 
 export default async function EditPage() {
+	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit");
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
 
 	let sessions: Awaited<ReturnType<typeof listUnsafeEditSessions>>;
@@ -44,8 +47,8 @@ export default async function EditPage() {
 	return (
 		<section className={styles.shell}>
 			<div className={styles.unsafeBanner} role="status">
-				<strong>Modo temporário sem autenticação</strong>
-				<span>Este ambiente permite writes administrativos via TDA_EDIT_UNSAFE=true.</span>
+				<strong>Acesso autorizado · integração em andamento</strong>
+				<span>O acesso às transcrições depende das permissões da sua conta.</span>
 			</div>
 			<header className={styles.pageHeader}>
 				<div>
