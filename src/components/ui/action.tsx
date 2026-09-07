@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ComponentProps } from "react";
-import { PublicLink as Link } from "@/components/public-link";
+import { PublicLink as Link } from "../public-link";
 import { classNames } from "./class-names";
 
 export type ActionVariant = "primary" | "secondary" | "tertiary";
