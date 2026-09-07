@@ -154,42 +154,30 @@ test("official design tokens and brand variant follow the resolved theme", async
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
 
-	expect(
-		await page.evaluate(() =>
-			getComputedStyle(document.documentElement)
-				.getPropertyValue("--ds-canvas")
-				.trim(),
-		),
-	).toBe("#0a0c0f");
-	expect(
-		await page.locator(".brand-symbol-image--dark").evaluate((element) =>
-			getComputedStyle(element).display,
-		),
-	).not.toBe("none");
-	expect(
-		await page.locator(".brand-symbol-image--light").evaluate((element) =>
-			getComputedStyle(element).display,
-		),
-	).toBe("none");
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-canvas")
+					.trim(),
+			),
+		)
+		.toBe("rgb(10, 12, 15)");
+	await expect(page.locator(".brand-symbol-image--dark")).toHaveCSS("opacity", "1");
+	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "0");
 
 	await page.getByRole("switch", { name: "Modo escuro" }).click();
-	expect(
-		await page.evaluate(() =>
-			getComputedStyle(document.documentElement)
-				.getPropertyValue("--ds-canvas")
-				.trim(),
-		),
-	).toBe("#f3efe7");
-	expect(
-		await page.locator(".brand-symbol-image--dark").evaluate((element) =>
-			getComputedStyle(element).display,
-		),
-	).toBe("none");
-	expect(
-		await page.locator(".brand-symbol-image--light").evaluate((element) =>
-			getComputedStyle(element).display,
-		),
-	).not.toBe("none");
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-canvas")
+					.trim(),
+			),
+		)
+		.toBe("rgb(243, 239, 231)");
+	await expect(page.locator(".brand-symbol-image--dark")).toHaveCSS("opacity", "0");
+	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "1");
 });
 
 test("reduced motion removes decorative transitions", async ({ page }) => {
@@ -203,6 +191,9 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 	const knob = page.locator(".theme-toggle-knob");
 	expect(
 		await knob.evaluate((element) => getComputedStyle(element).transitionDuration),
+	).toBe("0s");
+	expect(
+		await page.evaluate(() => getComputedStyle(document.documentElement).transitionDuration),
 	).toBe("0s");
 });
 

@@ -50,16 +50,21 @@ textarea:focus-visible,
 	text-decoration: none;
 	cursor: pointer;
 	transition:
-		background-color 150ms ease,
-		border-color 150ms ease,
-		color 150ms ease,
-		transform 150ms ease;
+		background-color var(--ds-motion-fast) var(--ds-ease-standard),
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard),
+		transform var(--ds-motion-base) var(--ds-ease-soft);
 }
 
 .ds-action:disabled,
 .ds-action[aria-disabled="true"] {
 	pointer-events: none;
 	opacity: 0.5;
+}
+
+.ds-action:active:not(:disabled):not([aria-disabled="true"]) {
+	transform: translateY(0) scale(0.985);
+	transition-duration: 80ms;
 }
 
 .ds-action--sm {
@@ -214,7 +219,8 @@ textarea:focus-visible,
 		transition: none;
 	}
 
-	.ds-action--primary:hover {
+	.ds-action--primary:hover,
+	.ds-action:active:not(:disabled):not([aria-disabled="true"]) {
 		transform: none;
 	}
 }

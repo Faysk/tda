@@ -1,3 +1,142 @@
+/* Theme colors are registered so browsers can interpolate them instead of snapping. */
+@property --ds-canvas {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #0a0c0f;
+}
+
+@property --ds-canvas-subtle {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #101419;
+}
+
+@property --ds-surface {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #151a20;
+}
+
+@property --ds-surface-hover {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #1a2027;
+}
+
+@property --ds-surface-elevated {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #11151a;
+}
+
+@property --ds-border {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #2a3038;
+}
+
+@property --ds-border-subtle {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: rgba(255, 255, 255, 0.07);
+}
+
+@property --ds-foreground {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #eee8dc;
+}
+
+@property --ds-foreground-soft {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #c8c2b7;
+}
+
+@property --ds-foreground-muted {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #9aa1aa;
+}
+
+@property --ds-accent {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #d7aa61;
+}
+
+@property --ds-accent-strong {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #f2c879;
+}
+
+@property --ds-accent-muted {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: rgba(215, 170, 97, 0.13);
+}
+
+@property --ds-accent-contrast {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #17120b;
+}
+
+@property --ds-action-primary-bg {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #e7b95f;
+}
+
+@property --ds-action-primary-hover {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #f2c879;
+}
+
+@property --ds-action-primary-foreground {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #15100a;
+}
+
+@property --ds-action-primary-border {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #e7b95f;
+}
+
+@property --ds-danger {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #e59383;
+}
+
+@property --ds-success {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #8fc49b;
+}
+
+@property --ds-ambient-accent {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: rgba(215, 170, 97, 0.09);
+}
+
+@property --ds-ambient-cool {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: rgba(75, 91, 109, 0.08);
+}
+
+@property --ds-control-border {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #5f6772;
+}
+
 :root,
 :root[data-theme="dark"] {
 	color-scheme: dark;
@@ -33,6 +172,14 @@
 	--ds-font-display: Georgia, "Times New Roman", serif;
 	--ds-font-body: Georgia, "Times New Roman", serif;
 	--ds-font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+	/* Shared motion language: quick feedback, soft UI movement, slower media/theme morphs. */
+	--ds-motion-fast: 160ms;
+	--ds-motion-base: 240ms;
+	--ds-motion-slow: 420ms;
+	--ds-motion-theme: 360ms;
+	--ds-ease-standard: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--ds-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
 	/* Reboot extension promoted from v1 proposed-extensions.css after contrast audit. */
 	--ds-control-border: #5f6772;
@@ -99,5 +246,36 @@
 		--ds-ambient-accent: rgba(128, 88, 23, 0.08);
 		--ds-ambient-cool: rgba(92, 78, 58, 0.05);
 		--ds-control-border: #8b8379;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	:root {
+		transition-property:
+			--ds-canvas,
+			--ds-canvas-subtle,
+			--ds-surface,
+			--ds-surface-hover,
+			--ds-surface-elevated,
+			--ds-border,
+			--ds-border-subtle,
+			--ds-foreground,
+			--ds-foreground-soft,
+			--ds-foreground-muted,
+			--ds-accent,
+			--ds-accent-strong,
+			--ds-accent-muted,
+			--ds-accent-contrast,
+			--ds-action-primary-bg,
+			--ds-action-primary-hover,
+			--ds-action-primary-foreground,
+			--ds-action-primary-border,
+			--ds-danger,
+			--ds-success,
+			--ds-ambient-accent,
+			--ds-ambient-cool,
+			--ds-control-border;
+		transition-duration: var(--ds-motion-theme);
+		transition-timing-function: var(--ds-ease-soft);
 	}
 }

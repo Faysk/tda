@@ -75,7 +75,7 @@ footer {
 	padding-inline: 4px;
 	color: var(--ds-foreground-soft);
 	font-weight: 560;
-	transition: color 150ms ease;
+	transition: color var(--ds-motion-fast) var(--ds-ease-standard);
 }
 
 .site-header nav a::after {
@@ -88,9 +88,10 @@ footer {
 	content: "";
 	opacity: 0;
 	transform: scaleX(0.4);
+	transform-origin: center;
 	transition:
-		opacity 150ms ease,
-		transform 150ms ease;
+		opacity var(--ds-motion-fast) var(--ds-ease-standard),
+		transform var(--ds-motion-base) var(--ds-ease-soft);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -146,7 +147,7 @@ footer {
 
 @media (prefers-reduced-motion: no-preference) {
 	.skip-link {
-		transition: transform 120ms ease;
+		transition: transform var(--ds-motion-fast) var(--ds-ease-soft);
 	}
 }
 
