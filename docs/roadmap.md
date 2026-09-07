@@ -9,20 +9,21 @@ Este roadmap coordena **ordem, dependências e estágio de entrega**. Ele não s
 
 Estágio de entrega segue [Documentação viva](documentation/README.md): branch/PR, validação, integração em `main` e publicação/aplicação são estados diferentes. `main = Production` é a linha de código aceita, mas não existe auto-deploy.
 
-## Baseline vigente — Production #003
+## Baseline vigente — Production #004
 
-A referência operacional atual é **Production #003**, source SHA `0120e38d28c51f3e90aa7336dfa8e7910df074f4`, registrada em [Histórico de deployments](operations/deployments.md). A `main` contém também documentação posterior desse release; isso não muda retroativamente o source publicado.
+A referência operacional atual é **Production #004**, deployment `dpl_7YhRViksD5bxgYMvSTTWiTg4qXdD`, READY em `2026-09-07T19:21:22.439Z`, registrada em [Histórico de deployments](operations/deployments.md). O source publicado continua sendo `0120e38d28c51f3e90aa7336dfa8e7910df074f4`: este release republicou o mesmo código com configuração de Auth de production corrigida, sem transformar commits documentais posteriores da `main` em source do deployment.
 
 Estado comprovado do baseline:
 
 - Home e sessões públicas operacionais em `https://dnd.faysk.dev`;
-- metadata individual das 11 sessões corrigida no caminho padrão real de produção;
-- cada sessão emite título, resumo e artwork `verified-public` própria quando elegível;
-- regressão cobre o **registry runtime real**, sem depender somente de manifesto injetado em teste;
-- fallback social é permitido somente quando não existe arte pública elegível;
-- 22 imagens públicas do conjunto de sessão tiveram entrega/hash verificados no R2;
-- nenhuma promoção CAS das referências de sessão para R2 foi executada nesse release;
-- nenhuma nova migration foi aplicada por causa do release #003.
+- a correção de metadata individual da Production #003 permanece vigente: 11 sessões emitem título, resumo e artwork próprios quando elegíveis pelo caminho runtime real;
+- 22 imagens públicas do conjunto de sessão seguem verificadas no R2; nenhuma promoção CAS das referências de sessão para R2 foi executada;
+- Vercel production recebeu `SUPABASE_PUBLISHABLE_KEY` e `TDA_AUTH_ORIGIN=https://dnd.faysk.dev` somente no target Production após confirmação de ausência da configuração necessária;
+- não houve rotação de credenciais, grant, configuração de Preview, migration ou escrita de banco nessa operação;
+- `/entrar` responde com **Entrar com Discord** habilitado;
+- `/api/auth/me` responde `200` para visitante anônimo com `state=anonymous` e `capabilities=[]`;
+- smoke do início do OAuth registrou `POST /auth/discord` -> `303` para Supabase -> `302` para `discord.com`;
+- **OAuth real com consentimento, retorno ao callback, vínculo de profile e capabilities reais continua pendente**. Production #004 prova configuração e início do fluxo, não login completo.
 
 Invariante para qualquer superfície pública nova ou existente: **sessão, personagem, NPC, item, lore e demais páginas compartilháveis devem resolver título, resumo e arte próprios quando houver conteúdo elegível**. Teste de helper com fixture não prova integração; o caminho default usado em produção precisa ser exercitado.
 
@@ -36,15 +37,18 @@ A rodada seguinte pode avançar em paralelo. Paralelismo não elimina integraç�
 | **Claquete** | camada cinematográfica opcional | **em andamento** | [Perfis editoriais](features/entity-profiles.md), [Superfícies públicas](design-system/public-surfaces.md) | enhancement opcional; leitura estática, acessibilidade e `prefers-reduced-motion` continuam válidos sem cinematic |
 | **Espaguete** | grafo React Flow | **em andamento** | [World Explorer](features/world-explorer.md), [Relações/grafo](features/relations-graph.md), [contrato de relations](features/relations-data-contract.md), [ADR-0006](adr/0006-react-flow-world-explorer.md) | React Flow continua renderer, não schema; fixture não vira relation canônica; projection deve respeitar audience |
 | **Parafuso** | integração do Edit | **em andamento** | [Edit Workbench](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md), [arquitetura Edit](architecture/edit-workbench.md), [Identity/access](domains/identity-access.md) | convergir Auth/capability + adapter + optimistic concurrency/audit + UX real; migration integrada não equivale a migration aplicada |
-| **Catraca** | configuração Discord | **em andamento** | [Identity/access](domains/identity-access.md), [runbook Discord Auth](operations/discord-auth.md), [Ambientes](operations/environments.md) | validar configuração/callback/OAuth real sem colocar secrets no Git; configuração remota precisa de evidência própria |
-| **Contador** | estatísticas | **em andamento** | [Catálogo de features](feature-catalog.md) e [domínio Sessions](domains/sessions.md) enquanto o contrato é fechado | começar por leitura/derivação dos dados existentes; não inferir schema, writes ou métricas canônicas antes da implementação concreta exigir isso |
+| **Catraca** | configuração Discord | **em andamento; Production #004 configurada** | [Identity/access](domains/identity-access.md), [runbook Discord Auth](operations/discord-auth.md), [Ambientes](operations/environments.md), [deployments](operations/deployments.md) | configuração production e início do redirect estão provados; concluir somente após OAuth real/consentimento/callback e teste de conta/capabilities |
+| **Contador** | estatísticas de transcrição | **em andamento; PR #56 CI green, aguardando revisão** | owner candidato `docs/features/transcript-statistics.md` na [PR #56](https://github.com/Faysk/tda/pull/56); enquanto não integrada, [Sessions](domains/sessions.md) e [feature catalog](feature-catalog.md) continuam owners canônicos na `main` | head `88ae8534dcdb3966e694665653ed7d4156fb6d66` com CI terminal success; revisão/integração ainda pendentes; não declarar publicado |
 | **Balde** | mídia R2 | **em andamento** | [Cloudflare R2](integrations/r2.md), [entrega pública de mídia](integrations/media-public-delivery-2026-09-07.md), [deployments](operations/deployments.md) | preservar 22/22 verified-public; metadata runtime já usa arte verificada, mas referências do site só mudam por CAS controlado após gates e snapshot atual |
+| **Carteiro** | consumidor cloud de bundle/sync | **em andamento** | [Companion local](integrations/local-companion.md), [Processing](domains/processing.md), [fluxos ponta a ponta](architecture/data-flows.md) | Carteiro é dono do lado consumidor cloud de **bundle + idempotência + recibo**; contrato coordena com Motorzinho/Painelzinho/Cofrinho sem inventar endpoint/schema antes das respectivas frentes; retry não pode duplicar efeitos remotos |
 
 Os codinomes são **coordenação de execução**, não novos conceitos de domínio. Specs continuam com seus nomes canônicos. O registry local `D:/Projects/tda/.local/coordination-chats.json` acompanha a distribuição das frentes e permanece local/não versionado; a documentação versionada continua sendo a fonte para contratos, estado integrado e operação comprovada.
 
+A frente Carteiro está associada no registry local ao identificador `01a07d51-8789-7e83-bfa1-962719442447`. Esse identificador coordena a execução e não vira identidade de domínio, endpoint ou chave persistida do produto.
+
 ### Regra de prioridade desta rodada
 
-A antiga leitura estritamente serial “público → Edit → novas features” serviu à consolidação inicial. Com a Production #003 estável, estas sete frentes estão autorizadas a progredir **em paralelo**, desde que:
+A antiga leitura estritamente serial “público → Edit → novas features” serviu à consolidação inicial. Com a Production #004 operacional, estas oito frentes estão autorizadas a progredir **em paralelo**, desde que:
 
 1. não alterem silenciosamente o boundary de outra frente;
 2. conflitos em arquivos donos sejam reconciliados explicitamente antes da integração;
@@ -70,7 +74,8 @@ Pipoca, Claquete e Espaguete podem evoluir ao mesmo tempo porque compartilham co
 
 Parafuso e Catraca são paralelos, mas convergem no boundary de identidade:
 
-- Catraca prova que Auth Discord está realmente configurado no ambiente e que callback/login funcionam;
+- Production #004 removeu a pendência de configuração mínima do app em production e provou que o início do fluxo chega ao Discord;
+- isso não prova consentimento, callback, sessão autenticada, profile resolvido ou capabilities reais;
 - Parafuso consome identidade verificada + capabilities; não cria autorização paralela;
 - mutation/audit do Edit só é declarada operacional depois da aplicação de banco correspondente e do fluxo end-to-end validado;
 - retirada do bypass temporário é etapa posterior à convergência, não pré-condição para desenvolver a integração.
@@ -79,14 +84,23 @@ Parafuso e Catraca são paralelos, mas convergem no boundary de identidade:
 
 Balde não precisa recriar a correção de metadata:
 
-- Production #003 já promoveu o registry runtime de sessão e provou 11 imagens distintas no crawler;
+- Production #003 promoveu o registry runtime de sessão e provou 11 imagens distintas no crawler; Production #004 republicou o mesmo source e preserva esse comportamento;
 - `media.dnd.faysk.dev` permanece a entrega pública verificada;
 - a frente atual cuida do ciclo de mídia/referências e eventual CAS, não de um novo metadata builder;
 - qualquer nova arte de entity/lore entra em metadata somente após cumprir o mesmo padrão `verified-public` e ser ligada ao caminho default da página.
 
 ### Estatísticas
 
-Contador começa sem impor modelo novo. O primeiro recorte deve identificar quais estatísticas são deriváveis das fontes já canônicas e publicáveis. Se surgir semântica própria, persistence ou autorização específica, aí sim nasce/expande um documento dono dedicado antes de DDL. Até lá, roadmap e catálogo registram a frente sem duplicar uma spec inexistente.
+Contador agora possui candidato concreto na PR #56. O head `88ae8534dcdb3966e694665653ed7d4156fb6d66` passou CI, mas a PR continua aberta e aguardando revisão. Seu documento candidato `docs/features/transcript-statistics.md` é dono da implementação proposta; até integração, o estado canônico da `main` permanece nos owners atuais e este roadmap não copia sua spec.
+
+### Bundle/sync cloud
+
+Carteiro assume o boundary **consumidor cloud** da sincronização sem absorver as responsabilidades do companion local:
+
+- Motorzinho/Painelzinho/Cofrinho podem produzir, preparar ou acompanhar partes do fluxo conforme seus próprios contratos de coordenação;
+- Carteiro recebe/valida bundle no lado cloud, aplica idempotência e devolve recibo suficiente para retry seguro;
+- o contrato existente de [Companion local](integrations/local-companion.md) e [Processing](domains/processing.md) continua dono dos invariantes de source identity, protocol version, checksum, fila/retry e não duplicação;
+- nenhuma tabela, RPC, endpoint, formato final de bundle ou mecanismo de autenticação é inferido por este índice antes de existir implementação/owner concreto que o defina.
 
 ## Marcos canônicos
 
@@ -100,19 +114,19 @@ Repositório, CI sem auto-deploy, Supabase existente, Vercel controlada, R2 prep
 
 **Estado:** publicado e em evolução incremental.
 
-Home/sessões e metadata social estão em production. A correção de identidade visual dos links pertence à Production #003. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
+Home/sessões e metadata social estão em production. A correção de identidade visual dos links nasceu na Production #003 e permanece no source republicado pela Production #004. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
 
 ### R3 — Auth e Edit
 
-**Estado:** implementação integrada parcialmente; convergência operacional em andamento.
+**Estado:** runtime integrado; configuração mínima de Auth publicada; convergência funcional em andamento.
 
-Runtime de Auth/guards e componentes do Edit já existem na `main`; configuração OAuth real, aplicação do boundary de persistence quando autorizada e integração end-to-end continuam tarefas distintas. Owners: [Identity/access](domains/identity-access.md), [Discord Auth](operations/discord-auth.md) e [Edit](features/edit-workbench.md).
+Production #004 comprova configuração production e início do redirect OAuth. **Não comprova login completo.** OAuth real/consentimento/callback, profile/capabilities reais, aplicação do boundary de persistence quando autorizada e integração end-to-end do Edit continuam etapas distintas. Owners: [Identity/access](domains/identity-access.md), [Discord Auth](operations/discord-auth.md) e [Edit](features/edit-workbench.md).
 
-### R4 — Operação local
+### R4 — Operação local e sync
 
-**Estado:** planejado/evolução incremental.
+**Estado:** modernização em andamento por frentes coordenadas.
 
-Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta.
+Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta. Carteiro é o recorte ativo do consumidor cloud de bundles/idempotência/recibo, preservando o contrato do companion e sem antecipar endpoint/schema.
 
 ### R5 — Memória estruturada e perfis
 
@@ -147,6 +161,7 @@ Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies av
 - toda página pública com arte elegível deve emitir metadata individual pelo caminho default real;
 - fallback social é somente fallback;
 - React Flow não define schema;
+- retries de sync precisam ser idempotentes e comprováveis por recibo/identidade, nunca por suposição;
 - DDL exige migration versionada e aplicação separada;
 - merge de migration não significa aplicação no Supabase;
 - deploy é publicação controlada, nunca ferramenta de desenvolvimento;
