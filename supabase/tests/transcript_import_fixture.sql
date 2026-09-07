@@ -1,4 +1,6 @@
 -- Minimal synthetic contract fixture, never a dump or production seed.
+create schema extensions;
+create extension if not exists pgcrypto with schema extensions;
 create role anon;
 create role authenticated;
 create role service_role bypassrls;
@@ -8,12 +10,12 @@ create table public.sessions(id uuid primary key, campaign_id uuid references ca
 create table public.permission_catalog(action text primary key, plane text, description text);
 create table public.role_permissions(role_id uuid, permission_action text references permission_catalog, primary key(role_id,permission_action));
 create table public.role_assignments(id uuid primary key default gen_random_uuid(), profile_id uuid references profiles, role_id uuid, scope_type text, scope_id text, status text, starts_at timestamptz, ends_at timestamptz);
-create table public.transcript_segments(id uuid primary key default gen_random_uuid(), session_id uuid references sessions, source_segment_id text, source_sequence integer, start_ms integer not null, end_ms integer not null, text text not null, speaker_name text, track_key text, needs_review boolean not null, review_status text not null, text_chars integer, text_words integer, metadata jsonb, revision bigint not null default 0, unique(session_id,source_segment_id));
-create table public.audit_log(id uuid primary key default gen_random_uuid(), campaign_id uuid references campaigns, session_id uuid references sessions, actor_id uuid references profiles, action text, table_name text, record_id uuid, new_value jsonb);
+create table public.transcript_segments(id uuid primary key default gen_random_uuid(), session_id uuid references sessions, source_segment_id text, source_sequence integer, start_ms integer not null, end_ms integer not null, text text not null, speaker_name text, track_key text, needs_review boolean not null, review_status text not null, text_chars integer, text_words integer, is_empty boolean not null default false, metadata jsonb, revision bigint not null default 0, unique(session_id,source_segment_id));
+create table public.audit_log(id uuid primary key default gen_random_uuid(), campaign_id uuid references campaigns, session_id uuid references sessions, actor_id uuid references profiles, action text not null, table_name text, record_id uuid, new_value jsonb);
 alter table public.transcript_segments enable row level security;
 alter table public.sessions enable row level security;
 alter table public.profiles enable row level security;
-grant usage on schema public to service_role, anon, authenticated;
+grant usage on schema public, extensions to service_role, anon, authenticated;
 grant select on all tables in schema public to service_role;
 grant update on public.sessions to service_role;
 grant insert on public.transcript_segments, public.audit_log to service_role;
