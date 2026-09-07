@@ -1,3 +1,4 @@
+import { publishedSessionMedia } from "./published-session-media";
 import type { VerifiedPublicMetadataImage } from "./public-metadata";
 
 export type PublicMediaArtifact =
@@ -43,7 +44,8 @@ export type PublicSessionMediaManifest = Readonly<
  * MIME comes from validated bytes/decoder evidence, never filename or legacy
  * response headers.
  */
-export const PUBLIC_SESSION_MEDIA_MANIFEST = {} satisfies PublicSessionMediaManifest;
+export const PUBLIC_SESSION_MEDIA_MANIFEST =
+	publishedSessionMedia satisfies PublicSessionMediaManifest;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/iu;
 
@@ -52,7 +54,8 @@ function verifiedArtifactImage(
 	alt: string,
 ): VerifiedPublicMetadataImage | undefined {
 	if (!artifact || artifact.state !== "verified-public") return undefined;
-	if (!artifact.readBackVerified || !artifact.publicDeliveryVerified) return undefined;
+	if (!artifact.readBackVerified || !artifact.publicDeliveryVerified)
+		return undefined;
 	if (!SHA256_PATTERN.test(artifact.sha256)) return undefined;
 	if (!artifact.mimeType.startsWith("image/")) return undefined;
 	if (Number.isNaN(Date.parse(artifact.verifiedAt))) return undefined;

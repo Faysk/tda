@@ -1,3 +1,4 @@
+import promotedEvidence from "../../../docs/integrations/evidence/metadata-image-manifest-2026-09-07.json";
 import { describe, expect, it, vi } from "vitest";
 import { PUBLIC_METADATA_FALLBACK_IMAGE } from "../../config/public-metadata";
 import type {
@@ -29,7 +30,9 @@ const secondSession: PublishedSession = {
 
 function verifiedArtifact(
 	publicUrl: string,
-	overrides: Partial<Extract<PublicMediaArtifact, { state: "verified-public" }>> = {},
+	overrides: Partial<
+		Extract<PublicMediaArtifact, { state: "verified-public" }>
+	> = {},
 ): Extract<PublicMediaArtifact, { state: "verified-public" }> {
 	return {
 		state: "verified-public",
@@ -50,16 +53,16 @@ describe("session public metadata", () => {
 	it("keeps two sessions distinct and uses only promoted verified delivery images", () => {
 		const manifest: PublicSessionMediaManifest = {
 			[firstSession.id]: {
-			hero: verifiedArtifact(
-				"https://media.example.test/yuhara/session-alpha/hero.webp",
-			),
-		},
+				hero: verifiedArtifact(
+					"https://media.example.test/yuhara/session-alpha/hero.webp",
+				),
+			},
 			[secondSession.id]: {
-			cover: verifiedArtifact(
-				"https://media.example.test/yuhara/session-beta/cover.webp",
-				{ width: 1200, height: 630 },
-			),
-		},
+				cover: verifiedArtifact(
+					"https://media.example.test/yuhara/session-beta/cover.webp",
+					{ width: 1200, height: 630 },
+				),
+			},
 		};
 		const first = sessionPublicMetadata(firstSession, manifest);
 		const second = sessionPublicMetadata(secondSession, manifest);
@@ -92,15 +95,15 @@ describe("session public metadata", () => {
 	it("uses a verified cover when the historical hero is known unavailable", () => {
 		const manifest: PublicSessionMediaManifest = {
 			[firstSession.id]: {
-			hero: {
-				state: "unavailable",
-				sourceUrl: firstSession.heroImage,
-				reason: "origin-404",
+				hero: {
+					state: "unavailable",
+					sourceUrl: firstSession.heroImage,
+					reason: "origin-404",
+				},
+				cover: verifiedArtifact(
+					"https://media.example.test/yuhara/session-alpha/cover.webp",
+				),
 			},
-			cover: verifiedArtifact(
-				"https://media.example.test/yuhara/session-alpha/cover.webp",
-			),
-		},
 		};
 
 		const metadata = sessionPublicMetadata(firstSession, manifest);
@@ -111,17 +114,17 @@ describe("session public metadata", () => {
 	});
 
 	it("falls back for a known unavailable HTTPS artifact without probing it at request time", () => {
-		const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(
-			new Error("metadata must not probe remote media"),
-		);
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("metadata must not probe remote media"));
 		const manifest: PublicSessionMediaManifest = {
 			[firstSession.id]: {
-			hero: {
-				state: "unavailable",
-				sourceUrl: firstSession.heroImage,
-				reason: "origin-404",
+				hero: {
+					state: "unavailable",
+					sourceUrl: firstSession.heroImage,
+					reason: "origin-404",
+				},
 			},
-		},
 		};
 
 		const metadata = sessionPublicMetadata(firstSession, manifest);
@@ -141,14 +144,15 @@ describe("session public metadata", () => {
 		};
 		const manifest: PublicSessionMediaManifest = {
 			[r2LookingSession.id]: {
-			hero: {
-				state: "pending",
-				sourceUrl: r2LookingSession.heroImage,
-				bucket: "tda-media-public",
-				objectKey: "campaigns/yuhara-main/sessions/session-r2-pending/hero/hash.webp",
-				reason: "public-delivery-not-verified",
+				hero: {
+					state: "pending",
+					sourceUrl: r2LookingSession.heroImage,
+					bucket: "tda-media-public",
+					objectKey:
+						"campaigns/yuhara-main/sessions/session-r2-pending/hero/hash.webp",
+					reason: "public-delivery-not-verified",
+				},
 			},
-		},
 		};
 
 		const metadata = sessionPublicMetadata(r2LookingSession, manifest);
@@ -165,4 +169,35 @@ describe("session public metadata", () => {
 		);
 		expect(metadata.twitter.card).toBe("summary_large_image");
 	});
+});
+
+it("uses a distinct real image for every recovered session without an injected test manifest", () => {
+	const entries = Object.entries(promotedEvidence);
+	expect(entries).toHaveLength(11);
+	const urls = new Set<string>();
+	for (const [id, evidence] of entries) {
+		const page = {
+			...firstSession,
+			id,
+			title: `Sessão ${id}`,
+			summary: `Resumo da sessão ${urls.size}`,
+		};
+		const metadata = sessionPublicMetadata(page);
+		expect(metadata.openGraph.title).toBe(page.title);
+		expect(metadata.openGraph.description).toBe(page.summary);
+		expect(metadata.openGraph.images[0]).toMatchObject({
+			url: evidence.hero.publicUrl,
+			type: evidence.hero.mimeType,
+			width: evidence.hero.width,
+			height: evidence.hero.height,
+		});
+		expect(metadata.twitter.images[0]).toMatchObject({
+			url: evidence.hero.publicUrl,
+		});
+		expect(metadata.openGraph.images[0].url).not.toBe(
+			PUBLIC_METADATA_FALLBACK_IMAGE.url,
+		);
+		urls.add(metadata.openGraph.images[0].url);
+	}
+	expect(urls.size).toBe(11);
 });

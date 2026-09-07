@@ -214,3 +214,9 @@ Tratar app+database como release coordenada e seguir rollback planejado.
 - [Retirada do projeto Vercel legado](../operations/legacy-retirement.md)
 - [Política resumida](../releases.md)
 - [Infraestrutura e estado](../infrastructure.md)
+
+## Identidade por link — correção de 2026-09-07
+
+Toda página pública deve emitir título, resumo, URL canônica e imagem próprios no HTML servido aos crawlers. A imagem padrão é fallback para conteúdo sem arte disponível, não um substituto universal das imagens das sessões. O mesmo contrato se aplica às futuras páginas de personagens, NPCs, itens e lores; rotas privadas não herdam previews públicos.
+
+As 11 sessões recuperadas agora consomem o registro runtime `src/config/published-session-media.ts`, promovido após nova verificação anônima das 22 URLs e hashes. O teste de integração de metadata usa o registro real, sem injetar um manifesto fictício, e exige 11 imagens distintas correspondentes às sessões. Essa promoção de imagem social não altera referências do banco.
