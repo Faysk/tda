@@ -106,3 +106,19 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Pós-publicação:11sessões x2user-agents (WhatsApp/Discord) responderam200 e emitiram título/resumo e URL da hero correta.11imagens distintas; o link `3y6TnJVTOlaK` emite sua imagem da floresta. Evidência é HTML servido aos crawlers; cache/visual dentro dos aplicativos não foi observado.
 - Não foram executados CAS, migrations, DNS ou mudanças de permissões. Auth/estatísticas continuam com as pendências anteriores.
 - Rollback: Production #002, `dpl_6gzV49FDyFgi7DiJsKmmgMHrCgJF`.
+
+## 2026-09-07 — Production #004: configuração Auth
+
+- Autorização: corrigir apenas a configuração de Auth em production e republicar deliberadamente o mesmo source já publicado; nenhum deploy foi executado pela atualização documental posterior.
+- Source SHA: `0120e38d28c51f3e90aa7336dfa8e7910df074f4` — o mesmo source da Production #003.
+- Projeto/time: `prj_hDiDvvRiesg3qCDekGWE8JQMkIyH` / `team_9wuTfarCQ3L63xtufPKUDzi0`, Hobby, Node 24.
+- Deployment: `dpl_7YhRViksD5bxgYMvSTTWiTg4qXdD`, target `production`, `READY` em `2026-09-07T19:21:22.439Z`.
+- URL do deployment: `https://tda-drtach4d2-projeto-desenv-6905s-projects.vercel.app`; aliases confirmados incluem `https://dnd.faysk.dev`, `https://tda-three.vercel.app` e `https://tda-projeto-desenv-6905s-projects.vercel.app`.
+- Configuração: Dashboard Vercel confirmou a ausência prévia da configuração necessária e a posterior adição **Production-only** de `SUPABASE_PUBLISHABLE_KEY` e `TDA_AUTH_ORIGIN=https://dnd.faysk.dev`. O valor da publishable key não é duplicado neste registro.
+- Não houve rotação de credencial, grant, alteração de Preview, migration, escrita de banco, CAS, DNS ou mudança de permissões nessa operação.
+- Smoke GET revalidado após READY: `/entrar` respondeu `200` e renderizou o botão **Entrar com Discord** habilitado; `/api/auth/me` respondeu `200` com `state=anonymous`, scope `campaign/yuhara-main` e `capabilities=[]` para visitante anônimo.
+- Smoke do início do OAuth registrado pela operação: `POST /auth/discord` respondeu `303` para Supabase e a sequência respondeu `302` para `discord.com`.
+- Limite da evidência: **não houve OAuth real completo**. Consentimento no Discord, retorno ao `/auth/callback`, troca real de código, sessão autenticada, vínculo de `profiles` e capabilities/permissões reais continuam pendentes. Não declarar login Discord concluído a partir deste release.
+- A correção de metadata individual da Production #003 permanece ativa porque o source de aplicação é o mesmo `0120e38...`.
+- Recibo local informado: `D:/Projects/tda/.local/production004-auth.md`; permanece fora do Git e não contém autoridade maior que o registro operacional versionado.
+- Rollback: **Production #003**, deployment `dpl_GHJgH7VdNrJd9izpYScog48UjSsE`.
