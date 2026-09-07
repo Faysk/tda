@@ -46,7 +46,7 @@ Estado atual:
 - troca das referências continua uma operação CAS/transacional separada, com snapshot e rollback próprios;
 - nova mídia de entities/lore deve passar pelo mesmo boundary de integridade, audience e entrega pública antes de virar arte social elegível.
 
-Balde é a frente ativa da nova rodada para mídia/R2. Ela não cria outro metadata builder e não refaz a promoção runtime já comprovada da Production #003.
+Balde mantém a operação de mídia/R2 após a integração da preparação #54. Ela não cria outro metadata builder e não refaz a promoção runtime já comprovada da Production #003.
 
 ## Supabase e migrations
 

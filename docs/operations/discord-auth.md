@@ -45,7 +45,7 @@ O resolver reutiliza `loadEditAccessContext`, já existente na main. Não duplic
 
 Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Server Action exige `campaign.content.edit` antes do adapter. Login não cria profile, assignment, claim, membership nem permissão. Sem configuração/dependência, o acesso é negado. Conteúdo publicado permanece no boundary público existente.
 
-**Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A migration de persistence atômica está versionada na main, mas não foi aplicada remotamente; integração no Git não torna a RPC disponível em produção. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. Este candidato protege a entrada existente, mas não declara essa convergência concluída.
+**Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A migration de persistence atômica está versionada na main, mas não foi aplicada remotamente; integração no Git não torna a RPC disponível em produção. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. A implementação publicada protege a entrada existente, mas não declara essa convergência concluída.
 
 ## Estado publicado — Production #006
 
