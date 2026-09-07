@@ -1,14 +1,14 @@
 # Edit — slice server-side de transcrição
 
-> Status: leitura autorizada implementada; mutation canônica preparada; bypass temporário de UI separado
+> Status: leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado
 > Owner: Edit / aplicação + dados
 > Última revisão: 2026-09-07
 
 ## Objetivo
 
-Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem permitir que a arquitetura definitiva normalize write concorrente sem proteção física adequada.
+Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem permitir que a arquitetura definitiva normalize write concorrente sem proteção transacional adequada.
 
-Este slice implementa a leitura autorizada e define o contrato da mutation canônica. A persistência **canônica** de escrita permanece bloqueada até o schema possuir revision/version apropriada e a política de auditoria transacional estar definida.
+Este slice implementa a leitura autorizada e define o contrato da mutation canônica. A persistência **canônica** de escrita permanece bloqueada até existir o boundary atômico que aplique optimistic concurrency e auditoria old/new na mesma transação.
 
 Durante a construção da UI existe uma exceção deliberada e isolada em [modo temporário sem autenticação](edit-unsafe-development.md). Ela não altera os contratos descritos abaixo.
 
@@ -36,7 +36,8 @@ Regras:
 - grants inativos, futuros ou expirados não autorizam;
 - leitura de transcript não concede edição;
 - consulta usa paginação por cursor `(start_ms, id)` e limite máximo de 200 segmentos;
-- payload seleciona apenas campos necessários ao trabalho editorial e lineage útil.
+- payload seleciona apenas campos necessários ao trabalho editorial e lineage útil;
+- desde a PR #34, o payload autorizado inclui `revision` validada como inteiro seguro não negativo, permitindo que o caller envie um `expectedRevision` real à mutation canônica futura.
 
 A conexão do Edit é server-only. O caminho autenticado pode habilitar leitura com `TDA_READ_EDIT_DATA=true`; durante o bypass transitório, `TDA_EDIT_UNSAFE=true` também habilita o mesmo client server-side sem exportá-lo ao browser.
 
@@ -54,20 +55,28 @@ O contrato de aplicação exige:
 
 Não existe ainda adaptador de persistence **canônico** para essa mutation.
 
-## Bloqueio físico atual
+## Estado físico atual
 
-A inspeção do schema real em 2026-09-07 confirmou que `public.transcript_segments` não possui coluna de revision/version para edição. Habilitar o caminho canônico sem isso permitiria lost update entre clientes diferentes e quebraria o contrato de concorrência aprovado.
+A PR #33 aplicou e versionou `20260907084234_add_transcript_segment_revision`, adicionando `public.transcript_segments.revision bigint not null default 0`. A validação pós-migration preservou 30.857 segmentos, sem revision nula e com intervalo inicial `0..0`.
 
-Antes de habilitar a mutation canônica:
+A PR #34 passou a selecionar e expor essa revision no boundary de leitura autorizado. Assim, as duas pré-condições abaixo já estão concluídas:
 
-1. desenhar mudança mínima de schema para optimistic concurrency;
-2. mapear compatibilidade com consumidores legados;
-3. definir auditoria old/new dentro de uma unidade transacional confiável;
-4. versionar migration;
-5. revisar grants/RLS/RPC se aplicável;
-6. aplicar de forma controlada conforme o database runbook;
-7. validar conflito real com duas revisions concorrentes;
-8. ligar Server Action/Route Handler autenticado à mutation canônica.
+1. suporte físico mínimo de optimistic concurrency no segmento;
+2. leitura autorizada da revision real pelo código canônico.
+
+O bloqueio restante é a segunda metade da issue #32: update condicionado por `revision = expectedRevision`, incremento monotônico e gravação em `audit_log` dentro do mesmo transaction boundary, com grants/RPC revisados quando aplicável.
+
+Antes de habilitar a mutation canônica ainda é obrigatório:
+
+1. implementar o boundary SQL/RPC ou equivalente transacional estreito;
+2. resolver segmento + sessão + campaign sem vazar outra campaign;
+3. diferenciar `not_found` de `conflict` conforme o contrato aprovado;
+4. incrementar `revision` exatamente uma vez por update bem-sucedido;
+5. gravar old/new em `audit_log` na mesma transação e zero eventos em conflito;
+6. revisar `SECURITY INVOKER`/`search_path`/grants caso uma função SQL seja usada;
+7. validar duas escritas concorrentes com a mesma revision;
+8. ligar Server Action/Route Handler autenticado à mutation canônica;
+9. remover o adapter unsafe apenas em etapa própria após a troca final.
 
 ## Exceção temporária para construir a UI
 
@@ -88,7 +97,7 @@ Esse adapter:
 - grava no banco real;
 - **não promete concorrência nem auditoria por ator**.
 
-A dívida fica concentrada em `src/features/edit/transcript/unsafe-mutation.ts` e deve ser removida, não promovida, quando o caminho canônico estiver pronto.
+A dívida fica concentrada em `src/features/edit/transcript/unsafe-mutation.ts` e deve ser removida, não promovida, quando o caminho canônico estiver pronto. O default versionado continua `TDA_EDIT_UNSAFE=false`.
 
 ## Testes do boundary canônico
 
@@ -102,15 +111,17 @@ Cobertura existente/esperada:
 - auth ausente;
 - input inválido;
 - leitura autorizada;
+- revision retornada na leitura autorizada;
 - recurso cross-campaign tratado como não encontrado;
 - mutation prepara invariantes server-side;
-- conflito de revision é um resultado explícito do boundary.
+- conflito de revision é um resultado explícito do boundary;
+- duas escritas com o mesmo `expectedRevision` resultam em exatamente um `updated` e um `conflict` quando a persistence canônica for implementada.
 
 ## Próxima etapa
 
 Duas linhas podem avançar em paralelo:
 
 1. **produto/UX:** validar o workbench real pelo bypass temporário, recuperar paridade e ajustar fluxo;
-2. **segurança/dados:** implementar revision + auditoria + persistence canônica.
+2. **segurança/dados:** concluir a issue #32 com persistence atômica revision + audit.
 
-Quando a segunda estiver pronta, a primeira troca apenas o adapter de acesso/write e remove `TDA_EDIT_UNSAFE`.
+Quando a segunda estiver pronta, a primeira troca apenas o adapter de acesso/write e remove `TDA_EDIT_UNSAFE` em etapa própria.
