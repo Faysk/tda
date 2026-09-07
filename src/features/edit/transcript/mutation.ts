@@ -81,11 +81,14 @@ export async function mutateTranscriptSegment(
 	if (!UUID_PATTERN.test(request.segmentId)) {
 		issues.push("segment_id_invalid");
 	}
-	if (
-		typeof request.expectedRevision !== "number" ||
-		!Number.isSafeInteger(request.expectedRevision) ||
-		request.expectedRevision < 0
-	) {
+
+	const expectedRevision =
+		typeof request.expectedRevision === "number" &&
+		Number.isSafeInteger(request.expectedRevision) &&
+		request.expectedRevision >= 0
+			? request.expectedRevision
+			: null;
+	if (expectedRevision === null) {
 		issues.push("expected_revision_invalid");
 	}
 
@@ -96,7 +99,7 @@ export async function mutateTranscriptSegment(
 	});
 	if (!prepared.ok) issues.push(...prepared.issues);
 
-	if (issues.length || !prepared.ok) {
+	if (issues.length || !prepared.ok || expectedRevision === null) {
 		return { ok: false, reason: "validation", issues };
 	}
 
@@ -118,7 +121,7 @@ export async function mutateTranscriptSegment(
 		actorProfileId: access.profileId,
 		campaignSlug: request.campaignSlug,
 		segmentId: request.segmentId,
-		expectedRevision: request.expectedRevision,
+		expectedRevision,
 		edit: prepared.value,
 	});
 
