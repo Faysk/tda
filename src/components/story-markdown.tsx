@@ -37,6 +37,15 @@ function renderInline(source: string): ReactNode[] {
 	});
 }
 
+function keyedListItems(items: string[]) {
+	const occurrences = new Map<string, number>();
+	return items.map((item) => {
+		const occurrence = (occurrences.get(item) ?? 0) + 1;
+		occurrences.set(item, occurrence);
+		return { item, key: `${item}\u0000${occurrence}` };
+	});
+}
+
 function StoryHeading({
 	block,
 }: {
@@ -87,10 +96,8 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 						const List = block.ordered ? "ol" : "ul";
 						return (
 							<List key={key}>
-								{block.items.map((item, itemIndex) => (
-									<li key={`${itemIndex}-${item.slice(0, 32)}`}>
-										{renderInline(item)}
-									</li>
+								{keyedListItems(block.items).map(({ item, key: itemKey }) => (
+									<li key={itemKey}>{renderInline(item)}</li>
 								))}
 							</List>
 						);
