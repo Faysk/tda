@@ -2,10 +2,13 @@ import { expect, test } from "@playwright/test";
 
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(
-		"Rolamos dados.",
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+		/A próxima memória começa aqui\.|Não conseguimos abrir a última memória agora\./,
 	);
-	await page.getByRole("link", { name: "Explorar as sessões" }).click();
+	await page
+		.getByRole("navigation", { name: "Navegação principal" })
+		.getByRole("link", { name: "Sessões", exact: true })
+		.click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		"As histórias até aqui",
 	);
@@ -16,7 +19,7 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	).toBeTruthy();
 });
 
-test("home uses the supported screen canvas without layout waste or overlap", async ({
+test("home uses a full-viewport cinematic hero without layout waste or overlap", async ({
 	page,
 }) => {
 	await page.goto("/");
@@ -32,10 +35,14 @@ test("home uses the supported screen canvas without layout waste or overlap", as
 		const hero = document.querySelector<HTMLElement>(
 			'section[aria-labelledby="home-title"]',
 		);
-		const intro = hero?.children.item(0) as HTMLElement | null;
-		const feature = hero?.children.item(1) as HTMLElement | null;
-		const memoriesTitle = document.getElementById("memories-title");
-		if (!header || !brand || !actions || !home || !hero || !intro || !feature) {
+		const feature =
+			hero?.querySelector<HTMLElement>("article") ??
+			(hero?.firstElementChild as HTMLElement | null);
+		const heading = document.getElementById("home-title");
+		const memories = document.querySelector<HTMLElement>(
+			'section[aria-labelledby="memories-title"]',
+		);
+		if (!header || !brand || !actions || !home || !hero || !feature || !heading || !memories) {
 			throw new Error("Home geometry contract is incomplete");
 		}
 		return {
@@ -45,30 +52,34 @@ test("home uses the supported screen canvas without layout waste or overlap", as
 			actions: actions.getBoundingClientRect().toJSON(),
 			home: home.getBoundingClientRect().toJSON(),
 			hero: hero.getBoundingClientRect().toJSON(),
-			intro: intro.getBoundingClientRect().toJSON(),
 			feature: feature.getBoundingClientRect().toJSON(),
-			memoriesTop: memoriesTitle?.getBoundingClientRect().top ?? null,
+			heading: heading.getBoundingClientRect().toJSON(),
+			memories: memories.getBoundingClientRect().toJSON(),
 		};
 	});
 
 	expect(geometry.overflow).toBeFalsy();
 	const expectedShellWidth = Math.min(viewport.width, 2160);
+	const expectedShellLeft = (viewport.width - expectedShellWidth) / 2;
 	expect(Math.abs(geometry.header.width - expectedShellWidth)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.home.width - expectedShellWidth)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.header.left - expectedShellLeft)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.home.width - viewport.width)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.hero.width - viewport.width)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.hero.left)).toBeLessThanOrEqual(2);
 	expect(geometry.brand.right).toBeLessThan(geometry.actions.left);
 	expect(Math.abs(geometry.brand.y - geometry.actions.y)).toBeLessThan(16);
 
-	const gutter = geometry.hero.left - geometry.home.left;
-	expect(gutter).toBeGreaterThanOrEqual(19);
-	expect(gutter).toBeLessThanOrEqual(73);
-
-	if (viewport.width >= 980) {
-		expect(geometry.intro.right).toBeLessThan(geometry.feature.left);
-		expect(geometry.memoriesTop).not.toBeNull();
-		expect(geometry.memoriesTop ?? viewport.height).toBeLessThan(viewport.height);
-	} else {
-		expect(geometry.feature.top).toBeGreaterThanOrEqual(geometry.intro.bottom);
-	}
+	const expectedHeroHeight = viewport.height - geometry.header.height;
+	expect(geometry.hero.height).toBeGreaterThanOrEqual(expectedHeroHeight - 2);
+	expect(geometry.heading.top).toBeGreaterThanOrEqual(geometry.hero.top);
+	expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.hero.bottom);
+	expect(geometry.feature.left).toBeGreaterThanOrEqual(expectedShellLeft - 2);
+	expect(geometry.feature.right).toBeLessThanOrEqual(
+		expectedShellLeft + expectedShellWidth + 2,
+	);
+	expect(Math.abs(geometry.memories.width - expectedShellWidth)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.memories.left - expectedShellLeft)).toBeLessThanOrEqual(2);
+	expect(geometry.memories.top).toBeGreaterThanOrEqual(geometry.hero.bottom - 2);
 });
 
 test("public shell stays usable at 320px", async ({ page }) => {
@@ -146,6 +157,30 @@ test("theme follows the system by default and persists explicit toggles", async 
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"dark",
 	);
+});
+
+test("light theme keeps the cinematic hero dark and horizontally contained", async ({
+	page,
+}) => {
+	await page.emulateMedia({ colorScheme: "light" });
+	await page.goto("/");
+	const hero = page.locator('section[aria-labelledby="home-title"]');
+	await expect(hero).toBeVisible();
+	await expect(hero).toHaveCSS("background-color", "rgb(7, 10, 13)");
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-canvas")
+					.trim(),
+			),
+		)
+		.toBe("rgb(243, 239, 231)");
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= innerWidth,
+		),
+	).toBeTruthy();
 });
 
 test("official design tokens and brand variant follow the resolved theme", async ({
@@ -247,7 +282,9 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 test("reduced motion removes decorative transitions", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");
-	const action = page.getByRole("link", { name: "Explorar as sessões" });
+	const action = page
+		.getByRole("navigation", { name: "Navegação principal" })
+		.getByRole("link", { name: "Sessões", exact: true });
 	await expect(action).toBeVisible();
 	expect(
 		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
