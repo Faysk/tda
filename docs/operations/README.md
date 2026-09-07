@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 Este diretório contém os procedimentos que devem ser executáveis por alguém que não estava na cabeça de quem implementou a feature.
 
@@ -10,6 +10,7 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 - [Ambientes e configuração](environments.md)
 - [Release, deploy e rollback](release-runbook.md)
+- [Operação do banco / Supabase](database-runbook.md)
 - [Checklist de segurança operacional](security-checklist.md)
 - [Política resumida de publicação](../releases.md)
 - [Infraestrutura e estado](../infrastructure.md)
@@ -30,7 +31,7 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 ## Matriz rápida
 
 | Mudança | Precisa CI | Precisa migration | Precisa revisão segurança | Pode exigir deploy |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- |
 | docs | sim | não | normalmente não | não |
 | UI estática | sim | não | se muda exposição | sim |
 | query/API | sim | talvez | sim | sim |
