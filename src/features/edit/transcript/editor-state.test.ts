@@ -18,6 +18,12 @@ const base: TranscriptDraft = {
 	reviewStatus: "pending",
 };
 
+function requireSubmission(value: TranscriptDraft | null): TranscriptDraft {
+	expect(value).not.toBeNull();
+	if (!value) throw new Error("Expected save submission fixture");
+	return value;
+}
+
 describe("transcript editor state", () => {
 	it("marks edits as dirty and can reset them", () => {
 		const initial = createTranscriptEditorState(base);
@@ -34,14 +40,14 @@ describe("transcript editor state", () => {
 			text: "Primeira correção",
 		});
 		const started = beginTranscriptSave(dirty);
-		expect(started.submission).not.toBeNull();
+		const submission = requireSubmission(started.submission);
 		const editedWhileSaving = editTranscriptDraft(started.state, {
 			text: "Correção feita enquanto salvava",
 		});
 		const finished = completeTranscriptSaveSuccess(
 			editedWhileSaving,
-			started.submission!,
-			started.submission!,
+			submission,
+			submission,
 		);
 		expect(finished.saved.text).toBe("Primeira correção");
 		expect(finished.draft.text).toBe("Correção feita enquanto salvava");
@@ -53,9 +59,10 @@ describe("transcript editor state", () => {
 			speaker: "Dandelion",
 		});
 		const first = beginTranscriptSave(dirty);
+		const submission = requireSubmission(first.submission);
 		const failed = completeTranscriptSaveFailure(
 			first.state,
-			first.submission!,
+			submission,
 			"error",
 			"Falha temporária.",
 		);
@@ -71,9 +78,10 @@ describe("transcript editor state", () => {
 			reviewStatus: "approved",
 		});
 		const started = beginTranscriptSave(dirty);
+		const submission = requireSubmission(started.submission);
 		const conflicted = completeTranscriptSaveFailure(
 			started.state,
-			started.submission!,
+			submission,
 			"conflict",
 			"Existe uma versão mais nova.",
 		);
