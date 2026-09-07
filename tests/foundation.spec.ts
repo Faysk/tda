@@ -81,12 +81,8 @@ test("public shell stays usable at 320px", async ({ page }) => {
 		navigation.getByRole("link", { name: "Sessões", exact: true }),
 	).toBeVisible();
 	await expect(navigation.getByRole("link", { name: "Início" })).toHaveCount(0);
-
-	const appearance = page.getByRole("radiogroup", { name: "Aparência" });
-	await expect(appearance).toBeVisible();
-	await expect(appearance.getByRole("radio", { name: "Sistema" })).toBeVisible();
-	await expect(appearance.getByRole("radio", { name: "Claro" })).toBeVisible();
-	await expect(appearance.getByRole("radio", { name: "Escuro" })).toBeVisible();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= innerWidth,
@@ -107,60 +103,49 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	).toBeTruthy();
 });
 
-test("theme follows the system by default and persists explicit preferences", async ({
+test("theme follows the system by default and persists explicit toggles", async ({
 	page,
 }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
+	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	const sun = page.locator(".theme-toggle-glyph--sun");
+	const moon = page.locator(".theme-toggle-glyph--moon");
 
-	const appearance = page.getByRole("radiogroup", { name: "Aparência" });
-	const system = appearance.getByRole("radio", { name: "Sistema" });
-	const light = appearance.getByRole("radio", { name: "Claro" });
-
-	await expect(system).toBeChecked();
+	await expect(toggle).toBeVisible();
+	await expect(toggle).toHaveAttribute("aria-checked", "true");
+	await expect(toggle).toHaveAttribute("title", "Usar tema claro");
 	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
+	expect(await sun.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+	expect(await moon.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
 
-	await page.getByTitle("Usar tema claro").click();
+	await toggle.click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-	await expect(light).toBeChecked();
+	await expect(toggle).toHaveAttribute("aria-checked", "false");
+	await expect(toggle).toHaveAttribute("title", "Usar tema escuro");
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"light",
 	);
+	expect(await sun.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+	expect(await moon.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
 
 	await page.reload();
-	const reloadedAppearance = page.getByRole("radiogroup", { name: "Aparência" });
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-	await expect(
-		reloadedAppearance.getByRole("radio", { name: "Claro" }),
-	).toBeChecked();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
+		"aria-checked",
+		"false",
+	);
 
-	await page.getByTitle("Usar tema escuro").click();
+	await page.getByRole("switch", { name: "Modo escuro" }).click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
+		"aria-checked",
+		"true",
+	);
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"dark",
 	);
-
-	await page.getByTitle("Seguir o tema do sistema").click();
-	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
-	await expect(
-		reloadedAppearance.getByRole("radio", { name: "Sistema" }),
-	).toBeChecked();
-	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
-		"system",
-	);
-});
-
-test("appearance selector supports native radio keyboard navigation", async ({ page }) => {
-	await page.goto("/");
-	const appearance = page.getByRole("radiogroup", { name: "Aparência" });
-	const system = appearance.getByRole("radio", { name: "Sistema" });
-	const light = appearance.getByRole("radio", { name: "Claro" });
-
-	await system.focus();
-	await page.keyboard.press("ArrowRight");
-	await expect(light).toBeChecked();
-	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
 test("official design tokens and brand variant follow the resolved theme", async ({
@@ -187,7 +172,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 		),
 	).toBe("none");
 
-	await page.getByTitle("Usar tema claro").click();
+	await page.getByRole("switch", { name: "Modo escuro" }).click();
 	expect(
 		await page.evaluate(() =>
 			getComputedStyle(document.documentElement)
@@ -215,9 +200,9 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 	expect(
 		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0s");
-	const indicator = page.locator(".theme-selector-indicator");
+	const knob = page.locator(".theme-toggle-knob");
 	expect(
-		await indicator.evaluate((element) => getComputedStyle(element).transitionDuration),
+		await knob.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0s");
 });
 
