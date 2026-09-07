@@ -1,0 +1,168 @@
+.shell {
+	width: min(1280px, calc(100% - 2 * var(--ds-page-gutter)));
+	margin: 0 auto;
+	padding: 32px 0 64px;
+	font-family: var(--ds-font-ui);
+	color: var(--ds-foreground);
+	overflow-wrap: anywhere;
+}
+.header {
+	margin: 24px 0;
+}
+.header h1 {
+	font-family: var(--ds-font-display);
+	font-size: clamp(2rem, 5vw, 3.5rem);
+	font-weight: 500;
+	margin: 8px 0;
+}
+.header p {
+	color: var(--ds-foreground-muted);
+}
+.navigation,
+.badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.navigation a {
+	padding: 8px 0;
+}
+.notice,
+.empty,
+.person {
+	background: var(--ds-surface);
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-lg);
+	padding: 24px;
+}
+.notice p {
+	color: var(--ds-foreground-soft);
+	margin-bottom: 0;
+	max-width: 95ch;
+}
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	justify-content: space-between;
+	gap: 16px;
+	margin: 28px 0;
+}
+.searchField {
+	display: grid;
+	gap: 8px;
+	width: min(100%, 520px);
+}
+.searchField label {
+	font-weight: 600;
+}
+.searchField input {
+	width: 100%;
+	min-height: 44px;
+	font: inherit;
+	color: var(--ds-foreground);
+	background: var(--ds-canvas);
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	padding: 10px 12px;
+}
+.searchField input:focus-visible,
+.navigation a:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+.people {
+	display: grid;
+	gap: 20px;
+}
+.roleActions {
+	width: 100%;
+	font-size: 0.85rem;
+}
+.roleActions summary {
+	cursor: pointer;
+	padding: 8px 0;
+}
+.roleActions summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+.roleActions ul {
+	padding: 8px 0;
+	display: grid;
+	gap: 8px;
+}
+.personHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: start;
+	flex-wrap: wrap;
+	gap: 12px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--ds-border);
+}
+.personHeader h2 {
+	margin: 0 0 8px;
+	font-size: 1.4rem;
+}
+.profileId {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.8rem;
+}
+.columns {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 32px;
+}
+.columns section {
+	min-width: 0;
+}
+.columns h3 {
+	font-size: 1rem;
+	margin: 24px 0 16px;
+}
+.roles,
+.capabilities {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 18px;
+}
+.roles li,
+.capabilities li {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+.roles p,
+.capabilities p {
+	width: 100%;
+	margin: 0;
+	font-size: 0.88rem;
+}
+.capabilities code {
+	width: 100%;
+	font-size: 0.8rem;
+}
+.muted,
+.footnote {
+	color: var(--ds-foreground-muted);
+}
+.footnote {
+	margin-top: 24px;
+	font-size: 0.86rem;
+}
+@media (max-width: 700px) {
+	.columns {
+		grid-template-columns: 1fr;
+		gap: 0;
+	}
+	.notice,
+	.empty,
+	.person {
+		padding: 18px;
+	}
+}

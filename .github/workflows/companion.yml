@@ -1,0 +1,30 @@
+name: Companion
+on:
+  pull_request:
+  push:
+    branches: [main, Preview]
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            python: .venv/Scripts/python.exe
+          - os: ubuntu-latest
+            python: .venv/bin/python
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: '0.12.10'
+      - run: uv venv --python 3.12.13
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - run: ${{ matrix.python }} -m pytest local-companion/tests -q
+      - run: uv build local-companion --wheel --out-dir wheelhouse
+      - name: Installation plan only
+        shell: pwsh
+        run: ./local-companion/packaging/plan.ps1 -InstallRoot '${{ runner.temp }}/tda-app' -DataRoot '${{ runner.temp }}/tda-data'

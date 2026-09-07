@@ -106,3 +106,26 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Pós-publicação:11sessões x2user-agents (WhatsApp/Discord) responderam200 e emitiram título/resumo e URL da hero correta.11imagens distintas; o link `3y6TnJVTOlaK` emite sua imagem da floresta. Evidência é HTML servido aos crawlers; cache/visual dentro dos aplicativos não foi observado.
 - Não foram executados CAS, migrations, DNS ou mudanças de permissões. Auth/estatísticas continuam com as pendências anteriores.
 - Rollback: Production #002, `dpl_6gzV49FDyFgi7DiJsKmmgMHrCgJF`.
+
+
+## 2026-09-07 — Production #004 (registro retrospectivo)
+
+- Source SHA: `0120e38d28c51f3e90aa7336dfa8e7910df074f4`.
+- Deployment: `dpl_7YhRViksD5bxgYMvSTTWiTg4qXdD`, READY em 19:21:22.439Z.
+- Configuração Production adicionada: `SUPABASE_PUBLISHABLE_KEY` e `TDA_AUTH_ORIGIN=https://dnd.faysk.dev`; sem rotação de segredos, grants, DDL ou Preview.
+- Entrada habilitada e autorização HTTP encaminhada ao Discord; retorno real ainda não validado naquele momento.
+- Rollback: Production #003. Evidência original preservada no registro operacional local `production004-auth.md`.
+
+## 2026-09-07 — Production #005
+
+- Escopo autorizado: publicar a correção do login Discord da PR #59 e validar fluxo real.
+- Source SHA: `d89b954d9b35de3e90452a83b5b66cf79fab322b`, CI terminal success antes do deploy.
+- Projeto/time: `prj_hDiDvvRiesg3qCDekGWE8JQMkIyH` / `team_9wuTfarCQ3L63xtufPKUDzi0`.
+- Deployment: `dpl_EtY2oqVJ9hdNwRS5qRMZt4q19EHt`, READY; aliases confirmados incluindo https://dnd.faysk.dev/.
+- Método: bootstrap com tarball GitHub imutável do SHA acima, instalação frozen-lockfile, build Next na Vercel. Auto-deploy por push permanece desativado.
+- Smoke: Home, sessões, health, entrar e API de identidade responderam 200; health `ok=true`, ambiente production. `/entrar` usa `same-origin`; `/api/auth/me` mantém `no-referrer`.
+- Navegador real: clique encaminhou ao consentimento Discord, autorização retornou ao TDA. A conta exibiu acesso indisponível: faltava a flag `TDA_READ_EDIT_DATA` usada pelo resolvedor server-only.
+- Configuração corrigida para a próxima publicação: somente Production `TDA_READ_EDIT_DATA=true`. Não concede roles, não habilita `TDA_EDIT_UNSAFE`, não altera banco. Esta flag ainda não pertence ao snapshot do deployment #005.
+- Nenhum erro runtime encontrado na janela de 5 minutos consultada após publicação; não equivale a monitoramento contínuo.
+- Pendência de identidade: aplicativo OAuth ainda se apresenta como DND-SCRIBE. Não alterado nesta release.
+- Rollback: Production #004. Autenticação/retorno observados; acesso autorizado, reload e logout devem ser revalidados após ativar a flag no próximo deployment.

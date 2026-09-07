@@ -18,11 +18,16 @@ export async function proxy(request: NextRequest) {
 		/* The data boundary denies unavailable sessions. */
 	}
 	response.headers.set("Cache-Control", "private, no-store");
-	response.headers.set("Referrer-Policy", "no-referrer");
+	// HTML form POSTs need their same-origin Origin header for the CSRF guard.
+	const authFormPage = ["/entrar", "/conta"].includes(request.nextUrl.pathname);
+	response.headers.set(
+		"Referrer-Policy",
+		authFormPage ? "same-origin" : "no-referrer",
+	);
 	response.headers.set("X-Robots-Tag", "noindex, nofollow");
 	return response;
 }
 
 export const config = {
-	matcher: ["/edit/:path*", "/conta", "/entrar", "/api/auth/:path*"],
+	matcher: ["/edit/:path*", "/transcricoes/:path*", "/conta", "/entrar", "/api/auth/:path*"],
 };
