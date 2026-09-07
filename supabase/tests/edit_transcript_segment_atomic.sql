@@ -132,8 +132,7 @@ begin
     raise exception 'character identity must be preserved when speaker does not change; got %', v_character_name;
   end if;
 
-  select count(*), min(old_value), min(new_value)
-  into v_audit_count, v_old, v_new
+  select count(*) into v_audit_count
   from public.audit_log
   where record_id = '55555555-5555-4555-8555-555555555555'
     and action = 'transcript_segment.update';
@@ -141,6 +140,13 @@ begin
   if v_audit_count <> 1 then
     raise exception 'expected exactly one audit row after updated+conflict; got %', v_audit_count;
   end if;
+
+  select old_value, new_value
+  into v_old, v_new
+  from public.audit_log
+  where record_id = '55555555-5555-4555-8555-555555555555'
+    and action = 'transcript_segment.update';
+
   if v_old ->> 'revision' <> '0' or v_new ->> 'revision' <> '1' then
     raise exception 'audit revisions must be 0 -> 1; got % -> %', v_old ->> 'revision', v_new ->> 'revision';
   end if;
@@ -185,7 +191,7 @@ end;
 $$;
 
 -- Inject an audit failure and prove the transcript UPDATE rolls back with it.
-create or replace function pg_temp.fail_atomic_edit_audit()
+create or replace function public.tda_test_fail_atomic_edit_audit_20260907()
 returns trigger
 language plpgsql
 as $$
@@ -201,7 +207,7 @@ $$;
 create trigger tda_test_fail_atomic_edit_audit
 before insert on public.audit_log
 for each row
-execute function pg_temp.fail_atomic_edit_audit();
+execute function public.tda_test_fail_atomic_edit_audit_20260907();
 
 do $$
 declare
