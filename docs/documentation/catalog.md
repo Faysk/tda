@@ -58,7 +58,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Gestão de entregas](../delivery/README.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
-| [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
+| [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | vigente | 2026-09-07 |
 | [Medição de esforço e qualidade](../delivery/measurement.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
 | [Composição de candidato e marcos](../delivery/release-candidate.md) | Prancheta - Organização de entregas; decisão de escopo por Polvo - Coordenação e produto | preparado | 2026-09-07 |
 | [Fluxo de entregas](../delivery/workflow.md) | Prancheta - Organização de entregas; execução por Polvo - Coordenação | preparado | 2026-09-07 |
@@ -150,7 +150,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-07 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | Não declarado |
-| [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | Auth integrado; correção de Origin candidata, sem deploy; OAuth completo ainda não comprovado por esta tarefa | 2026-09-07 |
+| [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, migração e rollback](../operations/local-companion.md) | local-companion/processing | preparado; base executável sintética em branch/PR | 2026-09-07 |

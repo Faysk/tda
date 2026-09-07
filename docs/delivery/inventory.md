@@ -1,6 +1,6 @@
 # Inventário de entregas
 
-> Status: preparado
+> Status: vigente
 > Owner: Prancheta - Organização de entregas
 > Última revisão: 2026-09-07
 > Fonte de verdade: GitHub para PR/SHA/checks; documentos donos para contrato; evidência operacional específica para integração/publicação
@@ -14,9 +14,10 @@ Este é o **único registro operacional de status das entregas**. Roadmap define
 - AUTH: consentimento/retorno real, resolvedor de acesso, navegação autorizada, logout e bloqueio posterior de estatísticas verificados. Nome do aplicativo Discord ainda legado.
 - STATS e consulta de PERMISSOES verificados com conta real autorizada. Nenhum grant foi criado; duração incompleta aparece explicitamente.
 - LOCAL: tela publicada e estado desconectado correto. SERVICO é fundação sintética testada, sem instalação persistente/ASR real. IMPORT continua desativado.
-- IMPORT #61: SQL do head5590c119 aprovado por Cofrinho como candidata; falta reconciliação, migrations deliberadas, consumidor/receipt integrado e sessão de destino apropriada. Não sobrescrever sessões transcritas.
+- IMPORT #61: integrada em `81219c009eeb87593df2458c836d40fcfa2a2491` após CI terminal do candidato `825de74` (runs `34163329504` e `34163329535`). SQL revisado e testes PostgreSQL isolados aprovados. Endpoints negados, sem aplicação de migrations/grants; faltam ponte UI/companion, importação real e sessão de destino apropriada. Não sobrescrever sessões transcritas.
 - PIPIPI/CINEMA/GRAFO/EDIT: trabalho local preservado em revisão, ainda fora desta release.
-- Documentação de entregas: PR #65; publicação do site não implica integração desta documentação.
+- Documentação de entregas: PR #65 integrada em `0188e82eca481a2773c3e2a731b4ef5fd1017e77`, com CI terminal aprovado; não exige deployment.
+- MIDIA #54: preparação integrada em `e804006` após checks aprovados no candidato `9900117` (runs `34163641533` e `34163641537`). Nenhum upload, promoção de referências ou deployment executado por esse merge.
 - Próxima prioridade: fechar Edit/import/local real e revisões narrativas existentes, sem novas frentes.
 
 ## Corte histórico inicial
@@ -31,11 +32,13 @@ Este é o **único registro operacional de status das entregas**. Roadmap define
 
 Uma mudança de head invalida somente as provas dependentes daquele SHA. CI verde prova o escopo executado pelo workflow, não integração, OAuth real, aplicação de migration, configuração remota nem publicação.
 
-## Quadro
+## Quadro histórico do corte inicial
+
+A tabela abaixo conserva o corte `main@d89b954`; não representa o estado corrente descrito no topo. As evidências e pendências referem-se àquele corte.
 
 `Bloqueado` é marcador, não coluna separada. `não disponível` significa ausência de evidência atual no corte e nunca deve ser convertido em conclusão.
 
-| ID | Resultado / frente | Dono | Marco / prioridade | Coluna atual | PR / SHA | Evidência de testes | Integração | Publicação / aplicação | Dependências, bloqueios e próximo gate | Estimado | Observado |
+| ID | Resultado / frente | Dono | Marco / prioridade | Coluna no corte | PR / SHA | Evidência de testes | Integração | Publicação / aplicação | Dependências, bloqueios e próximo gate | Estimado | Observado |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | MIDIA | preparação de mídia/lore e CAS futuro | Balde | M0 / preservar público | Em validação/revisão | #54 `46a16d1ec811b3c36413206e0527a9166a0854c5` | CI atual success; dry-run e testes de escopo/SVG registrados na PR | não integrada | nenhum upload/CAS/deploy deste recorte | decisão de integração; qualquer operação R2/CAS continua separada e deliberada | ausente | ausente |
 | DOCS | coordenação documental da rodada e Production #004 | Rabisco | transversal; prioridade no roadmap | Em validação/revisão | #55 `ea5fb59b7ed4aa2b130fbd16a7912881a219e8e2` | CI atual success | não integrada | não aplicável ao recorte docs; recibos operacionais permanecem nos documentos donos | reconciliar snapshot após #59 e demais integrações; regenerar catálogo sobre base final | ausente | ausente |

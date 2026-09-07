@@ -1,6 +1,6 @@
 # Login Discord: configuração e verificação
 
-> Status: Auth integrado; correção de Origin candidata, sem deploy; OAuth completo ainda não comprovado por esta tarefa
+> Status: publicado na Production #006; OAuth real, acesso e logout verificados
 > Owner: identity/access
 > Última revisão: 2026-09-07
 > Fonte de verdade: `src/features/auth/`, contrato [identity-access](../domains/identity-access.md)
@@ -28,8 +28,8 @@ Não configurar Client Secret do Discord no Next: ele pertence exclusivamente ao
 
 1. Confirmar que a aplicação Discord existente aponta para `https://dmrqnbdvbkfqzctcerbx.supabase.co/auth/v1/callback`.
 2. Confirmar Discord habilitado no Supabase. **Verificado read-only em 2026-09-07** por `/auth/v1/settings`: `external.discord=true`. Não foram lidos tokens de usuários nem alteradas configurações.
-3. Na allowlist de redirects do Supabase, confirmar a origem de ensaio deliberada com `/auth/callback` e os query parameters de fluxo. Exemplo local: `http://localhost:3000/auth/callback?flow=*`, conforme a sintaxe de glob da documentação Supabase. Produção futura: `https://dnd.faysk.dev/auth/callback?flow=*`. Restringir host e path; não usar wildcard geral de domínio.
-4. Preencher as variáveis no ambiente local privado ou no ambiente de hosting autorizado, nunca no chat ou Git. Publicação e alterações remotas de configuração não fazem parte desta rodada.
+3. Na allowlist de redirects do Supabase, confirmar a origem de ensaio deliberada com `/auth/callback` e os query parameters de fluxo. Exemplo local: `http://localhost:3000/auth/callback?flow=*`, conforme a sintaxe de glob da documentação Supabase. Produção: `https://dnd.faysk.dev/auth/callback?flow=*`. Restringir host e path; não usar wildcard geral de domínio.
+4. Preencher as variáveis no ambiente local privado ou no ambiente de hosting autorizado, nunca no chat ou Git. Alterações remotas exigem registro operacional; a configuração publicada está descrita abaixo.
 5. Executar OAuth com uma pessoa autorizada, testar callback, recarregamento, logout e expiração; verificar conta sem profile/sem grants e conta com permissões. Não abrir/registrar transcrições reais para provar apenas login.
 
 ## Integração com Edit
@@ -45,9 +45,17 @@ O resolver reutiliza `loadEditAccessContext`, já existente na main. Não duplic
 
 Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Server Action exige `campaign.content.edit` antes do adapter. Login não cria profile, assignment, claim, membership nem permissão. Sem configuração/dependência, o acesso é negado. Conteúdo publicado permanece no boundary público existente.
 
-**Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A PR #43 define a convergência e a PR #44 contém persistence atômica candidata; nenhuma dessas PRs foi integrada por esta tarefa e a RPC #44 não está presumida disponível. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. Este candidato protege a entrada existente, mas não declara essa convergência concluída.
+**Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A migration de persistence atômica está versionada na main, mas não foi aplicada remotamente; integração no Git não torna a RPC disponível em produção. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. A implementação publicada protege a entrada existente, mas não declara essa convergência concluída.
 
-## Evidências e gates
+## Estado publicado — Production #006
+
+Source `7dd4b06d1a246ad924230530c2a0424e830aa46d`, deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`. A correção de Origin já está publicada. `TDA_READ_EDIT_DATA=true` foi configurado somente em Production para consultar permissões existentes; não habilita unsafe nem concede grants.
+
+Consentimento real no Discord e retorno ao TDA foram exercitados; após recarregar, a conta reconheceu permissões. Estatísticas autorizadas e diretório somente leitura renderizaram. Logout funcionou e a visita posterior às transcrições apresentou negação sem métricas. O nome do app OAuth ainda é DND-SCRIBE. Nenhuma migration, concessão de acesso ou escrita de transcrição foi executada para esses testes. Evidências e rollback em [deployments](deployments.md).
+
+Os registros abaixo são históricos dos candidatos e não representam pendências atuais de login. Persistence do Edit, importação real e cenários não exercitados continuam gates separados.
+
+## Evidências históricas e cobertura
 
 ### Correção de Origin dos formulários — 2026-09-07
 
