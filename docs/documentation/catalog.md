@@ -118,7 +118,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-07 |
 | [Integração Supabase](../integrations/supabase.md) | integrations + data + identity | implementado/canônico | 2026-09-06 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
-| [Importação de transcrição local](../integrations/transcript-import.md) | sync/consumer; SQL pendente de revisão dados/Supabase | implementado em branch/PR; ativação negada | 2026-09-07 |
+| [Importação de transcrição local](../integrations/transcript-import.md) | sync/consumer + dados/Supabase | implementado em branch/PR; ativação negada | 2026-09-07 |
 | [Integração Vercel](../integrations/vercel.md) | operations/hosting | production ativa; publicação manual controlada | 2026-09-07 |
 
 ## docs/legacy
