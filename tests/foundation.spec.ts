@@ -180,6 +180,70 @@ test("official design tokens and brand variant follow the resolved theme", async
 	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "1");
 });
 
+test("theme transition has a visible midpoint and coordinated final-candidate timings", async ({
+	page,
+}) => {
+	await page.emulateMedia({ colorScheme: "dark", reducedMotion: "no-preference" });
+	await page.goto("/");
+	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	const track = page.locator(".theme-toggle-track");
+	const knob = page.locator(".theme-toggle-knob");
+	const glyph = page.locator(".theme-toggle-glyph--sun");
+
+	const themeDuration = await page.evaluate(() =>
+		getComputedStyle(document.documentElement)
+			.getPropertyValue("--ds-motion-theme")
+			.trim(),
+	);
+	expect(themeDuration).toMatch(/^(?:700ms|0?\.7s)$/);
+
+	const trackDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-track-duration")
+			.trim(),
+	);
+	expect(trackDuration).toMatch(/^(?:520ms|0?\.52s)$/);
+
+	const knobDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-knob-duration")
+			.trim(),
+	);
+	expect(knobDuration).toMatch(/^(?:650ms|0?\.65s)$/);
+
+	const glyphDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-glyph-duration")
+			.trim(),
+	);
+	expect(glyphDuration).toMatch(/^(?:460ms|0?\.46s)$/);
+
+	await expect(track).toHaveCSS("transition-duration", "0.52s, 0.52s, 0.52s");
+	await expect(knob).toHaveCSS("transition-duration", "0.65s, 0.14s, 0.52s");
+	await expect(glyph).toHaveCSS("transition-duration", "0.46s, 0.46s");
+
+	const startCanvas = await page.evaluate(() =>
+		getComputedStyle(document.documentElement).getPropertyValue("--ds-canvas").trim(),
+	);
+	await toggle.click();
+	await page.waitForTimeout(250);
+	const midpointCanvas = await page.evaluate(() =>
+		getComputedStyle(document.documentElement).getPropertyValue("--ds-canvas").trim(),
+	);
+	expect(midpointCanvas).not.toBe(startCanvas);
+	expect(midpointCanvas).not.toBe("rgb(243, 239, 231)");
+
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-canvas")
+					.trim(),
+			),
+		)
+		.toBe("rgb(243, 239, 231)");
+});
+
 test("reduced motion removes decorative transitions", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");

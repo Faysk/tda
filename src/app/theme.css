@@ -9,8 +9,9 @@
 	background: transparent;
 	color: var(--ds-foreground);
 	cursor: pointer;
-	/* Deliberately slow for tuning so every phase of the interaction is visible. */
-	--theme-toggle-duration: 2s;
+	--theme-toggle-track-duration: 520ms;
+	--theme-toggle-knob-duration: 650ms;
+	--theme-toggle-glyph-duration: 460ms;
 	--theme-toggle-spring: linear(
 		0,
 		0.064 6.25%,
@@ -42,9 +43,9 @@
 	background: var(--ds-surface);
 	box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.08);
 	transition:
-		background-color var(--theme-toggle-duration) var(--ds-ease-standard),
-		border-color var(--theme-toggle-duration) var(--ds-ease-standard),
-		box-shadow var(--theme-toggle-duration) var(--ds-ease-standard);
+		background-color var(--theme-toggle-track-duration) var(--ds-ease-standard),
+		border-color var(--theme-toggle-track-duration) var(--ds-ease-standard),
+		box-shadow var(--theme-toggle-track-duration) var(--ds-ease-standard);
 }
 
 .theme-toggle-knob {
@@ -62,9 +63,9 @@
 	transform: translate3d(0, 0, 0);
 	scale: 1;
 	transition:
-		transform var(--theme-toggle-duration) var(--theme-toggle-spring),
-		scale 120ms ease-out,
-		box-shadow var(--theme-toggle-duration) var(--ds-ease-standard);
+		transform var(--theme-toggle-knob-duration) var(--theme-toggle-spring),
+		scale 140ms ease-out,
+		box-shadow var(--theme-toggle-track-duration) var(--ds-ease-standard);
 }
 
 .theme-toggle-glyph {
@@ -79,8 +80,8 @@
 	transform-origin: 50% 50%;
 	shape-rendering: geometricPrecision;
 	transition:
-		opacity var(--theme-toggle-duration) var(--ds-ease-standard),
-		transform var(--theme-toggle-duration) var(--theme-toggle-spring);
+		opacity var(--theme-toggle-glyph-duration) var(--ds-ease-standard),
+		transform var(--theme-toggle-glyph-duration) var(--theme-toggle-spring);
 }
 
 /* The icon communicates the action: moon in light mode, sun in dark mode. */
