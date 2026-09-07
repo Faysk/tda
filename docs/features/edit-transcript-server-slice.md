@@ -1,6 +1,6 @@
 # Edit — slice server-side de transcrição
 
-> Status: leitura autorizada implementada; revision aplicada; persistence transacional candidata preparada e ainda não aplicada
+> Status: leitura autorizada implementada com revision; persistence atômica candidata preparada e ainda não aplicada; bypass temporário de UI separado
 > Owner: Edit / aplicação + dados
 > Última revisão: 2026-09-07
 
@@ -8,7 +8,7 @@
 
 Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem aceitar lost update ou auditoria parcial.
 
-A leitura autorizada e o contrato da mutation canônica já existem. A coluna física de concorrência otimista foi aplicada pela migration `20260907084234_add_transcript_segment_revision`. Este slice prepara a menor persistence SQL necessária para `update + revision + audit` na mesma transação; ela permanece desligada até ser validada em banco isolado, aplicada pelo fluxo operacional aprovado e integrada pelo Edit/Auth.
+A leitura autorizada e o contrato da mutation canônica já existem. A PR #33 aplicou a coluna física de concorrência otimista e a PR #34 passou a entregar `revision` no boundary autorizado. Este slice prepara a menor persistence SQL necessária para `update + revision + audit` na mesma transação; ela permanece desligada até ser validada em banco isolado, aplicada pelo fluxo operacional aprovado e integrada pelo Edit/Auth.
 
 Durante a construção da UI existe uma exceção deliberada e isolada em [modo temporário sem autenticação](edit-unsafe-development.md). Ela não altera os contratos descritos abaixo.
 
@@ -36,13 +36,10 @@ Regras:
 - grants inativos, futuros ou expirados não autorizam;
 - leitura de transcript não concede edição;
 - consulta usa paginação por cursor `(start_ms, id)` e limite máximo de 200 segmentos;
-- payload seleciona apenas campos necessários ao trabalho editorial e lineage útil.
+- payload seleciona apenas campos necessários ao trabalho editorial e lineage útil;
+- desde a PR #34, o payload autorizado inclui `revision` validada como inteiro seguro não negativo, permitindo enviar `expectedRevision` real à mutation canônica.
 
 A conexão do Edit é server-only. O caminho autenticado pode habilitar leitura com `TDA_READ_EDIT_DATA=true`; durante o bypass transitório, `TDA_EDIT_UNSAFE=true` também habilita o mesmo client server-side sem exportá-lo ao browser.
-
-### Integração pendente da leitura
-
-A repository atual ainda precisa incluir `revision` no DTO/query antes de a UI canônica enviar `expectedRevision` real. Essa mudança pertence ao slice de integração Edit/Auth; o banco já possui a coluna física.
 
 ## Mutation boundary canônico
 
@@ -58,17 +55,23 @@ O contrato de aplicação exige:
 
 O `actorProfileId` entregue à persistence é derivado do contexto já autenticado/autorizado; o client não escolhe arbitrariamente o ator.
 
-## Estado físico verificado
+## Estado físico atual
 
-Revalidação read-only do Supabase `dmrqnbdvbkfqzctcerbx` em 2026-09-07 confirmou:
+A PR #33 aplicou e versionou `20260907084234_add_transcript_segment_revision`, adicionando `public.transcript_segments.revision bigint not null default 0`. A validação pós-migration preservou 30.857 segmentos, sem revision nula e com intervalo inicial `0..0`.
+
+A PR #34 passou a selecionar e expor essa revision no boundary de leitura autorizado. Assim, as duas pré-condições abaixo já estão concluídas:
+
+1. suporte físico mínimo de optimistic concurrency no segmento;
+2. leitura autorizada da revision real pelo código canônico.
+
+Revalidação read-only do Supabase `dmrqnbdvbkfqzctcerbx` nesta preparação confirmou também:
 
 - migration head remoto: `20260907084234_add_transcript_segment_revision`;
-- `transcript_segments.revision bigint not null default 0` existe no schema real;
 - `audit_log` já possui `campaign_id`, `session_id`, `actor_id`, `action`, `table_name`, `record_id`, `old_value`, `new_value` e `created_at`;
 - `audit_log.actor_id` referencia `profiles(id)`;
 - `transcript_segments.session_id` referencia `sessions(id)`;
 - `anon` e `authenticated` não possuem grants diretos observados sobre `transcript_segments`/`audit_log`;
-- `service_role` possui os privilégios necessários para o boundary server-only.
+- `service_role` possui os privilégios necessários para um boundary server-only.
 
 Não é necessária outra coluna de revision nem uma segunda tabela de auditoria.
 
@@ -87,7 +90,7 @@ A migration candidata `20260907115300_edit_transcript_segment_atomic` cria `publ
 - `revision` precisa coincidir com `expectedRevision`;
 - update bem-sucedido incrementa `revision` exatamente em 1;
 - conflito não grava update nem audit;
-- `character_name` é preservado quando o speaker textual não muda e é invalidado (`NULL`) quando há mudança real de speaker, mantendo a regra já aprovada no adapter temporário;
+- `character_name` é preservado quando o speaker textual não muda e é invalidado (`NULL`) quando há mudança real de speaker, mantendo a regra já usada no adapter temporário;
 - `audit_log` recebe `old_value`/`new_value` somente do estado editorial afetado, incluindo a transição de revision;
 - update e audit acontecem na mesma chamada/transação PostgreSQL; falha do insert de audit aborta também o update.
 
@@ -109,11 +112,12 @@ transcript_segment.update
 
 Ele exige execução **somente em banco local/isolado** e cobre:
 
-1. duas escritas com `expectedRevision=0`: a primeira retorna `updated/revision=1`, a segunda `conflict`;
-2. exatamente um evento de audit para o par `updated + conflict`;
-3. campaign cruzada retorna `not_found` e não cria audit;
-4. speaker inalterado preserva `character_name` no segmento e no audit;
-5. falha artificial no insert de `audit_log` desfaz o update/revision e deixa zero audit para a tentativa.
+1. grants: `anon/authenticated` sem `EXECUTE`, `service_role` com `EXECUTE`;
+2. duas escritas com `expectedRevision=0`: a primeira retorna `updated/revision=1`, a segunda `conflict`;
+3. exatamente um evento de audit para o par `updated + conflict`;
+4. campaign cruzada retorna `not_found` e não cria audit;
+5. speaker inalterado preserva `character_name` no segmento e no audit;
+6. falha artificial no insert de `audit_log` desfaz o update/revision e deixa zero audit para a tentativa.
 
 Este teste não deve ser executado contra transcrições ou dados reais de produção.
 
@@ -133,7 +137,7 @@ Antes da aplicação produtiva:
 6. validar função, grants e migration history remotamente;
 7. executar advisors de segurança/performance;
 8. registrar a aplicação em `docs/database/verification-log.md`;
-9. integrar repository/adapter do Edit e `revision` de leitura;
+9. integrar repository/adapter do Edit à mutation canônica;
 10. rodar CI/testes do SHA exato antes de qualquer integração.
 
 ## Exceção temporária para construir a UI
@@ -155,7 +159,7 @@ Esse adapter:
 - grava no banco real;
 - **não promete concorrência nem auditoria por ator**.
 
-A dívida fica concentrada em `src/features/edit/transcript/unsafe-mutation.ts` e deve ser removida, não promovida, quando o caminho canônico estiver pronto.
+A dívida fica concentrada em `src/features/edit/transcript/unsafe-mutation.ts` e deve ser removida, não promovida, quando o caminho canônico estiver pronto. O default versionado continua `TDA_EDIT_UNSAFE=false`.
 
 ## Testes do boundary canônico
 
@@ -169,6 +173,7 @@ Cobertura existente/esperada no conjunto Auth/Edit + DB:
 - auth ausente;
 - input inválido;
 - leitura autorizada;
+- revision retornada na leitura autorizada;
 - recurso cross-campaign tratado como não encontrado;
 - mutation prepara invariantes server-side;
 - conflito de revision é resultado explícito;
@@ -179,9 +184,8 @@ Cobertura existente/esperada no conjunto Auth/Edit + DB:
 
 Depois que o coordenador validar/aplicar o SQL transacional, Auth/Edit devem:
 
-1. incluir `revision` na leitura do segmento;
-2. implementar o `persist` da mutation canônica chamando o boundary server-only;
-3. manter `actorProfileId` vindo exclusivamente do contexto autorizado;
-4. validar conflito real ponta a ponta;
-5. trocar a UI para a mutation canônica;
-6. remover `TDA_EDIT_UNSAFE` e `unsafe-mutation.ts` em recorte próprio, sem misturar essa remoção com a migration de banco.
+1. implementar o `persist` da mutation canônica chamando o boundary server-only;
+2. manter `actorProfileId` vindo exclusivamente do contexto autorizado;
+3. validar conflito real ponta a ponta com a revision já entregue pela leitura;
+4. trocar a UI para a mutation canônica;
+5. remover `TDA_EDIT_UNSAFE` e `unsafe-mutation.ts` em recorte próprio, sem misturar essa remoção com a migration de banco.
