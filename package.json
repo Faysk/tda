@@ -14,9 +14,10 @@
 		"typecheck": "next typegen && tsc --noEmit",
 		"lint": "biome lint .",
 		"test": "vitest run",
-		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm design:check && pnpm docs:check",
+		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm design:check && pnpm docs:check && pnpm db:docs:check",
 		"design:check": "node tools/check-design-system.mjs",
 		"docs:check": "node tools/check-docs.mjs",
+		"db:docs:check": "node tools/check-database-governance.mjs",
 		"test:e2e": "playwright test",
 		"verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
 	},
