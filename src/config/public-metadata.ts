@@ -36,7 +36,9 @@ type PublicMetadataInput = Readonly<{
 }>;
 
 function resolvePublicImage(image?: VerifiedPublicMetadataImage): PublicMetadataImage {
-	if (!image) return PUBLIC_METADATA_FALLBACK_IMAGE;
+	if (!image || image.verification !== "verified-public") {
+		return PUBLIC_METADATA_FALLBACK_IMAGE;
+	}
 	try {
 		const url = new URL(image.url, CANONICAL_SITE_ORIGIN);
 		if (url.protocol !== "https:") return PUBLIC_METADATA_FALLBACK_IMAGE;
