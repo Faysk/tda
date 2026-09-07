@@ -1,14 +1,16 @@
 # Edit — slice server-side de transcrição
 
-> Status: implementação inicial em PR
+> Status: leitura autorizada implementada; mutation canônica preparada; bypass temporário de UI separado
 > Owner: Edit / aplicação + dados
 > Última revisão: 2026-09-07
 
 ## Objetivo
 
-Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem permitir write concorrente sem proteção física adequada.
+Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem permitir que a arquitetura definitiva normalize write concorrente sem proteção física adequada.
 
-Este slice implementa a leitura autorizada e define o contrato da mutation. A persistência de escrita permanece deliberadamente bloqueada até o schema possuir revision/version apropriada e a política de auditoria transacional estar definida.
+Este slice implementa a leitura autorizada e define o contrato da mutation canônica. A persistência **canônica** de escrita permanece bloqueada até o schema possuir revision/version apropriada e a política de auditoria transacional estar definida.
+
+Durante a construção da UI existe uma exceção deliberada e isolada em [modo temporário sem autenticação](edit-unsafe-development.md). Ela não altera os contratos descritos abaixo.
 
 ## Leitura autorizada
 
@@ -36,9 +38,9 @@ Regras:
 - consulta usa paginação por cursor `(start_ms, id)` e limite máximo de 200 segmentos;
 - payload seleciona apenas campos necessários ao trabalho editorial e lineage útil.
 
-A conexão do Edit é server-only e exige `TDA_READ_EDIT_DATA=true`; o segredo Supabase continua fora do browser.
+A conexão do Edit é server-only. O caminho autenticado pode habilitar leitura com `TDA_READ_EDIT_DATA=true`; durante o bypass transitório, `TDA_EDIT_UNSAFE=true` também habilita o mesmo client server-side sem exportá-lo ao browser.
 
-## Mutation boundary
+## Mutation boundary canônico
 
 O contrato de aplicação exige:
 
@@ -50,13 +52,13 @@ O contrato de aplicação exige:
 - `needs_review`, `text_chars` e `text_words` calculados no servidor;
 - persistence deve devolver explicitamente `updated`, `conflict`, `not_found` ou `dependency_unavailable`.
 
-Não existe adaptador de persistence de mutation neste slice.
+Não existe ainda adaptador de persistence **canônico** para essa mutation.
 
 ## Bloqueio físico atual
 
-A inspeção do schema real em 2026-09-07 confirmou que `public.transcript_segments` não possui coluna de revision/version para edição. Implementar update agora criaria risco de lost update entre clientes diferentes.
+A inspeção do schema real em 2026-09-07 confirmou que `public.transcript_segments` não possui coluna de revision/version para edição. Habilitar o caminho canônico sem isso permitiria lost update entre clientes diferentes e quebraria o contrato de concorrência aprovado.
 
-Antes de habilitar writes:
+Antes de habilitar a mutation canônica:
 
 1. desenhar mudança mínima de schema para optimistic concurrency;
 2. mapear compatibilidade com consumidores legados;
@@ -65,11 +67,32 @@ Antes de habilitar writes:
 5. revisar grants/RLS/RPC se aplicável;
 6. aplicar de forma controlada conforme o database runbook;
 7. validar conflito real com duas revisions concorrentes;
-8. somente então ligar Server Action/Route Handler e UI de autosave.
+8. ligar Server Action/Route Handler autenticado à mutation canônica.
 
-## Testes deste slice
+## Exceção temporária para construir a UI
 
-Cobertura esperada:
+Por decisão explícita de produto, a UX do Edit não ficará parada aguardando os itens acima.
+
+Quando `TDA_EDIT_UNSAFE=true`:
+
+```text
+UI -> Server Action -> unsafe-mutation.ts -> Supabase
+```
+
+Esse adapter:
+
+- continua server-only;
+- valida campaign/sessão/segmento;
+- usa `prepareTranscriptEdit`;
+- mantém invariantes de texto/speaker/status;
+- grava no banco real;
+- **não promete concorrência nem auditoria por ator**.
+
+A dívida fica concentrada em `src/features/edit/transcript/unsafe-mutation.ts` e deve ser removida, não promovida, quando o caminho canônico estiver pronto.
+
+## Testes do boundary canônico
+
+Cobertura existente/esperada:
 
 - profile ausente;
 - capability correta;
@@ -85,4 +108,9 @@ Cobertura esperada:
 
 ## Próxima etapa
 
-A próxima etapa recomendada é a migration de concorrência + auditoria mínima de transcript, sem adicionar UI ainda. O objetivo é tornar o adaptador de mutation seguro antes de qualquer autosave ser conectado ao browser.
+Duas linhas podem avançar em paralelo:
+
+1. **produto/UX:** validar o workbench real pelo bypass temporário, recuperar paridade e ajustar fluxo;
+2. **segurança/dados:** implementar revision + auditoria + persistence canônica.
+
+Quando a segunda estiver pronta, a primeira troca apenas o adapter de acesso/write e remove `TDA_EDIT_UNSAFE`.
