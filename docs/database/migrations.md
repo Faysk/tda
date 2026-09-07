@@ -278,6 +278,6 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 ## Candidatos de importação de transcrição
 
 - `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
-- `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisão Cofrinho pendente, não aplicado.
+- `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisado pelo owner SQL e validado em PostgreSQL scratch com concorrência real, **não aplicado em produção**.
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
