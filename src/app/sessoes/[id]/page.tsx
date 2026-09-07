@@ -5,6 +5,7 @@ import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
+import { sessionPublicMetadata } from "@/features/sessions/metadata";
 import { formatSessionDate } from "@/features/sessions/model";
 import {
 	findPublishedSession,
@@ -20,32 +21,8 @@ type SessionParams = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: SessionParams): Promise<Metadata> {
 	const { id } = await params;
 	const session = await findPublishedSession(id);
-	if (!session) return { title: "Sessão não encontrada" };
-	const description = sessionShareDescription(session.summary, session.title);
-	const image = session.heroImage || session.coverImage;
-	const imageAlt = `Arte da sessão ${session.title}`;
-
-	return {
-		title: session.title,
-		description,
-		alternates: {
-			canonical: `/sessoes/${encodeURIComponent(session.id)}`,
-		},
-		openGraph: {
-			title: session.title,
-			description,
-			type: "article",
-			locale: "pt_BR",
-			siteName: "TDA — Tem Dado Aqui",
-			...(image ? { images: [{ url: image, alt: imageAlt }] } : {}),
-		},
-		twitter: {
-			card: image ? "summary_large_image" : "summary",
-			title: session.title,
-			description,
-			...(image ? { images: [{ url: image, alt: imageAlt }] } : {}),
-		},
-	};
+	if (!session) notFound();
+	return sessionPublicMetadata(session);
 }
 
 export default async function Session({ params }: SessionParams) {

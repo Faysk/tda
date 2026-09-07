@@ -1,10 +1,16 @@
 import { SessionList } from "@/components/session-list";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
+import { buildPublicMetadata } from "@/config/public-metadata";
 import { listPublishedSessions } from "@/features/sessions/repository";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Sessões" };
+export const metadata = buildPublicMetadata({
+	title: "Sessões",
+	description:
+		"Arquivo público das sessões, histórias e memórias da campanha no TDA — Tem Dado Aqui.",
+	pathname: "/sessoes",
+});
 
 export default async function Sessions() {
 	let sessions: Awaited<ReturnType<typeof listPublishedSessions>> | undefined;

@@ -133,6 +133,30 @@ Regras vigentes:
 - o teste E2E de navegação valida que clicar da Home para `/sessoes` não troca o origin atual;
 - mudanças futuras não devem reintroduzir `next/link` diretamente no shell público sem demonstrar em homologação e production que o hostname permanece canônico durante navegação cliente.
 
+### Contrato de preview social / metadata SSR
+
+Prévia de link é um contrato **da página pública**, independente de WhatsApp, Discord, Slack, redes sociais ou qualquer CTA no produto. Colar uma URL pública deve ser suficiente para que um crawler compatível encontre os metadados; nenhum botão específico de plataforma é requisito para isso.
+
+A implementação canônica vive em `src/config/public-metadata.ts`. Toda página pública deve usar esse boundary, diretamente ou por adapter de domínio, e fornecer:
+
+- título e descrição próprios da página;
+- `canonical` absoluto em `https://dnd.faysk.dev`;
+- `og:url` absoluto e idêntico ao canonical da página;
+- Open Graph com título, descrição, `siteName`, locale, tipo e imagem;
+- Twitter Card coerente com o mesmo título, descrição e imagem;
+- `og:image` em URL HTTPS absoluta e pública, sem autenticação;
+- `alt`, MIME e dimensões quando esses dados forem conhecidos.
+
+Para sessões publicadas, `src/features/sessions/metadata.ts` escolhe `heroImage` e depois `coverImage`. Como o schema vigente não fornece MIME/dimensões dessas imagens, o metadata não inventa esses valores; mantém URL e alt. Quando uma página não possui artwork apropriada, o fallback oficial é `https://dnd.faysk.dev/og/default`, gerado pelo app em PNG `1200x630` com identidade visual TDA e sem dependência de auth, banco ou JavaScript.
+
+Home, arquivo de sessões e detalhes usam o mesmo contrato. Lores, World Explorer e outras superfícies públicas futuras devem reutilizar `buildPublicMetadata` em vez de criar uma segunda implementação de Open Graph/Twitter. Uma futura superfície pode fornecer artwork própria ou usar o fallback.
+
+O root layout mantém apenas metadata estrutural compartilhável com qualquer rota, como `metadataBase`, template de título e favicon. Ele **não** fornece Open Graph/Twitter genéricos, evitando que `/edit`, 404 ou outra superfície não pública herde uma prévia pública por acidente. `/edit/**` é explicitamente `noindex,nofollow`; páginas de sessão inexistentes entram no fluxo `notFound()` também durante geração de metadata.
+
+Os testes de crawler leem o HTML HTTP bruto com user-agents de preview, sem executar JavaScript, e verificam que as tags estão no `<head>`. O endpoint da imagem fallback também é requisitado sem cookie/token. Testes unitários cobrem duas sessões distintas, uma sessão sem artwork e o uso reaproveitável para caminhos de Lore/World Explorer.
+
+Esse contrato define **o que o TDA serve**, não o layout final escolhido por terceiros. Cada plataforma decide o desenho da prévia e mantém cache/recrawl próprios; não há garantia de aparência idêntica nem atualização instantânea depois de uma mudança de metadata.
+
 Em 2026-09-07 foi observado em production um vazamento do alias `tda-three.vercel.app` ao navegar a partir de `dnd.faysk.dev`, apesar de os `href` renderizados serem relativos e as rotas diretas em `dnd.faysk.dev` responderem HTTP 200. A correção foi tratada no código como boundary de navegação pública, sem transformar aliases Vercel em URLs de produto.
 
 ### Estado da correção de origem canônica
