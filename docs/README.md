@@ -1,5 +1,10 @@
 # Documentação TDA
 
+> Status: vigente
+> Owner: documentação/arquitetura
+> Última revisão: 2026-09-07
+> Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
+
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
 >
 > `Faysk/dnd-scribe` é referência histórica. Nenhuma decisão, status ou arquitetura do legado passa a valer no TDA sem revalidação explícita e registro aqui.
@@ -18,6 +23,17 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 8. **Operação** — ambientes, release, deploy, rollback e runbooks.
 9. **Decisões** — ADRs que explicam por que escolhas estruturais foram feitas.
 10. **Legado** — o que foi herdado, revalidado, substituído ou descartado.
+
+### Onboarding pelo estado atual
+
+Para entender o TDA sem confundir candidato com produção, seguir esta ordem:
+
+1. **Home e sessões públicas** — [Infraestrutura e estado](infrastructure.md), [Roadmap](roadmap.md), [Campanhas, sessões e participantes](domains/sessions.md) e [runbook de release](operations/release-runbook.md). Aqui ficam o que já existe na `main`, o que foi realmente publicado e os gates da próxima release.
+2. **Edit e transcrições** — [Edit Workbench](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md), [arquitetura do Edit](architecture/edit-workbench.md) e [paridade do legado](legacy/edit-parity.md). A ordem é identidade/capability, persistence concorrente/auditável e então convergência da UX, sem promover adapters temporários a arquitetura final.
+3. **Novas superfícies narrativas** — [Perfis editoriais](features/entity-profiles.md), [World Explorer](features/world-explorer.md), [relações/grafo](features/relations-graph.md) e demais features. Elas vêm depois da consolidação do público e do primeiro fluxo crítico do Edit.
+4. **Operação** — só ao publicar, aplicar migration ou alterar serviço, usar os runbooks da área. Merge de código/documentação não substitui deployment, aplicação de banco ou configuração remota.
+
+O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/candidatos abertos. O contrato detalhado continua sempre no documento dono de cada área; auditorias datadas não são copiadas para índices gerais.
 
 ## Índice canônico
 
@@ -123,6 +139,8 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 
 ## Status usados em todos os docs
 
+Os estados abaixo descrevem **maturidade do contrato/capacidade**, não estágio de entrega de uma mudança concreta.
+
 | Status | Significado |
 | --- | --- |
 | **implementado** | existe e é utilizável no sistema/schema vigente |
@@ -133,6 +151,8 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 | **legado compatível** | continua operando apenas para não quebrar a transição |
 | **histórico** | referência útil do `dnd-scribe`, sem autoridade sobre o reboot |
 | **fora de escopo** | explicitamente não pertence à entrega/arquitetura atual |
+
+Para mudanças concretas, a [política de documentação viva](documentation/README.md) separa `implementado em branch/PR`, `validado`, `integrado à main` e `publicado/aplicado`. **Validado não implica integrado; integrado não implica publicado.**
 
 ## Regras de manutenção
 
