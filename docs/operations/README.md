@@ -10,6 +10,7 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 - [Ambientes e configuração](environments.md)
 - [Release, deploy e rollback](release-runbook.md)
+- [Histórico de deployments](deployments.md)
 - [Operação do banco / Supabase](database-runbook.md)
 - [Checklist de segurança operacional](security-checklist.md)
 - [Política resumida de publicação](../releases.md)
@@ -31,7 +32,7 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 ## Matriz rápida
 
 | Mudança | Precisa CI | Precisa migration | Precisa revisão segurança | Pode exigir deploy |
-| --- | --- | --- | --- |
+| --- | --- | --- | --- | --- |
 | docs | sim | não | normalmente não | não |
 | UI estática | sim | não | se muda exposição | sim |
 | query/API | sim | talvez | sim | sim |
@@ -42,4 +43,4 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 ## Runbook incompleto é dívida
 
-Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal.
+Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal. Todo deployment deliberado deve acrescentar evidência em `deployments.md`.
