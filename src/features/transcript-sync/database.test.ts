@@ -158,27 +158,22 @@ describe.skipIf(!enabled)(
 			for (const patch of [
 				{ campaignId: "66666666-6666-4666-8666-666666666666" },
 				{ sessionId: "66666666-6666-4666-8666-666666666666" },
-				{ sourceSessionId: "other" },
 			])
 				expect(
 					JSON.parse(
 						sql(`set role service_role; ${call({ ...input, ...patch })}`),
 					),
 				).toEqual({ ok: false, reason: "not_found" });
-			expect(
-				JSON.parse(
-					sql(
-						`set role service_role; ${call({ ...input, sourceSystem: "craig" })}`,
+			for (const patch of [
+				{ sourceSessionId: "other" },
+				{ sourceSystem: "craig" },
+				{ sessionId: "not-a-uuid" },
+			])
+				expect(
+					JSON.parse(
+						sql(`set role service_role; ${call({ ...input, ...patch })}`),
 					),
-				),
-			).toEqual({ ok: false, reason: "invalid_payload" });
-			expect(
-				JSON.parse(
-					sql(
-						`set role service_role; ${call({ ...input, sessionId: "not-a-uuid" })}`,
-					),
-				),
-			).toEqual({ ok: false, reason: "invalid_payload" });
+				).toEqual({ ok: false, reason: "invalid_payload" });
 		});
 		it("denies direct SQL clients and rolls back segments if receipt fails", () => {
 			for (const role of ["anon", "authenticated"])
@@ -290,7 +285,6 @@ describe.skipIf(!enabled)(
 					sql(
 						"select json_agg(text order by source_sequence) from transcript_segments;",
 					),
-				),
 			).toEqual(input.segments.map((row) => row.text));
 		});
 		it("coherent divergent hashes conflict without overwriting existing evidence or receipt", async () => {
@@ -438,7 +432,6 @@ describe.skipIf(!enabled)(
 					sql(
 						"select json_agg(text order by source_sequence) from transcript_segments;",
 					),
-				),
 			).toEqual(input.segments.map((row) => row.text));
 		}, 30000);
 	},
