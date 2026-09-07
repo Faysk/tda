@@ -118,6 +118,23 @@ Validação de `2026-09-07T04:04Z`:
 
 A consulta DNS auxiliar falhou durante a documentação, então o valor exato do registro Cloudflare não deve ser inventado nem inferido neste arquivo. Em operações futuras, registrar tipo, nome, alvo, proxy status e TTL sempre que essa evidência estiver disponível.
 
+### Contrato de URL pública
+
+`dnd.faysk.dev` é identidade pública do produto. URLs `*.vercel.app` são aliases de infraestrutura para diagnóstico e **não podem aparecer como destino normal de navegação, canonical metadata ou compartilhamento**.
+
+Regras vigentes:
+
+- links internos do shell público usam caminhos relativos e navegação nativa do navegador para preservar o origin pelo qual o usuário entrou;
+- `metadataBase` do App Router usa explicitamente `https://dnd.faysk.dev`;
+- páginas de sessão emitem canonical sob `https://dnd.faysk.dev/sessoes/<id>`;
+- copiar/compartilhar sessão reconstrói a URL com o origin canônico, mesmo se a página tiver sido aberta por um alias de infraestrutura;
+- o teste E2E de navegação valida que clicar da Home para `/sessoes` não troca o origin atual;
+- mudanças futuras não devem reintroduzir `next/link` diretamente no shell público sem demonstrar em homologação e production que o hostname permanece canônico durante navegação cliente.
+
+Em 2026-09-07 foi observado em production um vazamento do alias `tda-three.vercel.app` ao navegar a partir de `dnd.faysk.dev`, apesar de os `href` renderizados serem relativos e as rotas diretas em `dnd.faysk.dev` responderem HTTP 200. A correção foi tratada no código como boundary de navegação pública, sem transformar aliases Vercel em URLs de produto.
+
+Merge em `main` não publica essa correção: como auto-deploy permanece desligado, a entrada só passa a production após um deployment deliberado e registrado no histórico operacional.
+
 ## Cotas
 
 Plano Hobby e deploys/CLI podem possuir limites. Não reativar auto-deploy sem decisão explícita apenas por conveniência.
