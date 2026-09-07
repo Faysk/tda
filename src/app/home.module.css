@@ -13,8 +13,7 @@
 	align-items: center;
 	gap: clamp(48px, 5vw, 96px);
 	min-height: clamp(640px, 76svh, 840px);
-	margin-inline: calc(var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)) * -1);
-	padding: clamp(56px, 7vh, 92px) var(--ds-page-gutter, clamp(20px, 3.5vw, 72px));
+	padding-block: clamp(56px, 7vh, 92px);
 	border-bottom: 1px solid var(--ds-border);
 	background: var(--ds-canvas-subtle);
 }
@@ -36,6 +35,11 @@
 	z-index: -3;
 	overflow: hidden;
 	background: #070a0d;
+}
+
+.sessionArtwork {
+	object-fit: cover;
+	transition: transform 500ms cubic-bezier(0.2, 0.72, 0.2, 1);
 }
 
 .heroBackdrop .sessionArtwork {
@@ -255,11 +259,6 @@
 
 .heroFallback {
 	min-width: 0;
-}
-
-.sessionArtwork {
-	object-fit: cover;
-	transition: transform 500ms cubic-bezier(0.2, 0.72, 0.2, 1);
 }
 
 .artworkPlaceholder {
