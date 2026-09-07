@@ -1,8 +1,12 @@
 # Companion local
 
-> Status: legado funcional; modernização planejada
+> Status: base sintética implementada em branch/PR; ASR real legado preservado
 > Owner: local-companion/processing
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
+
+## Base executável candidata
+
+`local-companion/` entrega supervisor por usuário, fila SQLite, API autenticada e fixtures. Contrato dono: [API v1](local-companion-v1.md). Instalação, stack revalidada, inventário legado e gates de migração/rollback: [runbook](../operations/local-companion.md). Não há instalação, processamento real ou sync cloud realizado por este corte. Requisitos abaixo continuam sendo alvo de modernização onde o contrato v1 declara capacidade indisponível.
 
 ## Objetivo
 
@@ -43,6 +47,8 @@ Baseline deve incluir:
 - taxa de retry/falha.
 
 ## Contrato futuro de sync
+
+O [consumer de importação versionado](transcript-import.md) define o primeiro candidato de transporte, validação e recibo durável. A ativação continua negada até os gates documentados.
 
 Cada operação deve carregar suficiente identity/provenance para idempotência:
 

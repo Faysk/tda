@@ -1,6 +1,6 @@
 # Login Discord: configuração e verificação
 
-> Status: implementado no candidato; OAuth real e publicação pendentes
+> Status: Auth integrado; correção de Origin candidata, sem deploy; OAuth completo ainda não comprovado por esta tarefa
 > Owner: identity/access
 > Última revisão: 2026-09-07
 > Fonte de verdade: `src/features/auth/`, contrato [identity-access](../domains/identity-access.md)
@@ -48,6 +48,18 @@ Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Ser
 **Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A PR #43 define a convergência e a PR #44 contém persistence atômica candidata; nenhuma dessas PRs foi integrada por esta tarefa e a RPC #44 não está presumida disponível. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. Este candidato protege a entrada existente, mas não declara essa convergência concluída.
 
 ## Evidências e gates
+
+### Correção de Origin dos formulários — 2026-09-07
+
+Chrome com contexto isolado reproduziu em produção: `/entrar` entregava `Referrer-Policy: no-referrer`; o clique real enviava `Origin: null` a `/auth/discord` e recebia 403. Uma simulação apenas do header da página para `same-origin` preservou `Origin: https://dnd.faysk.dev` e chegou à tela de autorização Discord. O ensaio parou antes de credenciais, MFA ou consentimento; não comprova callback nem sessão real.
+
+A correção usa `same-origin` exclusivamente em `/entrar` e `/conta`, inclusive com query string, pois ambas originam formulários POST. O guard continua exigindo a origem configurada e rejeitando origem ausente, literal `null` e externa. `/api/auth/*` e páginas Edit mantêm `no-referrer`. A configuração de headers inclui uma regra específica `/auth/:path*` depois da regra global, preservando `no-referrer` nos callbacks e redirecionamentos também na resposta HTTP final; o teste detectou que apenas definir esse header no Route Handler não bastava.
+
+`tests/auth-origin.spec.ts` executa cliques reais de login e logout em três viewports contra um provider HTTP sintético de loopback. Verifica Origin, 303, política dos redirects, chegada ao consentimento sintético e remoção dos cookies no logout; cobre também os POSTs negativos e o callback sem tentativa. Não usa credenciais, consentimento nem dados de produção. A cobertura unitária verifica a seleção das páginas e a rejeição antes de chamar o SDK. Esta correção não altera configuração remota, grants, callbacks permitidos ou deploy.
+
+Validação local da correção: `pnpm check` (154 testes Vitest e 24 testes de mídia), `pnpm build` e `pnpm test:e2e` (84 casos, incluindo nove regressões de Origin) aprovados. O lint mantém cinco avisos preexistentes, sem erros. CI e publicação são gates separados da evidência local.
+
+### Evidência histórica do candidato inicial (PR #48)
 
 Validação local final do candidato: `pnpm check` (99 testes unitários), `pnpm build` e `pnpm test:e2e` (39 casos em 1920×1080, 2560×1440 e 390×844) passaram após o hardening dos cookies. Inspeção visual adicional em navegador local confirmou entrada, cancelamento e conta indisponível.
 

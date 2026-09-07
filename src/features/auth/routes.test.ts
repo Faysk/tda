@@ -60,6 +60,35 @@ function callback(query = "code=synthetic") {
 	return new Request(`${origin}/auth/callback?flow=${nonce}&${query}`);
 }
 describe("Discord OAuth boundary (synthetic)", () => {
+	it.each([undefined, "null", "https://evil.test"])(
+		"rejects login and logout Origin %s before contacting Auth",
+		async (requestOrigin) => {
+			for (const handler of [startDiscord, logout]) {
+				const headers: Record<string, string> =
+					requestOrigin === undefined ? {} : { origin: requestOrigin };
+				expect(
+					(await handler(new Request(origin, { method: "POST", headers })))
+						.status,
+				).toBe(403);
+			}
+			expect(mocks.signIn).not.toHaveBeenCalled();
+			expect(mocks.signOut).not.toHaveBeenCalled();
+		},
+	);
+	it("keeps no-referrer on callback, login redirect and logout redirect", async () => {
+		const body = new FormData();
+		body.set("next", "/conta");
+		const start = await startDiscord(
+			new Request(origin, { method: "POST", headers: { origin }, body }),
+		);
+		flow();
+		const finish = await finishDiscord(callback());
+		const end = await logout(
+			new Request(origin, { method: "POST", headers: { origin } }),
+		);
+		for (const result of [start, finish, end])
+			expect(result.headers.get("referrer-policy")).toBe("no-referrer");
+	});
 	it.each(["null", "[]", "42", "{}"])(
 		"denies malformed flow cookie %s",
 		async (value) => {

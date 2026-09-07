@@ -44,7 +44,7 @@ test("administrative pages disclose no data even with the legacy flag enabled", 
 	page,
 	request,
 }) => {
-	for (const path of ["/edit", "/edit/sessoes/private-fixture"]) {
+	for (const path of ["/edit", "/edit/processamento", "/edit/sessoes/private-fixture"]) {
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/conta\?acesso=negado$/);
 		await expect(
