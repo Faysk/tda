@@ -199,6 +199,24 @@ O controle de tema:
 - mantém alvo de interação de pelo menos `44px`;
 - remove microanimações com `prefers-reduced-motion`.
 
+### Movimento da troca de tema
+
+A primeira implementação de suavização usou `@property` para registrar os tokens de cor e permitir interpolação real entre claro e escuro. O experimento seguinte elevou propositalmente os tempos para **1s no tema global e 2s no controle**. Esse estado foi diagnóstico: serviu para tornar cada fase perceptível e não representa timing final aprovado.
+
+O candidato final desta rodada usa tempos coordenados, porém ainda visíveis:
+
+- tema global e crossfade da marca: `700ms`;
+- track/borda/sombra do switch: `520ms`;
+- deslocamento do knob: `650ms` com a spring curta já adotada;
+- fade/rotação dos glyphs: `460ms`;
+- feedback de pressão: `140ms`.
+
+O objetivo é que o tema inteiro pareça transformar-se, enquanto o controle responde imediatamente e termina sem ficar “viajando” depois da página. A interpolação de cor continua acontecendo nos tokens semânticos; não foi introduzida View Transition nem snapshot de página porque isso congelaria a interação viva do switch e adicionaria complexidade desnecessária a este caso.
+
+O Playwright valida este contrato nos projetos `desktop-1080p`, `desktop-2k` e `mobile`: além dos tempos computados, existe uma asserção de que `--ds-canvas` passa por um valor intermediário durante a troca, provando que a mudança não é um snap disfarçado. Com `prefers-reduced-motion: reduce`, as transições globais, do knob e das demais microinterações permanecem em `0s`.
+
+A aprovação perceptiva do timing ainda depende de revisão visual do proprietário: testes automatizados conseguem provar interpolação, duração e acessibilidade, mas não substituem julgamento de ritmo/agradabilidade.
+
 O header atual permanece em uma linha inclusive no aceite de `320px`; o subtítulo da marca é removido quando necessário para preservar espaço. Se a navegação crescer no futuro, deve virar um padrão móvel real em vez de voltar a quebrar arbitrariamente em múltiplas linhas.
 
 ## Responsividade e matriz de aceite
@@ -289,6 +307,7 @@ Playwright cobre, entre outros:
 - system-default + overrides explícitos `light`/`dark`;
 - ícone de ação coerente com o próximo tema do switch;
 - masters corretos da marca;
+- interpolação real e timings do candidato de motion;
 - reduced motion;
 - geometria da Home/shell;
 - 404 público.
