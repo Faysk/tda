@@ -78,6 +78,7 @@ export function ThemeToggle() {
 					<svg
 						className="theme-toggle-glyph theme-toggle-glyph--sun"
 						viewBox="0 0 24 24"
+						aria-hidden="true"
 					>
 						<circle cx="12" cy="12" r="3.25" />
 						<path d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.28 5.28l1.42 1.42M17.3 17.3l1.42 1.42M18.72 5.28 17.3 6.7M6.7 17.3l-1.42 1.42" />
@@ -85,6 +86,7 @@ export function ThemeToggle() {
 					<svg
 						className="theme-toggle-glyph theme-toggle-glyph--moon"
 						viewBox="0 0 24 24"
+						aria-hidden="true"
 					>
 						<path d="M20.1 14.7A8.25 8.25 0 0 1 9.3 3.9 8.5 8.5 0 1 0 20.1 14.7Z" />
 					</svg>
