@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 test("public navigation preserves the current origin", async ({ page }) => {
 	await page.goto("/");
 	const origin = new URL(page.url()).origin;
-	const archiveLink = page.getByRole("link", { name: "Explorar as sessões" });
+	const archiveLink = page
+		.getByRole("navigation", { name: "Navegação principal" })
+		.getByRole("link", { name: "Sessões", exact: true });
 
 	await expect(archiveLink).toHaveAttribute("href", "/sessoes");
 	await archiveLink.click();
