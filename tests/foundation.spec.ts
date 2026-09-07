@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
-		"Toda jornada",
+		"Rolamos dados.",
 	);
 	await page.getByRole("link", { name: "Explorar as sessões" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(

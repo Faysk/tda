@@ -28,6 +28,8 @@
 	--ds-radius-md: 12px;
 	--ds-radius-lg: 18px;
 	--ds-radius-xl: 24px;
+	--ds-layout-max: 2160px;
+	--ds-page-gutter: clamp(20px, 3.5vw, 72px);
 	--ds-font-display: Georgia, "Times New Roman", serif;
 	--ds-font-body: Georgia, "Times New Roman", serif;
 	--ds-font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
