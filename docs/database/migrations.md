@@ -13,7 +13,8 @@ A estratégia é:
 
 - história remota anterior permanece no Supabase e legado;
 - novas mudanças do reboot entram em `Faysk/tda/supabase/migrations`;
-- versão/nome remoto e arquivo local devem corresponder;
+- versão/nome remoto e arquivo local devem corresponder após aplicação;
+- migration candidata pode existir no repo antes da aplicação, mas precisa estar explicitamente marcada como não aplicada;
 - migrations de transição preservam consumidores legados enquanto necessários;
 - o procedimento operacional obrigatório está em `docs/operations/database-runbook.md`.
 
@@ -81,9 +82,9 @@ A estratégia é:
 
 - `20260907084234 add_transcript_segment_revision`
 
-## Boundary do reboot
+## Boundary do reboot aplicado
 
-As quatro migrations abaixo são as primeiras mudanças explicitamente assumidas e versionadas pelo novo repositório TDA:
+As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas no histórico remoto do novo repositório TDA.
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -121,6 +122,43 @@ Objetivo:
 - preparar, sem ainda introduzir RPC/grants, o boundary transacional de update + audit da issue #32.
 
 Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
+
+## Migration candidata — ainda não aplicada
+
+### `20260907115300_edit_transcript_segment_atomic`
+
+**Estado:** arquivo versionado na branch da issue #32; **não observado/aplicado no Supabase de produção** nesta preparação.
+
+Objetivo:
+
+- criar `public.edit_transcript_segment_atomic(...)` como boundary server-only `SECURITY INVOKER`;
+- revalidar `segment -> session -> campaign` pelo slug antes de qualquer write;
+- fazer optimistic concurrency por `expectedRevision` com lock da linha e incremento exato `+1`;
+- persistir estado editorial e um único evento `audit_log` na mesma transação;
+- preservar `character_name` quando o speaker não muda e invalidá-lo apenas quando o speaker muda;
+- retornar `updated`, `conflict` ou `not_found` sem revelar recurso cross-campaign;
+- manter `EXECUTE` somente para `service_role`, sem abrir `anon`/`authenticated`.
+
+Compatibilidade:
+
+- nenhuma coluna existente é removida/renomeada;
+- nenhuma das 8 funções `SECURITY DEFINER` existentes é alterada neste slice;
+- o adapter temporário do Edit permanece independente até o binding canônico;
+- a função nova não substitui Auth/RBAC: actor/capability continuam resolvidos no boundary autorizado da aplicação.
+
+Validação antes de produção:
+
+- aplicar em banco local/isolado;
+- executar `supabase/tests/edit_transcript_segment_atomic.sql` com dados sintéticos e `ROLLBACK`;
+- provar `updated + conflict = 1 audit`, cross-campaign `not_found`, preservação de identidade e rollback do update quando o audit falha;
+- revisar grants e advisors;
+- só então aplicar pelo fluxo oficial de migration e registrar a nova migration no histórico remoto/verification log.
+
+Rollback lógico:
+
+- se ainda sem consumidor, remover/revogar a função em migration corretiva é reversível;
+- se já houver consumidor, primeiro desligar o adapter canônico e restaurar o caminho anterior;
+- não remover `transcript_segments.revision` e não apagar eventos de audit para simular rollback de edição.
 
 ## Regras para migration nova
 
@@ -211,5 +249,7 @@ Há drift quando:
 - repo possui migration que produção não aplicou;
 - versão/nome não corresponde;
 - documentação descreve constraint/coluna inexistente.
+
+Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
