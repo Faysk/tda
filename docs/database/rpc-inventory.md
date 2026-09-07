@@ -5,11 +5,11 @@
 > Última verificação: 2026-09-07
 > Projeto: `dmrqnbdvbkfqzctcerbx`
 
-Este documento classifica funções `SECURITY DEFINER` do schema `public`. Ele existe porque uma função desse tipo executa com privilégios do owner e, quando exposta pelo Data API, deve ser tratada como endpoint privilegiado mesmo que seu SQL pareça simples.
+Este documento classifica funções privilegiadas/expostas relevantes do schema `public`. `SECURITY DEFINER` merece atenção especial porque executa com privilégios do owner; funções `SECURITY INVOKER` server-only também são registradas quando representam um boundary de write sensível.
 
 ## Estado verificado
 
-Na inspeção de 2026-09-07 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
+Na inspeção de produção de 2026-09-07 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
 
 Para as oito:
 
@@ -123,13 +123,48 @@ A definição observada resolve a campanha da nota, exige autorização admin e 
 
 **Decisão:** manter durante transição; migrar para capability explícita quando a superfície Edit for implementada.
 
+## RPC server-only candidata da issue #32
+
+### `edit_transcript_segment_atomic(...)`
+
+**Estado:** definida somente na migration candidata `20260907115300_edit_transcript_segment_atomic`; **não aplicada ao Supabase de produção nesta verificação**.
+
+Classificação:
+
+- `SECURITY INVOKER`, não `SECURITY DEFINER`;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE` pela migration candidata;
+- `service_role`: único grant de `EXECUTE` pretendido;
+- caller pretendido: adapter server-only da mutation canônica do Edit.
+
+Boundary:
+
+- o Auth/Edit resolve usuário, profile e `campaign.content.edit` antes de chamar persistence;
+- o actor recebido pela função é o `profileId` desse contexto autorizado, não input bruto do browser;
+- a função revalida `segment -> session -> campaign` pelo slug recebido;
+- `expectedRevision` controla concorrência otimista;
+- a linha é bloqueada durante a decisão/update;
+- update e `audit_log` fazem parte da mesma chamada/transação;
+- falha de audit deve abortar o update;
+- cross-campaign retorna `not_found`;
+- nenhuma das 8 funções `SECURITY DEFINER` existentes é modificada por este slice.
+
+Risco residual antes da aplicação:
+
+- SQL precisa compilar e passar o teste sintético em banco local/isolado;
+- grants efetivos precisam ser revalidados depois da aplicação;
+- advisors precisam ser executados depois da migration;
+- a aplicação precisa continuar sendo o boundary de capability; `service_role` não deve virar API genérica de write.
+
+Teste preparado: `supabase/tests/edit_transcript_segment_atomic.sql`.
+
 ## Auditoria de consumidores
 
 ### TDA reboot
 
-Busca no código atual do `Faysk/tda` não encontrou chamadas diretas conhecidas a esses nomes de RPC. A integração Supabase atual do site público é server-only e focada em dados publicados.
+Busca no código atual do `Faysk/tda` não encontrou chamadas diretas conhecidas às oito RPCs legadas acima. A integração Supabase atual do site público é server-only e focada em dados publicados.
 
-Isto **não é prova suficiente** para revogar grants porque o banco é compartilhado com o legado e pode haver consumidores externos/antigos fora do repositório atual.
+A nova `edit_transcript_segment_atomic(...)` ainda não possui consumidor porque sua migration não foi aplicada e o adapter canônico ainda não foi integrado.
 
 ### `Faysk/dnd-scribe`
 
@@ -157,6 +192,12 @@ Consequência: `pg_stat_user_functions` não oferece contagem histórica útil d
 - revisar corpo/autorização;
 - mapear consumidores principais versionados;
 - registrar riscos sem mudar produção às cegas.
+
+### Slice #32 — isolado
+
+- validar/aplicar somente a nova função `SECURITY INVOKER` server-only quando os testes isolados passarem;
+- não revisar/revogar em massa as 8 `SECURITY DEFINER` existentes nesta mudança;
+- revalidar apenas os grants da função nova após aplicação.
 
 ### Fase 2 — antes do Edit público
 
