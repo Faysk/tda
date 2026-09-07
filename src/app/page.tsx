@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { PublicLink as Link } from "@/components/public-link";
 import {
 	ActionLink,
 	BodyCopy,
