@@ -74,6 +74,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 					<div className="header-actions">
 						<nav aria-label="Navegação principal">
 							<Link href="/sessoes">Sessões</Link>
+							<Link href="/edit">Edit</Link>
 						</nav>
 						<ThemeToggle />
 					</div>
