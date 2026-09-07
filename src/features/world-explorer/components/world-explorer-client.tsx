@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Controls, ReactFlow, type EdgeTypes, type NodeTypes } from "@xyflow/react";
+import {
+	Controls,
+	ReactFlow,
+	type EdgeTypes,
+	type NodeTypes,
+} from "@xyflow/react";
 import { PublicLink } from "@/components/public-link";
 import {
 	toReactFlowGraph,
@@ -14,8 +19,8 @@ import { WorldEntityNode } from "./entity-node";
 import { WorldRelationEdge } from "./relation-edge";
 import styles from "./world-explorer.module.css";
 
-const NODE_TYPES: NodeTypes = { worldEntity: WorldEntityNode };
-const EDGE_TYPES: EdgeTypes = { worldRelation: WorldRelationEdge };
+const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
+const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
 
 const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 	{ value: "all", label: "Todos" },
@@ -58,8 +63,8 @@ export function WorldExplorerClient({
 		[projection, filter],
 	);
 	const graph = useMemo(
-		() => toReactFlowGraph(visibleProjection),
-		[visibleProjection],
+		() => toReactFlowGraph(visibleProjection, selectedId),
+		[visibleProjection, selectedId],
 	);
 	const selected =
 		visibleProjection.nodes.find((node) => node.id === selectedId) ??
