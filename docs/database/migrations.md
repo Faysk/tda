@@ -182,6 +182,55 @@ Rollback lógico:
 - se já houver consumidor, primeiro desligar o adapter canônico e restaurar o caminho anterior;
 - não remover `transcript_segments.revision` e não apagar eventos de audit para simular rollback de edição.
 
+### `20260907193000_import_transcript_result_atomic`
+
+**Estado:** migration candidata deste slice; **não aplicada ao Supabase de produção**.
+
+Objetivo:
+
+- definir a capability `campaign.transcript.import` (`plane=mixed`) e associá-la ao role `local_operator`;
+- criar `transcript_import_receipts` como commit marker imutável por `(campaign_id, source_system, source_session_id)`;
+- criar `public.import_transcript_result_atomic(...)` como boundary server-only `SECURITY INVOKER`;
+- aceitar somente sessão física preexistente cuja identidade corresponda a `campaign_id + session_id + local_companion + source_session_id`;
+- recalcular os SHA-256 dos artifacts canônicos sobre os bytes UTF-8 exatos antes de qualquer persistência;
+- serializar concorrência por lock da linha de `sessions`;
+- revalidar `campaign.transcript.import` dentro da RPC para assignment ativo em `campaign/{slug}` ou `project/tda`;
+- inserir apenas os campos allowlisted do shape legado `{id,speaker,track,start,end,text,words}`, sempre `pending`, `needs_review=true`, `revision=0`, sem inventar identidade estruturada;
+- persistir segmentos + receipt na mesma transação;
+- retornar `imported`, `replay`, `hash_conflict`, `legacy_unreceipted` ou `not_found` sem executar replace/upsert de transcript existente.
+
+Compatibilidade e segurança:
+
+- não cria nem altera `sessions`; reaproveita o índice existente `(campaign_id, source_system, source_session_id)`;
+- não atualiza/deleta `transcript_segments`; sessão com segmentos e sem receipt falha fechada como `legacy_unreceipted`;
+- `project/dnd-scribe` não autoriza o importer novo;
+- receipt usa RLS e grant pretendido somente `SELECT + INSERT` para `service_role`; `PUBLIC`, `anon` e `authenticated` ficam sem acesso direto;
+- RPC mantém `EXECUTE` somente para `service_role` e ainda exige actor/capability/scope no corpo;
+- usa `extensions.digest`, cuja disponibilidade e `USAGE` pelo `service_role` foram confirmados read-only no projeto canônico;
+- não altera a candidata `20260907115300_edit_transcript_segment_atomic` nem suas grants.
+
+Validação preparada, ainda não executada por este registro:
+
+- schema mínimo isolado: `supabase/tests/fixtures/transcript_import_atomic_minimal_schema.sql`;
+- teste SQL transacional: `supabase/tests/import_transcript_result_atomic.sql`;
+- runner real de duas conexões: `supabase/tests/import_transcript_result_atomic_concurrency.sh`;
+- casos obrigatórios: permission matrix, mapping allowlisted, replay, hash conflict, legacy fail-closed, project/tda, legacy scope denied, cross-campaign, hash exato, rollback em falha do receipt, bloqueio real e cardinalidade final.
+
+Coordenação antes de produção:
+
+- validar a migration em PostgreSQL isolado e registrar SHA/versões/comandos/resultados;
+- reconciliar com a `main` vigente e com a definição final de `campaign.transcript.import` do owner de Auth/capabilities;
+- como `20260907115300_edit_transcript_segment_atomic` também permanece não aplicada no histórico remoto, não executar `db push`/lote sem serialização explícita das migrations pendentes;
+- só depois seguir runbook, migration history, grants/RPC, advisors e `verification-log.md`.
+
+Rollback lógico:
+
+- antes de existir consumer/aplicação produtiva, remover a RPC/receipt/capability em migration corretiva é reversível;
+- depois de receipts reais existirem, não apagar receipts/segmentos para simular rollback: desligar primeiro o consumer e restaurar compatibilidade;
+- nunca converter `legacy_unreceipted` em adoção automática sem migration/contrato próprio.
+
+Contrato detalhado: [`../features/transcript-import-sync.md`](../features/transcript-import-sync.md).
+
 ## Regras para migration nova
 
 ### Deve
