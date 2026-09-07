@@ -40,6 +40,8 @@ const statusLabels = {
 	discarded: "Descartado",
 } as const;
 
+const SEGMENT_FOCUS_SELECTOR = "[data-segment-focus-target='true']";
+
 function formatTimestamp(milliseconds: number): string {
 	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
 	const hours = Math.floor(totalSeconds / 3600);
@@ -70,6 +72,7 @@ function toDraft(segment: Segment): TranscriptDraft {
 
 function isEditableTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false;
+	if (target.dataset.segmentFocusTarget === "true") return false;
 	return (
 		target.isContentEditable ||
 		target instanceof HTMLInputElement ||
@@ -77,6 +80,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
 		target instanceof HTMLSelectElement ||
 		target instanceof HTMLButtonElement
 	);
+}
+
+function focusSegmentHandle(segment: HTMLElement) {
+	segment.querySelector<HTMLElement>(SEGMENT_FOCUS_SELECTOR)?.focus();
 }
 
 function focusAdjacentSegment(current: HTMLElement, direction: -1 | 1) {
@@ -87,7 +94,7 @@ function focusAdjacentSegment(current: HTMLElement, direction: -1 | 1) {
 	);
 	const currentIndex = segments.indexOf(current);
 	const next = segments[currentIndex + direction];
-	next?.focus();
+	if (next) focusSegmentHandle(next);
 }
 
 function SegmentEditor({
@@ -190,15 +197,21 @@ function SegmentEditor({
 						break;
 					case "cancel":
 						setEditor((current) => resetTranscriptDraft(current));
-						event.currentTarget.focus();
+						focusSegmentHandle(event.currentTarget);
 						break;
 				}
 			}}
-			tabIndex={0}
 		>
 			<div className={styles.segmentSide}>
 				<div>
-					<div className={styles.segmentNumber}>Fala {position}</div>
+					<button
+						aria-label={`Selecionar fala ${position} para navegação por teclado`}
+						className={styles.segmentFocusTarget}
+						data-segment-focus-target="true"
+						type="button"
+					>
+						Fala {position}
+					</button>
 					<div className={styles.segmentTime}>
 						{formatTimestamp(initial.startMs)} → {formatTimestamp(initial.endMs)}
 					</div>
