@@ -89,7 +89,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-07 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
-| [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura autorizada implementada; mutation canônica preparada; bypass temporário de UI separado | 2026-09-07 |
+| [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado | 2026-09-07 |
 | [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md) | Edit / aplicação + segurança | compatibilidade temporária de desenvolvimento | 2026-09-07 |
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | arquitetura aprovada; implementação pendente | 2026-09-06 |
@@ -121,7 +121,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Legado e fontes históricas — `Faysk/dnd-scribe`](../legacy/README.md) | documentação/arquitetura | histórico/referência | 2026-09-06 |
+| [Legado e fontes históricas — `Faysk/dnd-scribe`](../legacy/README.md) | documentação/arquitetura | histórico/referência | 2026-09-07 |
 | [Edit — paridade com `Faysk/dnd-scribe`](../legacy/edit-parity.md) | Edit + arquitetura | vivo; auditoria inicial concluída para transcript/access | 2026-09-07 |
 
 ## docs/operations
@@ -133,7 +133,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | Não declarado |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
-| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-06 |
+| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-07 |
 
 ## Cobertura

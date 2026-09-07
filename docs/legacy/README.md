@@ -2,7 +2,7 @@
 
 > Status: histórico/referência
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Regra
 
@@ -269,6 +269,55 @@ Histórico de criação do schema e migrations antigas. O Supabase remoto é aut
 ### `integrations`
 
 Roll20/Discord e demais conectores históricos.
+
+## Inventário de reaproveitamento — health e companion
+
+Esta seção fecha a frente de modernização que vinha sendo conduzida diretamente no `Faysk/dnd-scribe`. Ela **não reabre o roadmap antigo** e não autoriza ações no hosting removido.
+
+### Health do `dnd-scribe`
+
+**Classificação: adaptado parcialmente; restante histórico.**
+
+O PR legado `#69` não foi integrado e não deve ser retomado por inércia. Ainda assim, três ideias continuam úteis como padrão de engenharia:
+
+- health deve ser barato, sem side effects e com `Cache-Control: no-store`;
+- metadata de ambiente/commit é útil para smoke e diagnóstico quando disponível;
+- separar montagem de estado de serialização HTTP pode valer a pena quando o contrato crescer e exigir testes unitários próprios.
+
+Essas ideias já foram absorvidas de forma mais simples no reboot: `src/app/api/health/route.ts` responde como `application=tda`, expõe commit/ambiente quando disponíveis e não depende do legado.
+
+Foram **substituídos e passam a ser históricos**:
+
+- `DND_LEGACY_ORIGIN` como requisito de readiness;
+- `app=dnd-scribe-vercel` e `surface=tda-web` como identidade de produção;
+- `campaignSlug` no health genérico;
+- a duplicidade `/api/health` + `/api/web/health` criada para cutover;
+- gates, rate limits, Git Integration e rewrites ligados aos projetos Vercel antigos.
+
+A retirada operacional do hosting antigo é canônica em [Retirada do projeto Vercel legado](../operations/legacy-retirement.md). Não recriar o projeto antigo para concluir PRs ou fases do roadmap de modernização do `dnd-scribe`.
+
+### Companion legado
+
+**Classificação: comportamento revalidado; arquitetura adaptada.**
+
+O `local-companion` antigo continua sendo evidência concreta para comparar regressões, especialmente em ingestão Craig, preservação do arquivo fonte, hashes, identificação/idempotência, fila persistente, retomada após reinício, retry, revisão não destrutiva, diagnóstico local e export pequeno sem carregar áudio pesado.
+
+Esses comportamentos **não são copiados daqui como contrato**. O documento dono vigente é [Companion local](../integrations/local-companion.md), que define responsabilidades, auth, sync, offline, queue/retry, filesystem, privacy, observabilidade e critérios da modernização. O legado serve somente como baseline para teste e medição.
+
+Ao modernizar o companion, reaproveitar testes/comportamentos apenas depois de confirmar que continuam compatíveis com o contrato atual. Em especial, áudio pesado continua local e o site não pode depender do PC estar ligado.
+
+### Pendências da frente antiga
+
+Podem ser tratadas como **históricas/superseded**, salvo revalidação explícita no `Faysk/tda`:
+
+- concluir/mergear o PR `Faysk/dnd-scribe#69`;
+- modularizar o monólito `api/[...path].js` por fases da epic antiga;
+- ligar Git Integration de `dnd-scribe-web-next`;
+- remover rewrites/cutover entre projetos Vercel antigos;
+- perseguir quota/rate limit do hosting antigo como gate da modernização;
+- provar `main = produção` usando SHA/deployment do projeto `dnd-scribe` removido.
+
+Pendências que **continuam válidas**, mas agora pertencem exclusivamente ao reboot, devem existir no roadmap/issues/docs do `Faysk/tda` e ser executadas ali. Esta classificação não fecha nem altera PRs/issues antigos automaticamente.
 
 ## Regras de migração de conhecimento
 
