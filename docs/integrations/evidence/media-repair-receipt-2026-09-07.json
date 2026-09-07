@@ -1,0 +1,49 @@
+{
+  "operation": "repair-legacy-images",
+  "applied": true,
+  "transactionCommitted": true,
+  "updatedSessions": 6,
+  "updatedFields": 12,
+  "untouchedWorkingReferences": 10,
+  "unrelatedColumnsAndMetadataUnchanged": true,
+  "rollbackExecuted": false,
+  "rows": [
+    {
+      "id": "7cb15987-8493-4f37-8eae-92c7d6d46a07",
+      "source_session_id": "manual-2026-07-05-20260705-sessao-000806",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-04/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-04/hero.webp"
+    },
+    {
+      "id": "7cf2c458-2b61-4384-8fb4-b430ff6c56c9",
+      "source_session_id": "craig-BIRq3nIWB4v9",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-06-27/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-06-27/hero.webp"
+    },
+    {
+      "id": "abc4ef3c-ddb3-42e5-94d6-023fbab579e8",
+      "source_session_id": "manual-2026-07-01-20260701-sessao-235100",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-01/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-01/hero.webp"
+    },
+    {
+      "id": "c45bf33a-3e00-4c67-a162-5b17b6b0d36c",
+      "source_session_id": "fqSsIl6c2HeV",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-11/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-11/hero.webp"
+    },
+    {
+      "id": "caeb376d-0a7d-5bf7-b18a-68c82557b61d",
+      "source_session_id": "craig-AdabEqbzngmT-stage1-full",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-06-24/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-06-24/hero.webp"
+    },
+    {
+      "id": "fbbbf955-bdd0-47ad-bdea-f8e6f6a93891",
+      "source_session_id": "AY2M6WBqKgq9",
+      "cover": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-25/card.webp",
+      "hero": "https://raw.githubusercontent.com/Faysk/dnd-scribe/48f8a43e8145e782d3bf4186a4a9b4218a92c643/web/assets/sessions/2026-07-25/hero.webp"
+    }
+  ],
+  "receiptRecordedAt": "2026-09-07T15:23:28.036Z"
+}

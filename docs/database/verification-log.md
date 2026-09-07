@@ -195,3 +195,11 @@ Pendências conhecidas continuam sendo trabalho planejado, não blockers do esta
 2. convergência completa do legado para UUID/slug antes de remover a constraint histórica de nome;
 3. otimização de índices guiada por uso real;
 4. decisão canônica `Screacky` vs `Screaky` e alias correspondente quando aprovada.
+
+## 2026-09-07 — reparo de 12 referências públicas de imagem (#25)
+
+Projeto `dmrqnbdvbkfqzctcerbx`, campanha `yuhara-main`. DML operacional autorizada, sem DDL/migration de schema, grants, RLS ou RPC. A inspeção prévia confirmou as 11 sessões publicadas e ausência de triggers customizados em `sessions`.
+
+Uma transação com row locks, UUID/sourceSessionId/campanha/status e compare-and-swap de ambos os campos substituiu somente 12 URLs quebradas em 6 sessões por URLs GitHub no commit imutável validado. As outras 10 referências permaneceram iguais. Hashes das demais colunas e demais chaves de metadata permaneceram iguais nas 11 sessões; textos, transcrições, usuários e outros conteúdos não foram alterados. O rollback foi preparado com CAS e não executado. Advisors de schema/auth não foram repetidos para esse reparo estreito de valores; nenhum estado de segurança novo é afirmado.
+
+[Recibo, snapshots, SQL de aplicação/rollback e verificação pública 22/22](../integrations/media-public-delivery-2026-09-07.md). A promoção posterior das 22 referências para R2 foi apenas preparada; exige release compatível, novos GETs e nova comparação com o snapshot pós-reparo. Nenhuma referência R2 foi gravada no banco nesta entrega.

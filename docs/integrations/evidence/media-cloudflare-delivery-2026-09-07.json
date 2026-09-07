@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-09-07T15:31:14.597Z",
+  "publicDomain": {
+    "domain": "media.dnd.faysk.dev",
+    "status": {
+      "ssl": "active",
+      "ownership": "active"
+    },
+    "zoneId": "96dc22519af763b990dff5f31ea13467",
+    "zoneName": "faysk.dev",
+    "minTLS": "1.2",
+    "enabled": true
+  },
+  "publicR2DevEnabled": false,
+  "privatePublicDomains": 0,
+  "privateR2DevEnabled": false,
+  "previewPublicDomains": 0,
+  "previewR2DevEnabled": false,
+  "siteDnsUnchanged": true
+}
