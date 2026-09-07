@@ -60,7 +60,7 @@ function seconds(value: unknown): number {
 export const sha256 = (value: string) =>
 	createHash("sha256").update(value, "utf8").digest("hex");
 
-/** Verify the exact Python-produced UTF-8 strings; JS must not reserialize Python floats. */
+/** Verify and preserve the exact Python-produced UTF-8 strings; JS must not reserialize Python floats. */
 export function prepareImport(
 	raw: string,
 ): { ok: true; value: PreparedImport } | { ok: false; reason: ImportFailure } {
@@ -224,10 +224,13 @@ export function prepareImport(
 				sessionId,
 				sourceSystem: "local_companion",
 				sourceSessionId,
+				envelopeSchema: "tda_local_result_v1",
 				jobId,
 				publicationId,
 				transcriptSha256,
 				manifestSha256,
+				publicationPayloadJson: publicationJson,
+				transcriptJson,
 				segments,
 			},
 		};
