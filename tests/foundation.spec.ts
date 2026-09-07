@@ -116,13 +116,12 @@ test("theme follows the system by default and persists explicit preferences", as
 	const appearance = page.getByRole("radiogroup", { name: "Aparência" });
 	const system = appearance.getByRole("radio", { name: "Sistema" });
 	const light = appearance.getByRole("radio", { name: "Claro" });
-	const dark = appearance.getByRole("radio", { name: "Escuro" });
 
 	await expect(system).toBeChecked();
 	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
 
-	await light.click();
+	await page.getByTitle("Usar tema claro").click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 	await expect(light).toBeChecked();
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
@@ -136,13 +135,13 @@ test("theme follows the system by default and persists explicit preferences", as
 		reloadedAppearance.getByRole("radio", { name: "Claro" }),
 	).toBeChecked();
 
-	await reloadedAppearance.getByRole("radio", { name: "Escuro" }).click();
+	await page.getByTitle("Usar tema escuro").click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"dark",
 	);
 
-	await reloadedAppearance.getByRole("radio", { name: "Sistema" }).click();
+	await page.getByTitle("Seguir o tema do sistema").click();
 	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 	await expect(
 		reloadedAppearance.getByRole("radio", { name: "Sistema" }),
@@ -188,10 +187,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 		),
 	).toBe("none");
 
-	await page
-		.getByRole("radiogroup", { name: "Aparência" })
-		.getByRole("radio", { name: "Claro" })
-		.click();
+	await page.getByTitle("Usar tema claro").click();
 	expect(
 		await page.evaluate(() =>
 			getComputedStyle(document.documentElement)
