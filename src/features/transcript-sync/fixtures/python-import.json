@@ -1,0 +1,43 @@
+{
+	"schemaVersion": "tda_transcript_import_v1",
+	"result": {
+		"schema_version": "tda_local_result_v1",
+		"campaign_id": "11111111-1111-4111-8111-111111111111",
+		"session_id": "22222222-2222-4222-8222-222222222222",
+		"source_id": "fixture-source",
+		"job_id": "fixture-job",
+		"publication_bundle": {
+			"schema_version": "publication_bundle_v1",
+			"session": {
+				"source_id": "fixture-source",
+				"played_at": "2026-01-01",
+				"start_time": "2026-01-01T12:00:00Z",
+				"title": "Synthetic test only",
+				"speakers": ["Jogadora Á", "Mestre"]
+			},
+			"recap": {
+				"short": null,
+				"full": null
+			},
+			"approved_entries": [],
+			"open_threads": [],
+			"source_manifest": {
+				"local_only": true,
+				"recording_format": "fixture.testdata",
+				"transcript_segments": 2,
+				"duration_seconds": 4.0,
+				"transcript_sha256": "f8cf065481bac1360647b46d57ec79b585505caaebf7b6058945458da5095eea",
+				"manifest_sha256": "e2f7e928ff6deba11d7827ea9cdd276f11d75a663558e6ecc8db2a76379a39a7"
+			},
+			"publication_id": "f2950f2ae3d35e1f342985d93034dd434c1c2369faea97359208d4f359d94369",
+			"generated_at": "2026-01-01T12:00:00Z"
+		},
+		"import_artifacts": {
+			"publication_payload_json": "{\"approved_entries\":[],\"open_threads\":[],\"recap\":{\"full\":null,\"short\":null},\"schema_version\":\"publication_bundle_v1\",\"session\":{\"played_at\":\"2026-01-01\",\"source_id\":\"fixture-source\",\"speakers\":[\"Jogadora Á\",\"Mestre\"],\"start_time\":\"2026-01-01T12:00:00Z\",\"title\":\"Synthetic test only\"},\"source_manifest\":{\"duration_seconds\":4.0,\"local_only\":true,\"manifest_sha256\":\"e2f7e928ff6deba11d7827ea9cdd276f11d75a663558e6ecc8db2a76379a39a7\",\"recording_format\":\"fixture.testdata\",\"transcript_segments\":2,\"transcript_sha256\":\"f8cf065481bac1360647b46d57ec79b585505caaebf7b6058945458da5095eea\"}}",
+			"transcript_json": "[{\"end\":2.125,\"id\":\"speaker-0\",\"speaker\":\"Jogadora Á\",\"start\":1.0,\"text\":\"Olá, dragão 🐉!\",\"track\":\"track-1.flac\",\"words\":[]},{\"end\":4.0,\"id\":\"speaker-1\",\"speaker\":\"Mestre\",\"start\":2.5,\"text\":\"A porta está fechada.\",\"track\":\"track-2.flac\",\"words\":[{\"end\":2.75,\"probability\":0.9876,\"start\":2.5,\"word\":\"A\"}]}]"
+		},
+		"sync": {
+			"status": "not_configured"
+		}
+	}
+}
