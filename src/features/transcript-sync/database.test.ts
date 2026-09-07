@@ -155,15 +155,20 @@ describe.skipIf(!enabled)(
 					),
 				),
 			).toEqual({ ok: false, reason: "forbidden" });
-			for (const patch of [
-				{ campaignId: "66666666-6666-4666-8666-666666666666" },
-				{ sessionId: "66666666-6666-4666-8666-666666666666" },
-			])
-				expect(
-					JSON.parse(
-						sql(`set role service_role; ${call({ ...input, ...patch })}`),
+			expect(
+				JSON.parse(
+					sql(
+						`set role service_role; ${call({ ...input, campaignId: "66666666-6666-4666-8666-666666666666" })}`,
 					),
-				).toEqual({ ok: false, reason: "not_found" });
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+			expect(
+				JSON.parse(
+					sql(
+						`set role service_role; ${call({ ...input, sessionId: "66666666-6666-4666-8666-666666666666" })}`,
+					),
+				),
+			).toEqual({ ok: false, reason: "not_found" });
 			for (const patch of [
 				{ sourceSessionId: "other" },
 				{ sourceSystem: "craig" },
