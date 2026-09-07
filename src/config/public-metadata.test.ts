@@ -6,13 +6,14 @@ import {
 } from "./public-metadata";
 
 describe("public metadata contract", () => {
-	it("builds canonical SSR metadata for future Lore routes", () => {
+	it("builds canonical SSR metadata for future Lore routes with a verified image", () => {
 		const metadata = buildPublicMetadata({
 			title: "Dandelion",
 			description: "Lore pública de Dandelion.",
 			pathname: "/lore/dandelion",
 			type: "article",
 			image: {
+				verification: "verified-public",
 				url: "/assets/lore/dandelion-social.png",
 				alt: "Dandelion em Yuhara",
 				width: 1200,
@@ -34,7 +35,23 @@ describe("public metadata contract", () => {
 			height: 630,
 			type: "image/png",
 		});
+		expect(metadata.openGraph.images[0]).not.toHaveProperty("verification");
 		expect(metadata.twitter.card).toBe("summary_large_image");
+	});
+
+	it("falls back when even a marked custom image is not HTTPS", () => {
+		const metadata = buildPublicMetadata({
+			title: "Mapa",
+			description: "Mapa público.",
+			pathname: "/mundo/mapa",
+			image: {
+				verification: "verified-public",
+				url: "http://media.example.test/mapa.png",
+				alt: "Mapa",
+			},
+		});
+
+		expect(metadata.openGraph.images[0]).toEqual(PUBLIC_METADATA_FALLBACK_IMAGE);
 	});
 
 	it("uses the official fallback for World Explorer pages without artwork", () => {
