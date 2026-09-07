@@ -79,3 +79,20 @@ Esta seção registra uma operação posterior ao deployment inicial. As afirma�
 #### Rollback do domínio
 
 Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio como operação independente do código: remover/reassociar `dnd.faysk.dev` no projeto Vercel e restaurar o registro Cloudflare anterior conhecido. Não é necessário reverter o deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe` apenas para desfazer o apontamento do domínio.
+
+## 2026-09-07 — Production #002
+
+- Autorização: publicar a main integrada em https://dnd.faysk.dev/.
+- Source SHA: `510b34874458fe68bd4797098a00edcd07a7f1c5`.
+- Projeto/time: `prj_hDiDvvRiesg3qCDekGWE8JQMkIyH` / `team_9wuTfarCQ3L63xtufPKUDzi0`, Hobby, Node 24.
+- Deployment: `dpl_6gzV49FDyFgi7DiJsKmmgMHrCgJF`, production, READY em 2026-09-07T18:04:23.779Z.
+- URL: https://tda-gm7f38fcr-projeto-desenv-6905s-projects.vercel.app ; alias oficial confirmado pela Vercel: https://dnd.faysk.dev/.
+- Método: bootstrap pelo conector Vercel, tarball GitHub imutável do SHA acima, instalação frozen-lockfile e build. Uma primeira requisição foi rejeitada antes de criar deployment porque installCommand excedeu 256 caracteres; o script bootstrap resolveu o limite. Nenhum auto-deploy ativado.
+- Validação prévia: CI main `34149194633` success; 143 testes app, 24 mídia, 75 navegador e build/check locais aprovados.
+- Smoke: Home, sessões, detalhe rmDsxh640RR4, entrar, mundo e fallback OG HTTP 200. Onze capas da listagem e dois assets de marca responderam 200 com MIME de imagem. Browser confirmou navegação e conteúdo público.
+- Health: ok=true, environment=production, commit=null; provenance garantida pelo tarball fixo, não pelo health.
+- Metadata WhatsApp em HTML bruto: título/resumo/canonical da sessão corretos; imagem ainda `/og/default`, pois manifesto runtime segue vazio. Não afirmar artwork personalizada já publicada.
+- Login Discord: `/entrar` informa indisponibilidade e mantém botão desabilitado; `/api/auth/me` responde 503/unavailable sem capabilities. Configuração/ensaio OAuth real continuam pendentes. `/edit` encaminha à conta e não exibe conteúdo administrativo anônimo.
+- Runtime errors: nenhum erro agrupado encontrado no intervalo consultado após READY; isso não elimina a indisponibilidade de Auth registrada acima.
+- Nenhuma migration, promoção CAS, alteração de dados ou DNS executada. Referências de mídia ainda usam origens anteriores; suporte R2 foi publicado, promoção permanece separada.
+- Rollback: deployment anterior `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe` (Production #001); schema preservado.
