@@ -1,0 +1,85 @@
+.panel {
+	display: grid;
+	gap: 20px;
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+}
+.card,
+.dialog {
+	padding: clamp(16px, 3vw, 28px);
+	background: var(--ds-surface);
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-lg);
+}
+.card h2,
+.dialog h2 {
+	margin-top: 0;
+	font-family: var(--ds-font-display);
+}
+.card p,
+.dialog p {
+	line-height: 1.6;
+}
+.heading,
+.controls {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.controls {
+	justify-content: flex-start;
+	margin-top: 12px;
+}
+.controls input {
+	min-width: 0;
+	flex: 1 1 240px;
+	padding: 12px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+.controls input:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+.muted {
+	color: var(--ds-foreground-muted);
+	font-size: 0.9rem;
+}
+.jobs {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	gap: 16px;
+}
+.job {
+	border-top: 1px solid var(--ds-border);
+	padding-top: 16px;
+}
+.job progress {
+	width: 100%;
+	accent-color: var(--ds-control-focus-ring);
+}
+.card dd {
+	margin: 4px 0 12px;
+}
+.card p,
+.card dd,
+.card strong,
+.card h3 {
+	overflow-wrap: anywhere;
+}
+.card small {
+	display: block;
+}
+.dialog {
+	max-width: min(520px, calc(100vw - 32px));
+	color: var(--ds-foreground);
+}
+.dialog::backdrop {
+	background: color-mix(in srgb, var(--ds-canvas) 75%, transparent);
+}
