@@ -88,7 +88,7 @@ export function WorldExplorerClient({
 					) : null}
 				</header>
 
-				<div className={styles.filters} aria-label="Filtrar o grafo">
+				<fieldset className={styles.filters} aria-label="Filtrar o grafo">
 					{FILTER_OPTIONS.map((option) => (
 						<button
 							key={option.value}
@@ -100,7 +100,7 @@ export function WorldExplorerClient({
 							{option.label}
 						</button>
 					))}
-				</div>
+				</fieldset>
 
 				<div className={styles.canvas} data-testid="world-canvas">
 					<ReactFlow<WorldFlowNode, WorldFlowEdge>

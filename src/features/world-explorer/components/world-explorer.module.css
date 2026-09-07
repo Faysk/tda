@@ -67,6 +67,9 @@
 }
 
 .filters {
+	min-width: 0;
+	margin: 0;
+	border: 0;
 	display: flex;
 	gap: 8px;
 	overflow-x: auto;

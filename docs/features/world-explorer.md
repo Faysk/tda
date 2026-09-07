@@ -453,4 +453,6 @@ Métricas possíveis:
 
 ## Critério de pronto V1
 
+Validação de suporte em 2026-09-07: lockfile regenerado por pnpm 12.3.4, grupo de filtros convertido em `fieldset` acessível e catálogo documental regenerado. `pnpm check` (59 testes unitários), build e 45 E2E passaram localmente em Node 24.20.0, incluindo foco, filtros, metadata e largura mínima de 320 px. Revisão visual local em desktop e 390 px confirmou a composição dos filtros. Permanecem três avisos de especificidade CSS, sem bloqueio de lint; esta evidência não representa merge, deploy ou validação de dados reais. A integração central de imagem/metadata continua sob seu ownership próprio.
+
 Um usuário autorizado consegue abrir `/mundo`, compreender visualmente as relações diretas de uma entity, navegar para outra, consultar detalhes e chegar ao perfil completo sem depender do grafo como única fonte e sem receber dados fora de sua audience.
