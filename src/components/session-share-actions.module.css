@@ -1,0 +1,32 @@
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin: 0 0 34px;
+	padding-bottom: 24px;
+	border-bottom: 1px solid var(--ds-border);
+}
+
+.status {
+	min-width: 0;
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.75rem;
+	line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+	.actions {
+		align-items: stretch;
+	}
+
+	.actions > button {
+		flex: 1 1 145px;
+	}
+
+	.status {
+		flex-basis: 100%;
+	}
+}
