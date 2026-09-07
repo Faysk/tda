@@ -19,7 +19,7 @@
 		"docs:check": "node tools/check-docs.mjs",
 		"docs:generate": "node tools/documentation-catalog.mjs --write",
 		"db:docs:check": "node tools/check-database-governance.mjs",
-		"test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts",
+		"test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts && playwright test --config playwright.permissions.config.ts",
 		"verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
 	},
 	"dependencies": {

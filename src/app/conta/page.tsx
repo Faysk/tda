@@ -47,6 +47,7 @@ export default async function AccountPage() {
 			<div className={styles.actions}>
 				{allowed ? <Link href="/transcricoes">Palavras e tempo das transcrições</Link> : null}
 				{allowed ? <Link href="/edit">Abrir Edit</Link> : null}
+				<Link href={`/edit/${CAMPAIGN_SLUG}/permissions`}>Consultar permissões</Link>
 				{access.state === "anonymous" || access.state === "unavailable" ? (
 					<Link href="/entrar">Entrar com Discord</Link>
 				) : null}

@@ -16,6 +16,7 @@ Candidato em revisão: [Estatísticas privadas de transcrições](transcript-sta
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
+| Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
