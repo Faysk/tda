@@ -21,6 +21,7 @@ end;
 $$;
 
 grant usage on schema public to service_role;
+grant usage on schema extensions to service_role;
 
 create table public.campaigns (
   id uuid primary key default gen_random_uuid(),
@@ -135,7 +136,7 @@ alter table public.transcript_segments enable row level security;
 
 grant select on public.campaigns to service_role;
 grant select on public.profiles to service_role;
-grant select on public.sessions to service_role;
+grant select, update on public.sessions to service_role;
 grant select on public.permission_catalog to service_role;
 grant select on public.role_definitions to service_role;
 grant select on public.role_permissions to service_role;
