@@ -365,11 +365,13 @@ Exemplo:
 
 Para entities `public_web`:
 
-- title/description específicos;
-- canonical URL;
-- Open Graph com artwork apropriada;
-- fallback para OG oficial TDA;
+- title/description específicos e derivados apenas de conteúdo autorizado para publicação;
+- canonical URL da rota pública real (`/personagens/[slug]`, `/npcs/[slug]`, `/lugares/[slug]`, `/faccoes/[slug]`, `/musicas/[slug]` ou `/quests/[slug]`), sem criar rota paralela `/lore/[slug]`;
+- Open Graph/Twitter devem reutilizar o helper central `buildPublicMetadata` e o fallback oficial `/og/default`, conforme o contrato owner em `docs/integrations/vercel.md`;
+- artwork social própria só é fornecida quando pública/aprovada; caso contrário usa o fallback oficial;
 - nenhum conteúdo secreto em metadata server-rendered.
+
+A implementação compartilhada de metadata está preparada na PR #47, commit `7f92b6600ca4e9d456866d8156896a51c25370bd`, mas ainda está **fora de `main`** nesta revisão. Até essa dependência ser integrada, a Lore não deve copiar o helper, criar gerador próprio de OG/Twitter nem importar código diretamente de outra branch. O consumo deve ser adicionado somente depois que o contrato central estiver disponível na base corrente da PR #26.
 
 Entities privadas não devem gerar preview social que revele nome/conteúdo.
 
@@ -436,7 +438,7 @@ Deve validar:
 - música;
 - light/dark;
 - mobile;
-- metadata social;
+- metadata social pelo contrato central após a PR #47 estar disponível na base;
 - artwork 2.5D se disponível;
 - narração editorial se o áudio for fornecido/aprovado;
 - beats/legendas/seek/reduced motion quando a narração existir.
