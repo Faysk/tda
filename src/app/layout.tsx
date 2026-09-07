@@ -36,6 +36,7 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+	const showUnsafeEdit = process.env.TDA_EDIT_UNSAFE === "true";
 	return (
 		<html lang="pt-BR" suppressHydrationWarning>
 			<body>
@@ -74,7 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 					<div className="header-actions">
 						<nav aria-label="Navegação principal">
 							<Link href="/sessoes">Sessões</Link>
-							<Link href="/edit">Edit</Link>
+							{showUnsafeEdit ? <Link href="/edit">Edit</Link> : null}
 						</nav>
 						<ThemeToggle />
 					</div>
