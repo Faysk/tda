@@ -45,8 +45,8 @@ for (const agent of previewAgents) {
 		expect(response.status()).toBe(200);
 		const head = htmlHead(await response.text());
 
-		expect(canonicalHref(head)).toBe("https://dnd.faysk.dev/");
-		expect(metaContent(head, "property", "og:url")).toBe(
+		expect(new URL(canonicalHref(head)).href).toBe("https://dnd.faysk.dev/");
+		expect(new URL(metaContent(head, "property", "og:url")).href).toBe(
 			"https://dnd.faysk.dev/",
 		);
 		expect(metaContent(head, "property", "og:title")).toBe(
