@@ -112,6 +112,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-07 |
 | [Companion local](../integrations/local-companion.md) | local-companion/processing | legado funcional; modernização planejada | 2026-09-06 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
+| [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
 | [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-07 |
 | [Integração Supabase](../integrations/supabase.md) | integrations + data + identity | implementado/canônico | 2026-09-06 |
@@ -139,4 +140,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-78 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+79 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
