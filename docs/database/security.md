@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -124,7 +124,7 @@ Uma role/view/endpoint tecnicamente read-only e de menor privilégio é desejáv
 
 ## `SECURITY DEFINER`
 
-O advisor de segurança sinalizou funções `SECURITY DEFINER` executáveis por `authenticated`. Entre as funções observadas no alerta estão:
+A inspeção de 2026-09-07 confirmou **8 funções `SECURITY DEFINER` em `public`**:
 
 - `access_directory(campaign_slug text)`;
 - `current_profile_id()`;
@@ -135,7 +135,40 @@ O advisor de segurança sinalizou funções `SECURITY DEFINER` executáveis por 
 - `submit_profile_claim(...)`;
 - `table_notes_directory(...)`.
 
-O warning **não significa automaticamente vulnerabilidade**, porque algumas RPCs foram desenhadas para serem chamadas por usuários autenticados. Mas `SECURITY DEFINER` executa com privilégios do owner e, portanto, precisa ser tratado como boundary de segurança.
+Estado de grants observado nas oito:
+
+- `anon`: sem `EXECUTE`;
+- `authenticated`: com `EXECUTE`;
+- `service_role`: com `EXECUTE`;
+- owner: `postgres`.
+
+Todas as definições observadas fixam `search_path` em `pg_catalog, public`.
+
+O warning do advisor **não significa automaticamente vulnerabilidade**, porque várias dessas RPCs são endpoints autenticados deliberados. Porém `SECURITY DEFINER` executa com privilégios do owner e precisa ser tratado como boundary de segurança.
+
+O inventário função a função, incluindo classificação, autorização interna, risco e decisão atual de grant, está em [`rpc-inventory.md`](rpc-inventory.md).
+
+### Classificação atual
+
+Helpers internos candidatos a perder `EXECUTE` direto de `authenticated` depois da prova final de consumidores:
+
+- `current_profile_id()`;
+- `has_campaign_role(...)`;
+- `has_campaign_role_slug(...)`.
+
+Endpoints autenticados/administrativos mantidos durante a transição:
+
+- `access_directory(...)`;
+- `submit_profile_claim(...)`;
+- `review_profile_claim(...)`;
+- `table_notes_directory(...)`;
+- `review_table_note(...)`.
+
+### Atenção especial: `access_directory`
+
+O caminho não-admin mascara dados Discord e retorna apenas profiles ainda não ligados a Auth, mas não exige explicitamente membership prévia na campanha solicitada. Com uma única campanha conhecida isso não criou um vazamento cross-campaign observado; antes de multi-campaign ou Edit público, o contrato de onboarding precisa decidir se a consulta exige convite/membership/capability ou se diretório autenticado por slug é comportamento intencional.
+
+Não alterar essa semântica silenciosamente: é regra de produto/autorização e precisa de teste negativo.
 
 ### Checklist para cada RPC
 
@@ -150,14 +183,12 @@ O warning **não significa automaticamente vulnerabilidade**, porque algumas RPC
 
 ### Ação antes do Edit público
 
-Criar inventário função a função classificando:
-
-- endpoint público intencional;
-- endpoint autenticado intencional;
-- helper interno;
-- legado a migrar;
-- candidato a `SECURITY INVOKER`;
-- candidato a `REVOKE EXECUTE`.
+- cobrir os cinco endpoints intencionais com testes positivos/negativos;
+- decidir contrato multi-campaign de `access_directory`;
+- comprovar ausência de consumidores externos dos três helpers;
+- quando seguro, versionar migration que revogue `EXECUTE` direto de `authenticated` dos helpers;
+- rodar advisors e smoke tests depois da mudança;
+- convergir autorização nova para capabilities/RBAC.
 
 Não revogar em massa sem mapear consumidores.
 
@@ -228,6 +259,7 @@ Para cada nova superfície autenticada, testar pelo menos:
 Qualquer alteração em policy, grant, function security, role/capability ou secret boundary exige:
 
 - migration;
-- atualização deste documento;
+- atualização deste documento e de `rpc-inventory.md` quando houver RPC;
 - teste de acesso positivo e negativo;
-- registro no ADR se alterar a estratégia de segurança.
+- registro em `verification-log.md` após aplicação;
+- ADR se alterar a estratégia de segurança.
