@@ -12,6 +12,7 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 - [Catálogo das 43 tabelas públicas](schema-catalog.md)
 - [Relacionamentos e ownership](relationships.md)
 - [RLS, RBAC, RPCs e segurança](security.md)
+- [Inventário de RPCs privilegiadas](rpc-inventory.md)
 - [Migrations e evolução do schema](migrations.md)
 - [Log de verificações de produção](verification-log.md)
 - [Modelo canônico de domínio](../data-model.md)
@@ -87,6 +88,16 @@ Registrar:
 ### Verificação operacional
 
 Registrar em `verification-log.md` quando houver revalidação relevante de produção, aplicação de migration, investigação de drift, revisão de advisors ou incidente de banco.
+
+### Nova RPC privilegiada
+
+Atualizar obrigatoriamente:
+
+- migration da function/grant;
+- `security.md`;
+- `rpc-inventory.md` com classe, caller, auth interna e decisão de grant;
+- testes positivos e negativos da autorização;
+- `verification-log.md` após aplicação em produção.
 
 ## O que não deve ser documentado aqui
 
