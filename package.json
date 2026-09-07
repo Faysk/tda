@@ -20,6 +20,8 @@
 		"docs:generate": "node tools/documentation-catalog.mjs --write",
 		"db:docs:check": "node tools/check-database-governance.mjs",
 		"test:e2e": "playwright test",
+		"test:processing": "playwright test --config playwright.processing.config.ts",
+		"test:processing:integration": "playwright test --config playwright.processing-integration.config.ts",
 		"verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
 	},
 	"dependencies": {

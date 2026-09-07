@@ -1,4 +1,5 @@
 export const EDIT_CAPABILITIES = {
+	localProcess: "campaign.local.process",
 	transcriptRead: "campaign.transcript.read",
 	contentEdit: "campaign.content.edit",
 } as const;

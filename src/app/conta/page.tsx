@@ -23,6 +23,13 @@ export default async function AccountPage() {
 			EDIT_CAPABILITIES.transcriptRead,
 			CAMPAIGN_SLUG,
 		).ok;
+	const localAllowed =
+		access.context &&
+		authorizeCampaignCapability(
+			access.context,
+			EDIT_CAPABILITIES.localProcess,
+			CAMPAIGN_SLUG,
+		).ok;
 	const descriptions = {
 		anonymous: "Entre com sua conta do Discord para consultar seu acesso.",
 		unavailable:
@@ -46,6 +53,9 @@ export default async function AccountPage() {
 			</p>
 			<div className={styles.actions}>
 				{allowed ? <Link href="/edit">Abrir Edit</Link> : null}
+				{localAllowed ? (
+					<Link href="/edit/processamento">Processamento local</Link>
+				) : null}
 				{access.state === "anonymous" || access.state === "unavailable" ? (
 					<Link href="/entrar">Entrar com Discord</Link>
 				) : null}
