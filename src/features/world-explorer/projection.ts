@@ -41,6 +41,25 @@ export function resolveWorldFocusId(
 	return match?.id ?? fallbackId;
 }
 
+export function filterWorldProjection(
+	projection: WorldGraphProjection,
+	filter: WorldFilter,
+): WorldGraphProjection {
+	if (filter === "all") return projection;
+	const nodes = projection.nodes.filter(
+		(node) =>
+			node.id === projection.focusId || matchesFilter(node, filter),
+	);
+	const visibleIds = new Set(nodes.map((node) => node.id));
+	return {
+		...projection,
+		nodes,
+		edges: projection.edges.filter(
+			(edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
+		),
+	};
+}
+
 export function buildWorldProjection(
 	dataset: WorldDemoDataset,
 	focusId: string,
@@ -60,22 +79,13 @@ export function buildWorldProjection(
 		neighborIds.add(edge.target);
 	}
 
-	const nodes = dataset.nodes.filter(
-		(node) =>
-			neighborIds.has(node.id) &&
-			(node.id === focusId || matchesFilter(node, filter)),
-	);
-	const visibleIds = new Set(nodes.map((node) => node.id));
-	const edges = directEdges.filter(
-		(edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
-	);
-
-	return {
+	const projection: WorldGraphProjection = {
 		demo: true,
 		focusId,
-		nodes,
-		edges,
+		nodes: dataset.nodes.filter((node) => neighborIds.has(node.id)),
+		edges: directEdges,
 	};
+	return filterWorldProjection(projection, filter);
 }
 
 export function relationLabelFor(
