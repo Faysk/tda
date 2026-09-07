@@ -4,6 +4,7 @@ import {
 	countTranscriptWords,
 	normalizeTranscriptReviewStatus,
 	prepareTranscriptEdit,
+	transcriptSpeakerIdentityChanged,
 	transcriptStatusNeedsReview,
 } from "./model";
 
@@ -29,6 +30,17 @@ describe("transcript review status", () => {
 		expect(transcriptStatusNeedsReview("needs_review")).toBe(true);
 		expect(transcriptStatusNeedsReview("approved")).toBe(false);
 		expect(transcriptStatusNeedsReview("discarded")).toBe(false);
+	});
+});
+
+describe("transcript speaker identity", () => {
+	it("preserves structured identity when the speaker did not change", () => {
+		expect(transcriptSpeakerIdentityChanged(" Dandelion ", "Dandelion")).toBe(false);
+	});
+
+	it("invalidates structured identity when the speaker changes", () => {
+		expect(transcriptSpeakerIdentityChanged("Dandelion", "Sense")).toBe(true);
+		expect(transcriptSpeakerIdentityChanged(null, "Sense")).toBe(true);
 	});
 });
 

@@ -42,6 +42,13 @@ function cleanString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+export function transcriptSpeakerIdentityChanged(
+	previousSpeaker: unknown,
+	nextSpeaker: unknown,
+): boolean {
+	return cleanString(previousSpeaker) !== cleanString(nextSpeaker);
+}
+
 export function normalizeTranscriptReviewStatus(
 	value: unknown,
 ): TranscriptReviewStatus | null {
