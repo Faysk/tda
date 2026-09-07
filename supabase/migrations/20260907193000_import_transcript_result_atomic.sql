@@ -231,6 +231,11 @@ begin
     select 1
     from jsonb_array_elements(v_segments) item(value)
     where jsonb_typeof(item.value) <> 'object'
+       or not (item.value ? 'id')
+       or not (item.value ? 'start')
+       or not (item.value ? 'end')
+       or not (item.value ? 'text')
+       or not (item.value ? 'words')
        or jsonb_typeof(item.value -> 'id') <> 'string'
        or jsonb_typeof(item.value -> 'start') <> 'number'
        or jsonb_typeof(item.value -> 'end') <> 'number'
@@ -285,12 +290,15 @@ begin
     where x.id is null
        or btrim(x.id) = ''
        or char_length(x.id) > 220
+       or x.start is null
        or x.start < 0
        or x.start > 2147483647
+       or x."end" is null
        or x."end" < x.start
        or x."end" > 2147483647
        or x.text is null
        or char_length(x.text) > 10000
+       or x.words is null
        or x.words < 0
        or x.words > 2147483647
        or (x.speaker is not null and char_length(x.speaker) > 160)
