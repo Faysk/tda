@@ -8,12 +8,12 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | Não declarado | Não declarado | Não declarado |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-07 |
 | [Arquitetura](../architecture.md) | Não declarado | Não declarado | Não declarado |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | Não declarado | Não declarado | Não declarado |
-| [Infraestrutura e estado](../infrastructure.md) | Não declarado | Não declarado | Não declarado |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-07 |
+| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente; production ativa | 2026-09-07 |
 | [Publicação controlada](../releases.md) | Não declarado | Não declarado | Não declarado |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-07 |
 
@@ -66,7 +66,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação viva](README.md) | Não declarado | Não declarado | Não declarado |
+| [Documentação viva](README.md) | documentação/arquitetura | vigente | 2026-09-07 |
 | [ADR-NNNN — Título](adr-template.md) | Não declarado | proposed  /  accepted  /  superseded  /  rejected | Não declarado |
 | [Template de documento](document-template.md) | Não declarado | Não declarado | Não declarado |
 
@@ -138,4 +138,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-77 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+77 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 18 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
