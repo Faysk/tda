@@ -29,7 +29,7 @@ export type EditAccessResult =
 	| Readonly<{ ok: true; profileId: string }>
 	| Readonly<{ ok: false; reason: EditAccessFailure }>;
 
-const PROJECT_SCOPE_ID = "tda";
+const PROJECT_SCOPE_ID = "project/tda";
 
 function isGrantActive(grant: EditGrant, now: Date): boolean {
 	if (grant.status !== "active") return false;
