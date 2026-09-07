@@ -11,7 +11,7 @@ function normalizeHeading(value: string) {
 		.replace(/_(.*?)_/g, "$1")
 		.replace(/`(.*?)`/g, "$1")
 		.trim()
-		.toLocaleLowerCase("pt-PT");
+		.toLocaleLowerCase("pt-BR");
 }
 
 function renderInline(source: string): ReactNode[] {
@@ -34,6 +34,15 @@ function renderInline(source: string): ReactNode[] {
 			return <em key={key}>{part.slice(1, -1)}</em>;
 		}
 		return part;
+	});
+}
+
+function keyedListItems(items: readonly string[]) {
+	const occurrences = new Map<string, number>();
+	return items.map((item) => {
+		const occurrence = (occurrences.get(item) ?? 0) + 1;
+		occurrences.set(item, occurrence);
+		return { item, key: `${item}\u0000${occurrence}` };
 	});
 }
 
@@ -87,8 +96,8 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 						const List = block.ordered ? "ol" : "ul";
 						return (
 							<List key={key}>
-								{block.items.map((item) => (
-									<li key={item}>{renderInline(item)}</li>
+								{keyedListItems(block.items).map(({ item, key: itemKey }) => (
+									<li key={itemKey}>{renderInline(item)}</li>
 								))}
 							</List>
 						);
