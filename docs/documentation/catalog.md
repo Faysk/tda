@@ -53,6 +53,16 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-07 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
+## docs/delivery
+
+| Documento | Owner declarado | Estado declarado | Revisão declarada |
+| --- | --- | --- | --- |
+| [Gestão de entregas](../delivery/README.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
+| [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
+| [Medição de esforço e qualidade](../delivery/measurement.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
+| [Composição de candidato e marcos](../delivery/release-candidate.md) | Prancheta - Organização de entregas; decisão de escopo por Polvo - Coordenação e produto | preparado | 2026-09-07 |
+| [Fluxo de entregas](../delivery/workflow.md) | Prancheta - Organização de entregas; execução por Polvo - Coordenação | preparado | 2026-09-07 |
+
 ## docs/design-system
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
@@ -148,4 +158,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-87 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+92 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
