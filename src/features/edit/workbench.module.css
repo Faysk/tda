@@ -71,7 +71,7 @@
 }
 
 .sessionCard:focus-visible,
-.segment:focus-visible,
+.segmentFocusTarget:focus-visible,
 .control:focus-visible,
 .textarea:focus-visible,
 .search:focus-visible {
@@ -181,9 +181,20 @@
 }
 
 .segmentNumber,
+.segmentFocusTarget,
 .keyboardHint {
 	font-size: 0.72rem;
 	color: var(--ds-foreground-muted);
+}
+
+.segmentFocusTarget {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
 .keyboardHint {
