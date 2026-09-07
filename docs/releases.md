@@ -9,8 +9,8 @@ Em 2026-09-07 ocorreu o primeiro deployment manual do reboot em production. O ca
 
 Como o projeto não possui Git link automático e o conector de deployment trabalha com arquivos, o release foi construído a partir do tarball imutável do GitHub fixado nesse SHA, com `pnpm install --frozen-lockfile` e `pnpm build`. Isso não alterou `git.deploymentEnabled=false` e não criou gatilho de deploy por push.
 
-O alias de production validado é `https://tda-three.vercel.app`. A Home e `/api/health` responderam HTTP 200; dados reais foram renderizados e não foram encontrados runtime errors no intervalo verificado após a publicação.
+O domínio oficial de production é `https://dnd.faysk.dev`. Em `2026-09-07T04:04Z`, a Home e `/api/health` responderam HTTP 200 nesse domínio; o health retornou `ok=true`, `application=tda` e `environment=production`, com HTTPS ativo e resposta servida pela Vercel.
 
-O domínio legado `dnd.faysk.dev` continua na operação antiga; nenhuma mudança de DNS foi feita. Troca de domínio permanece uma operação separada e exige decisão explícita.
+Os aliases Vercel continuam disponíveis para diagnóstico, incluindo `https://tda-three.vercel.app`. A promoção do domínio foi uma operação separada e não exigiu novo deployment de aplicação: `dnd.faysk.dev` passou a servir o mesmo Production #001.
 
-O histórico verificável de Deployment ID, timestamps, URLs, método, smoke e rollback fica em [operations/deployments.md](operations/deployments.md).
+O histórico verificável de Deployment ID, timestamps, URLs, método, smoke, cutover de domínio e rollback fica em [operations/deployments.md](operations/deployments.md).

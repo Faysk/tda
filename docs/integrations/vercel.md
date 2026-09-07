@@ -19,7 +19,7 @@ Uma integração/tool que mostre outro time/conta não deve ser usada para alter
 
 O projeto `tda` está ativo na Vercel correta, plano Hobby e Node 24. O primeiro deployment do reboot foi publicado manualmente em production em 2026-09-07 e terminou `READY`.
 
-A publicação atual corresponde ao source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe`, com alias de production `https://tda-three.vercel.app`.
+A publicação atual corresponde ao source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe`. O domínio oficial de production é `https://dnd.faysk.dev`; os aliases Vercel permanecem disponíveis para diagnóstico.
 
 O projeto continua sem integração Git automática como gatilho de publicação; `git.deploymentEnabled=false` permanece vigente.
 
@@ -98,13 +98,25 @@ No Production #001, `/` e `/api/health` responderam HTTP 200, dados reais foram 
 
 Preferir rollback por SHA/release conhecido. Não manter duas versões públicas concorrentes do frontend como estratégia normal.
 
-Production #001 é o primeiro ponto de rollback reproduzível do reboot. Não havia deployment anterior do reboot na Vercel quando ele foi publicado. O domínio legado permaneceu separado e não foi usado como artefato de rollback da nova aplicação.
+Production #001 é o primeiro ponto de rollback reproduzível do reboot. Não havia deployment anterior do reboot na Vercel quando ele foi publicado.
 
-Se schema mudou, verificar compatibilidade backward antes de rollback do app. Uma migration incompatível pode impedir simples retorno de código.
+Rollback de código e rollback de domínio são operações distintas. Se o problema estiver apenas no apontamento de `dnd.faysk.dev`, restaurar a associação/DNS anterior sem necessariamente reverter o deployment. Se schema mudou, verificar compatibilidade backward antes de rollback do app; uma migration incompatível pode impedir simples retorno de código.
 
 ## Domínio
 
-O reboot está acessível pelo alias Vercel `https://tda-three.vercel.app`. O domínio legado `dnd.faysk.dev` continua preservado e nenhuma mudança de DNS foi feita no primeiro deployment. Troca de DNS/domínio é operação distinta de configurar projeto/variáveis ou publicar um deployment.
+O domínio canônico de production é `https://dnd.faysk.dev`.
+
+No primeiro instante do Production #001, o reboot estava acessível apenas pelos aliases Vercel. Depois, em uma operação separada, `dnd.faysk.dev` foi associado ao projeto `tda` e passou a servir o mesmo deployment, sem novo build.
+
+Validação de `2026-09-07T04:04Z`:
+
+- `https://dnd.faysk.dev/` -> HTTP 200;
+- `https://dnd.faysk.dev/api/health` -> HTTP 200;
+- health: `ok=true`, `application=tda`, `environment=production`;
+- HTTPS ativo;
+- resposta servida pela Vercel.
+
+A consulta DNS auxiliar falhou durante a documentação, então o valor exato do registro Cloudflare não deve ser inventado nem inferido neste arquivo. Em operações futuras, registrar tipo, nome, alvo, proxy status e TTL sempre que essa evidência estiver disponível.
 
 ## Cotas
 

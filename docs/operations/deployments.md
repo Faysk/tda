@@ -51,11 +51,11 @@ A ausência inicial de `package.json` no bootstrap gerou apenas o aviso da Verce
 - `/api/health` respondeu HTTP `200` com `ok=true`, `application=tda` e `environment=production`;
 - o campo `commit` do health respondeu `null`, comportamento esperado neste deployment direto sem metadados de Git da Vercel; o SHA autoritativo deste release é o source SHA fixado acima;
 - consulta de runtime errors após a publicação não encontrou erros no intervalo verificado;
-- nenhuma mudança de DNS ou domínio customizado foi feita.
+- nenhuma mudança de DNS ou domínio customizado foi feita no momento inicial do deployment.
 
 ### Rollback
 
-Este foi o primeiro deployment do reboot na Vercel; portanto não existe deployment anterior do reboot para promover como rollback. O domínio legado `dnd.faysk.dev` permaneceu intocado e continua sendo uma operação separada. O Deployment ID e o source SHA acima constituem o primeiro ponto de rollback reproduzível para releases futuros.
+Este foi o primeiro deployment do reboot na Vercel; portanto não existe deployment anterior do reboot para promover como rollback. O domínio legado `dnd.faysk.dev` permaneceu intocado no instante inicial da publicação. O Deployment ID e o source SHA acima constituem o primeiro ponto de rollback reproduzível para releases futuros.
 
 ### Follow-ups operacionais
 
@@ -63,3 +63,19 @@ Este foi o primeiro deployment do reboot na Vercel; portanto não existe deploym
 - manter `git.deploymentEnabled=false` até decisão explícita em contrário;
 - confirmar sempre team e project IDs antes de qualquer mutação na Vercel;
 - novos deployments devem adicionar uma nova entrada neste histórico, nunca sobrescrever a evidência deste evento.
+
+### 2026-09-07 — Cutover de domínio do Production #001
+
+Esta seção registra uma operação posterior ao deployment inicial. As afirmações acima de que `dnd.faysk.dev` ainda estava preservado e sem mudança de DNS eram verdadeiras no momento em que o Production #001 foi criado; posteriormente o domínio oficial foi promovido para o reboot.
+
+- domínio oficial: `https://dnd.faysk.dev`;
+- Vercel dashboard confirmou `dnd.faysk.dev` associado ao Production Deployment do projeto `tda` e status `Ready`;
+- às `2026-09-07T04:04Z`, `https://dnd.faysk.dev/` respondeu HTTP `200`, servindo a Home do TDA novo;
+- às `2026-09-07T04:04Z`, `https://dnd.faysk.dev/api/health` respondeu HTTP `200` com `ok=true`, `application=tda` e `environment=production`;
+- a resposta pública foi servida pela Vercel e HTTPS estava ativo;
+- não houve novo deployment de aplicação para o cutover: o domínio passou a apontar para o mesmo Production #001;
+- a consulta DNS auxiliar não respondeu no momento da documentação, portanto o valor exato do registro Cloudflare não é inferido aqui sem evidência independente.
+
+#### Rollback do domínio
+
+Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio como operação independente do código: remover/reassociar `dnd.faysk.dev` no projeto Vercel e restaurar o registro Cloudflare anterior conhecido. Não é necessário reverter o deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe` apenas para desfazer o apontamento do domínio.
