@@ -1,3 +1,5 @@
+import { requireCapability } from "@/features/auth/server";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,12 +59,13 @@ function DisabledEdit() {
 		<section className={styles.locked}>
 			<div className={styles.muted}>TDA / EDIT</div>
 			<h1>Edit desativado</h1>
-			<p className={styles.muted}>Este ambiente não habilitou TDA_EDIT_UNSAFE=true.</p>
+			<p className={styles.muted}>Este espaço ainda está sendo preparado para acesso com sua conta.</p>
 		</section>
 	);
 }
 
 export default async function EditSessionPage({ params, searchParams }: PageProps) {
+	await requireCapability(EDIT_CAPABILITIES.transcriptRead, `/edit/sessoes/${encodeURIComponent((await params).id)}`);
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
 	const { id } = await params;
 	const sourceSessionId = String(id || "").trim();
@@ -121,7 +124,7 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 	return (
 		<section className={styles.shell}>
 			<div className={styles.unsafeBanner} role="status">
-				<strong>Modo temporário sem autenticação</strong>
+				<strong>Acesso autorizado · integração em andamento</strong>
 				<span>Salvar nesta tela altera a transcrição real da campanha.</span>
 			</div>
 

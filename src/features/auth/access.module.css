@@ -1,0 +1,41 @@
+.shell {
+	max-width: 38rem;
+	margin: 4rem auto;
+	padding: 2rem;
+	background: var(--ds-surface);
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-lg);
+}
+.eyebrow {
+	color: var(--ds-foreground-muted);
+	font-size: 0.8rem;
+	letter-spacing: 0.12em;
+}
+.title {
+	margin: 1rem 0;
+	font-size: clamp(1.8rem, 4vw, 2.6rem);
+	line-height: 1.15;
+}
+.description {
+	color: var(--ds-foreground-muted);
+	line-height: 1.7;
+}
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: center;
+	margin-top: 2rem;
+}
+.notice {
+	border-left: 3px solid var(--ds-accent);
+	padding: 1rem;
+	margin: 1.5rem 0;
+	line-height: 1.6;
+}
+@media (max-width: 600px) {
+	.shell {
+		margin: 2rem 1rem;
+		padding: 1.5rem;
+	}
+}

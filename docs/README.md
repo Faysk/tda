@@ -96,6 +96,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 
 - [Operação — índice](operations/README.md)
 - [Ambientes e configuração](operations/environments.md)
+- [Login Discord — configuração e verificação](operations/discord-auth.md)
 - [Release, deploy e rollback](operations/release-runbook.md)
 - [Publicação controlada](releases.md) — política resumida.
 - [Segurança operacional](operations/security-checklist.md)

@@ -7,7 +7,7 @@ export default defineConfig({
 		command: "pnpm start --port 3101",
 		url: "http://127.0.0.1:3101/api/health",
 		reuseExistingServer: false,
-		env: { TDA_READ_PUBLISHED_DATA: "false" },
+		env: { TDA_READ_PUBLISHED_DATA: "false", TDA_EDIT_UNSAFE: "true", SUPABASE_PUBLISHABLE_KEY: "", TDA_AUTH_ORIGIN: "" },
 		timeout: 60000,
 	},
 	projects: [

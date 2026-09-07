@@ -31,6 +31,37 @@ function grant(overrides: Record<string, string | null> = {}) {
 }
 
 describe("authorizeCampaignCapability", () => {
+	it.each(["dnd-scribe", "another-project", "project/tda", ""])(
+		"rejects a project grant for %s",
+		(scopeId) => {
+			expect(
+				authorizeCampaignCapability(
+					context({ grants: [grant({ scopeType: "project", scopeId })] }),
+					EDIT_CAPABILITIES.transcriptRead,
+					"yuhara-main",
+					now,
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+		},
+	);
+	it("requires the exact action even for project tda", () => {
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [grant({ scopeType: "project", scopeId: "tda" })] }),
+				EDIT_CAPABILITIES.contentEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			authorizeCampaignCapability(
+				context(),
+				EDIT_CAPABILITIES.contentEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+	});
 	it("rejects an authenticated user without a resolved profile", () => {
 		expect(
 			authorizeCampaignCapability(
@@ -57,7 +88,7 @@ describe("authorizeCampaignCapability", () => {
 		expect(
 			authorizeCampaignCapability(
 				context({
-					grants: [grant({ scopeType: "project", scopeId: "project/tda" })],
+					grants: [grant({ scopeType: "project", scopeId: "tda" })],
 				}),
 				EDIT_CAPABILITIES.transcriptRead,
 				"yuhara-main",
