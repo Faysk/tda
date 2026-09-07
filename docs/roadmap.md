@@ -3,281 +3,155 @@
 > Status: vigente
 > Owner: produto / arquitetura
 > Última revisão: 2026-09-07
-> Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md` e documentos donos; PRs/issues apenas para estágio de candidato
+> Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos e `operations/deployments.md`
 
-O roadmap é incremental. Cada etapa precisa preservar dados, autorização e documentação viva. O legado continua disponível como referência histórica/compatibilidade documentada até o reboot comprovar independência do comportamento necessário.
+Este roadmap coordena **ordem, dependências e estágio de entrega**. Ele não substitui as specs nem os runbooks donos de cada área. Detalhe técnico continua nos documentos linkados abaixo; aqui registramos apenas o que está em andamento, quais boundaries precisam convergir e o que ainda não pode ser declarado concluído.
 
-Os estados dos marcos abaixo descrevem a **`main` atual**. Uma implementação em PR aberta pode estar validada e ainda assim continuar fora da `main` e de production. Estágio de entrega segue a taxonomia de [Documentação viva](documentation/README.md).
+Estágio de entrega segue [Documentação viva](documentation/README.md): branch/PR, validação, integração em `main` e publicação/aplicação são estados diferentes. `main = Production` é a linha de código aceita, mas não existe auto-deploy.
 
-## Ordem de consolidação
+## Baseline vigente — Production #003
 
-A prioridade editorial e de integração é:
+A referência operacional atual é **Production #003**, source SHA `0120e38d28c51f3e90aa7336dfa8e7910df074f4`, registrada em [Histórico de deployments](operations/deployments.md). A `main` contém também documentação posterior desse release; isso não muda retroativamente o source publicado.
 
-1. **Home, sessões e contrato público** — estabilizar navegação, metadata, mídia e critérios de release sem confundir código integrado com publicação;
-2. **Edit e transcrições** — fechar Auth/capabilities, persistence concorrente/auditável e UX do primeiro fluxo crítico antes de expandir administração;
-3. **novas features narrativas** — Lore/perfis, World Explorer, relations e demais superfícies entram depois dos dois boundaries anteriores e reutilizam os contratos compartilhados.
+Estado comprovado do baseline:
 
-Design System/Brand Pack, segurança, documentação viva, custo gratuito/Hobby quando possível e processamento pesado local são invariantes transversais, não uma desculpa para furar essa ordem.
+- Home e sessões públicas operacionais em `https://dnd.faysk.dev`;
+- metadata individual das 11 sessões corrigida no caminho padrão real de produção;
+- cada sessão emite título, resumo e artwork `verified-public` própria quando elegível;
+- regressão cobre o **registry runtime real**, sem depender somente de manifesto injetado em teste;
+- fallback social é permitido somente quando não existe arte pública elegível;
+- 22 imagens públicas do conjunto de sessão tiveram entrega/hash verificados no R2;
+- nenhuma promoção CAS das referências de sessão para R2 foi executada nesse release;
+- nenhuma nova migration foi aplicada por causa do release #003.
 
-## Integração conjunta — 2026-09-07
+Invariante para qualquer superfície pública nova ou existente: **sessão, personagem, NPC, item, lore e demais páginas compartilháveis devem resolver título, resumo e arte próprios quando houver conteúdo elegível**. Teste de helper com fixture não prova integração; o caminho default usado em produção precisa ser exercitado.
 
-As entregas #26, #39, #40, #43, #44, #45, #47, #48, #49, #50 e #51 foram reunidas no candidato destinado à main. Integração de código não equivale a publicação ou aplicação de migrations.
+## Rodada paralela autorizada
 
-| Área | Código reunido | Pendência operacional/funcional |
-| --- | --- | --- |
-| Home, sessões e mídia | metadata SSR, fallback verificado, recuperação de imagens e suporte restrito ao host R2 | 22 objetos R2 já têm HTTPS/read-back verificados; site usa referências anteriores. Publicar runtime, validar optimizer e só depois promover referências por CAS. |
-| Discord | contrato, SSR e guards | Validar OAuth real e callbacks do ambiente. |
-| Edit | UX de recuperação e migration/RPC atômica versionada | Migration não aplicada; conectar adapter canônico e validar fluxo completo antes de declarar edição concluída. |
-| World e Lore | slice visual do grafo e shells editoriais integrados | Dados canônicos/projection e narração real pendentes; fixtures não são conteúdo publicado. |
-| Estatísticas | fora desta integração | Trabalho parcial interrompido pelo limite de uso; sem PR validada. |
+A rodada seguinte pode avançar em paralelo. Paralelismo não elimina integração coordenada: cada frente preserva seu boundary, atualiza o documento dono quando o contrato mudar e só converge para `main` depois de validação no head exato. Deployments, migrations, CAS e configuração remota continuam deliberados e independentes de merge.
 
-Detalhes de mídia: [entrega pública](integrations/media-public-delivery-2026-09-07.md). A publicação é deliberada; push na main não faz deploy. SQL, DNS e dados de produção não são alterados pela integração.
+| Codinome | Frente | Estado desta rodada | Documento(s) dono(s) | Gate de integração |
+| --- | --- | --- | --- | --- |
+| **Pipoca** | lore real **Pipipi** | **em andamento** | [Perfis editoriais](features/entity-profiles.md), [Entities](domains/entities.md), [Canon/review](domains/canon-review.md) | usar conteúdo/projection realmente autorizados; não promover fixture; metadata própria no caminho default |
+| **Claquete** | camada cinematográfica opcional | **em andamento** | [Perfis editoriais](features/entity-profiles.md), [Superfícies públicas](design-system/public-surfaces.md) | enhancement opcional; leitura estática, acessibilidade e `prefers-reduced-motion` continuam válidos sem cinematic |
+| **Espaguete** | grafo React Flow | **em andamento** | [World Explorer](features/world-explorer.md), [Relações/grafo](features/relations-graph.md), [contrato de relations](features/relations-data-contract.md), [ADR-0006](adr/0006-react-flow-world-explorer.md) | React Flow continua renderer, não schema; fixture não vira relation canônica; projection deve respeitar audience |
+| **Parafuso** | integração do Edit | **em andamento** | [Edit Workbench](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md), [arquitetura Edit](architecture/edit-workbench.md), [Identity/access](domains/identity-access.md) | convergir Auth/capability + adapter + optimistic concurrency/audit + UX real; migration integrada não equivale a migration aplicada |
+| **Catraca** | configuração Discord | **em andamento** | [Identity/access](domains/identity-access.md), [runbook Discord Auth](operations/discord-auth.md), [Ambientes](operations/environments.md) | validar configuração/callback/OAuth real sem colocar secrets no Git; configuração remota precisa de evidência própria |
+| **Contador** | estatísticas | **em andamento** | [Catálogo de features](feature-catalog.md) e [domínio Sessions](domains/sessions.md) enquanto o contrato é fechado | começar por leitura/derivação dos dados existentes; não inferir schema, writes ou métricas canônicas antes da implementação concreta exigir isso |
+| **Balde** | mídia R2 | **em andamento** | [Cloudflare R2](integrations/r2.md), [entrega pública de mídia](integrations/media-public-delivery-2026-09-07.md), [deployments](operations/deployments.md) | preservar 22/22 verified-public; metadata runtime já usa arte verificada, mas referências do site só mudam por CAS controlado após gates e snapshot atual |
 
-## R1 — Fundação
+Os codinomes são **coordenação de execução**, não novos conceitos de domínio. Specs continuam com seus nomes canônicos. O registry local `D:/Projects/tda/.local/coordination-chats.json` acompanha a distribuição das frentes e permanece local/não versionado; a documentação versionada continua sendo a fonte para contratos, estado integrado e operação comprovada.
 
-**Estado:** concluída na base do reboot.
+### Regra de prioridade desta rodada
 
-Inclui:
+A antiga leitura estritamente serial “público → Edit → novas features” serviu à consolidação inicial. Com a Production #003 estável, estas sete frentes estão autorizadas a progredir **em paralelo**, desde que:
 
-- repositório `Faysk/tda`;
-- CI sem deploy automático;
-- Next/React atuais do projeto;
-- leitura Supabase existente;
-- integração R2 preparada;
-- política Vercel controlada;
-- documentação modular e ADRs.
+1. não alterem silenciosamente o boundary de outra frente;
+2. conflitos em arquivos donos sejam reconciliados explicitamente antes da integração;
+3. nenhuma branch anuncie conclusão pela existência de código ou CI isolado;
+4. PR só seja aberta/validada quando houver mudança concreta suficiente para revisão;
+5. CI terminal seja observado no SHA exato que se pretende integrar;
+6. merge não execute automaticamente deploy, migration, CAS, DNS ou configuração de provider;
+7. publicação use o runbook e registre o source SHA realmente publicado.
 
-## R2 — Site público: Home, sessões e resumos
+## Dependências de convergência
 
-**Estado:** em consolidação/homologação.
+### Lore / cinematic / grafo
 
-Inclui:
+Pipoca, Claquete e Espaguete podem evoluir ao mesmo tempo porque compartilham contracts, não ownership de implementação:
 
-- Home;
-- arquivo de sessões;
-- resumos completos com renderer seguro;
-- mídia de sessão com origens legadas aprovadas durante transição;
-- detalhe de sessão;
-- navegação anterior/próxima;
-- metadata/SEO;
-- temas light/dark/system;
-- compatibilidade de URLs antigas;
-- mobile/acessibilidade;
-- imagens copiadas e verificadas no R2; troca das referências do site pendente;
-- homologação/deploy apenas na Vercel correta.
+- `entity-profiles.md` continua dono de conteúdo/perfil/presentation engine;
+- cinematic é enhancement da mesma lore, não uma segunda fonte de texto/canon;
+- `world-explorer.md` continua dono da experiência do grafo;
+- relations e audience continuam nos documentos de domínio/schema correspondentes;
+- metadata pública reutiliza o helper/contrato compartilhado e deve provar o resultado default real, sem builder paralelo.
 
-Auth não é requisito para leitura pública; sua convergência pertence ao R3. A próxima release pública deve seguir os gates de navegação/metadata do runbook e registrar o SHA realmente publicado.
+### Edit / Discord
 
-## R2.1 — Design System e Brand Pack oficiais
+Parafuso e Catraca são paralelos, mas convergem no boundary de identidade:
 
-**Estado:** documentação/contrato aprovados; integração física parcial.
+- Catraca prova que Auth Discord está realmente configurado no ambiente e que callback/login funcionam;
+- Parafuso consome identidade verificada + capabilities; não cria autorização paralela;
+- mutation/audit do Edit só é declarada operacional depois da aplicação de banco correspondente e do fluxo end-to-end validado;
+- retirada do bypass temporário é etapa posterior à convergência, não pré-condição para desenvolver a integração.
 
-Objetivo: manter o frontend sobre o **TDA Design System v1.0.0** e o **TDA Brand Pack (official)** fornecidos pelo proprietário, avançando de forma incremental sem reescrever superfícies por big bang.
+### R2 / metadata
 
-Entregas:
+Balde não precisa recriar a correção de metadata:
 
-- tokens semânticos `--ds-*`;
-- tipografia editorial + UI;
-- primitives compartilhadas;
-- assets oficiais em `public/brand/`;
-- favicon/manifest/OG oficiais conforme o owner de marca;
-- light/dark equivalentes;
-- checklist visual e acessibilidade.
+- Production #003 já promoveu o registry runtime de sessão e provou 11 imagens distintas no crawler;
+- `media.dnd.faysk.dev` permanece a entrega pública verificada;
+- a frente atual cuida do ciclo de mídia/referências e eventual CAS, não de um novo metadata builder;
+- qualquer nova arte de entity/lore entra em metadata somente após cumprir o mesmo padrão `verified-public` e ser ligada ao caminho default da página.
 
-Regra:
+### Estatísticas
 
-> Visitante vê história; editor vê estado editorial.
+Contador começa sem impor modelo novo. O primeiro recorte deve identificar quais estatísticas são deriváveis das fontes já canônicas e publicáveis. Se surgir semântica própria, persistence ou autorização específica, aí sim nasce/expande um documento dono dedicado antes de DDL. Até lá, roadmap e catálogo registram a frente sem duplicar uma spec inexistente.
 
-## R2.2 — World Explorer / Ecos da Jornada — vertical slice
+## Marcos canônicos
 
-**Estado na `main`:** slice visual integrado; dados canônicos e validação funcional completa pendentes.
+### R1 — Fundação
 
-Objetivo: validar a experiência visual de memória conectada antes de persistir um grande catálogo de relations.
+**Estado:** concluída.
 
-Decisões já fechadas:
+Repositório, CI sem auto-deploy, Supabase existente, Vercel controlada, R2 preparado, documentação modular e governança estão estabelecidos.
 
-- React Flow (`@xyflow/react`) como engine de visualização;
-- domínio independente da biblioteca;
-- custom nodes/edges;
-- layout radial próprio;
-- entity focada no centro;
-- 1-hop default e 2-hop opcional;
-- inspector lateral desktop;
-- bottom sheet mobile;
-- lista alternativa acessível;
-- nenhum dado secreto enviado para o browser;
-- nenhuma escrita em relations pelo canvas público.
+### R2 — Produto público
 
-O candidato visual está na PR #45, mas permanece draft e dependente do contrato central de metadata da #47. Isso não muda o estado canônico desta seção até integração.
+**Estado:** publicado e em evolução incremental.
 
-A referência visual oficial está em `docs/design-system/world-explorer-ui.md`.
+Home/sessões e metadata social estão em production. A correção de identidade visual dos links pertence à Production #003. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
 
-## R3 — Auth, capabilities e Edit integrado
+### R3 — Auth e Edit
 
-**Estado na `main`:** arquitetura do Edit aprovada; implementação incremental em andamento; login oficial e persistence canônica ainda não integrados.
+**Estado:** implementação integrada parcialmente; convergência operacional em andamento.
 
-Objetivo:
+Runtime de Auth/guards e componentes do Edit já existem na `main`; configuração OAuth real, aplicação do boundary de persistence quando autorizada e integração end-to-end continuam tarefas distintas. Owners: [Identity/access](domains/identity-access.md), [Discord Auth](operations/discord-auth.md) e [Edit](features/edit-workbench.md).
 
-- login único;
-- sessão/perfil;
-- capabilities derivadas do RBAC;
-- workbench administrativo integrado;
-- revisão/publicação;
-- catálogo de mídias;
-- criação/edição de sessões;
-- gestão de entities/canon conforme autorização.
+### R4 — Operação local
 
-Primeira sequência do Edit:
+**Estado:** planejado/evolução incremental.
 
-1. consolidar contrato, paridade do legado e boundary técnico;
-2. manter leitura autorizada com `revision` real;
-3. fechar e aplicar mutation server-side atômica com auth/capability/campaign scope, optimistic concurrency e audit;
-4. ligar transcript read/edit ao boundary canônico;
-5. integrar UX de conflito/retry e navegação por teclado sem criar write paralelo;
-6. retirar o bypass temporário somente após convergência validada;
-7. expandir para review/bulk, gestão de acesso, conteúdo/mídia/auditoria.
+Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta.
 
-A documentação canônica do módulo está em `docs/features/edit-workbench.md`, `docs/features/edit-transcript-server-slice.md`, `docs/architecture/edit-workbench.md`, `docs/legacy/edit-parity.md` e ADR-0007. A issue #32 coordena o caminho restante de persistence; PRs abertas citadas no snapshot são candidatas, não runtime vigente.
+### R5 — Memória estruturada e perfis
 
-Regras:
+**Estado:** schema/base parcialmente preparados; conteúdo/projection reais em evolução.
 
-- publishable key no browser, secret somente server-side;
-- autorização por capability, não por string de role na UI;
-- validar token no servidor para decisões privilegiadas;
-- scope canônico conceitual do reboot: projeto `tda`; representação física precisa seguir o owner de identity/access;
-- scope `dnd-scribe` permanece apenas por compatibilidade enquanto houver consumidor documentado;
-- comportamento útil do legado só é considerado migrado após paridade, teste e autorização;
-- autosave precisa tratar concorrência explicitamente.
+`entities`, mentions, canon e profiles editoriais formam a base. Pipoca é o recorte ativo de lore real desta rodada.
 
-## R4 — Operação local modernizada
+### R6 — Relations e World Explorer
 
-**Estado:** planejado.
+**Estado:** slice visual integrado; dados/relações canônicas em evolução.
 
-Modernizar a transcrição pesada preservando o fluxo local que já funciona.
+Espaguete é o recorte ativo. React Flow não define schema e não autoriza publicação de fixtures como canon.
 
-Objetivos:
-
-- ingest retomável;
-- jobs idempotentes;
-- comparação qualidade/tempo/memória;
-- áudio bruto sem retenção cloud permanente;
-- sincronização autenticada;
-- retries;
-- deduplicação;
-- observabilidade suficiente para operação real.
-
-O site deve continuar funcionando com o PC desligado sobre conteúdo sincronizado. Processamento pesado e retenção bruta continuam locais; R2 não vira arquivo obrigatório de áudio.
-
-## R5 — Memória estruturada
-
-**Estado:** schema parcialmente preparado.
-
-Popular, somente a partir de conteúdo revisado:
-
-- `entities`;
-- `entity_mentions`;
-- `canon_entries`;
-- aliases;
-- summaries editoriais;
-- links com sessões/evidências.
-
-PCs e NPCs usam a mesma registry canônica. `profile` é pessoa/conta; `participant` é ocorrência numa sessão.
-
-## R5.1 — Perfis editoriais
-
-**Estado na `main`:** arquitetura aprovada; dados/população e implementação integrada pendentes.
-
-Criar páginas de leitura para:
-
-- personagens;
-- NPCs;
-- lugares;
-- facções;
-- músicas;
-- quests.
-
-As rotas são tipadas para UX, mas resolvem sobre `entities`. A PR #26 é um scaffold draft, não conteúdo publicado; continua dependente de projection/canon/assets autorizados e do contrato compartilhado de metadata.
-
-## R6 — Relations first-class
-
-**Estado:** contrato proposto; migration não aplicada.
-
-Modelar edges entre entities com:
-
-- tipo;
-- direção/simetria;
-- lifecycle;
-- temporalidade;
-- visibility;
-- fontes em canon aprovado;
-- auditabilidade;
-- queries 1-hop indexáveis.
-
-Fluxo:
-
-```text
-evidence -> candidate/review -> canon -> entity_relation
-```
-
-Não gerar relation canônica por coocorrência ou IA sem revisão.
-
-Após migration/testes de audience, ligar o World Explorer aos dados reais.
-
-## R7 — Knowledge, audiência e segredos
+### R7 — Knowledge/audience
 
 **Estado:** em desenho.
 
-Separar duas dimensões:
+Visibilidade técnica e conhecimento ficcional continuam dimensões distintas.
 
-1. quem pode ver o dado no produto;
-2. quem sabe/acredita no dado dentro da ficção.
+### R8 — Exploração avançada
 
-Modelar quando a semântica estiver fechada:
+**Estado:** planejado/incremental.
 
-- conhecimento do personagem;
-- conhecimento do jogador;
-- conhecimento público;
-- segredo do DM;
-- rumor;
-- mentira;
-- suspeita;
-- memória esquecida/roubada/restaurada;
-- estado contestado.
-
-A própria existência de uma relation pode ser segredo.
-
-## R8 — Exploração avançada
-
-**Estado:** planejado após memória/relations/knowledge.
-
-Inclui:
-
-- timeline por entity;
-- busca semântica source-aware;
-- mapas narrativos;
-- performances/músicas;
-- quests/ganchos;
-- rumores;
-- previously-on;
-- perspectivas player/DM;
-- assistente Discord;
-- export de memória para LLM;
-- galerias e demais superfícies derivadas.
+Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies avançam conforme contracts e fontes reais amadurecem; a rodada paralela pode antecipar experimentação sem antecipar conclusão canônica.
 
 ## Regras transversais
 
-- transcrição/evento não vira canon automaticamente;
-- fixture visual não vira relation canônica;
+- conteúdo/evento/transcrição não vira canon automaticamente;
+- fixture não vira dado canônico;
 - IA sugere, humano revisa;
-- secrets/audience são filtrados antes do browser;
-- Brand Pack não é redesenhado;
+- audience/secrets são filtrados antes do browser;
+- toda página pública com arte elegível deve emitir metadata individual pelo caminho default real;
+- fallback social é somente fallback;
 - React Flow não define schema;
-- features novas entram primeiro na documentação/contrato;
-- DDL real exige migration versionada;
-- `main = Production` em termos de linha de código aceita, mas não dispara deploy automático;
+- DDL exige migration versionada e aplicação separada;
 - merge de migration não significa aplicação no Supabase;
 - deploy é publicação controlada, nunca ferramenta de desenvolvimento;
-- cloud deve permanecer nas franquias gratuitas/Hobby quando possível, sem habilitar serviço pago por conveniência;
-- processamento pesado e áudio bruto permanecem locais.
+- cloud deve permanecer nas franquias gratuitas/Hobby quando possível;
+- processamento pesado e retenção de áudio bruto permanecem locais;
+- documentação de coordenação aponta para owners, não copia suas specs.
 
-O contrato dos conceitos está em [data-model.md](data-model.md), o estado canônico das features em [feature-catalog.md](feature-catalog.md), a taxonomia de entrega em [documentation/README.md](documentation/README.md) e as decisões estruturais em [adr/README.md](adr/README.md).
+O contrato dos conceitos está em [data-model.md](data-model.md), maturidade na `main` em [feature-catalog.md](feature-catalog.md), operação publicada em [deployments](operations/deployments.md) e taxonomia de entrega em [Documentação viva](documentation/README.md).
