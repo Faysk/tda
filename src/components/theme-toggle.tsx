@@ -1,76 +1,29 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import {
+	oppositeTheme,
 	parseThemePreference,
 	THEME_STORAGE_KEY,
+	type ResolvedTheme,
 	type ThemePreference,
 } from "@/features/theme/preference";
 
-const THEME_OPTIONS: Array<{
-	value: ThemePreference;
-	label: string;
-	title: string;
-}> = [
-	{
-		value: "system",
-		label: "Sistema",
-		title: "Seguir o tema do sistema",
-	},
-	{
-		value: "light",
-		label: "Claro",
-		title: "Usar tema claro",
-	},
-	{
-		value: "dark",
-		label: "Escuro",
-		title: "Usar tema escuro",
-	},
-];
-
-function applyThemePreference(preference: ThemePreference) {
-	const root = document.documentElement;
-
-	if (preference === "system") {
-		delete root.dataset.theme;
-		root.style.colorScheme = "light dark";
-		return;
-	}
-
-	root.dataset.theme = preference;
-	root.style.colorScheme = preference;
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
+	if (preference === "light" || preference === "dark") return preference;
+	return window.matchMedia("(prefers-color-scheme: dark)").matches
+		? "dark"
+		: "light";
 }
 
-function ThemeGlyph({ preference }: { preference: ThemePreference }) {
-	if (preference === "system") {
-		return (
-			<svg viewBox="0 0 24 24" aria-hidden="true">
-				<rect x="3.5" y="4.5" width="17" height="12.5" rx="2" />
-				<path d="M9 20h6M12 17v3" />
-			</svg>
-		);
-	}
-
-	if (preference === "light") {
-		return (
-			<svg viewBox="0 0 24 24" aria-hidden="true">
-				<circle cx="12" cy="12" r="3.25" />
-				<path d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.28 5.28l1.42 1.42M17.3 17.3l1.42 1.42M18.72 5.28 17.3 6.7M6.7 17.3l-1.42 1.42" />
-			</svg>
-		);
-	}
-
-	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true">
-			<path d="M20.1 14.7A8.25 8.25 0 0 1 9.3 3.9 8.5 8.5 0 1 0 20.1 14.7Z" />
-		</svg>
-	);
+function applyTheme(theme: ResolvedTheme) {
+	const root = document.documentElement;
+	root.dataset.theme = theme;
+	root.style.colorScheme = theme;
 }
 
 export function ThemeToggle() {
-	const [preference, setPreference] = useState<ThemePreference>("system");
-	const labelId = useId();
+	const [effective, setEffective] = useState<ResolvedTheme>("dark");
 
 	useEffect(() => {
 		let stored: string | null = null;
@@ -80,59 +33,65 @@ export function ThemeToggle() {
 			stored = null;
 		}
 
-		const nextPreference = parseThemePreference(stored);
-		applyThemePreference(nextPreference);
-		setPreference(nextPreference);
+		const preference = parseThemePreference(stored);
+		if (preference === "system") {
+			delete document.documentElement.dataset.theme;
+			document.documentElement.style.colorScheme = "light dark";
+		}
+		setEffective(resolveTheme(preference));
+
+		const media = window.matchMedia("(prefers-color-scheme: dark)");
+		const onSystemChange = () => {
+			if (!document.documentElement.dataset.theme) {
+				setEffective(media.matches ? "dark" : "light");
+			}
+		};
+		media.addEventListener("change", onSystemChange);
+		return () => media.removeEventListener("change", onSystemChange);
 	}, []);
 
-	const changeTheme = (nextPreference: ThemePreference) => {
+	const changeTheme = () => {
+		const next = oppositeTheme(effective);
 		try {
-			window.localStorage.setItem(THEME_STORAGE_KEY, nextPreference);
+			window.localStorage.setItem(THEME_STORAGE_KEY, next);
 		} catch {
 			// The explicit choice still applies for this page when storage is unavailable.
 		}
-
-		applyThemePreference(nextPreference);
-		setPreference(nextPreference);
+		applyTheme(next);
+		setEffective(next);
 	};
 
+	const isDark = effective === "dark";
+
 	return (
-		<div className="theme-control">
-			<span className="theme-control-label" id={labelId}>
-				Aparência
-			</span>
-			<div
-				className="theme-selector"
-				role="radiogroup"
-				aria-labelledby={labelId}
-			>
-				<span
-					className={`theme-selector-indicator theme-selector-indicator--${preference}`}
-					aria-hidden="true"
-				/>
-				{THEME_OPTIONS.map((option) => (
-					<label
-						className="theme-selector-option"
-						key={option.value}
-						title={option.title}
+		<button
+			className="theme-toggle"
+			type="button"
+			role="switch"
+			aria-checked={isDark}
+			aria-label="Modo escuro"
+			title={isDark ? "Usar tema claro" : "Usar tema escuro"}
+			onClick={changeTheme}
+		>
+			<span className="theme-toggle-track" aria-hidden="true">
+				<span className="theme-toggle-knob">
+					<svg
+						className="theme-toggle-glyph theme-toggle-glyph--sun"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
 					>
-						<input
-							className="theme-selector-input"
-							type="radio"
-							name="tda-theme-preference"
-							value={option.value}
-							checked={preference === option.value}
-							onChange={() => changeTheme(option.value)}
-						/>
-						<span className="theme-selector-option-surface">
-							<span className="theme-selector-glyph" aria-hidden="true">
-								<ThemeGlyph preference={option.value} />
-							</span>
-							<span className="theme-selector-option-label">{option.label}</span>
-						</span>
-					</label>
-				))}
-			</div>
-		</div>
+						<circle cx="12" cy="12" r="3.25" />
+						<path d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.28 5.28l1.42 1.42M17.3 17.3l1.42 1.42M18.72 5.28 17.3 6.7M6.7 17.3l-1.42 1.42" />
+					</svg>
+					<svg
+						className="theme-toggle-glyph theme-toggle-glyph--moon"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+					>
+						<path d="M20.1 14.7A8.25 8.25 0 0 1 9.3 3.9 8.5 8.5 0 1 0 20.1 14.7Z" />
+					</svg>
+				</span>
+			</span>
+		</button>
 	);
 }
