@@ -1,5 +1,20 @@
 import { expect, test } from "@playwright/test";
 
+test("provider fragment cancellation becomes a fixed safe message", async ({
+	page,
+}) => {
+	await page.goto(
+		"/entrar?erro=callback#error=access_denied&error_description=untrusted-provider-detail",
+	);
+	await expect(page).toHaveURL(/\/entrar\?erro=cancelado$/);
+	await expect(page.locator("main").getByRole("alert")).toContainText(
+		"Você cancelou",
+	);
+	await expect(page.locator("body")).not.toContainText(
+		"untrusted-provider-detail",
+	);
+});
+
 test("Discord entry is clear and has no alternate credentials", async ({
 	page,
 }) => {

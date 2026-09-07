@@ -7,7 +7,7 @@
 
 ## Fluxo
 
-`/entrar` consulta o provider habilitado no GoTrue. O único botão de entrada envia POST para `/auth/discord`, validando Origin contra `TDA_AUTH_ORIGIN`. Supabase inicia OAuth Discord com PKCE. O retorno em `/auth/callback` exige cookie HttpOnly de tentativa com nonce, válido por dez minutos, além do verificador PKCE do SDK. A tentativa é consumida no callback; cancelamento, código ausente/expirado e repetição retornam mensagens fixas em português, sem refletir erros externos.
+`/entrar` consulta o provider habilitado no GoTrue. O único botão de entrada envia POST para `/auth/discord`, validando Origin contra `TDA_AUTH_ORIGIN`. Supabase inicia OAuth Discord com PKCE. O retorno em `/auth/callback` exige cookie HttpOnly de tentativa com nonce, válido por dez minutos, além do verificador PKCE do SDK. A tentativa é consumida no callback; cancelamento, código ausente/expirado e repetição retornam mensagens fixas em português, sem refletir erros externos. Quando GoTrue devolve erro no fragmento da URL, o componente mínimo de entrada traduz apenas a categoria de erro para a mensagem fixa e remove o fragmento.
 
 O destino fica no cookie da tentativa, é revalidado e aceita somente caminho interno; esquemas externos, barras invertidas, caracteres de controle, separadores codificados e rotas de Auth/API são rejeitados. Host e x-forwarded-host não definem redirects. Cookies usam namespace `tda-discord-session`, HttpOnly, SameSite=Lax, Path=/ e Secure em HTTPS. O browser não recebe SDK Auth nem tokens por JSON/localStorage.
 
@@ -49,7 +49,7 @@ Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Ser
 
 ## Evidências e gates
 
-Validação local final do candidato: `pnpm check` (99 testes unitários), `pnpm build` e `pnpm test:e2e` (36 casos em 1920×1080, 2560×1440 e 390×844) passaram após o hardening dos cookies. Inspeção visual adicional em navegador local confirmou entrada, cancelamento e conta indisponível.
+Validação local final do candidato: `pnpm check` (99 testes unitários), `pnpm build` e `pnpm test:e2e` (39 casos em 1920×1080, 2560×1440 e 390×844) passaram após o hardening dos cookies. Inspeção visual adicional em navegador local confirmou entrada, cancelamento e conta indisponível.
 
 A revisão automática rejeitou iniciar `pnpm start --port 3102` com as variáveis de configuração pública do Supabase e origem local. Motivo informado: **“blocked by policy”**, sem detalhamento adicional. A rejeição não foi contornada; a inspeção visual usou servidor sem conexão externa. Para OAuth real falta um ambiente de ensaio autorizado com configuração privada e redirect confirmado; a pessoa então abre `/entrar`, seleciona **Entrar com Discord**, conclui login/consentimento e retorna ao TDA. Esta evidência não confirma a allowlist remota de callbacks; o endpoint público de settings confirma somente habilitação do provider. Não alterar callbacks ativos para resolver essa pendência sem avaliação específica.
 

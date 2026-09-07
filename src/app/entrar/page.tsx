@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui";
 import { safeReturnPath } from "@/features/auth/config";
 import { discordAvailable } from "@/features/auth/provider";
+import { AuthErrorFragment } from "@/features/auth/error-fragment";
 import styles from "@/features/auth/access.module.css";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default async function LoginPage({
 	const available = await discordAvailable();
 	return (
 		<section className={styles.shell}>
+			<AuthErrorFragment />
 			<div className={styles.eyebrow}>TDA · SUA CONTA</div>
 			<h1 className={styles.title}>Entre para continuar</h1>
 			<p className={styles.description}>
