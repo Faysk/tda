@@ -62,7 +62,7 @@ function ArchivePreview({ unavailable = false }: { unavailable?: boolean }) {
 			</div>
 			<div>
 				<Eyebrow>{unavailable ? "Arquivo indisponível" : "Arquivo da campanha"}</Eyebrow>
-				<h1>
+				<h1 id="home-title">
 					{unavailable
 						? "Não conseguimos abrir a última memória agora."
 						: "A próxima memória começa aqui."}
