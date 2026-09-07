@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import "./documentation-catalog.mjs";
 
 const root = process.cwd();
 
@@ -40,7 +41,11 @@ for (const file of markdownFiles) {
 		}
 		links.push(target);
 	}
-	linksByFile.set(file, links);
+	// A generated inventory must not hide missing editorial index links.
+	linksByFile.set(
+		file,
+		normalizeRepoPath(file) === "docs/documentation/catalog.md" ? [] : links,
+	);
 }
 
 // Every Markdown document under docs/ must be reachable from docs/README.md.

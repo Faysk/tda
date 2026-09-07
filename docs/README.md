@@ -114,6 +114,8 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 ### Governança da própria documentação
 
 - [Documentação viva — política e manutenção](documentation/README.md)
+- [Catálogo completo gerado e lacunas de metadados](documentation/catalog.md)
+- [Retirada do projeto Vercel legado](operations/legacy-retirement.md)
 - [Template de documento](documentation/document-template.md)
 - [Template de ADR](documentation/adr-template.md)
 - [Registro de fontes históricas](legacy/README.md)

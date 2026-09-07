@@ -107,6 +107,16 @@ Ao reutilizar algo de `Faysk/dnd-scribe`, registrar uma destas decisões:
 
 ## Revisões periódicas
 
+### Catálogo automático e revisão humana
+
+O [catálogo completo](catalog.md) lista recursivamente páginas, responsáveis, estados e datas declarados. Gerar com `pnpm docs:generate` após criar, remover, renomear ou revisar cabeçalhos. `pnpm docs:check` falha se o catálogo estiver desatualizado e continua verificando links e alcance a partir do índice.
+
+O catálogo não substitui índices editoriais. Ao adicionar página, também criar link no índice da área. Metadados ausentes aparecem como lacunas; não inferir revisão pelo Git nem preencher aprovação automaticamente.
+
+Revisar na mesma entrega, nos marcos de release e após incidentes ou mudanças de domínio/custo/segurança/schema. Atualizar data só após confrontar com a fonte; auditorias históricas preservam sua data.
+
+O implementador mantém contratos/evidências; o proprietário decide direção e custos. Runbooks explicam pré-condições, verificação e recuperação. Features distinguem intenção, implementação, teste e publicação.
+
 Revisar ao menos nos marcos de release:
 
 - links quebrados;

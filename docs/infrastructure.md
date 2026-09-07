@@ -10,6 +10,7 @@ Revisão: 2026-09-07. Responsável: proprietário e implementador.
 | R2 tda-media-preview | Criado Standard; privado, isolado |
 | Supabase existente | 11 sessões publicadas; três migrations TDA aplicadas para identidade de projeto, domínio narrativo e compatibilidade de entities; sem alteração de canon |
 | Site/domínio | Reboot publicado e ativo em `https://dnd.faysk.dev`; aliases Vercel preservados |
+| Vercel legado DND/dnd-scribe | Excluído por ordem do proprietário; consulta em 2026-09-07 retorna project_not_found. Novo tda preservado |
 
 Não migramos imagens nem apagamos objetos remanescentes do bucket legado. Nenhuma conta paga nova foi contratada. Preview sem chave de produção. Credenciais administrativas Cloudflare não devem ir ao app: usar token R2 limitado aos buckets necessários.
 
