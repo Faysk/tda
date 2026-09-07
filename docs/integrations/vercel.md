@@ -133,6 +133,44 @@ Regras vigentes:
 - o teste E2E de navegação valida que clicar da Home para `/sessoes` não troca o origin atual;
 - mudanças futuras não devem reintroduzir `next/link` diretamente no shell público sem demonstrar em homologação e production que o hostname permanece canônico durante navegação cliente.
 
+### Contrato de preview social / metadata SSR
+
+Prévia de link é um contrato **da página pública**, independente de WhatsApp, Discord, Slack, redes sociais ou qualquer CTA no produto. Colar uma URL pública deve ser suficiente para que um crawler compatível encontre os metadados; nenhum botão específico de plataforma é requisito para isso.
+
+A implementação canônica vive em `src/config/public-metadata.ts`. Toda página pública deve usar esse boundary, diretamente ou por adapter de domínio, e fornecer:
+
+- título e descrição próprios da página;
+- `canonical` absoluto em `https://dnd.faysk.dev`;
+- `og:url` absoluto e idêntico ao canonical da página;
+- Open Graph com título, descrição, `siteName`, locale, tipo e imagem;
+- Twitter Card coerente com o mesmo título, descrição e imagem;
+- `og:image` em URL HTTPS absoluta e pública, sem autenticação;
+- `alt`, MIME e dimensões quando esses dados forem conhecidos.
+
+Uma URL HTTPS válida sintaticamente **não é evidência suficiente** para imagem social. Imagens customizadas entregues ao helper precisam chegar marcadas como `verified-public`; o helper não executa probe remoto e remove esse marcador antes de serializar metadata.
+
+Para sessões, `src/features/sessions/metadata.ts` não usa mais `heroImage || coverImage` diretamente. A escolha passa por `src/config/public-session-media.ts`, que separa mídia de UI/origem histórica da evidência de publicação social:
+
+- hero com evidência `verified-public` prevalece;
+- se hero estiver `pending`/`unavailable` e cover estiver `verified-public`, usa cover;
+- se nenhuma variante possuir evidência positiva, usa o fallback oficial;
+- URL histórica conhecida como 404 nunca é emitida apenas porque ainda está armazenada como string HTTPS;
+- bucket/key R2, inclusive `tda-media-public`, não tornam uma imagem pública por inferência.
+
+A promoção `verified-public` exige URL de entrega HTTPS, SHA-256, MIME de imagem, bytes, dimensões, timestamp, read-back verificado e entrega pública sem autenticação verificada. O manifesto de recuperação/dry-run da issue #25 pode registrar `pending` e `unavailable`, mas esses estados não são consumidos como autorização de preview. O contrato detalhado de mídia/Cloudflare é owned por [Integração Cloudflare R2](r2.md).
+
+Não existe `HEAD`, `GET` ou outro fetch remoto por request dentro de `generateMetadata`. A verificação é feita fora do request e promovida server-side somente depois da recuperação/publicação. Isso evita transformar SSR/crawler em health check de storage e impede que uma origem instável altere metadata de forma não determinística.
+
+O fallback oficial é `https://dnd.faysk.dev/og/default`, gerado pelo app em PNG `1200x630` com identidade visual TDA e sem dependência de auth, banco ou JavaScript.
+
+Home, arquivo de sessões e detalhes usam o mesmo contrato. Lores, World Explorer e outras superfícies públicas futuras devem reutilizar `buildPublicMetadata` em vez de criar uma segunda implementação de Open Graph/Twitter; artwork customizada futura também deve chegar ao helper apenas após evidência positiva equivalente, ou usar o fallback.
+
+O root layout mantém apenas metadata estrutural compartilhável com qualquer rota, como `metadataBase`, template de título e favicon. Ele **não** fornece Open Graph/Twitter genéricos, evitando que `/edit`, 404 ou outra superfície não pública herde uma prévia pública por acidente. `/edit/**` é explicitamente `noindex,nofollow`; páginas de sessão inexistentes entram no fluxo `notFound()` também durante geração de metadata.
+
+Os testes de crawler leem o HTML HTTP bruto com user-agents de preview, sem executar JavaScript, e verificam que as tags estão no `<head>`. O endpoint da imagem fallback também é requisitado sem cookie/token. Testes unitários cobrem duas sessões distintas, hero indisponível com cover verificada, artefato HTTPS indisponível sem probe de rede, R2 `pending` sem inferência de publicidade, ausência de evidência promovida e o uso reaproveitável para Lore/World Explorer.
+
+Esse contrato define **o que o TDA serve**, não o layout final escolhido por terceiros. Cada plataforma decide o desenho da prévia e mantém cache/recrawl próprios; não há garantia de aparência idêntica nem atualização instantânea depois de uma mudança de metadata.
+
 Em 2026-09-07 foi observado em production um vazamento do alias `tda-three.vercel.app` ao navegar a partir de `dnd.faysk.dev`, apesar de os `href` renderizados serem relativos e as rotas diretas em `dnd.faysk.dev` responderem HTTP 200. A correção foi tratada no código como boundary de navegação pública, sem transformar aliases Vercel em URLs de produto.
 
 ### Estado da correção de origem canônica

@@ -7,6 +7,7 @@ import {
 	Eyebrow,
 	SectionTitle,
 } from "@/components/ui";
+import { buildPublicMetadata, SITE_NAME } from "@/config/public-metadata";
 import {
 	formatSessionDate,
 	type PublishedSession,
@@ -15,6 +16,14 @@ import { listPublishedSessions } from "@/features/sessions/repository";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = buildPublicMetadata({
+	title: SITE_NAME,
+	description:
+		"Um arquivo vivo das sessões, decisões e memórias que construímos juntos ao redor da mesa.",
+	pathname: "/",
+	absoluteTitle: true,
+});
 
 function SessionArtwork({
 	session,
