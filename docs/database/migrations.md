@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -14,7 +14,8 @@ A estratégia é:
 - história remota anterior permanece no Supabase e legado;
 - novas mudanças do reboot entram em `Faysk/tda/supabase/migrations`;
 - versão/nome remoto e arquivo local devem corresponder;
-- migrations de transição preservam consumidores legados enquanto necessários.
+- migrations de transição preservam consumidores legados enquanto necessários;
+- o procedimento operacional obrigatório está em `docs/operations/database-runbook.md`.
 
 ## Histórico remoto observado
 
@@ -112,12 +113,14 @@ Objetivo:
 ### Deve
 
 - possuir objetivo único ou coeso;
+- existir como arquivo versionado antes da aplicação deliberada em produção;
 - ser idempotente quando razoável, especialmente backfills/índices condicionais;
 - preservar produção;
 - ter nome descritivo em snake_case;
 - evitar dependência de UUID gerado em outro ambiente;
 - explicar compatibilidade e rollback lógico;
-- ser adicionada à documentação se altera contrato.
+- ser adicionada a este documento quando passa a fazer parte do reboot;
+- atualizar documentação de contrato quando altera schema, autorização ou comportamento.
 
 ### Não deve
 
@@ -132,17 +135,34 @@ Objetivo:
 ## Processo recomendado
 
 ```text
-1. documentar contrato/feature
+1. documentar contrato/feature e invariantes
 2. inspecionar schema real + consumidores
-3. escrever migration pequena
-4. revisar impacto de RLS/grants/indexes
-5. aplicar de forma controlada
-6. validar invariantes com SQL
-7. confirmar history remoto
-8. versionar mesmo ID/nome no repo
-9. atualizar catálogo/auditoria/docs
-10. CI/PR
+3. criar migration pequena e versionada
+4. revisar impacto de RLS/grants/indexes e recuperação
+5. validar o repositório/CI
+6. aplicar de forma controlada no projeto correto
+7. validar invariantes com SQL read-only
+8. confirmar migration history remoto
+9. rodar advisors quando aplicável
+10. atualizar catálogo/auditoria/docs
+11. registrar a verificação em verification-log.md
 ```
+
+## Guardrail automático
+
+`pnpm check` executa `pnpm db:docs:check`, implementado em `tools/check-database-governance.mjs`.
+
+O check garante pelo menos que:
+
+- os documentos obrigatórios de governança do banco existem;
+- o índice do banco aponta para runbook, inventário de RPCs e log de verificações;
+- os documentos centrais identificam o project ref canônico;
+- `AGENTS.md` exige consulta ao runbook antes de mudanças de banco;
+- **todo arquivo `.sql` em `supabase/migrations` aparece neste documento**.
+
+Assim, uma migration nova do reboot sem registro documental quebra o CI em vez de virar dívida silenciosa.
+
+O check é guardrail de documentação; ele **não substitui** inspeção do migration history remoto, advisors ou validação do schema real.
 
 ## Validação pós-migration
 
@@ -167,7 +187,7 @@ Classificar rollback:
 - **DDL reversível**: remover índice/coluna nova ainda não usada;
 - **compatibilidade**: manter coluna/alias antigo enquanto novo caminho estabiliza;
 - **data backfill**: registrar como identificar linhas alteradas antes de desfazer;
-- **irreversível por perda de dado**: evitar; exige backup/ADR e aceite explícito.
+- **irreversível por perda de dado**: evitar; exige estratégia real de backup/restore e aceite explícito antes da aplicação.
 
 ## Drift
 
