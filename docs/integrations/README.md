@@ -2,14 +2,15 @@
 
 > Status: vigente/parcialmente preparado
 > Owner: integrations
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 Integração é uma fronteira externa. Nenhum fornecedor deve redefinir o modelo de domínio do TDA.
 
 ## Índice
 
 - [Supabase](supabase.md) — DB/Auth/RLS/RPC.
-- [Cloudflare R2](r2.md) — objetos/binários.
+- [Cloudflare R2](r2.md) — objetos/binários, placement, keys, cache e migração.
+- [Inventário de mídia — 2026-09-07](media-inventory-2026-09-07.md) — fotografia auditada das imagens/brand assets e origens ainda em uso.
 - [Vercel](vercel.md) — hosting/deploy futuro.
 - [Craig, Discord e Roll20](table-sources.md) — fontes da mesa.
 - [Companion local](local-companion.md) — processamento pesado/sincronização.
@@ -44,8 +45,8 @@ Toda integração deve documentar:
 | Integração | Papel | Estado |
 | --- | --- | --- |
 | Supabase | banco/Auth | produção existente, canônico |
-| Cloudflare R2 | mídia/binários | buckets novos criados, ainda privados |
-| Vercel | hosting | projeto preparado; reboot ainda não publicado |
+| Cloudflare R2 | mídia/binários | buckets novos criados, ainda privados; governança e inventário inicial documentados |
+| Vercel | hosting | projeto preparado; publicação segue runbook controlado |
 | Craig | gravação multi-track | legado/pipeline local a modernizar |
 | Discord | identidade/interactions/notas/Craig | parcialmente implementado |
 | Roll20 | eventos da mesa | schema/import histórico, sem dados atuais observados |
