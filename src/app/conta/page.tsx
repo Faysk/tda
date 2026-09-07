@@ -23,6 +23,13 @@ export default async function AccountPage() {
 			EDIT_CAPABILITIES.transcriptRead,
 			CAMPAIGN_SLUG,
 		).ok;
+	const permissionsAllowed =
+		access.context &&
+		authorizeCampaignCapability(
+			access.context,
+			EDIT_CAPABILITIES.permissionsManage,
+			CAMPAIGN_SLUG,
+		).ok;
 	const localAllowed =
 		access.context &&
 		authorizeCampaignCapability(
@@ -54,7 +61,9 @@ export default async function AccountPage() {
 			<div className={styles.actions}>
 				{allowed ? <Link href="/transcricoes">Palavras e tempo das transcrições</Link> : null}
 				{allowed ? <Link href="/edit">Abrir Edit</Link> : null}
-				<Link href={`/edit/${CAMPAIGN_SLUG}/permissions`}>Consultar permissões</Link>
+				{permissionsAllowed ? (
+					<Link href={`/edit/${CAMPAIGN_SLUG}/permissions`}>Consultar permissões</Link>
+				) : null}
 				{localAllowed ? (
 					<Link href="/edit/processamento">Processamento local</Link>
 				) : null}
