@@ -4,6 +4,23 @@
 
 begin;
 
+-- The persistence boundary must remain server-only.
+do $$
+declare
+  v_signature text := 'public.edit_transcript_segment_atomic(uuid,text,uuid,bigint,text,text,text,boolean,integer,integer)';
+begin
+  if has_function_privilege('anon', v_signature, 'EXECUTE') then
+    raise exception 'anon must not execute edit_transcript_segment_atomic';
+  end if;
+  if has_function_privilege('authenticated', v_signature, 'EXECUTE') then
+    raise exception 'authenticated must not execute edit_transcript_segment_atomic';
+  end if;
+  if not has_function_privilege('service_role', v_signature, 'EXECUTE') then
+    raise exception 'service_role must execute edit_transcript_segment_atomic';
+  end if;
+end;
+$$;
+
 insert into public.campaigns (id, name, slug)
 values
   ('11111111-1111-4111-8111-111111111111', 'Synthetic Campaign A', 'tda-test-edit-a'),
