@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
+import { PublicLink as Link } from "@/components/public-link";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import "./globals.css";
 import "./design-tokens.css";
 import "./design-system.css";
@@ -16,6 +17,7 @@ const siteDescription =
 	"Sessões, personagens, histórias e memórias da nossa campanha.";
 
 export const metadata: Metadata = {
+	metadataBase: new URL(CANONICAL_SITE_ORIGIN),
 	title: { default: siteTitle, template: "%s · TDA" },
 	description: siteDescription,
 	icons: {
