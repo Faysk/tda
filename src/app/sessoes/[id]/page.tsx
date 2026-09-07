@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
@@ -28,6 +28,9 @@ export async function generateMetadata({ params }: SessionParams): Promise<Metad
 	return {
 		title: session.title,
 		description,
+		alternates: {
+			canonical: `/sessoes/${encodeURIComponent(session.id)}`,
+		},
 		openGraph: {
 			title: session.title,
 			description,

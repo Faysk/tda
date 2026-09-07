@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { canonicalPublicUrl } from "@/config/site";
 import { whatsappShareUrl } from "@/features/sessions/share";
 import styles from "./session-share-actions.module.css";
 
@@ -18,11 +19,19 @@ async function copyCurrentUrl(url: string) {
 	return false;
 }
 
+function currentCanonicalUrl() {
+	return canonicalPublicUrl({
+		pathname: window.location.pathname,
+		search: window.location.search,
+		hash: window.location.hash,
+	});
+}
+
 export function SessionShareActions({ title, description }: Props) {
 	const [status, setStatus] = useState("");
 
 	const share = async () => {
-		const url = window.location.href;
+		const url = currentCanonicalUrl();
 		if (navigator.share) {
 			try {
 				await navigator.share({ title, text: description, url });
@@ -48,7 +57,7 @@ export function SessionShareActions({ title, description }: Props) {
 		const target = whatsappShareUrl({
 			title,
 			description,
-			url: window.location.href,
+			url: currentCanonicalUrl(),
 		});
 		window.open(target, "_blank", "noopener,noreferrer");
 	};
