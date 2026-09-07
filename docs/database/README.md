@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 > Fonte de verdade física: Supabase `dmrqnbdvbkfqzctcerbx`
 
 Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato físico**, **regra de domínio**, **segurança** e **fotografia observada**.
@@ -13,8 +13,10 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 - [Relacionamentos e ownership](relationships.md)
 - [RLS, RBAC, RPCs e segurança](security.md)
 - [Migrations e evolução do schema](migrations.md)
+- [Log de verificações de produção](verification-log.md)
 - [Modelo canônico de domínio](../data-model.md)
 - [Auditoria datada do banco](../database-audit.md)
+- [Runbook operacional do banco / Supabase](../operations/database-runbook.md)
 - [`supabase/README.md`](../../supabase/README.md) — regras das migrations no repositório.
 
 ## Banco canônico
@@ -81,6 +83,10 @@ Registrar:
 - invariantes antes/depois;
 - ambiguidades deixadas pendentes;
 - por que não inventa informação ausente.
+
+### Verificação operacional
+
+Registrar em `verification-log.md` quando houver revalidação relevante de produção, aplicação de migration, investigação de drift, revisão de advisors ou incidente de banco.
 
 ## O que não deve ser documentado aqui
 
