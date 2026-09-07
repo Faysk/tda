@@ -28,9 +28,11 @@ export const metadata = buildPublicMetadata({
 function SessionArtwork({
 	session,
 	preload = false,
+	sizes,
 }: {
 	session: PublishedSession;
 	preload?: boolean;
+	sizes?: string;
 }) {
 	const artwork = session.heroImage || session.coverImage;
 	if (!artwork) {
@@ -49,9 +51,10 @@ function SessionArtwork({
 			fill
 			preload={preload}
 			sizes={
-				preload
+				sizes ??
+				(preload
 					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 1080px"
-					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px"
+					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px")
 			}
 		/>
 	);
@@ -95,8 +98,15 @@ export default async function Home() {
 	return (
 		<div className={styles.home}>
 			<section className={styles.hero} aria-labelledby="home-title">
+				{latest ? (
+					<div className={styles.heroBackdrop} aria-hidden="true">
+						<SessionArtwork session={latest} preload sizes="100vw" />
+						<div className={styles.heroBackdropShade} />
+					</div>
+				) : null}
+
 				<div className={styles.heroIntro}>
-					<Eyebrow>Nossa campanha</Eyebrow>
+					<Eyebrow className={styles.heroEyebrow}>Nossa campanha</Eyebrow>
 					<DisplayTitle className={styles.heroTitle} id="home-title">
 						Rolamos dados.
 						<br />
@@ -121,46 +131,40 @@ export default async function Home() {
 					</div>
 				</div>
 
-				<div className={styles.heroFeature}>
-					{latest ? (
-						<article className={styles.latestCard}>
-							<Link
-								className={styles.latestMedia}
-								href={`/sessoes/${encodeURIComponent(latest.id)}`}
-								aria-label={`Abrir ${latest.title}`}
-							>
-								<SessionArtwork session={latest} preload />
-								<div className={styles.latestMediaShade} aria-hidden="true" />
-								<span className={styles.latestBadge}>Última sessão</span>
+				{latest ? (
+					<article className={styles.heroLatest}>
+						<div className={styles.heroLatestTop}>
+							<span className={styles.latestBadge}>Última sessão</span>
+							{latestDate ? (
+								<time className={styles.latestDate} dateTime={latest.date}>
+									{latestDate}
+								</time>
+							) : null}
+						</div>
+						<div className={styles.latestMeta}>
+							<span>{latest.arc || "Memória da campanha"}</span>
+						</div>
+						<h2 className={styles.latestTitle}>
+							<Link href={`/sessoes/${encodeURIComponent(latest.id)}`}>
+								{latest.title}
 							</Link>
-							<div className={styles.latestBody}>
-								<div className={styles.latestMeta}>
-									<span>{latest.arc || "Memória da campanha"}</span>
-									{latestDate ? (
-										<time dateTime={latest.date}>{latestDate}</time>
-									) : null}
-								</div>
-								<h2 className={styles.latestTitle}>
-									<Link href={`/sessoes/${encodeURIComponent(latest.id)}`}>
-										{latest.title}
-									</Link>
-								</h2>
-								<p className={styles.latestSummary}>
-									{latest.summary ||
-										"Uma nova memória da campanha já está pronta para ser revisitada."}
-								</p>
-								<Link
-									className={styles.latestLink}
-									href={`/sessoes/${encodeURIComponent(latest.id)}`}
-								>
-									Abrir sessão <span aria-hidden="true">→</span>
-								</Link>
-							</div>
-						</article>
-					) : (
+						</h2>
+						<p className={styles.latestSummary}>
+							{latest.summary ||
+								"Uma nova memória da campanha já está pronta para ser revisitada."}
+						</p>
+						<Link
+							className={styles.latestLink}
+							href={`/sessoes/${encodeURIComponent(latest.id)}`}
+						>
+							Abrir sessão <span aria-hidden="true">→</span>
+						</Link>
+					</article>
+				) : (
+					<div className={styles.heroFallback}>
 						<ArchivePreview unavailable={sessions === undefined} />
-					)}
-				</div>
+					</div>
+				)}
 			</section>
 
 			<section className={styles.memories} aria-labelledby="memories-title">
