@@ -13,6 +13,7 @@ export type TranscriptCursor = Readonly<{
 export type EditTranscriptSegment = Readonly<{
 	id: string;
 	sessionId: string;
+	revision: number;
 	startMs: number;
 	endMs: number;
 	text: string;
@@ -46,6 +47,9 @@ function toSegment(row: Record<string, unknown>): EditTranscriptSegment {
 	if (
 		typeof row.id !== "string" ||
 		typeof row.session_id !== "string" ||
+		typeof row.revision !== "number" ||
+		!Number.isSafeInteger(row.revision) ||
+		row.revision < 0 ||
 		typeof row.start_ms !== "number" ||
 		typeof row.end_ms !== "number" ||
 		typeof row.text !== "string" ||
@@ -58,6 +62,7 @@ function toSegment(row: Record<string, unknown>): EditTranscriptSegment {
 	return {
 		id: row.id,
 		sessionId: row.session_id,
+		revision: row.revision,
 		startMs: row.start_ms,
 		endMs: row.end_ms,
 		text: row.text,
@@ -98,7 +103,7 @@ export async function readTranscriptPage(
 	let query = client
 		.from("transcript_segments")
 		.select(
-			"id,session_id,start_ms,end_ms,text,speaker_name,character_name,speaker_role,track_key,review_status,needs_review,source_segment_id,source_file_id,source_chunk_id,text_chars,text_words",
+			"id,session_id,revision,start_ms,end_ms,text,speaker_name,character_name,speaker_role,track_key,review_status,needs_review,source_segment_id,source_file_id,source_chunk_id,text_chars,text_words",
 		)
 		.eq("session_id", input.sessionId)
 		.order("start_ms", { ascending: true })

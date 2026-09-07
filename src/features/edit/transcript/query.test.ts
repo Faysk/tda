@@ -39,6 +39,7 @@ function dependencies(
 			{
 				id: segmentId,
 				sessionId,
+				revision: 0,
 				startMs: 1000,
 				endMs: 2000,
 				text: "Teste",
@@ -129,6 +130,9 @@ describe("queryTranscriptPage", () => {
 		);
 
 		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.segments[0]?.revision).toBe(0);
+		}
 		expect(deps.readPage).toHaveBeenCalledWith({
 			campaignSlug: "yuhara-main",
 			sessionId,
