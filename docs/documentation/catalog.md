@@ -104,6 +104,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda** | 2026-09-06 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
+| [Sync server-side de transcrição local](../features/transcript-import-sync.md) | consumer server-side sync + dados/Supabase | contrato SQL candidato; não aplicado em produção | 2026-09-07 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | arquitetura aprovada; vertical slice visual em implementação | 2026-09-07 |
 
 ## docs/integrations
@@ -142,4 +143,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-81 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+82 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
