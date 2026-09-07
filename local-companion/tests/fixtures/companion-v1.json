@@ -1,0 +1,61 @@
+{
+  "health": {
+    "api_version": "1",
+    "service_version": "0.1.0",
+    "lifecycle": "ready"
+  },
+  "job": {
+    "id": "4d221023-9688-4d12-8ce1-b2348487cf7b",
+    "kind": "synthetic.fixture",
+    "status": "succeeded",
+    "stage": "complete",
+    "progress": {
+      "completed": 3,
+      "total": 3,
+      "unit": "items"
+    },
+    "error": null,
+    "result_available": true,
+    "updated_at": "2026-09-07T19:29:39.634021Z"
+  },
+  "result": {
+    "schema_version": "tda_local_result_v1",
+    "campaign_id": "synthetic-campaign",
+    "session_id": "synthetic-session",
+    "source_id": "synthetic-source",
+    "job_id": "4d221023-9688-4d12-8ce1-b2348487cf7b",
+    "publication_bundle": {
+      "schema_version": "publication_bundle_v1",
+      "session": {
+        "source_id": "synthetic-source",
+        "played_at": null,
+        "start_time": null,
+        "title": null,
+        "speakers": []
+      },
+      "recap": {
+        "short": null,
+        "full": null
+      },
+      "approved_entries": [],
+      "open_threads": [],
+      "source_manifest": {
+        "local_only": true,
+        "recording_format": "synthetic.fixture",
+        "transcript_segments": 0,
+        "duration_seconds": 0,
+        "transcript_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "manifest_sha256": "12b72fb8a5bb4fadb903f3326af14fb3a6e9e2db3e0d6789f4346c71323a1895"
+      },
+      "publication_id": "416f138a6e087c9f775e3b70bfb4521794a5d10918b3c807d498e629d61ebf6d",
+      "generated_at": "2026-09-07T19:29:39.634021Z"
+    },
+    "sync": {
+      "status": "not_configured"
+    },
+    "import_artifacts": {
+      "publication_payload_json": "{\"approved_entries\":[],\"open_threads\":[],\"recap\":{\"full\":null,\"short\":null},\"schema_version\":\"publication_bundle_v1\",\"session\":{\"played_at\":null,\"source_id\":\"synthetic-source\",\"speakers\":[],\"start_time\":null,\"title\":null},\"source_manifest\":{\"duration_seconds\":0,\"local_only\":true,\"manifest_sha256\":\"12b72fb8a5bb4fadb903f3326af14fb3a6e9e2db3e0d6789f4346c71323a1895\",\"recording_format\":\"synthetic.fixture\",\"transcript_segments\":0,\"transcript_sha256\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\"}}",
+      "transcript_json": "[]"
+    }
+  }
+}

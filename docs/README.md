@@ -84,6 +84,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 
 - [Especificações de features — índice](features/README.md)
 - [Edit Workbench / administração](features/edit-workbench.md)
+- [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
 - [Personagens e NPCs](features/characters-and-npcs.md)
 - [Perfis editoriais de entities](features/entity-profiles.md)
 - [World Explorer / Ecos da Jornada](features/world-explorer.md)

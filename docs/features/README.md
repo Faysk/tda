@@ -11,9 +11,13 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
+Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
+
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
+| Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
+| Edit / processamento local | candidato UI/adapters e ensaio sintético; ASR/sync cloud pendentes | [Processamento local](local-processing.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |

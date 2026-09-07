@@ -1,6 +1,8 @@
 export const EDIT_CAPABILITIES = {
+	localProcess: "campaign.local.process",
 	transcriptRead: "campaign.transcript.read",
 	contentEdit: "campaign.content.edit",
+	permissionsManage: "campaign.permissions.manage",
 } as const;
 
 export type EditCapability =
@@ -62,11 +64,19 @@ export function authorizeCampaignCapability(
 	const allowed = context.grants.some(
 		(grant) =>
 			grant.action === capability &&
-			isGrantActive(grant, now) &&
-			grantCoversCampaign(grant, campaignSlug),
+			isEffectiveCampaignGrant(grant, campaignSlug, now),
 	);
 
 	return allowed
 		? { ok: true, profileId: context.profileId }
 		: { ok: false, reason: "forbidden" };
+}
+
+/** Shared scope/time predicate for authorization and its administrative projection. */
+export function isEffectiveCampaignGrant(
+	grant: EditGrant,
+	campaignSlug: string,
+	now: Date,
+): boolean {
+	return isGrantActive(grant, now) && grantCoversCampaign(grant, campaignSlug);
 }
