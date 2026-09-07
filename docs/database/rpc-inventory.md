@@ -139,6 +139,14 @@ Não foram observadas referências diretas aos três helpers (`current_profile_i
 
 Ainda assim, ausência em código versionado não prova ausência absoluta de consumidor manual, release antigo, script ou cliente externo.
 
+## Observabilidade de chamadas
+
+Na verificação de 2026-09-07, o PostgreSQL retornou `track_functions = none`.
+
+Consequência: `pg_stat_user_functions` não oferece contagem histórica útil dessas RPCs no estado atual. Portanto não é possível usar a estatística nativa de funções como prova de que um helper não possui consumidor em runtime.
+
+**Decisão:** não mudar `track_functions` em produção apenas para essa auditoria e não interpretar ausência de estatística como ausência de uso. A prova para revogar grant deve combinar inventário de código/consumidores, testes da superfície autenticada e janela de transição controlada quando a mudança for planejada.
+
 ## Plano de hardening
 
 ### Fase 1 — concluída
