@@ -290,6 +290,7 @@ describe.skipIf(!enabled)(
 					sql(
 						"select json_agg(text order by source_sequence) from transcript_segments;",
 					),
+				),
 			).toEqual(input.segments.map((row) => row.text));
 		});
 		it("coherent divergent hashes conflict without overwriting existing evidence or receipt", async () => {
@@ -437,6 +438,7 @@ describe.skipIf(!enabled)(
 					sql(
 						"select json_agg(text order by source_sequence) from transcript_segments;",
 					),
+				),
 			).toEqual(input.segments.map((row) => row.text));
 		}, 30000);
 	},
