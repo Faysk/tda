@@ -42,7 +42,7 @@ begin
   if p_speaker_name is null or btrim(p_speaker_name) = '' or char_length(p_speaker_name) > 160 then
     raise exception 'speaker is invalid' using errcode = '22023';
   end if;
-  if p_review_status not in ('pending', 'approved', 'needs_review', 'discarded') then
+  if p_review_status is null or p_review_status not in ('pending', 'approved', 'needs_review', 'discarded') then
     raise exception 'review status is invalid' using errcode = '22023';
   end if;
   if p_needs_review is distinct from (p_review_status in ('pending', 'needs_review')) then
@@ -101,7 +101,7 @@ begin
     else v_old_character_name
   end;
 
-  update public.transcript_segments
+  update public.transcript_segments as ts
   set
     text = p_text,
     speaker_name = p_speaker_name,
@@ -111,11 +111,11 @@ begin
     text_chars = p_text_chars,
     text_words = p_text_words,
     is_empty = false,
-    revision = revision + 1
-  where id = p_segment_id
-    and session_id = v_session_id
-    and revision = p_expected_revision
-  returning transcript_segments.revision into v_new_revision;
+    revision = ts.revision + 1
+  where ts.id = p_segment_id
+    and ts.session_id = v_session_id
+    and ts.revision = p_expected_revision
+  returning ts.revision into v_new_revision;
 
   if not found then
     return query select 'conflict'::text, null::bigint;
