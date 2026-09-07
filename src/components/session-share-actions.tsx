@@ -54,11 +54,8 @@ export function SessionShareActions({ title, description }: Props) {
 	};
 
 	return (
-		<div
-			className={styles.actions}
-			role="group"
-			aria-label="Compartilhar esta sessão"
-		>
+		<fieldset className={styles.actions}>
+			<legend className={styles.legend}>Compartilhar esta sessão</legend>
 			<Button variant="secondary" onClick={share}>
 				Compartilhar sessão
 			</Button>
@@ -68,6 +65,6 @@ export function SessionShareActions({ title, description }: Props) {
 			<p className={styles.status} aria-live="polite">
 				{status}
 			</p>
-		</div>
+		</fieldset>
 	);
 }
