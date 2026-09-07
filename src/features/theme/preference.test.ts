@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	nextThemePreference,
-	parseThemePreference,
-	themeLabel,
-} from "./preference";
+import { oppositeTheme, parseThemePreference } from "./preference";
 
 describe("theme preferences", () => {
 	it("accepts explicit themes and falls back to system", () => {
@@ -13,15 +9,8 @@ describe("theme preferences", () => {
 		expect(parseThemePreference(null)).toBe("system");
 	});
 
-	it("cycles system, light, dark, system", () => {
-		expect(nextThemePreference("system")).toBe("light");
-		expect(nextThemePreference("light")).toBe("dark");
-		expect(nextThemePreference("dark")).toBe("system");
-	});
-
-	it("describes system and explicit themes accessibly", () => {
-		expect(themeLabel("system", "dark")).toContain("sistema (escuro)");
-		expect(themeLabel("light", "light")).toContain("Tema claro");
-		expect(themeLabel("dark", "dark")).toContain("Tema escuro");
+	it("toggles the resolved light and dark themes", () => {
+		expect(oppositeTheme("light")).toBe("dark");
+		expect(oppositeTheme("dark")).toBe("light");
 	});
 });
