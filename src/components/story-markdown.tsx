@@ -37,7 +37,7 @@ function renderInline(source: string): ReactNode[] {
 	});
 }
 
-function keyedListItems(items: string[]) {
+function keyedListItems(items: readonly string[]) {
 	const occurrences = new Map<string, number>();
 	return items.map((item) => {
 		const occurrence = (occurrences.get(item) ?? 0) + 1;
