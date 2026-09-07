@@ -7,7 +7,9 @@ test("Discord entry is clear and has no alternate credentials", async ({
 	await expect(
 		page.getByRole("heading", { name: "Entre para continuar" }),
 	).toBeVisible();
-	await expect(page.locator("main").getByRole("alert")).toContainText("Você cancelou");
+	await expect(page.locator("main").getByRole("alert")).toContainText(
+		"Você cancelou",
+	);
 	await expect(
 		page.getByRole("button", { name: "Entrar com Discord" }),
 	).toBeDisabled();
@@ -46,4 +48,3 @@ test("administrative pages disclose no data even with the legacy flag enabled", 
 	expect((await request.get("/auth/logout")).status()).toBe(405);
 	expect((await request.get("/auth/discord")).status()).toBe(405);
 });
-
