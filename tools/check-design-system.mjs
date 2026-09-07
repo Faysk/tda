@@ -121,6 +121,16 @@ for (const [token, value] of promotedExtensions) {
 	}
 }
 
+const layoutExtensions = [
+	["--ds-layout-max", "2160px"],
+	["--ds-page-gutter", "clamp(20px, 3.5vw, 72px)"],
+];
+for (const [token, value] of layoutExtensions) {
+	if (!tokenCss.includes(`${token}: ${value};`)) {
+		fail(`missing promoted layout extension ${token}: ${value}`);
+	}
+}
+
 const rebootSemanticExtensions = [
 	["--ds-on-art-foreground", "#fffdf8"],
 	["--ds-on-art-soft", "#d7d2c9"],
@@ -169,5 +179,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeTokens=0`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} layoutExtensionAssertions=${layoutExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeTokens=0`,
 );

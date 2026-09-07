@@ -1,12 +1,12 @@
 # Superfícies públicas — ownership visual e composição
 
-> Status: implementado na DS-5
+> Status: implementado; atualizado após Home V2 e shell responsiva
 > Owner: design-system / frontend público
 > Última revisão: 2026-09-07
 
 ## Objetivo
 
-Definir onde cada responsabilidade visual do frontend público do TDA deve viver depois da migração para o Design System v1.0.
+Definir onde cada responsabilidade visual do frontend público do TDA vive depois da migração para o Design System v1.0 e das evoluções de Home/shell feitas no reboot.
 
 Este documento existe para impedir dois problemas recorrentes:
 
@@ -24,12 +24,12 @@ Tokens e primitives são compartilhados. Layout específico de uma superfície p
 | Arquivo / módulo | Responsabilidade | Não deve conter |
 | --- | --- | --- |
 | `src/app/globals.css` | reset mínimo e invariantes HTML | cards, hero, sessões, World Explorer, cores locais |
-| `src/app/design-tokens.css` | tokens canônicos e extensões aprovadas | composição de páginas |
+| `src/app/design-tokens.css` | tokens canônicos e extensões aprovadas, incluindo shell/gutter | composição de páginas |
 | `src/app/design-system.css` | primitives visuais compartilhadas | layout de Home/sessão/feature específica |
-| `src/app/public-shell.css` | header, nav pública, footer, skip-link, container público genérico | hero, cards, grafo |
-| `src/app/theme.css` | theme toggle e troca dos masters black/white da marca | overrides de cards/páginas |
-| `src/app/home.module.css` | composição exclusiva da Home | estilos de cards reutilizáveis |
-| `src/components/session-list.module.css` | cards/listagem de sessões | layout do arquivo ou da Home |
+| `src/app/public-shell.css` | header, nav pública, footer, skip-link, container público genérico | hero, cards de conteúdo, grafo |
+| `src/app/theme.css` | theme switch e troca dos masters black/white da marca | overrides de cards/páginas |
+| `src/app/home.module.css` | composição exclusiva da Home e seus teasers | cards reutilizáveis do arquivo |
+| `src/components/session-list.module.css` | cards/listagem reutilizável do arquivo de sessões | layout da Home ou do arquivo |
 | `src/app/sessoes/page.module.css` | composição do arquivo | estilos internos dos cards |
 | `src/app/sessoes/[id]/page.module.css` | hero e navegação do detalhe | parser/estilos do Markdown |
 | `src/app/story.css` | leitura longa emitida por `StoryMarkdown` | hero, paginação, shell |
@@ -51,42 +51,57 @@ Se uma regra menciona uma feature, card, hero, sessão, entity, node ou página,
 
 ## Container público
 
-O `<main>` global **não possui `max-width`**.
+O `<main>` global **não possui `max-width`**. Cada superfície decide sua largura.
 
-Cada superfície decide sua largura.
+O shell público usa as extensões de layout do reboot:
 
-Motivo:
+```css
+--ds-layout-max: 2160px;
+--ds-page-gutter: clamp(20px, 3.5vw, 72px);
+```
 
-- Home e arquivo trabalham em até `1200px`;
-- narrativa longa trabalha em aproximadamente `880px`;
-- o futuro `/mundo` precisa poder ocupar a viewport disponível;
-- um limite global obrigaria features full-width a desfazer CSS de outra área.
+Consequências:
 
-## Home
+- em 1920×1080 a superfície pública aproveita a largura disponível, preservando apenas o gutter fluido;
+- em 2560×1440 o shell cresce até `2160px`, evitando tanto o antigo corredor de `1200px` quanto linhas excessivamente longas;
+- Home, header, footer e `.page-section` compartilham a mesma referência horizontal;
+- narrativa longa continua trabalhando em aproximadamente `880px` por decisão da superfície;
+- `/mundo` poderá ocupar sua própria viewport ampla e não deve herdar um limite global do `<main>`.
 
-A Home usa:
+## Home V2
+
+A Home usa os primitives:
 
 - `Eyebrow`;
 - `DisplayTitle`;
 - `BodyCopy`;
 - `SectionTitle`;
-- `ActionLink`;
-- `SessionList`.
+- `ActionLink`.
 
-`home.module.css` controla apenas:
+A composição atual tem dois níveis de conteúdo.
 
-- hero;
-- composição artwork/overlay;
-- CTA + última memória;
-- separador do hero;
-- seção de memórias;
-- estados locais de disponibilidade.
+### Primeira dobra
+
+O hero deixou de ser uma imagem full-bleed com headline dominante e passou a ser uma composição editorial em duas colunas no desktop:
+
+1. identidade/proposta do TDA (`Rolamos dados. Guardamos os dados.`);
+2. última sessão publicada como conteúdo real, com artwork, arco, data, título, resumo e CTA.
+
+Abaixo de `980px` essa composição empilha em uma coluna. A intenção é preservar leitura e protagonismo da artwork sem transformar mobile em uma miniatura do desktop.
+
+Quando não há sessão disponível, o mesmo espaço recebe um estado de arquivo. Falha temporária de dados e arquivo ainda não configurado/vazio são mensagens diferentes; a interface não deve comunicar “próxima memória” quando o problema real é indisponibilidade.
+
+### Memórias recentes
+
+A última sessão já ocupa o hero e, por isso, não é repetida na grade imediatamente abaixo.
+
+A Home possui teasers compactos próprios para as memórias recentes. Eles são uma **composição específica da Home**, não o card canônico do arquivo. A grade usa layout intrínseco (`auto-fit`/`minmax`) para aproveitar 1080p, 2K e mobile sem multiplicar breakpoints artificiais.
+
+`SessionList` continua sendo o componente reutilizável do arquivo `/sessoes`; a Home não deve fazer o arquivo depender de sua composição promocional/compacta.
 
 ## Conteúdo sobre artwork
 
-Artwork do hero recebe overlay escuro de propósito. Portanto o texto sobre arte não pode trocar para tokens escuros apenas porque o usuário escolheu tema claro.
-
-O reboot define os tokens theme-independent:
+O reboot mantém os tokens theme-independent:
 
 ```css
 --ds-on-art-foreground
@@ -102,18 +117,18 @@ soft        #d7d2c9
 accent      #f2c879
 ```
 
-Eles representam **papéis semânticos sobre arte escurecida**, não um terceiro tema.
+Eles representam papéis semânticos sobre arte deliberadamente escurecida, não um terceiro tema.
 
-Usos atuais:
+Usos atuais incluem:
 
-- Home hero com arte;
-- hero de detalhe de sessão com arte.
+- hero de detalhe de sessão com artwork;
+- badges/elementos sobre a artwork da última sessão na Home.
 
-Qualquer futura alteração precisa preservar contraste sobre o overlay usado pela superfície.
+Texto colocado diretamente sobre artwork precisa usar esses papéis em vez de assumir que o tema da página garante contraste.
 
-## Cards de sessão
+## Cards do arquivo de sessões
 
-`SessionList` é dono do card e importa `session-list.module.css`.
+`SessionList` é dono do card reutilizável do arquivo e importa `session-list.module.css`.
 
 O card é responsável por:
 
@@ -123,25 +138,25 @@ O card é responsável por:
 - data;
 - resumo curto;
 - link de leitura;
-- variante featured;
+- variante featured quando necessária;
 - responsividade própria;
 - reduced motion de hover/zoom.
 
-Home e arquivo somente decidem **quais sessões passam ao componente** e em que contexto.
+O arquivo decide quais sessões passa ao componente, sem replicar o CSS interno do card.
 
 ## Arquivo
 
 `/sessoes` é uma composição fina:
 
 - heading do arquivo;
-- estado loading-unavailable/preparing/empty;
+- estado unavailable/preparing/empty;
 - `SessionList`.
 
 Não replica CSS de card.
 
 ## Detalhe de sessão
 
-`/sessoes/[id]` separa duas responsabilidades:
+`/sessoes/[id]` separa duas responsabilidades.
 
 ### `page.module.css`
 
@@ -151,6 +166,8 @@ Não replica CSS de card.
 - voltar ao arquivo;
 - largura do corpo;
 - paginação anterior/próxima.
+
+A artwork é full-width e, no Next 16, usa `preload` quando é candidata a LCP e `sizes="100vw"` para selecionar resolução coerente com 1080p/2K.
 
 ### `story.css`
 
@@ -165,36 +182,41 @@ Não replica CSS de card.
 
 O parser de Markdown não conhece styling de página.
 
-## Erro e 404
+## Header e navegação
 
-Estados globais usam os mesmos primitives do Design System:
+O logo/wordmark é a ação de início. Por isso `Início` não é repetido na navegação principal.
 
-- `DisplayTitle`;
-- `Button`;
-- `ActionLink`.
+Na superfície pública atual, `Sessões` é o único link de navegação canônico além da marca. Novas entradas só devem aparecer quando a rota/experiência correspondente existir; a Home não anuncia features fictícias.
 
-Não existe mais classe histórica `.button` como contrato público.
+O controle de tema:
 
-## Mobile
+- segue o sistema quando não existe preferência salva;
+- não exibe “sistema” como terceira opção visual;
+- funciona como switch binário claro/escuro depois de uma escolha explícita;
+- usa `role="switch"` e `aria-checked`;
+- possui alvo de interação de pelo menos `44px`;
+- remove microanimações com `prefers-reduced-motion`.
 
-### 320px
+O header atual permanece em uma linha inclusive no aceite de `320px`; o subtítulo da marca é removido quando necessário para preservar espaço. Se a navegação crescer no futuro, deve virar um padrão móvel real em vez de voltar a quebrar arbitrariamente em múltiplas linhas.
 
-É viewport de aceite automatizado.
+## Responsividade e matriz de aceite
 
-Invariantes:
+As três telas primárias do TDA são testadas diretamente por Playwright:
 
-- sem overflow horizontal;
-- navegação principal continua visível e focável;
-- theme toggle permanece acessível;
-- header reorganiza em duas linhas quando necessário;
-- CTA principal permanece acionável;
-- arquivo continua legível em uma coluna.
+- `1920×1080`;
+- `2560×1440`;
+- `390×844`.
 
-### Navegação
+`320×800` continua como limite mínimo explícito do shell público.
 
-Não esconder links focáveis usando clipping apenas visual. Se uma navegação sair da tela no futuro, ela deve virar um padrão móvel real (drawer/menu) com estado e foco gerenciados.
+A auditoria geométrica automatizada verifica, entre outros:
 
-Na superfície atual, a solução simples é reorganizar o header em duas linhas abaixo de `430px`.
+- ausência de overflow horizontal;
+- shell ocupando `min(viewport, 2160px)`;
+- logo e ações do header sem sobreposição;
+- gutter dentro do contrato do Design System;
+- hero em duas colunas no desktop e empilhado no mobile;
+- início de `Memórias recentes` dentro da primeira viewport em 1080p/2K, evitando desperdício vertical excessivo.
 
 ## Acessibilidade
 
@@ -207,7 +229,21 @@ Contratos relevantes:
 - `prefers-reduced-motion` remove animações decorativas;
 - skip-link é o primeiro foco útil;
 - artwork decorativo usa `alt=""`;
-- navegação não fica invisível enquanto permanece focável.
+- navegação não fica invisível enquanto permanece focável;
+- SVGs puramente decorativos do theme switch ficam ocultos da árvore acessível.
+
+## Performance visual
+
+A Home evita carregar bibliotecas de motion pesado apenas por decoração.
+
+Regras atuais:
+
+- artwork candidata a LCP usa `next/image` com `preload` no contrato do Next 16;
+- imagens de cards abaixo da dobra permanecem lazy por padrão;
+- `sizes` descreve a largura real esperada em mobile/1080p/2K;
+- `content-visibility: auto` pode ser usado em seções abaixo da dobra quando não prejudicar o contrato da superfície;
+- transform/opacity são preferidos para microinterações;
+- GSAP permanece reservado para experiências narrativas onde timeline/câmera realmente agreguem valor, como lores cinematográficas.
 
 ## Legado visual removido
 
@@ -231,7 +267,7 @@ Isso transforma a remoção em invariante de CI, não em convenção informal.
 
 ## Testes automatizados
 
-A DS-5 é coberta por:
+A camada pública é coberta por:
 
 - `pnpm design:check`;
 - typecheck;
@@ -244,23 +280,25 @@ A DS-5 é coberta por:
 Playwright cobre, entre outros:
 
 - Home/arquivo sem cloud secrets;
+- matriz 1080p/2K/mobile;
 - 320px sem overflow;
-- navegação visível no mobile;
+- navegação visível e não redundante;
 - skip-link focável;
-- light/dark/system;
+- system-default + override light/dark;
 - masters corretos da marca;
 - reduced motion;
+- geometria da Home/shell;
 - 404 público.
 
-## O que não foi feito nesta fase
+## O que não foi feito nesta camada
 
-- Auth;
+- UI de Auth/perfil no branch canônico;
 - Edit;
-- React Flow;
+- implementação do React Flow;
+- implementação das lores GSAP;
 - migration Supabase;
 - alteração de conteúdo/canon;
-- importação dos binários restantes do Brand Pack;
-- deploy.
+- deploy automático.
 
 ## Relação com o World Explorer
 
@@ -284,12 +322,12 @@ Nodes, edges, inspector e filtros usam tokens/primitives do Design System. O can
 ## Definition of Done desta camada
 
 - `globals.css` contém apenas reset/invariantes;
-- shell possui ownership próprio;
+- shell possui ownership próprio e layout fluido;
 - Home possui CSS Module próprio;
-- cards possuem CSS Module próprio;
-- archive não duplica card;
+- arquivo mantém card reutilizável em `SessionList`;
+- teasers específicos da Home não vazam para o arquivo;
 - long-form está separado do hero de sessão;
 - nenhum token pre-v1 existe em `src/`;
-- mobile 320px permanece navegável;
-- light/dark/system continuam coerentes;
-- CI protege essas regras.
+- 1080p, 2K, mobile e mínimo de 320px permanecem navegáveis;
+- tema segue sistema por padrão e overrides explícitos são coerentes;
+- CI protege os contratos automatizáveis.

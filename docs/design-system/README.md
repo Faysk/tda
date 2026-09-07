@@ -1,6 +1,6 @@
 # Design System oficial do TDA
 
-> Status: canônico; fundação runtime e superfícies públicas DS-5 implementadas
+> Status: canônico; fundação runtime e superfícies públicas implementadas
 > Owner: design-system / frontend
 > Última revisão: 2026-09-07
 
@@ -155,9 +155,20 @@ Essa é uma **extensão do reboot promovida a partir do pack**, não uma alegaç
 
 Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
 
+## Extensão do reboot — layout fluido
+
+A Home V2 promove dois papéis de layout para impedir que cada superfície volte a inventar largura e gutter próprios:
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `--ds-layout-max` | `2160px` | teto do shell público amplo |
+| `--ds-page-gutter` | `clamp(20px, 3.5vw, 72px)` | respiro horizontal responsivo |
+
+Esses tokens não pertenciam ao snapshot v1.0 recebido; são extensões operacionais do reboot atual e devem ser protegidas por `design:check`.
+
 ## Extensão semântica DS-5 — conteúdo sobre artwork
 
-Artwork de hero é deliberadamente escurecido por overlay. O texto sobre essa arte precisa manter contraste independente da preferência light/dark do usuário.
+Artwork deliberadamente escurecida por overlay precisa manter contraste independente da preferência light/dark do usuário.
 
 O reboot define:
 
@@ -169,10 +180,10 @@ O reboot define:
 
 Esses tokens são theme-independent. Eles **não criam um terceiro tema**; descrevem um contexto visual controlado.
 
-Usos iniciais:
+Usos atuais:
 
-- hero da Home quando há artwork;
-- hero do detalhe de sessão quando há artwork.
+- hero do detalhe de sessão quando há artwork;
+- badges/elementos diretamente sobre a artwork da última sessão na Home.
 
 ## Tipografia
 
@@ -197,18 +208,18 @@ Implementada:
 - `src/components/ui/typography.tsx`;
 - `src/components/ui/status.tsx`;
 - `tools/check-design-system.mjs`;
-- E2E de tema, marca e reduced motion.
+- E2E de tema, marca, responsividade e reduced motion.
 
-### Superfícies públicas DS-5
+### Superfícies públicas
 
 A composição pública foi modularizada:
 
 ```text
 src/app/globals.css                      reset mínimo
 src/app/public-shell.css                 shell pública
-src/app/theme.css                        theme toggle + marca
+src/app/theme.css                        theme switch + marca
 src/app/home.module.css                  Home
-src/components/session-list.module.css  cards
+src/components/session-list.module.css  cards do arquivo
 src/app/sessoes/page.module.css          arquivo
 src/app/sessoes/[id]/page.module.css     detalhe
 src/app/story.css                        leitura longa
@@ -242,9 +253,11 @@ O `<main>` não possui `max-width` global.
 
 Isso é deliberado:
 
-- Home/arquivo controlam seu container;
+- header, footer, Home e `.page-section` compartilham o shell fluido até `2160px`;
 - long-form controla sua largura de leitura;
 - `/mundo` poderá usar viewport ampla sem desfazer CSS de sessões.
+
+As telas primárias de aceite visual são `1920×1080`, `2560×1440` e mobile `390×844`; `320×800` permanece como limite mínimo automatizado.
 
 ## Tailwind
 
@@ -272,8 +285,9 @@ Uma superfície nova deve ser verificada em:
 
 - tema claro;
 - tema escuro;
-- 320px/mobile;
-- desktop;
+- mobile alvo e mínimo de `320px`;
+- `1920×1080`;
+- `2560×1440` quando a superfície for ampla;
 - navegação por teclado;
 - foco visível;
 - `prefers-reduced-motion`;
@@ -287,7 +301,7 @@ Uma superfície nova deve ser verificada em:
 
 As referências visuais oficiais do World Explorer usam este Design System como base de composição, não como exceção. A especificação está em [world-explorer-ui.md](world-explorer-ui.md) e o comportamento da feature em [../features/world-explorer.md](../features/world-explorer.md).
 
-O World Explorer não deve herdar um container global de `1200px`; ele terá layout próprio full-width e reutilizará tokens/primitives existentes.
+O World Explorer não deve herdar o teto do shell público quando sua composição exigir canvas full-width; ele terá layout próprio e reutilizará tokens/primitives existentes.
 
 ## Autoridade operacional
 
