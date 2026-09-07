@@ -14,7 +14,7 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 | Edit / transcript server-side | leitura autorizada implementada; mutation canônica aguarda revision | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench funcional sem Auth por flag explícita | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
-| perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
+| perfis editoriais de entities | preparado; projection publicada pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
 | relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
 | contrato de dados de relations | proposta para revisão | [Relations data contract](relations-data-contract.md) |
@@ -33,6 +33,8 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 Features com superfície visual forte devem apontar para o [Design System oficial](../design-system/README.md).
 
 O World Explorer possui também um contrato de composição em [world-explorer-ui.md](../design-system/world-explorer-ui.md).
+
+Os perfis editoriais mantêm o próprio contrato de apresentação, scenes/beats e narração em [Entity profiles](entity-profiles.md), sem documento paralelo que duplique ownership.
 
 O Edit usa o mesmo Design System e possui boundary técnico próprio em [arquitetura do Edit](../architecture/edit-workbench.md), com paridade histórica rastreada em [Edit — paridade com o legado](../legacy/edit-parity.md). A exceção transitória que permite validar a UI antes de Auth está isolada em [modo temporário sem autenticação](edit-unsafe-development.md).
 
