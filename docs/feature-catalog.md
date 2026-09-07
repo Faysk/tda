@@ -12,6 +12,7 @@ Estados:
 
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
+| Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; primeiro domínio puro de edição de transcript já extraído |
 | Perfis/jogadores | implementado no schema | `profiles`, Auth, campaign membership e RBAC |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |
@@ -64,6 +65,19 @@ A decisão de visualização foi fechada em [ADR-0006](adr/0006-react-flow-world
 - sem modelar o banco com conceitos da biblioteca.
 
 O relation schema **ainda não foi migrado**. O primeiro slice usa fixtures explicitamente marcadas como demo até o contrato ser aprovado e relações reais terem fonte/canon.
+
+## Edit Workbench
+
+A direção estrutural foi fechada em [ADR-0007](adr/0007-edit-workbench.md):
+
+- mesma aplicação Next.js do TDA;
+- server-first com ilhas client-side localizadas;
+- autorização por capability + scope;
+- migração vertical e incremental do comportamento útil do legado;
+- transcript como primeiro fluxo crítico;
+- autosave com proteção explícita contra writes fora de ordem;
+- Design System atual como única autoridade visual;
+- paridade registrada em [legacy/edit-parity.md](legacy/edit-parity.md).
 
 ## Fontes históricas revalidadas
 

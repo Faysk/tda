@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
 
@@ -10,6 +10,7 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 
 | Feature | Estado | Spec |
 | --- | --- | --- |
+| Edit Workbench / administração | arquitetura aprovada; implementação incremental | [Edit Workbench](edit-workbench.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
@@ -30,6 +31,8 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 Features com superfície visual forte devem apontar para o [Design System oficial](../design-system/README.md).
 
 O World Explorer possui também um contrato de composição em [world-explorer-ui.md](../design-system/world-explorer-ui.md).
+
+O Edit usa o mesmo Design System e possui boundary técnico próprio em [arquitetura do Edit](../architecture/edit-workbench.md), com paridade histórica rastreada em [Edit — paridade com o legado](../legacy/edit-parity.md).
 
 ## Template mínimo para feature futura
 

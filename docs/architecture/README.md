@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: arquitetura do TDA
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 > Fonte de verdade: `Faysk/tda` + Supabase `dmrqnbdvbkfqzctcerbx`
 
 Este diretório expande [architecture.md](../architecture.md), que permanece como visão executiva curta.
@@ -12,6 +12,7 @@ Este diretório expande [architecture.md](../architecture.md), que permanece com
 - [Contexto e limites do sistema](system-context.md)
 - [Fluxos ponta a ponta](data-flows.md)
 - [Princípios e invariantes](invariants.md)
+- [Edit Workbench — boundary administrativo](edit-workbench.md)
 - [Modelo canônico de dados](../data-model.md)
 - [Design System](../design-system/README.md)
 - [Domínios](../domains/README.md)
@@ -70,6 +71,8 @@ A arquitetura do reboot evita múltiplos frontends concorrentes:
 
 Não criar um segundo frontend público, proxy obrigatório para o legado ou uma segunda base apenas para acelerar uma feature.
 
+O Edit segue a mesma composição. Sua especificação estrutural está em [edit-workbench.md](edit-workbench.md); o legado é consumido por paridade comportamental, não como framework interno.
+
 ## World Explorer como projection
 
 A visualização de relações possui um boundary explícito:
@@ -122,6 +125,7 @@ Eles não alteram domínio, mas todas as superfícies novas precisam respeitar:
 10. **Fixtures/referências de UI não viram canon.**
 11. **A própria existência de relation/knowledge pode ser secreta.**
 12. **Marca e Design System são contratos compartilhados, não estilos locais por página.**
+13. **Edit é um workbench no mesmo produto, não um CRUD ou frontend administrativo paralelo.**
 
 ## Ownership de decisão
 
