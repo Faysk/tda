@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -9,28 +10,20 @@ import {
 	findPublishedSession,
 	listPublishedSessions,
 } from "@/features/sessions/repository";
+import { sessionShareDescription } from "@/features/sessions/share";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
 type SessionParams = { params: Promise<{ id: string }> };
 
-function descriptionFrom(summary: string) {
-	return summary
-		.replace(/[#>*_`~-]+/g, " ")
-		.replace(/\s+/g, " ")
-		.trim()
-		.slice(0, 180);
-}
-
 export async function generateMetadata({ params }: SessionParams): Promise<Metadata> {
 	const { id } = await params;
 	const session = await findPublishedSession(id);
 	if (!session) return { title: "Sessão não encontrada" };
-	const description =
-		descriptionFrom(session.summary) ||
-		"Uma das histórias guardadas no arquivo da nossa campanha.";
+	const description = sessionShareDescription(session.summary, session.title);
 	const image = session.heroImage || session.coverImage;
+	const imageAlt = `Arte da sessão ${session.title}`;
 
 	return {
 		title: session.title,
@@ -39,13 +32,15 @@ export async function generateMetadata({ params }: SessionParams): Promise<Metad
 			title: session.title,
 			description,
 			type: "article",
-			...(image ? { images: [{ url: image }] } : {}),
+			locale: "pt_BR",
+			siteName: "TDA — Tem Dado Aqui",
+			...(image ? { images: [{ url: image, alt: imageAlt }] } : {}),
 		},
 		twitter: {
 			card: image ? "summary_large_image" : "summary",
 			title: session.title,
 			description,
-			...(image ? { images: [image] } : {}),
+			...(image ? { images: [{ url: image, alt: imageAlt }] } : {}),
 		},
 	};
 }
@@ -69,6 +64,7 @@ export default async function Session({ params }: SessionParams) {
 		session.fullSummary || session.summary || "Resumo ainda não disponível.";
 	const image = session.heroImage || session.coverImage;
 	const date = formatSessionDate(session.date);
+	const shareDescription = sessionShareDescription(session.summary, session.title);
 
 	return (
 		<article>
@@ -103,6 +99,10 @@ export default async function Session({ params }: SessionParams) {
 			</header>
 
 			<div className={styles.body}>
+				<SessionShareActions
+					title={session.title}
+					description={shareDescription}
+				/>
 				<StoryMarkdown source={story} title={session.title} />
 				{previous || next ? (
 					<nav className={styles.pagination} aria-label="Navegação entre sessões">
