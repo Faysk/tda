@@ -103,12 +103,18 @@ export function prepareImport(
 		]);
 		if (payload.schema_version !== "publication_bundle_v1")
 			throw new Invalid("unsupported_version");
+		if (!result.import_artifacts) throw new Invalid("transcript_required");
 		const artifacts = object(result.import_artifacts);
 		keys(artifacts, ["publication_payload_json", "transcript_json"]);
 		const publicationJson = string(
 			artifacts.publication_payload_json,
 			MAX_IMPORT_BYTES,
 		);
+		if (
+			typeof artifacts.transcript_json !== "string" ||
+			!artifacts.transcript_json.trim()
+		)
+			throw new Invalid("transcript_required");
 		const transcriptJson = string(artifacts.transcript_json, MAX_IMPORT_BYTES);
 		if (
 			sha256(publicationJson) !== publicationId ||
@@ -158,9 +164,10 @@ export function prepareImport(
 		if (sha256(transcriptJson) !== transcriptSha256)
 			throw new Invalid("hash_mismatch");
 		const timeline: unknown = JSON.parse(transcriptJson);
+		if (Array.isArray(timeline) && !timeline.length)
+			throw new Invalid("transcript_required");
 		if (
 			!Array.isArray(timeline) ||
-			!timeline.length ||
 			timeline.length > MAX_SEGMENTS ||
 			timeline.length !== manifest.transcript_segments
 		)

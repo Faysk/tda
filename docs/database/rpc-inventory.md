@@ -217,6 +217,6 @@ Consequência: `pg_stat_user_functions` não oferece contagem histórica útil d
 ## Regra
 
 Não transformar warning do advisor em alteração automática. O objetivo é **reduzir superfície sem quebrar autorização existente**, não deixar o painel verdinho enquanto a aplicação pega fogo.
-# Candidato: import_transcript_bundle_atomic
+## Candidato: import_transcript_bundle_atomic
 
 `public.import_transcript_bundle_atomic(uuid,uuid,jsonb,boolean)` é candidato service-only SECURITY INVOKER, search_path `pg_catalog, public`, sem EXECUTE para PUBLIC/anon/authenticated. Revalida operador/profile, action explícita, scope e origem da sessão; grava segmentos/recibo/audit juntos ou consulta recibo. Não aplicado e não selecionado pelo endpoint produtivo. Contrato e rollback em [importação local](../integrations/transcript-import.md).

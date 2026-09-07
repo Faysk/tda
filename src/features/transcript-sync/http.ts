@@ -30,6 +30,7 @@ function response(result: ImportResult): Response {
 					forbidden: 403,
 					import_capability_undefined: 503,
 					invalid_payload: 400,
+					transcript_required: 422,
 					unsupported_version: 422,
 					too_large: 413,
 					hash_mismatch: 422,

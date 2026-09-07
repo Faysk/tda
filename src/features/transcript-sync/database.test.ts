@@ -46,7 +46,9 @@ function sqlCommand() {
 	]);
 }
 const cleanEnv: NodeJS.ProcessEnv = {
-	...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("PG"))),
+	...Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith("PG")),
+	),
 	NODE_ENV: process.env.NODE_ENV,
 };
 function sql(text: string) {
@@ -161,6 +163,32 @@ describe.skipIf(!enabled)(
 			sql(
 				"drop trigger fail_receipt on transcript_import_receipts; drop function fail_receipt();",
 			);
+		});
+		it("SQL rejects malformed projection and audit failure rolls back the complete import", () => {
+			for (const segments of [
+				[],
+				[{ ...input.segments[0], text: "" }],
+				[{ ...input.segments[0], endMs: 0 }],
+				[input.segments[0], input.segments[0]],
+			]) {
+				expect(
+					JSON.parse(
+						sql(`set role service_role; ${call({ ...input, segments })}`),
+					),
+				).toEqual({ ok: false, reason: "invalid_payload" });
+			}
+			sql(
+				"create function fail_audit() returns trigger language plpgsql as $$ begin raise exception 'synthetic audit failure'; end $$; create trigger fail_audit before insert on audit_log for each row execute function fail_audit();",
+			);
+			expect(() => sql(`set role service_role; ${call()}`)).toThrow(
+				/synthetic audit failure/u,
+			);
+			expect(
+				sql(
+					"select (select count(*) from transcript_segments),(select count(*) from transcript_import_receipts),(select count(*) from audit_log);",
+				),
+			).toBe("0|0|0");
+			sql("drop trigger fail_audit on audit_log; drop function fail_audit();");
 		});
 		it("client -> authenticated HTTP -> consumer -> SQL persists once across lost response/retry/readback", async () => {
 			const dependencies = {

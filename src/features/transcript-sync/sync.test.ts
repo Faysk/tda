@@ -141,6 +141,27 @@ describe("Python exporter compatibility and boundary", () => {
 });
 
 describe("authenticated HTTP and receipt client", () => {
+	it("keeps the actionable missing transcript error on a rejected import", async () => {
+		const input = structuredClone(fixture);
+		input.result.import_artifacts.transcript_json = "";
+		expect(prepareImport(JSON.stringify(input))).toEqual({
+			ok: false,
+			reason: "transcript_required",
+		});
+		const result = await syncTranscript(
+			{ result: input.result, expected: prepared, segmentCount: 2 },
+			undefined,
+			async () =>
+				Response.json(
+					{ ok: false, reason: "transcript_required" },
+					{ status: 422 },
+				),
+		);
+		expect(result).toEqual({
+			status: "pending",
+			reason: "transcript_required",
+		});
+	});
 	it("default dependency stays denied regardless of valid login or payload", async () => {
 		expect(
 			await consumeTranscript(raw, "operator", deniedImportDependencies),

@@ -37,6 +37,7 @@ export type ImportFailure =
 	| "forbidden"
 	| "import_capability_undefined"
 	| "invalid_payload"
+	| "transcript_required"
 	| "unsupported_version"
 	| "too_large"
 	| "hash_mismatch"

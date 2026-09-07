@@ -275,7 +275,7 @@ Há drift quando:
 Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
-# Candidatos de importação de transcrição
+## Candidatos de importação de transcrição
 
 - `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
 - `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisão Cofrinho pendente, não aplicado.

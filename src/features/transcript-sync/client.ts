@@ -17,6 +17,29 @@ export type SyncInput = {
 };
 type Transport = (path: string, init: RequestInit) => Promise<Response>;
 
+function failureReason(value: unknown): string | null {
+	if (!value || typeof value !== "object") return null;
+	const result = value as { ok?: unknown; reason?: unknown };
+	return result.ok === false &&
+		typeof result.reason === "string" &&
+		[
+			"unauthenticated",
+			"forbidden",
+			"import_capability_undefined",
+			"invalid_payload",
+			"transcript_required",
+			"unsupported_version",
+			"too_large",
+			"hash_mismatch",
+			"synthetic_payload",
+			"not_found",
+			"conflict",
+			"dependency_unavailable",
+		].includes(result.reason)
+		? result.reason
+		: null;
+}
+
 /** The local token is never accepted here. Both requests use only the web operator's same-origin cookies. */
 export async function syncTranscript(
 	input: SyncInput,
@@ -38,14 +61,16 @@ export async function syncTranscript(
 				: AbortSignal.timeout(15000),
 			cache: "no-store",
 		});
-		if (!response.ok) return null;
-		return response.json();
+		const data = await response.json();
+		return response.ok || failureReason(data) ? data : null;
 	};
 	try {
 		const imported = await post("/api/transcript-imports", {
 			schemaVersion: IMPORT_VERSION,
 			result: input.result,
 		});
+		const importFailure = failureReason(imported);
+		if (importFailure) return { status: "pending", reason: importFailure };
 		if (
 			!imported?.ok ||
 			!confirmedReceipt(imported.receipt, input.expected, input.segmentCount)
@@ -56,6 +81,8 @@ export async function syncTranscript(
 			identity: input.expected,
 			segmentCount: input.segmentCount,
 		});
+		const receiptFailure = failureReason(readBack);
+		if (receiptFailure) return { status: "pending", reason: receiptFailure };
 		if (
 			!readBack?.ok ||
 			!confirmedReceipt(readBack.receipt, input.expected, input.segmentCount) ||
