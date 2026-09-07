@@ -58,3 +58,16 @@ Para esta base, rollback é parar instância nova e voltar a executar versão an
 Testes sintéticos cobrem HTTP/auth/CORS/Host, idempotência concorrente, claim único, cancel/fence, crash real de subprocesso após checkpoint, restart/retry, lock de SO, progresso/resultado transacional e hash legado. Teste de encerramento abrupto usa somente processo filho de fixture, nunca processo real do usuário.
 
 Permanecem abertos: transcrição física, compatibilidade CUDA/modelos, ingestão real, migração de dados, experiência de tray, instalação/ACL automática, HTTPS→loopback no browser do operador, sync com autorização/receipt e atualização assinada. CI/build verde não fecha esses gates. Nenhum áudio/modelo foi carregado ou enviado; site cloud não ganhou dependência deste daemon.
+
+## Evidência integrada e ownership dos gates
+
+Fixture canônica compartilhada: [health/job/result gerados pelo exporter](../../local-companion/tests/fixtures/companion-v1.json); regenerador `local-companion/tests/write_fixture.py`. Testes verificam identidade e hashes sem áudio. Painelzinho confirmou ensaio integrado de pairing, job succeeded, export, desconectar/reconectar preservando fila; também HTTPS de teste com permissão Local Network Access, requests loopback reais, health200/auth401/capabilities200/lifecycle200 e origem hostil bloqueada. Isso valida browser controlado, não todas as políticas/instalações do operador.
+
+| Gate aberto | Responsável | Critério verificável |
+| --- | --- | --- |
+| Habilitar motor real | Motorzinho/local-companion | Adapter usa módulos/revisões existentes; amostra autorizada mede qualidade/tempo/VRAM e prova cancel/crash/retry sem duplicação de transcript |
+| Instalação/migração | Motorzinho + operador | Pacote assinado, ACL token por usuário, dry-run comparado à instalação descartável, import receipt e rollback preservam hashes/dados antigos |
+| Recibo cloud | Carteiro + Cofrinho/Chaveiro | Consumer valida bytes canônicos, identidade/capability/scope e grava receipt durável; replay exato não duplica, conflito rejeita; sem inferir grant de local.process |
+| Habilitar sync na UI | Painelzinho + Carteiro | Ensaio integrado com receipt durável e falha/retry; somente depois capability sync=true |
+
+Primeiro CI: web e Linux passaram no SHA 8405931. Windows falhou antes dos testes: actions/setup-python não disponibiliza 3.12.13 para Windows2025. Operação corrigida usa uv 0.12.10 / setup-uv v10.0.1 em runner efêmero, obtendo o mesmo Python3.12.13; não instala no PC. Setuptools84.0.0 também verificado no PyPI. Status terminal do SHA final pertence à PR #57, não se infere desse ensaio anterior.

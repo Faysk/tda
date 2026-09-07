@@ -135,6 +135,17 @@ def test_legacy_publication_stable_identity():
     assert 'private' not in json.dumps(first)
 
 
+def test_shared_fixture_contract():
+    fixture = json.loads((Path(__file__).parent / 'fixtures' / 'companion-v1.json').read_text(encoding='utf-8'))
+    result = fixture['result']
+    assert result['job_id'] == fixture['job']['id']
+    assert result['source_id'] == result['publication_bundle']['session']['source_id']
+    payload = result['import_artifacts']['publication_payload_json']
+    assert hashlib.sha256(payload.encode('utf-8')).hexdigest() == result['publication_bundle']['publication_id']
+    assert result['import_artifacts']['transcript_json'] == '[]'
+    assert result['publication_bundle']['source_manifest']['recording_format'] == 'synthetic.fixture'
+
+
 def test_worker_end_to_end(tmp_path):
     import time
     with TestClient(create_app(tmp_path, TOKEN, {ORIGIN}), base_url='http://127.0.0.1:8765') as client:
