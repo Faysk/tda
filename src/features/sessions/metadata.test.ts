@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PUBLIC_METADATA_FALLBACK_IMAGE } from "@/config/public-metadata";
+import { PUBLIC_METADATA_FALLBACK_IMAGE } from "../../config/public-metadata";
 import type { PublishedSession } from "./model";
 import { sessionPublicMetadata } from "./metadata";
 
