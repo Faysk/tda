@@ -28,8 +28,11 @@ export type ImportSegment = Readonly<{
 }>;
 export type PreparedImport = ImportIdentity &
 	Readonly<{
+		envelopeSchema: "tda_local_result_v1";
 		jobId: string;
 		manifestSha256: string;
+		publicationPayloadJson: string;
+		transcriptJson: string;
 		segments: readonly ImportSegment[];
 	}>;
 export type ImportFailure =
