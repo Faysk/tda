@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	EDIT_CAPABILITIES,
 	type EditAccessContext,
-} from "@/features/edit/access/policy";
+} from "../access/policy";
 import {
 	mutateTranscriptSegment,
 	type TranscriptMutationDependencies,
