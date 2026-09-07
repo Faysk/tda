@@ -11,6 +11,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
+Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
+
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
