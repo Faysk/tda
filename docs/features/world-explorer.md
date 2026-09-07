@@ -1,8 +1,8 @@
 # Feature — World Explorer / Ecos da Jornada
 
-> Status: arquitetura aprovada; implementação pendente
+> Status: arquitetura aprovada; vertical slice visual em implementação
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Valor
 
@@ -170,6 +170,8 @@ Ao trocar o foco:
 4. inspector acompanha o novo foco;
 5. estado de filtros é preservado quando fizer sentido.
 
+Seleção e foco são estados distintos no primeiro slice: selecionar um node atualiza apenas o inspector; promover aquela entity a foco exige a ação explícita `Explorar conexões de ...`, que atualiza `?foco=` e recalcula a projection. Isso evita reorganização inesperada do grafo durante inspeção simples.
+
 ## Profundidade
 
 ### 1-hop
@@ -268,6 +270,8 @@ Estrutura futura provável:
 - knowledge autorizado quando existir.
 
 O inspector é resumo, não duplicação da página inteira.
+
+O vertical slice não duplica o roteamento preparado pela frente Lore. Enquanto a PR de Lore permanecer draft, `route` fica opcional e o inspector mostra o estado pendente; depois da integração, o World Explorer deve reutilizar o resolver canônico de Lore em vez de introduzir um segundo mapa de `entityType -> rota`.
 
 ## Relations
 
@@ -411,6 +415,14 @@ Objetivo do protótipo/vertical slice:
 Dados de fixture devem viver separados de dados reais e ser marcados como demonstração.
 
 Uma relação desenhada na referência não é automaticamente canon.
+
+### Estado do recorte em implementação
+
+O recorte visual iniciado em `feat/world-explorer-visual-slice` usa somente fixture explícita em `src/features/world-explorer/fixtures/dandelion.ts`. O código separa DTO/projection, layout radial puro, adapter React Flow e componentes de apresentação. A rota `/mundo` resolve `?foco=` no servidor e entrega somente a projection 1-hop para o cliente; filtros do protótipo operam sobre essa projection já limitada.
+
+A versão de `@xyflow/react` foi revalidada em 2026-09-07 antes da implementação: `12.11.6`, linha 12.x suportada e licença MIT. O pacote é fixado exatamente, conforme a política do repositório. O lockfile ainda precisa ser regenerado pelo `pnpm` canônico antes de a PR ser considerada validada.
+
+Este recorte não altera root layout, rotas de Lore, Supabase, relations, RLS, DNS ou deployment. A integração com perfis completos permanece deliberadamente pendente do resolver canônico da frente Lore.
 
 ## Critérios para ligar ao Supabase
 
