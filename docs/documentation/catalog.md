@@ -28,6 +28,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0005 — Canon exige fonte e revisão](../adr/0005-canon-review-gate.md) | Não declarado | accepted | Não declarado |
 | [ADR-0006 — React Flow como engine de visualização do World Explorer](../adr/0006-react-flow-world-explorer.md) | frontend / narrative-memory | aceito | Não declarado |
 | [ADR-0007 — Edit como workbench server-first orientado a capabilities](../adr/0007-edit-workbench.md) | Não declarado | Não declarado | Não declarado |
+| [ADR-0008 — autorização orientada a capabilities e scope](../adr/0008-capability-authorization.md) | identity/access + arquitetura + segurança | accepted | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -78,7 +79,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | schema implementado; operação integrada ainda preparada/planejada | 2026-09-06 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
-| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | implementado + convergência em andamento | 2026-09-06 |
+| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-07 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | legado funcional + modernização planejada | 2026-09-06 |
 | [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-06 |
 
@@ -138,4 +139,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-77 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+78 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

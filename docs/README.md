@@ -110,6 +110,7 @@ A documentação é organizada em camadas para continuar navegável quando o pro
 - [ADR-0005 — canon exige fonte e revisão](adr/0005-canon-review-gate.md)
 - [ADR-0006 — React Flow como engine do World Explorer](adr/0006-react-flow-world-explorer.md)
 - [ADR-0007 — Edit como workbench server-first orientado a capabilities](adr/0007-edit-workbench.md)
+- [ADR-0008 — autorização orientada a capabilities e scope](adr/0008-capability-authorization.md)
 
 ### Governança da própria documentação
 

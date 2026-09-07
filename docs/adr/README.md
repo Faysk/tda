@@ -23,6 +23,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0005](0005-canon-review-gate.md) | accepted | fonte → candidato → revisão → canon/publicação |
 | [0006](0006-react-flow-world-explorer.md) | accepted | React Flow visualiza o World Explorer sem definir domínio/schema |
 | [0007](0007-edit-workbench.md) | accepted | Edit é workbench server-first, incremental e orientado a capabilities |
+| [0008](0008-capability-authorization.md) | accepted | Auth novo autoriza por capability + scope, sem super-role implícita |
 
 ## Quando criar ADR
 
@@ -42,6 +43,8 @@ Não criar ADR para detalhe puramente visual ou refactor local sem consequência
 A adoção de React Flow recebeu ADR porque define a engine de uma superfície principal e estabelece explicitamente que a biblioteca fica isolada atrás de uma projection layer, evitando acoplamento de schema.
 
 O Edit recebeu ADR porque define uma superfície administrativa principal, seu boundary de autorização, sua estratégia de migração do legado e a decisão de permanecer dentro do mesmo frontend/runtime do TDA.
+
+Auth/capabilities recebeu ADR porque muda a estratégia de autorização do reboot: novas superfícies deixam de decidir acesso por nome de role e passam a exigir capability + scope + ownership explícitos.
 
 ## Regra histórica
 
