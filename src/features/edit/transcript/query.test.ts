@@ -34,31 +34,33 @@ function accessContext(
 function dependencies(
 	overrides: Partial<TranscriptQueryDependencies> = {},
 ): TranscriptQueryDependencies {
+	const readPage: TranscriptQueryDependencies["readPage"] = vi.fn(async () => ({
+		segments: [
+			{
+				id: segmentId,
+				sessionId,
+				startMs: 1000,
+				endMs: 2000,
+				text: "Teste",
+				speakerName: "Dandelion",
+				characterName: "Dandelion",
+				speakerRole: "player",
+				trackKey: "track-1",
+				reviewStatus: "pending" as const,
+				needsReview: true,
+				sourceSegmentId: "source-1",
+				sourceFileId: null,
+				sourceChunkId: null,
+				textChars: 5,
+				textWords: 1,
+			},
+		],
+		nextCursor: null,
+	}));
+
 	return {
 		resolveAccessContext: vi.fn(async () => accessContext()),
-		readPage: vi.fn(async () => ({
-			segments: [
-				{
-					id: segmentId,
-					sessionId,
-					startMs: 1000,
-					endMs: 2000,
-					text: "Teste",
-					speakerName: "Dandelion",
-					characterName: "Dandelion",
-					speakerRole: "player",
-					trackKey: "track-1",
-					reviewStatus: "pending",
-					needsReview: true,
-					sourceSegmentId: "source-1",
-					sourceFileId: null,
-					sourceChunkId: null,
-					textChars: 5,
-					textWords: 1,
-				},
-			],
-			nextCursor: null,
-		})),
+		readPage,
 		...overrides,
 	};
 }
