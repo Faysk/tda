@@ -2,30 +2,28 @@
 
 import { useEffect, useState } from "react";
 import {
-	nextThemePreference,
+	oppositeTheme,
 	parseThemePreference,
 	THEME_STORAGE_KEY,
-	themeLabel,
+	type ResolvedTheme,
 	type ThemePreference,
 } from "@/features/theme/preference";
 
-function effectiveTheme(preference: ThemePreference): "light" | "dark" {
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
 	if (preference === "light" || preference === "dark") return preference;
-	return window.matchMedia("(prefers-color-scheme: light)").matches
-		? "light"
-		: "dark";
+	return window.matchMedia("(prefers-color-scheme: dark)").matches
+		? "dark"
+		: "light";
 }
 
-function applyPreference(preference: ThemePreference) {
+function applyTheme(theme: ResolvedTheme) {
 	const root = document.documentElement;
-	if (preference === "system") delete root.dataset.theme;
-	else root.dataset.theme = preference;
-	root.style.colorScheme = preference === "system" ? "light dark" : preference;
+	root.dataset.theme = theme;
+	root.style.colorScheme = theme;
 }
 
 export function ThemeToggle() {
-	const [preference, setPreference] = useState<ThemePreference>("system");
-	const [effective, setEffective] = useState<"light" | "dark">("dark");
+	const [effective, setEffective] = useState<ResolvedTheme>("dark");
 
 	useEffect(() => {
 		let stored: string | null = null;
@@ -34,15 +32,18 @@ export function ThemeToggle() {
 		} catch {
 			stored = null;
 		}
-		const initial = parseThemePreference(stored);
-		setPreference(initial);
-		applyPreference(initial);
-		setEffective(effectiveTheme(initial));
 
-		const media = window.matchMedia("(prefers-color-scheme: light)");
+		const preference = parseThemePreference(stored);
+		if (preference === "system") {
+			delete document.documentElement.dataset.theme;
+			document.documentElement.style.colorScheme = "light dark";
+		}
+		setEffective(resolveTheme(preference));
+
+		const media = window.matchMedia("(prefers-color-scheme: dark)");
 		const onSystemChange = () => {
 			if (!document.documentElement.dataset.theme) {
-				setEffective(media.matches ? "light" : "dark");
+				setEffective(media.matches ? "dark" : "light");
 			}
 		};
 		media.addEventListener("change", onSystemChange);
@@ -50,35 +51,46 @@ export function ThemeToggle() {
 	}, []);
 
 	const changeTheme = () => {
-		const next = nextThemePreference(preference);
+		const next = oppositeTheme(effective);
 		try {
-			if (next === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
-			else window.localStorage.setItem(THEME_STORAGE_KEY, next);
+			window.localStorage.setItem(THEME_STORAGE_KEY, next);
 		} catch {
-			// The theme still applies for this page when storage is unavailable.
+			// The explicit choice still applies for this page when storage is unavailable.
 		}
-		applyPreference(next);
-		setPreference(next);
-		setEffective(effectiveTheme(next));
+		applyTheme(next);
+		setEffective(next);
 	};
+
+	const isDark = effective === "dark";
 
 	return (
 		<button
 			className="theme-toggle"
 			type="button"
+			role="switch"
+			aria-checked={isDark}
+			aria-label="Modo escuro"
+			title={isDark ? "Usar tema claro" : "Usar tema escuro"}
 			onClick={changeTheme}
-			aria-label={themeLabel(preference, effective)}
-			title={themeLabel(preference, effective)}
 		>
-			<span className="theme-toggle-icon" aria-hidden="true">
-				{effective === "light" ? "☀" : "☾"}
-			</span>
-			<span className="theme-toggle-label">
-				{preference === "system"
-					? "sistema"
-					: preference === "light"
-						? "claro"
-						: "escuro"}
+			<span className="theme-toggle-track" aria-hidden="true">
+				<span className="theme-toggle-knob">
+					<svg
+						className="theme-toggle-glyph theme-toggle-glyph--sun"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+					>
+						<circle cx="12" cy="12" r="3.25" />
+						<path d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.28 5.28l1.42 1.42M17.3 17.3l1.42 1.42M18.72 5.28 17.3 6.7M6.7 17.3l-1.42 1.42" />
+					</svg>
+					<svg
+						className="theme-toggle-glyph theme-toggle-glyph--moon"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+					>
+						<path d="M20.1 14.7A8.25 8.25 0 0 1 9.3 3.9 8.5 8.5 0 1 0 20.1 14.7Z" />
+					</svg>
+				</span>
 			</span>
 		</button>
 	);

@@ -20,11 +20,13 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/");
 
-	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+	await expect(navigation).toBeVisible();
 	await expect(
-		page.getByRole("link", { name: "Sessões", exact: true }),
+		navigation.getByRole("link", { name: "Sessões", exact: true }),
 	).toBeVisible();
-	await expect(page.getByRole("button", { name: /Tema/ })).toBeVisible();
+	await expect(navigation.getByRole("link", { name: "Início" })).toHaveCount(0);
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= innerWidth,
@@ -45,26 +47,40 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	).toBeTruthy();
 });
 
-test("theme preference cycles and persists", async ({ page }) => {
+test("theme follows the system by default and persists explicit toggles", async ({
+	page,
+}) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
-	const toggle = page.getByRole("button", { name: /Tema do sistema \(escuro\)/ });
+	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	await expect(toggle).toBeVisible();
+	await expect(toggle).toHaveAttribute("aria-checked", "true");
+	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
 
 	await toggle.click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	await expect(toggle).toHaveAttribute("aria-checked", "false");
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"light",
 	);
 
 	await page.reload();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-	await page.getByRole("button", { name: /Tema claro/ }).click();
-	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
+		"aria-checked",
+		"false",
+	);
 
-	await page.getByRole("button", { name: /Tema escuro/ }).click();
-	await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
-	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBeNull();
+	await page.getByRole("switch", { name: "Modo escuro" }).click();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
+		"aria-checked",
+		"true",
+	);
+	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
+		"dark",
+	);
 });
 
 test("official design tokens and brand variant follow the resolved theme", async ({
@@ -91,9 +107,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 		),
 	).toBe("none");
 
-	await page
-		.getByRole("button", { name: /Tema do sistema \(escuro\)/ })
-		.click();
+	await page.getByRole("switch", { name: "Modo escuro" }).click();
 	expect(
 		await page.evaluate(() =>
 			getComputedStyle(document.documentElement)
@@ -121,6 +135,10 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 	expect(
 		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0s");
+	const knob = page.locator(".theme-toggle-knob");
+	expect(await knob.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
+		"0s",
+	);
 });
 
 test("legacy session hashes map to reboot paths", async ({ page }) => {

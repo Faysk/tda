@@ -1,50 +1,127 @@
 .theme-toggle {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 7px;
-	min-height: 44px;
-	padding: 8px 12px;
-	border: 1px solid var(--ds-control-border);
-	border-radius: var(--ds-radius-sm);
+	display: inline-grid;
+	width: 58px;
+	min-width: 58px;
+	height: 44px;
+	place-items: center;
+	padding: 0;
+	border: 0;
 	background: transparent;
-	color: var(--ds-foreground-muted);
-	font-family: var(--ds-font-ui);
-	font-size: 0.72rem;
-	font-weight: 600;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	cursor: pointer;
-	transition:
-		background-color 150ms ease,
-		border-color 150ms ease,
-		color 150ms ease;
-}
-
-.theme-toggle:hover {
-	border-color: var(--ds-accent);
-	background: var(--ds-accent-muted);
 	color: var(--ds-foreground);
+	cursor: pointer;
 }
 
-.theme-toggle-icon {
-	width: 1.2em;
-	font-size: 1rem;
-	line-height: 1;
-	text-align: center;
+.theme-toggle-track {
+	position: relative;
+	display: block;
+	width: 52px;
+	height: 30px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 999px;
+	background: var(--ds-surface);
+	box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.08);
+	transition:
+		background-color 180ms ease,
+		border-color 180ms ease,
+		box-shadow 180ms ease;
+}
+
+.theme-toggle-knob {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	display: grid;
+	width: 24px;
+	height: 24px;
+	place-items: center;
+	border-radius: 50%;
+	background: var(--ds-foreground);
+	color: var(--ds-canvas);
+	box-shadow: 0 2px 7px rgba(0, 0, 0, 0.22);
+	transform: translateX(0);
+	transition:
+		transform 220ms cubic-bezier(0.2, 0.75, 0.25, 1),
+		background-color 180ms ease,
+		color 180ms ease;
+}
+
+.theme-toggle-glyph {
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.8;
+	transition:
+		opacity 140ms ease,
+		transform 180ms ease;
+}
+
+.theme-toggle-glyph--sun {
+	opacity: 1;
+	transform: rotate(0deg) scale(1);
+}
+
+.theme-toggle-glyph--moon {
+	opacity: 0;
+	transform: rotate(-18deg) scale(0.72);
+}
+
+:root[data-theme="dark"] .theme-toggle-knob {
+	transform: translateX(22px);
+}
+
+:root[data-theme="dark"] .theme-toggle-glyph--sun {
+	opacity: 0;
+	transform: rotate(18deg) scale(0.72);
+}
+
+:root[data-theme="dark"] .theme-toggle-glyph--moon {
+	opacity: 1;
+	transform: rotate(0deg) scale(1);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme]) .theme-toggle-knob {
+		transform: translateX(22px);
+	}
+
+	:root:not([data-theme]) .theme-toggle-glyph--sun {
+		opacity: 0;
+		transform: rotate(18deg) scale(0.72);
+	}
+
+	:root:not([data-theme]) .theme-toggle-glyph--moon {
+		opacity: 1;
+		transform: rotate(0deg) scale(1);
+	}
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.theme-toggle:hover .theme-toggle-track {
+		border-color: var(--ds-accent);
+		background: var(--ds-surface-hover);
+		box-shadow:
+			inset 0 1px 1px rgba(0, 0, 0, 0.08),
+			0 0 0 3px var(--ds-accent-muted);
+	}
 }
 
 .brand-symbol {
 	position: relative;
 	display: block;
-	width: 42px;
-	height: 42px;
-	flex: 0 0 42px;
+	width: 50px;
+	height: 50px;
+	flex: 0 0 50px;
 }
 
 .brand-symbol-image {
 	position: absolute;
 	inset: 0;
+	width: 50px;
+	height: 50px;
 }
 
 .brand-symbol-image--light {
@@ -70,25 +147,21 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.theme-toggle {
+	.theme-toggle-track,
+	.theme-toggle-knob,
+	.theme-toggle-glyph {
 		transition: none;
 	}
 }
 
-@media (max-width: 650px) {
-	.theme-toggle {
+@media (max-width: 520px) {
+	.brand-symbol,
+	.brand-symbol-image {
 		width: 44px;
-		padding-inline: 0;
+		height: 44px;
 	}
 
-	.theme-toggle-label {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		overflow: hidden;
-		clip: rect(0, 0, 0, 0);
-		white-space: nowrap;
-		border: 0;
+	.brand-symbol {
+		flex-basis: 44px;
 	}
 }
