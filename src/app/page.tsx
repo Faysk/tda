@@ -18,10 +18,10 @@ export const dynamic = "force-dynamic";
 
 function SessionArtwork({
 	session,
-	priority = false,
+	preload = false,
 }: {
 	session: PublishedSession;
-	priority?: boolean;
+	preload?: boolean;
 }) {
 	const artwork = session.heroImage || session.coverImage;
 	if (!artwork) {
@@ -38,9 +38,9 @@ function SessionArtwork({
 			src={artwork}
 			alt=""
 			fill
-			priority={priority}
+			preload={preload}
 			sizes={
-				priority
+				preload
 					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 1080px"
 					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px"
 			}
@@ -120,7 +120,7 @@ export default async function Home() {
 								href={`/sessoes/${encodeURIComponent(latest.id)}`}
 								aria-label={`Abrir ${latest.title}`}
 							>
-								<SessionArtwork session={latest} priority />
+								<SessionArtwork session={latest} preload />
 								<div className={styles.latestMediaShade} aria-hidden="true" />
 								<span className={styles.latestBadge}>Última sessão</span>
 							</Link>
