@@ -9,6 +9,8 @@
 	background: transparent;
 	color: var(--ds-foreground);
 	cursor: pointer;
+	/* Deliberately slow for tuning so every phase of the interaction is visible. */
+	--theme-toggle-duration: 2s;
 	--theme-toggle-spring: linear(
 		0,
 		0.064 6.25%,
@@ -40,9 +42,9 @@
 	background: var(--ds-surface);
 	box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.08);
 	transition:
-		background-color var(--ds-motion-base) var(--ds-ease-standard),
-		border-color var(--ds-motion-base) var(--ds-ease-standard),
-		box-shadow var(--ds-motion-base) var(--ds-ease-standard);
+		background-color var(--theme-toggle-duration) var(--ds-ease-standard),
+		border-color var(--theme-toggle-duration) var(--ds-ease-standard),
+		box-shadow var(--theme-toggle-duration) var(--ds-ease-standard);
 }
 
 .theme-toggle-knob {
@@ -60,8 +62,9 @@
 	transform: translate3d(0, 0, 0);
 	scale: 1;
 	transition:
-		transform 320ms var(--theme-toggle-spring),
-		scale 120ms ease-out;
+		transform var(--theme-toggle-duration) var(--theme-toggle-spring),
+		scale 120ms ease-out,
+		box-shadow var(--theme-toggle-duration) var(--ds-ease-standard);
 }
 
 .theme-toggle-glyph {
@@ -76,22 +79,20 @@
 	transform-origin: 50% 50%;
 	shape-rendering: geometricPrecision;
 	transition:
-		opacity 140ms ease,
-		transform 260ms var(--theme-toggle-spring);
+		opacity var(--theme-toggle-duration) var(--ds-ease-standard),
+		transform var(--theme-toggle-duration) var(--theme-toggle-spring);
 }
 
 /* The icon communicates the action: moon in light mode, sun in dark mode. */
 .theme-toggle-glyph--sun {
 	opacity: 0;
 	transform: rotate(24deg) scale(0.78);
-	transition-delay: 0ms;
 }
 
 .theme-toggle-glyph--moon {
 	opacity: 1;
 	/* The crescent has more visual mass at bottom-left, so center it optically. */
 	transform: translate(0.85px, -0.85px) rotate(0deg) scale(1.05);
-	transition-delay: 55ms;
 }
 
 :root[data-theme="dark"] .theme-toggle-knob {
@@ -101,13 +102,11 @@
 :root[data-theme="dark"] .theme-toggle-glyph--sun {
 	opacity: 1;
 	transform: rotate(0deg) scale(1);
-	transition-delay: 55ms;
 }
 
 :root[data-theme="dark"] .theme-toggle-glyph--moon {
 	opacity: 0;
 	transform: translate(0.85px, -0.85px) rotate(-24deg) scale(0.8);
-	transition-delay: 0ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -118,13 +117,11 @@
 	:root:not([data-theme]) .theme-toggle-glyph--sun {
 		opacity: 1;
 		transform: rotate(0deg) scale(1);
-		transition-delay: 55ms;
 	}
 
 	:root:not([data-theme]) .theme-toggle-glyph--moon {
 		opacity: 0;
 		transform: translate(0.85px, -0.85px) rotate(-24deg) scale(0.8);
-		transition-delay: 0ms;
 	}
 }
 
@@ -165,7 +162,7 @@
 	width: 50px;
 	height: 50px;
 	pointer-events: none;
-	transition: opacity var(--ds-motion-base) var(--ds-ease-soft);
+	transition: opacity var(--ds-motion-theme) var(--ds-ease-soft);
 }
 
 .brand-symbol-image--dark {
