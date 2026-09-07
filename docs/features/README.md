@@ -17,8 +17,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
-| perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
-| World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
+| perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
+| World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
 | relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
 | contrato de dados de relations | proposta para revisão; nenhuma DDL aplicada | [Relations data contract](relations-data-contract.md) |
 | knowledge/audience | em desenho | [Conhecimento e audiência](knowledge-audience.md) |

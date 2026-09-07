@@ -36,10 +36,10 @@ Estados:
 | Candidatos a canon | implementado no schema | `canon_candidates` + fontes + revisão |
 | Citações/outtakes | implementado no schema | candidatos e review flow já existem |
 | Publicações | implementado no schema | `publications`; conteúdo publicado atual já existe |
-| Perfis editoriais de entities | arquitetura aprovada | páginas tipadas por UX sobre registry única `entities`; spec em `features/entity-profiles.md`; candidatos abertos não equivalem a projection pública integrada |
+| Perfis editoriais de entities | scaffold integrado; projection pendente | shells compartilhados, scenes e narração opcional; conteúdo real depende de projection autorizada |
 | Relações entre entities | documentado, schema em desenho | relation first-class com direção/simetria, lifecycle, visibility e fonte; proposta em `features/relations-data-contract.md` |
-| World Explorer / Ecos da Jornada | arquitetura aprovada | React Flow escolhido para visualização; layout radial e projection autorizada; nenhum vertical slice candidato é tratado aqui como integrado |
-| Grafo visual | arquitetura aprovada | `@xyflow/react` é engine de apresentação aprovada; não define schema nem autorização e só vira dependência runtime quando a implementação correspondente integrar |
+| World Explorer / Ecos da Jornada | slice visual integrado | React Flow e layout radial; fixtures demonstrativas, dados canônicos pendentes |
+| Grafo visual | slice visual integrado | `@xyflow/react` integrado; não define schema nem autorização |
 | Timeline por entidade | preparado | sessions/participants/mentions/canon já dão a base; UI/query ainda futuras |
 | Conhecimento por audiência | documentado, precisa de desenho | distinguir jogador, personagem, público, rumor, mentira e segredo do mestre; não esconder em JSON genérico |
 | Busca semântica | documentado, precisa de desenho | embeddings futuros devem manter referência a fonte/entity e nunca alterar canon |

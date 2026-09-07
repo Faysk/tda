@@ -19,18 +19,19 @@ A prioridade editorial e de integração é:
 
 Design System/Brand Pack, segurança, documentação viva, custo gratuito/Hobby quando possível e processamento pesado local são invariantes transversais, não uma desculpa para furar essa ordem.
 
-## Snapshot de coordenação — candidatos abertos em 2026-09-07
+## Integração conjunta — 2026-09-07
 
-Este quadro **não substitui os documentos donos nem promove PR aberta a estado vigente**. Serve somente para tornar dependências explícitas no ponto de coordenação observado com `main` em `3e3c2dcb98a30ef28a1d4bbc6b5ce76ad1d66efc`.
+As entregas #26, #39, #40, #43, #44, #45, #47, #48, #49, #50 e #51 foram reunidas no candidato destinado à main. Integração de código não equivale a publicação ou aplicação de migrations.
 
-| Área | Estado vigente na `main` | Candidatos/dependências abertas | Gate antes de avançar o estado canônico |
-| --- | --- | --- | --- |
-| público / metadata / mídia | Home e sessões públicas existem; contrato operacional de preview/crawler da #46 está integrado; R2 público continua sem entrega pública ativa | #47 implementa metadata SSR/fallback e mídia social verificada; issue #25 continua aberta; #49 recupera 22 imagens em dry-run validado, sem upload/public delivery | #47 pode continuar segura com fallback; artwork de sessão só pode ser promovida após evidência pública real da #25/#49; merge ainda não é release |
-| Auth / login | schema/RBAC e boundaries server-side de transição existem, mas não há login Discord oficial integrado | #43 é contrato/ADR candidato; #48 é implementação Discord SSR/guards e correção runtime de scope; OAuth real/callback de ambiente ainda não foi comprovado | reconciliar ownership #43/#48, integrar apenas SHA final validado e verificar OAuth real no ambiente autorizado antes de declarar publicação |
-| Edit / transcript | workbench temporário da #29 está na `main` mas desligado por default; #33/#34 integraram `revision` e sua leitura autorizada | issue #32 continua aberta; #44 contém RPC/migration atômica candidata não aplicada; #39 contém UX de conflito/retry; #48 fornece Auth/guards candidatos | integrar e aplicar deliberadamente #44 pelo runbook, verificar remoto; depois ligar adapter Auth/Edit ao RPC e à state machine; só então retirar `TDA_EDIT_UNSAFE` em recorte próprio |
-| metadata compartilhada / World / Lore | contratos arquiteturais de World e perfis existem; nenhuma das implementações abaixo está na `main` | #47 é dependência compartilhada; #45 é draft/stack de World e ainda está baseada em head anterior da #47; #26 é draft de Lore e aguarda o helper central + conteúdo/projection autorizados | após estabilizar #47 na base canônica, retarget/reconciliar #45 e revalidar SHA; #26 deve consumir o helper central sem duplicá-lo e continuar sem publicar fixture/conteúdo não autorizado |
+| Área | Código reunido | Pendência operacional/funcional |
+| --- | --- | --- |
+| Home, sessões e mídia | metadata SSR, fallback verificado, recuperação de imagens e suporte restrito ao host R2 | 22 objetos R2 já têm HTTPS/read-back verificados; site usa referências anteriores. Publicar runtime, validar optimizer e só depois promover referências por CAS. |
+| Discord | contrato, SSR e guards | Validar OAuth real e callbacks do ambiente. |
+| Edit | UX de recuperação e migration/RPC atômica versionada | Migration não aplicada; conectar adapter canônico e validar fluxo completo antes de declarar edição concluída. |
+| World e Lore | slice visual do grafo e shells editoriais integrados | Dados canônicos/projection e narração real pendentes; fixtures não são conteúdo publicado. |
+| Estatísticas | fora desta integração | Trabalho parcial interrompido pelo limite de uso; sem PR validada. |
 
-Detalhes operacionais da recuperação de mídia pertencem à #25/#49 e a `docs/integrations/r2.md`; configuração de login pertence ao owner de identity/access; SQL/aplicação do Edit pertence ao owner de banco; metadata SSR pertence ao owner de hosting/metadata. Este roadmap não replica essas auditorias.
+Detalhes de mídia: [entrega pública](integrations/media-public-delivery-2026-09-07.md). A publicação é deliberada; push na main não faz deploy. SQL, DNS e dados de produção não são alterados pela integração.
 
 ## R1 — Fundação
 
@@ -62,7 +63,7 @@ Inclui:
 - temas light/dark/system;
 - compatibilidade de URLs antigas;
 - mobile/acessibilidade;
-- migração física das imagens para R2 pendente;
+- imagens copiadas e verificadas no R2; troca das referências do site pendente;
 - homologação/deploy apenas na Vercel correta.
 
 Auth não é requisito para leitura pública; sua convergência pertence ao R3. A próxima release pública deve seguir os gates de navegação/metadata do runbook e registrar o SHA realmente publicado.
@@ -89,7 +90,7 @@ Regra:
 
 ## R2.2 — World Explorer / Ecos da Jornada — vertical slice
 
-**Estado na `main`:** arquitetura aprovada; implementação não integrada.
+**Estado na `main`:** slice visual integrado; dados canônicos e validação funcional completa pendentes.
 
 Objetivo: validar a experiência visual de memória conectada antes de persistir um grande catálogo de relations.
 

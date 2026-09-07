@@ -368,4 +368,3 @@ Até lá, esta frente não amplia o bypass nem cria segundo caminho de autoriza�
 ## Implementação de login Discord
 
 O candidato implementa entrada exclusivamente Discord, sessão SSR e guards administrativos. Consulte o [runbook Discord](../operations/discord-auth.md). Login não concede administração; profile e capabilities continuam obrigatórios. O resolver usa scope_type=project e scope_id=tda para project/tda e exige a action no grant ativo. Falhas operacionais negam acesso.
-

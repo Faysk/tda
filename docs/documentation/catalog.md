@@ -8,12 +8,12 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | Não declarado | Não declarado | Não declarado |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-07 |
 | [Arquitetura](../architecture.md) | Não declarado | Não declarado | Não declarado |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | Não declarado | Não declarado | Não declarado |
-| [Infraestrutura e estado](../infrastructure.md) | Não declarado | Não declarado | Não declarado |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-07 |
+| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente; production ativa | 2026-09-07 |
 | [Publicação controlada](../releases.md) | Não declarado | Não declarado | Não declarado |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-07 |
 
@@ -67,7 +67,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação viva](README.md) | Não declarado | Não declarado | Não declarado |
+| [Documentação viva](README.md) | documentação/arquitetura | vigente | 2026-09-07 |
 | [ADR-NNNN — Título](adr-template.md) | Não declarado | proposed  /  accepted  /  superseded  /  rejected | Não declarado |
 | [Template de documento](document-template.md) | Não declarado | Não declarado | Não declarado |
 
@@ -113,6 +113,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-07 |
 | [Companion local](../integrations/local-companion.md) | local-companion/processing | legado funcional; modernização planejada | 2026-09-06 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
+| [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
+| [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
 | [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-07 |
 | [Integração Supabase](../integrations/supabase.md) | integrations + data + identity | implementado/canônico | 2026-09-06 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
@@ -132,6 +134,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-07 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | Não declarado |
+| [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | implementado no candidato; OAuth real e publicação pendentes | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
@@ -139,4 +142,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-78 páginas inventariadas, além deste catálogo gerado. 16 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+81 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
