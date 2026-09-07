@@ -11,6 +11,7 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 | Feature | Estado | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental | [Edit Workbench](edit-workbench.md) |
+| Edit / transcript server-side | leitura autorizada em implementação; mutation persistence bloqueada por revision | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
