@@ -36,20 +36,17 @@ export function LoreCinematicHero({
 		const coarsePointer = window.matchMedia("(pointer: coarse)");
 		if (reducedMotion.matches || coarsePointer.matches) return;
 
-		const movingLayers = Array.from(
-			root.querySelectorAll<HTMLElement>("[data-lore-depth]"),
-		);
 		let frame = 0;
 		let pointerX = 0;
 		let pointerY = 0;
 
 		const render = () => {
 			frame = 0;
-			for (const layer of movingLayers) {
+			for (const layer of root.querySelectorAll<HTMLElement>("[data-lore-depth]")) {
 				const depth = Number(layer.dataset.loreDepth ?? 0);
 				const x = pointerX * motion.pointerAmplitudeX * depth;
 				const y = pointerY * motion.pointerAmplitudeY * depth;
-				layer.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+				layer.style.setProperty("--lore-pointer-transform", `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`);
 			}
 		};
 
@@ -82,7 +79,6 @@ export function LoreCinematicHero({
 		motion.pointerAmplitudeX,
 		motion.pointerAmplitudeY,
 		scene.motion.pointerParallax,
-		activeSceneId,
 	]);
 
 	return (

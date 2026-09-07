@@ -4,6 +4,21 @@ import type {
 	LorePresentation,
 } from "./model";
 
+/** Native captions share the same editorial text and timing as the visible player. */
+export function loreNarrationWebVtt(narration: LoreNarrationDTO): string {
+	const timestamp = (ms: number) => {
+		const value = Math.max(0, Math.round(ms));
+		const hours = Math.floor(value / 3600000);
+		const minutes = Math.floor(value / 60000) % 60;
+		const seconds = Math.floor(value / 1000) % 60;
+		return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(value % 1000).padStart(3, "0")}`;
+	};
+	return `WEBVTT\n\n${narration.beats.map((beat) => {
+		const text = beat.subtitle.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replace(/\r?\n\s*\r?\n/g, "\n");
+		return `${timestamp(beat.startMs)} --> ${timestamp(beat.endMs)}\n${text}\n\n`;
+	}).join("")}`;
+}
+
 export function findActiveLoreBeat(
 	beats: readonly LoreNarrationBeatDTO[],
 	currentMs: number,

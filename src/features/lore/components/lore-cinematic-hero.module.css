@@ -36,6 +36,7 @@
 .layer {
 	inset: -1.5%;
 	will-change: transform;
+	transform: var(--lore-pointer-transform, none);
 	transition: transform 900ms var(--ds-ease-soft);
 }
 
@@ -153,7 +154,7 @@
 }
 
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
-	.layer { transition: none; transform: none !important; }
+	.layer { transition: none; transform: none; }
 	.fog,
 	.dust { animation: none; }
 }

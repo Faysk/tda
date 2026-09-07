@@ -3,6 +3,7 @@ import { demoLoreProfile } from "./fixtures/demo-profile";
 import {
 	findActiveLoreBeat,
 	loreNarrationEndMs,
+	loreNarrationWebVtt,
 	validateLoreNarration,
 } from "./timeline";
 
@@ -23,5 +24,12 @@ describe("lore narration timeline", () => {
 	it("validates beat ranges and scene references", () => {
 		expect(validateLoreNarration(narration, demoLoreProfile.presentation)).toEqual([]);
 		expect(loreNarrationEndMs(narration)).toBe(8000);
+	});
+
+	it("exports native captions with exact cue timing and escaped editorial text", () => {
+		expect(loreNarrationWebVtt({ ...narration, beats: [{
+			id: "caption", startMs: 3661123, endMs: 3662456,
+			subtitle: "<A> & B\n\nNext line",
+		}] })).toBe("WEBVTT\n\n01:01:01.123 --> 01:01:02.456\n&lt;A&gt; &amp; B\nNext line\n\n");
 	});
 });

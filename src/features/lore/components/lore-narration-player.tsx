@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LoreNarrationDTO } from "../model";
-import { findActiveLoreBeat, loreNarrationEndMs } from "../timeline";
+import { findActiveLoreBeat, loreNarrationEndMs, loreNarrationWebVtt } from "../timeline";
 import styles from "./lore-narration-player.module.css";
 
 type LoreNarrationPlayerProps = {
@@ -22,6 +22,10 @@ export function LoreNarrationPlayer({
 	onSceneChange,
 }: LoreNarrationPlayerProps) {
 	const audioRef = useRef<HTMLAudioElement>(null);
+	const captionsSrc = useMemo(
+		() => `data:text/vtt;charset=utf-8,${encodeURIComponent(loreNarrationWebVtt(narration))}`,
+		[narration],
+	);
 	const [currentMs, setCurrentMs] = useState(0);
 	const [durationMs, setDurationMs] = useState(
 		narration.durationMs ?? loreNarrationEndMs(narration),
@@ -72,7 +76,9 @@ export function LoreNarrationPlayer({
 			onPlay={() => setPlaying(true)}
 			onPause={() => setPlaying(false)}
 			onEnded={() => setPlaying(false)}
-		/>
+		>
+			<track kind="captions" src={captionsSrc} srcLang="pt-BR" label="Português" default />
+		</audio>
 
 		<div className={styles.controls}>
 			<button type="button" onClick={togglePlayback} aria-pressed={playing}>

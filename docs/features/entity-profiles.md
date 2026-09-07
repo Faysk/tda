@@ -420,6 +420,8 @@ src/features/lore/
 
 O repository público permanece deliberadamente vazio até existir projection autorizada. A fixture interna serve testes/component development e não é roteável.
 
+Validação de suporte em 2026-09-07: `pnpm check` (64 testes unitários), build e 30 E2E passaram localmente com Node 24.20.0/pnpm 12.3.4. O player gera uma faixa WebVTT nativa a partir dos mesmos beats das legendas visíveis. Uma montagem local temporária, removida antes do commit, validou carregamento de dois cues, play/pause, seek, troca de cenas com o mesmo preset, parallax, reduced motion e viewport de 390 px. Essa montagem usou artwork sintético e oito segundos de silêncio: não comprova sincronização/acurácia com narração editorial real nem publicação do slice.
+
 ## Primeiro vertical slice
 
 Perfil de **Dandelion** continua sendo o candidato de validação quando houver fonte autorizada.
