@@ -1,7 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { SessionList } from "@/components/session-list";
+import {
+	ActionLink,
+	BodyCopy,
+	DisplayTitle,
+	Eyebrow,
+	SectionTitle,
+} from "@/components/ui";
 import { listPublishedSessions } from "@/features/sessions/repository";
+import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -16,69 +24,80 @@ export default async function Home() {
 	const heroImage = latest?.heroImage || latest?.coverImage;
 
 	return (
-		<>
-			<section className={`hero${heroImage ? " hero--with-art" : ""}`}>
+		<div className={styles.home}>
+			<section
+				className={`${styles.hero}${heroImage ? ` ${styles.heroWithArt}` : ""}`}
+			>
 				{heroImage ? (
 					<>
 						<Image
-							className="hero-art"
+							className={styles.heroArt}
 							src={heroImage}
 							alt=""
 							fill
 							priority
 							sizes="(max-width: 1200px) 100vw, 1200px"
 						/>
-						<div className="hero-overlay" aria-hidden="true" />
+						<div className={styles.heroOverlay} aria-hidden="true" />
 					</>
 				) : null}
-				<div className="hero-copy">
-					<span className="eyebrow">Nosso mundo, nossas histórias</span>
-					<h1>
+				<div className={styles.heroCopy}>
+					<Eyebrow className={styles.heroEyebrow}>
+						Nosso mundo, nossas histórias
+					</Eyebrow>
+					<DisplayTitle className={styles.heroTitle}>
 						Toda jornada
 						<br />
 						deixa uma história.
-					</h1>
-					<p>
+					</DisplayTitle>
+					<BodyCopy className={styles.heroBody}>
 						Entre encontros improváveis e decisões que mudam destinos, guardamos
 						as memórias da nossa mesa.
-					</p>
-					<div className="hero-actions">
-						<Link className="button" href="/sessoes">
+					</BodyCopy>
+					<div className={styles.heroActions}>
+						<ActionLink href="/sessoes" variant="primary">
 							Explorar as sessões <span aria-hidden="true">↗</span>
-						</Link>
+						</ActionLink>
 						{latest ? (
 							<Link
-								className="hero-latest"
+								className={styles.heroLatest}
 								href={`/sessoes/${encodeURIComponent(latest.id)}`}
 							>
-								<span>Última memória</span>
-								<strong>{latest.title}</strong>
+								<span className={styles.heroLatestLabel}>Última memória</span>
+								<strong className={styles.heroLatestTitle}>{latest.title}</strong>
 							</Link>
 						) : null}
 					</div>
 				</div>
-				<div className="hero-rule" />
+				<div className={styles.heroRule} aria-hidden="true" />
 			</section>
-			<section className="memories">
-				<div className="section-heading">
+
+			<section className={styles.memories}>
+				<div className={styles.sectionHeading}>
 					<div>
-						<span className="eyebrow">O que vivemos juntos</span>
-						<h2>Memórias da campanha</h2>
+						<Eyebrow>O que vivemos juntos</Eyebrow>
+						<SectionTitle className={styles.sectionTitle}>
+							Memórias da campanha
+						</SectionTitle>
 					</div>
-					<Link href="/sessoes">Ver todas →</Link>
+					<Link className={styles.sectionLink} href="/sessoes">
+						Ver todas <span aria-hidden="true">→</span>
+					</Link>
 				</div>
 				{sessions === undefined ? (
-					<p role="status">
+					<p className={styles.state} role="status">
 						Não foi possível carregar as memórias. Tente novamente em instantes.
 					</p>
 				) : sessions === null ? (
-					<p>Estamos preparando o arquivo de histórias da campanha.</p>
+					<p className={styles.state}>
+						Estamos preparando o arquivo de histórias da campanha.
+					</p>
 				) : sessions.length ? (
 					<SessionList sessions={sessions.slice(0, 4)} featuredFirst />
 				) : (
-					<p>Nenhuma sessão publicada ainda.</p>
+					<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
 				)}
 			</section>
-		</>
+		</div>
 	);
 }

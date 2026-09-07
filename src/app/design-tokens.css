@@ -36,14 +36,10 @@
 	--ds-control-border: #5f6772;
 	--ds-control-focus-ring: var(--ds-accent-strong);
 
-	/* Compatibility aliases for the pre-v1 reboot. Remove only after all consumers migrate. */
-	--bg: var(--ds-canvas);
-	--panel: var(--ds-surface);
-	--panel-soft: var(--ds-canvas-subtle);
-	--text: var(--ds-foreground);
-	--muted: var(--ds-foreground-muted);
-	--gold: var(--ds-accent);
-	--line: var(--ds-border);
+	/* Reboot semantic contract for text rendered over intentionally darkened artwork. */
+	--ds-on-art-foreground: #fffdf8;
+	--ds-on-art-soft: #d7d2c9;
+	--ds-on-art-accent: #f2c879;
 }
 
 :root[data-theme="light"] {

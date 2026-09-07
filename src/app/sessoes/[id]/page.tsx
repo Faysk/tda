@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StoryMarkdown } from "@/components/story-markdown";
+import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { formatSessionDate } from "@/features/sessions/model";
 import {
 	findPublishedSession,
@@ -89,19 +90,19 @@ export default async function Session({ params }: SessionParams) {
 					<Link className={styles.back} href="/sessoes">
 						← Todas as sessões
 					</Link>
-					<p className={`eyebrow ${styles.eyebrow}`}>
+					<Eyebrow className={styles.eyebrow}>
 						{session.arc || "Memória da campanha"}
-					</p>
-					<h1 className={styles.title}>{session.title}</h1>
+					</Eyebrow>
+					<DisplayTitle className={styles.title}>{session.title}</DisplayTitle>
 					{date ? (
-						<time className={`date ${styles.date}`} dateTime={session.date}>
+						<time className={styles.date} dateTime={session.date}>
 							{date}
 						</time>
 					) : null}
 				</div>
 			</header>
 
-			<div className={`page-section story ${styles.body}`}>
+			<div className={styles.body}>
 				<StoryMarkdown source={story} title={session.title} />
 				{previous || next ? (
 					<nav className={styles.pagination} aria-label="Navegação entre sessões">

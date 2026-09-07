@@ -16,6 +16,35 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	).toBeTruthy();
 });
 
+test("public shell stays usable at 320px", async ({ page }) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/");
+
+	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Sessões", exact: true }),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: /Tema/ })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= innerWidth,
+		),
+	).toBeTruthy();
+
+	await page.keyboard.press("Tab");
+	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
+
+	await page.goto("/sessoes");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+		"As histórias até aqui",
+	);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= innerWidth,
+		),
+	).toBeTruthy();
+});
+
 test("theme preference cycles and persists", async ({ page }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
@@ -97,6 +126,15 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 test("legacy session hashes map to reboot paths", async ({ page }) => {
 	await page.goto("/#/sessao/nonexistent/resumo");
 	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);
+});
+
+test("not-found state uses the public navigation contract", async ({ page }) => {
+	const response = await page.goto("/sessoes/nonexistent");
+	expect(response?.status()).toBe(404);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+		"Esta história não foi encontrada.",
+	);
+	await expect(page.getByRole("link", { name: "Voltar às sessões" })).toBeVisible();
 });
 
 test("unknown and private routes are not exposed", async ({ request }) => {

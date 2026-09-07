@@ -4,6 +4,8 @@ import {
 	formatSessionDate,
 	type PublishedSession,
 } from "@/features/sessions/model";
+import { Eyebrow } from "./ui";
+import styles from "./session-list.module.css";
 
 export function SessionList({
 	sessions,
@@ -13,20 +15,21 @@ export function SessionList({
 	featuredFirst?: boolean;
 }) {
 	return (
-		<div className={`session-grid${featuredFirst ? " session-grid--featured" : ""}`}>
+		<div className={styles.grid}>
 			{sessions.map((session, index) => {
 				const href = `/sessoes/${encodeURIComponent(session.id)}`;
 				const date = formatSessionDate(session.date);
 				const featured = featuredFirst && index === 0;
+
 				return (
 					<article
-						className={`session-card${featured ? " session-card--featured" : ""}`}
+						className={`${styles.card}${featured ? ` ${styles.featured}` : ""}`}
 						key={session.id}
 					>
-						<div className="session-card-media" aria-hidden="true">
+						<div className={styles.media} aria-hidden="true">
 							{session.coverImage ? (
 								<Image
-									className="session-card-image"
+									className={styles.image}
 									src={session.coverImage}
 									alt=""
 									fill
@@ -37,29 +40,32 @@ export function SessionList({
 									}
 								/>
 							) : (
-								<span className="session-card-placeholder">TDA</span>
+								<span className={styles.placeholder}>TDA</span>
 							)}
-							<div className="session-card-vignette" />
+							<div className={styles.vignette} />
 						</div>
-						<div className="session-card-body">
-							<span className="eyebrow">
+
+						<div className={styles.body}>
+							<Eyebrow className={styles.eyebrow}>
 								{index === 0
 									? "Última memória"
 									: session.arc || "Memória da campanha"}
-							</span>
-							<h2>
-								<Link href={href}>{session.title}</Link>
+							</Eyebrow>
+							<h2 className={styles.title}>
+								<Link className={styles.titleLink} href={href}>
+									{session.title}
+								</Link>
 							</h2>
 							{date ? (
-								<time className="date" dateTime={session.date}>
+								<time className={styles.date} dateTime={session.date}>
 									{date}
 								</time>
 							) : null}
-							<p className="session-card-summary">
+							<p className={styles.summary}>
 								{session.summary ||
 									"O resumo desta sessão ainda não está disponível."}
 							</p>
-							<Link className="read-link" href={href}>
+							<Link className={styles.readLink} href={href}>
 								Ler a história <span aria-hidden="true">→</span>
 							</Link>
 						</div>

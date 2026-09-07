@@ -2,6 +2,7 @@ body {
 	background: var(--ds-canvas);
 	color: var(--ds-foreground);
 	font-family: var(--ds-font-body);
+	line-height: 1.7;
 }
 
 h1,
@@ -19,9 +20,6 @@ button,
 input,
 select,
 textarea,
-.eyebrow,
-.date,
-.read-link,
 .brand small,
 footer {
 	font-family: var(--ds-font-ui);
@@ -35,28 +33,6 @@ textarea:focus-visible,
 [tabindex]:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 3px;
-}
-
-.button {
-	min-height: 44px;
-	border: 1px solid var(--ds-action-primary-border);
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-action-primary-bg);
-	color: var(--ds-action-primary-foreground);
-	font-family: var(--ds-font-ui);
-	font-weight: 600;
-	transition:
-		background-color 150ms ease,
-		border-color 150ms ease,
-		color 150ms ease,
-		transform 150ms ease;
-}
-
-.button:hover {
-	border-color: var(--ds-action-primary-hover);
-	background: var(--ds-action-primary-hover);
-	color: var(--ds-action-primary-foreground);
-	transform: translateY(-1px);
 }
 
 /* Shared primitives. Prefer these classes/components over page-specific visual roles. */
@@ -169,6 +145,7 @@ textarea:focus-visible,
 	color: var(--ds-foreground);
 	font-family: var(--ds-font-display);
 	font-weight: 400;
+	text-wrap: balance;
 }
 
 .ds-display-title {
@@ -233,17 +210,11 @@ textarea:focus-visible,
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.button,
-	.ds-action,
-	.session-card,
-	.session-card-image {
+	.ds-action {
 		transition: none;
 	}
 
-	.button:hover,
-	.ds-action--primary:hover,
-	.session-card:hover,
-	.session-card:hover .session-card-image {
+	.ds-action--primary:hover {
 		transform: none;
 	}
 }

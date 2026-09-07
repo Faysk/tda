@@ -1,12 +1,26 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 function fail(message) {
 	throw new Error(`Design system check failed: ${message}`);
 }
 
-function sha256(path) {
-	return crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+function sha256(filePath) {
+	return crypto
+		.createHash("sha256")
+		.update(fs.readFileSync(filePath))
+		.digest("hex");
+}
+
+function sourceFiles(root) {
+	const files = [];
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) files.push(...sourceFiles(fullPath));
+		else if (/\.(css|tsx?|mjs)$/.test(entry.name)) files.push(fullPath);
+	}
+	return files;
 }
 
 const officialAssets = {
@@ -22,17 +36,16 @@ const officialAssets = {
 		"59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
 };
 
-for (const [path, expected] of Object.entries(officialAssets)) {
-	if (!fs.existsSync(path)) fail(`missing official asset ${path}`);
-	const actual = sha256(path);
+for (const [filePath, expected] of Object.entries(officialAssets)) {
+	if (!fs.existsSync(filePath)) fail(`missing official asset ${filePath}`);
+	const actual = sha256(filePath);
 	if (actual !== expected) {
-		fail(`${path} checksum mismatch: expected ${expected}, got ${actual}`);
+		fail(`${filePath} checksum mismatch: expected ${expected}, got ${actual}`);
 	}
 }
 
 const tokenCss = fs.readFileSync("src/app/design-tokens.css", "utf8");
 const canonicalTokenValues = [
-	// Dark theme — exact TDA Design System v1.0 values.
 	["--ds-canvas", "#0a0c0f"],
 	["--ds-canvas-subtle", "#101419"],
 	["--ds-surface", "#151a20"],
@@ -56,7 +69,6 @@ const canonicalTokenValues = [
 	["--ds-shadow", "0 24px 80px rgba(0, 0, 0, 0.28)"],
 	["--ds-ambient-accent", "rgba(215, 170, 97, 0.09)"],
 	["--ds-ambient-cool", "rgba(75, 91, 109, 0.08)"],
-	// Light theme — exact overridden values.
 	["--ds-canvas", "#f3efe7"],
 	["--ds-canvas-subtle", "#fffdf8"],
 	["--ds-surface", "#e9e3d8"],
@@ -80,7 +92,6 @@ const canonicalTokenValues = [
 	["--ds-shadow", "0 24px 70px rgba(48, 39, 28, 0.14)"],
 	["--ds-ambient-accent", "rgba(128, 88, 23, 0.08)"],
 	["--ds-ambient-cool", "rgba(92, 78, 58, 0.05)"],
-	// Theme-independent v1 values.
 	["--ds-radius-sm", "8px"],
 	["--ds-radius-md", "12px"],
 	["--ds-radius-lg", "18px"],
@@ -99,8 +110,6 @@ for (const [token, value] of canonicalTokenValues) {
 	}
 }
 
-// Promoted reboot extension from the official v1 proposed-extensions.css.
-// Keep this separate from canonicalTokenValues so provenance remains explicit.
 const promotedExtensions = [
 	["--ds-control-border", "#5f6772"],
 	["--ds-control-border", "#8b8379"],
@@ -112,7 +121,18 @@ for (const [token, value] of promotedExtensions) {
 	}
 }
 
-for (const alias of [
+const rebootSemanticExtensions = [
+	["--ds-on-art-foreground", "#fffdf8"],
+	["--ds-on-art-soft", "#d7d2c9"],
+	["--ds-on-art-accent", "#f2c879"],
+];
+for (const [token, value] of rebootSemanticExtensions) {
+	if (!tokenCss.includes(`${token}: ${value};`)) {
+		fail(`missing reboot semantic extension ${token}: ${value}`);
+	}
+}
+
+const legacyTokens = [
 	"--bg",
 	"--panel",
 	"--panel-soft",
@@ -120,9 +140,13 @@ for (const alias of [
 	"--muted",
 	"--gold",
 	"--line",
-]) {
-	if (!tokenCss.includes(`${alias}: var(--ds-`)) {
-		fail(`missing temporary compatibility alias ${alias}`);
+];
+for (const filePath of sourceFiles("src")) {
+	const source = fs.readFileSync(filePath, "utf8");
+	for (const token of legacyTokens) {
+		if (source.includes(`var(${token})`) || source.includes(`${token}:`)) {
+			fail(`legacy token ${token} is present in ${filePath}`);
+		}
 	}
 }
 
@@ -135,6 +159,8 @@ const layout = fs.readFileSync("src/app/layout.tsx", "utf8");
 for (const requiredImport of [
 	'"./design-tokens.css"',
 	'"./design-system.css"',
+	'"./public-shell.css"',
+	'"./story.css"',
 ]) {
 	if (!layout.includes(requiredImport)) fail(`layout missing ${requiredImport}`);
 }
@@ -143,5 +169,5 @@ if (!layout.includes('icon: "/brand/favicon.svg"')) {
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length}`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeTokens=0`,
 );

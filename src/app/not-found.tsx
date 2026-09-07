@@ -1,9 +1,12 @@
-import Link from "next/link";
+import { ActionLink, DisplayTitle } from "@/components/ui";
+
 export default function NotFound() {
 	return (
 		<section className="page-section">
-			<h1>Esta história não foi encontrada.</h1>
-			<Link href="/sessoes">Voltar às sessões</Link>
+			<DisplayTitle>Esta história não foi encontrada.</DisplayTitle>
+			<ActionLink href="/sessoes" variant="secondary">
+				Voltar às sessões
+			</ActionLink>
 		</section>
 	);
 }

@@ -1,7 +1,11 @@
-import { listPublishedSessions } from "@/features/sessions/repository";
 import { SessionList } from "@/components/session-list";
+import { DisplayTitle, Eyebrow } from "@/components/ui";
+import { listPublishedSessions } from "@/features/sessions/repository";
+import styles from "./page.module.css";
+
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sessões" };
+
 export default async function Sessions() {
 	let sessions: Awaited<ReturnType<typeof listPublishedSessions>> | undefined;
 	try {
@@ -9,20 +13,24 @@ export default async function Sessions() {
 	} catch {
 		sessions = undefined;
 	}
+
 	return (
 		<section className="page-section">
-			<span className="eyebrow">Arquivo da campanha</span>
-			<h1>As histórias até aqui</h1>
+			<header className={styles.header}>
+				<Eyebrow>Arquivo da campanha</Eyebrow>
+				<DisplayTitle className={styles.title}>As histórias até aqui</DisplayTitle>
+			</header>
+
 			{sessions === undefined ? (
-				<p role="status">
+				<p className={styles.state} role="status">
 					Não foi possível carregar as sessões. Tente novamente em instantes.
 				</p>
 			) : sessions === null ? (
-				<p>Estamos preparando o arquivo da campanha.</p>
+				<p className={styles.state}>Estamos preparando o arquivo da campanha.</p>
 			) : sessions.length ? (
 				<SessionList sessions={sessions} />
 			) : (
-				<p>Nenhuma sessão publicada ainda.</p>
+				<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
 			)}
 		</section>
 	);
