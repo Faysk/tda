@@ -192,6 +192,52 @@ Não alterar essa semântica silenciosamente: é regra de produto/autorização 
 
 Não revogar em massa sem mapear consumidores.
 
+## `SECURITY INVOKER` server-only do Edit — candidato
+
+A issue #32 prepara uma função nova e estreita, `public.edit_transcript_segment_atomic(...)`, na migration candidata `20260907115300_edit_transcript_segment_atomic`.
+
+**Estado:** ainda não aplicada em produção nesta revisão.
+
+Decisões de segurança do slice:
+
+- usar `SECURITY INVOKER`, não elevar para owner;
+- fixar `search_path = pg_catalog, public`;
+- revogar `EXECUTE` de `PUBLIC`, `anon` e `authenticated`;
+- conceder `EXECUTE` somente a `service_role`;
+- manter a chamada exclusivamente server-side;
+- resolver usuário/profile/capability `campaign.content.edit` antes da persistence;
+- passar `actorProfileId` a partir desse contexto autorizado, nunca como ator escolhido livremente pelo browser;
+- revalidar fisicamente `segment -> session -> campaign` dentro da função;
+- tratar recurso de outra campaign como `not_found`;
+- fazer update otimista e insert em `audit_log` na mesma transação;
+- não tocar nos grants/definições das 8 `SECURITY DEFINER` existentes neste recorte.
+
+### Por que `SECURITY INVOKER`
+
+A revalidação de produção mostrou que `anon` e `authenticated` não têm grants diretos observados sobre `transcript_segments`/`audit_log`, enquanto `service_role` possui os privilégios necessários. A função pode, portanto, herdar o privilégio do caller server-only sem precisar de elevação.
+
+O uso de `service_role` continua sendo boundary poderoso: a segurança depende de a aplicação executar Auth/capability antes da chamada e de não oferecer esta função como CRUD genérico.
+
+### Concorrência e audience
+
+O SQL candidato:
+
+- bloqueia a linha do segmento antes da decisão de revision;
+- exige igualdade com `expectedRevision`;
+- incrementa revision exatamente em 1 apenas no update válido;
+- não cria audit em conflito;
+- não revela a existência de segmento cross-campaign;
+- preserva `character_name` quando o speaker não muda e invalida essa identidade quando o speaker textual muda.
+
+### Validação obrigatória antes da aplicação
+
+- compilar a migration em banco local/isolado;
+- executar `supabase/tests/edit_transcript_segment_atomic.sql` apenas com dados sintéticos;
+- provar `updated + conflict`, um único audit, cross-campaign `not_found`, rollback em falha do audit e preservação de identidade;
+- confirmar grants efetivos pós-migration;
+- executar advisors de segurança/performance;
+- registrar a aplicação no `verification-log.md` somente depois de ela realmente ocorrer.
+
 ## Secrets e service roles
 
 Nunca versionar:
@@ -233,12 +279,15 @@ O advisor também sinalizou **Leaked Password Protection desabilitada** no Auth.
 
 ## Auditoria
 
-`audit_log` existe, mas estava vazio na fotografia atual. Portanto:
+`audit_log` existe e estava vazio na revalidação read-only da issue #32 em 2026-09-07. Portanto:
 
 - não afirmar que todo write já é auditado;
 - mapear writes críticos do Edit;
-- decidir quais eventos precisam entrar no audit log;
-- não depender do log vazio como mecanismo de segurança.
+- manter action estável e payload old/new mínimo por mutation;
+- não depender do log vazio como mecanismo de segurança;
+- não apagar audit para simular rollback de uma edição.
+
+Para a persistence candidata de transcript, a action escolhida é `transcript_segment.update`; old/new registram somente o estado editorial alterável e a revision, sem payload bruto desnecessário.
 
 ## Testes mínimos para autorização
 
