@@ -26,9 +26,9 @@ function SessionArtwork({
 	const artwork = session.heroImage || session.coverImage;
 	if (!artwork) {
 		return (
-		<div className={styles.artworkPlaceholder} aria-hidden="true">
-			<span>TDA</span>
-		</div>
+			<div className={styles.artworkPlaceholder} aria-hidden="true">
+				<span>TDA</span>
+			</div>
 		);
 	}
 
@@ -41,10 +41,33 @@ function SessionArtwork({
 			priority={priority}
 			sizes={
 				priority
-					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 980px"
+					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 1080px"
 					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px"
 			}
 		/>
+	);
+}
+
+function ArchivePreview({ unavailable = false }: { unavailable?: boolean }) {
+	return (
+		<div className={styles.archivePreview} role={unavailable ? "status" : undefined}>
+			<div className={styles.archiveMark} aria-hidden="true">
+				TDA
+			</div>
+			<div>
+				<Eyebrow>{unavailable ? "Arquivo indisponível" : "Arquivo da campanha"}</Eyebrow>
+				<h2>
+					{unavailable
+						? "Não conseguimos abrir a última memória agora."
+						: "A próxima memória começa aqui."}
+				</h2>
+				<p>
+					{unavailable
+						? "As histórias continuam guardadas. Tente novamente em instantes para carregar a sessão mais recente."
+						: "Assim que uma sessão for publicada, sua arte e sua história passam a ocupar este espaço."}
+				</p>
+			</div>
+		</div>
 	);
 }
 
@@ -126,19 +149,7 @@ export default async function Home() {
 							</div>
 						</article>
 					) : (
-						<div className={styles.archivePreview}>
-							<div className={styles.archiveMark} aria-hidden="true">
-								TDA
-							</div>
-							<div>
-								<Eyebrow>Arquivo da campanha</Eyebrow>
-								<h2>A próxima memória começa aqui.</h2>
-								<p>
-									Assim que uma sessão for publicada, sua arte e sua história passam a
-									ocupar este espaço.
-								</p>
-							</div>
-						</div>
+						<ArchivePreview unavailable={sessions === undefined} />
 					)}
 				</div>
 			</section>

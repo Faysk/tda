@@ -16,6 +16,61 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	).toBeTruthy();
 });
 
+test("home uses the supported screen canvas without layout waste or overlap", async ({
+	page,
+}) => {
+	await page.goto("/");
+	const viewport = page.viewportSize();
+	expect(viewport).not.toBeNull();
+	if (!viewport) return;
+
+	const geometry = await page.evaluate(() => {
+		const header = document.querySelector<HTMLElement>(".site-header");
+		const brand = document.querySelector<HTMLElement>(".brand");
+		const actions = document.querySelector<HTMLElement>(".header-actions");
+		const home = document.querySelector<HTMLElement>("main > div");
+		const hero = document.querySelector<HTMLElement>(
+			'section[aria-labelledby="home-title"]',
+		);
+		const intro = hero?.children.item(0) as HTMLElement | null;
+		const feature = hero?.children.item(1) as HTMLElement | null;
+		const memoriesTitle = document.getElementById("memories-title");
+		if (!header || !brand || !actions || !home || !hero || !intro || !feature) {
+			throw new Error("Home geometry contract is incomplete");
+		}
+		return {
+			overflow: document.documentElement.scrollWidth > innerWidth,
+			header: header.getBoundingClientRect().toJSON(),
+			brand: brand.getBoundingClientRect().toJSON(),
+			actions: actions.getBoundingClientRect().toJSON(),
+			home: home.getBoundingClientRect().toJSON(),
+			hero: hero.getBoundingClientRect().toJSON(),
+			intro: intro.getBoundingClientRect().toJSON(),
+			feature: feature.getBoundingClientRect().toJSON(),
+			memoriesTop: memoriesTitle?.getBoundingClientRect().top ?? null,
+		};
+	});
+
+	expect(geometry.overflow).toBeFalsy();
+	const expectedShellWidth = Math.min(viewport.width, 2160);
+	expect(Math.abs(geometry.header.width - expectedShellWidth)).toBeLessThanOrEqual(2);
+	expect(Math.abs(geometry.home.width - expectedShellWidth)).toBeLessThanOrEqual(2);
+	expect(geometry.brand.right).toBeLessThan(geometry.actions.left);
+	expect(Math.abs(geometry.brand.y - geometry.actions.y)).toBeLessThan(16);
+
+	const gutter = geometry.hero.left - geometry.home.left;
+	expect(gutter).toBeGreaterThanOrEqual(19);
+	expect(gutter).toBeLessThanOrEqual(73);
+
+	if (viewport.width >= 980) {
+		expect(geometry.intro.right).toBeLessThan(geometry.feature.left);
+		expect(geometry.memoriesTop).not.toBeNull();
+		expect(geometry.memoriesTop ?? viewport.height).toBeLessThan(viewport.height);
+	} else {
+		expect(geometry.feature.top).toBeGreaterThanOrEqual(geometry.intro.bottom);
+	}
+});
+
 test("public shell stays usable at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/");
