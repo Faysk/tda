@@ -1,0 +1,17 @@
+.shell {
+	width: min(1200px, calc(100% - 2 * var(--ds-page-gutter)));
+	margin: 0 auto;
+	padding: 40px 0 72px;
+	font-family: var(--ds-font-ui);
+}
+.shell h1, .shell h2 { font-family: var(--ds-font-display); overflow-wrap: anywhere; }
+.shell h1 { font-size: clamp(2rem, 5vw, 3.8rem); margin: 12px 0; }
+.shell h2 { font-size: 1.4rem; margin: 0; }
+.eyebrow, .muted, .shell dt { color: var(--ds-foreground-muted); }
+.eyebrow { letter-spacing: 0.12em; font-size: 0.8rem; }
+.summary, .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px; margin: 28px 0; }
+.summary > div, .card { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-surface); padding: 24px; }
+.shell dd { margin: 6px 0 20px; font-size: 1.3rem; overflow-wrap: anywhere; }
+.summary dd { font-size: 2rem; }
+.summary p { font-size: 0.9rem; margin-bottom: 0; }
+.notice { border-left: 3px solid var(--ds-control-border); padding: 12px 20px; background: var(--ds-surface); }

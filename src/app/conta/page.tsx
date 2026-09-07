@@ -45,6 +45,7 @@ export default async function AccountPage() {
 				{descriptions[access.state]}
 			</p>
 			<div className={styles.actions}>
+				{allowed ? <Link href="/transcricoes">Palavras e tempo das transcrições</Link> : null}
 				{allowed ? <Link href="/edit">Abrir Edit</Link> : null}
 				{access.state === "anonymous" || access.state === "unavailable" ? (
 					<Link href="/entrar">Entrar com Discord</Link>
