@@ -16,7 +16,7 @@ test("World Explorer keeps selection separate from focus", async ({ page }) => {
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
-test("World Explorer exposes honest SSR metadata for shareable demo focus", async ({
+test("World Explorer exposes honest SSR metadata through the central public contract", async ({
 	page,
 }) => {
 	await page.goto("/mundo");
@@ -29,9 +29,21 @@ test("World Explorer exposes honest SSR metadata for shareable demo focus", asyn
 		"content",
 		"Ecos da Jornada — demonstração",
 	);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+		"content",
+		"https://dnd.faysk.dev/mundo",
+	);
+	await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+		"content",
+		"https://dnd.faysk.dev/og/default",
+	);
+	await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+		"content",
+		"summary_large_image",
+	);
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 		"href",
-		/\/mundo$/,
+		"https://dnd.faysk.dev/mundo",
 	);
 
 	await page.goto("/mundo?foco=astel");
@@ -40,9 +52,17 @@ test("World Explorer exposes honest SSR metadata for shareable demo focus", asyn
 		"content",
 		"Astel · Ecos da Jornada — demonstração",
 	);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+		"content",
+		"https://dnd.faysk.dev/mundo?foco=astel",
+	);
+	await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+		"content",
+		"https://dnd.faysk.dev/og/default",
+	);
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 		"href",
-		/\/mundo\?foco=astel$/,
+		"https://dnd.faysk.dev/mundo?foco=astel",
 	);
 
 	await page.goto("/mundo?foco=segredo-inexistente");
@@ -50,9 +70,13 @@ test("World Explorer exposes honest SSR metadata for shareable demo focus", asyn
 		"content",
 		"Ecos da Jornada — demonstração",
 	);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+		"content",
+		"https://dnd.faysk.dev/mundo",
+	);
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 		"href",
-		/\/mundo$/,
+		"https://dnd.faysk.dev/mundo",
 	);
 });
 
