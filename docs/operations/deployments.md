@@ -129,3 +129,19 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Nenhum erro runtime encontrado na janela de 5 minutos consultada após publicação; não equivale a monitoramento contínuo.
 - Pendência de identidade: aplicativo OAuth ainda se apresenta como DND-SCRIBE. Não alterado nesta release.
 - Rollback: Production #004. Autenticação/retorno observados; acesso autorizado, reload e logout devem ser revalidados após ativar a flag no próximo deployment.
+
+
+## 2026-09-07 — Production #006
+
+- Source SHA: `7dd4b06d1a246ad924230530c2a0424e830aa46d`, integração #64 de #56/#60/#57/#58.
+- CI exato da main: `34162350940` success; Companion Windows/Linux `34162350995` success. Candidato #64 também validado antes do merge.
+- Deployment: `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`, READY; alias oficial https://dnd.faysk.dev/ confirmado na Vercel.
+- Mesmo projeto/time e método de tarball imutável de #005. Nenhum auto-deploy, DNS, migration ou grant alterado.
+- Production `TDA_READ_EDIT_DATA=true` passa a valer neste snapshot; resolvedor server-only verifica identidade/permissões existentes, sem unsafe.
+- Smoke anônimo: Home/sessões/health 200; API administrativa de permissões 401 e private/no-store; processamento redireciona à entrada; estatísticas sem login não exibem métricas.
+- Navegador com OAuth real: conta reconheceu permissões após recarregamento; estatísticas renderizaram sessões e totais com aviso de duração ausente; diretório de permissões somente leitura renderizou; painel local apresentou serviço desconectado e sincronização não configurada corretamente.
+- Logout real retornou aviso de saída. Nova navegação a `/transcricoes` após logout negou acesso sem mostrar métricas.
+- Nenhum erro runtime encontrado na janela de 5 minutos consultada. Não houve leitura de texto integral de transcrição nem alteração de permissões para esse smoke.
+- Supervisor validado somente em scratch: 11 testes Python e 2 browser/HTTP loopback reais sintéticos; não foi instalado serviço persistente, processado áudio pessoal ou ativado import cloud.
+- Pendências: nome OAuth DND-SCRIBE, uma duração histórica ausente, ASR real/instalador, import #61 e Edit persistence, revisões narrativas. Não confundir os módulos publicados com fechamento desses gates.
+- Rollback: Production #005 `dpl_EtY2oqVJ9hdNwRS5qRMZt4q19EHt`. Para retirar leitura administrativa de próximos builds, desabilitar `TDA_READ_EDIT_DATA`; sem rollback destrutivo de dados.

@@ -7,6 +7,18 @@
 
 Este é o **único registro operacional de status das entregas**. Roadmap define prioridade e direção de produto; documentos donos definem contrato; Lupa mantém auditoria independente; deployments registra publicação. Não copiar esta tabela para roadmap, índices ou relatórios paralelos.
 
+## Estado corrente — Production #006
+
+- STATS, PERMISSOES, SERVICO e LOCAL integrados em `main@7dd4b06` via #64; CI da main e do candidato concluídos com sucesso.
+- Web publicada: Production #006, source `7dd4b06d1a246ad924230530c2a0424e830aa46d`, deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`. Evidências completas em [deployments](../operations/deployments.md).
+- AUTH: consentimento/retorno real, resolvedor de acesso, navegação autorizada, logout e bloqueio posterior de estatísticas verificados. Nome do aplicativo Discord ainda legado.
+- STATS e consulta de PERMISSOES verificados com conta real autorizada. Nenhum grant foi criado; duração incompleta aparece explicitamente.
+- LOCAL: tela publicada e estado desconectado correto. SERVICO é fundação sintética testada, sem instalação persistente/ASR real. IMPORT continua desativado.
+- IMPORT #61: SQL do head5590c119 aprovado por Cofrinho como candidata; falta reconciliação, migrations deliberadas, consumidor/receipt integrado e sessão de destino apropriada. Não sobrescrever sessões transcritas.
+- PIPIPI/CINEMA/GRAFO/EDIT: trabalho local preservado em revisão, ainda fora desta release.
+- Documentação de entregas: PR #65; publicação do site não implica integração desta documentação.
+- Próxima prioridade: fechar Edit/import/local real e revisões narrativas existentes, sem novas frentes.
+
 ## Corte histórico inicial
 
 - `main`: `d89b954d9b35de3e90452a83b5b66cf79fab322b`.
