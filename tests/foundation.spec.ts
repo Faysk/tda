@@ -162,7 +162,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 					.trim(),
 			),
 		)
-		.toBe("#0a0c0f");
+		.toBe("rgb(10, 12, 15)");
 	await expect(page.locator(".brand-symbol-image--dark")).toHaveCSS("opacity", "1");
 	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "0");
 
@@ -175,7 +175,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 					.trim(),
 			),
 		)
-		.toBe("#f3efe7");
+		.toBe("rgb(243, 239, 231)");
 	await expect(page.locator(".brand-symbol-image--dark")).toHaveCSS("opacity", "0");
 	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "1");
 });
