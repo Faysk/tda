@@ -13,6 +13,11 @@ export type PublicMetadataImage = Readonly<{
 	type?: string;
 }>;
 
+export type VerifiedPublicMetadataImage = PublicMetadataImage &
+	Readonly<{
+		verification: "verified-public";
+	}>;
+
 export const PUBLIC_METADATA_FALLBACK_IMAGE: PublicMetadataImage = {
 	url: canonicalPublicUrl({ pathname: "/og/default" }),
 	alt: "TDA — Tem Dado Aqui — Histórias que ficam com a gente.",
@@ -26,16 +31,17 @@ type PublicMetadataInput = Readonly<{
 	description: string;
 	pathname: string;
 	type?: "website" | "article";
-	image?: PublicMetadataImage;
+	image?: VerifiedPublicMetadataImage;
 	absoluteTitle?: boolean;
 }>;
 
-function resolvePublicImage(image?: PublicMetadataImage) {
-	const candidate = image ?? PUBLIC_METADATA_FALLBACK_IMAGE;
+function resolvePublicImage(image?: VerifiedPublicMetadataImage): PublicMetadataImage {
+	if (!image) return PUBLIC_METADATA_FALLBACK_IMAGE;
 	try {
-		const url = new URL(candidate.url, CANONICAL_SITE_ORIGIN);
+		const url = new URL(image.url, CANONICAL_SITE_ORIGIN);
 		if (url.protocol !== "https:") return PUBLIC_METADATA_FALLBACK_IMAGE;
-		return { ...candidate, url: url.toString() };
+		const { verification: _verification, ...metadataImage } = image;
+		return { ...metadataImage, url: url.toString() };
 	} catch {
 		return PUBLIC_METADATA_FALLBACK_IMAGE;
 	}
