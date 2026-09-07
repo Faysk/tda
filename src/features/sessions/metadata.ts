@@ -1,4 +1,4 @@
-import { buildPublicMetadata } from "@/config/public-metadata";
+import { buildPublicMetadata } from "../../config/public-metadata";
 import type { PublishedSession } from "./model";
 import { sessionShareDescription } from "./share";
 
