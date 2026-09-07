@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { canonicalPublicUrl } from "@/config/site";
-import { whatsappShareUrl } from "@/features/sessions/share";
 import styles from "./session-share-actions.module.css";
 
 type Props = Readonly<{
@@ -53,23 +52,11 @@ export function SessionShareActions({ title, description }: Props) {
 		window.prompt("Copie o link da sessão:", url);
 	};
 
-	const shareOnWhatsApp = () => {
-		const target = whatsappShareUrl({
-			title,
-			description,
-			url: currentCanonicalUrl(),
-		});
-		window.open(target, "_blank", "noopener,noreferrer");
-	};
-
 	return (
 		<fieldset className={styles.actions}>
 			<legend className={styles.legend}>Compartilhar esta sessão</legend>
 			<Button variant="secondary" onClick={share}>
 				Compartilhar sessão
-			</Button>
-			<Button variant="tertiary" onClick={shareOnWhatsApp}>
-				WhatsApp
 			</Button>
 			<p className={styles.status} aria-live="polite">
 				{status}
