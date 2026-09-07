@@ -54,7 +54,11 @@ export function SessionShareActions({ title, description }: Props) {
 	};
 
 	return (
-		<div className={styles.actions} aria-label="Compartilhar esta sessão">
+		<div
+			className={styles.actions}
+			role="group"
+			aria-label="Compartilhar esta sessão"
+		>
 			<Button variant="secondary" onClick={share}>
 				Compartilhar sessão
 			</Button>
