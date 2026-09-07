@@ -1,6 +1,7 @@
 export const EDIT_CAPABILITIES = {
 	transcriptRead: "campaign.transcript.read",
 	contentEdit: "campaign.content.edit",
+	transcriptImport: "campaign.transcript.import",
 } as const;
 
 export type EditCapability =
