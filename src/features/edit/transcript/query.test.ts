@@ -131,7 +131,7 @@ describe("queryTranscriptPage", () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.page.segments[0]?.revision).toBe(0);
+			expect(result.value.segments[0]?.revision).toBe(0);
 		}
 		expect(deps.readPage).toHaveBeenCalledWith({
 			campaignSlug: "yuhara-main",
