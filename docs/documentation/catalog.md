@@ -121,7 +121,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Legado e fontes históricas — `Faysk/dnd-scribe`](../legacy/README.md) | documentação/arquitetura | histórico/referência | 2026-09-06 |
+| [Legado e fontes históricas — `Faysk/dnd-scribe`](../legacy/README.md) | documentação/arquitetura | histórico/referência | 2026-09-07 |
 | [Edit — paridade com `Faysk/dnd-scribe`](../legacy/edit-parity.md) | Edit + arquitetura | vivo; auditoria inicial concluída para transcript/access | 2026-09-07 |
 
 ## docs/operations
