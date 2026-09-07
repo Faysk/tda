@@ -11,7 +11,8 @@ export default defineConfig({
 		timeout: 60000,
 	},
 	projects: [
-		{ name: "desktop", use: { viewport: { width: 1440, height: 950 } } },
+		{ name: "desktop-1080p", use: { viewport: { width: 1920, height: 1080 } } },
+		{ name: "desktop-2k", use: { viewport: { width: 2560, height: 1440 } } },
 		{ name: "mobile", use: { viewport: { width: 390, height: 844 } } },
 	],
 });
