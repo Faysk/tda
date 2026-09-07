@@ -94,11 +94,9 @@ test("authorized real route renders scoped data, provenance, search and mobile l
 	await expect(page.locator("body")).toContainText("Direta na campanha");
 	await expect(page.locator("body")).toContainText("Herdada do projeto TDA");
 	await expect(page.locator("body")).not.toContainText("Pessoa foreign");
-	const historical = page
-		.locator("article")
-		.filter({
-			has: page.getByRole("heading", { name: "Pessoa expired", exact: true }),
-		});
+	const historical = page.locator("article").filter({
+		has: page.getByRole("heading", { name: "Pessoa expired", exact: true }),
+	});
 	await expect(historical).toContainText("Revogada");
 	await expect(historical).toContainText(
 		"Sem acesso verificado às operações atuais do Edit.",
@@ -130,6 +128,15 @@ test("authorized real route renders scoped data, provenance, search and mobile l
 		fullPage: true,
 	});
 	await page.getByRole("switch", { name: "Modo escuro" }).click();
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-canvas")
+					.trim(),
+			),
+		)
+		.toBe("rgb(10, 12, 15)");
 	await page.screenshot({
 		path: testInfo.outputPath("permissions-dark.png"),
 		fullPage: true,
