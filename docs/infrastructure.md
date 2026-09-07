@@ -1,5 +1,11 @@
 # Infraestrutura e estado
-Revisão: 2026-09-07. Responsável: proprietário e implementador.
+
+> Status: vigente; production ativa
+> Owner: infraestrutura/operação
+> Última revisão: 2026-09-07
+> Fonte de verdade: documentos donos de Vercel/R2/Supabase e `operations/deployments.md`
+
+Este documento resume o **estado operacional comprovado**, não o conteúdo de branches candidatas. PR aberta ou CI verde não altera este inventário até a mudança correspondente ser integrada e, quando externa, aplicada/publicada com evidência no documento dono.
 
 | Recurso | Estado |
 | --- | --- |
