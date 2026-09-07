@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { Controls, ReactFlow, type EdgeTypes, type NodeTypes } from "@xyflow/react";
 import { PublicLink } from "@/components/public-link";
-import { toReactFlowGraph, type WorldFlowEdge, type WorldFlowNode } from "../adapters/react-flow";
+import {
+	toReactFlowGraph,
+	type WorldFlowEdge,
+	type WorldFlowNode,
+} from "../adapters/react-flow";
 import type { WorldFilter, WorldGraphProjection, WorldNodeDTO } from "../model";
 import { filterWorldProjection, relationLabelFor } from "../projection";
 import { WorldEntityNode } from "./entity-node";
@@ -114,7 +118,11 @@ export function WorldExplorerClient({
 					</ReactFlow>
 				</div>
 
-				<AccessibleRelations projection={visibleProjection} />
+				<AccessibleRelations
+					projection={visibleProjection}
+					selectedId={selected?.id ?? null}
+					onSelect={setSelectedId}
+				/>
 			</section>
 
 			<aside className={styles.inspector} aria-live="polite">
@@ -125,7 +133,9 @@ export function WorldExplorerClient({
 						</div>
 						<p className={styles.eyebrow}>{nodeTypeLabel(selected)}</p>
 						<h2>{selected.label}</h2>
-						{selected.subtitle ? <p className={styles.inspectorSubtitle}>{selected.subtitle}</p> : null}
+						{selected.subtitle ? (
+							<p className={styles.inspectorSubtitle}>{selected.subtitle}</p>
+						) : null}
 						{selected.id === projection.focusId ? (
 							<p className={styles.focusNote}>Entidade focal atual.</p>
 						) : (
@@ -137,7 +147,10 @@ export function WorldExplorerClient({
 							Este primeiro recorte valida seleção, foco e leitura do grafo. Biografia e canon permanecem fora da fixture visual.
 						</p>
 						{selected.id !== projection.focusId && selected.slug ? (
-							<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>
+							<PublicLink
+								className={styles.focusAction}
+								href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}
+							>
 								Explorar conexões de {selected.label}
 							</PublicLink>
 						) : null}
@@ -146,7 +159,9 @@ export function WorldExplorerClient({
 								Ver perfil completo
 							</PublicLink>
 						) : (
-							<p className={styles.profilePending}>Perfil editorial será ligado ao resolver canônico de Lore, sem duplicar rotas.</p>
+							<p className={styles.profilePending}>
+								Perfil editorial será ligado ao resolver canônico de Lore, sem duplicar rotas.
+							</p>
 						)}
 					</>
 				) : (
@@ -157,7 +172,15 @@ export function WorldExplorerClient({
 	);
 }
 
-function AccessibleRelations({ projection }: { projection: WorldGraphProjection }) {
+function AccessibleRelations({
+	projection,
+	selectedId,
+	onSelect,
+}: {
+	projection: WorldGraphProjection;
+	selectedId: string | null;
+	onSelect: (id: string) => void;
+}) {
 	const focus = projection.nodes.find((node) => node.id === projection.focusId);
 	const related = projection.nodes.filter((node) => node.id !== projection.focusId);
 	return (
@@ -170,11 +193,14 @@ function AccessibleRelations({ projection }: { projection: WorldGraphProjection 
 				<ul>
 					{related.map((node) => (
 						<li key={node.id}>
-							<button type="button" onClick={() => node.slug && undefined} tabIndex={-1} aria-hidden="true" className={styles.listMarker}>
-								•
+							<button
+								type="button"
+								aria-pressed={selectedId === node.id}
+								onClick={() => onSelect(node.id)}
+							>
+								<strong>{node.label}</strong>
+								<span>{relationLabelFor(projection, node.id) ?? "Conexão"}</span>
 							</button>
-							<strong>{node.label}</strong>
-							<span>{relationLabelFor(projection, node.id) ?? "Conexão"}</span>
 						</li>
 					))}
 				</ul>
