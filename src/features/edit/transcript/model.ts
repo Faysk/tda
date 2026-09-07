@@ -76,12 +76,14 @@ export function prepareTranscriptEdit(
 	const text = cleanString(input.text);
 	const speaker = cleanString(input.speaker);
 	const reviewStatus = normalizeTranscriptReviewStatus(input.reviewStatus);
+	const textChars = countTranscriptCharacters(text);
+	const speakerChars = countTranscriptCharacters(speaker);
 	const issues: TranscriptEditIssue[] = [];
 
 	if (!text) issues.push("text_required");
-	if (text.length > TRANSCRIPT_EDIT_LIMITS.text) issues.push("text_too_long");
+	if (textChars > TRANSCRIPT_EDIT_LIMITS.text) issues.push("text_too_long");
 	if (!speaker) issues.push("speaker_required");
-	if (speaker.length > TRANSCRIPT_EDIT_LIMITS.speaker) {
+	if (speakerChars > TRANSCRIPT_EDIT_LIMITS.speaker) {
 		issues.push("speaker_too_long");
 	}
 	if (!reviewStatus) issues.push("review_status_invalid");
@@ -97,7 +99,7 @@ export function prepareTranscriptEdit(
 			speaker,
 			reviewStatus,
 			needsReview: transcriptStatusNeedsReview(reviewStatus),
-			textChars: countTranscriptCharacters(text),
+			textChars,
 			textWords: countTranscriptWords(text),
 		},
 	};
