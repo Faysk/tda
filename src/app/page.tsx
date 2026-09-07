@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { SessionList } from "@/components/session-list";
 import {
 	ActionLink,
 	BodyCopy,
@@ -8,10 +7,46 @@ import {
 	Eyebrow,
 	SectionTitle,
 } from "@/components/ui";
+import {
+	formatSessionDate,
+	type PublishedSession,
+} from "@/features/sessions/model";
 import { listPublishedSessions } from "@/features/sessions/repository";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
+
+function SessionArtwork({
+	session,
+	priority = false,
+}: {
+	session: PublishedSession;
+	priority?: boolean;
+}) {
+	const artwork = session.heroImage || session.coverImage;
+	if (!artwork) {
+		return (
+		<div className={styles.artworkPlaceholder} aria-hidden="true">
+			<span>TDA</span>
+		</div>
+		);
+	}
+
+	return (
+		<Image
+			className={styles.sessionArtwork}
+			src={artwork}
+			alt=""
+			fill
+			priority={priority}
+			sizes={
+				priority
+					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 980px"
+					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px"
+			}
+		/>
+	);
+}
 
 export default async function Home() {
 	let sessions: Awaited<ReturnType<typeof listPublishedSessions>> | undefined;
@@ -20,70 +55,107 @@ export default async function Home() {
 	} catch {
 		sessions = undefined;
 	}
+
 	const latest = sessions?.[0];
-	const heroImage = latest?.heroImage || latest?.coverImage;
+	const recent = sessions?.slice(latest ? 1 : 0, latest ? 5 : 4) ?? [];
+	const latestDate = latest ? formatSessionDate(latest.date) : "";
 
 	return (
 		<div className={styles.home}>
-			<section
-				className={`${styles.hero}${heroImage ? ` ${styles.heroWithArt}` : ""}`}
-			>
-				{heroImage ? (
-					<>
-						<Image
-							className={styles.heroArt}
-							src={heroImage}
-							alt=""
-							fill
-							priority
-							sizes="(max-width: 1200px) 100vw, 1200px"
-						/>
-						<div className={styles.heroOverlay} aria-hidden="true" />
-					</>
-				) : null}
-				<div className={styles.heroCopy}>
-					<Eyebrow className={styles.heroEyebrow}>
-						Nosso mundo, nossas histórias
-					</Eyebrow>
-					<DisplayTitle className={styles.heroTitle}>
-						Toda jornada
+			<section className={styles.hero} aria-labelledby="home-title">
+				<div className={styles.heroIntro}>
+					<Eyebrow>Nossa campanha</Eyebrow>
+					<DisplayTitle className={styles.heroTitle} id="home-title">
+						Rolamos dados.
 						<br />
-						deixa uma história.
+						Guardamos os dados.
 					</DisplayTitle>
 					<BodyCopy className={styles.heroBody}>
-						Entre encontros improváveis e decisões que mudam destinos, guardamos
-						as memórias da nossa mesa.
+						Um arquivo vivo das sessões, decisões e memórias que construímos
+						juntos ao redor da mesa.
 					</BodyCopy>
 					<div className={styles.heroActions}>
 						<ActionLink href="/sessoes" variant="primary">
-							Explorar as sessões <span aria-hidden="true">↗</span>
+							Explorar as sessões <span aria-hidden="true">→</span>
 						</ActionLink>
-						{latest ? (
-							<Link
-								className={styles.heroLatest}
-								href={`/sessoes/${encodeURIComponent(latest.id)}`}
-							>
-								<span className={styles.heroLatestLabel}>Última memória</span>
-								<strong className={styles.heroLatestTitle}>{latest.title}</strong>
-							</Link>
+						{sessions?.length ? (
+							<p className={styles.archiveCount}>
+								<strong>{sessions.length}</strong>
+								<span>
+									{sessions.length === 1 ? "memória publicada" : "memórias publicadas"}
+								</span>
+							</p>
 						) : null}
 					</div>
 				</div>
-				<div className={styles.heroRule} aria-hidden="true" />
+
+				<div className={styles.heroFeature}>
+					{latest ? (
+						<article className={styles.latestCard}>
+							<Link
+								className={styles.latestMedia}
+								href={`/sessoes/${encodeURIComponent(latest.id)}`}
+								aria-label={`Abrir ${latest.title}`}
+							>
+								<SessionArtwork session={latest} priority />
+								<div className={styles.latestMediaShade} aria-hidden="true" />
+								<span className={styles.latestBadge}>Última sessão</span>
+							</Link>
+							<div className={styles.latestBody}>
+								<div className={styles.latestMeta}>
+									<span>{latest.arc || "Memória da campanha"}</span>
+									{latestDate ? (
+										<time dateTime={latest.date}>{latestDate}</time>
+									) : null}
+								</div>
+								<h2 className={styles.latestTitle}>
+									<Link href={`/sessoes/${encodeURIComponent(latest.id)}`}>
+										{latest.title}
+									</Link>
+								</h2>
+								<p className={styles.latestSummary}>
+									{latest.summary ||
+										"Uma nova memória da campanha já está pronta para ser revisitada."}
+								</p>
+								<Link
+									className={styles.latestLink}
+									href={`/sessoes/${encodeURIComponent(latest.id)}`}
+								>
+									Abrir sessão <span aria-hidden="true">→</span>
+								</Link>
+							</div>
+						</article>
+					) : (
+						<div className={styles.archivePreview}>
+							<div className={styles.archiveMark} aria-hidden="true">
+								TDA
+							</div>
+							<div>
+								<Eyebrow>Arquivo da campanha</Eyebrow>
+								<h2>A próxima memória começa aqui.</h2>
+								<p>
+									Assim que uma sessão for publicada, sua arte e sua história passam a
+									ocupar este espaço.
+								</p>
+							</div>
+						</div>
+					)}
+				</div>
 			</section>
 
-			<section className={styles.memories}>
+			<section className={styles.memories} aria-labelledby="memories-title">
 				<div className={styles.sectionHeading}>
 					<div>
 						<Eyebrow>O que vivemos juntos</Eyebrow>
-						<SectionTitle className={styles.sectionTitle}>
-							Memórias da campanha
+						<SectionTitle className={styles.sectionTitle} id="memories-title">
+							Memórias recentes
 						</SectionTitle>
 					</div>
 					<Link className={styles.sectionLink} href="/sessoes">
-						Ver todas <span aria-hidden="true">→</span>
+						Ver todas as sessões <span aria-hidden="true">→</span>
 					</Link>
 				</div>
+
 				{sessions === undefined ? (
 					<p className={styles.state} role="status">
 						Não foi possível carregar as memórias. Tente novamente em instantes.
@@ -92,8 +164,41 @@ export default async function Home() {
 					<p className={styles.state}>
 						Estamos preparando o arquivo de histórias da campanha.
 					</p>
-				) : sessions.length ? (
-					<SessionList sessions={sessions.slice(0, 4)} featuredFirst />
+				) : recent.length ? (
+					<div className={styles.memoryGrid}>
+						{recent.map((session) => {
+							const href = `/sessoes/${encodeURIComponent(session.id)}`;
+							const date = formatSessionDate(session.date);
+							return (
+								<article className={styles.memoryCard} key={session.id}>
+									<Link className={styles.memoryCardLink} href={href}>
+										<div className={styles.memoryMedia}>
+											<SessionArtwork session={session} />
+											<div className={styles.memoryShade} aria-hidden="true" />
+										</div>
+										<div className={styles.memoryBody}>
+											<div className={styles.memoryMeta}>
+												<span>{session.arc || "Memória da campanha"}</span>
+												{date ? <time dateTime={session.date}>{date}</time> : null}
+											</div>
+											<h3>{session.title}</h3>
+											<p>
+												{session.summary ||
+													"O resumo desta sessão ainda não está disponível."}
+											</p>
+											<span className={styles.memoryRead}>
+												Revisitar memória <span aria-hidden="true">→</span>
+											</span>
+										</div>
+									</Link>
+								</article>
+							);
+						})}
+					</div>
+				) : latest ? (
+					<p className={styles.state}>
+						A primeira memória já está em destaque. As próximas aparecem aqui.
+					</p>
 				) : (
 					<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
 				)}
