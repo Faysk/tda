@@ -1,5 +1,10 @@
 # Documentação viva
 
+> Status: vigente
+> Owner: documentação/arquitetura
+> Última revisão: 2026-09-07
+> Fonte de verdade: `docs/README.md`, catálogo gerado e documentos donos
+
 Este diretório define **como a documentação do TDA é mantida**. A documentação faz parte do produto: mudança relevante sem documentação correspondente é mudança incompleta.
 
 ## Objetivos
@@ -13,6 +18,37 @@ A documentação deve ser:
 - **escalável**: permitir novos domínios sem transformar `docs/README.md` em um arquivo gigante;
 - **operacional**: conter passos de validação, falha e rollback quando necessário;
 - **segura**: nunca conter secrets, tokens ou dados pessoais desnecessários.
+
+## Dois eixos de estado
+
+O TDA separa **maturidade do assunto** de **estágio de entrega**. Misturar os dois faz uma PR aberta parecer vigente na `main` ou publicada em produção.
+
+### Maturidade
+
+É o `Status:` do documento ou da feature: `implementado`, `preparado`, `arquitetura aprovada`, `planejado`, `em desenho`, `histórico` e demais estados definidos pelo índice/catálogo da área. Esse eixo responde **quão fechado está o contrato ou a capacidade**.
+
+### Estágio de entrega
+
+Quando uma mudança concreta precisa ser localizada no fluxo de entrega, usar uma destas formulações, sempre com evidência suficiente para o estágio afirmado:
+
+| Estágio | Significado |
+| --- | --- |
+| **planejado** | direção/contrato existe, mas não há implementação candidata a declarar |
+| **implementado em branch/PR** | existe implementação candidata fora da `main`; citar PR/branch quando isso for relevante |
+| **validado** | checks/ensaio terminaram para um SHA ou artefato exato; é qualificador e **não implica** merge, aplicação ou publicação |
+| **integrado à `main`** | mudança foi mergeada no código canônico; ainda pode não existir no ambiente publicado |
+| **publicado/aplicado** | mudança foi efetivamente promovida ao ambiente correspondente e possui evidência operacional do documento dono |
+
+`main = Production` significa que `main` é a linha de código aceita para Production; **não significa deploy automático**. Para frontend/hosting, publicação exige deployment deliberado e registro operacional. Para banco, migration versionada/integrada não equivale a migration aplicada. Para configuração remota, código ou documentação não provam alteração do serviço.
+
+Exemplos válidos:
+
+- `implementado na PR #N; validado no SHA X; não integrado e não publicado`;
+- `integrado à main; publicação ainda não comprovada`;
+- `migration candidata validada localmente; não aplicada no Supabase`;
+- `publicado em Production #N; smoke registrado no runbook/histórico`.
+
+Evitar frases como `implementado`, `vigente` ou `em produção` para resumir uma PR aberta sem qualificar o estágio. Uma PR aberta pode atualizar o `Status:` do próprio candidato para descrever sua maturidade, mas índices gerais da `main` não devem promover essa mudança antes da integração.
 
 ## Tipos de documento
 
@@ -48,6 +84,8 @@ Todo documento detalhado novo deve declarar, quando aplicável:
 > Fonte de verdade: arquivo/schema/serviço
 ```
 
+`Status:` descreve maturidade/estado do documento dono; estágio de entrega concreto deve aparecer no corpo quando necessário. `Fonte de verdade:` deve apontar para a fonte que realmente sustenta a afirmação, não para uma conversa ou uma PR que ainda não foi integrada como se fosse runtime vigente.
+
 ## Regra de ownership
 
 Cada conceito possui um documento dono. Outros documentos **linkam**, não duplicam definições completas.
@@ -61,6 +99,8 @@ Exemplos:
 - deploy: `operations/release-runbook.md`;
 - estado observado do banco: `database-audit.md`.
 
+Em trabalho paralelo, a frente dona altera o contrato detalhado. Roadmap/índices gerais podem registrar dependências e estágio de entrega, mas não devem copiar auditorias datadas, SQL, runbooks ou decisões ainda em revisão. Se duas PRs tocam o mesmo documento dono, reconciliar explicitamente antes da integração em vez de aceitar a última gravação como verdade.
+
 ## Definition of Done documental
 
 Uma PR que altera comportamento relevante deve responder:
@@ -68,12 +108,13 @@ Uma PR que altera comportamento relevante deve responder:
 1. Qual contrato mudou?
 2. Qual documento é dono desse contrato?
 3. O schema/fluxo/estado documentado ainda corresponde ao sistema?
-4. Existe migration/rollback quando necessário?
-5. A feature catalog/roadmap precisa mudar de status?
-6. Há nova decisão arquitetural que merece ADR?
-7. Há novo risco operacional ou de segurança?
+4. Qual é o estágio de entrega real: branch/PR, validado, `main` ou publicado/aplicado?
+5. Existe migration/rollback quando necessário?
+6. A feature catalog/roadmap precisa mudar de status?
+7. Há nova decisão arquitetural que merece ADR?
+8. Há novo risco operacional ou de segurança?
 
-Se alguma resposta for sim, a documentação deve mudar na mesma PR.
+Se alguma resposta exigir mudança documental, ela deve acontecer na mesma PR ou ficar explicitamente dependente da frente dona, sem duplicação.
 
 ## Política para banco
 
