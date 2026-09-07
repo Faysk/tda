@@ -43,9 +43,7 @@
 	letter-spacing: -0.035em;
 }
 
-.muted {
-	color: var(--ds-foreground-muted);
-}
+.muted { color: var(--ds-foreground-muted); }
 
 .sessionGrid {
 	display: grid;
@@ -73,6 +71,7 @@
 }
 
 .sessionCard:focus-visible,
+.segmentFocusTarget:focus-visible,
 .control:focus-visible,
 .textarea:focus-visible,
 .search:focus-visible {
@@ -170,15 +169,36 @@
 	border-color: color-mix(in srgb, var(--ds-danger) 65%, var(--ds-border));
 }
 
+.segment[data-conflict="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent-strong) 75%, var(--ds-danger));
+	box-shadow: inset 3px 0 0 var(--ds-accent-strong);
+}
+
 .segmentTime {
 	font-variant-numeric: tabular-nums;
 	font-size: 0.76rem;
 	color: var(--ds-foreground-muted);
 }
 
-.segmentNumber {
+.segmentNumber,
+.segmentFocusTarget,
+.keyboardHint {
 	font-size: 0.72rem;
 	color: var(--ds-foreground-muted);
+}
+
+.segmentFocusTarget {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.keyboardHint {
+	line-height: 1.45;
 }
 
 .fieldLabel {
@@ -232,13 +252,11 @@
 	color: var(--ds-foreground-muted);
 }
 
-.saveState {
-	font-weight: 700;
-}
-
+.saveState { font-weight: 700; }
 .saveState[data-state="saved"] { color: var(--ds-success); }
 .saveState[data-state="error"] { color: var(--ds-danger); }
 .saveState[data-state="dirty"] { color: var(--ds-accent-strong); }
+.saveState[data-state="conflict"] { color: var(--ds-accent-strong); }
 
 .pagination {
 	justify-content: space-between;

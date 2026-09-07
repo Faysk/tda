@@ -108,8 +108,25 @@ Contrato do Edit:
 - preferir revision/version otimista quando o storage permitir;
 - alternativamente usar fila serial por recurso no cliente combinada com validação server-side;
 - conflito conhecido não deve ser tratado como sucesso;
-- a UI deve distinguir `unsaved`, `saving`, `saved`, `error` e `conflict`;
+- a UI deve distinguir `clean`, `dirty`, `saving`, `saved`, `error` e `conflict`;
 - não disparar toast de sucesso a cada autosave.
+
+### Estado local e recuperação do transcript
+
+O editor deve preservar o trabalho local mesmo quando o request falha ou quando o servidor detecta concorrência.
+
+Regras de UX vigentes:
+
+- `dirty` é derivado da diferença entre snapshot salvo e rascunho local;
+- iniciar save captura um snapshot imutável do rascunho enviado;
+- o usuário pode continuar editando durante `saving`;
+- se o save anterior concluir depois de uma edição local mais nova, apenas o snapshot salvo avança; o rascunho mais novo permanece `dirty` e nunca é apagado pela resposta antiga;
+- `error` mantém o rascunho e oferece retry do mesmo conteúdo atual;
+- `conflict` mantém o rascunho, bloqueia retry cego e exige nova leitura/reconciliação antes de outro write canônico;
+- `Esc` desfaz apenas mudanças locais que ainda não estão em voo;
+- o adapter unsafe existente continua sendo o único write temporário até a troca deliberada para a mutation canônica; este contrato de UX não cria gravação paralela.
+
+A coluna física `transcript_segments.revision` já existe. A integração definitiva de `conflict` depende do boundary atômico da issue #32 retornar conflito real e da leitura autorizada fornecer a revision vigente. Até isso acontecer, a UI pode modelar e testar o estado de conflito, mas não deve simulá-lo como se tivesse vindo do banco.
 
 Detalhes estruturais estão em [arquitetura do Edit](../architecture/edit-workbench.md).
 
@@ -147,17 +164,17 @@ Mínimos:
 - ações por teclado equivalentes às ações de ponteiro;
 - atalhos não devem capturar digitação dentro de inputs/editors sem contexto.
 
-Mapa inicial de atalhos para transcrição, sujeito a teste de UX:
+Mapa atual do transcript:
 
-| Ação | Atalho proposto |
+| Ação | Atalho |
 | --- | --- |
-| segmento anterior/próximo | `↑` / `↓` fora de campos de texto |
-| editar segmento atual | `Enter` |
-| aprovar | `Ctrl/Cmd + Enter` |
-| marcar `needs_review` | `Shift + Enter` |
-| editar speaker | `S` fora de campo de texto |
-| cancelar edição local | `Esc` |
-| command palette | `Ctrl/Cmd + K` |
+| segmento anterior/próximo | `↑` / `↓` fora de campos editáveis |
+| editar texto do segmento atual | `Enter` fora de campo editável |
+| editar speaker | `S` fora de campo editável |
+| marcar `needs_review` no rascunho | `Shift + Enter` fora de campo editável |
+| salvar rascunho | `Ctrl/Cmd + Enter` |
+| desfazer mudanças locais | `Esc` quando não há save em voo |
+| command palette | `Ctrl/Cmd + K` planejado; não implementado neste slice |
 
 ## Design System
 
