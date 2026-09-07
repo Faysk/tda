@@ -16,6 +16,46 @@ test("World Explorer keeps selection separate from focus", async ({ page }) => {
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
+test("World Explorer exposes honest SSR metadata for shareable demo focus", async ({
+	page,
+}) => {
+	await page.goto("/mundo");
+	await expect(page).toHaveTitle(/Ecos da Jornada — demonstração/);
+	await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+		"content",
+		/Demonstração do World Explorer do TDA.*não são canon/,
+	);
+	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+		"content",
+		"Ecos da Jornada — demonstração",
+	);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		/\/mundo$/,
+	);
+
+	await page.goto("/mundo?foco=astel");
+	await expect(page).toHaveTitle(/Astel · Ecos da Jornada — demonstração/);
+	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+		"content",
+		"Astel · Ecos da Jornada — demonstração",
+	);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		/\/mundo\?foco=astel$/,
+	);
+
+	await page.goto("/mundo?foco=segredo-inexistente");
+	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+		"content",
+		"Ecos da Jornada — demonstração",
+	);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		/\/mundo$/,
+	);
+});
+
 test("World Explorer filters without losing its textual alternative", async ({ page }) => {
 	await page.goto("/mundo");
 	await page.getByRole("button", { name: "Lugares" }).click();
