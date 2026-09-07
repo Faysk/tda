@@ -4,6 +4,7 @@ import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SITE_NAME } from "@/config/public-metadata";
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import "./globals.css";
 import "./design-tokens.css";
@@ -12,28 +13,11 @@ import "./public-shell.css";
 import "./story.css";
 import "./theme.css";
 
-const siteTitle = "TDA — Tem Dado Aqui";
-const siteDescription =
-	"Sessões, personagens, histórias e memórias da nossa campanha.";
-
 export const metadata: Metadata = {
 	metadataBase: new URL(CANONICAL_SITE_ORIGIN),
-	title: { default: siteTitle, template: "%s · TDA" },
-	description: siteDescription,
+	title: { default: SITE_NAME, template: "%s · TDA" },
 	icons: {
 		icon: "/brand/favicon.svg",
-	},
-	openGraph: {
-		type: "website",
-		locale: "pt_BR",
-		siteName: siteTitle,
-		title: siteTitle,
-		description: siteDescription,
-	},
-	twitter: {
-		card: "summary",
-		title: siteTitle,
-		description: siteDescription,
 	},
 };
 
