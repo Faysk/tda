@@ -11,7 +11,7 @@ import {
 const segmentId = "123e4567-e89b-42d3-a456-426614174001";
 
 function context(
-	action = EDIT_CAPABILITIES.contentEdit,
+	action: string = EDIT_CAPABILITIES.contentEdit,
 	overrides: Partial<EditAccessContext> = {},
 ): EditAccessContext {
 	return {
@@ -34,9 +34,14 @@ function context(
 function dependencies(
 	overrides: Partial<TranscriptMutationDependencies> = {},
 ): TranscriptMutationDependencies {
+	const persist: TranscriptMutationDependencies["persist"] = vi.fn(async () => ({
+		status: "updated" as const,
+		revision: 4,
+	}));
+
 	return {
 		resolveAccessContext: vi.fn(async () => context()),
-		persist: vi.fn(async () => ({ status: "updated", revision: 4 })),
+		persist,
 		...overrides,
 	};
 }
@@ -125,7 +130,7 @@ describe("mutateTranscriptSegment", () => {
 
 	it("surfaces optimistic concurrency conflicts", async () => {
 		const deps = dependencies({
-			persist: vi.fn(async () => ({ status: "conflict" })),
+			persist: vi.fn(async () => ({ status: "conflict" as const })),
 		});
 
 		expect(await mutateTranscriptSegment(request, deps)).toEqual({
@@ -136,7 +141,7 @@ describe("mutateTranscriptSegment", () => {
 
 	it("does not expose cross-campaign resource existence", async () => {
 		const deps = dependencies({
-			persist: vi.fn(async () => ({ status: "not_found" })),
+			persist: vi.fn(async () => ({ status: "not_found" as const })),
 		});
 
 		expect(await mutateTranscriptSegment(request, deps)).toEqual({
