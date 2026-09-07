@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@xyflow/react/dist/style.css";
+import { buildPublicMetadata } from "@/config/public-metadata";
 import { WorldExplorerClient } from "@/features/world-explorer/components/world-explorer-client";
 import { DANDELION_WORLD_DEMO } from "@/features/world-explorer/fixtures/dandelion";
 import {
@@ -35,12 +36,13 @@ export async function generateMetadata({
 	const requestedFocus = requestedFocusFrom(query);
 	const focusId = resolveWorldFocusId(DANDELION_WORLD_DEMO, requestedFocus);
 	const focus = DANDELION_WORLD_DEMO.nodes.find((node) => node.id === focusId);
-	const shareFocusedEntity =
+	const shareFocusedEntity = Boolean(
 		focus?.slug &&
-		focus.id !== "dandelion" &&
-		isExplicitDemoFocus(requestedFocus, focusId);
-	const canonical = shareFocusedEntity
-		? `/mundo?foco=${encodeURIComponent(focus.slug ?? "")}`
+			focus.id !== "dandelion" &&
+			isExplicitDemoFocus(requestedFocus, focusId),
+	);
+	const pathname = shareFocusedEntity
+		? `/mundo?foco=${encodeURIComponent(focus?.slug ?? "")}`
 		: "/mundo";
 	const title = shareFocusedEntity
 		? `${focus?.label ?? "Memória"} · Ecos da Jornada — demonstração`
@@ -49,22 +51,11 @@ export async function generateMetadata({
 		? `Demonstração do World Explorer do TDA com ${focus?.label ?? "uma memória"} em foco. As relações exibidas neste recorte não são canon.`
 		: "Demonstração do World Explorer do TDA. As relações exibidas neste recorte visual não são canon.";
 
-	return {
+	return buildPublicMetadata({
 		title,
 		description,
-		alternates: { canonical },
-		openGraph: {
-			type: "website",
-			url: canonical,
-			title,
-			description,
-		},
-		twitter: {
-			card: "summary",
-			title,
-			description,
-		},
-	};
+		pathname,
+	});
 }
 
 export default async function MundoPage({ searchParams }: MundoPageProps) {
