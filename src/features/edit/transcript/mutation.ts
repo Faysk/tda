@@ -2,7 +2,7 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 	type EditAccessContext,
-} from "@/features/edit/access/policy";
+} from "../access/policy";
 import {
 	prepareTranscriptEdit,
 	type PreparedTranscriptEdit,
