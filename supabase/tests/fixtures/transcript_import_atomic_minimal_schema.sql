@@ -1,7 +1,7 @@
 -- Minimal disposable PostgreSQL fixture for transcript import validation.
 -- ISOLATED/LOCAL DATABASE ONLY. Never run this file against production.
--- Apply this fixture to a fresh database, then apply the reboot revision migration
--- and 20260907193000_import_transcript_result_atomic.sql before running the tests.
+-- The fixture already models transcript_segments.revision; apply only
+-- 20260907193000_import_transcript_result_atomic.sql after this file.
 
 create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
