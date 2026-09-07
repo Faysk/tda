@@ -1,6 +1,6 @@
 # Edit — slice server-side de transcrição
 
-> Status: leitura autorizada implementada com revision; persistence atômica candidata preparada e ainda não aplicada; bypass temporário de UI separado
+> Status: leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado
 > Owner: Edit / aplicação + dados
 > Última revisão: 2026-09-07
 
