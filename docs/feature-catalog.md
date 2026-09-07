@@ -20,6 +20,7 @@ Estados:
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
+| Processamento local no Edit | arquitetura aprovada; candidato UI/adapters | [Contrato da tela e gates](features/local-processing.md); ensaio sintético não equivale a ASR real nem sincronização cloud |
 | Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; isso não declara login de produto integrado/publicado |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |

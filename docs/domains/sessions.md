@@ -21,6 +21,8 @@ O fato de existir uma campanha não autoriza hardcode indiscriminado no domínio
 
 ## Session
 
+Palavras e duração registrada para leitores de transcrições seguem o [contrato de estatísticas privadas](../features/transcript-statistics.md), incluindo unidade, ausências e cobertura dos totais.
+
 Uma session agrega:
 
 - data/título/arco;

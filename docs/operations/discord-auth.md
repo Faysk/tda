@@ -1,30 +1,9 @@
 # Login Discord: configuração e verificação
 
-> Status: runtime integrado; configuração production publicada; OAuth real pendente
+> Status: publicado na Production #006; OAuth real, acesso e logout verificados
 > Owner: identity/access
 > Última revisão: 2026-09-07
-> Fonte de verdade: `src/features/auth/`, contrato [identity-access](../domains/identity-access.md) e [deployments](deployments.md)
-
-## Estado vigente
-
-A **Production #004** publicou a configuração mínima de Auth no target Production sem alterar o código de aplicação: source `0120e38d28c51f3e90aa7336dfa8e7910df074f4`, deployment `dpl_7YhRViksD5bxgYMvSTTWiTg4qXdD`, READY em `2026-09-07T19:21:22.439Z`.
-
-O Dashboard Vercel confirmou a ausência prévia da configuração necessária e a posterior adição **Production-only** de:
-
-- `SUPABASE_PUBLISHABLE_KEY`;
-- `TDA_AUTH_ORIGIN=https://dnd.faysk.dev`.
-
-Nenhuma rotação, grant, alteração de Preview, migration ou escrita de banco fez parte dessa operação. Os demais valores/configurações existentes não são inferidos nem duplicados aqui.
-
-Smokes comprovados após a publicação:
-
-- `/entrar` responde `200` e renderiza **Entrar com Discord** habilitado;
-- `/api/auth/me` responde `200` para visitante anônimo com `state=anonymous`, scope `campaign/yuhara-main` e `capabilities=[]`;
-- o início do fluxo registrou `POST /auth/discord` -> `303` para Supabase -> `302` para `discord.com`.
-
-**Isso não é prova de login completo.** Continuam pendentes: consentimento real no Discord, retorno ao `/auth/callback`, troca real de código, sessão autenticada, resolução de `profiles`, grants/capabilities reais, logout/expiração no fluxo real e validação de uma conta autorizada. Catraca permanece em andamento.
-
-O recibo operacional local informado para o release é `D:/Projects/tda/.local/production004-auth.md`. Ele permanece fora do Git; este runbook registra apenas os fatos necessários sem copiar secrets.
+> Fonte de verdade: `src/features/auth/`, contrato [identity-access](../domains/identity-access.md)
 
 ## Fluxo
 
@@ -39,19 +18,19 @@ Proxy renova a sessão e propaga cookies para request/render e response; o bound
 | Variável | Uso |
 | --- | --- |
 | `SUPABASE_URL` | Projeto existente `dmrqnbdvbkfqzctcerbx` |
-| `SUPABASE_PUBLISHABLE_KEY` | Chave publishable do projeto, nunca secret/service_role; presente no target Production desde Production #004 |
-| `TDA_AUTH_ORIGIN` | Origem exata sem barra final; em Production #004: `https://dnd.faysk.dev` |
+| `SUPABASE_PUBLISHABLE_KEY` | Chave publishable do projeto, nunca secret/service_role |
+| `TDA_AUTH_ORIGIN` | Origem exata sem barra final; HTTPS, ou localhost/127.0.0.1 para ensaio local |
 | `SUPABASE_SECRET_KEY` | Resolver server-only existente; nunca entregue ao cliente Auth |
 | `TDA_READ_EDIT_DATA=true` | Permite ao resolver existente consultar profile e grants no servidor |
 | `TDA_EDIT_UNSAFE=false` | Padrão; integração definitiva do adapter continua pendente |
 
-Não configurar Client Secret do Discord no Next: ele pertence exclusivamente ao provider no Supabase. Não rotacionar credenciais nem remover callbacks existentes apenas para testar o fluxo.
+Não configurar Client Secret do Discord no Next: ele pertence exclusivamente ao provider no Supabase. Não rotacionar credenciais nem remover callbacks existentes para testar este candidato.
 
-1. Confirmar que a aplicação Discord existente aponta para `https://dmrqnbdvbkfqzctcerbx.supabase.co/auth/v1/callback` antes de qualquer alteração remota.
+1. Confirmar que a aplicação Discord existente aponta para `https://dmrqnbdvbkfqzctcerbx.supabase.co/auth/v1/callback`.
 2. Confirmar Discord habilitado no Supabase. **Verificado read-only em 2026-09-07** por `/auth/v1/settings`: `external.discord=true`. Não foram lidos tokens de usuários nem alteradas configurações.
-3. Na allowlist de redirects do Supabase, confirmar deliberadamente `https://dnd.faysk.dev/auth/callback?flow=*` conforme a sintaxe suportada. O redirect inicial da Production #004 chegar a `discord.com` não substitui a prova do retorno real ao callback.
-4. Manter variáveis privadas somente no ambiente apropriado, nunca no chat ou Git. Production #004 adicionou somente as duas entradas explicitamente registradas acima; Preview não foi alterado.
-5. Executar OAuth com uma pessoa autorizada, testar consentimento, callback, recarregamento, logout e expiração; verificar conta sem profile/sem grants e conta com permissões. Não abrir/registrar transcrições reais para provar apenas login.
+3. Na allowlist de redirects do Supabase, confirmar a origem de ensaio deliberada com `/auth/callback` e os query parameters de fluxo. Exemplo local: `http://localhost:3000/auth/callback?flow=*`, conforme a sintaxe de glob da documentação Supabase. Produção: `https://dnd.faysk.dev/auth/callback?flow=*`. Restringir host e path; não usar wildcard geral de domínio.
+4. Preencher as variáveis no ambiente local privado ou no ambiente de hosting autorizado, nunca no chat ou Git. Alterações remotas exigem registro operacional; a configuração publicada está descrita abaixo.
+5. Executar OAuth com uma pessoa autorizada, testar callback, recarregamento, logout e expiração; verificar conta sem profile/sem grants e conta com permissões. Não abrir/registrar transcrições reais para provar apenas login.
 
 ## Integração com Edit
 
@@ -62,44 +41,42 @@ API server-only em `src/features/auth/server.ts`:
 - `requireCapability()` -> guard de página; não deve substituir guard de operação;
 - `/api/auth/me` -> estado, scope e capabilities efetivas de Edit; não envia email, IDs Discord, grants crus ou metadata.
 
-O resolver reutiliza `loadEditAccessContext`. Não duplica RBAC nem chama helpers de role legado. `scope_type=project, scope_id=tda` é a representação física de `project/tda`; assignment ativo, intervalo temporal e action exata continuam obrigatórios. `user_metadata` editável é ignorado.
+O resolver reutiliza `loadEditAccessContext`, já existente na main. Não duplica RBAC nem chama helpers de role legado. `scope_type=project, scope_id=tda` é a representação física de `project/tda`; comparar `scope_id=project/tda` era um bug corrigido com regressão. Assignment ativo, intervalo temporal e action exata continuam obrigatórios. `user_metadata` editável é ignorado.
 
-Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Server Action exige `campaign.content.edit` antes do adapter. Login não cria profile, assignment, claim, membership nem permissão. Conteúdo publicado permanece no boundary público existente.
+Páginas `/edit` e `/edit/sessoes/[id]` exigem `campaign.transcript.read`; a Server Action exige `campaign.content.edit` antes do adapter. Login não cria profile, assignment, claim, membership nem permissão. Sem configuração/dependência, o acesso é negado. Conteúdo publicado permanece no boundary público existente.
 
-**Limite importante:** RLS/grants de produção não mudaram na Production #004. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. O contrato de capabilities e o código da migration atômica do Edit já estão versionados/integrados na linha de código, mas a presença da migration no Git **não prova aplicação remota da RPC**. A troca do adapter, revision/conflict/audit, aplicação controlada da migration e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit.
+**Limite importante:** RLS/grants de produção não mudaram. O resolver e as consultas administrativas atuais usam o cliente privilegiado server-only e guards explícitos; isso não equivale a um resolver de capabilities nativo de RLS. A migration de persistence atômica está versionada na main, mas não foi aplicada remotamente; integração no Git não torna a RPC disponível em produção. A troca do adapter, revision/conflict/audit e retirada de `TDA_EDIT_UNSAFE` pertencem à integração do Edit. Este candidato protege a entrada existente, mas não declara essa convergência concluída.
 
-## Evidências e gates
+## Estado publicado — Production #006
 
-### Evidência de implementação anterior
+Source `7dd4b06d1a246ad924230530c2a0424e830aa46d`, deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`. A correção de Origin já está publicada. `TDA_READ_EDIT_DATA=true` foi configurado somente em Production para consultar permissões existentes; não habilita unsafe nem concede grants.
 
-A implementação de Auth foi validada antes da integração com ensaios sintéticos de callback/nonce/replay/cancelamento, redirects hostis, CSRF de login/logout, remoção de cookies na falha de revogação, sessão inválida, refresh propagado, metadata forjada, profile/grants e scope cruzado. Build, testes e navegador sintético passaram naquele candidato.
+Consentimento real no Discord e retorno ao TDA foram exercitados; após recarregar, a conta reconheceu permissões. Estatísticas autorizadas e diretório somente leitura renderizaram. Logout funcionou e a visita posterior às transcrições apresentou negação sem métricas. O nome do app OAuth ainda é DND-SCRIBE. Nenhuma migration, concessão de acesso ou escrita de transcrição foi executada para esses testes. Evidências e rollback em [deployments](deployments.md).
 
-Essa evidência validou o código, não o OAuth externo real.
+Os registros abaixo são históricos dos candidatos e não representam pendências atuais de login. Persistence do Edit, importação real e cenários não exercitados continuam gates separados.
 
-### Evidência operacional — Production #004
+## Evidências históricas e cobertura
 
-- deployment `dpl_7YhRViksD5bxgYMvSTTWiTg4qXdD` confirmado `READY` e `production`;
-- `/entrar` habilitado em production;
-- `/api/auth/me` preserva visitante anônimo sem capabilities;
-- início do redirect OAuth chega a Supabase e Discord;
-- configuração registrada somente em Production;
-- nenhuma migration/grant/DB/Preview/rotação executada.
+### Correção de Origin dos formulários — 2026-09-07
 
-### Gate restante para declarar login funcional
+Chrome com contexto isolado reproduziu em produção: `/entrar` entregava `Referrer-Policy: no-referrer`; o clique real enviava `Origin: null` a `/auth/discord` e recebia 403. Uma simulação apenas do header da página para `same-origin` preservou `Origin: https://dnd.faysk.dev` e chegou à tela de autorização Discord. O ensaio parou antes de credenciais, MFA ou consentimento; não comprova callback nem sessão real.
 
-Só declarar Catraca/login Discord funcional após observar no fluxo real, com conta autorizada:
+A correção usa `same-origin` exclusivamente em `/entrar` e `/conta`, inclusive com query string, pois ambas originam formulários POST. O guard continua exigindo a origem configurada e rejeitando origem ausente, literal `null` e externa. `/api/auth/*` e páginas Edit mantêm `no-referrer`. A configuração de headers inclui uma regra específica `/auth/:path*` depois da regra global, preservando `no-referrer` nos callbacks e redirecionamentos também na resposta HTTP final; o teste detectou que apenas definir esse header no Route Handler não bastava.
 
-1. consentimento no Discord;
-2. retorno ao callback esperado;
-3. troca de código/sessão válida;
-4. `/api/auth/me` refletindo estado autenticado coerente;
-5. profile/capabilities corretos para conta com e sem grants;
-6. logout e expiração/reload;
-7. ausência de regressão de autorização no Edit.
+`tests/auth-origin.spec.ts` executa cliques reais de login e logout em três viewports contra um provider HTTP sintético de loopback. Verifica Origin, 303, política dos redirects, chegada ao consentimento sintético e remoção dos cookies no logout; cobre também os POSTs negativos e o callback sem tentativa. Não usa credenciais, consentimento nem dados de produção. A cobertura unitária verifica a seleção das páginas e a rejeição antes de chamar o SDK. Esta correção não altera configuração remota, grants, callbacks permitidos ou deploy.
 
-Até isso ocorrer, **Production #004 = configuração Auth operacional + início de fluxo validado; login completo pendente**.
+Validação local da correção: `pnpm check` (154 testes Vitest e 24 testes de mídia), `pnpm build` e `pnpm test:e2e` (84 casos, incluindo nove regressões de Origin) aprovados. O lint mantém cinco avisos preexistentes, sem erros. CI e publicação são gates separados da evidência local.
 
-Rollback desta configuração/release é a **Production #003** (`dpl_GHJgH7VdNrJd9izpYScog48UjSsE`).
+### Evidência histórica do candidato inicial (PR #48)
+
+Validação local final do candidato: `pnpm check` (99 testes unitários), `pnpm build` e `pnpm test:e2e` (39 casos em 1920×1080, 2560×1440 e 390×844) passaram após o hardening dos cookies. Inspeção visual adicional em navegador local confirmou entrada, cancelamento e conta indisponível.
+
+A revisão automática rejeitou iniciar `pnpm start --port 3102` com as variáveis de configuração pública do Supabase e origem local. Motivo informado: **“blocked by policy”**, sem detalhamento adicional. A rejeição não foi contornada; a inspeção visual usou servidor sem conexão externa. Para OAuth real falta um ambiente de ensaio autorizado com configuração privada e redirect confirmado; a pessoa então abre `/entrar`, seleciona **Entrar com Discord**, conclui login/consentimento e retorna ao TDA. Esta evidência não confirma a allowlist remota de callbacks; o endpoint público de settings confirma somente habilitação do provider. Não alterar callbacks ativos para resolver essa pendência sem avaliação específica.
+
+- Ensaios sintéticos: callback/nonce/replay/cancelamento, redirects hostis, CSRF de login/logout, remoção de cookies na falha de revogação, sessão inválida, refresh propagado, metadata forjada, profile/grants e scope cruzado.
+- Navegador: entrada, cancelamento, conta indisponível e negação administrativa com flag legada ligada; desktop e mobile. Não usa dados privados.
+- OAuth real **não executado** nesta evidência; habilitação do provider não prova callbacks, consentimento, troca real de código, vínculo de profile nem acesso real.
+- Nenhuma migration, escrita de usuário/dado, deploy, DNS ou merge nesta rodada.
 
 ## Fontes atuais e legado
 
