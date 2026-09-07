@@ -10,7 +10,7 @@ import { syncTranscript } from "./client";
 import { consumeTranscript, type ImportDependencies } from "./consumer";
 import { createImportHandler } from "./http";
 import type { ImportResult, PreparedImport } from "./contract";
-import { prepareImport } from "./validate";
+import { prepareImport, sha256 } from "./validate";
 
 const enabled = process.env.TDA_SYNTHETIC_POSTGRES === "1";
 const windows = process.platform === "win32";
@@ -23,6 +23,29 @@ const actor = {
 const parsed = prepareImport(JSON.stringify(fixture));
 if (!parsed.ok) throw new Error(parsed.reason);
 const input: PreparedImport = parsed.value;
+function divergentInput(): PreparedImport {
+	const transcriptJson = input.transcriptJson.replace(
+		"A porta está fechada.",
+		"A porta foi aberta.",
+	);
+	const transcriptSha256 = sha256(transcriptJson);
+	const manifestSha256 = "c".repeat(64);
+	const publicationPayloadJson = input.publicationPayloadJson
+		.replace(input.transcriptSha256, transcriptSha256)
+		.replace(input.manifestSha256, manifestSha256);
+	return {
+		...input,
+		publicationId: sha256(publicationPayloadJson),
+		transcriptSha256,
+		manifestSha256,
+		publicationPayloadJson,
+		transcriptJson,
+		segments: input.segments.map((segment, index) =>
+			index === 1 ? { ...segment, text: "A porta foi aberta." } : segment,
+		),
+	};
+}
+const divergent = divergentInput();
 const quote = (text: string) => `'${text.replaceAll("'", "''")}'`;
 function command(binary: string, args: string[]) {
 	return windows
@@ -136,13 +159,26 @@ describe.skipIf(!enabled)(
 				{ campaignId: "66666666-6666-4666-8666-666666666666" },
 				{ sessionId: "66666666-6666-4666-8666-666666666666" },
 				{ sourceSessionId: "other" },
-				{ sourceSystem: "craig" },
 			])
 				expect(
 					JSON.parse(
 						sql(`set role service_role; ${call({ ...input, ...patch })}`),
 					),
 				).toEqual({ ok: false, reason: "not_found" });
+			expect(
+				JSON.parse(
+					sql(
+						`set role service_role; ${call({ ...input, sourceSystem: "craig" })}`,
+					),
+				),
+			).toEqual({ ok: false, reason: "invalid_payload" });
+			expect(
+				JSON.parse(
+					sql(
+						`set role service_role; ${call({ ...input, sessionId: "not-a-uuid" })}`,
+					),
+				),
+			).toEqual({ ok: false, reason: "invalid_payload" });
 		});
 		it("denies direct SQL clients and rolls back segments if receipt fails", () => {
 			for (const role of ["anon", "authenticated"])
@@ -164,17 +200,27 @@ describe.skipIf(!enabled)(
 				"drop trigger fail_receipt on transcript_import_receipts; drop function fail_receipt();",
 			);
 		});
-		it("SQL rejects malformed projection and audit failure rolls back the complete import", () => {
-			for (const segments of [
-				[],
-				[{ ...input.segments[0], text: "" }],
-				[{ ...input.segments[0], endMs: 0 }],
-				[input.segments[0], input.segments[0]],
+		it("SQL rejects malformed projection, altered canonical bytes and audit failure rolls back the complete import", () => {
+			for (const value of [
+				{ ...input, segments: [] },
+				{
+					...input,
+					segments: [{ ...input.segments[0], text: "" }],
+				},
+				{
+					...input,
+					segments: [{ ...input.segments[0], endMs: 0 }],
+				},
+				{ ...input, segments: [input.segments[0], input.segments[0]] },
+				{ ...input, publicationId: "a".repeat(64) },
+				{ ...input, transcriptSha256: "b".repeat(64) },
+				{
+					...input,
+					transcriptJson: input.transcriptJson.replace("Olá", "Ola"),
+				},
 			]) {
 				expect(
-					JSON.parse(
-						sql(`set role service_role; ${call({ ...input, segments })}`),
-					),
+					JSON.parse(sql(`set role service_role; ${call(value)}`)),
 				).toEqual({ ok: false, reason: "invalid_payload" });
 			}
 			sql(
@@ -236,7 +282,7 @@ describe.skipIf(!enabled)(
 			).toBe("2|1|1");
 			expect(
 				sql(
-					"select bool_and(needs_review and review_status='pending') from transcript_segments;",
+					"select bool_and(needs_review and review_status='pending' and revision=0 and not is_empty) from transcript_segments;",
 				),
 			).toBe("t");
 			expect(
@@ -247,25 +293,13 @@ describe.skipIf(!enabled)(
 				),
 			).toEqual(input.segments.map((row) => row.text));
 		});
-		it("conflicting hashes never overwrite existing evidence or receipt", async () => {
+		it("coherent divergent hashes conflict without overwriting existing evidence or receipt", async () => {
 			const original = sql(
 				"select row_to_json(r) from transcript_import_receipts r;",
 			);
-			for (const patch of [
-				{ publicationId: "a".repeat(64) },
-				{ transcriptSha256: "b".repeat(64) },
-				{
-					segments: [
-						{ ...input.segments[0], text: "changed" },
-						input.segments[1],
-					],
-				},
-			])
-				expect(
-					JSON.parse(
-						sql(`set role service_role; ${call({ ...input, ...patch })}`),
-					),
-				).toEqual({ ok: false, reason: "conflict" });
+			expect(
+				JSON.parse(sql(`set role service_role; ${call(divergent)}`)),
+			).toEqual({ ok: false, reason: "conflict" });
 			expect(
 				sql("select row_to_json(r) from transcript_import_receipts r;"),
 			).toBe(original);
@@ -295,7 +329,7 @@ describe.skipIf(!enabled)(
 				);
 			}
 		});
-		it("transaction interruption leaves no partial evidence; concurrent retries share one receipt", async () => {
+		it("transaction interruption and concurrent same/different payloads remain atomic", async () => {
 			sql("truncate audit_log,transcript_segments,transcript_import_receipts;");
 			sql(`set role service_role; begin; ${call()} rollback;`);
 			expect(
@@ -326,42 +360,86 @@ describe.skipIf(!enabled)(
 				child.stdin.end(query);
 				return result;
 			};
+			const waitForFirst = async (name: string, deadline: number) => {
+				while (
+					sql(
+						`select count(*) from pg_stat_activity where application_name='${name}' and wait_event='PgSleep';`,
+					) !== "1"
+				) {
+					if (Date.now() > deadline)
+						throw new Error("First connection did not reach commit hold");
+					await new Promise((resolve) => setTimeout(resolve, 50));
+				}
+			};
+			const observeBlocked = async (
+				firstName: string,
+				secondName: string,
+				deadline: number,
+			) => {
+				while (Date.now() < deadline) {
+					if (
+						sql(
+							`select exists(select 1 from pg_stat_activity b cross join pg_stat_activity a where b.application_name='${secondName}' and a.application_name='${firstName}' and a.pid=any(pg_blocking_pids(b.pid)));`,
+						) === "t"
+					)
+						return true;
+					await new Promise((resolve) => setTimeout(resolve, 50));
+				}
+				return false;
+			};
+
 			const first = launch(
 				`set application_name='tda_sync_a'; set role service_role; begin; ${call()} select pg_sleep(4); commit;`,
 			);
-			const deadline = Date.now() + 6000;
-			while (
-				sql(
-					"select count(*) from pg_stat_activity where application_name='tda_sync_a' and wait_event='PgSleep';",
-				) !== "1"
-			) {
-				if (Date.now() > deadline)
-					throw new Error("First connection did not reach commit hold");
-				await new Promise((resolve) => setTimeout(resolve, 50));
-			}
+			let deadline = Date.now() + 6000;
+			await waitForFirst("tda_sync_a", deadline);
 			const second = launch(
 				`set application_name='tda_sync_b'; set role service_role; ${call()}`,
 			);
-			let blocked = false;
-			while (Date.now() < deadline) {
-				if (
-					sql(
-						"select exists(select 1 from pg_stat_activity b cross join pg_stat_activity a where b.application_name='tda_sync_b' and a.application_name='tda_sync_a' and a.pid=any(pg_blocking_pids(b.pid)));",
-					) === "t"
-				) {
-					blocked = true;
-					break;
-				}
-				await new Promise((resolve) => setTimeout(resolve, 50));
-			}
+			const blockedSame = await observeBlocked(
+				"tda_sync_a",
+				"tda_sync_b",
+				deadline,
+			);
 			const [a, b] = await Promise.all([first, second]);
-			expect(blocked).toBe(true);
+			expect(blockedSame).toBe(true);
 			expect(JSON.parse(a)).toEqual(JSON.parse(b));
 			expect(
 				sql(
 					"select (select count(*) from transcript_segments),(select count(*) from transcript_import_receipts),(select count(*) from audit_log);",
 				),
 			).toBe("2|1|1");
-		}, 20000);
+
+			sql("truncate audit_log,transcript_segments,transcript_import_receipts;");
+			const winning = launch(
+				`set application_name='tda_sync_c'; set role service_role; begin; ${call()} select pg_sleep(4); commit;`,
+			);
+			deadline = Date.now() + 6000;
+			await waitForFirst("tda_sync_c", deadline);
+			const losing = launch(
+				`set application_name='tda_sync_d'; set role service_role; ${call(divergent)}`,
+			);
+			const blockedDifferent = await observeBlocked(
+				"tda_sync_c",
+				"tda_sync_d",
+				deadline,
+			);
+			const [winner, loser] = await Promise.all([winning, losing]);
+			expect(blockedDifferent).toBe(true);
+			expect(JSON.parse(winner).ok).toBe(true);
+			expect(JSON.parse(loser)).toEqual({ ok: false, reason: "conflict" });
+			expect(
+				sql(
+					"select (select count(*) from transcript_segments),(select count(*) from transcript_import_receipts),(select count(*) from audit_log);",
+				),
+			).toBe("2|1|1");
+			expect(
+				JSON.parse(
+					sql(
+						"select json_agg(text order by source_sequence) from transcript_segments;",
+					),
+				),
+			).toEqual(input.segments.map((row) => row.text));
+		}, 30000);
 	},
 );
