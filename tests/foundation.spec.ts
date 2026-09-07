@@ -190,34 +190,34 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 	const knob = page.locator(".theme-toggle-knob");
 	const glyph = page.locator(".theme-toggle-glyph--sun");
 
-	expect(
-		await page.evaluate(() =>
-			getComputedStyle(document.documentElement)
-				.getPropertyValue("--ds-motion-theme")
-				.trim(),
-		),
-	).toBe("700ms");
-	expect(
-		await toggle.evaluate((element) =>
-			getComputedStyle(element)
-				.getPropertyValue("--theme-toggle-track-duration")
-				.trim(),
-		),
-	).toBe("520ms");
-	expect(
-		await toggle.evaluate((element) =>
-			getComputedStyle(element)
-				.getPropertyValue("--theme-toggle-knob-duration")
-				.trim(),
-		),
-	).toBe("650ms");
-	expect(
-		await toggle.evaluate((element) =>
-			getComputedStyle(element)
-				.getPropertyValue("--theme-toggle-glyph-duration")
-				.trim(),
-		),
-	).toBe("460ms");
+	const themeDuration = await page.evaluate(() =>
+		getComputedStyle(document.documentElement)
+			.getPropertyValue("--ds-motion-theme")
+			.trim(),
+	);
+	expect(themeDuration).toMatch(/^(?:700ms|0?\.7s)$/);
+
+	const trackDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-track-duration")
+			.trim(),
+	);
+	expect(trackDuration).toMatch(/^(?:520ms|0?\.52s)$/);
+
+	const knobDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-knob-duration")
+			.trim(),
+	);
+	expect(knobDuration).toMatch(/^(?:650ms|0?\.65s)$/);
+
+	const glyphDuration = await toggle.evaluate((element) =>
+		getComputedStyle(element)
+			.getPropertyValue("--theme-toggle-glyph-duration")
+			.trim(),
+	);
+	expect(glyphDuration).toMatch(/^(?:460ms|0?\.46s)$/);
+
 	await expect(track).toHaveCSS("transition-duration", "0.52s, 0.52s, 0.52s");
 	await expect(knob).toHaveCSS("transition-duration", "0.65s, 0.14s, 0.52s");
 	await expect(glyph).toHaveCSS("transition-duration", "0.46s, 0.46s");
