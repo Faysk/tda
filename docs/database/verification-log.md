@@ -10,6 +10,83 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-07 — auditoria das RPCs `SECURITY DEFINER`
+
+### Escopo
+
+Inspeção read-only das funções privilegiadas em `public`, grants efetivos e principais consumidores versionados do TDA/legado.
+
+### Estado observado
+
+Foram confirmadas 8 funções `SECURITY DEFINER`:
+
+- `access_directory(campaign_slug text)`;
+- `current_profile_id()`;
+- `has_campaign_role(target_campaign_id uuid, allowed_roles text[])`;
+- `has_campaign_role_slug(campaign_slug text, allowed_roles text[])`;
+- `review_profile_claim(...)`;
+- `review_table_note(...)`;
+- `submit_profile_claim(...)`;
+- `table_notes_directory(...)`.
+
+Para as oito:
+
+- owner `postgres`;
+- `anon` sem `EXECUTE`;
+- `authenticated` com `EXECUTE`;
+- `service_role` com `EXECUTE`;
+- `search_path` fixado em `pg_catalog, public` nas definições observadas.
+
+### Classificação
+
+Helpers internos/candidatos a hardening:
+
+- `current_profile_id()`;
+- `has_campaign_role(...)`;
+- `has_campaign_role_slug(...)`.
+
+Endpoints autenticados/administrativos intencionais durante a transição:
+
+- `access_directory(...)`;
+- `submit_profile_claim(...)`;
+- `review_profile_claim(...)`;
+- `table_notes_directory(...)`;
+- `review_table_note(...)`.
+
+### Consumidores
+
+O código atual do reboot não apresentou caller direto conhecido para os três helpers.
+
+No `Faysk/dnd-scribe`, o backend principal inspecionado resolve profile, membership, RBAC e permissions com SQL server-side, e o web app atual consulta a API legada `/api/auth/me`. Não foram observadas chamadas diretas aos três helpers no backend principal analisado.
+
+A ausência em código versionado não foi tratada como prova absoluta de ausência de consumidor externo/antigo. Por isso nenhum grant foi revogado nesta verificação.
+
+### Ponto de atenção
+
+`access_directory` exige Auth e mascara campos para não-admin, mas o caminho não-admin não exige explicitamente membership prévia na campanha solicitada.
+
+Com a campanha única conhecida, nenhum vazamento cross-campaign foi observado. A semântica precisa ser definida e testada antes de multi-campaign/Edit público.
+
+### Ações tomadas
+
+- nenhum SQL de escrita executado;
+- nenhum grant/policy/function alterado;
+- criado `docs/database/rpc-inventory.md`;
+- atualizado `docs/database/security.md`;
+- atualizado o índice de documentação do banco.
+
+### Próxima condição para mudança de grant
+
+Só versionar `REVOKE EXECUTE` dos helpers depois de:
+
+1. provar ausência de consumidores externos necessários;
+2. criar teste positivo dos endpoints que usam os helpers internamente;
+3. criar teste negativo de execução direta quando a revogação for desejada;
+4. aplicar a mudança por migration;
+5. rodar advisors e revalidar produção.
+
+---
+
 ## 2026-09-07 — revalidação pós-reboot
 
 ### Escopo
