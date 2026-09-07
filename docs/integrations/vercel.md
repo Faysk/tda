@@ -1,21 +1,27 @@
 # Integração Vercel
 
-> Status: preparado; reboot não publicado
+> Status: production ativa; publicação manual controlada
 > Owner: operations/hosting
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Guardrail obrigatório
 
 Antes de **qualquer** operação de projeto, env, domain ou deployment do TDA, verificar o contexto correto:
 
 - conta/contexto esperado: `projeto-desenv-6905`;
-- email informado pelo proprietário: `projeto_desenv@outlook.com`.
+- email informado pelo proprietário: `projeto_desenv@outlook.com`;
+- team: `projeto-desenv-6905s-projects` (`team_9wuTfarCQ3L63xtufPKUDzi0`);
+- project: `tda` (`prj_hDiDvvRiesg3qCDekGWE8JQMkIyH`).
 
-Uma integração/tool que mostre outro time/conta não deve ser usada para alterar o TDA sem confirmação inequívoca de ownership.
+Uma integração/tool que mostre outro time/conta não deve ser usada para alterar o TDA sem confirmação inequívoca de ownership. Em 2026-09-07 o ChatGPT/Vercel MCP foi reautorizado no contexto correto e o acesso aos IDs acima foi confirmado antes da primeira mutação.
 
 ## Estado documentado
 
-O projeto `tda` foi preparado para Vercel na conta correta, plano Hobby, Node 24, sem deploy do reboot e sem integração Git automática como gatilho de publicação.
+O projeto `tda` está ativo na Vercel correta, plano Hobby e Node 24. O primeiro deployment do reboot foi publicado manualmente em production em 2026-09-07 e terminou `READY`.
+
+A publicação atual corresponde ao source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe`, com alias de production `https://tda-three.vercel.app`.
+
+O projeto continua sem integração Git automática como gatilho de publicação; `git.deploymentEnabled=false` permanece vigente.
 
 ## Política de deploy
 
@@ -27,6 +33,8 @@ Razões:
 - evitar publicação acidental;
 - exigir candidato validado;
 - separar merge de release.
+
+Quando o conector usado para publicar não aceitar uma Git ref diretamente, é permitido um deployment direto desde que a origem seja fixada por SHA imutável e o método seja registrado no histórico operacional. Production #001 usou o tarball do GitHub preso ao SHA autorizado, instalação com lockfile congelado e build de produção.
 
 ## Ambientes
 
@@ -41,6 +49,8 @@ Não deve receber secret de produção ou acesso irrestrito a conteúdo real por
 ### Production
 
 Só após aceite da entrega, validação completa e verificação da conta/contexto Vercel.
+
+Production está ativa desde 2026-09-07. Publicar código novo em `main` não atualiza production por si só; exige nova autorização e novo evento de deployment.
 
 ## Env vars
 
@@ -82,15 +92,19 @@ Após publicar:
 - logs de erro;
 - smoke mobile/desktop.
 
+No Production #001, `/` e `/api/health` responderam HTTP 200, dados reais foram renderizados e a consulta de runtime errors não encontrou erros no intervalo verificado logo após a publicação.
+
 ## Rollback
 
 Preferir rollback por SHA/release conhecido. Não manter duas versões públicas concorrentes do frontend como estratégia normal.
+
+Production #001 é o primeiro ponto de rollback reproduzível do reboot. Não havia deployment anterior do reboot na Vercel quando ele foi publicado. O domínio legado permaneceu separado e não foi usado como artefato de rollback da nova aplicação.
 
 Se schema mudou, verificar compatibilidade backward antes de rollback do app. Uma migration incompatível pode impedir simples retorno de código.
 
 ## Domínio
 
-O domínio legado continua preservado enquanto reboot não é aprovado para substituição. Troca de DNS/domínio é operação distinta de configurar projeto/variáveis.
+O reboot está acessível pelo alias Vercel `https://tda-three.vercel.app`. O domínio legado `dnd.faysk.dev` continua preservado e nenhuma mudança de DNS foi feita no primeiro deployment. Troca de DNS/domínio é operação distinta de configurar projeto/variáveis ou publicar um deployment.
 
 ## Cotas
 
@@ -110,11 +124,17 @@ Deployment deve falhar/mostrar estado explícito, não mascarar com dados fake.
 
 Verificar env/runtime/data boundary antes de promover domínio.
 
+### Metadado de commit ausente
+
+Deployment direto pode não preencher metadados Git da Vercel. No Production #001, `/api/health` retornou `commit: null`; o SHA autoritativo foi garantido pelo source tarball fixado e registrado em `docs/operations/deployments.md`. Não inferir um SHA a partir do horário do deploy.
+
 ### Migration incompatível
 
 Tratar app+database como release coordenada e seguir rollback planejado.
 
 ## Referências
 
+- [Histórico de deployments](../operations/deployments.md)
 - [Runbook de release](../operations/release-runbook.md)
 - [Política resumida](../releases.md)
+- [Infraestrutura e estado](../infrastructure.md)

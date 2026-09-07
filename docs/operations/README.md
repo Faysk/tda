@@ -43,4 +43,4 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 ## Runbook incompleto é dívida
 
-Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal.
+Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal. Todo deployment deliberado deve acrescentar evidência em `deployments.md`.
