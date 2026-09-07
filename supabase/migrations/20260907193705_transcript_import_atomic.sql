@@ -114,47 +114,28 @@ begin
   v_publication_id := p_input->>'publicationId';
   v_transcript_sha256 := p_input->>'transcriptSha256';
 
-  -- Require an active import grant before resolving or locking the target session.
-  if not exists (
-    select 1
-    from public.role_assignments a
-    join public.role_permissions rp on rp.role_id = a.role_id
-    where a.profile_id = p_actor_profile_id
-      and a.status = 'active'
-      and a.starts_at <= clock_timestamp()
-      and (a.ends_at is null or a.ends_at > clock_timestamp())
-      and rp.permission_action = 'campaign.transcript.import'
-      and (
-        a.scope_type = 'campaign'
-        or (a.scope_type = 'project' and a.scope_id = 'tda')
-      )
-  ) then
-    return jsonb_build_object('ok', false, 'reason', 'forbidden');
-  end if;
-
+  -- Resolve campaign and exact capability scope as one authorization predicate.
+  -- A missing campaign and a campaign outside the actor's scope are deliberately indistinguishable.
   select c.slug
   into v_campaign_slug
   from public.campaigns c
-  where c.id = v_campaign_id;
+  where c.id = v_campaign_id
+    and exists (
+      select 1
+      from public.role_assignments a
+      join public.role_permissions rp on rp.role_id = a.role_id
+      where a.profile_id = p_actor_profile_id
+        and a.status = 'active'
+        and a.starts_at <= clock_timestamp()
+        and (a.ends_at is null or a.ends_at > clock_timestamp())
+        and rp.permission_action = 'campaign.transcript.import'
+        and (
+          (a.scope_type = 'campaign' and a.scope_id = c.slug)
+          or (a.scope_type = 'project' and a.scope_id = 'tda')
+        )
+    );
 
   if not found then
-    return jsonb_build_object('ok', false, 'reason', 'not_found');
-  end if;
-
-  if not exists (
-    select 1
-    from public.role_assignments a
-    join public.role_permissions rp on rp.role_id = a.role_id
-    where a.profile_id = p_actor_profile_id
-      and a.status = 'active'
-      and a.starts_at <= clock_timestamp()
-      and (a.ends_at is null or a.ends_at > clock_timestamp())
-      and rp.permission_action = 'campaign.transcript.import'
-      and (
-        (a.scope_type = 'campaign' and a.scope_id = v_campaign_slug)
-        or (a.scope_type = 'project' and a.scope_id = 'tda')
-      )
-  ) then
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
 
