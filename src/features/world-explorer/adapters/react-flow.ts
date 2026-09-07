@@ -20,7 +20,10 @@ export type WorldFlowEdgeData = {
 export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
 export type WorldFlowEdge = Edge<WorldFlowEdgeData, "worldRelation">;
 
-export function toReactFlowGraph(projection: WorldGraphProjection): {
+export function toReactFlowGraph(
+	projection: WorldGraphProjection,
+	selectedId?: string | null,
+): {
 	nodes: WorldFlowNode[];
 	edges: WorldFlowEdge[];
 } {
@@ -34,6 +37,7 @@ export function toReactFlowGraph(projection: WorldGraphProjection): {
 		connectable: false,
 		deletable: false,
 		selectable: true,
+		selected: item.id === selectedId,
 		focusable: true,
 		ariaLabel: `${item.label}${item.subtitle ? ` — ${item.subtitle}` : ""}`,
 		zIndex: item.id === projection.focusId ? 2 : 1,
