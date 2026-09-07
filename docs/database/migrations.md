@@ -146,13 +146,35 @@ Compatibilidade:
 - o adapter temporário do Edit permanece independente até o binding canônico;
 - a função nova não substitui Auth/RBAC: actor/capability continuam resolvidos no boundary autorizado da aplicação.
 
-Validação antes de produção:
+Validação isolada concluída em 2026-09-07:
 
-- aplicar em banco local/isolado;
-- executar `supabase/tests/edit_transcript_segment_atomic.sql` com dados sintéticos e `ROLLBACK`;
-- provar `updated + conflict = 1 audit`, cross-campaign `not_found`, preservação de identidade e rollback do update quando o audit falha;
-- revisar grants e advisors;
-- só então aplicar pelo fluxo oficial de migration e registrar a nova migration no histórico remoto/verification log.
+- SHA validado: `f44a74c653d416a614bb3468ffc112d741bc4893`;
+- PostgreSQL 16.14 real em cluster descartável novo, sem TCP nem conexão remota;
+- migration de `revision` + migration candidata originais aplicadas sobre schema mínimo sintético;
+- `supabase/tests/edit_transcript_segment_atomic.sql` integral passou e terminou em `ROLLBACK`;
+- concorrência real com duas conexões `service_role` passou 3/3 sob `READ COMMITTED`: uma conexão ficou bloqueada no lock da outra, depois houve exatamente `updated/1` + `conflict/NULL`, revision final `1` e um único audit `0 -> 1`;
+- `anon`, `authenticated` e role sem acesso tiveram chamada direta negada;
+- cross-campaign retornou `not_found` sem audit;
+- identidade foi preservada quando speaker não mudou e `character_name` foi limpo quando mudou;
+- falha de audit por trigger e por FK de ator inválido reverteu a linha inteira;
+- nenhum bug SQL foi reproduzido; a branch/migration não foi alterada durante o ensaio.
+
+Limites da validação isolada:
+
+- schema de teste mínimo, não dump completo do Supabase;
+- sem Auth/PostgREST real;
+- sem advisors do projeto canônico;
+- sem migration history remoto pós-aplicação;
+- somente `READ COMMITTED`.
+
+Ainda pendente antes de produção:
+
+- reconciliar/confirmar o SHA exato que será aplicado contra a `main` vigente;
+- aplicar pelo database runbook no projeto canônico;
+- revalidar função, grants e migration history remotamente;
+- executar advisors de segurança/performance;
+- registrar a aplicação no `verification-log.md`;
+- integrar Auth/Edit em recorte próprio.
 
 Rollback lógico:
 
