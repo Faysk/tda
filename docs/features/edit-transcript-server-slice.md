@@ -8,7 +8,7 @@
 
 Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem aceitar lost update ou auditoria parcial.
 
-A leitura autorizada e o contrato da mutation canônica já existem. A PR #33 aplicou a coluna física de concorrência otimista e a PR #34 passou a entregar `revision` no boundary autorizado. Este slice prepara a menor persistence SQL necessária para `update + revision + audit` na mesma transação; ela permanece desligada até ser validada em banco isolado, aplicada pelo fluxo operacional aprovado e integrada pelo Edit/Auth.
+A leitura autorizada e o contrato da mutation canônica já existem. A PR #33 aplicou a coluna física de concorrência otimista e a PR #34 passou a entregar `revision` no boundary autorizado. Este slice prepara a menor persistence SQL necessária para `update + revision + audit` na mesma transação. A candidata foi validada em PostgreSQL isolado no SHA exato `f44a74c653d416a614bb3468ffc112d741bc4893`, mas permanece desligada até aplicação produtiva controlada e integração pelo Edit/Auth.
 
 Durante a construção da UI existe uma exceção deliberada e isolada em [modo temporário sem autenticação](edit-unsafe-development.md). Ela não altera os contratos descritos abaixo.
 
@@ -106,39 +106,79 @@ transcript_segment.update
 
 `audit_log` estava vazio na revalidação, portanto não havia convenção histórica ativa a preservar para esse tipo de write.
 
-## Teste transacional preparado
+## Validação transacional isolada — concluída
 
-`supabase/tests/edit_transcript_segment_atomic.sql` usa apenas campaigns/sessões/perfis/segmentos sintéticos e termina em `ROLLBACK`.
+A candidata foi validada no SHA exato `f44a74c653d416a614bb3468ffc112d741bc4893` em PostgreSQL 16.14 real, dentro de cluster descartável novo em WSL Ubuntu 24.04, acessível apenas por socket Unix privado e sem TCP/conexão remota. Nenhum dado ou serviço de produção foi usado.
 
-Ele exige execução **somente em banco local/isolado** e cobre:
+O schema de teste foi mínimo e sintético, com cinco tabelas necessárias, FKs/RLS/roles/grants declarados. Foram aplicadas a migration de `revision` e a migration candidata originais.
 
-1. grants: `anon/authenticated` sem `EXECUTE`, `service_role` com `EXECUTE`;
-2. duas escritas com `expectedRevision=0`: a primeira retorna `updated/revision=1`, a segunda `conflict`;
-3. exatamente um evento de audit para o par `updated + conflict`;
-4. campaign cruzada retorna `not_found` e não cria audit;
-5. speaker inalterado preserva `character_name` no segmento e no audit;
-6. falha artificial no insert de `audit_log` desfaz o update/revision e deixa zero audit para a tentativa.
+### Teste SQL versionado
 
-Este teste não deve ser executado contra transcrições ou dados reais de produção.
+`supabase/tests/edit_transcript_segment_atomic.sql` foi executado integralmente e passou, terminando em `ROLLBACK`.
+
+Esse teste cobre semântica transacional em sequência, mas **não prova sozinho concorrência real entre conexões**. Ele confirmou:
+
+- `anon` e `authenticated` sem `EXECUTE` e `service_role` com `EXECUTE`;
+- primeira escrita `updated/revision=1` e segunda escrita sequencial na mesma revision como `conflict`;
+- exatamente um evento de audit;
+- campaign cruzada como `not_found` sem audit;
+- speaker inalterado preservando identidade e troca de speaker limpando `character_name`;
+- falha artificial do insert em `audit_log` desfazendo update/revision.
+
+### Concorrência real em duas conexões
+
+Um runner separado abriu duas conexões PostgreSQL independentes como `service_role` e repetiu o cenário três vezes sob `READ COMMITTED`:
+
+1. ambas enviaram `expectedRevision=0` para o mesmo segmento;
+2. conexão A segurou o lock;
+3. conexão B foi observada em `Lock/transactionid`, com A aparecendo em `pg_blocking_pids(B)`;
+4. após a liberação, A retornou `updated/1`;
+5. B reavaliou o estado e retornou `conflict/NULL`;
+6. revision final permaneceu `1`;
+7. existiu exatamente um audit, com old revision `0` e new revision `1`.
+
+Resultado: **PASS 3/3**, sem deadlock e sem segundo update/audit.
+
+### Atomicidade e identidade
+
+Também passaram:
+
+- chamada direta como `anon`, `authenticated` e role sem acesso: negada;
+- `SECURITY INVOKER` e `search_path` conferidos;
+- cross-campaign: `not_found` sem audit;
+- identidade preservada quando o speaker não muda e `character_name` limpo quando muda;
+- falha de trigger no audit como `service_role`: linha inteira idêntica antes/depois;
+- FK de ator inválido: falha do audit e linha inteira idêntica antes/depois.
+
+Uma falha inicial do runner era apenas fixture incompleta — faltava um `SELECT` para a asserção do audit. A fixture foi corrigida fora da branch e o rerun completo terminou com exit 0; nenhum bug SQL foi encontrado e a migration/PR não foram alteradas durante a validação.
+
+### Limites desta evidência
+
+A validação isolada **não equivale a aplicação/aprovação de produção**. Ela não cobriu:
+
+- dump/schema completo do Supabase;
+- Auth/PostgREST real;
+- advisors do projeto canônico;
+- migration history remoto pós-aplicação;
+- níveis de isolamento além de `READ COMMITTED`.
+
+Esses itens permanecem como validação operacional da aplicação produtiva, não como motivo para criar outro RPC/migration concorrente.
 
 ## Estado de aplicação
 
-A migration `20260907115300_edit_transcript_segment_atomic` **não foi aplicada ao Supabase de produção nesta preparação**.
+A migration `20260907115300_edit_transcript_segment_atomic` **não foi aplicada ao Supabase de produção**.
 
-Motivo operacional: nesta conversa está disponível apenas execução SQL direta; o contrato da ferramenta determina usar o fluxo de migration para DDL, e não há aqui CLI/banco isolado nem ação `apply_migration` exposta. Portanto o SQL e o teste ficam prontos para o coordenador executar primeiro em ambiente isolado e depois, se aprovados, aplicar conforme o database runbook.
+A validação SQL isolada está concluída sem bug reproduzido. O próximo gate de banco é a aplicação controlada pelo database runbook no projeto canônico, seguida de verificação remota; até esse gate ser autorizado/executado, a função candidata permanece apenas na branch/PR.
 
-Antes da aplicação produtiva:
+Antes da aplicação produtiva ainda é obrigatório:
 
-1. aplicar a migration candidata em banco local/isolado;
-2. executar `supabase/tests/edit_transcript_segment_atomic.sql` e exigir sucesso completo;
-3. revisar SQL/grants resultantes;
-4. confirmar rollback lógico: desligar o adapter canônico e manter a função inerte/removível se ainda sem consumidores;
-5. aplicar migration no projeto canônico pelo fluxo oficial;
-6. validar função, grants e migration history remotamente;
-7. executar advisors de segurança/performance;
-8. registrar a aplicação em `docs/database/verification-log.md`;
-9. integrar repository/adapter do Edit à mutation canônica;
-10. rodar CI/testes do SHA exato antes de qualquer integração.
+1. reconciliar a branch com a `main` vigente se necessário e exigir CI terminal do SHA exato que será integrado/aplicado;
+2. seguir o database runbook e aplicar a migration pelo fluxo oficial no projeto `dmrqnbdvbkfqzctcerbx`;
+3. validar função, grants e migration history remotamente;
+4. executar advisors de segurança/performance;
+5. registrar a aplicação em `docs/database/verification-log.md`;
+6. integrar repository/adapter do Edit à mutation canônica em recorte próprio;
+7. remover o caminho unsafe somente depois da troca canônica estar validada.
 
 ## Exceção temporária para construir a UI
 
@@ -182,7 +222,7 @@ Cobertura existente/esperada no conjunto Auth/Edit + DB:
 
 ## Próxima etapa
 
-Depois que o coordenador validar/aplicar o SQL transacional, Auth/Edit devem:
+Depois da aplicação controlada e verificação remota do SQL transacional, Auth/Edit devem:
 
 1. implementar o `persist` da mutation canônica chamando o boundary server-only;
 2. manter `actorProfileId` vindo exclusivamente do contexto autorizado;
