@@ -48,6 +48,8 @@ Baseline deve incluir:
 
 ## Contrato futuro de sync
 
+O [consumer de importação versionado](transcript-import.md) define o primeiro candidato de transporte, validação e recibo durável. A ativação continua negada até os gates documentados.
+
 Cada operação deve carregar suficiente identity/provenance para idempotência:
 
 - campaign/session;

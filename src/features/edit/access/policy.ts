@@ -3,6 +3,7 @@ export const EDIT_CAPABILITIES = {
 	transcriptRead: "campaign.transcript.read",
 	contentEdit: "campaign.content.edit",
 	permissionsManage: "campaign.permissions.manage",
+	transcriptImport: "campaign.transcript.import",
 } as const;
 
 export type EditCapability =
