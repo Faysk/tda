@@ -10,8 +10,9 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status**. 
 
 | Feature | Estado | Spec |
 | --- | --- | --- |
-| Edit Workbench / administração | arquitetura aprovada; implementação incremental | [Edit Workbench](edit-workbench.md) |
-| Edit / transcript server-side | leitura autorizada em implementação; mutation persistence bloqueada por revision | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
+| Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
+| Edit / transcript server-side | leitura autorizada implementada; mutation canônica aguarda revision | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
+| Edit / bypass temporário | workbench funcional sem Auth por flag explícita | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | arquitetura aprovada | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | arquitetura aprovada | [World Explorer](world-explorer.md) |
@@ -33,7 +34,7 @@ Features com superfície visual forte devem apontar para o [Design System oficia
 
 O World Explorer possui também um contrato de composição em [world-explorer-ui.md](../design-system/world-explorer-ui.md).
 
-O Edit usa o mesmo Design System e possui boundary técnico próprio em [arquitetura do Edit](../architecture/edit-workbench.md), com paridade histórica rastreada em [Edit — paridade com o legado](../legacy/edit-parity.md).
+O Edit usa o mesmo Design System e possui boundary técnico próprio em [arquitetura do Edit](../architecture/edit-workbench.md), com paridade histórica rastreada em [Edit — paridade com o legado](../legacy/edit-parity.md). A exceção transitória que permite validar a UI antes de Auth está isolada em [modo temporário sem autenticação](edit-unsafe-development.md).
 
 ## Template mínimo para feature futura
 
