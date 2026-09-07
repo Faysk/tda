@@ -27,7 +27,7 @@ Tokens e primitives são compartilhados. Layout específico de uma superfície p
 | `src/app/design-tokens.css` | tokens canônicos e extensões aprovadas, incluindo shell/gutter | composição de páginas |
 | `src/app/design-system.css` | primitives visuais compartilhadas | layout de Home/sessão/feature específica |
 | `src/app/public-shell.css` | header, nav pública, footer, skip-link, container público genérico | hero, cards de conteúdo, grafo |
-| `src/app/theme.css` | seletor de aparência e troca dos masters black/white da marca | overrides de cards/páginas |
+| `src/app/theme.css` | controle binário de tema e troca dos masters black/white da marca | overrides de cards/páginas |
 | `src/app/home.module.css` | composição exclusiva da Home e seus teasers | cards reutilizáveis do arquivo |
 | `src/components/session-list.module.css` | cards/listagem reutilizável do arquivo de sessões | layout da Home ou do arquivo |
 | `src/app/sessoes/page.module.css` | composição do arquivo | estilos internos dos cards |
@@ -188,18 +188,16 @@ O logo/wordmark é a ação de início. Por isso `Início` não é repetido na n
 
 Na superfície pública atual, `Sessões` é o único link de navegação canônico além da marca. Novas entradas só devem aparecer quando a rota/experiência correspondente existir; a Home não anuncia features fictícias.
 
-O seletor de aparência:
+O controle de tema:
 
-- segue o sistema quando não existe preferência salva;
-- oferece `Sistema`, `Claro` e `Escuro` como preferências mutuamente exclusivas;
-- mantém os três ícones em posições fixas e move apenas o indicador da opção selecionada;
-- separa preferência (`system`/`light`/`dark`) do tema efetivamente resolvido (`light`/`dark`);
-- persiste escolhas explícitas em `tda-theme`, inclusive quando o usuário volta para `system`;
-- usa `radiogroup` com radios nativos para semântica e navegação por teclado;
-- mantém área de interação vertical de `44px` por opção;
+- segue a preferência do sistema quando não existe escolha salva;
+- **não exibe uma opção `Sistema`**: o sistema serve apenas para resolver o tema inicial quando o usuário ainda não escolheu manualmente;
+- após a primeira interação, persiste apenas `light` ou `dark` em `tda-theme`;
+- mantém o switch binário compacto original, com o knob à esquerda no tema claro e à direita no tema escuro;
+- usa no knob o **ícone da ação de destino**, não do estado atual: lua no tema claro para indicar “ir para escuro” e sol no tema escuro para indicar “ir para claro”;
+- usa `role="switch"`, `aria-checked` e rótulo acessível estável `Modo escuro`;
+- mantém alvo de interação de pelo menos `44px`;
 - remove microanimações com `prefers-reduced-motion`.
-
-No desktop, o rótulo `Aparência` e um separador visual deixam claro que o controle não pertence ao link `Sessões`. Em larguras menores, o rótulo visual é recolhido para preservar espaço, mas continua nomeando o grupo na árvore acessível.
 
 O header atual permanece em uma linha inclusive no aceite de `320px`; o subtítulo da marca é removido quando necessário para preservar espaço. Se a navegação crescer no futuro, deve virar um padrão móvel real em vez de voltar a quebrar arbitrariamente em múltiplas linhas.
 
@@ -234,7 +232,7 @@ Contratos relevantes:
 - skip-link é o primeiro foco útil;
 - artwork decorativo usa `alt=""`;
 - navegação não fica invisível enquanto permanece focável;
-- SVGs puramente decorativos do seletor de aparência ficam ocultos da árvore acessível.
+- SVGs puramente decorativos do theme switch ficam ocultos da árvore acessível.
 
 ## Performance visual
 
@@ -288,8 +286,8 @@ Playwright cobre, entre outros:
 - 320px sem overflow;
 - navegação visível e não redundante;
 - skip-link focável;
-- system-default + preferências explícitas `system`/`light`/`dark`;
-- navegação por teclado no seletor de aparência;
+- system-default + overrides explícitos `light`/`dark`;
+- ícone de ação coerente com o próximo tema do switch;
 - masters corretos da marca;
 - reduced motion;
 - geometria da Home/shell;
