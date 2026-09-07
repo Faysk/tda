@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Ambientes conceituais
 
@@ -17,6 +17,8 @@ Características:
 - não deve inventar sessions mock como se fossem produção;
 - build/test local deve ser reproduzível a partir do repo.
 
+Para acelerar o Edit antes de Auth/capabilities, `TDA_EDIT_UNSAFE=true` pode ser habilitado deliberadamente. Esse modo usa dados e writes reais; não é mock. O contrato transitório está em [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md).
+
 ### Preview / homologação
 
 Objetivo: validar candidato isolado antes de production quando necessário.
@@ -26,7 +28,8 @@ Regras:
 - não recebe acesso irrestrito à production por padrão;
 - R2 possui bucket `tda-media-preview` próprio;
 - dados de teste/autorizados devem ser separados quando a superfície autenticada exigir;
-- domínio/URL de Preview não implica feature pública.
+- domínio/URL de Preview não implica feature pública;
+- `TDA_EDIT_UNSAFE` permanece `false` salvo decisão deliberada de liberar o bypass naquele ambiente.
 
 ### Production
 
@@ -38,6 +41,8 @@ Recursos canônicos atuais/futuros:
 - R2 production (`tda-media-public`, `tda-media-private`);
 - Vercel correta `projeto-desenv-6905` / `projeto_desenv@outlook.com`;
 - campanha `yuhara-main`.
+
+Se `TDA_EDIT_UNSAFE=true` for habilitado em production durante esta fase, `/edit` deve ser considerado administrativamente exposto sem identidade por usuário. Isso é uma exceção temporária consciente, não estado final de segurança.
 
 ## Runtime
 
@@ -59,6 +64,12 @@ Supabase secret/service credentials, R2 credentials, OAuth secrets e similares.
 
 Flags, allowlists e endpoints que não são secretos mas ainda precisam de consistência por ambiente.
 
+Flags de dados/Edit atuais:
+
+- `TDA_READ_PUBLISHED_DATA=true` — leitura pública server-side real;
+- `TDA_READ_EDIT_DATA=true` — habilita o client server-side do Edit para o caminho autorizado;
+- `TDA_EDIT_UNSAFE=true` — habilita temporariamente workbench + adapter de write sem Auth; também habilita `editDataClient()` apenas no servidor.
+
 ## Regras de secret
 
 - não versionar `.env.local`;
@@ -76,11 +87,14 @@ O produto deve falhar de forma informativa:
 - mostrar estado sem dados quando a integração não está configurada;
 - não conectar silenciosamente a outro projeto/account;
 - não usar mock como produção;
-- logs server-side devem apontar categoria da configuração faltante sem revelar secret.
+- logs server-side devem apontar categoria da configuração faltante sem revelar secret;
+- `/edit` permanece bloqueado se o bypass estiver desligado e a superfície autenticada ainda não estiver conectada à rota.
 
 ## Supabase por ambiente
 
 Production usa a base existente. Preview não deve ganhar acesso total à produção apenas porque é mais fácil. Quando Edit/autenticação forem homologados, definir dataset/branch/role autorizado específico.
+
+Mesmo no bypass temporário, `SUPABASE_SECRET_KEY` permanece server-only. O browser chama Server Components/Actions; não recebe cliente privilegiado.
 
 ## R2 por ambiente
 
