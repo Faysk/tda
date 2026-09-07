@@ -134,7 +134,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-07 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | Não declarado |
-| [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | implementado no candidato; OAuth real e publicação pendentes | 2026-09-07 |
+| [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | runtime integrado; configuração production publicada; OAuth real pendente | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
