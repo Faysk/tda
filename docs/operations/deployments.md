@@ -96,3 +96,13 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Runtime errors: nenhum erro agrupado encontrado no intervalo consultado após READY; isso não elimina a indisponibilidade de Auth registrada acima.
 - Nenhuma migration, promoção CAS, alteração de dados ou DNS executada. Referências de mídia ainda usam origens anteriores; suporte R2 foi publicado, promoção permanece separada.
 - Rollback: deployment anterior `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe` (Production #001); schema preservado.
+
+## 2026-09-07 — Production #003: identidade visual dos links
+
+- Source SHA: `0120e38d28c51f3e90aa7336dfa8e7910df074f4`; CI `34153249657` terminal success.
+- Deployment: `dpl_GHJgH7VdNrJd9izpYScog48UjSsE`, READY em 2026-09-07T18:52:22.761Z; alias `dnd.faysk.dev` confirmado.
+- Publicação corretiva autorizada pelo relato de regressão: cada link de sessão precisa de sua arte, título e resumo. O registro de imagens runtime estava vazio; passou a consumir as 11 associações verificadas, sem alterar referências no banco.
+- Pré-validação:22 imagens públicas revalidadas por GET, tamanho e SHA-256;144 testes app,24 mídia,75 navegador,build/check aprovados. Nova regressão testa o registro real e exige11imagens distintas.
+- Pós-publicação:11sessões x2user-agents (WhatsApp/Discord) responderam200 e emitiram título/resumo e URL da hero correta.11imagens distintas; o link `3y6TnJVTOlaK` emite sua imagem da floresta. Evidência é HTML servido aos crawlers; cache/visual dentro dos aplicativos não foi observado.
+- Não foram executados CAS, migrations, DNS ou mudanças de permissões. Auth/estatísticas continuam com as pendências anteriores.
+- Rollback: Production #002, `dpl_6gzV49FDyFgi7DiJsKmmgMHrCgJF`.
