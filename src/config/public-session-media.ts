@@ -40,6 +40,8 @@ export type PublicSessionMediaManifest = Readonly<
  * The recovery/dry-run manifest from #25 is evidence, not an automatic grant.
  * Entries belong here only after the object and its unauthenticated public
  * delivery URL have both been verified. Until then metadata uses /og/default.
+ * MIME comes from validated bytes/decoder evidence, never filename or legacy
+ * response headers.
  */
 export const PUBLIC_SESSION_MEDIA_MANIFEST = {} satisfies PublicSessionMediaManifest;
 
@@ -53,6 +55,7 @@ function verifiedArtifactImage(
 	if (!artifact.readBackVerified || !artifact.publicDeliveryVerified) return undefined;
 	if (!SHA256_PATTERN.test(artifact.sha256)) return undefined;
 	if (!artifact.mimeType.startsWith("image/")) return undefined;
+	if (Number.isNaN(Date.parse(artifact.verifiedAt))) return undefined;
 	if (
 		!Number.isSafeInteger(artifact.bytes) ||
 		artifact.bytes <= 0 ||
