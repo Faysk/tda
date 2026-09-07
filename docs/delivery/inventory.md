@@ -17,6 +17,7 @@ Este é o **único registro operacional de status das entregas**. Roadmap define
 - IMPORT #61: integrada em `81219c009eeb87593df2458c836d40fcfa2a2491` após CI terminal do candidato `825de74` (runs `34163329504` e `34163329535`). SQL revisado e testes PostgreSQL isolados aprovados. Endpoints negados, sem aplicação de migrations/grants; faltam ponte UI/companion, importação real e sessão de destino apropriada. Não sobrescrever sessões transcritas.
 - PIPIPI/CINEMA/GRAFO/EDIT: trabalho local preservado em revisão, ainda fora desta release.
 - Documentação de entregas: PR #65 integrada em `0188e82eca481a2773c3e2a731b4ef5fd1017e77`, com CI terminal aprovado; não exige deployment.
+- MIDIA #54: preparação integrada em `e804006` após checks aprovados no candidato `9900117` (runs `34163641533` e `34163641537`). Nenhum upload, promoção de referências ou deployment executado por esse merge.
 - Próxima prioridade: fechar Edit/import/local real e revisões narrativas existentes, sem novas frentes.
 
 ## Corte histórico inicial
