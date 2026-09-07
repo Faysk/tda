@@ -19,6 +19,7 @@ jobs:
           node-version-file: .node-version
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: python -m unittest discover -s tools/media -p test_lore_svg.py
       - run: pnpm check
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
