@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: security/operations
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 Use antes de abrir uma nova superfície, publicar release ou alterar integração sensível.
 
@@ -83,7 +83,9 @@ Use antes de abrir uma nova superfície, publicar release ou alterar integraçã
 
 Obrigatório resolver/inventariar:
 
-- [ ] RPCs `SECURITY DEFINER` expostas;
+- [x] RPCs `SECURITY DEFINER` inventariadas e classificadas em `docs/database/rpc-inventory.md`;
+- [ ] grants finais dos helpers internos revisados após prova de consumidores;
+- [ ] contrato multi-campaign de `access_directory` decidido e testado;
 - [ ] capabilities de cada ação do Edit;
 - [ ] audit trail dos writes críticos;
 - [ ] dataset/strategy de Preview;
