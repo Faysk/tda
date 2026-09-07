@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations/release
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Objetivo
 
@@ -13,6 +13,7 @@ Publicar o TDA de maneira deliberada e recuperável. **Merge não significa depl
 - escopo da release fechado;
 - PR revisada;
 - SHA candidato conhecido;
+- CI terminal verde para **esse SHA exato**;
 - migrations reconciliadas;
 - documentação atualizada;
 - conta/ambiente corretos identificados;
@@ -29,7 +30,7 @@ pnpm build
 pnpm test:e2e
 ```
 
-A CI deve ficar verde. Falha não é ignorada por "só ser docs/UI" se o check canônico inclui a área.
+A CI deve ficar verde. Falha não é ignorada por "só ser docs/UI" se o check canônico inclui a área. Se o head mudar após a validação, aguardar novamente o estado terminal da CI do novo SHA antes de integrar ou publicar.
 
 ## 2. Validar banco
 
@@ -64,6 +65,8 @@ Desktop e mobile:
 - acessibilidade básica;
 - auth quando fizer parte da release.
 
+O teste automatizado `tests/navigation-origin.spec.ts` deve passar junto com o restante do Playwright quando a release contém ou sucede a correção de origem canônica da PR #31.
+
 ## 5. Verificar Vercel
 
 **Obrigatório antes de write:**
@@ -74,7 +77,7 @@ Desktop e mobile:
 - environment: Production/Preview deliberado;
 - nenhuma integração automática indevida reativada.
 
-Se a ferramenta conectada mostrar outra conta/time, **abortar** até confirmar contexto correto.
+Se a ferramenta conectada mostrar outra conta/time, **abortar** até confirmar contexto correto. O contrato de domínio e aliases é definido em [Integração Vercel](../integrations/vercel.md); este runbook define apenas a verificação operacional de release.
 
 ## 6. Verificar env
 
@@ -110,17 +113,31 @@ Verificar imediatamente:
 - links antigos;
 - mobile.
 
-## 9. Promoção de domínio
+### Verificação obrigatória da navegação canônica
 
-DNS/domínio é operação separada. Só apontar domínio principal depois de candidato estável.
+Na primeira release que contém a PR #31 — e em qualquer release que altere routing, shell público, metadata ou compartilhamento — executar no domínio oficial `https://dnd.faysk.dev`:
 
-O domínio legado deve permanecer recuperável durante janela de migração definida, sem manter duas bases/frontends como arquitetura permanente.
+1. abrir `/` e confirmar que a URL final continua em `dnd.faysk.dev`;
+2. clicar em **Explorar as sessões** e no link **Sessões** do header; em ambos os casos o hostname deve permanecer `dnd.faysk.dev`;
+3. abrir uma sessão, usar **Todas as sessões** e, quando existirem, **Sessão anterior/Próxima sessão**; nenhuma navegação pode trocar o hostname para `*.vercel.app`;
+4. testar o bridge de URL legada (`/#/sessao/<id>/resumo`) a partir do domínio oficial e confirmar que o destino final continua em `dnd.faysk.dev`;
+5. inspecionar uma página de sessão e confirmar que o canonical metadata aponta para `https://dnd.faysk.dev/sessoes/<id>`;
+6. testar copiar/compartilhar uma sessão e confirmar que a URL gerada usa `https://dnd.faysk.dev`, nunca um alias de infraestrutura;
+7. confirmar que `/`, `/sessoes`, pelo menos uma `/sessoes/<id>` e `/api/health` respondem sem redirect final para `*.vercel.app`.
+
+Se qualquer passo acima expuser `tda-three.vercel.app` ou outro `*.vercel.app` como destino normal iniciado a partir de `dnd.faysk.dev`, **abortar a release/promoção** e tratar como regressão. Aliases Vercel continuam permitidos apenas para diagnóstico conforme o contrato de hosting.
+
+## 9. Domínio
+
+`dnd.faysk.dev` já é o domínio oficial do TDA novo. Releases normais **não devem alterar DNS nem reassociar domínio**.
+
+Mudança de DNS/domínio é operação separada e exige autorização própria. O antigo projeto Vercel `DND/dnd-scribe` foi retirado e não deve ser recriado nem tratado como caminho de rollback; a evidência está em [Retirada do projeto Vercel legado](legacy-retirement.md).
 
 ## Rollback
 
 ### App-only
 
-Retornar ao último SHA/release conhecido como bom.
+Retornar ao último SHA/release conhecido como bom no projeto TDA atual.
 
 ### App + migration backward-compatible
 
@@ -136,22 +153,27 @@ Pode exigir arquivar/unpublish publication, invalidar cache/media e revisar visi
 
 ## Critérios para abortar release
 
-- CI vermelha;
+- CI vermelha ou ainda não terminal no SHA candidato exato;
 - conta Vercel incerta;
 - migration drift;
 - secret/config não confirmado;
 - conteúdo privado aparecendo em payload público;
+- navegação iniciada em `dnd.faysk.dev` escapando para `*.vercel.app`;
+- canonical/share URL usando alias de infraestrutura;
 - rollback impossível/não compreendido;
 - erro de runtime relevante no smoke.
 
 ## Pós-release
 
-- registrar resultado;
+- registrar resultado em `docs/operations/deployments.md`;
 - atualizar infrastructure/status se mudou;
+- registrar explicitamente os critérios de navegação canônica verificados quando a release incluir a PR #31;
 - abrir issue/ADR para dívida descoberta;
 - não deixar workaround operacional apenas em chat;
 - revisar custos/erros quando feature usa serviço externo novo.
 
 ## Estado atual
 
-Até a revisão de 2026-09-06, **o reboot ainda não foi deployed**. Este runbook prepara a operação futura; executar deployment exige decisão explícita e conta correta.
+O reboot está publicado em production desde 2026-09-07 no projeto TDA e `https://dnd.faysk.dev` serve o novo produto. O histórico versionado registra como release publicada o Production #001, source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`.
+
+A correção de origem canônica da PR #31 foi integrada posteriormente à `main`; portanto **estar corrigida no código não prova que está publicada**. A próxima release que contenha essa correção deve cumprir a verificação de navegação canônica acima e só então registrar a nova evidência de production.
