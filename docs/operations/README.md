@@ -31,7 +31,7 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 ## Matriz rápida
 
 | Mudança | Precisa CI | Precisa migration | Precisa revisão segurança | Pode exigir deploy |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- |
 | docs | sim | não | normalmente não | não |
 | UI estática | sim | não | se muda exposição | sim |
 | query/API | sim | talvez | sim | sim |
