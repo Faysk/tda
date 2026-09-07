@@ -1,12 +1,6 @@
 import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
-import {
-	ActionLink,
-	BodyCopy,
-	DisplayTitle,
-	Eyebrow,
-	SectionTitle,
-} from "@/components/ui";
+import { Eyebrow, SectionTitle } from "@/components/ui";
 import { buildPublicMetadata, SITE_NAME } from "@/config/public-metadata";
 import {
 	formatSessionDate,
@@ -53,7 +47,7 @@ function SessionArtwork({
 			sizes={
 				sizes ??
 				(preload
-					? "(max-width: 900px) calc(100vw - 40px), (max-width: 1920px) 48vw, 1080px"
+					? "100vw"
 					: "(max-width: 700px) calc(100vw - 40px), (max-width: 1200px) 45vw, 460px")
 			}
 		/>
@@ -68,11 +62,11 @@ function ArchivePreview({ unavailable = false }: { unavailable?: boolean }) {
 			</div>
 			<div>
 				<Eyebrow>{unavailable ? "Arquivo indisponível" : "Arquivo da campanha"}</Eyebrow>
-				<h2>
+				<h1>
 					{unavailable
 						? "Não conseguimos abrir a última memória agora."
 						: "A próxima memória começa aqui."}
-				</h2>
+				</h1>
 				<p>
 					{unavailable
 						? "As histórias continuam guardadas. Tente novamente em instantes para carregar a sessão mais recente."
@@ -105,50 +99,22 @@ export default async function Home() {
 					</div>
 				) : null}
 
-				<div className={styles.heroIntro}>
-					<Eyebrow className={styles.heroEyebrow}>Nossa campanha</Eyebrow>
-					<DisplayTitle className={styles.heroTitle} id="home-title">
-						Rolamos dados.
-						<br />
-						Guardamos os dados.
-					</DisplayTitle>
-					<BodyCopy className={styles.heroBody}>
-						Um arquivo vivo das sessões, decisões e memórias que construímos
-						juntos ao redor da mesa.
-					</BodyCopy>
-					<div className={styles.heroActions}>
-						<ActionLink href="/sessoes" variant="primary">
-							Explorar as sessões <span aria-hidden="true">→</span>
-						</ActionLink>
-						{sessions?.length ? (
-							<p className={styles.archiveCount}>
-								<strong>{sessions.length}</strong>
-								<span>
-									{sessions.length === 1 ? "memória publicada" : "memórias publicadas"}
-								</span>
-							</p>
-						) : null}
-					</div>
-				</div>
-
 				{latest ? (
 					<article className={styles.heroLatest}>
-						<div className={styles.heroLatestTop}>
-							<span className={styles.latestBadge}>Última sessão</span>
+						<span className={styles.latestBadge}>Última sessão</span>
+						<div className={styles.latestMeta}>
+							<span>{latest.arc || "Memória da campanha"}</span>
 							{latestDate ? (
 								<time className={styles.latestDate} dateTime={latest.date}>
 									{latestDate}
 								</time>
 							) : null}
 						</div>
-						<div className={styles.latestMeta}>
-							<span>{latest.arc || "Memória da campanha"}</span>
-						</div>
-						<h2 className={styles.latestTitle}>
+						<h1 className={styles.latestTitle} id="home-title">
 							<Link href={`/sessoes/${encodeURIComponent(latest.id)}`}>
 								{latest.title}
 							</Link>
-						</h2>
+						</h1>
 						<p className={styles.latestSummary}>
 							{latest.summary ||
 								"Uma nova memória da campanha já está pronta para ser revisitada."}
