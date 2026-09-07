@@ -80,8 +80,8 @@ export default async function Session({ params }: SessionParams) {
 							src={image}
 							alt=""
 							fill
-							priority
-							sizes="(max-width: 1200px) 100vw, 1200px"
+							preload
+							sizes="100vw"
 						/>
 						<div className={styles.overlay} aria-hidden="true" />
 					</>
