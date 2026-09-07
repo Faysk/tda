@@ -29,7 +29,8 @@ export function publishedDataClient() {
 
 export function editDataClient() {
 	return serverDataClient(
-		process.env.TDA_READ_EDIT_DATA === "true",
+		process.env.TDA_READ_EDIT_DATA === "true" ||
+			process.env.TDA_EDIT_UNSAFE === "true",
 		"Edit data connection is not configured",
 	);
 }
