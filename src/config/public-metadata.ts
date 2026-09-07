@@ -44,15 +44,18 @@ function resolvePublicImage(image?: PublicMetadataImage) {
 export function buildPublicMetadata(input: PublicMetadataInput) {
 	const canonical = canonicalPublicUrl({ pathname: input.pathname });
 	const image = resolvePublicImage(input.image);
-	const openGraph = {
+	const openGraphBase = {
 		title: input.title,
 		description: input.description,
 		url: canonical,
 		siteName: SITE_NAME,
 		locale: "pt_BR",
-		type: input.type ?? "website",
 		images: [image],
-	} satisfies NonNullable<Metadata["openGraph"]>;
+	};
+	const openGraph =
+		input.type === "article"
+			? { ...openGraphBase, type: "article" as const }
+			: { ...openGraphBase, type: "website" as const };
 
 	return {
 		title: input.absoluteTitle ? { absolute: input.title } : input.title,
