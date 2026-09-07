@@ -6,6 +6,13 @@ const config: NextConfig = {
 		remotePatterns: [
 			{
 				protocol: "https",
+				hostname: "media.dnd.faysk.dev",
+				port: "",
+				pathname: "/campaigns/yuhara-main/sessions/**",
+				search: "",
+			},
+			{
+				protocol: "https",
 				hostname: "dmrqnbdvbkfqzctcerbx.supabase.co",
 				pathname: "/storage/v1/object/public/session-images/**",
 			},
