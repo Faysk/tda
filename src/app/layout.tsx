@@ -11,11 +11,27 @@ import "./public-shell.css";
 import "./story.css";
 import "./theme.css";
 
+const siteTitle = "TDA — Tem Dado Aqui";
+const siteDescription =
+	"Sessões, personagens, histórias e memórias da nossa campanha.";
+
 export const metadata: Metadata = {
-	title: { default: "TDA — Tem Dado Aqui", template: "%s · TDA" },
-	description: "Sessões, personagens, histórias e memórias da nossa campanha.",
+	title: { default: siteTitle, template: "%s · TDA" },
+	description: siteDescription,
 	icons: {
 		icon: "/brand/favicon.svg",
+	},
+	openGraph: {
+		type: "website",
+		locale: "pt_BR",
+		siteName: siteTitle,
+		title: siteTitle,
+		description: siteDescription,
+	},
+	twitter: {
+		card: "summary",
+		title: siteTitle,
+		description: siteDescription,
 	},
 };
 
