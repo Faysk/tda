@@ -145,3 +145,18 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Supervisor validado somente em scratch: 11 testes Python e 2 browser/HTTP loopback reais sintéticos; não foi instalado serviço persistente, processado áudio pessoal ou ativado import cloud.
 - Pendências: nome OAuth DND-SCRIBE, uma duração histórica ausente, ASR real/instalador, import #61 e Edit persistence, revisões narrativas. Não confundir os módulos publicados com fechamento desses gates.
 - Rollback: Production #005 `dpl_EtY2oqVJ9hdNwRS5qRMZt4q19EHt`. Para retirar leitura administrativa de próximos builds, desabilitar `TDA_READ_EDIT_DATA`; sem rollback destrutivo de dados.
+
+## 2026-09-07 — Production #007: hero da Home com arte da última sessão
+
+- Autorização: publicar a mudança aprovada da Home diretamente da `main` em production.
+- Source SHA: `be19b932feeebdbee6abf555d0277092a4651b4c`; commit `fix(home): preserve supported page gutter` sobre `feat(home): use latest session artwork as hero backdrop`.
+- CI exato da `main`: run `34166268840` success, incluindo `pnpm check`, build Next.js, E2E/Playwright, testes de processamento e teste PostgreSQL de transcript import.
+- Projeto/time: `prj_hDiDvvRiesg3qCDekGWE8JQMkIyH` / `team_9wuTfarCQ3L63xtufPKUDzi0`.
+- Deployment: `dpl_EiAwYwMUjW4N5VqKXUXKidiFE4Kr`, production, criado em `2026-09-07T22:37:34.155Z` e READY em `2026-09-07T22:38:08.325Z`.
+- URL do deployment: https://tda-ayf6wi2ru-projeto-desenv-6905s-projects.vercel.app ; alias oficial confirmado: https://dnd.faysk.dev/.
+- Método: deployment direto com bootstrap mínimo; o build fixou e verificou explicitamente `TDA_RELEASE_SHA=be19b932feeebdbee6abf555d0277092a4651b4c`, carregou esse commit imutável, executou instalação `--frozen-lockfile` e build Next.js `16.3.4`. Auto-deploy por push não foi habilitado.
+- Escopo publicado: a Home usa a arte da sessão mais recente como backdrop do hero, com contraste em overlay, conteúdo editorial à esquerda, metadados da última sessão à direita e cartões de memórias recentes abaixo; o gutter suportado pelo shell foi preservado.
+- Smoke oficial: `/`, `/sessoes` e `/sessoes/rmDsxh640RR4` responderam HTTP `200`; a Home exibiu 11 memórias, a última sessão `Um dia pra esquecer` e a hero pública correspondente. `/api/health` respondeu HTTP `200` com `ok=true`, `application=tda` e `environment=production`.
+- Runtime: nenhuma ocorrência agrupada de erro encontrada na janela de 30 minutos consultada após a publicação.
+- Nenhuma migration, DDL, grant, alteração de dados, configuração de Auth ou DNS foi executada nesta release. As migrations de transcript import permanecem candidatas deliberadamente não aplicadas.
+- Rollback: Production #006 `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`; schema preservado.
