@@ -4,7 +4,8 @@
 - Sem deployment por push. Não executar deploy para testar mudanças. Fechar o escopo, revisar, validar build/testes/visual e só então publicar deliberadamente a entrega autorizada.
 - Últimas versões estáveis verificadas; exceção aprovada: Node 24 por hosting gratuito.
 - Nunca commitar .env, segredos, transcrições privadas ou material local.
-- Supabase existente é produção. Sem migrations ou escritas durante a fundação.
+- Supabase existente é produção. Toda DDL/grant/policy/function nova entra por migration versionada, com compatibilidade, validação pós-migration e documentação; não resetar dados por conveniência.
+- Antes de mudança de banco, consultar `docs/operations/database-runbook.md`, `docs/database/security.md` e o contrato de domínio afetado. Mudanças destrutivas ou de autorização exigem consumidor/rollback mapeados.
 - Transcrição pesada permanece local. Não arquivar áudios no R2 nem reativar ingestão cloud.
 - Antes de alterar Next, ler a documentação pertinente em node_modules/next/dist/docs.
 - Consultar docs/README.md e atualizar o estado com evidências, sem confundir código com publicação.
