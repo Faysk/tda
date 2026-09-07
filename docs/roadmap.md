@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 O roadmap é incremental. Cada etapa precisa preservar dados, autorização e documentação viva. O legado continua disponível como referência e operação temporária até o reboot comprovar independência.
 
@@ -96,17 +96,30 @@ A referência visual oficial está em `docs/design-system/world-explorer-ui.md`.
 
 ## R3 — Auth, capabilities e Edit integrado
 
-**Estado:** auth foundation iniciada; Edit pendente.
+**Estado:** auth foundation iniciada; arquitetura do Edit aprovada; implementação incremental iniciada.
 
 Objetivo:
 
 - login único;
 - sessão/perfil;
 - capabilities derivadas do RBAC;
+- workbench administrativo integrado;
 - revisão/publicação;
 - catálogo de mídias;
 - criação/edição de sessões;
 - gestão de entities/canon conforme autorização.
+
+Primeira sequência do Edit:
+
+1. consolidar contrato, paridade do legado e boundary técnico;
+2. extrair regras puras de edição de transcript com testes;
+3. fechar mutation server-side com auth/capability/campaign scope;
+4. implementar transcript read/edit no workbench;
+5. adicionar review/bulk e navegação por teclado;
+6. implementar gestão de acesso;
+7. expandir para conteúdo/mídia/auditoria.
+
+A documentação canônica do módulo está em `docs/features/edit-workbench.md`, `docs/architecture/edit-workbench.md`, `docs/legacy/edit-parity.md` e ADR-0007.
 
 Regras:
 
@@ -114,7 +127,9 @@ Regras:
 - autorização por capability, não por string de role na UI;
 - validar token no servidor para decisões privilegiadas;
 - scope canônico do reboot: `tda`;
-- scope `dnd-scribe` permanece apenas por compatibilidade até aposentadoria do legado.
+- scope `dnd-scribe` permanece apenas por compatibilidade até aposentadoria do legado;
+- comportamento útil do legado só é considerado migrado após paridade, teste e autorização;
+- autosave precisa tratar concorrência explicitamente.
 
 ## R4 — Operação local modernizada
 
