@@ -21,7 +21,9 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.goto("/");
 
 	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
-	await expect(page.getByRole("link", { name: "Sessões" })).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Sessões", exact: true }),
+	).toBeVisible();
 	await expect(page.getByRole("button", { name: /Tema/ })).toBeVisible();
 	expect(
 		await page.evaluate(
