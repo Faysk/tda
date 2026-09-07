@@ -2,7 +2,11 @@ import "server-only";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { requireUnsafeEdit } from "../unsafe-access";
-import { prepareTranscriptEdit, type TranscriptEditInput } from "./model";
+import {
+	prepareTranscriptEdit,
+	transcriptSpeakerIdentityChanged,
+	type TranscriptEditInput,
+} from "./model";
 
 export type UnsafeUpdatedSegment = Readonly<{
 	id: string;
@@ -44,19 +48,37 @@ export async function unsafeUpdateTranscriptSegment(input: Readonly<{
 	if (sessionError) throw new Error("Unsafe Edit session lookup failed");
 	if (!session) return { ok: false, issues: ["session_not_found"] };
 
+	const { data: currentSegment, error: segmentError } = await client
+		.from("transcript_segments")
+		.select("id,speaker_name")
+		.eq("session_id", input.sessionId)
+		.eq("id", input.segmentId)
+		.maybeSingle();
+	if (segmentError) throw new Error("Unsafe Edit transcript lookup failed");
+	if (!currentSegment) return { ok: false, issues: ["segment_not_found"] };
+
 	const value = prepared.value;
+	const update: Record<string, unknown> = {
+		text: value.text,
+		text_chars: value.textChars,
+		text_words: value.textWords,
+		speaker_name: value.speaker,
+		review_status: value.reviewStatus,
+		needs_review: value.needsReview,
+		is_empty: false,
+	};
+	if (
+		transcriptSpeakerIdentityChanged(
+			currentSegment.speaker_name,
+			value.speaker,
+		)
+	) {
+		update.character_name = null;
+	}
+
 	const { data, error } = await client
 		.from("transcript_segments")
-		.update({
-			text: value.text,
-			text_chars: value.textChars,
-			text_words: value.textWords,
-			speaker_name: value.speaker,
-			character_name: null,
-			review_status: value.reviewStatus,
-			needs_review: value.needsReview,
-			is_empty: false,
-		})
+		.update(update)
 		.eq("session_id", input.sessionId)
 		.eq("id", input.segmentId)
 		.select("id,text,speaker_name,review_status,needs_review,text_chars,text_words")
