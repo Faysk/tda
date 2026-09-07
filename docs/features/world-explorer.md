@@ -1,8 +1,8 @@
 # Feature — World Explorer / Ecos da Jornada
 
-> Status: arquitetura aprovada; implementação pendente
+> Status: arquitetura aprovada; vertical slice visual em implementação
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-07
 
 ## Valor
 
@@ -170,6 +170,8 @@ Ao trocar o foco:
 4. inspector acompanha o novo foco;
 5. estado de filtros é preservado quando fizer sentido.
 
+Seleção e foco são estados distintos no primeiro slice: selecionar um node atualiza apenas o inspector; promover aquela entity a foco exige a ação explícita `Explorar conexões de ...`, que atualiza `?foco=` e recalcula a projection. Isso evita reorganização inesperada do grafo durante inspeção simples.
+
 ## Profundidade
 
 ### 1-hop
@@ -268,6 +270,8 @@ Estrutura futura provável:
 - knowledge autorizado quando existir.
 
 O inspector é resumo, não duplicação da página inteira.
+
+O vertical slice não duplica o roteamento preparado pela frente Lore. Enquanto a PR de Lore permanecer draft, `route` fica opcional e o inspector mostra o estado pendente; depois da integração, o World Explorer deve reutilizar o resolver canônico de Lore em vez de introduzir um segundo mapa de `entityType -> rota`.
 
 ## Relations
 
@@ -412,6 +416,14 @@ Dados de fixture devem viver separados de dados reais e ser marcados como demons
 
 Uma relação desenhada na referência não é automaticamente canon.
 
+### Estado do recorte em implementação
+
+O recorte visual iniciado em `feat/world-explorer-visual-slice` usa somente fixture explícita em `src/features/world-explorer/fixtures/dandelion.ts`. O código separa DTO/projection, layout radial puro, adapter React Flow e componentes de apresentação. A rota `/mundo` resolve `?foco=` no servidor e entrega somente a projection 1-hop para o cliente; filtros do protótipo operam sobre essa projection já limitada.
+
+A versão de `@xyflow/react` foi revalidada em 2026-09-07 antes da implementação: `12.11.6`, linha 12.x suportada e licença MIT. O pacote é fixado exatamente, conforme a política do repositório. O lockfile ainda precisa ser regenerado pelo `pnpm` canônico antes de a PR ser considerada validada.
+
+Este recorte não altera root layout, rotas de Lore, Supabase, relations, RLS, DNS ou deployment. A integração com perfis completos permanece deliberadamente pendente do resolver canônico da frente Lore.
+
 ## Critérios para ligar ao Supabase
 
 Antes de substituir fixtures por relations reais:
@@ -440,5 +452,7 @@ Métricas possíveis:
 - ausência de vazamento em testes de audience.
 
 ## Critério de pronto V1
+
+Validação de suporte em 2026-09-07: lockfile regenerado por pnpm 12.3.4, grupo de filtros convertido em `fieldset` acessível e catálogo documental regenerado. `pnpm check` (59 testes unitários), build e 45 E2E passaram localmente em Node 24.20.0, incluindo foco, filtros, metadata e largura mínima de 320 px. Revisão visual local em desktop e 390 px confirmou a composição dos filtros. Permanecem três avisos de especificidade CSS, sem bloqueio de lint; esta evidência não representa merge, deploy ou validação de dados reais. A integração central de imagem/metadata continua sob seu ownership próprio.
 
 Um usuário autorizado consegue abrir `/mundo`, compreender visualmente as relações diretas de uma entity, navegar para outra, consultar detalhes e chegar ao perfil completo sem depender do grafo como única fonte e sem receber dados fora de sua audience.

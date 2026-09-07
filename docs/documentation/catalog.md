@@ -104,7 +104,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda** | 2026-09-06 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
-| [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | arquitetura aprovada; implementação pendente | 2026-09-06 |
+| [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | arquitetura aprovada; vertical slice visual em implementação | 2026-09-07 |
 
 ## docs/integrations
 
