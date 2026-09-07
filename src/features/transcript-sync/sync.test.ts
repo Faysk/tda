@@ -70,6 +70,14 @@ describe("Python exporter compatibility and boundary", () => {
 		]);
 	});
 	it("requires transcript artifacts, strict versions and size", () => {
+		const unexpectedSync = structuredClone(fixture);
+		Object.assign(unexpectedSync.result.sync, {
+			audio: "must never be transported",
+		});
+		expect(prepareImport(JSON.stringify(unexpectedSync))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
 		expect(
 			prepareImport(
 				JSON.stringify({

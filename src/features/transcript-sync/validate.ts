@@ -84,6 +84,9 @@ export function prepareImport(
 		]);
 		if (result.schema_version !== "tda_local_result_v1")
 			throw new Invalid("unsupported_version");
+		const sync = object(result.sync);
+		keys(sync, ["status"]);
+		if (sync.status !== "not_configured") throw new Invalid();
 		const campaignId = identifier(result.campaign_id);
 		const sessionId = string(result.session_id);
 		if (!UUID.test(sessionId) || !UUID.test(campaignId)) throw new Invalid();
