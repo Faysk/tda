@@ -29,7 +29,7 @@ Estados:
 | Candidatos a canon | implementado no schema | `canon_candidates` + fontes + revisão |
 | Citações/outtakes | implementado no schema | candidatos e review flow já existem |
 | Publicações | implementado no schema | `publications`; conteúdo publicado atual já existe |
-| Perfis editoriais de entities | arquitetura aprovada | páginas tipadas por UX sobre registry única `entities`; spec em `features/entity-profiles.md` |
+| Perfis editoriais de entities | preparado; projection publicada pendente | shells compartilhados, DTOs de conteúdo/presentation, scenes/beats, leitura estática e narração editorial opcional; spec canônica em `features/entity-profiles.md` |
 | Relações entre entities | documentado, schema em desenho | relation first-class com direção/simetria, lifecycle, visibility e fonte; proposta em `features/relations-data-contract.md` |
 | World Explorer / Ecos da Jornada | arquitetura aprovada | React Flow escolhido para visualização; layout radial e projection autorizada; sem escrita no Supabase no primeiro slice |
 | Grafo visual | arquitetura aprovada | `@xyflow/react` é engine de apresentação; não define schema nem autorização |
@@ -79,6 +79,10 @@ A direção estrutural foi fechada em [ADR-0007](adr/0007-edit-workbench.md):
 - Design System atual como única autoridade visual;
 - paridade registrada em [legacy/edit-parity.md](legacy/edit-parity.md).
 
+## Perfis editoriais
+
+O scaffold de perfis agora separa conteúdo, presentation visual e narração editorial sem criar uma implementação React por entity. A leitura estática em HTML é obrigatória; 2.5D, scenes e áudio são enhancements progressivos. Fixtures ficam fora do repository público e não são canon.
+
 ## Fontes históricas revalidadas
 
 - `Faysk/dnd-scribe/docs/01_objetivos_e_escopo.md`: objetivo de transformar sessões em memória auditável/publicável e futuro de wiki/grafo/timeline/busca.
@@ -102,7 +106,7 @@ Esses documentos são evidência histórica. A decisão vigente sempre é este c
 5. popular entities/mentions/canon somente a partir de fontes revisadas;
 6. aprovar/migrar relations com sources e autorização;
 7. ligar World Explorer a relations reais;
-8. perfis editoriais + timeline/wiki por entity;
+8. ligar os perfis editoriais preparados à projection autorizada e validar o primeiro slice real;
 9. fechar modelo de knowledge/audience;
 10. busca semântica, mapas e superfícies mais ricas.
 
