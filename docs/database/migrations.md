@@ -77,9 +77,13 @@ A estratégia é:
 - `20260906210427 backfill_narrative_entity_links`
 - `20260906211040 relax_reboot_entity_name_lookup`
 
+### 2026-09-07 — concorrência otimista do Edit
+
+- `20260907084234 add_transcript_segment_revision`
+
 ## Boundary do reboot
 
-As três migrations abaixo são as primeiras mudanças explicitamente assumidas e versionadas pelo novo repositório TDA:
+As quatro migrations abaixo são as primeiras mudanças explicitamente assumidas e versionadas pelo novo repositório TDA:
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -107,6 +111,16 @@ Objetivo:
 - remover uma restrição adicional case-insensitive introduzida no reboot;
 - preservar a constraint histórica `(campaign_id, name)` porque o consolidator legado usa `ON CONFLICT (campaign_id, name)`;
 - manter índice de busca por lower(name) sem tornar a situação mais restritiva.
+
+### `20260907084234_add_transcript_segment_revision`
+
+Objetivo:
+
+- adicionar `transcript_segments.revision bigint not null default 0`;
+- criar o contador monotônico necessário para optimistic concurrency do Edit sem alterar o comportamento dos consumidores atuais;
+- preparar, sem ainda introduzir RPC/grants, o boundary transacional de update + audit da issue #32.
+
+Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
 
 ## Regras para migration nova
 
