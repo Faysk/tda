@@ -23,6 +23,8 @@ A publicação atual corresponde ao source SHA `a7e9053ff2d3f42b6b110558bb51a8e2
 
 O projeto continua sem integração Git automática como gatilho de publicação; `git.deploymentEnabled=false` permanece vigente.
 
+O projeto Vercel legado `DND/dnd-scribe` foi excluído em operação separada e verificada. Ele não é fallback, não deve ser recriado para rollback e não muda o fato de que `dnd.faysk.dev` serve o novo projeto TDA. Evidência: [Retirada do projeto Vercel legado](../operations/legacy-retirement.md).
+
 ## Política de deploy
 
 `main` e `Preview` são branches de código, **não gatilhos automáticos de deploy**.
@@ -69,7 +71,7 @@ Ao adicionar env:
 Antes de deployment:
 
 - SHA conhecido;
-- CI verde;
+- CI verde e terminal para esse SHA exato;
 - instalação/build limpos;
 - testes browser desktop/mobile;
 - dados/permissões revisados;
@@ -100,7 +102,7 @@ Preferir rollback por SHA/release conhecido. Não manter duas versões públicas
 
 Production #001 é o primeiro ponto de rollback reproduzível do reboot. Não havia deployment anterior do reboot na Vercel quando ele foi publicado.
 
-Rollback de código e rollback de domínio são operações distintas. Se o problema estiver apenas no apontamento de `dnd.faysk.dev`, restaurar a associação/DNS anterior sem necessariamente reverter o deployment. Se schema mudou, verificar compatibilidade backward antes de rollback do app; uma migration incompatível pode impedir simples retorno de código.
+Rollback de código e rollback de domínio são operações distintas. Se o problema estiver apenas no apontamento de `dnd.faysk.dev`, restaurar a associação/DNS anterior conhecida sem recorrer ao projeto legado removido. Se schema mudou, verificar compatibilidade backward antes de rollback do app; uma migration incompatível pode impedir simples retorno de código.
 
 ## Domínio
 
@@ -133,7 +135,13 @@ Regras vigentes:
 
 Em 2026-09-07 foi observado em production um vazamento do alias `tda-three.vercel.app` ao navegar a partir de `dnd.faysk.dev`, apesar de os `href` renderizados serem relativos e as rotas diretas em `dnd.faysk.dev` responderem HTTP 200. A correção foi tratada no código como boundary de navegação pública, sem transformar aliases Vercel em URLs de produto.
 
-Merge em `main` não publica essa correção: como auto-deploy permanece desligado, a entrada só passa a production após um deployment deliberado e registrado no histórico operacional.
+### Estado da correção de origem canônica
+
+A PR #31 foi integrada à `main` e o código vigente contém o origin canônico `https://dnd.faysk.dev` e o teste de regressão correspondente. Isso é evidência de **correção no código**.
+
+O histórico de deployments, porém, ainda registra como publicação atual o Production #001 no source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, anterior à integração da PR #31. Portanto, até existir nova entrada em `docs/operations/deployments.md` com smoke pós-deploy, **não afirmar que a correção da PR #31 está efetivamente publicada**.
+
+Os critérios operacionais para a próxima release ficam em [Runbook — release, deploy e rollback](../operations/release-runbook.md), que é o owner do procedimento. Esta conciliação documental não autoriza deployment nem mudança de DNS.
 
 ## Cotas
 
@@ -165,5 +173,6 @@ Tratar app+database como release coordenada e seguir rollback planejado.
 
 - [Histórico de deployments](../operations/deployments.md)
 - [Runbook de release](../operations/release-runbook.md)
+- [Retirada do projeto Vercel legado](../operations/legacy-retirement.md)
 - [Política resumida](../releases.md)
 - [Infraestrutura e estado](../infrastructure.md)
