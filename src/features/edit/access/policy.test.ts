@@ -53,7 +53,20 @@ describe("authorizeCampaignCapability", () => {
 		).toEqual({ ok: true, profileId: "profile-1" });
 	});
 
-	it("allows a project/tda capability to cover a campaign", () => {
+	it("allows a project scope capability with scope_id tda to cover a campaign", () => {
+		expect(
+			authorizeCampaignCapability(
+				context({
+					grants: [grant({ scopeType: "project", scopeId: "tda" })],
+				}),
+				EDIT_CAPABILITIES.transcriptRead,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: true, profileId: "profile-1" });
+	});
+
+	it("does not accept the legacy composite project/tda string as scope_id", () => {
 		expect(
 			authorizeCampaignCapability(
 				context({
@@ -63,7 +76,7 @@ describe("authorizeCampaignCapability", () => {
 				"yuhara-main",
 				now,
 			),
-		).toEqual({ ok: true, profileId: "profile-1" });
+		).toEqual({ ok: false, reason: "forbidden" });
 	});
 
 	it("rejects a capability from another campaign", () => {
