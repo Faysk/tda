@@ -111,7 +111,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-07 |
-| [Companion local](../integrations/local-companion.md) | local-companion/processing | legado funcional; modernização planejada | 2026-09-06 |
+| [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | implementado em branch/PR; fixture sintética | 2026-09-07 |
+| [Companion local](../integrations/local-companion.md) | local-companion/processing | base sintética implementada em branch/PR; ASR real legado preservado | 2026-09-07 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
@@ -137,9 +138,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | implementado no candidato; OAuth real e publicação pendentes | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
+| [Companion — operação, migração e rollback](../operations/local-companion.md) | local-companion/processing | preparado; base executável sintética em branch/PR | 2026-09-07 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-07 |
 
 ## Cobertura
 
-81 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+83 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

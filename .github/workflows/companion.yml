@@ -1,0 +1,25 @@
+name: Companion
+on:
+  pull_request:
+  push:
+    branches: [main, Preview]
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.13'
+      - run: python -m pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - run: python -m pytest local-companion/tests -q
+      - run: python -m pip wheel ./local-companion --no-deps --wheel-dir wheelhouse
+      - name: Installation plan only
+        shell: pwsh
+        run: ./local-companion/packaging/plan.ps1 -InstallRoot '${{ runner.temp }}/tda-app' -DataRoot '${{ runner.temp }}/tda-data'

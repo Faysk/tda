@@ -1,0 +1,24 @@
+[project]
+name = "tda-companion"
+version = "0.1.0"
+description = "Per-user local processing supervisor for TDA"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fastapi==0.141.1", "uvicorn==0.52.4"]
+
+[project.optional-dependencies]
+test = ["httpx==0.28.1", "pytest==9.1.1"]
+# ASR is retained but deliberately not enabled by the HTTP fixture runner.
+asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.2"]
+
+[project.scripts]
+tda-companion = "tda_companion.__main__:main"
+
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["tda_companion*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
