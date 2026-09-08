@@ -3,25 +3,35 @@
 > Status: vigente
 > Owner: produto / arquitetura
 > Última revisão: 2026-09-08
-> Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos e `operations/deployments.md`
+> Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos, `delivery/inventory.md` e `operations/deployments.md`
 
-Este roadmap coordena **ordem, dependências e estágio de entrega**. Ele não substitui as specs nem os runbooks donos de cada área. Detalhe técnico continua nos documentos linkados abaixo; aqui registramos apenas o que está em andamento, quais boundaries precisam convergir e o que ainda não pode ser declarado concluído.
+Este roadmap coordena **ordem, dependências e prioridade de produto**. Ele não substitui as specs nem os runbooks donos de cada área. O [inventário de entregas](delivery/inventory.md) é o registro operacional único de estágio/evidência; aqui ficam somente prioridade, direção e dependências entre frentes.
 
-Estágio de entrega segue [Documentação viva](documentation/README.md): branch/PR, validação, integração em `main` e publicação/aplicação são estados diferentes. `main = Production` é a linha de código aceita, mas não existe auto-deploy.
+Estágio de entrega segue [Documentação viva](documentation/README.md): branch/PR, validação, integração em `main` e publicação/aplicação são estados diferentes. `main = Production` descreve a linha de código aceita, mas não existe auto-deploy e merge não comprova aplicação externa.
 
-## Base atual e prioridade de entrega
+## Base observável e prioridade atual
 
-Production #006 publicou o source `7dd4b06d1a246ad924230530c2a0424e830aa46d`: home/sessões, metadata individual, login Discord, estatísticas autorizadas, consulta de permissões e painel local. OAuth real, acesso, navegação e logout foram verificados. O painel informa serviço desconectado; isso não comprova ASR ou sincronização real. Evidências em [deployments](operations/deployments.md).
+A `main` consultada nesta revisão está em `80eab3a8c267e3e3900cd7c9399f23bf914d994d`. O histórico em [deployments](operations/deployments.md) preserva evidências de publicações anteriores, inclusive Production #006, mas **não é usado aqui para deduzir o SHA atualmente servido**: a observação mais recente de health informou `commit=null`. Sem um recibo runtime que associe a resposta a um source, o roadmap não declara qual commit está ativo em produção.
 
-A importação foi integrada pela [PR #61](https://github.com/Faysk/tda/pull/61), em `81219c009eeb87593df2458c836d40fcfa2a2491`, mas permanece desativada. Migrations e grants não foram aplicados. O [inventário de entregas](delivery/inventory.md) é o quadro operacional único; este roadmap define ordem e dependências.
+A importação permanece integrada no repositório mas sua ativação/aplicação externa continua um gate separado. Da mesma forma, migration integrada não é tratada como migration aplicada. Estados concretos e evidências ficam no [inventário](delivery/inventory.md) e nos documentos operacionais donos.
 
-1. **Parafuso — Edit:** concluir identidade/capability + adapter canônico + revision/conflito/audit e UX real. Aplicação de RPC e ensaio ponta a ponta continuam gates separados. Owners: [Edit](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md), [Identity/access](domains/identity-access.md).
-2. **Motorzinho/Painelzinho — operação local:** ligar supervisor durável ao motor existente, validar painel e recuperação com serviço real. Fundação sintética não comprova ASR ou instalação persistente. Owners: [Companion](integrations/local-companion.md), [Processing](domains/processing.md).
-3. **Carteiro/Cofrinho — sincronização:** concluir resultado local -> consumidor -> recibo confirmado. Bloquear também no controller quando `sync=false`; preservar cancelamento e vínculo ao job. Destino deve ser uma sessão apropriada, sem sobrescrever transcrições existentes. Gates em [Importação](integrations/transcript-import.md).
-4. **Rodada narrativa #99 — Pipoca/Cuscuz/Espaguete:** usar Pipipi como lore pioneira completa, curar dados reais com provenance/revisão/visibility e então alimentar o World Explorer somente com projections autorizadas. Edição de layout e edição de fatos/relações permanecem operações distintas; a segunda depende de fonte, review, capability server-side e concorrência. O [inventário](delivery/inventory.md) registra estágio/evidência; contratos permanecem em [Perfis](features/entity-profiles.md), [Canon/review](domains/canon-review.md), [World Explorer](features/world-explorer.md) e [Relations](features/relations-data-contract.md). A issue [#99](https://github.com/Faysk/tda/issues/99) coordena a rodada, mas não declara implementação, integração ou publicação.
-5. **Balde — mídia:** preparação #54 integrada; próximos gates são upload deliberado, entrega pública verificada e eventual promoção de referências, como etapas distintas. Owner: [R2](integrations/r2.md).
+### Prioridade de produto — rodada #99
 
-Catraca acompanha regressões de login e o nome legado do app Discord. Contador de Feijão mantém [estatísticas](features/transcript-statistics.md), explicitando duração ausente. Chaveiro mantém a consulta somente leitura de permissões. Prancheta mantém o inventário e Lupa a revisão independente. Não abrir novas frentes antes de fechar estas entregas.
+1. **P1 — Pipipi oficial / Pipoca.** Pipipi é a lore pioneira e a prioridade de publicação da rodada [#99](https://github.com/Faysk/tda/issues/99). A implementação deve reutilizar [Perfis editoriais](features/entity-profiles.md), [Design System](design-system/README.md), [superfícies públicas](design-system/public-surfaces.md), metadata pública central e mídia elegível. Estrutura visual/cinematic existente é **referência**, não um novo contrato visual: tokens, Brand Pack e componentes vigentes continuam canônicos. Parallax deve ser adaptado como progressive enhancement, respeitar reduced motion/pointer coarse e **nunca bloquear a leitura estática**, mobile, acessibilidade ou publicação quando o conteúdo/mídia elegíveis estiverem prontos. Cinematic opcional não bloqueia P1.
+2. **P2 — dados reais revisados / Fabuloso.** Curar resumos, transcrições e demais fontes existentes para produzir dados narrativos reais com **provenance, natureza da claim, revisão e visibility** antes de alimentar lore/grafo. Fato explícito, inferência e conflito permanecem distinguíveis; inferência não vira canon automaticamente. Owners: [Evidências](domains/evidence.md) e [Canon/review](domains/canon-review.md). Conteúdo privado não entra em issues, fixtures públicas ou payloads sem audience autorizada.
+3. **P3 — edição autorizada do grafo / Espaguete.** Conectar somente projections revisadas/permitidas ao World Explorer e então habilitar edição compreensível com autorização server-side. Arrastar node continua sendo edição de layout; editar fato/relação é mutation narrativa distinta, com fonte/revisão/visibility, capability/scope, concorrência e recuperação de conflito. Owners: [World Explorer](features/world-explorer.md) e [Relations](features/relations-data-contract.md). React Flow é renderer, não schema nem fonte de verdade.
+
+Prancheta mantém estágio, PR/SHA, evidência e próximo gate no [inventário](delivery/inventory.md). A #99 coordena a rodada, mas não declara P1, P2 ou P3 implementados, integrados ou publicados sem evidência própria.
+
+### Frentes operacionais paralelas
+
+As frentes abaixo continuam em paralelo e **não rebaixam P1/P2/P3 na ordem de produto**:
+
+- **Parafuso — Edit:** convergência de persistence/revision/conflito/audit e UX real, preservando os gates donos de banco e autorização. Owners: [Edit](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md) e [Identity/access](domains/identity-access.md).
+- **Motorzinho/Painelzinho — operação local:** supervisor/serviço real, recuperação e painel sem confundir fundação sintética com ASR ou instalação persistente. Owners: [Companion](integrations/local-companion.md) e [Processing](domains/processing.md).
+- **Carteiro/Cofrinho — sincronização:** bundle -> consumidor -> recibo durável/idempotente, sem sobrescrever conteúdo revisado e sem inferir aplicação de migration por merge. Owner: [Importação](integrations/transcript-import.md).
+- **Balde — mídia:** upload, verificação pública e eventual promoção de referências continuam operações deliberadas e separadas. Owner: [R2](integrations/r2.md).
+- **Catraca, Chaveiro e Contador de Feijão:** Auth, consulta de permissões e estatísticas mantêm seus próprios owners e evidências; mudanças de UX/estado não criam grants nem reabrem recortes concluídos sem defeito novo.
 
 Toda superfície pública compartilhável deve resolver título, resumo e arte próprios quando houver conteúdo elegível pelo caminho runtime real. Teste de helper com fixture não prova integração.
 
@@ -37,31 +47,31 @@ Repositório, CI sem auto-deploy, Supabase existente, Vercel controlada, R2 prep
 
 **Estado:** publicado e em evolução incremental.
 
-Home/sessões e metadata social estão em production. A correção de identidade visual dos links nasceu na Production #003 e permanece na linha publicada pela Production #006. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
+Home/sessões e metadata social possuem evidência histórica de publicação. A correção de metadata individual também possui registro operacional, mas o roadmap não usa um deployment histórico para inferir o SHA ativo quando o health observado não informa commit. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
 
 ### R3 — Auth e Edit
 
-**Estado:** login publicado e verificado; integração funcional do Edit em andamento.
+**Estado:** Auth possui evidência histórica de fluxo real; integração funcional do Edit continua em evolução.
 
-Production #006 comprovou OAuth real, conta autorizada, navegação e logout. Persistence canônica, aplicação deliberada de RPC e validação ponta a ponta do Edit continuam pendentes. Owners: [Identity/access](domains/identity-access.md), [Discord Auth](operations/discord-auth.md), [Edit](features/edit-workbench.md).
+Há evidência operacional anterior de OAuth real, conta autorizada, navegação e logout. Isso não implica que todo recorte posterior do Edit esteja publicado nem que migration integrada esteja aplicada. Persistence, smoke real e reconciliações de banco permanecem nos owners correspondentes.
 
 ### R4 — Operação local e sync
 
 **Estado:** modernização em andamento por frentes coordenadas.
 
-Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta. Carteiro é o recorte ativo do consumidor cloud de bundles/idempotência/recibo, com fundação integrada e endpoints ainda negados; ativação segue o contrato de importação.
+Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta. Carteiro mantém o consumidor cloud de bundles/idempotência/recibo; integração de código e aplicação/ativação externa permanecem estados diferentes.
 
 ### R5 — Memória estruturada e perfis
 
 **Estado:** schema/base parcialmente preparados; conteúdo/projection reais em evolução.
 
-`entities`, mentions, canon e profiles editoriais formam a base. A rodada #99 escolhe Pipipi como lore pioneira para provar o caminho completo com conteúdo aprovado, leitura estática, mídia e metadata próprias. Isso não generaliza uma nova rota para todas as entities nem antecipa publicação.
+`entities`, mentions, canon e profiles editoriais formam a base. A rodada #99 torna Pipipi o **P1 de publicação** para provar o caminho completo com conteúdo aprovado, leitura estática, mídia e metadata próprias. Isso não generaliza uma nova rota para todas as entities nem antecipa publicação.
 
 ### R6 — Relations e World Explorer
 
-**Estado:** slice visual integrado; dados/relações canônicas em evolução.
+**Estado:** fundação visual existe; dados/relações reais e edição autorizada são os próximos marcos narrativos.
 
-Espaguete é o recorte ativo. React Flow não define schema e não autoriza publicação de fixtures como canon. A rodada #99 prioriza substituir demonstrações por dados reais revisados e preparar edição autorizada, mantendo layout editorial separado de fatos/relações narrativas.
+P2 entrega o conjunto revisado que pode alimentar projections autorizadas; P3 trata a edição do grafo. React Flow não define schema, fixture não vira canon e layout editorial permanece separado de fatos/relações narrativas.
 
 ### R7 — Knowledge/audience
 
@@ -73,7 +83,7 @@ Visibilidade técnica e conhecimento ficcional continuam dimensões distintas.
 
 **Estado:** planejado/incremental.
 
-Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies avançam conforme contracts e fontes reais amadurecem; a rodada paralela pode antecipar experimentação sem antecipar conclusão canônica.
+Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies avançam conforme contracts e fontes reais amadurecem; experimentação não antecipa conclusão canônica.
 
 ## Regras transversais
 
@@ -83,6 +93,8 @@ Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies av
 - audience/secrets são filtrados antes do browser;
 - toda página pública com arte elegível deve emitir metadata individual pelo caminho default real;
 - fallback social é somente fallback;
+- estrutura visual externa ou experimental não substitui Design System, tokens, Brand Pack ou componentes TDA;
+- parallax/motion são enhancement e nunca requisito para leitura;
 - React Flow não define schema;
 - mover node no grafo não altera relação, canon ou evidência;
 - dado narrativo real exibido no grafo precisa de fonte/revisão/visibility compatíveis com sua audience;
@@ -94,4 +106,4 @@ Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies av
 - processamento pesado e retenção de áudio bruto permanecem locais;
 - documentação de coordenação aponta para owners, não copia suas specs.
 
-O contrato dos conceitos está em [data-model.md](data-model.md), maturidade na `main` em [feature-catalog.md](feature-catalog.md), operação publicada em [deployments](operations/deployments.md) e taxonomia de entrega em [Documentação viva](documentation/README.md).
+O contrato dos conceitos está em [data-model.md](data-model.md), maturidade na `main` em [feature-catalog.md](feature-catalog.md), estados concretos no [inventário](delivery/inventory.md), publicação histórica em [deployments](operations/deployments.md) e taxonomia de entrega em [Documentação viva](documentation/README.md).
