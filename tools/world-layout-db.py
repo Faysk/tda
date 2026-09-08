@@ -10,6 +10,7 @@ import pathlib
 import shutil
 import subprocess
 import tempfile
+import time
 
 repo = pathlib.Path(__file__).resolve().parents[1]
 binary = pathlib.Path("/usr/lib/postgresql/16/bin")
@@ -23,6 +24,73 @@ env = {key: value for key, value in os.environ.items() if not key.startswith("PG
 
 def run(args, **kwargs):
     return subprocess.run(args, check=True, capture_output=True, env=env, **kwargs)
+
+
+psql_args = [
+    str(binary / "psql"),
+    "-X",
+    "-A",
+    "-t",
+    "-q",
+    "-h",
+    str(socket),
+    "-U",
+    "postgres",
+    "-d",
+    "postgres",
+    "-v",
+    "ON_ERROR_STOP=1",
+]
+
+
+def run_psql(sql):
+    return run(psql_args, input=sql, text=True)
+
+
+def scalar(sql):
+    return run_psql(sql).stdout.strip()
+
+
+def wait_for(sql, *, attempts=80, delay=0.05):
+    for _ in range(attempts):
+        if scalar(sql) == "t":
+            return
+        time.sleep(delay)
+    raise RuntimeError(f"timed out waiting for PostgreSQL state: {sql}")
+
+
+def start_psql(sql):
+    process = subprocess.Popen(
+        psql_args,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        text=True,
+    )
+    process.stdin.write(sql)
+    process.stdin.close()
+    # communicate() tries to flush a non-None stdin even when already closed.
+    process.stdin = None
+    return process
+
+
+def collect_psql(process, *, timeout=10):
+    stdout, stderr = process.communicate(timeout=timeout)
+    if process.returncode != 0:
+        raise RuntimeError(
+            f"psql concurrency session failed rc={process.returncode}\nstdout={stdout}\nstderr={stderr}"
+        )
+    return stdout.strip()
+
+
+def assert_saved_conflict(first, second, revision, label):
+    saved = f'"status": "saved"' in first and f'"revision": {revision}' in first
+    conflict = f'"reason": "conflict"' in second and f'"revision": {revision}' in second
+    if not saved or not conflict:
+        raise RuntimeError(
+            f"{label} expected saved/{revision} + conflict/{revision}; first={first!r} second={second!r}"
+        )
 
 
 started = False
@@ -54,24 +122,147 @@ try:
         repo / "supabase/tests/world_layout_snapshot_atomic.sql",
     ]
     for path in paths:
-        run(
-            [
-                str(binary / "psql"),
-                "-X",
-                "-h",
-                str(socket),
-                "-U",
-                "postgres",
-                "-d",
-                "postgres",
-                "-v",
-                "ON_ERROR_STOP=1",
-            ],
-            input=path.read_text(encoding="utf-8"),
-            text=True,
-        )
+        run_psql(path.read_text(encoding="utf-8"))
 
-    print("WORLD_LAYOUT_DATABASE_OK synthetic=true")
+    # The SQL assertions above exercise authorization, stale conflict, idempotent
+    # no-op saves and audit rollback. Reset only synthetic World state, then use
+    # two real PostgreSQL sessions to prove the lock behavior under concurrency.
+    run_psql(
+        """
+        delete from public.audit_log where action = 'world_layout.update';
+        delete from public.world_layout_snapshots;
+        """
+    )
+
+    first_insert_a = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-layout-insert-a';
+        set role service_role;
+        select public.save_world_layout_snapshot_atomic(
+          '44444444-4444-4444-8444-444444444444',
+          '33333333-3333-4333-8333-333333333333',
+          'synthetic-campaign',
+          0,
+          '{"node-a":{"x":100,"y":-50}}'::jsonb
+        );
+        select pg_sleep(3);
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-layout-insert-a'
+            and wait_event_type = 'Timeout'
+            and wait_event = 'PgSleep'
+        );
+        """
+    )
+
+    first_insert_b = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-layout-insert-b';
+        set role service_role;
+        select public.save_world_layout_snapshot_atomic(
+          '44444444-4444-4444-8444-444444444444',
+          '33333333-3333-4333-8333-333333333333',
+          'synthetic-campaign',
+          0,
+          '{"node-a":{"x":200,"y":-50}}'::jsonb
+        );
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-layout-insert-b'
+            and wait_event_type = 'Lock'
+        );
+        """
+    )
+
+    first_insert_a_out = collect_psql(first_insert_a)
+    first_insert_b_out = collect_psql(first_insert_b)
+    assert_saved_conflict(first_insert_a_out, first_insert_b_out, 1, "first-insert race")
+    if scalar(
+        """
+        select revision::text || ':' ||
+               (select count(*) from public.audit_log where action = 'world_layout.update')::text
+        from public.world_layout_snapshots;
+        """
+    ) != "1:1":
+        raise RuntimeError("first-insert race must leave revision=1 and exactly one audit row")
+
+    update_a = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-layout-update-a';
+        set role service_role;
+        select public.save_world_layout_snapshot_atomic(
+          '44444444-4444-4444-8444-444444444444',
+          '33333333-3333-4333-8333-333333333333',
+          'synthetic-campaign',
+          1,
+          '{"node-a":{"x":300,"y":-50}}'::jsonb
+        );
+        select pg_sleep(3);
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-layout-update-a'
+            and wait_event_type = 'Timeout'
+            and wait_event = 'PgSleep'
+        );
+        """
+    )
+
+    update_b = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-layout-update-b';
+        set role service_role;
+        select public.save_world_layout_snapshot_atomic(
+          '44444444-4444-4444-8444-444444444444',
+          '33333333-3333-4333-8333-333333333333',
+          'synthetic-campaign',
+          1,
+          '{"node-a":{"x":400,"y":-50}}'::jsonb
+        );
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-layout-update-b'
+            and wait_event_type = 'Lock'
+        );
+        """
+    )
+
+    update_a_out = collect_psql(update_a)
+    update_b_out = collect_psql(update_b)
+    assert_saved_conflict(update_a_out, update_b_out, 2, "existing-row race")
+    if scalar(
+        """
+        select revision::text || ':' || positions::text || ':' ||
+               (select count(*) from public.audit_log where action = 'world_layout.update')::text
+        from public.world_layout_snapshots;
+        """
+    ) != '2:{"node-a": {"x": 300, "y": -50}}:2':
+        raise RuntimeError("existing-row race must preserve winner payload, revision=2 and two audit rows")
+
+    print("WORLD_LAYOUT_DATABASE_OK synthetic=true concurrency=real")
 finally:
     if started:
         run([str(binary / "pg_ctl"), "-D", str(data), "-m", "fast", "-w", "stop"])
