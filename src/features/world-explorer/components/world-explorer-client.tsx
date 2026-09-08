@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties,
+	type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
 	Controls,
 	MiniMap,
@@ -61,19 +68,13 @@ const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
 function nodeTypeLabel(node: WorldNodeDTO): string {
 	if (node.kind === "moment") return "Momento";
 	switch (node.entityType) {
-		case "pc":
-			return "Herói / personagem";
-		case "npc":
-			return "NPC";
-		case "location":
-			return "Lugar";
+		case "pc": return "Herói / personagem";
+		case "npc": return "NPC";
+		case "location": return "Lugar";
 		case "faction":
-		case "organization":
-			return "Facção / organização";
-		case "song":
-			return "Música";
-		default:
-			return "Entidade";
+		case "organization": return "Facção / organização";
+		case "song": return "Música";
+		default: return "Entidade";
 	}
 }
 
@@ -81,14 +82,9 @@ function clampPanelWidth(value: number) {
 	return Math.min(520, Math.max(320, value));
 }
 
-export function WorldExplorerClient({
-	projection,
-}: {
-	projection: WorldGraphProjection;
-}) {
+export function WorldExplorerClient({ projection }: { projection: WorldGraphProjection }) {
 	const [filter, setFilter] = useState<WorldFilter>("all");
-	const [relationFilter, setRelationFilter] =
-		useState<WorldRelationFilter>("all");
+	const [relationFilter, setRelationFilter] = useState<WorldRelationFilter>("all");
 	const [query, setQuery] = useState("");
 	const [selectedId, setSelectedId] = useState<string | null>(projection.focusId);
 	const [view, setView] = useState<"canvas" | "list">("canvas");
@@ -133,7 +129,10 @@ export function WorldExplorerClient({
 			...current,
 			[node.id]: { x: node.position.x, y: node.position.y },
 		}));
-		setEdges((current) => rerouteWorldEdges(nodes, current));
+		const positionedNodes = nodes.map((item) =>
+			item.id === node.id ? { ...item, position: node.position } : item,
+		);
+		setEdges((current) => rerouteWorldEdges(positionedNodes, current));
 	}
 
 	function resetLayout() {
@@ -141,18 +140,19 @@ export function WorldExplorerClient({
 		setSelectedId(projection.focusId);
 	}
 
-	function startResize(event: React.PointerEvent<HTMLDivElement>) {
+	function startResize(event: ReactPointerEvent<HTMLDivElement>) {
 		resizeStart.current = { x: event.clientX, width: panelWidth };
 		event.currentTarget.setPointerCapture(event.pointerId);
 	}
 
-	function resizePanel(event: React.PointerEvent<HTMLDivElement>) {
+	function resizePanel(event: ReactPointerEvent<HTMLDivElement>) {
 		if (!resizeStart.current) return;
-		const delta = resizeStart.current.x - event.clientX;
-		setPanelWidth(clampPanelWidth(resizeStart.current.width + delta));
+		setPanelWidth(
+			clampPanelWidth(resizeStart.current.width + resizeStart.current.x - event.clientX),
+		);
 	}
 
-	function stopResize(event: React.PointerEvent<HTMLDivElement>) {
+	function stopResize(event: ReactPointerEvent<HTMLDivElement>) {
 		resizeStart.current = null;
 		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
 			event.currentTarget.releasePointerCapture(event.pointerId);
@@ -162,7 +162,7 @@ export function WorldExplorerClient({
 	return (
 		<div
 			className={`${styles.explorer} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
-			style={{ "--world-inspector-width": `${panelWidth}px` } as React.CSSProperties}
+			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
 		>
 			<section className={styles.canvasColumn} aria-labelledby="world-explorer-title">
 				<header className={styles.explorerHeader}>
@@ -176,16 +176,10 @@ export function WorldExplorerClient({
 						</p>
 					</div>
 					<div className={styles.headerActions}>
-						{projection.demo ? (
-							<span className={styles.demoBadge}>Demonstração · relações não canônicas</span>
-						) : null}
+						{projection.demo ? <span className={styles.demoBadge}>Demonstração · relações não canônicas</span> : null}
 						<div className={styles.viewToggle} aria-label="Modo de visualização">
-							<button type="button" aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>
-								Canvas
-							</button>
-							<button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
-								Lista
-							</button>
+							<button type="button" aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>Canvas</button>
+							<button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>Lista</button>
 						</div>
 					</div>
 				</header>
@@ -194,38 +188,20 @@ export function WorldExplorerClient({
 					<label className={styles.searchField}>
 						<span className={styles.srOnly}>Buscar no mundo</span>
 						<span aria-hidden="true">⌕</span>
-						<input
-							type="search"
-							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Buscar pessoa, lugar ou memória..."
-						/>
+						<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar pessoa, lugar ou memória..." />
 					</label>
 					<label className={styles.relationSelect}>
 						<span>Relação</span>
-						<select
-							value={relationFilter}
-							onChange={(event) => setRelationFilter(event.target.value as WorldRelationFilter)}
-						>
-							{RELATION_OPTIONS.map((option) => (
-								<option key={option.value} value={option.value}>{option.label}</option>
-							))}
+						<select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as WorldRelationFilter)}>
+							{RELATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
 						</select>
 					</label>
-					<button className={styles.resetButton} type="button" onClick={resetLayout}>
-						Reorganizar
-					</button>
+					<button className={styles.resetButton} type="button" onClick={resetLayout}>Reorganizar</button>
 				</div>
 
 				<fieldset className={styles.filters} aria-label="Filtrar o grafo">
 					{FILTER_OPTIONS.map((option) => (
-						<button
-							key={option.value}
-							type="button"
-							className={filter === option.value ? styles.filterActive : undefined}
-							aria-pressed={filter === option.value}
-							onClick={() => setFilter(option.value)}
-						>
+						<button key={option.value} type="button" className={filter === option.value ? styles.filterActive : undefined} aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
 							{option.label}
 						</button>
 					))}
@@ -264,22 +240,12 @@ export function WorldExplorerClient({
 							onPaneClick={() => setSelectedId(null)}
 						>
 							<Controls showInteractive={false} position="bottom-left" />
-							<MiniMap
-								position="bottom-right"
-								pannable
-								zoomable
-								nodeColor={(node) => node.data?.isHero ? "var(--ds-accent)" : "var(--ds-foreground-muted)"}
-							/>
+							<MiniMap position="bottom-right" pannable zoomable />
 						</ReactFlow>
 					</div>
 				) : null}
 
-				<AccessibleRelations
-					projection={visibleProjection}
-					selectedId={selected?.id ?? null}
-					onSelect={setSelectedId}
-					compact={view === "canvas"}
-				/>
+				<AccessibleRelations projection={visibleProjection} selectedId={selected?.id ?? null} onSelect={setSelectedId} compact={view === "canvas"} />
 			</section>
 
 			<aside className={styles.inspector} aria-live="polite">
@@ -297,13 +263,7 @@ export function WorldExplorerClient({
 						if (event.key === "ArrowRight") setPanelWidth((value) => clampPanelWidth(value - 24));
 					}}
 				/>
-				<button
-					className={styles.panelToggle}
-					type="button"
-					onClick={() => setPanelCollapsed((value) => !value)}
-					aria-expanded={!panelCollapsed}
-					aria-label={panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"}
-				>
+				<button className={styles.panelToggle} type="button" onClick={() => setPanelCollapsed((value) => !value)} aria-expanded={!panelCollapsed} aria-label={panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"}>
 					{panelCollapsed ? "‹" : "›"}
 				</button>
 				{!panelCollapsed ? (
@@ -313,33 +273,22 @@ export function WorldExplorerClient({
 						<div className={styles.overviewInspector}>
 							<p className={styles.eyebrow}>Visão geral</p>
 							<h2>A campanha</h2>
-							<p>
-								Nenhum personagem é o centro permanente. Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa.
-							</p>
+							<p>Nenhum personagem é o centro permanente. Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa.</p>
 							<dl className={styles.overviewStats}>
 								<div><dt>Heróis visíveis</dt><dd>{visibleProjection.heroIds.length}</dd></div>
 								<div><dt>Nós</dt><dd>{visibleProjection.nodes.length}</dd></div>
 								<div><dt>Relações</dt><dd>{visibleProjection.edges.length}</dd></div>
 							</dl>
 						</div>
-					) : null}
+					)
+				) : null}
 			</aside>
 		</div>
 	);
 }
 
-function InspectorContent({
-	selected,
-	projection,
-	focus,
-}: {
-	selected: WorldNodeDTO;
-	projection: WorldGraphProjection;
-	focus?: WorldNodeDTO;
-}) {
-	const relation = focus && selected.id !== focus.id
-		? relationLabelFor(projection, selected.id, focus.id)
-		: null;
+function InspectorContent({ selected, projection, focus }: { selected: WorldNodeDTO; projection: WorldGraphProjection; focus?: WorldNodeDTO }) {
+	const relation = focus && selected.id !== focus.id ? relationLabelFor(projection, selected.id, focus.id) : null;
 	return (
 		<>
 			<div className={styles.inspectorHero} aria-hidden="true">
@@ -348,43 +297,21 @@ function InspectorContent({
 			<p className={styles.eyebrow}>{nodeTypeLabel(selected)}</p>
 			<h2>{selected.label}</h2>
 			{selected.subtitle ? <p className={styles.inspectorSubtitle}>{selected.subtitle}</p> : null}
-			{selected.id === projection.focusId ? (
-				<p className={styles.focusNote}>Foco exploratório atual.</p>
-			) : relation && focus ? (
-				<p className={styles.relationSummary}>Relação com {focus.label}: {relation}.</p>
-			) : null}
-			<p className={styles.inspectorCopy}>
-				Selecionar apenas inspeciona. A ação de explorar cria uma visão focada das conexões diretas sem transformar essa entity no centro permanente da campanha.
-			</p>
+			{selected.id === projection.focusId ? <p className={styles.focusNote}>Foco exploratório atual.</p> : relation && focus ? <p className={styles.relationSummary}>Relação com {focus.label}: {relation}.</p> : null}
+			<p className={styles.inspectorCopy}>Selecionar apenas inspeciona. A ação de explorar cria uma visão focada das conexões diretas sem transformar essa entity no centro permanente da campanha.</p>
 			{selected.slug && selected.id !== projection.focusId ? (
-				<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>
-					Explorar conexões de {selected.label}
-				</PublicLink>
+				<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>Explorar conexões de {selected.label}</PublicLink>
 			) : projection.mode === "focus" ? (
 				<PublicLink className={styles.focusAction} href="/mundo">Voltar à visão geral</PublicLink>
 			) : null}
-			{selected.route ? (
-				<PublicLink className={styles.profileAction} href={selected.route}>Ver perfil completo</PublicLink>
-			) : null}
+			{selected.route ? <PublicLink className={styles.profileAction} href={selected.route}>Ver perfil completo</PublicLink> : null}
 		</>
 	);
 }
 
-function AccessibleRelations({
-	projection,
-	selectedId,
-	onSelect,
-	compact,
-}: {
-	projection: WorldGraphProjection;
-	selectedId: string | null;
-	onSelect: (id: string) => void;
-	compact: boolean;
-}) {
+function AccessibleRelations({ projection, selectedId, onSelect, compact }: { projection: WorldGraphProjection; selectedId: string | null; onSelect: (id: string) => void; compact: boolean }) {
 	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
-	const relations = selectedId
-		? projection.edges.filter((edge) => edge.source === selectedId || edge.target === selectedId)
-		: projection.edges;
+	const relations = selectedId ? projection.edges.filter((edge) => edge.source === selectedId || edge.target === selectedId) : projection.edges;
 	return (
 		<section className={`${styles.relationList} ${compact ? styles.relationListCompact : ""}`} aria-labelledby="world-relations-title">
 			<h2 id="world-relations-title">Relações em lista</h2>
