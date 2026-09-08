@@ -160,3 +160,24 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Runtime: nenhuma ocorrência agrupada de erro encontrada na janela de 30 minutos consultada após a publicação.
 - Nenhuma migration, DDL, grant, alteração de dados, configuração de Auth ou DNS foi executada nesta release. As migrations de transcript import permanecem candidatas deliberadamente não aplicadas.
 - Rollback: Production #006 `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`; schema preservado.
+
+## 2026-09-07 — Production #008 (recibo retrospectivo verificado)
+
+- Deployment `dpl_Cmw9hpaqunsCiba2K4CC5p2gz3WE`, observado READY no domínio oficial antes da #009.
+- Build log imutável confirma `TDA_RELEASE_SHA=de7e02c66595f34e44efa8d9e09a1d0098afae18`. A associação foi verificada novamente em 2026-09-08 UTC; não foi inferida do health, que retornava `commit=null`.
+- Este recibo documenta a versão anterior para rollback; não reconstitui verificações funcionais que não foram executadas nesta inspeção.
+
+## 2026-09-08 — Production #009: estabilização da base (#102)
+
+- Horário local Europe/London: 2026-09-09. Escopo autorizado: consolidar correções revisadas e publicar a base estabilizada.
+- Source SHA: `6eae9b14b3bc3cb75af492738db464a01bb75d9e`, após integração das PRs #100, #101, #103, #104, #105, #107, #108, #109, #110, #112 e #113.
+- CI exata da main `34289713134` e Companion Windows/Linux `34289713157`: completed/success antes do deployment. Inclui check, build, navegador, estatísticas, permissões, processamento e PostgreSQL sintético.
+- Deployment `dpl_379E68FzdTnFkDX84ZRhEdcDfaGb`, READY em 2026-09-08T23:18:10.886Z; alias `dnd.faysk.dev` confirmado. URL: https://tda-1930o5nly-projeto-desenv-6905s-projects.vercel.app.
+- Build log confirma `TDA_RELEASE_SHA=6eae9b14b3bc3cb75af492738db464a01bb75d9e`, tarball imutável, instalação frozen-lockfile e build Next. Auto-deploy não foi habilitado.
+- Melhorias: retorno/erros de login, conta e estados de acesso, controles do Edit conforme capabilities, recuperação do inspetor mobile, chaves de parágrafos e allowlist das imagens de Pipipi. Reconciliar IDs de migrations no Git não executou DDL.
+- Smoke público após READY: home, sessões, mundo, entrar e health HTTP 200; API de permissões anônima HTTP 401. Navegador abriu o grafo, selecionou Dandelion e encontrou a aba Momentos; capturas desktop/mobile realizadas, mobile inspecionado. Nenhum pageerror foi observado nessa navegação.
+- Sessão `/sessoes/rmDsxh640RR4` e sua imagem Open Graph verificadas; imagem HTTP 200. Não houve novo consentimento OAuth real nem edição de transcrição de produção nesta rodada.
+- Limite de rastreabilidade: `/api/health` ainda retorna `commit=null` apesar do envio de APP_COMMIT_SHA no pedido de deploy. A associação acima se baseia no log imutável do build; não declarar a variável efetivamente configurada em runtime.
+- Instabilidade conhecida: PR #110 teve um timeout isolado no teste de seleção do inspetor em desktop-2k. Dez repetições locais passaram; rerun do mesmo SHA e CI final da main passaram. A repetição não foi tratada como correção da causa.
+- Fora do escopo: Pipipi ainda não possui rota integrada; grafo continua demonstrativo; ASR real, MSI e sync não foram declarados concluídos. PR #111 permanece draft, sem aplicação de backfill.
+- Rollback: Production #008 `dpl_Cmw9hpaqunsCiba2K4CC5p2gz3WE`. Nenhum dado, grant, DNS ou áudio foi alterado nesta publicação.
