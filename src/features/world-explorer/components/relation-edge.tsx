@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	BaseEdge,
 	EdgeLabelRenderer,
 	getSmoothStepPath,
 	type EdgeProps,
@@ -19,6 +20,12 @@ const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 	mystic: "var(--world-edge-mystic, #a97df2)",
 	creative: "var(--world-edge-creative, #f0a14d)",
 	context: "var(--world-edge-context, #8f9aa8)",
+};
+
+const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
+	conflict: "8 6",
+	mystic: "3 6",
+	origin: "10 5",
 };
 
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
@@ -40,32 +47,28 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
-	const strokeWidth = highlighted ? 3.6 : 2.8;
-	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.96;
-	const visibleClassName = `${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`;
+	const strokeWidth = highlighted ? 4.4 : 3.2;
+	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.98;
 
 	return (
 		<>
 			<path
 				d={path}
 				fill="none"
-				stroke="rgba(2, 5, 8, 0.72)"
-				strokeWidth={strokeWidth + 3.2}
-				strokeOpacity={dimmed ? 0.12 : 0.6}
+				stroke="rgba(2, 5, 8, 0.9)"
+				strokeWidth={strokeWidth + 4.4}
+				strokeOpacity={dimmed ? 0.1 : 0.78}
+				strokeDasharray={RELATION_DASHES[family]}
 				vectorEffect="non-scaling-stroke"
 				strokeLinecap="round"
 				strokeLinejoin="round"
 				pointerEvents="none"
 			/>
-			<path
+			<BaseEdge
 				id={`${props.id}-visible`}
-				d={path}
-				fill="none"
-				stroke={stroke}
-				strokeWidth={strokeWidth}
-				strokeOpacity={strokeOpacity}
+				path={path}
 				markerEnd={props.markerEnd}
-				className={`react-flow__edge-path ${visibleClassName}`}
+				interactionWidth={30}
 				data-family={family}
 				data-world-edge={props.id}
 				vectorEffect="non-scaling-stroke"
@@ -73,19 +76,13 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				strokeLinejoin="round"
 				style={{
 					...props.style,
+					fill: "none",
 					stroke,
 					strokeWidth,
 					strokeOpacity,
-					filter: `drop-shadow(0 0 ${highlighted ? 10 : 6}px ${stroke})`,
+					strokeDasharray: RELATION_DASHES[family],
+					filter: "none",
 				}}
-			/>
-			<path
-				d={path}
-				fill="none"
-				stroke="transparent"
-				strokeWidth={30}
-				className="react-flow__edge-interaction"
-				pointerEvents="stroke"
 			/>
 			{item ? (
 				<EdgeLabelRenderer>
