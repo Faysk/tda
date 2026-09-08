@@ -56,6 +56,10 @@ export async function listPublishedSessionArchive(): Promise<
 	if (sessions === null) return null;
 	if (sessions.length === 0) return [];
 
+	if (process.env.TDA_READ_PUBLIC_SESSION_ARCHIVE_METRICS !== "true") {
+		return sessions.map((session) => ({ ...session, ...unavailableMetrics }));
+	}
+
 	const client = publishedDataClient();
 	if (!client) return null;
 
