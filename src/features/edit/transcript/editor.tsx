@@ -32,6 +32,7 @@ type TranscriptEditorProps = Readonly<{
 	sessionId: string;
 	segments: readonly Segment[];
 	batchOffset: number;
+	editable: boolean;
 }>;
 
 const statusLabels = {
@@ -104,10 +105,12 @@ function SegmentEditor({
 	segment: initial,
 	sessionId,
 	position,
+	editable,
 }: Readonly<{
 	segment: Segment;
 	sessionId: string;
 	position: number;
+	editable: boolean;
 }>) {
 	const [editor, setEditor] = useState(() =>
 		createTranscriptEditorState(toDraft(initial)),
@@ -119,6 +122,7 @@ function SegmentEditor({
 	const { draft } = editor;
 
 	async function save() {
+		if (!editable) return;
 		const started = beginTranscriptSave(editor);
 		if (!started.submission) return;
 		const submission = started.submission;
@@ -179,6 +183,7 @@ function SegmentEditor({
 					editableTarget: isEditableTarget(event.target),
 				});
 				if (!shortcut) return;
+				if (!editable && shortcut !== "previous" && shortcut !== "next") return;
 				event.preventDefault();
 				switch (shortcut) {
 					case "previous":
@@ -232,6 +237,7 @@ function SegmentEditor({
 								editTranscriptDraft(current, { speaker: event.target.value }),
 							)
 						}
+						readOnly={!editable}
 						ref={speakerRef}
 						value={draft.speaker}
 					/>
@@ -249,6 +255,7 @@ function SegmentEditor({
 								editTranscriptDraft(current, { text: event.target.value }),
 							)
 						}
+						readOnly={!editable}
 						ref={textRef}
 						value={draft.text}
 					/>
@@ -257,14 +264,18 @@ function SegmentEditor({
 					<span>
 						{draft.text.trim() ? draft.text.trim().split(/\s+/u).length : 0} palavras · {Array.from(draft.text).length} caracteres
 					</span>
-					<span
-						aria-live="polite"
-						className={styles.saveState}
-						data-state={editor.phase}
-						title={editor.message ?? undefined}
-					>
-						{stateLabel}
-					</span>
+					{editable ? (
+						<span
+							aria-live="polite"
+							className={styles.saveState}
+							data-state={editor.phase}
+							title={editor.message ?? undefined}
+						>
+							{stateLabel}
+						</span>
+					) : (
+						<span className={styles.muted}>Somente leitura</span>
+					)}
 				</div>
 			</div>
 
@@ -273,6 +284,7 @@ function SegmentEditor({
 					Revisão
 					<select
 						className={styles.control}
+						disabled={!editable}
 						onChange={(event) =>
 							setEditor((current) =>
 								editTranscriptDraft(current, {
@@ -287,26 +299,30 @@ function SegmentEditor({
 						))}
 					</select>
 				</label>
-				<Button
-					disabled={!dirty || editor.phase === "saving" || editor.phase === "conflict"}
-					onClick={() => void save()}
-					variant="primary"
-				>
-					{editor.phase === "saving"
-						? "Salvando…"
-						: editor.phase === "error"
-							? "Tentar novamente"
-							: "Salvar fala"}
-				</Button>
+				{editable ? (
+					<Button
+						disabled={!dirty || editor.phase === "saving" || editor.phase === "conflict"}
+						onClick={() => void save()}
+						variant="primary"
+					>
+						{editor.phase === "saving"
+							? "Salvando…"
+							: editor.phase === "error"
+								? "Tentar novamente"
+								: "Salvar fala"}
+					</Button>
+				) : null}
 				<span className={styles.keyboardHint}>
-					↑/↓ navega · Enter texto · S speaker · Shift+Enter revisar · ⌘/Ctrl+Enter salva · Esc desfaz
+					{editable
+						? "↑/↓ navega · Enter texto · S speaker · Shift+Enter revisar · ⌘/Ctrl+Enter salva · Esc desfaz"
+						: "↑/↓ navega · esta conta tem acesso somente de leitura"}
 				</span>
 			</div>
 		</article>
 	);
 }
 
-export function TranscriptEditor({ sessionId, segments, batchOffset }: TranscriptEditorProps) {
+export function TranscriptEditor({ sessionId, segments, batchOffset, editable }: TranscriptEditorProps) {
 	const [query, setQuery] = useState("");
 	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
 	const visible = useMemo(() => {
@@ -335,6 +351,7 @@ export function TranscriptEditor({ sessionId, segments, batchOffset }: Transcrip
 					const originalIndex = segments.findIndex((item) => item.id === segment.id);
 					return (
 						<SegmentEditor
+							editable={editable}
 							key={segment.id}
 							position={batchOffset + originalIndex + 1}
 							segment={segment}

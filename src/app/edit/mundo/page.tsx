@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function EditWorldLayoutPage() {
-	await requireCapability(EDIT_CAPABILITIES.contentEdit, "/edit/mundo");
+	await requireCapability(EDIT_CAPABILITIES.worldLayoutEdit, "/edit/mundo");
 
 	if (!isUnsafeEditEnabled()) {
 		return (
@@ -29,7 +29,7 @@ export default async function EditWorldLayoutPage() {
 					</div>
 				</header>
 			</section>
-		);
+			);
 	}
 
 	const projection = buildWorldProjection(DANDELION_WORLD_DEMO);
