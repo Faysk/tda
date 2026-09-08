@@ -16,13 +16,28 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
-test("World Explorer renders relation strokes independently of fitView zoom", async ({ page }) => {
+test("World Explorer renders relation strokes without clipping them in the React Flow SVG", async ({ page }) => {
 	await page.goto("/mundo");
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	const edges = page.locator("[data-world-edge]");
 	await expect(edges.first()).toBeVisible();
 	expect(await edges.count()).toBeGreaterThan(0);
+
+	const layerPaint = await edges.first().evaluate((element) => {
+		const edgeLayer = element.closest("svg");
+		if (!edgeLayer) throw new Error("World edge SVG not found");
+		const style = getComputedStyle(edgeLayer);
+		return {
+			overflow: style.overflow,
+			display: style.display,
+			visibility: style.visibility,
+		};
+	});
+
+	expect(layerPaint.overflow).not.toBe("hidden");
+	expect(layerPaint.display).not.toBe("none");
+	expect(layerPaint.visibility).not.toBe("hidden");
 
 	const paint = await edges.first().evaluate((element) => {
 		const style = getComputedStyle(element);
