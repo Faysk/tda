@@ -6,6 +6,7 @@ import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SITE_NAME } from "@/config/public-metadata";
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
+import "@xyflow/react/dist/base.css";
 import "./globals.css";
 import "./design-tokens.css";
 import "./design-system.css";
