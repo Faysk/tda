@@ -6,8 +6,11 @@ export type WorldLayout = Record<string, WorldPosition>;
 const HERO_RADIUS_X = 290;
 const HERO_RADIUS_Y = 215;
 const SATELLITE_RADIUS = 245;
+const SATELLITE_DEPTH_STEP = 118;
+const SHARED_CLUSTER_SPACING = 96;
 const OUTER_RADIUS_X = 610;
 const OUTER_RADIUS_Y = 430;
+const MAX_AFFINITY_DEPTH = 4;
 
 function pointOnEllipse(
 	index: number,
@@ -27,31 +30,83 @@ function nodeStableOrder(left: WorldNodeDTO, right: WorldNodeDTO) {
 	return left.label.localeCompare(right.label, "pt-BR");
 }
 
-function connectedHero(
-	projection: WorldGraphProjection,
+function buildAdjacency(projection: WorldGraphProjection): Map<string, Set<string>> {
+	const adjacency = new Map<string, Set<string>>();
+	for (const node of projection.nodes) adjacency.set(node.id, new Set());
+	for (const edge of projection.edges) {
+		if (!adjacency.has(edge.source) || !adjacency.has(edge.target)) continue;
+		adjacency.get(edge.source)?.add(edge.target);
+		adjacency.get(edge.target)?.add(edge.source);
+	}
+	return adjacency;
+}
+
+type HeroAffinity = {
+	heroIds: string[];
+	distance: number;
+};
+
+function nearestHeroAffinity(
+	adjacency: ReadonlyMap<string, ReadonlySet<string>>,
 	nodeId: string,
 	heroIds: readonly string[],
-): string | null {
-	for (const heroId of heroIds) {
-		if (
-			projection.edges.some(
-				(edge) =>
-					(edge.source === heroId && edge.target === nodeId) ||
-					(edge.target === heroId && edge.source === nodeId),
-			)
-		) {
-			return heroId;
+): HeroAffinity | null {
+	const heroSet = new Set(heroIds);
+	const visited = new Set<string>([nodeId]);
+	let frontier = [nodeId];
+
+	for (let distance = 1; distance <= MAX_AFFINITY_DEPTH; distance += 1) {
+		const next: string[] = [];
+		const matches = new Set<string>();
+		for (const current of frontier) {
+			for (const neighbour of adjacency.get(current) ?? []) {
+				if (visited.has(neighbour)) continue;
+				visited.add(neighbour);
+				if (heroSet.has(neighbour)) {
+					matches.add(neighbour);
+					continue;
+				}
+				next.push(neighbour);
+			}
 		}
+		if (matches.size > 0) {
+			return {
+				heroIds: [...matches].sort((left, right) => left.localeCompare(right)),
+				distance,
+			};
+		}
+		if (next.length === 0) break;
+		frontier = next;
 	}
+
 	return null;
+}
+
+function averagePosition(ids: readonly string[], layout: WorldLayout): WorldPosition {
+	const positions = ids
+		.map((id) => layout[id])
+		.filter((position): position is WorldPosition => Boolean(position));
+	if (positions.length === 0) return { x: 0, y: 0 };
+	return {
+		x: positions.reduce((sum, position) => sum + position.x, 0) / positions.length,
+		y: positions.reduce((sum, position) => sum + position.y, 0) / positions.length,
+	};
+}
+
+function stableSignatureAngle(signature: string): number {
+	let hash = 0;
+	for (const character of signature) {
+		hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
+	}
+	return ((hash % 360) / 180) * Math.PI;
 }
 
 /**
  * Produces a deterministic seed for the explorer without declaring one entity
  * as the permanent centre of the campaign. Heroes form the inner constellation;
- * directly connected context fans out around its nearest hero and everything
- * else occupies the outer field. The result is only a starting point: nodes are
- * draggable in the client and their positions are deliberately not narrative data.
+ * context follows the nearest hero topology instead of the first matching edge,
+ * shared context is placed between peer hubs, and disconnected material occupies
+ * the outer field. The result remains presentation-only and draggable.
  */
 export function constellationWorldLayout(
 	projection: WorldGraphProjection,
@@ -86,32 +141,72 @@ export function constellationWorldLayout(
 	});
 
 	const heroIds = orderedHeroes.map((hero) => hero.id);
-	const satellites = new Map<string, WorldNodeDTO[]>();
+	const adjacency = buildAdjacency(projection);
+	const satellites = new Map<string, { node: WorldNodeDTO; distance: number }[]>();
+	const shared = new Map<string, { heroIds: string[]; nodes: WorldNodeDTO[] }>();
 	const unanchored: WorldNodeDTO[] = [];
+
 	for (const node of projection.nodes) {
 		if (heroIds.includes(node.id)) continue;
-		const anchor = connectedHero(projection, node.id, heroIds);
-		if (!anchor) {
+		const affinity = nearestHeroAffinity(adjacency, node.id, heroIds);
+		if (!affinity) {
 			unanchored.push(node);
 			continue;
 		}
-		const group = satellites.get(anchor) ?? [];
-		group.push(node);
-		satellites.set(anchor, group);
+		if (affinity.heroIds.length === 1) {
+			const [heroId] = affinity.heroIds;
+			const group = satellites.get(heroId) ?? [];
+			group.push({ node, distance: affinity.distance });
+			satellites.set(heroId, group);
+			continue;
+		}
+
+		const signature = affinity.heroIds.join("|");
+		const group = shared.get(signature) ?? {
+			heroIds: affinity.heroIds,
+			nodes: [],
+		};
+		group.nodes.push(node);
+		shared.set(signature, group);
 	}
 
 	for (const [heroId, group] of satellites) {
-		group.sort(nodeStableOrder);
+		group.sort((left, right) =>
+			left.distance === right.distance
+				? nodeStableOrder(left.node, right.node)
+				: left.distance - right.distance,
+		);
 		const anchor = layout[heroId] ?? { x: 0, y: 0 };
 		const outward = Math.atan2(anchor.y, anchor.x);
 		const spread = Math.min(Math.PI * 0.9, 0.42 * Math.max(group.length - 1, 1));
-		group.forEach((node, index) => {
+		group.forEach(({ node, distance }, index) => {
 			const t = group.length === 1 ? 0.5 : index / (group.length - 1);
 			const angle = outward - spread / 2 + spread * t;
-			const radius = SATELLITE_RADIUS + (index % 2) * 54;
+			const radius =
+				SATELLITE_RADIUS + (distance - 1) * SATELLITE_DEPTH_STEP + (index % 2) * 54;
 			layout[node.id] = {
 				x: Math.round(anchor.x + Math.cos(angle) * radius),
 				y: Math.round(anchor.y + Math.sin(angle) * radius),
+			};
+		});
+	}
+
+	for (const [signature, group] of shared) {
+		group.nodes.sort(nodeStableOrder);
+		const centroid = averagePosition(group.heroIds, layout);
+		const first = layout[group.heroIds[0]];
+		const second = layout[group.heroIds[1]];
+		const axisAngle =
+			first && second
+				? Math.atan2(second.y - first.y, second.x - first.x) + Math.PI / 2
+				: stableSignatureAngle(signature);
+		const centreOffset = (group.nodes.length - 1) / 2;
+		group.nodes.forEach((node, index) => {
+			const lane = index - centreOffset;
+			const offset = lane * SHARED_CLUSTER_SPACING;
+			layout[node.id] = {
+				x: Math.round(centroid.x + Math.cos(axisAngle) * offset),
+				y: Math.round(centroid.y + Math.sin(axisAngle) * offset),
 			};
 		});
 	}
