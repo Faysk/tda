@@ -31,6 +31,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0008 — autorização orientada a capabilities e scope](../adr/0008-capability-authorization.md) | identity/access + arquitetura + segurança | accepted | Não declarado |
 | [ADR-0009 — World Explorer multi-hub e layout espacial reorganizável](../adr/0009-world-explorer-multihub-layout.md) | frontend / narrative-memory | accepted | 2026-09-08 |
 | [ADR-0010 — persistência editorial do layout do World Explorer separada do canon](../adr/0010-world-explorer-editorial-layout-persistence.md) | frontend / narrative-memory / identity-access | accepted | 2026-09-08 |
+| [ADR-0011 — persistência física candidata do layout editorial do World Explorer](../adr/0011-world-explorer-layout-physical-persistence.md) | frontend / narrative-memory / dados / identity-access | accepted | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -48,11 +49,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
-| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-07 |
+| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-08 |
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-06 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
 | [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-06 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-07 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-08 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
 ## docs/delivery
@@ -161,4 +162,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-95 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+96 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
