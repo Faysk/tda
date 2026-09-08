@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test("world surfaces share the contextual universe navigation", async ({ page }) => {
+test("world surfaces share the desktop contextual universe navigation", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.goto("/mundo");
 	await expect(
 		page.getByRole("navigation", { name: "Explorar o universo da campanha" }).first(),
