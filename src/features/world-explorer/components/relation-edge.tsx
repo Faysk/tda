@@ -62,8 +62,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
-	const strokeWidth = highlighted ? 3 : 1.9;
-	const strokeOpacity = dimmed ? 0.11 : highlighted ? 1 : 0.76;
+	const strokeWidth = highlighted ? 4 : 3;
+	const strokeOpacity = dimmed ? 0.12 : highlighted ? 1 : 0.94;
 	const dash = RELATION_DASHES[family];
 
 	// Chrome has been unreliable painting the native React Flow edge SVG in this
@@ -106,8 +106,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						d={path}
 						fill="none"
 						stroke="var(--ds-canvas)"
-						strokeWidth={strokeWidth + 3.4}
-						strokeOpacity={dimmed ? 0.04 : highlighted ? 0.78 : 0.58}
+						strokeWidth={strokeWidth + 3}
+						strokeOpacity={dimmed ? 0.04 : highlighted ? 0.7 : 0.46}
 						strokeDasharray={dash}
 						vectorEffect="non-scaling-stroke"
 						strokeLinecap="round"
