@@ -15,6 +15,10 @@ A `main` consultada nesta revisão está em `80eab3a8c267e3e3900cd7c9399f23bf914
 
 A importação permanece integrada no repositório mas sua ativação/aplicação externa continua um gate separado. Da mesma forma, migration integrada não é tratada como migration aplicada. Estados concretos e evidências ficam no [inventário](delivery/inventory.md) e nos documentos operacionais donos.
 
+### Estabilização antes da publicação — #102
+
+A rodada [#102](https://github.com/Faysk/tda/issues/102) é um gate de **estabilização**, não uma nova frente de produto: corrige defeitos reproduzíveis, regressões visuais/acessibilidade e acabamento sobre os contratos existentes. Ela não altera a ordem P1/P2/P3 abaixo, não promove feature incompleta e não transforma proposta em correção aplicada. Prancheta mantém estágio/evidência no [inventário](delivery/inventory.md); Foguete consolida os gates do candidato; Marreta/Lupa fazem validação independente. Publicação continua deliberada e só pode ser declarada por evidência do SHA candidato e da operação correspondente.
+
 ### Prioridade de produto — rodada #99
 
 1. **P1 — Pipipi oficial / Pipoca.** Pipipi é a lore pioneira e a prioridade de publicação da rodada [#99](https://github.com/Faysk/tda/issues/99). A implementação deve reutilizar [Perfis editoriais](features/entity-profiles.md), [Design System](design-system/README.md), [superfícies públicas](design-system/public-surfaces.md), metadata pública central e mídia elegível. Estrutura visual/cinematic existente é **referência**, não um novo contrato visual: tokens, Brand Pack e componentes vigentes continuam canônicos. Parallax deve ser adaptado como progressive enhancement, respeitar reduced motion/pointer coarse e **nunca bloquear a leitura estática**, mobile, acessibilidade ou publicação quando o conteúdo/mídia elegíveis estiverem prontos. Cinematic opcional não bloqueia P1.
@@ -102,6 +106,7 @@ Timeline, busca, mapas, músicas, quests, estatísticas e demais superfícies av
 - DDL exige migration versionada e aplicação separada;
 - merge de migration não significa aplicação no Supabase;
 - deploy é publicação controlada, nunca ferramenta de desenvolvimento;
+- estabilização só conta como correção depois de patch aplicado e evidência correspondente; proposta isolada não altera estado;
 - cloud deve permanecer nas franquias gratuitas/Hobby quando possível;
 - processamento pesado e retenção de áudio bruto permanecem locais;
 - documentação de coordenação aponta para owners, não copia suas specs.
