@@ -24,7 +24,12 @@ try:
         file.write(f"\nlisten_addresses=''\nunix_socket_directories='{socket}'\nunix_socket_permissions=0700\n")
     run([str(binary/'pg_ctl'), '-D', str(data), '-l', str(root/'postgres.log'), '-w', 'start'])
     started = True
-    paths = [repo/'supabase/tests/transcript_import_fixture.sql', *sorted((repo/'supabase/migrations').glob('*_transcript_import_*.sql'))]
+    paths = [
+        repo/'supabase/tests/transcript_import_fixture.sql',
+        *sorted((repo/'supabase/migrations').glob('*_transcript_import_*.sql')),
+        repo/'supabase/migrations/20260908134500_transcript_review_default.sql',
+        repo/'supabase/tests/transcript_review_default.sql',
+    ]
     for path in paths:
         run([str(binary/'psql'), '-X', '-h', str(socket), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], input=path.read_text(), text=True)
     print(socket, flush=True)
