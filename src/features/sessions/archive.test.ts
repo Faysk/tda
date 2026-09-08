@@ -1,69 +1,59 @@
 import { describe, expect, it } from "vitest";
 import {
-	formatArchiveDuration,
+	formatArchiveDate,
 	formatArchiveNumber,
-	parseArchiveMetric,
 	summarizeSessionArchive,
 	type SessionArchiveItem,
 } from "./archive";
 
 function session(
 	id: string,
-	metrics: Pick<
-		SessionArchiveItem,
-		"durationMs" | "wordCount" | "participantCount"
-	>,
+	date: string,
+	arc = "Arco",
 ): SessionArchiveItem {
 	return {
 		id,
 		title: id,
-		date: "2026-09-01",
-		arc: "Arco",
+		date,
+		arc,
 		summary: "Resumo",
-		...metrics,
 	};
 }
 
-describe("public session archive metrics", () => {
-	it("parses only finite non-negative safe integers", () => {
-		expect(parseArchiveMetric(12)).toBe(12);
-		expect(parseArchiveMetric("237073")).toBe(237073);
-		expect(parseArchiveMetric(-1)).toBeNull();
-		expect(parseArchiveMetric(1.2)).toBeNull();
-		expect(parseArchiveMetric("12.2")).toBeNull();
-		expect(parseArchiveMetric(null)).toBeNull();
-	});
-
-	it("formats duration and counts for the public archive", () => {
-		expect(formatArchiveDuration(null)).toBe("—");
-		expect(formatArchiveDuration(0)).toBe("0 min");
-		expect(formatArchiveDuration(30_000)).toBe("< 1 min");
-		expect(formatArchiveDuration(12_780_000)).toBe("3 h 33 min");
+describe("public session archive summary", () => {
+	it("formats public counts and compact dates", () => {
 		expect(formatArchiveNumber(237073)).toBe("237.073");
+		expect(formatArchiveDate("2026-09-01")).toBe("01 set 2026");
+		expect(formatArchiveDate("2026-02-30")).toBe("—");
+		expect(formatArchiveDate("")).toBe("—");
 	});
 
-	it("sums known values without pretending missing coverage is zero", () => {
+	it("summarizes only fields already present in published session data", () => {
 		const result = summarizeSessionArchive([
-			session("one", {
-				durationMs: 7_200_000,
-				wordCount: 20_000,
-				participantCount: 4,
-			}),
-			session("two", {
-				durationMs: null,
-				wordCount: 15_000,
-				participantCount: null,
-			}),
+			session("latest", "2026-09-01", "Valcinzento"),
+			session("middle", "", "valcinzento"),
+			session("first", "2025-12-14", "Outro arco"),
+		]);
+
+		expect(result).toEqual({
+			sessions: 3,
+			arcs: 2,
+			firstDate: "2025-12-14",
+			latestDate: "2026-09-01",
+		});
+	});
+
+	it("does not invent dates or arcs when the public fields are absent", () => {
+		const result = summarizeSessionArchive([
+			session("one", "not-a-date", ""),
+			session("two", "", "   "),
 		]);
 
 		expect(result).toEqual({
 			sessions: 2,
-			durationMs: 7_200_000,
-			durationCoverage: 1,
-			wordCount: 35_000,
-			wordCoverage: 2,
-			participantCount: 4,
-			participantCoverage: 1,
+			arcs: 0,
+			firstDate: "",
+			latestDate: "",
 		});
 	});
 });
