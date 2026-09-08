@@ -158,6 +158,16 @@ footer {
 	}
 }
 
+@media (max-width: 900px) {
+	.header-actions {
+		gap: 10px;
+	}
+
+	.site-header nav {
+		gap: 12px;
+	}
+}
+
 @media (max-width: 650px) {
 	.site-header {
 		min-height: 72px;
@@ -180,6 +190,10 @@ footer {
 
 	.site-header nav {
 		font-size: 0.8125rem;
+	}
+
+	.site-header nav .world-nav-link {
+		display: none;
 	}
 
 	.page-section {
