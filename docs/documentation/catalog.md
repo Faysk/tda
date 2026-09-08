@@ -40,7 +40,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-06 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
 | [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-06 |
-| [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura do TDA | vigente | 2026-09-06 |
+| [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-06 |
 
 ## docs/database
 
