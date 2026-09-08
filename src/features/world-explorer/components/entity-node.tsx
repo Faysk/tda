@@ -21,11 +21,12 @@ function initials(label: string): string {
 }
 
 export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
-	const { item, isFocus } = data;
+	const { item, isFocus, isHero, prominence, isDimmed } = data;
 	return (
 		<div
-			className={`${styles.entityNode} ${isFocus ? styles.entityNodeFocus : ""} ${selected ? styles.entityNodeSelected : ""}`}
+			className={`${styles.entityNode} ${isHero ? styles.entityNodeHero : ""} ${isFocus ? styles.entityNodeFocus : ""} ${selected ? styles.entityNodeSelected : ""} ${isDimmed ? styles.entityNodeDimmed : ""}`}
 			data-world-node={item.id}
+			data-prominence={prominence}
 		>
 			{HANDLES.flatMap((handle) => [
 				<Handle
@@ -51,6 +52,7 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 				) : (
 					<span>{initials(item.label)}</span>
 				)}
+				{isHero ? <i className={styles.heroOrbit} /> : null}
 			</div>
 			<div className={styles.nodeLabel}>{item.label}</div>
 			{item.subtitle ? <div className={styles.nodeSubtitle}>{item.subtitle}</div> : null}
