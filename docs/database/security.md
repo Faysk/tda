@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -124,7 +124,7 @@ Uma role/view/endpoint tecnicamente read-only e de menor privilégio é desejáv
 
 ## `SECURITY DEFINER`
 
-A inspeção de 2026-09-07 confirmou **8 funções `SECURITY DEFINER` em `public`**:
+A inspeção revalidada em 2026-09-08 confirmou **8 funções `SECURITY DEFINER` em `public`**:
 
 - `access_directory(campaign_slug text)`;
 - `current_profile_id()`;
@@ -192,35 +192,35 @@ Não alterar essa semântica silenciosamente: é regra de produto/autorização 
 
 Não revogar em massa sem mapear consumidores.
 
-## `SECURITY INVOKER` server-only do Edit — candidato
+## `SECURITY INVOKER` server-only do Edit
 
-A issue #32 prepara uma função nova e estreita, `public.edit_transcript_segment_atomic(...)`, na migration candidata `20260907115300_edit_transcript_segment_atomic`.
+O arquivo local `20260907115300_edit_transcript_segment_atomic` descreve `public.edit_transcript_segment_atomic(...)`. Em 2026-09-08 a função física foi confirmada no Supabase canônico sob migration history remoto `20260908064257 edit_transcript_segment_atomic`.
 
-**Estado:** ainda não aplicada em produção nesta revisão.
+A definição física observada corresponde ao contrato local quanto a assinatura/corpo, `SECURITY INVOKER`, `search_path`, comentário e grants efetivos. Existe drift de **ID de migration**, registrado em `migrations.md`; equivalência funcional não autoriza reescrever migration history.
 
-Decisões de segurança do slice:
+Decisões de segurança observadas/esperadas:
 
-- usar `SECURITY INVOKER`, não elevar para owner;
-- fixar `search_path = pg_catalog, public`;
-- revogar `EXECUTE` de `PUBLIC`, `anon` e `authenticated`;
-- conceder `EXECUTE` somente a `service_role`;
-- manter a chamada exclusivamente server-side;
-- resolver usuário/profile/capability `campaign.content.edit` antes da persistence;
-- passar `actorProfileId` a partir desse contexto autorizado, nunca como ator escolhido livremente pelo browser;
-- revalidar fisicamente `segment -> session -> campaign` dentro da função;
-- tratar recurso de outra campaign como `not_found`;
-- fazer update otimista e insert em `audit_log` na mesma transação;
-- não tocar nos grants/definições das 8 `SECURITY DEFINER` existentes neste recorte.
+- `SECURITY INVOKER`, não eleva para owner;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`;
+- `service_role` com `EXECUTE`;
+- chamada exclusivamente server-side;
+- usuário/profile/capability `campaign.content.edit` resolvidos antes da persistence;
+- actor vem do contexto autorizado da aplicação, não de escolha livre do browser;
+- `segment -> session -> campaign` é revalidado dentro da função;
+- recurso de outra campaign retorna `not_found`;
+- update otimista e `audit_log` são atômicos;
+- nenhuma das 8 funções `SECURITY DEFINER` legadas é alterada por esse boundary.
 
 ### Por que `SECURITY INVOKER`
 
-A revalidação de produção mostrou que `anon` e `authenticated` não têm grants diretos observados sobre `transcript_segments`/`audit_log`, enquanto `service_role` possui os privilégios necessários. A função pode, portanto, herdar o privilégio do caller server-only sem precisar de elevação.
+`anon` e `authenticated` não possuem os grants diretos necessários ao write, enquanto `service_role` possui o privilégio server-side. A função pode herdar o privilégio do caller sem elevação para owner.
 
-O uso de `service_role` continua sendo boundary poderoso: a segurança depende de a aplicação executar Auth/capability antes da chamada e de não oferecer esta função como CRUD genérico.
+O uso de `service_role` continua sendo boundary poderoso: a aplicação não pode oferecer a função como CRUD genérico nem confiar no segredo server-side como substituto de autorização.
 
 ### Concorrência e audience
 
-O SQL candidato:
+O SQL:
 
 - bloqueia a linha do segmento antes da decisão de revision;
 - exige igualdade com `expectedRevision`;
@@ -229,14 +229,74 @@ O SQL candidato:
 - não revela a existência de segmento cross-campaign;
 - preserva `character_name` quando o speaker não muda e invalida essa identidade quando o speaker textual muda.
 
-### Validação obrigatória antes da aplicação
+## `SECURITY INVOKER` server-only do World layout — candidato
 
-- compilar a migration em banco local/isolado;
-- executar `supabase/tests/edit_transcript_segment_atomic.sql` apenas com dados sintéticos;
-- provar `updated + conflict`, um único audit, cross-campaign `not_found`, rollback em falha do audit e preservação de identidade;
-- confirmar grants efetivos pós-migration;
-- executar advisors de segurança/performance;
-- registrar a aplicação no `verification-log.md` somente depois de ela realmente ocorrer.
+As migrations candidatas `20260908192500_world_layout_capability` e `20260908192600_world_layout_snapshot_atomic` preparam persistência editorial de layout sem misturar coordenadas com canon, entities ou relations.
+
+**Estado:** não aplicadas no Supabase canônico. A inspeção read-only de 2026-09-08 não encontrou `save_world_layout_snapshot_atomic(...)`; a aplicação remota permanece bloqueada até reconciliar o drift de migration history já observado.
+
+Capability candidata:
+
+```text
+campaign.world.layout.edit
+```
+
+- plane `narrative`;
+- a migration apenas registra a action;
+- nenhum `role_permission`, `role_assignment` ou grant a operador é criado automaticamente.
+
+Storage candidato `world_layout_snapshots`:
+
+- um snapshot `overview` por campaign;
+- RLS habilitado;
+- nenhuma policy de browser;
+- `PUBLIC`, `anon` e `authenticated` sem acesso;
+- `service_role` recebe somente `SELECT`, `INSERT`, `UPDATE`;
+- `DELETE` não é concedido.
+
+RPC candidata `save_world_layout_snapshot_atomic(...)`:
+
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`;
+- `service_role` como único caller SQL pretendido;
+- revalida `auth_user_id -> profile_id`;
+- exige capability física + assignment ativo no scope da campaign ou `project/tda`;
+- limita snapshot a `overview`, até 1000 posições, IDs sintaticamente limitados e `{x,y}` numéricos em `±5000`;
+- usa `expected_revision` para optimistic concurrency;
+- writer stale retorna `conflict` e não altera dado/audit;
+- no-op retorna `unchanged` sem bump/audit;
+- alteração real incrementa revision `+1` e grava `world_layout.update` no `audit_log` na mesma transação;
+- falha do audit reverte a alteração do snapshot.
+
+### Audience na leitura
+
+A tabela não deve ganhar policy pública como atalho. O fluxo futuro é server-side:
+
+```text
+request + identidade/audience
+  -> projection autorizada de nodes/edges
+  -> carregar snapshot aplicável
+  -> intersectar positions com IDs já autorizados
+  -> sanitizar contrato
+  -> browser
+```
+
+Chaves presentes no JSONB jamais podem ser usadas para decidir quais nodes existem/ficam visíveis.
+
+### Validação candidata
+
+O CI usa PostgreSQL 16 descartável por Unix socket, sem TCP ou credenciais do ambiente, e prova:
+
+- capability sem grant automático;
+- RLS e grants server-only;
+- autorização/scope negativos e positivos;
+- payload inválido fail-closed;
+- save inicial, no-op, conflito stale e update `+1`;
+- audit old/new;
+- rollback total quando audit falha.
+
+Somente depois de CI terminal, drift reconciliado e aplicação deliberada pelo database runbook os grants físicos poderão ser revalidados no Supabase real.
 
 ## Secrets e service roles
 
@@ -275,19 +335,20 @@ Outtakes possuem níveis de sensibilidade/aprovação próprios. Conteúdo `priv
 
 ## Proteção de senha vazada
 
-O advisor também sinalizou **Leaked Password Protection desabilitada** no Auth. Como o fluxo vigente é orientado a OAuth, isso não bloqueia a etapa atual. Se login por senha for habilitado, tratar como requisito de hardening e revisar configuração Auth.
+O advisor revalidado em 2026-09-08 continua sinalizando **Leaked Password Protection desabilitada** no Auth. Como o fluxo vigente é orientado a OAuth, isso não bloqueia a etapa atual. Se login por senha for habilitado, tratar como requisito de hardening e revisar configuração Auth.
 
 ## Auditoria
 
-`audit_log` existe e estava vazio na revalidação read-only da issue #32 em 2026-09-07. Portanto:
+`audit_log` existe, mas sua existência não significa que todo write atual seja auditado. Portanto:
 
-- não afirmar que todo write já é auditado;
 - mapear writes críticos do Edit;
 - manter action estável e payload old/new mínimo por mutation;
-- não depender do log vazio como mecanismo de segurança;
+- não depender do log como mecanismo de autorização;
 - não apagar audit para simular rollback de uma edição.
 
-Para a persistence candidata de transcript, a action escolhida é `transcript_segment.update`; old/new registram somente o estado editorial alterável e a revision, sem payload bruto desnecessário.
+Para transcript, a action é `transcript_segment.update`; old/new registram somente o estado editorial alterável e a revision.
+
+Para o World layout candidato, a action é `world_layout.update`; old/new registram `schemaVersion`, `view`, `revision` e o snapshot limitado de positions. A mutation e o audit são atômicos.
 
 ## Testes mínimos para autorização
 

@@ -2,14 +2,14 @@
 
 > Status: vigente / revisão de hardening em andamento
 > Owner: segurança/dados
-> Última verificação: 2026-09-07
+> Última verificação: 2026-09-08
 > Projeto: `dmrqnbdvbkfqzctcerbx`
 
 Este documento classifica funções privilegiadas/expostas relevantes do schema `public`. `SECURITY DEFINER` merece atenção especial porque executa com privilégios do owner; funções `SECURITY INVOKER` server-only também são registradas quando representam um boundary de write sensível.
 
 ## Estado verificado
 
-Na inspeção de produção de 2026-09-07 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
+Na inspeção de produção revalidada em 2026-09-08 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
 
 Para as oito:
 
@@ -123,40 +123,69 @@ A definição observada resolve a campanha da nota, exige autorização admin e 
 
 **Decisão:** manter durante transição; migrar para capability explícita quando a superfície Edit for implementada.
 
-## RPC server-only candidata da issue #32
+## RPC server-only do Edit — estado remoto revalidado
 
 ### `edit_transcript_segment_atomic(...)`
 
-**Estado:** definida somente na migration candidata `20260907115300_edit_transcript_segment_atomic`; **não aplicada ao Supabase de produção nesta verificação**.
+A inspeção read-only de 2026-09-08 confirmou a função física no Supabase canônico sob migration history remoto `20260908064257 edit_transcript_segment_atomic`.
 
-Classificação:
+A definição física observada corresponde ao contrato do arquivo local `20260907115300_edit_transcript_segment_atomic.sql` quanto a assinatura, corpo da função, `SECURITY INVOKER`, `search_path`, comentário e grants efetivos:
 
-- `SECURITY INVOKER`, não `SECURITY DEFINER`;
+- `anon`: sem `EXECUTE`;
+- `authenticated`: sem `EXECUTE`;
+- `service_role`: com `EXECUTE`;
 - `search_path = pg_catalog, public`;
-- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE` pela migration candidata;
+- comentário server-only esperado presente.
+
+Existe, porém, **drift de versionamento** entre o ID remoto e o nome do arquivo local. A equivalência funcional observada não autoriza reescrever migration history nem tratar os IDs como iguais. A reconciliação operacional permanece pendente em `migrations.md`.
+
+Boundary físico observado/local:
+
+- actor/profile é resolvido pelo contexto autorizado da aplicação;
+- `segment -> session -> campaign` é revalidado pelo slug;
+- `expectedRevision` controla concorrência otimista;
+- update e `audit_log` fazem parte da mesma chamada/transação;
+- falha de audit aborta o update;
+- cross-campaign retorna `not_found`;
+- nenhuma das 8 funções `SECURITY DEFINER` legadas é modificada por esse slice.
+
+## RPC server-only candidata do World Explorer
+
+### `save_world_layout_snapshot_atomic(...)`
+
+**Estado:** definida somente na migration candidata `20260908192600_world_layout_snapshot_atomic`; **não existe no Supabase canônico na inspeção read-only de 2026-09-08 e não foi aplicada**.
+
+Classificação candidata:
+
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
 - `service_role`: único grant de `EXECUTE` pretendido;
-- caller pretendido: adapter server-only da mutation canônica do Edit.
+- storage `world_layout_snapshots` com RLS habilitado e sem policy de browser;
+- `service_role` recebe somente `SELECT`, `INSERT`, `UPDATE`, sem `DELETE`.
 
 Boundary:
 
-- o Auth/Edit resolve usuário, profile e `campaign.content.edit` antes de chamar persistence;
-- o actor recebido pela função é o `profileId` desse contexto autorizado, não input bruto do browser;
-- a função revalida `segment -> session -> campaign` pelo slug recebido;
-- `expectedRevision` controla concorrência otimista;
-- a linha é bloqueada durante a decisão/update;
-- update e `audit_log` fazem parte da mesma chamada/transação;
-- falha de audit deve abortar o update;
-- cross-campaign retorna `not_found`;
-- nenhuma das 8 funções `SECURITY DEFINER` existentes é modificada por este slice.
+- valida vínculo `auth_user_id -> profile_id`;
+- exige capability física `campaign.world.layout.edit`;
+- exige assignment ativo e válido no scope da campaign ou `project/tda`;
+- aceita somente snapshot `overview` implícito, até 1000 nodes, IDs limitados e coordenadas numéricas em `±5000`;
+- usa `expected_revision` para optimistic concurrency;
+- primeiro save nasce em revision 1; writer stale recebe `conflict`;
+- payload idêntico retorna `unchanged` sem bump/audit;
+- alteração válida incrementa revision exatamente em 1;
+- `world_layout.update` é gravado no `audit_log` na mesma transação;
+- falha de audit deve reverter o snapshot.
 
-Risco residual antes da aplicação:
+A função **não** reconstrói audience/canon no banco. O app deve construir a projection autorizada antes de salvar e, na leitura pública futura, intersectar positions apenas com IDs já autorizados antes de emitir payload ao browser.
 
-- SQL precisa compilar e passar o teste sintético em banco local/isolado;
-- grants efetivos precisam ser revalidados depois da aplicação;
-- advisors precisam ser executados depois da migration;
-- a aplicação precisa continuar sendo o boundary de capability; `service_role` não deve virar API genérica de write.
+Validação sintética:
 
-Teste preparado: `supabase/tests/edit_transcript_segment_atomic.sql`.
+- PostgreSQL 16 descartável, Unix socket only;
+- testes de grants/RLS, identidade, capability/scope, payload inválido, save/no-op/conflict/update e rollback por falha de audit;
+- CI do PR candidato executa `python tools/world-layout-db.py`.
+
+Ativação remota permanece bloqueada até a reconciliação do drift de migration history e uma rodada deliberada do database runbook.
 
 ## Auditoria de consumidores
 
@@ -164,7 +193,7 @@ Teste preparado: `supabase/tests/edit_transcript_segment_atomic.sql`.
 
 Busca no código atual do `Faysk/tda` não encontrou chamadas diretas conhecidas às oito RPCs legadas acima. A integração Supabase atual do site público é server-only e focada em dados publicados.
 
-A nova `edit_transcript_segment_atomic(...)` ainda não possui consumidor porque sua migration não foi aplicada e o adapter canônico ainda não foi integrado.
+`save_world_layout_snapshot_atomic(...)` ainda não possui consumidor produtivo: `/edit/mundo` permanece staging local/exportável e não persiste no Supabase.
 
 ### `Faysk/dnd-scribe`
 
@@ -193,11 +222,14 @@ Consequência: `pg_stat_user_functions` não oferece contagem histórica útil d
 - mapear consumidores principais versionados;
 - registrar riscos sem mudar produção às cegas.
 
-### Slice #32 — isolado
+### Writes server-only novos
 
-- validar/aplicar somente a nova função `SECURITY INVOKER` server-only quando os testes isolados passarem;
-- não revisar/revogar em massa as 8 `SECURITY DEFINER` existentes nesta mudança;
-- revalidar apenas os grants da função nova após aplicação.
+- manter `SECURITY INVOKER` quando elevação não é necessária;
+- negar execução direta a `anon/authenticated`;
+- revalidar identity/capability/scope dentro do boundary sensível quando aplicável;
+- manter audit e mutation atômicos;
+- validar em PostgreSQL sintético antes de qualquer aplicação remota;
+- revalidar grants/advisors após aplicação real.
 
 ### Fase 2 — antes do Edit público
 
@@ -217,6 +249,7 @@ Consequência: `pg_stat_user_functions` não oferece contagem histórica útil d
 ## Regra
 
 Não transformar warning do advisor em alteração automática. O objetivo é **reduzir superfície sem quebrar autorização existente**, não deixar o painel verdinho enquanto a aplicação pega fogo.
-## Candidato: import_transcript_bundle_atomic
 
-`public.import_transcript_bundle_atomic(uuid,uuid,jsonb,boolean)` é candidato service-only SECURITY INVOKER, search_path `pg_catalog, public`, sem EXECUTE para PUBLIC/anon/authenticated. Revalida operador/profile, action explícita, scope e origem da sessão; grava segmentos/recibo/audit juntos ou consulta recibo. Não aplicado e não selecionado pelo endpoint produtivo. Contrato e rollback em [importação local](../integrations/transcript-import.md).
+## Candidato: `import_transcript_bundle_atomic`
+
+`public.import_transcript_bundle_atomic(uuid,uuid,jsonb,boolean)` é candidato service-only `SECURITY INVOKER`, search_path `pg_catalog, public`, sem `EXECUTE` para `PUBLIC`/`anon`/`authenticated`. Revalida operador/profile, action explícita, scope e origem da sessão; grava segmentos/recibo/audit juntos ou consulta recibo. Não aplicado e não selecionado pelo endpoint produtivo. Contrato e rollback em [importação local](../integrations/transcript-import.md).

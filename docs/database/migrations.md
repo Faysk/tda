@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -86,7 +86,7 @@ A estratégia é:
 
 ## Boundary do reboot aplicado
 
-As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas no histórico remoto do novo repositório TDA.
+As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas com IDs correspondentes no histórico remoto do novo repositório TDA.
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -125,11 +125,20 @@ Objetivo:
 
 Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
 
-## Migration candidata — ainda não aplicada
+## Drift conhecido observado em 2026-09-08
+
+A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. Permanece um drift conhecido de versionamento para a mutation atômica de transcript:
+
+- remoto `20260908064257 edit_transcript_segment_atomic`;
+- local `20260907115300_edit_transcript_segment_atomic.sql`.
+
+A inspeção read-only confirmou que a função física remota possui assinatura, comportamento, `SECURITY INVOKER`, `search_path`, comentário e grants compatíveis com o contrato do arquivo local. Ainda assim, equivalência funcional observada não autoriza reescrever history nem reexecutar DDL. A reconciliação desse ID deve ocorrer em recorte próprio pelo database runbook.
+
+## Migration local em reconciliação
 
 ### `20260907115300_edit_transcript_segment_atomic`
 
-**Estado:** arquivo versionado na branch da issue #32; a função já foi aplicada no Supabase canônico, mas o migration history remoto a registrou como `20260908064257 edit_transcript_segment_atomic`. Esse ID permanece drift conhecido e deve ser reconciliado em recorte próprio, sem reexecutar DDL.
+**Estado:** arquivo local versionado; a função já foi aplicada no Supabase canônico, mas o migration history remoto a registrou como `20260908064257 edit_transcript_segment_atomic`. Esse ID permanece drift conhecido e deve ser reconciliado em recorte próprio, sem reexecutar DDL.
 
 Objetivo:
 
@@ -169,7 +178,7 @@ Limites da validação isolada:
 - sem migration history remoto pós-aplicação;
 - somente `READ COMMITTED`.
 
-Ainda pendente antes de produção:
+Ainda pendente:
 
 - reconciliar o ID local `20260907115300` com o migration history remoto `20260908064257` sem reexecutar DDL;
 - registrar a reconciliação no `verification-log.md`;
@@ -208,6 +217,45 @@ Rollback lógico:
 
 - antes de qualquer dependência nova do default, uma migration corretiva pode restaurar o default anterior;
 - não apagar nem reclassificar linhas históricas como forma de rollback.
+
+## Candidatos de persistência editorial do World Explorer
+
+### `20260908192500_world_layout_capability`
+
+**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- definir `campaign.world.layout.edit` no `permission_catalog` com plane `narrative`;
+- não criar grants, role permissions ou assignments automaticamente;
+- preparar uma autorização separada de `campaign.content.edit` para a mutation física de layout.
+
+### `20260908192600_world_layout_snapshot_atomic`
+
+**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- criar `world_layout_snapshots`, separado de entities/relations/canon;
+- manter um snapshot `overview` por campaign com `schema_version`, `revision`, `positions`, actor e timestamps;
+- habilitar RLS sem policy de browser;
+- expor somente a `service_role` `SELECT/INSERT/UPDATE`, sem `DELETE`;
+- criar `save_world_layout_snapshot_atomic(...)` como `SECURITY INVOKER` server-only;
+- revalidar identidade, capability, assignment ativo e scope;
+- validar payload/limites defensivos;
+- aplicar optimistic concurrency por `expected_revision`;
+- registrar `world_layout.update` no `audit_log` na mesma transação;
+- retornar `unchanged` sem bump de revision/audit quando o snapshot não muda.
+
+Validação candidata:
+
+- `tools/world-layout-db.py` cria PostgreSQL 16 descartável, Unix socket only, sem TCP/credenciais de ambiente;
+- aplica fixture sintética + migrations `*_world_layout_*.sql` + `supabase/tests/world_layout_snapshot_atomic.sql`;
+- cobre grants, RLS, ausência de grant automático, autorização/scope, payload inválido, save inicial, no-op, conflito, revision `+1`, audit e rollback quando audit falha.
+
+Ativação remota permanece bloqueada até reconciliar o drift conhecido acima e executar o database runbook completo.
+
+Contrato arquitetural: [ADR-0011](../adr/0011-world-explorer-layout-physical-persistence.md).
 
 ## Regras para migration nova
 
@@ -302,6 +350,7 @@ Há drift quando:
 Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
+
 ## Candidatos de importação de transcrição
 
 - `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
