@@ -1,4 +1,11 @@
 .shell {
+	--world-edge-affinity: #65c98a;
+	--world-edge-family: #e4b455;
+	--world-edge-conflict: #ef5c58;
+	--world-edge-mystic: #a97df2;
+	--world-edge-creative: #f0a14d;
+	--world-edge-origin: #6caee8;
+	--world-edge-context: var(--ds-foreground-muted);
 	display: grid;
 	gap: 18px;
 	min-width: 0;
