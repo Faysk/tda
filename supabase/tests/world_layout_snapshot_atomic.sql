@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- The candidate defines the capability but never grants it to a role/profile.
+-- Applied state defines the capability and grants it only to the existing site_editor role.
 do $$
 begin
   if not exists (
@@ -9,11 +9,24 @@ begin
   ) then
     raise exception 'world layout capability was not defined';
   end if;
-  if exists (
-    select 1 from public.role_permissions
-    where permission_action = 'campaign.world.layout.edit'
+  if not exists (
+    select 1
+    from public.role_permissions rp
+    join public.role_definitions rd on rd.id = rp.role_id
+    where rp.permission_action = 'campaign.world.layout.edit'
+      and rd.slug = 'site_editor'
+      and rd.plane = 'narrative'
   ) then
-    raise exception 'candidate migration must not grant the capability to any role';
+    raise exception 'site_editor must receive world layout capability';
+  end if;
+  if (select count(*) from public.role_permissions where permission_action = 'campaign.world.layout.edit') <> 1 then
+    raise exception 'world layout capability must not be granted to broader synthetic roles';
+  end if;
+  if exists (
+    select 1 from public.role_assignments
+    where role_id = '55555555-5555-4555-8555-555555555555'
+  ) then
+    raise exception 'capability migration must not create profile assignments';
   end if;
 
   if has_function_privilege(
@@ -42,7 +55,12 @@ begin
     raise exception 'world layout table must remain server-only';
   end if;
   if has_table_privilege('service_role', 'public.world_layout_snapshots', 'DELETE') then
-    raise exception 'service_role must not receive DELETE from the candidate migration';
+    raise exception 'service_role must not receive DELETE';
+  end if;
+  if not has_table_privilege('service_role', 'public.world_layout_snapshots', 'SELECT')
+     or not has_table_privilege('service_role', 'public.world_layout_snapshots', 'INSERT')
+     or not has_table_privilege('service_role', 'public.world_layout_snapshots', 'UPDATE') then
+    raise exception 'service_role must retain only the required World layout table privileges';
   end if;
   if not exists (
     select 1
@@ -58,7 +76,7 @@ begin
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'world_layout_snapshots'
   ) then
-    raise exception 'candidate must remain deny-by-default with no browser policy';
+    raise exception 'world layout storage must remain deny-by-default with no browser policy';
   end if;
 end;
 $$;
@@ -76,17 +94,12 @@ begin
     '{"node-a":{"x":100,"y":-50}}'::jsonb
   );
   if result <> '{"ok":false,"reason":"forbidden"}'::jsonb then
-    raise exception 'write without explicit capability must be forbidden: %', result;
+    raise exception 'write without an active site_editor assignment must be forbidden: %', result;
   end if;
 end;
 $$;
 reset role;
 
-insert into public.role_permissions(role_id, permission_action)
-values (
-  '55555555-5555-4555-8555-555555555555',
-  'campaign.world.layout.edit'
-);
 insert into public.role_assignments(profile_id, role_id, scope_type, scope_id, status, starts_at)
 values (
   '33333333-3333-4333-8333-333333333333',
