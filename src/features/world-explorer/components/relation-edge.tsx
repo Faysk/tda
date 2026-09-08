@@ -11,15 +11,15 @@ import type { WorldRelationFamily } from "../model";
 import styles from "./world-explorer.module.css";
 
 const RELATION_STROKES: Record<WorldRelationFamily, string> = {
-	affinity: "var(--world-edge-affinity, #65c98a)",
-	family: "var(--world-edge-family, #e4b455)",
-	conflict: "var(--world-edge-conflict, #ef5c58)",
-	authority: "var(--world-edge-context, #8f9aa8)",
-	faction: "var(--world-edge-context, #8f9aa8)",
-	origin: "var(--world-edge-origin, #6caee8)",
-	mystic: "var(--world-edge-mystic, #a97df2)",
-	creative: "var(--world-edge-creative, #f0a14d)",
-	context: "var(--world-edge-context, #8f9aa8)",
+	affinity: "#65c98a",
+	family: "#e4b455",
+	conflict: "#ef5c58",
+	authority: "#8f9aa8",
+	faction: "#8f9aa8",
+	origin: "#6caee8",
+	mystic: "#a97df2",
+	creative: "#f0a14d",
+	context: "#8f9aa8",
 };
 
 const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
@@ -49,43 +49,65 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const stroke = RELATION_STROKES[family];
 	const strokeWidth = highlighted ? 4.4 : 3.2;
 	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.98;
+	const dash = RELATION_DASHES[family];
+
+	// EdgeLabelRenderer is already proven visible in Chrome because it paints the
+	// relation labels. Paint the visual stroke in that same transformed HTML
+	// layer instead of relying on React Flow's internal edge SVG stacking layer.
+	const paintPadding = Math.max(72, routeOffset + 36);
+	const paintLeft = Math.min(props.sourceX, props.targetX) - paintPadding;
+	const paintTop = Math.min(props.sourceY, props.targetY) - paintPadding;
+	const paintWidth = Math.abs(props.targetX - props.sourceX) + paintPadding * 2;
+	const paintHeight = Math.abs(props.targetY - props.sourceY) + paintPadding * 2;
 
 	return (
 		<>
-			<path
-				d={path}
-				fill="none"
-				stroke="rgba(2, 5, 8, 0.9)"
-				strokeWidth={strokeWidth + 4.4}
-				strokeOpacity={dimmed ? 0.1 : 0.78}
-				strokeDasharray={RELATION_DASHES[family]}
-				vectorEffect="non-scaling-stroke"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				pointerEvents="none"
-			/>
 			<BaseEdge
-				id={`${props.id}-visible`}
+				id={`${props.id}-interaction`}
 				path={path}
-				markerEnd={props.markerEnd}
 				interactionWidth={30}
-				data-family={family}
-				data-world-edge={props.id}
-				vectorEffect="non-scaling-stroke"
-				strokeLinecap="round"
-				strokeLinejoin="round"
 				style={{
-					...props.style,
 					fill: "none",
-					stroke,
-					strokeWidth,
-					strokeOpacity,
-					strokeDasharray: RELATION_DASHES[family],
-					filter: "none",
+					stroke: "transparent",
+					strokeWidth: 1,
+					strokeOpacity: 0,
 				}}
 			/>
-			{item ? (
-				<EdgeLabelRenderer>
+			<EdgeLabelRenderer>
+				<svg
+					className={styles.relationPaintLayer}
+					viewBox={`${paintLeft} ${paintTop} ${paintWidth} ${paintHeight}`}
+					width={paintWidth}
+					height={paintHeight}
+					style={{ left: paintLeft, top: paintTop }}
+					aria-hidden="true"
+				>
+					<path
+						d={path}
+						fill="none"
+						stroke="var(--ds-canvas)"
+						strokeWidth={strokeWidth + 5}
+						strokeOpacity={dimmed ? 0.08 : 0.92}
+						strokeDasharray={dash}
+						vectorEffect="non-scaling-stroke"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					/>
+					<path
+						d={path}
+						fill="none"
+						stroke={stroke}
+						strokeWidth={strokeWidth}
+						strokeOpacity={strokeOpacity}
+						strokeDasharray={dash}
+						vectorEffect="non-scaling-stroke"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						data-family={family}
+						data-world-edge={props.id}
+					/>
+				</svg>
+				{item ? (
 					<div
 						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""} ${dimmed ? styles.edgeLabelDimmed : ""}`}
 						data-family={family}
@@ -95,8 +117,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					>
 						{item.label}
 					</div>
-				</EdgeLabelRenderer>
-			) : null}
+				) : null}
+			</EdgeLabelRenderer>
 		</>
 	);
 }
