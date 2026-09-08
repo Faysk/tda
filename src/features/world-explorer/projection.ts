@@ -1,3 +1,4 @@
+import { sanitizeWorldLayoutProjection } from "./layout-contract";
 import type {
 	WorldDemoDataset,
 	WorldFilter,
@@ -37,6 +38,17 @@ function datasetHeroIds(dataset: WorldDemoDataset): string[] {
 		.map((node) => node.id);
 }
 
+function layoutForVisibleNodes(
+	projection: WorldGraphProjection,
+	nodes: readonly WorldNodeDTO[],
+) {
+	return sanitizeWorldLayoutProjection(
+		projection.layout,
+		new Set(nodes.map((node) => node.id)),
+		projection.mode,
+	);
+}
+
 export function resolveWorldFocusId(
 	dataset: WorldDemoDataset,
 	requestedFocus: string | null | undefined,
@@ -73,6 +85,7 @@ export function filterWorldProjection(
 		edges: projection.edges.filter(
 			(edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
 		),
+		layout: layoutForVisibleNodes(projection, nodes),
 	};
 }
 
@@ -94,6 +107,7 @@ export function filterWorldRelations(
 		edges: edges.filter(
 			(edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
 		),
+		layout: layoutForVisibleNodes(projection, nodes),
 	};
 }
 
@@ -127,6 +141,7 @@ export function searchWorldProjection(
 		edges: projection.edges.filter(
 			(edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
 		),
+		layout: layoutForVisibleNodes(projection, nodes),
 	};
 }
 
@@ -137,14 +152,20 @@ export function buildWorldProjection(
 ): WorldGraphProjection {
 	const heroIds = datasetHeroIds(dataset);
 	if (!focusId) {
+		const nodes = dataset.nodes;
 		return filterWorldProjection(
 			{
 				demo: true,
 				mode: "overview",
 				focusId: null,
 				heroIds,
-				nodes: dataset.nodes,
+				nodes,
 				edges: dataset.edges,
+				layout: sanitizeWorldLayoutProjection(
+					dataset.layout,
+					new Set(nodes.map((node) => node.id)),
+					"overview",
+				),
 			},
 			filter,
 		);
