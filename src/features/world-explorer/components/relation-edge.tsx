@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import type { WorldFlowEdge } from "../adapters/react-flow";
 import type { WorldRelationFamily } from "../model";
+import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
 
 const RELATION_STROKES: Record<WorldRelationFamily, string> = {
@@ -125,6 +126,20 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						data-edge-curve="bezier"
 						data-world-edge={props.id}
 					/>
+					{highlighted && !dimmed ? (
+						<path
+							d={path}
+							className={effects.flowMotion}
+							fill="none"
+							stroke={stroke}
+							strokeWidth={2.4}
+							strokeOpacity={0.98}
+							strokeDasharray="2 9"
+							vectorEffect="non-scaling-stroke"
+							strokeLinecap="round"
+							data-world-edge-motion={props.id}
+						/>
+					) : null}
 				</svg>
 				{item ? (
 					<div
