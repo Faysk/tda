@@ -10,6 +10,41 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-08 — default de review de transcrição e reconciliação de migration ID
+
+### Escopo
+
+Aplicação e verificação da mudança forward-only que alinha o default físico de `public.transcript_segments.needs_review` ao invariante atual `review_status='pending' => needs_review=true`, seguida de reconciliação documental do ID de migration registrado pelo Supabase.
+
+### Estado observado antes da mudança
+
+- `needs_review DEFAULT false`;
+- distribuição: `pending/false=30.839`, `pending/true=17`, `needs_review/true=1`;
+- nenhuma CHECK constraint foi adicionada entre `review_status` e `needs_review`.
+
+### Aplicação
+
+O SQL aplicado alterou somente o default de `needs_review` para `true`. Não houve backfill, alteração de linhas históricas, grant, RLS, RPC, Auth ou deploy de aplicação.
+
+O migration history remoto registrou a mudança como:
+
+- `20260908144711 transcript_review_default`.
+
+A candidata originalmente integrada no repositório possuía o mesmo SQL sob `20260908134500_transcript_review_default.sql`. A reconciliação posterior apenas renomeia o arquivo local e atualiza os consumidores sintéticos/documentação para corresponder ao ID remoto; o DDL não é reexecutado.
+
+### Verificação pós-aplicação
+
+- `information_schema.columns.column_default` para `public.transcript_segments.needs_review` passou a `true`;
+- as contagens históricas permaneceram exatamente `pending/false=30.839`, `pending/true=17`, `needs_review/true=1`;
+- advisors de segurança/performance foram reexecutados sem nova classe de alerta relacionada à mudança;
+- permaneceram as dívidas já conhecidas de RLS sem policy em várias tabelas, funções `SECURITY DEFINER` executáveis por `authenticated`, leaked-password protection desabilitada, FKs sem índice e índices ainda sem uso.
+
+### Estado final
+
+A geração de novos `pending/false` por omissão de `needs_review` foi interrompida pelo default. As 30.839 linhas históricas continuam intocadas e precisam ser classificadas antes de qualquer backfill ou CHECK constraint.
+
+---
+
 ## 2026-09-07 — auditoria das RPCs `SECURITY DEFINER`
 
 ### Escopo
