@@ -25,6 +25,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0007](0007-edit-workbench.md) | accepted | Edit é workbench server-first, incremental e orientado a capabilities |
 | [0008](0008-capability-authorization.md) | accepted | Auth novo autoriza por capability + scope, sem super-role implícita |
 | [0009](0009-world-explorer-multihub-layout.md) | accepted | World Explorer abre multi-hub; foco é temporário e dragging é layout local |
+| [0010](0010-world-explorer-editorial-layout-persistence.md) | accepted | layout editorial é snapshot versionado separado de canon/relations e filtrado por audience |
 
 ## Quando criar ADR
 
@@ -48,6 +49,8 @@ O Edit recebeu ADR porque define uma superfície administrativa principal, seu b
 Auth/capabilities recebeu ADR porque muda a estratégia de autorização do reboot: novas superfícies deixam de decidir acesso por nome de role e passam a exigir capability + scope + ownership explícitos.
 
 O World Explorer multi-hub recebeu ADR porque substitui partes estruturais do primeiro slice do ADR-0006: a visão padrão deixa de ter um único foco central e o dragging público passa a ser reorganização visual local, sem virar dado de canon ou persistência implícita.
+
+A persistência editorial do World Explorer recebeu ADR porque cria um novo ownership de estado: coordenadas podem ser salvas no futuro, mas continuam fora de canon/relations, exigem audience filtering, revision e autorização própria antes de qualquer storage físico.
 
 ## Regra histórica
 
