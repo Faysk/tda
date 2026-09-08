@@ -1,3 +1,4 @@
+import { formatSessionDate } from "@/features/sessions/model";
 import type {
 	LoreCardDTO,
 	LoreEntityType,
@@ -6,6 +7,8 @@ import type {
 } from "./model";
 import { resolveLorePresentation } from "./presentation";
 import { loreHrefFor } from "./routes";
+
+const CAMPAIGN_SLUG = "yuhara-main";
 
 export type PublicLoreEntityRow = Readonly<{
 	id?: unknown;
@@ -24,6 +27,17 @@ export type PublicCanonEntryRow = Readonly<{
 	entry_type?: unknown;
 	visibility?: unknown;
 	status?: unknown;
+}>;
+
+export type PublicLoreSessionRow = Readonly<{
+	id?: unknown;
+	source_session_id?: unknown;
+	title?: unknown;
+	session_date?: unknown;
+	arc?: unknown;
+	summary_short?: unknown;
+	status?: unknown;
+	campaigns?: unknown;
 }>;
 
 export type LoreIndexItem = Readonly<{
@@ -46,6 +60,19 @@ const ENTITY_TYPES = new Set<LoreEntityType>([
 	"song",
 	"quest",
 ]);
+
+const ENTITY_TYPE_LABELS: Readonly<Record<LoreEntityType, string>> = {
+	pc: "Personagem",
+	npc: "NPC",
+	location: "Lugar",
+	item: "Item",
+	organization: "Organização",
+	faction: "Facção",
+	arc: "Arco",
+	concept: "Conceito",
+	song: "Música",
+	quest: "Quest",
+};
 
 function cleanText(value: unknown, limit: number) {
 	return typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -96,9 +123,37 @@ function canonCards(rows: readonly PublicCanonEntryRow[]): LoreCardDTO[] {
 	});
 }
 
+function sessionCards(rows: readonly PublicLoreSessionRow[]): LoreCardDTO[] {
+	return rows.flatMap((row, index) => {
+		if (row.status !== "published") return [];
+		const campaign = row.campaigns as { slug?: unknown } | null;
+		if (campaign?.slug !== CAMPAIGN_SLUG) return [];
+
+		const sessionId = cleanText(row.source_session_id, 220);
+		const title = cleanText(row.title, 500);
+		if (!sessionId || !title) return [];
+
+		const arc = cleanText(row.arc, 300);
+		const date = formatSessionDate(cleanText(row.session_date, 10));
+		const eyebrow = [arc, date].filter(Boolean).join(" · ");
+		const summary = cleanText(row.summary_short, 4000);
+
+		return [
+			{
+				id: `session-${index + 1}`,
+				title,
+				...(eyebrow ? { eyebrow } : {}),
+				...(summary ? { summary } : {}),
+				href: `/sessoes/${encodeURIComponent(sessionId)}`,
+			},
+		];
+	});
+}
+
 function profileSections(
 	summary: string,
 	canonRows: readonly PublicCanonEntryRow[],
+	sessionRows: readonly PublicLoreSessionRow[],
 ): LoreSectionDTO[] {
 	const sections: LoreSectionDTO[] = [];
 	if (summary) {
@@ -131,12 +186,29 @@ function profileSections(
 		});
 	}
 
+	const sessions = sessionCards(sessionRows);
+	if (sessions.length) {
+		sections.push({
+			id: "sessions",
+			title: "Sessões publicadas",
+			intro: "Memórias públicas associadas a este perfil.",
+			blocks: [
+				{
+					id: "published-sessions",
+					kind: "cards",
+					items: sessions,
+				},
+			],
+		});
+	}
+
 	return sections;
 }
 
 export function buildPublishedLoreProfile(
 	row: PublicLoreEntityRow,
 	canonRows: readonly PublicCanonEntryRow[] = [],
+	sessionRows: readonly PublicLoreSessionRow[] = [],
 ): LoreProfileDTO | null {
 	const entity = publishedEntityIdentity(row);
 	if (!entity) return null;
@@ -147,6 +219,7 @@ export function buildPublishedLoreProfile(
 			slug: entity.slug,
 			entityType: entity.entityType,
 			name: entity.name,
+			eyebrow: ENTITY_TYPE_LABELS[entity.entityType],
 			...(entity.summary ? { summary: entity.summary } : {}),
 		},
 		presentation: resolveLorePresentation({
@@ -157,6 +230,6 @@ export function buildPublishedLoreProfile(
 				scrollParallax: false,
 			},
 		}),
-		sections: profileSections(entity.summary, canonRows),
+		sections: profileSections(entity.summary, canonRows, sessionRows),
 	};
 }
