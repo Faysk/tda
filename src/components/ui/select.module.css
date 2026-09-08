@@ -42,6 +42,28 @@
 	opacity: 0.5;
 }
 
+.embedded {
+	width: 100%;
+	flex: 1 1 auto;
+}
+
+.embedded .trigger {
+	min-height: 44px;
+	padding-inline: 4px 10px;
+	border: 0;
+	border-radius: 0 var(--ds-radius-md) var(--ds-radius-md) 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.embedded .trigger:hover,
+.embedded .trigger:focus-visible,
+.embedded .trigger[aria-expanded="true"] {
+	border: 0;
+	background: var(--ds-surface-hover);
+	box-shadow: none;
+}
+
 .value {
 	min-width: 0;
 	overflow: hidden;
@@ -81,6 +103,11 @@
 	outline: 0;
 	backdrop-filter: blur(18px);
 	overscroll-behavior: contain;
+}
+
+.embedded .popover {
+	left: -58px;
+	min-width: calc(100% + 58px);
 }
 
 .option {
