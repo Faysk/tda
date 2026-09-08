@@ -55,7 +55,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				vectorEffect="non-scaling-stroke"
 				strokeLinecap="round"
 				strokeLinejoin="round"
-				className={styles.relationUnderlay}
 				aria-hidden="true"
 			/>
 			<path
@@ -74,6 +73,9 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				strokeLinejoin="round"
 				style={{
 					...props.style,
+					stroke,
+					strokeWidth,
+					strokeOpacity,
 					filter: `drop-shadow(0 0 ${highlighted ? 10 : 6}px ${stroke})`,
 				}}
 			/>
