@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations/release
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 
 ## Objetivo
 
@@ -167,6 +167,47 @@ Quando a release contém alteração de metadata/social preview, validar diretam
 
 Mudança de DNS/domínio é operação separada e exige autorização própria. O antigo projeto Vercel `DND/dnd-scribe` foi retirado e não deve ser recriado nem tratado como caminho de rollback; a evidência está em [Retirada do projeto Vercel legado](legacy-retirement.md).
 
+## Checklist enxuto — próxima publicação de Pipipi (#99)
+
+Este gate vale apenas para a lore Pipipi e não transforma features independentes ainda incompletas em bloqueios artificiais. Grafo, cinematic, ASR/import e outras frentes só bloqueiam esta publicação se introduzirem uma dependência direta no SHA candidato.
+
+### Candidato e rastreabilidade
+
+- [ ] Pipipi está integrada à `main` por PR revisada; **não publicar enquanto a implementação de `/lore/pipipi` estiver apenas local, em draft ou fora da `main`**.
+- [ ] Registrar o **SHA exato da `main` que contém Pipipi** imediatamente antes da validação final. Estado observado ao preparar este gate: `main=80eab3a8c267e3e3900cd7c9399f23bf914d994d`; este SHA é baseline de preparação, **não candidato de Pipipi**, porque a issue #99 ainda não tem PR Pipipi aberto/integrado.
+- [ ] Aguardar CI terminal verde para esse SHA exato; se a `main` avançar, repetir a associação entre SHA e evidências antes de publicar.
+- [ ] Confirmar a origem da production anterior por evidência imutável de deployment/build, nunca pelo `commit` do `/api/health` quando ele vier `null`. No preparo deste gate, o deployment ativo observado foi `dpl_Cmw9hpaqunsCiba2K4CC5p2gz3WE` (`READY`, alias `dnd.faysk.dev`) e o build log fixa `TDA_RELEASE_SHA=de7e02c66595f34e44efa8d9e09a1d0098afae18`; usar essa associação como baseline de rollback até existir registro operacional posterior que a substitua.
+
+### Conteúdo e privacidade
+
+- [ ] Revisão humana confirma que o texto aprovado de Pipipi chegou intacto à página e que rótulos/elementos da referência visual não foram confundidos com fatos narrativos.
+- [ ] A rota pública entrega somente o conteúdo explicitamente aprovado; não transportar transcrições privadas, notas de revisão, drafts ou metadados de audience não públicos.
+- [ ] Futuras áreas privadas relacionadas à lore não emitem preview público com título, resumo, imagem ou conteúdo sensível.
+
+### Imagens e R2
+
+- [ ] As sete WebPs autorizadas para Pipipi (`pipipi`, `casa`, `corredores`, `super_herois`, `cadeira`, `ultimo_dia`, `acordou`) estão no consumidor esperado; `pipipi` é hero/preview.
+- [ ] Se o consumidor usar R2, cada objeto possui upload/read-back verificado, SHA-256, MIME, bytes e GET HTTPS anônimo válido em `media.dnd.faysk.dev`; URL planejada, objeto presente no bucket ou dry-run não contam como `verified-public`.
+- [ ] Não usar `tda-media-private`/`tda-media-preview` como fallback público e não colocar áudio bruto nessa entrega.
+
+### OG específico
+
+- [ ] `/lore/pipipi` serve HTML com título, resumo e canonical próprios; `og:url`, Open Graph e Twitter apontam para a URL oficial no `dnd.faysk.dev`.
+- [ ] `og:image` usa a arte específica de Pipipi em URL HTTPS absoluta, pública e acessível sem cookie/token; card genérico da marca fica apenas como fallback de falha/ausência real.
+- [ ] Inspecionar o HTML bruto com user-agent comum e pelo menos crawlers representativos de WhatsApp/Discord; separar resultado servido pelo TDA de cache externo dos aplicativos.
+
+### Visual e CI
+
+- [ ] Revisão desktop e mobile da página completa: leitura, imagens, conteúdo longo, navegação, foco/teclado, contraste e `prefers-reduced-motion` quando houver movimento.
+- [ ] `pnpm check`, `pnpm build` e `pnpm test:e2e` cobertos pela CI terminal do SHA candidato; qualquer teste específico de lore/mídia incluído no recorte também deve estar verde.
+
+### Publicação e rollback
+
+- [ ] Somente depois dos itens anteriores, executar deployment deliberado do SHA candidato; não ativar Git auto-deploy e não consumir deploy para diagnóstico.
+- [ ] Após `READY`, confirmar `/lore/pipipi`, sete imagens públicas, HTML OG e runtime errors; registrar evidências em `docs/operations/deployments.md`.
+- [ ] Rollback app: reassociar/promover o último deployment production conhecido como bom, mantendo a associação source SHA ↔ deployment ID registrada.
+- [ ] Rollback de mídia: restaurar referência/configuração anterior do consumidor; uploads aditivos imutáveis podem permanecer no R2. Não apagar originais/objetos como primeira resposta a rollback.
+
 ## Rollback
 
 ### App-only
@@ -211,8 +252,6 @@ Pode exigir arquivar/unpublish publication, invalidar cache/media e revisar visi
 
 ## Estado atual
 
-O reboot está publicado em production desde 2026-09-07 no projeto TDA e `https://dnd.faysk.dev` serve o novo produto. O histórico versionado registra como release publicada o Production #001, source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`.
+O reboot está publicado em production desde 2026-09-07 no projeto TDA e `https://dnd.faysk.dev` serve o novo produto. O histórico versionado pode ficar atrás do dashboard entre uma publicação e a integração do registro correspondente; por isso **o source SHA de uma production deve ser associado por deployment/build imutável e depois registrado em `docs/operations/deployments.md`**. O `/api/health` com `commit=null` comprova aplicação/ambiente, não provenance de Git.
 
-A correção de origem canônica da PR #31 foi integrada posteriormente à `main`; portanto **estar corrigida no código não prova que está publicada**. O mesmo princípio vale para metadata/social preview: merge prova apenas estado do código, não o HTML efetivamente servido em production nem o cache de terceiros.
-
-A próxima release que contenha essas correções deve cumprir as verificações de navegação canônica e, quando aplicável, de metadata servida para crawlers; só então registrar a nova evidência de production.
+Para Pipipi #99, este documento registra apenas o gate de publicação. **Nenhum deployment de Pipipi foi executado nesta revisão e a existência deste checklist não significa que a lore esteja integrada, validada ou publicada.**
