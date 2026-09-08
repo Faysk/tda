@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
 	useEffect,
 	useMemo,
@@ -140,19 +141,19 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 		setSelectedId(projection.focusId);
 	}
 
-	function startResize(event: ReactPointerEvent<HTMLDivElement>) {
+	function startResize(event: ReactPointerEvent<HTMLElement>) {
 		resizeStart.current = { x: event.clientX, width: panelWidth };
 		event.currentTarget.setPointerCapture(event.pointerId);
 	}
 
-	function resizePanel(event: ReactPointerEvent<HTMLDivElement>) {
+	function resizePanel(event: ReactPointerEvent<HTMLElement>) {
 		if (!resizeStart.current) return;
 		setPanelWidth(
 			clampPanelWidth(resizeStart.current.width + resizeStart.current.x - event.clientX),
 		);
 	}
 
-	function stopResize(event: ReactPointerEvent<HTMLDivElement>) {
+	function stopResize(event: ReactPointerEvent<HTMLElement>) {
 		resizeStart.current = null;
 		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
 			event.currentTarget.releasePointerCapture(event.pointerId);
@@ -177,10 +178,11 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					</div>
 					<div className={styles.headerActions}>
 						{projection.demo ? <span className={styles.demoBadge}>Demonstração · relações não canônicas</span> : null}
-						<div className={styles.viewToggle} aria-label="Modo de visualização">
+						<fieldset className={styles.viewToggle}>
+							<legend className={styles.srOnly}>Modo de visualização</legend>
 							<button type="button" aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>Canvas</button>
 							<button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>Lista</button>
-						</div>
+						</fieldset>
 					</div>
 				</header>
 
@@ -207,13 +209,14 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					))}
 				</fieldset>
 
-				<div className={styles.relationLegend} aria-label="Legenda de relações">
+				<fieldset className={styles.relationLegend}>
+					<legend className={styles.srOnly}>Legenda de relações</legend>
 					<span data-family="affinity">Afinidade</span>
 					<span data-family="conflict">Conflito</span>
 					<span data-family="family">Família</span>
 					<span data-family="mystic">Místico</span>
 					<span data-family="creative">Criativo</span>
-				</div>
+				</fieldset>
 
 				{view === "canvas" ? (
 					<div className={styles.canvas} data-testid="world-canvas">
@@ -249,11 +252,13 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 			</section>
 
 			<aside className={styles.inspector} aria-live="polite">
-				<div
+				<hr
 					className={styles.panelResizer}
-					role="separator"
 					aria-label="Ajustar largura do painel"
 					aria-orientation="vertical"
+					aria-valuemin={320}
+					aria-valuemax={520}
+					aria-valuenow={panelWidth}
 					tabIndex={0}
 					onPointerDown={startResize}
 					onPointerMove={resizePanel}
@@ -292,7 +297,7 @@ function InspectorContent({ selected, projection, focus }: { selected: WorldNode
 	return (
 		<>
 			<div className={styles.inspectorHero} aria-hidden="true">
-				{selected.imageUrl ? <img src={selected.imageUrl} alt="" /> : <span>{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}</span>}
+				{selected.imageUrl ? <Image className={styles.inspectorImage} src={selected.imageUrl} alt="" fill sizes="520px" /> : <span className={styles.inspectorInitial}>{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}</span>}
 			</div>
 			<p className={styles.eyebrow}>{nodeTypeLabel(selected)}</p>
 			<h2>{selected.label}</h2>
@@ -326,7 +331,7 @@ function AccessibleRelations({ projection, selectedId, onSelect, compact }: { pr
 							<li key={edge.id}>
 								<button type="button" onClick={() => destination && onSelect(destination.id)}>
 									<strong>{source?.label ?? edge.source} ↔ {target?.label ?? edge.target}</strong>
-									<span>{edge.label}</span>
+									<span className={styles.relationLabelText}>{edge.label}</span>
 								</button>
 							</li>
 						);
