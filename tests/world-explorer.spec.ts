@@ -91,24 +91,42 @@ test("World Explorer can switch to the textual view and filter relations with th
 	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
 });
 
-test("World Explorer relation select stays inside the design system in dark and light themes", async ({ page }) => {
+test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
 	await page.goto("/mundo");
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
-
-	await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
-	await relationTrigger.click();
+	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
 	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
+
+	await relationTrigger.click();
 	await expect(listbox).toBeVisible();
-	const darkBackground = await listbox.evaluate((element) => getComputedStyle(element).backgroundColor);
-	expect(darkBackground).not.toBe("rgb(255, 255, 255)");
+	const firstPaint = await listbox.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			background: style.backgroundColor,
+			borderWidth: style.borderTopWidth,
+			borderRadius: style.borderTopLeftRadius,
+		};
+	});
+	expect(firstPaint.background).not.toBe("rgba(0, 0, 0, 0)");
+	expect(firstPaint.borderWidth).not.toBe("0px");
+	expect(firstPaint.borderRadius).not.toBe("0px");
 	await page.keyboard.press("Escape");
 
-	await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+	const wasDark = await themeToggle.getAttribute("aria-checked");
+	await themeToggle.click();
+	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
+	await page.waitForTimeout(800);
+
 	await relationTrigger.click();
 	await expect(listbox).toBeVisible();
-	const lightBackground = await listbox.evaluate((element) => getComputedStyle(element).backgroundColor);
-	expect(lightBackground).not.toBe("rgb(0, 0, 0)");
-	expect(lightBackground).not.toBe(darkBackground);
+	await expect.poll(() => listbox.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(firstPaint.background);
+
+	const nativeRelationSelect = await page.locator("select").evaluateAll((selects) =>
+		selects.some((select) =>
+			Array.from((select as HTMLSelectElement).options).some((option) => option.text === "Conflito"),
+		),
+	);
+	expect(nativeRelationSelect).toBe(false);
 });
 
 test("World Explorer nodes are movable without changing the URL", async ({ page }) => {
