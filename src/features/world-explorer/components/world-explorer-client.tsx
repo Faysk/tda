@@ -43,6 +43,7 @@ import { WorldEntityNode } from "./entity-node";
 import inspectorStyles from "./world-inspector.module.css";
 import { WorldRelationEdge } from "./relation-edge";
 import styles from "./world-explorer.module.css";
+import responsive from "./world-responsive.module.css";
 
 const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
@@ -172,10 +173,13 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 
 	return (
 		<div
-			className={`${styles.explorer} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
+			className={`${styles.explorer} ${responsive.layout} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
 			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
 		>
-			<section className={styles.canvasColumn} aria-labelledby="world-explorer-title">
+			<section
+				className={`${styles.canvasColumn} ${responsive.canvasColumn}`}
+				aria-labelledby="world-explorer-title"
+			>
 				<header className={styles.explorerHeader}>
 					<div>
 						<p className={styles.eyebrow}>Mapa da campanha</p>
@@ -212,8 +216,8 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					</div>
 				</header>
 
-				<div className={styles.toolbar}>
-					<label className={styles.searchField}>
+				<div className={`${styles.toolbar} ${responsive.toolbar}`}>
+					<label className={`${styles.searchField} ${responsive.search}`}>
 						<span className={styles.srOnly}>Buscar no mundo</span>
 						<span aria-hidden="true">⌕</span>
 						<input
@@ -223,7 +227,7 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 							placeholder="Buscar pessoa, lugar ou memória..."
 						/>
 					</label>
-					<div className={styles.relationSelect}>
+					<div className={`${styles.relationSelect} ${responsive.relation}`}>
 						<span>Relação</span>
 						<Select
 							value={relationFilter}
@@ -233,7 +237,11 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 							embedded
 						/>
 					</div>
-					<button className={styles.resetButton} type="button" onClick={resetLayout}>
+					<button
+						className={`${styles.resetButton} ${responsive.reset}`}
+						type="button"
+						onClick={resetLayout}
+					>
 						Reorganizar
 					</button>
 				</div>
@@ -299,9 +307,9 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 				/>
 			</section>
 
-			<aside className={styles.inspector} aria-live="polite">
+			<aside className={`${styles.inspector} ${responsive.inspector}`} aria-live="polite">
 				<hr
-					className={styles.panelResizer}
+					className={`${styles.panelResizer} ${responsive.resizer}`}
 					aria-label="Ajustar largura do painel"
 					aria-orientation="vertical"
 					aria-valuemin={320}
@@ -321,7 +329,7 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					}}
 				/>
 				<button
-					className={styles.panelToggle}
+					className={`${styles.panelToggle} ${responsive.panelToggle}`}
 					type="button"
 					onClick={() => setPanelCollapsed((value) => !value)}
 					aria-expanded={!panelCollapsed}
@@ -405,7 +413,7 @@ function InspectorContent({
 						src={selected.imageUrl}
 						alt=""
 						fill
-						sizes="520px"
+							sizes="520px"
 					/>
 				) : (
 					<span className={styles.inspectorInitial}>
