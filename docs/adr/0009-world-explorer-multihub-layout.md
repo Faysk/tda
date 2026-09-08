@@ -3,6 +3,7 @@
 > Status: accepted
 > Data: 2026-09-08
 > Owner: frontend / narrative-memory
+> Última revisão: 2026-09-08
 > Relacionado: ADR-0006
 
 ## Contexto
