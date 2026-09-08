@@ -4,6 +4,7 @@ import {
 	toPublicLoreIndexItem,
 	type PublicCanonEntryRow,
 	type PublicLoreEntityRow,
+	type PublicLoreSessionRow,
 } from "./public-projection";
 
 function entity(overrides: Partial<PublicLoreEntityRow> = {}): PublicLoreEntityRow {
@@ -27,6 +28,20 @@ function canon(overrides: Partial<PublicCanonEntryRow> = {}): PublicCanonEntryRo
 		entry_type: "fact",
 		visibility: "public_web",
 		status: "active",
+		...overrides,
+	};
+}
+
+function session(overrides: Partial<PublicLoreSessionRow> = {}): PublicLoreSessionRow {
+	return {
+		id: "private-session-uuid",
+		source_session_id: "public-session-id",
+		title: "O Retorno do Bardo",
+		session_date: "2026-07-01",
+		arc: "A Forja de Thalindra",
+		summary_short: "Uma sessão publicada associada ao personagem.",
+		status: "published",
+		campaigns: { slug: "yuhara-main" },
 		...overrides,
 	};
 }
@@ -55,7 +70,32 @@ describe("public lore projection", () => {
 		expect(serialized).not.toContain("Arquivado");
 	});
 
-	it("does not invent profile sections when no public narrative text exists", () => {
+	it("projects only published campaign sessions without leaking internal session IDs", () => {
+		const profile = buildPublishedLoreProfile(entity({ summary: null }), [], [
+			session(),
+			session({
+				id: "private-draft-id",
+				title: "Rascunho",
+				status: "ready_for_review",
+			}),
+			session({
+				id: "private-other-campaign-id",
+				title: "Outra campanha",
+				campaigns: { slug: "outra-campanha" },
+			}),
+		]);
+		const serialized = JSON.stringify(profile);
+		expect(serialized).toContain("O Retorno do Bardo");
+		expect(serialized).toContain("/sessoes/public-session-id");
+		expect(serialized).toContain("01 de julho de 2026");
+		expect(serialized).not.toContain("Rascunho");
+		expect(serialized).not.toContain("Outra campanha");
+		expect(serialized).not.toContain("private-session-uuid");
+		expect(serialized).not.toContain("private-draft-id");
+		expect(serialized).not.toContain("private-other-campaign-id");
+	});
+
+	it("does not invent profile sections when no public narrative or session data exists", () => {
 		const profile = buildPublishedLoreProfile(entity({ summary: null }), []);
 		expect(profile?.sections).toEqual([]);
 		expect(profile?.presentation.motion.preset).toBe("still");

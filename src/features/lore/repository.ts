@@ -15,6 +15,8 @@ const CAMPAIGN_SLUG = "yuhara-main";
 const entityColumns =
 	"id,name,slug,entity_type,status,visibility,summary,aliases";
 const canonColumns = "title,content,entry_type,visibility,status";
+const sessionColumns =
+	"source_session_id,title,session_date,arc,summary_short,status,campaigns!inner(slug)";
 
 type PublishedClient = NonNullable<ReturnType<typeof publishedDataClient>>;
 
@@ -26,6 +28,39 @@ async function resolveCampaignId(client: PublishedClient) {
 		.maybeSingle();
 	if (error) throw new Error("Published lore campaign unavailable");
 	return typeof data?.id === "string" ? data.id : null;
+}
+
+async function findPublishedSessionsForEntity(
+	client: PublishedClient,
+	entityId: string,
+) {
+	const { data: participants, error: participantError } = await client
+		.from("participants")
+		.select("session_id")
+		.eq("character_entity_id", entityId)
+		.limit(500);
+	if (participantError) throw new Error("Published lore session links unavailable");
+
+	const sessionIds = [
+		...new Set(
+			(participants ?? []).flatMap((row) =>
+				typeof row.session_id === "string" ? [row.session_id] : [],
+			),
+		),
+	];
+	if (!sessionIds.length) return [];
+
+	const { data, error } = await client
+		.from("sessions")
+		.select(sessionColumns)
+		.in("id", sessionIds)
+		.eq("status", "published")
+		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.order("session_date", { ascending: false, nullsFirst: false })
+		.order("source_session_id", { ascending: true })
+		.limit(500);
+	if (error) throw new Error("Published lore sessions unavailable");
+	return data ?? [];
 }
 
 /**
@@ -79,18 +114,21 @@ export async function findPublishedLoreProfile(
 	if (entityError) throw new Error("Published lore profile unavailable");
 	if (!entity) return null;
 
-	const { data: canon, error: canonError } = await client
-		.from("canon_entries")
-		.select(canonColumns)
-		.eq("campaign_id", campaignId)
-		.eq("entity_id", entity.id)
-		.eq("visibility", "public_web")
-		.eq("status", "active")
-		.order("created_at", { ascending: true })
-		.limit(200);
+	const [{ data: canon, error: canonError }, sessions] = await Promise.all([
+		client
+			.from("canon_entries")
+			.select(canonColumns)
+			.eq("campaign_id", campaignId)
+			.eq("entity_id", entity.id)
+			.eq("visibility", "public_web")
+			.eq("status", "active")
+			.order("created_at", { ascending: true })
+			.limit(200),
+		findPublishedSessionsForEntity(client, entity.id),
+	]);
 	if (canonError) throw new Error("Published lore canon unavailable");
 
-	const profile = buildPublishedLoreProfile(entity, canon ?? []);
+	const profile = buildPublishedLoreProfile(entity, canon ?? [], sessions);
 	if (!profile || !routeAcceptsLoreEntity(routeKind, profile.identity.entityType)) {
 		return null;
 	}
