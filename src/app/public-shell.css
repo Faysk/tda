@@ -214,10 +214,12 @@ footer {
 
 @media (max-width: 360px) {
 	.site-header {
+		flex-wrap: wrap;
 		gap: 8px;
 	}
 
 	.brand {
+		flex: 0 0 auto;
 		gap: 8px;
 		font-size: 1.38rem;
 	}

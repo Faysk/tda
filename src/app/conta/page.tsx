@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Button } from "@/components/ui";
+import { ActionLink, Button } from "@/components/ui";
 import { currentAccess } from "@/features/auth/server";
 import { authConfig } from "@/features/auth/config";
 import {
@@ -50,7 +50,7 @@ export default async function AccountPage() {
 			: "Sua conta está vinculada, mas não tem permissão de leitura das transcrições.",
 	};
 	return (
-		<section className={styles.shell}>
+		<section className={`${styles.shell} ${styles.accountShell}`}>
 			<div className={styles.eyebrow}>TDA · SUA CONTA</div>
 			<h1 className={styles.title}>
 				{allowed ? "Seu espaço na campanha" : "Acesso à campanha"}
@@ -58,19 +58,72 @@ export default async function AccountPage() {
 			<p className={styles.description} role="status">
 				{descriptions[access.state]}
 			</p>
+			<nav aria-label="Espaços da campanha" className={styles.taskGrid}>
+				{[
+					{
+						visible: allowed,
+						id: "transcripts",
+						href: "/transcricoes",
+						title: "Palavras e tempo das transcrições",
+						description:
+							"Consulte as sessões, a contagem de palavras e a duração registrada.",
+					},
+					{
+						visible: allowed,
+						id: "edit",
+						href: "/edit",
+						title: "Abrir Edit",
+						description:
+							"Acesse o espaço de revisão das transcrições. Os recursos disponíveis dependem do seu acesso.",
+					},
+					{
+						visible: permissionsAllowed,
+						id: "permissions",
+						href: `/edit/${CAMPAIGN_SLUG}/permissions`,
+						title: "Consultar permissões",
+						description:
+							"Veja quem tem acesso e quais ações estão liberadas na campanha.",
+					},
+					{
+						visible: localAllowed,
+						id: "processing",
+						href: "/edit/processamento",
+						title: "Processamento local",
+						description:
+							"Conecte o aplicativo deste computador e acompanhe a fila local.",
+					},
+				]
+					.filter((task) => task.visible)
+					.map((task) => (
+						<Link
+							key={task.id}
+							href={task.href}
+							className={styles.taskCard}
+							aria-labelledby={`task-${task.id}`}
+							aria-describedby={`task-description-${task.id}`}
+						>
+							<span id={`task-${task.id}`} className={styles.taskTitle}>
+								{task.title}
+								<span aria-hidden="true"> →</span>
+							</span>
+							<span
+								id={`task-description-${task.id}`}
+								className={styles.taskDescription}
+							>
+								{task.description}
+							</span>
+						</Link>
+					))}
+			</nav>
 			<div className={styles.actions}>
-				{allowed ? <Link href="/transcricoes">Palavras e tempo das transcrições</Link> : null}
-				{allowed ? <Link href="/edit">Abrir Edit</Link> : null}
-				{permissionsAllowed ? (
-					<Link href={`/edit/${CAMPAIGN_SLUG}/permissions`}>Consultar permissões</Link>
-				) : null}
-				{localAllowed ? (
-					<Link href="/edit/processamento">Processamento local</Link>
-				) : null}
 				{access.state === "anonymous" || access.state === "unavailable" ? (
-					<Link href="/entrar">Entrar com Discord</Link>
+					<ActionLink href="/entrar" variant="primary">
+						Entrar com Discord
+					</ActionLink>
 				) : null}
 				<Link href="/sessoes">Ver histórias públicas</Link>
+			</div>
+			<div className={styles.accountSession}>
 				{authConfig() && access.state !== "anonymous" ? (
 					<form action="/auth/logout" method="post">
 						<Button type="submit">Sair da conta</Button>

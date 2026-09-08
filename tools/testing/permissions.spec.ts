@@ -178,3 +178,62 @@ test("cross-campaign access is denied; project action can view authorized empty 
 		).status(),
 	).toBe(404);
 });
+
+test("account tasks reflect access and remain usable at narrow widths", async ({
+	page,
+	context,
+}, testInfo) => {
+	await login(context, "reader");
+	await page.goto("/conta");
+	const tasks = page.getByRole("navigation", { name: "Espaços da campanha" });
+	await expect(tasks.getByRole("link")).toHaveCount(2);
+	const edit = tasks.getByRole("link", { name: "Abrir Edit", exact: true });
+	await expect(edit).toHaveAttribute("href", "/edit");
+	await expect(
+		page.getByRole("link", { name: "Consultar permissões", exact: true }),
+	).toHaveCount(0);
+	await edit.focus();
+	await expect(edit).toBeFocused();
+	expect(
+		await edit.evaluate((el) => getComputedStyle(el).outlineStyle),
+	).not.toBe("none");
+	await page.screenshot({
+		path: testInfo.outputPath("account-desktop.png"),
+		fullPage: true,
+	});
+	await page.setViewportSize({ width: 320, height: 800 });
+	for (const theme of ["dark", "light"]) {
+		await page.evaluate(
+			(value) => document.documentElement.setAttribute("data-theme", value),
+			theme,
+		);
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth,
+			),
+		).toBe(true);
+		await expect(edit).toBeVisible();
+		const brand = await page.locator(".brand").boundingBox();
+		const navigation = await page.locator(".header-actions").boundingBox();
+		expect(brand && navigation).toBeTruthy();
+		if (brand && navigation)
+			expect(
+				navigation.y >= brand.y + brand.height ||
+					navigation.x >= brand.x + brand.width,
+			).toBe(true);
+
+		await page.screenshot({
+			path: testInfo.outputPath(`account-320-${theme}.png`),
+			fullPage: true,
+		});
+	}
+	await context.clearCookies();
+	await login(context, "manager");
+	await page.goto("/conta");
+	await expect(
+		tasks.getByRole("link", { name: "Consultar permissões", exact: true }),
+	).toBeVisible();
+	await expect(
+		tasks.getByRole("link", { name: "Abrir Edit", exact: true }),
+	).toHaveCount(0);
+});
