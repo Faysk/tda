@@ -18,7 +18,7 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 
 test("World Explorer renders relation strokes independently of fitView zoom", async ({ page }) => {
 	await page.goto("/mundo");
-	const edges = page.locator("path[data-world-edge]");
+	const edges = page.locator(".react-flow__edge-path");
 	expect(await edges.count()).toBeGreaterThan(0);
 
 	const paint = await edges.first().evaluate((element) => {
