@@ -3,7 +3,7 @@ import { SessionList } from "@/components/session-list";
 import { Eyebrow } from "@/components/ui";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import {
-	formatArchiveDuration,
+	formatArchiveDate,
 	formatArchiveNumber,
 	summarizeSessionArchive,
 } from "@/features/sessions/archive";
@@ -18,20 +18,11 @@ export const metadata = buildPublicMetadata({
 	pathname: "/sessoes",
 });
 
-function Coverage({
-	value,
-	label,
-	detail,
-}: {
-	value: string;
-	label: string;
-	detail?: string;
-}) {
+function ArchiveStat({ value, label }: { value: string; label: string }) {
 	return (
 		<div className={styles.stat}>
 			<dt>{label}</dt>
 			<dd>{value}</dd>
-			{detail ? <span>{detail}</span> : null}
 		</div>
 	);
 }
@@ -47,10 +38,6 @@ export default async function Sessions() {
 	const latest = sessions?.[0];
 	const artwork = latest?.heroImage || latest?.coverImage;
 	const summary = sessions?.length ? summarizeSessionArchive(sessions) : null;
-	const coverage = (known: number) =>
-		summary && known < summary.sessions
-			? `${known} de ${summary.sessions} sessões`
-			: undefined;
 
 	return (
 		<div className={styles.page}>
@@ -81,25 +68,22 @@ export default async function Sessions() {
 					</header>
 
 					{summary ? (
-						<dl className={styles.stats} aria-label="Resumo do arquivo">
-							<Coverage
+						<dl className={styles.stats} aria-label="Resumo público do arquivo">
+							<ArchiveStat
 								value={formatArchiveNumber(summary.sessions)}
-								label="sessões"
+								label="memórias publicadas"
 							/>
-							<Coverage
-								value={formatArchiveDuration(summary.durationMs)}
-								label="duração registrada"
-								detail={coverage(summary.durationCoverage)}
+							<ArchiveStat
+								value={formatArchiveNumber(summary.arcs)}
+								label="arcos registrados"
 							/>
-							<Coverage
-								value={formatArchiveNumber(summary.wordCount)}
-								label="palavras"
-								detail={coverage(summary.wordCoverage)}
+							<ArchiveStat
+								value={formatArchiveDate(summary.firstDate)}
+								label="primeira memória"
 							/>
-							<Coverage
-								value={formatArchiveNumber(summary.participantCount)}
-								label="participações"
-								detail={coverage(summary.participantCoverage)}
+							<ArchiveStat
+								value={formatArchiveDate(summary.latestDate)}
+								label="última memória"
 							/>
 						</dl>
 					) : null}
