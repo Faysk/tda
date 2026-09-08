@@ -84,9 +84,16 @@ A estratégia é:
 - `20260908064257 edit_transcript_segment_atomic`
 - `20260908144711 transcript_review_default`
 
+### 2026-09-08 — persistência editorial do World Explorer
+
+- `20260908203249 world_layout_capability`
+- `20260908203331 world_layout_snapshot_atomic`
+- `20260908203441 world_layout_service_role_privileges`
+- `20260908203642 world_layout_site_editor_grant`
+
 ## Boundary do reboot aplicado
 
-As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas com IDs correspondentes no histórico remoto do novo repositório TDA.
+As migrations abaixo são mudanças explicitamente assumidas, versionadas e observadas no histórico remoto do novo repositório TDA.
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -127,7 +134,7 @@ Validação pós-migration registrada: 30.857 segmentos preservados, zero `revis
 
 ## Drift conhecido observado em 2026-09-08
 
-A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. Permanece um drift conhecido de versionamento para a mutation atômica de transcript:
+A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. A persistência do World Explorer também foi reconciliada com os quatro IDs efetivamente registrados no remoto. Permanece um drift conhecido de versionamento para a mutation atômica de transcript:
 
 - remoto `20260908064257 edit_transcript_segment_atomic`;
 - local `20260907115300_edit_transcript_segment_atomic.sql`.
@@ -218,28 +225,29 @@ Rollback lógico:
 - antes de qualquer dependência nova do default, uma migration corretiva pode restaurar o default anterior;
 - não apagar nem reclassificar linhas históricas como forma de rollback.
 
-## Candidatos de persistência editorial do World Explorer
+## Persistência editorial aplicada do World Explorer
 
-### `20260908192500_world_layout_capability`
+A aplicação remota ocorreu em quatro recortes e foi reconciliada com os arquivos locais sem reexecutar DDL. O migration history remoto preserva o SQL integral de cada entrada, o que permitiu comparar os statements efetivamente executados com os candidatos versionados.
 
-**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+### `20260908203249_world_layout_capability`
+
+**Estado:** aplicada no Supabase canônico. O statement remoto é equivalente ao candidato originalmente versionado como `20260908192500_world_layout_capability.sql`.
 
 Objetivo:
 
 - definir `campaign.world.layout.edit` no `permission_catalog` com plane `narrative`;
-- não criar grants, role permissions ou assignments automaticamente;
+- não criar assignment de usuário/perfil;
 - preparar uma autorização separada de `campaign.content.edit` para a mutation física de layout.
 
-### `20260908192600_world_layout_snapshot_atomic`
+### `20260908203331_world_layout_snapshot_atomic`
 
-**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+**Estado:** aplicada no Supabase canônico. O statement remoto é equivalente ao candidato originalmente versionado como `20260908192600_world_layout_snapshot_atomic.sql`.
 
 Objetivo:
 
 - criar `world_layout_snapshots`, separado de entities/relations/canon;
 - manter um snapshot `overview` por campaign com `schema_version`, `revision`, `positions`, actor e timestamps;
 - habilitar RLS sem policy de browser;
-- expor somente a `service_role` `SELECT/INSERT/UPDATE`, sem `DELETE`;
 - criar `save_world_layout_snapshot_atomic(...)` como `SECURITY INVOKER` server-only;
 - revalidar identidade, capability, assignment ativo e scope;
 - validar payload/limites defensivos;
@@ -247,13 +255,34 @@ Objetivo:
 - registrar `world_layout.update` no `audit_log` na mesma transação;
 - retornar `unchanged` sem bump de revision/audit quando o snapshot não muda.
 
-Validação candidata:
+### `20260908203441_world_layout_service_role_privileges`
 
-- `tools/world-layout-db.py` cria PostgreSQL 16 descartável, Unix socket only, sem TCP/credenciais de ambiente;
-- aplica fixture sintética + migrations `*_world_layout_*.sql` + `supabase/tests/world_layout_snapshot_atomic.sql`;
-- cobre grants, RLS, ausência de grant automático, autorização/scope, payload inválido, save inicial, no-op, conflito, revision `+1`, audit e rollback quando audit falha.
+**Estado:** aplicada no Supabase canônico e agora versionada no repo.
 
-Ativação remota permanece bloqueada até reconciliar o drift conhecido acima e executar o database runbook completo.
+Objetivo:
+
+- neutralizar default privileges mais amplos observados no ambiente Supabase;
+- revogar todos os privilégios de tabela de `service_role` e reabrir somente `SELECT`, `INSERT` e `UPDATE`;
+- manter `DELETE` indisponível para o boundary de snapshot.
+
+### `20260908203642_world_layout_site_editor_grant`
+
+**Estado:** aplicada no Supabase canônico e agora versionada no repo.
+
+Objetivo:
+
+- conceder `campaign.world.layout.edit` ao role narrativo existente `site_editor`;
+- preservar assignments existentes;
+- não criar grant direto para usuário/profile e não ampliar `campaign.content.edit`.
+
+Validação reconciliada:
+
+- `world_layout_snapshots` existe e permaneceu com `0` snapshots durante a auditoria;
+- RLS está habilitado e não há policy de browser;
+- `service_role` possui `SELECT/INSERT/UPDATE`, sem `DELETE`;
+- `save_world_layout_snapshot_atomic(...)` permanece `SECURITY INVOKER`, com `EXECUTE` apenas para `postgres` e `service_role` entre os roles relevantes;
+- a capability existe em `permission_catalog` e está ligada ao `site_editor`;
+- `tools/world-layout-db.py` aplica os quatro arquivos reconciliados em PostgreSQL 16 sintético e testa grant, ausência de assignment automático, autorização/scope, payload, revision/conflict/no-op e rollback em falha do audit.
 
 Contrato arquitetural: [ADR-0011](../adr/0011-world-explorer-layout-physical-persistence.md).
 
