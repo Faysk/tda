@@ -9,7 +9,8 @@ import {
 	type WorldPortSide,
 	worldPortHandleId,
 } from "../edge-routing";
-import styles from "./world-explorer.module.css";
+import type { WorldNodeDTO } from "../model";
+import nodeStyles from "./entity-node-v2.module.css";
 
 const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
 	{ side: "top", position: Position.Top },
@@ -17,6 +18,15 @@ const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
 	{ side: "bottom", position: Position.Bottom },
 	{ side: "left", position: Position.Left },
 ];
+
+type VisualKind =
+	| "hero"
+	| "character"
+	| "location"
+	| "faction"
+	| "song"
+	| "moment"
+	| "context";
 
 function laneStyle(side: WorldPortSide, lane: number): CSSProperties {
 	const placement = `${50 + lane * 14}%`;
@@ -34,13 +44,44 @@ function initials(label: string): string {
 		.toLocaleUpperCase("pt-BR");
 }
 
+function visualKind(item: WorldNodeDTO, isHero: boolean): VisualKind {
+	if (isHero) return "hero";
+	if (item.kind === "moment") return "moment";
+	if (item.entityType === "pc" || item.entityType === "npc") return "character";
+	if (item.entityType === "location") return "location";
+	if (item.entityType === "faction" || item.entityType === "organization") return "faction";
+	if (item.entityType === "song") return "song";
+	return "context";
+}
+
+function visualMark(kind: VisualKind): string {
+	switch (kind) {
+		case "hero":
+			return "✦";
+		case "character":
+			return "N";
+		case "location":
+			return "⌖";
+		case "faction":
+			return "◇";
+		case "song":
+			return "♪";
+		case "moment":
+			return "◆";
+		default:
+			return "·";
+	}
+}
+
 export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed } = data;
+	const kind = visualKind(item, isHero);
 	return (
 		<div
-			className={`${styles.entityNode} ${isHero ? styles.entityNodeHero : ""} ${isFocus ? styles.entityNodeFocus : ""} ${selected ? styles.entityNodeSelected : ""} ${isDimmed ? styles.entityNodeDimmed : ""}`}
+			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
 			data-world-node={item.id}
 			data-prominence={prominence}
+			data-node-kind={kind}
 		>
 			{SIDES.flatMap(({ side, position }) =>
 				WORLD_PORT_LANES.flatMap((lane) => {
@@ -54,7 +95,7 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 							type="source"
 							position={position}
 							style={style}
-							className={styles.hiddenHandle}
+							className={nodeStyles.hiddenHandle}
 							isConnectable={false}
 						/>,
 						<Handle
@@ -63,22 +104,31 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 							type="target"
 							position={position}
 							style={style}
-							className={styles.hiddenHandle}
+							className={nodeStyles.hiddenHandle}
 							isConnectable={false}
 						/>,
 					];
 				}),
 			)}
-			<div className={styles.nodePortrait} aria-hidden="true">
+			<div className={nodeStyles.nodePortrait} aria-hidden="true">
 				{item.imageUrl ? (
-					<Image className={styles.nodeImage} src={item.imageUrl} alt="" fill sizes={isHero ? "116px" : "90px"} />
+					<Image
+						className={nodeStyles.nodeImage}
+						src={item.imageUrl}
+						alt=""
+						fill
+						sizes={isHero ? "116px" : "90px"}
+					/>
 				) : (
-					<span className={styles.nodeInitials}>{initials(item.label)}</span>
+					<span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>
 				)}
-				{isHero ? <i className={styles.heroOrbit} /> : null}
+				<span className={nodeStyles.nodeKindMark}>{visualMark(kind)}</span>
+				{isHero ? <i className={nodeStyles.heroOrbit} /> : null}
 			</div>
-			<div className={styles.nodeLabel}>{item.label}</div>
-			{item.subtitle ? <div className={styles.nodeSubtitle}>{item.subtitle}</div> : null}
+			<div className={nodeStyles.nodeLabel} data-node-label>
+				{item.label}
+			</div>
+			{item.subtitle ? <div className={nodeStyles.nodeSubtitle}>{item.subtitle}</div> : null}
 		</div>
 	);
 }

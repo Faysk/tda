@@ -5,8 +5,13 @@ import {
 	EdgeLabelRenderer,
 	getBezierPath,
 	type EdgeProps,
+	useInternalNode,
 } from "@xyflow/react";
 import type { WorldFlowEdge } from "../adapters/react-flow";
+import {
+	getFloatingEdgeGeometry,
+	type FloatingNodeBox,
+} from "../floating-edge-geometry";
 import type { WorldRelationFamily } from "../model";
 import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
@@ -23,9 +28,6 @@ const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 	context: "#8f9aa8",
 };
 
-// The moving dash needs its own brighter value. Painting the animation with the
-// exact same color as the solid relation made the dash offset technically move
-// while remaining almost impossible to perceive on the canvas.
 const RELATION_MOTION_STROKES: Record<WorldRelationFamily, string> = {
 	affinity: "#d9ffe7",
 	family: "#fff0b5",
@@ -44,6 +46,11 @@ const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
 	origin: "7 5",
 };
 
+type InternalNodeLike = {
+	measured?: { width?: number; height?: number };
+	internals?: { positionAbsolute?: { x: number; y: number } };
+};
+
 function relationCurvature(
 	family: WorldRelationFamily,
 	routeOffset: number,
@@ -60,18 +67,45 @@ function relationCurvature(
 	return Math.min(0.44, familyBase + laneVariation);
 }
 
+function floatingBox(node: InternalNodeLike | undefined): FloatingNodeBox | null {
+	const width = node?.measured?.width;
+	const height = node?.measured?.height;
+	const position = node?.internals?.positionAbsolute;
+	if (
+		typeof width !== "number" ||
+		typeof height !== "number" ||
+		width <= 0 ||
+		height <= 0 ||
+		!position
+	) {
+		return null;
+	}
+	return { x: position.x, y: position.y, width, height };
+}
+
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
+	const sourceNode = useInternalNode(props.source);
+	const targetNode = useInternalNode(props.target);
+	const sourceBox = floatingBox(sourceNode);
+	const targetBox = floatingBox(targetNode);
+	const floating = sourceBox && targetBox ? getFloatingEdgeGeometry(sourceBox, targetBox) : null;
 	const routeOffset = props.data?.routeOffset ?? 28;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
 	const family = props.data?.family ?? "context";
 	const curvature = relationCurvature(family, routeOffset);
+	const sourceX = floating?.sourceX ?? props.sourceX;
+	const sourceY = floating?.sourceY ?? props.sourceY;
+	const targetX = floating?.targetX ?? props.targetX;
+	const targetY = floating?.targetY ?? props.targetY;
+	const sourcePosition = floating?.sourcePosition ?? props.sourcePosition;
+	const targetPosition = floating?.targetPosition ?? props.targetPosition;
 	const [path, labelX, labelY] = getBezierPath({
-		sourceX: props.sourceX,
-		sourceY: props.sourceY,
-		sourcePosition: props.sourcePosition,
-		targetX: props.targetX,
-		targetY: props.targetY,
-		targetPosition: props.targetPosition,
+		sourceX,
+		sourceY,
+		sourcePosition,
+		targetX,
+		targetY,
+		targetPosition,
 		curvature,
 	});
 	const item = props.data?.item;
@@ -87,10 +121,10 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	// composition. Keep the hit target there, but paint the visible curve in the
 	// same transformed layer as labels, which is proven stable in both themes.
 	const paintPadding = Math.max(120, routeOffset * 3);
-	const paintLeft = Math.min(props.sourceX, props.targetX) - paintPadding;
-	const paintTop = Math.min(props.sourceY, props.targetY) - paintPadding;
-	const paintWidth = Math.abs(props.targetX - props.sourceX) + paintPadding * 2;
-	const paintHeight = Math.abs(props.targetY - props.sourceY) + paintPadding * 2;
+	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
+	const paintTop = Math.min(sourceY, targetY) - paintPadding;
+	const paintWidth = Math.abs(targetX - sourceX) + paintPadding * 2;
+	const paintHeight = Math.abs(targetY - sourceY) + paintPadding * 2;
 
 	return (
 		<>
@@ -140,6 +174,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						strokeLinecap="round"
 						data-family={family}
 						data-edge-curve="bezier"
+						data-edge-anchor={floating ? "floating" : "handle"}
 						data-world-edge={props.id}
 					/>
 					{highlighted && !dimmed ? (
