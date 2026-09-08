@@ -62,8 +62,8 @@ function LoreBlock({ block }: { block: LoreBlockDTO }) {
 		case "prose":
 			return (
 				<div className={styles.prose}>
-					{block.paragraphs.map((paragraph) => (
-						<p key={paragraph}>{paragraph}</p>
+					{block.paragraphs.map((paragraph, index) => (
+						<p key={`${block.id}:${index}`}>{paragraph}</p>
 					))}
 				</div>
 			);
