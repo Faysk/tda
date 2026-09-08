@@ -75,11 +75,16 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 			/>
 			<EdgeLabelRenderer>
 				<svg
-					className={styles.relationPaintLayer}
 					viewBox={`${paintLeft} ${paintTop} ${paintWidth} ${paintHeight}`}
 					width={paintWidth}
 					height={paintHeight}
-					style={{ left: paintLeft, top: paintTop }}
+					style={{
+						position: "absolute",
+						left: paintLeft,
+						top: paintTop,
+						overflow: "visible",
+						pointerEvents: "none",
+					}}
 					aria-hidden="true"
 				>
 					<path
