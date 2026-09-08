@@ -39,6 +39,7 @@ import {
 	searchWorldProjection,
 } from "../projection";
 import { WorldEntityNode } from "./entity-node";
+import inspectorStyles from "./world-inspector.module.css";
 import { WorldRelationEdge } from "./relation-edge";
 import styles from "./world-explorer.module.css";
 
@@ -273,7 +274,12 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 				</button>
 				{!panelCollapsed ? (
 					selected ? (
-						<InspectorContent selected={selected} projection={projection} focus={focus} />
+						<InspectorContent
+							selected={selected}
+							projection={visibleProjection}
+							focus={focus}
+							onSelect={setSelectedId}
+						/>
 					) : (
 						<div className={styles.overviewInspector}>
 							<p className={styles.eyebrow}>Visão geral</p>
@@ -292,8 +298,30 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 	);
 }
 
-function InspectorContent({ selected, projection, focus }: { selected: WorldNodeDTO; projection: WorldGraphProjection; focus?: WorldNodeDTO }) {
-	const relation = focus && selected.id !== focus.id ? relationLabelFor(projection, selected.id, focus.id) : null;
+function InspectorContent({
+	selected,
+	projection,
+	focus,
+	onSelect,
+}: {
+	selected: WorldNodeDTO;
+	projection: WorldGraphProjection;
+	focus?: WorldNodeDTO;
+	onSelect: (id: string) => void;
+}) {
+	const relation = focus && selected.id !== focus.id
+		? relationLabelFor(projection, selected.id, focus.id)
+		: null;
+	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
+	const connections = projection.edges
+		.flatMap((edge) => {
+			if (edge.source !== selected.id && edge.target !== selected.id) return [];
+			const destinationId = edge.source === selected.id ? edge.target : edge.source;
+			const destination = nodeById.get(destinationId);
+			return destination ? [{ edge, destination }] : [];
+		})
+		.sort((left, right) => left.destination.label.localeCompare(right.destination.label, "pt-BR"));
+
 	return (
 		<>
 			<div className={styles.inspectorHero} aria-hidden="true">
@@ -303,7 +331,37 @@ function InspectorContent({ selected, projection, focus }: { selected: WorldNode
 			<h2>{selected.label}</h2>
 			{selected.subtitle ? <p className={styles.inspectorSubtitle}>{selected.subtitle}</p> : null}
 			{selected.id === projection.focusId ? <p className={styles.focusNote}>Foco exploratório atual.</p> : relation && focus ? <p className={styles.relationSummary}>Relação com {focus.label}: {relation}.</p> : null}
-			<p className={styles.inspectorCopy}>Selecionar apenas inspeciona. A ação de explorar cria uma visão focada das conexões diretas sem transformar essa entity no centro permanente da campanha.</p>
+			<p className={styles.inspectorCopy}>Selecionar apenas inspeciona. Você pode percorrer as conexões visíveis abaixo ou abrir um foco explícito sem transformar esta entity no centro permanente da campanha.</p>
+
+			<section className={inspectorStyles.connections} aria-labelledby={`world-inspector-connections-${selected.id}`}>
+				<div className={inspectorStyles.connectionsHeader}>
+					<h3 id={`world-inspector-connections-${selected.id}`}>Conexões visíveis</h3>
+					<span>{connections.length}</span>
+				</div>
+				{connections.length ? (
+					<ul>
+						{connections.map(({ edge, destination }) => (
+							<li key={edge.id}>
+								<button
+									type="button"
+									onClick={() => onSelect(destination.id)}
+									aria-label={`Selecionar ${destination.label}; relação ${edge.label}`}
+								>
+									<span className={inspectorStyles.connectionCopy}>
+										<strong>{destination.label}</strong>
+										<small>{nodeTypeLabel(destination)}</small>
+									</span>
+									<span className={inspectorStyles.relationBadge} data-family={edge.family}>{edge.label}</span>
+									<span className={inspectorStyles.connectionArrow} aria-hidden="true">›</span>
+								</button>
+							</li>
+						))}
+					</ul>
+				) : (
+					<p className={inspectorStyles.connectionsEmpty}>Nenhuma conexão permanece visível com os filtros atuais.</p>
+				)}
+			</section>
+
 			{selected.slug && selected.id !== projection.focusId ? (
 				<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>Explorar conexões de {selected.label}</PublicLink>
 			) : projection.mode === "focus" ? (
