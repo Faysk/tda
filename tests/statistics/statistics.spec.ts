@@ -21,24 +21,64 @@ async function signIn(context: BrowserContext, sub: string) {
 	]);
 }
 
-test("anonymous and authenticated without permission receive no metrics in HTML or RSC", async ({
+test("anonymous user receives no metrics and is directed to sign in", async ({
 	context,
 	page,
 }) => {
-	for (const subject of [null, "no-grants"]) {
-		if (subject) await signIn(context, subject);
-		const response = await page.goto("/transcricoes");
-		expect(response?.headers()["cache-control"]).toContain("no-store");
-		await expect(
-			page.getByText("Entre com uma conta com permissão", { exact: false }),
-		).toBeVisible();
-		expect(await response?.text()).not.toContain("A travessia das montanhas");
-		const rsc = await context.request.get("/transcricoes?_rsc=synthetic", {
-			headers: { RSC: "1" },
-		});
-		expect(await rsc.text()).not.toContain("A travessia das montanhas");
-		expect(await rsc.text()).not.toContain("TRANSCRICAO_PRIVADA");
-	}
+	const response = await page.goto("/transcricoes");
+	expect(response?.headers()["cache-control"]).toContain("no-store");
+	await expect(
+		page.getByText("Entre com sua conta do Discord", { exact: false }),
+	).toBeVisible();
+	await expect(page.getByRole("link", { name: "Entrar" })).toHaveAttribute(
+		"href",
+		"/entrar?next=%2Ftranscricoes",
+	);
+	expect(await response?.text()).not.toContain("A travessia das montanhas");
+	const rsc = await context.request.get("/transcricoes?_rsc=anonymous", {
+		headers: { RSC: "1" },
+	});
+	expect(await rsc.text()).not.toContain("A travessia das montanhas");
+	expect(await rsc.text()).not.toContain("TRANSCRICAO_PRIVADA");
+});
+
+test("authenticated user without permission receives no metrics and is not told to sign in", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "no-grants");
+	const response = await page.goto("/transcricoes");
+	expect(response?.headers()["cache-control"]).toContain("no-store");
+	await expect(
+		page.getByText("Sua conta não tem permissão de leitura", { exact: false }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Consultar meu acesso" }),
+	).toHaveAttribute("href", "/conta");
+	await expect(
+		page.getByText("Entre com sua conta do Discord", { exact: false }),
+	).toHaveCount(0);
+	expect(await response?.text()).not.toContain("A travessia das montanhas");
+	const rsc = await context.request.get("/transcricoes?_rsc=no-grants", {
+		headers: { RSC: "1" },
+	});
+	expect(await rsc.text()).not.toContain("A travessia das montanhas");
+	expect(await rsc.text()).not.toContain("TRANSCRICAO_PRIVADA");
+});
+
+test("invalid campaign input is reported as validation instead of access denial", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "reader");
+	const response = await page.goto(
+		"/transcricoes?campanha=a%2Cslug.eq.b",
+	);
+	await expect(page.getByText("A campanha informada não é válida.")).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Voltar às transcrições" }),
+	).toHaveAttribute("href", "/transcricoes");
+	expect(await response?.text()).not.toContain("A travessia das montanhas");
 });
 
 test("read-only user sees complete totals, missing coverage and responsive session cards", async ({
@@ -83,11 +123,14 @@ test("read-only user sees complete totals, missing coverage and responsive sessi
 	});
 	await page.goto("/transcricoes?campanha=other");
 	await expect(
-		page.getByText("Entre com uma conta com permissão", { exact: false }),
+		page.getByText("Sua conta não tem permissão de leitura", { exact: false }),
 	).toBeVisible();
 	await expect(page.getByRole("article")).toHaveCount(0);
 	await context.clearCookies();
 	await page.goto("/transcricoes");
+	await expect(
+		page.getByText("Entre com sua conta do Discord", { exact: false }),
+	).toBeVisible();
 	await expect(page.getByRole("article")).toHaveCount(0);
 });
 
