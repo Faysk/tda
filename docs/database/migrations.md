@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -78,13 +78,15 @@ A estratégia é:
 - `20260906210427 backfill_narrative_entity_links`
 - `20260906211040 relax_reboot_entity_name_lookup`
 
-### 2026-09-07 — concorrência otimista do Edit
+### 2026-09-07/08 — Edit e review de transcrição
 
 - `20260907084234 add_transcript_segment_revision`
+- `20260908064257 edit_transcript_segment_atomic`
+- `20260908144711 transcript_review_default`
 
 ## Boundary do reboot aplicado
 
-As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas no histórico remoto do novo repositório TDA.
+As migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas no histórico remoto do novo repositório TDA.
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -119,15 +121,13 @@ Objetivo:
 
 - adicionar `transcript_segments.revision bigint not null default 0`;
 - criar o contador monotônico necessário para optimistic concurrency do Edit sem alterar o comportamento dos consumidores atuais;
-- preparar, sem ainda introduzir RPC/grants, o boundary transacional de update + audit da issue #32.
+- preparar o boundary transacional de update + audit da issue #32.
 
 Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
 
-## Migration candidata — ainda não aplicada
+### `20260908064257_edit_transcript_segment_atomic`
 
-### `20260907115300_edit_transcript_segment_atomic`
-
-**Estado:** arquivo versionado na branch da issue #32; **não observado/aplicado no Supabase de produção** nesta preparação.
+**Estado:** aplicada no Supabase canônico. O arquivo originalmente preparado como `20260907115300_edit_transcript_segment_atomic.sql` ainda precisa de reconciliação de ID em recorte próprio; a migration history remota registra `20260908064257 edit_transcript_segment_atomic`.
 
 Objetivo:
 
@@ -139,52 +139,11 @@ Objetivo:
 - retornar `updated`, `conflict` ou `not_found` sem revelar recurso cross-campaign;
 - manter `EXECUTE` somente para `service_role`, sem abrir `anon`/`authenticated`.
 
-Compatibilidade:
+Validações já registradas incluem PostgreSQL sintético, smoke remoto `updated -> conflict` com rollback, grants e advisors sem regressão específica da função.
 
-- nenhuma coluna existente é removida/renomeada;
-- nenhuma das 8 funções `SECURITY DEFINER` existentes é alterada neste slice;
-- o adapter temporário do Edit permanece independente até o binding canônico;
-- a função nova não substitui Auth/RBAC: actor/capability continuam resolvidos no boundary autorizado da aplicação.
+### `20260908144711_transcript_review_default`
 
-Validação isolada concluída em 2026-09-07:
-
-- SHA validado: `f44a74c653d416a614bb3468ffc112d741bc4893`;
-- PostgreSQL 16.14 real em cluster descartável novo, sem TCP nem conexão remota;
-- migration de `revision` + migration candidata originais aplicadas sobre schema mínimo sintético;
-- `supabase/tests/edit_transcript_segment_atomic.sql` integral passou e terminou em `ROLLBACK`;
-- concorrência real com duas conexões `service_role` passou 3/3 sob `READ COMMITTED`: uma conexão ficou bloqueada no lock da outra, depois houve exatamente `updated/1` + `conflict/NULL`, revision final `1` e um único audit `0 -> 1`;
-- `anon`, `authenticated` e role sem acesso tiveram chamada direta negada;
-- cross-campaign retornou `not_found` sem audit;
-- identidade foi preservada quando speaker não mudou e `character_name` foi limpo quando mudou;
-- falha de audit por trigger e por FK de ator inválido reverteu a linha inteira;
-- nenhum bug SQL foi reproduzido; a branch/migration não foi alterada durante o ensaio.
-
-Limites da validação isolada:
-
-- schema de teste mínimo, não dump completo do Supabase;
-- sem Auth/PostgREST real;
-- sem advisors do projeto canônico;
-- sem migration history remoto pós-aplicação;
-- somente `READ COMMITTED`.
-
-Ainda pendente antes de produção:
-
-- reconciliar/confirmar o SHA exato que será aplicado contra a `main` vigente;
-- aplicar pelo database runbook no projeto canônico;
-- revalidar função, grants e migration history remotamente;
-- executar advisors de segurança/performance;
-- registrar a aplicação no `verification-log.md`;
-- integrar Auth/Edit em recorte próprio.
-
-Rollback lógico:
-
-- se ainda sem consumidor, remover/revogar a função em migration corretiva é reversível;
-- se já houver consumidor, primeiro desligar o adapter canônico e restaurar o caminho anterior;
-- não remover `transcript_segments.revision` e não apagar eventos de audit para simular rollback de edição.
-
-### `20260908134500_transcript_review_default`
-
-**Estado:** candidata versionada; **não aplicar no Supabase canônico antes de CI terminal e integração da PR correspondente**.
+**Estado:** aplicada no Supabase canônico em 2026-09-08. O ID local foi reconciliado para corresponder ao migration history remoto; o SQL é o mesmo da candidata originalmente versionada como `20260908134500_transcript_review_default.sql`, sem reexecução de DDL nesta reconciliação.
 
 Objetivo:
 
@@ -199,10 +158,11 @@ Compatibilidade e limites:
 - não adiciona CHECK constraint enquanto a massa histórica inconsistente não for reconciliada;
 - writers que persistem `needs_review` explicitamente continuam com o mesmo comportamento.
 
-Validação candidata:
+Validação:
 
 - o PostgreSQL sintético do job `transcript-import-postgres` aplica a migration e executa `supabase/tests/transcript_review_default.sql`;
-- o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`.
+- o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`;
+- no Supabase canônico, o default foi confirmado como `true` e as contagens históricas permaneceram `pending/false=30.839`, `pending/true=17`, `needs_review/true=1` após a aplicação.
 
 Rollback lógico:
 
@@ -302,6 +262,7 @@ Há drift quando:
 Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
+
 ## Candidatos de importação de transcrição
 
 - `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
