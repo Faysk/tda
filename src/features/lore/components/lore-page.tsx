@@ -59,14 +59,20 @@ function LoreGalleryImage({ media }: { media: LoreMediaDTO }) {
 
 function LoreBlock({ block }: { block: LoreBlockDTO }) {
 	switch (block.kind) {
-		case "prose":
+		case "prose": {
+			const occurrences = new Map<string, number>();
 			return (
 				<div className={styles.prose}>
-					{block.paragraphs.map((paragraph) => (
-						<p key={paragraph}>{paragraph}</p>
-					))}
+					{block.paragraphs.map((paragraph) => {
+						const occurrence = (occurrences.get(paragraph) ?? 0) + 1;
+						occurrences.set(paragraph, occurrence);
+						return (
+							<p key={`${block.id}:${paragraph}:${occurrence}`}>{paragraph}</p>
+						);
+					})}
 				</div>
 			);
+		}
 		case "quote":
 			return (
 				<figure className={styles.quote}>
