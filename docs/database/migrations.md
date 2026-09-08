@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-07
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
