@@ -16,6 +16,19 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
+test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
+	await page.goto("/mundo");
+	await page.locator('[data-world-node="astel"]').click();
+
+	await expect(page.getByRole("heading", { level: 3, name: "Conexões visíveis" })).toBeVisible();
+	await expect(page.getByText("Vínculo místico", { exact: true }).first()).toBeVisible();
+	await page.getByRole("button", { name: "Selecionar Raven Queen; relação Vínculo místico" }).click();
+
+	await expect(page.getByRole("heading", { level: 2, name: "Raven Queen", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Selecionar Astel; relação Vínculo místico" })).toBeVisible();
+	await expect(page).toHaveURL(/\/mundo$/);
+});
+
 test("World Explorer exposes honest SSR metadata through the central public contract", async ({ page }) => {
 	await page.goto("/mundo");
 	await expect(page).toHaveTitle(/Ecos da Jornada — demonstração/);
