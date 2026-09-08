@@ -2,23 +2,32 @@
 
 > Status: vigente
 > Owner: Prancheta - Organização de entregas
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte de verdade: GitHub para PR/SHA/checks; documentos donos para contrato; evidência operacional específica para integração/publicação
 
 Este é o **único registro operacional de status das entregas**. Roadmap define prioridade e direção de produto; documentos donos definem contrato; Lupa mantém auditoria independente; deployments registra publicação. Não copiar esta tabela para roadmap, índices ou relatórios paralelos.
 
-## Estado corrente — Production #006
+## Estado operacional observado
 
-- STATS, PERMISSOES, SERVICO e LOCAL integrados em `main@7dd4b06` via #64; CI da main e do candidato concluídos com sucesso.
-- Web publicada: Production #006, source `7dd4b06d1a246ad924230530c2a0424e830aa46d`, deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a`. Evidências completas em [deployments](../operations/deployments.md).
-- AUTH: consentimento/retorno real, resolvedor de acesso, navegação autorizada, logout e bloqueio posterior de estatísticas verificados. Nome do aplicativo Discord ainda legado.
-- STATS e consulta de PERMISSOES verificados com conta real autorizada. Nenhum grant foi criado; duração incompleta aparece explicitamente.
-- LOCAL: tela publicada e estado desconectado correto. SERVICO é fundação sintética testada, sem instalação persistente/ASR real. IMPORT continua desativado.
-- IMPORT #61: integrada em `81219c009eeb87593df2458c836d40fcfa2a2491` após CI terminal do candidato `825de74` (runs `34163329504` e `34163329535`). SQL revisado e testes PostgreSQL isolados aprovados. Endpoints negados, sem aplicação de migrations/grants; faltam ponte UI/companion, importação real e sessão de destino apropriada. Não sobrescrever sessões transcritas.
-- PIPIPI/CINEMA/GRAFO/EDIT: trabalho local preservado em revisão, ainda fora desta release.
-- Documentação de entregas: PR #65 integrada em `0188e82eca481a2773c3e2a731b4ef5fd1017e77`, com CI terminal aprovado; não exige deployment.
-- MIDIA #54: preparação integrada em `e804006` após checks aprovados no candidato `9900117` (runs `34163641533` e `34163641537`). Nenhum upload, promoção de referências ou deployment executado por esse merge.
-- Próxima prioridade: fechar Edit/import/local real e revisões narrativas existentes, sem novas frentes.
+- `main` verificada nesta revisão: `80eab3a8c267e3e3900cd7c9399f23bf914d994d`.
+- O histórico de [deployments](../operations/deployments.md) preserva Production #006, source `7dd4b06d1a246ad924230530c2a0424e830aa46d` e deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a` como **evidência histórica daquela publicação**. Esse registro, sozinho, não confirma o SHA servido agora.
+- A observação de health mais recente informada para a produção retornou `commit=null`; portanto este inventário **não declara um source SHA atualmente ativo** sem recibo runtime adicional que faça essa associação.
+- AUTH, STATS, consulta de PERMISSOES e LOCAL possuem evidências operacionais históricas já registradas; isso não autoriza inferir que qualquer mudança posterior na `main` foi publicada automaticamente.
+- IMPORT #61 está integrada no repositório; ativação externa, migrations e grants continuam gates separados. Merge de migration nunca é prova de aplicação no Supabase.
+- MIDIA #54 permanece preparação integrada; upload, promoção de referências e deployment continuam operações deliberadas e separadas.
+- A prioridade de produto da rodada #99 é **P1 Pipipi oficial -> P2 dados reais revisados -> P3 edição autorizada do grafo**. Frentes de Edit, operação local, sync, mídia e Auth continuam paralelas e mantêm seus próprios gates/evidências.
+
+## Rodada coordenada #99 — lore, curadoria e grafo
+
+A issue [#99](https://github.com/Faysk/tda/issues/99) coordena três resultados relacionados, mas **não muda sozinha o estágio de entrega de nenhum deles**. Cada frente continua no documento dono e só avança neste inventário com PR/SHA/evidência próprios.
+
+- **P1 — PIPIPI / Pipoca:** tornar Pipipi a lore pioneira oficial em `/lore/pipipi`, reutilizando o Presentation Engine de [perfis editoriais](../features/entity-profiles.md), [Design System](../design-system/README.md), componentes/tokens vigentes e metadata pública central. Estrutura cinematic é referência opcional; parallax deve ser adaptado como enhancement e nunca bloquear leitura estática, mobile, reduced motion ou acessibilidade. O trabalho local e as sete imagens preparadas são dependências conhecidas; não há nesta linha evidência suficiente para declarar rota integrada, CI final ou publicação.
+- **P2 — CURADORIA / Fabuloso:** responsável confirmado pela curadoria de resumos/transcrições e demais fontes reais sem copiar material privado para docs/issues. O resultado precisa preservar provenance, distinguir fato explícito/inferência/conflito, registrar estado de revisão e visibility antes de qualquer promoção. Owners: [evidence](../domains/evidence.md) + [canon/review](../domains/canon-review.md). Candidato revisável não é canon nem publicação.
+- **P3 — GRAFO / Espaguete:** consumir somente projections de dados reais revisados/permitidos e preparar edição autorizada. Mover node altera layout editorial; editar relação/fato é operação narrativa separada, com fonte, revisão, visibility, capability/scope server-side, concorrência e recuperação de erro. Owners: [World Explorer](../features/world-explorer.md) e [relations](../features/relations-data-contract.md). O drift operacional de layout permanece acompanhado pela #95 e não deve ser mascarado por esta rodada.
+- **ACESSO / Crachá + Chaveiro:** mapear capabilities existentes para layout, conteúdo e publicação; login não cria grant implícito. Qualquer mutation precisa de validação server-side no boundary dono.
+- **PUBLICAÇÃO / Foguete + Marreta + Balde:** publicação de Pipipi é deliberada e posterior a revisão, CI, desktop/mobile, mídia/OG e leitura pública verificadas. Merge ou URL planejada não equivalem a publicação.
+
+Dependência documental: Prancheta mantém **somente o estágio/evidência** aqui; [roadmap](../roadmap.md) registra prioridade P1/P2/P3 e os documentos donos preservam os contratos. Não criar spec paralela da #99 nem copiar transcrição, relação secreta ou IDs privados para fixtures/documentação pública.
 
 ## Corte histórico inicial
 
@@ -87,8 +96,6 @@ Atualizar uma linha apenas por evento factual:
 `data UTC | ID | de → para | motivo | PR/SHA/evidência | próximo responsável`
 
 Novo SHA reabre gates dependentes dele. CI verde não move automaticamente para integração. Merge não move automaticamente para publicação. Migration integrada não move automaticamente para aplicada. Ausência de informação vira `não disponível`.
-
-
 
 ## Atualização operacional — integração #64
 

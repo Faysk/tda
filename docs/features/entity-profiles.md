@@ -2,7 +2,7 @@
 
 > Status: preparado; projection publicada pendente
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 
 ## Valor
 
@@ -59,6 +59,26 @@ Rotas podem variar por tipo para UX/SEO:
 ```
 
 A implementação compartilha resolver/model base por `entities.id`/slug em vez de duplicar domínio para cada rota. Tipos sem rota aprovada continuam sem URL inventada.
+
+### Pipipi — lore pioneira da issue #99
+
+A [issue #99](https://github.com/Faysk/tda/issues/99) escolhe **Pipipi** como a primeira lore completa a provar o caminho editorial atual, com alvo explícito `/lore/pipipi`.
+
+Esse alvo é **específico desta lore pioneira** e não cria automaticamente uma família genérica `/lore/[slug]` para todas as entities. As rotas tipadas acima continuam sendo o contrato geral dos perfis; qualquer generalização futura precisa ser decidida no owner de routing/perfis, não inferida deste slice.
+
+Pipipi deve reutilizar a mesma `LorePage`, Presentation Engine, tokens/primitives do TDA, filtro de audience e helper central de metadata. O conteúdo concluído e as sete imagens preparadas são dependências fornecidas para a rodada, mas sua existência fora da `main` não comprova implementação, CI, entrega pública ou publicação.
+
+Critérios específicos antes de chamar a lore de pronta/publicada:
+
+- texto aprovado preservado sem reescrita automática ou promoção de inferências;
+- leitura estática completa e útil sem cinematic;
+- sete imagens somente quando os bytes/URLs usados pelo runtime estiverem verificados e permitidos para a audience;
+- título, resumo, canonical e imagem social próprios pelo caminho runtime real;
+- desktop/mobile, teclado, foco, light/dark e `prefers-reduced-motion` quando houver movimento;
+- conteúdo privado, notas de revisão, source IDs e transcrição bruta ausentes do payload/metadata público;
+- CI do SHA exato antes de integração e publicação deliberada registrada separadamente.
+
+Cinematic permanece enhancement opcional: não bloqueia publicação de uma leitura estática autorizada.
 
 ## Estrutura base
 
@@ -363,15 +383,15 @@ Exemplo:
 
 ## SEO/social
 
-Para entities `public_web`:
+Para entities `public_web` e para a lore pioneira quando sua publicação for autorizada:
 
 - title/description específicos e derivados apenas de conteúdo autorizado para publicação;
-- canonical URL da rota pública real (`/personagens/[slug]`, `/npcs/[slug]`, `/lugares/[slug]`, `/faccoes/[slug]`, `/musicas/[slug]` ou `/quests/[slug]`), sem criar rota paralela `/lore/[slug]`;
-- Open Graph/Twitter devem reutilizar o helper central `buildPublicMetadata` e o fallback oficial `/og/default`, conforme o contrato owner em `docs/integrations/vercel.md`;
-- artwork social própria só é fornecida quando pública/aprovada; caso contrário usa o fallback oficial;
+- canonical URL da rota pública real; rotas tipadas permanecem o padrão geral e `/lore/pipipi` é o alvo explícito da #99, sem generalização automática para `/lore/[slug]`;
+- Open Graph/Twitter reutilizam o helper central `buildPublicMetadata` em `src/config/public-metadata.ts` e o fallback oficial `/og/default`;
+- artwork social própria só é fornecida quando pública/aprovada/verified-public; caso contrário usa o fallback oficial;
 - nenhum conteúdo secreto em metadata server-rendered.
 
-A implementação compartilhada de metadata está preparada na PR #47, commit `7f92b6600ca4e9d456866d8156896a51c25370bd`, mas ainda está **fora de `main`** nesta revisão. Até essa dependência ser integrada, a Lore não deve copiar o helper, criar gerador próprio de OG/Twitter nem importar código diretamente de outra branch. O consumo deve ser adicionado somente depois que o contrato central estiver disponível na base corrente da PR #26.
+O helper central de metadata já existe na `main`; Lore não deve criar builder paralelo. Testes com helper/fixture isolados não comprovam a metadata final da rota: a validação de publicação deve inspecionar o caminho default real servido para a URL pública.
 
 Entities privadas não devem gerar preview social que revele nome/conteúdo.
 
@@ -424,36 +444,34 @@ O repository público permanece deliberadamente vazio até existir projection au
 
 Validação de suporte em 2026-09-07: `pnpm check` (64 testes unitários), build e 30 E2E passaram localmente com Node 24.20.0/pnpm 12.3.4. O player gera uma faixa WebVTT nativa a partir dos mesmos beats das legendas visíveis. Uma montagem local temporária, removida antes do commit, validou carregamento de dois cues, play/pause, seek, troca de cenas com o mesmo preset, parallax, reduced motion e viewport de 390 px. Essa montagem usou artwork sintético e oito segundos de silêncio: não comprova sincronização/acurácia com narração editorial real nem publicação do slice.
 
-## Primeiro vertical slice
+## Lore pioneira da rodada #99
 
-Perfil de **Dandelion** continua sendo o candidato de validação quando houver fonte autorizada.
+Pipipi substitui Dandelion como **primeiro alvo de conteúdo real completo desta rodada**, porque a #99 fornece uma lore concluída e sete imagens preparadas para adaptação. Isso não declara que os bytes estão no runtime, que a rota existe na `main` ou que a lore está publicada.
 
-Deve validar:
+O slice deve validar:
 
-- hero;
-- summary;
+- `/lore/pipipi` como rota explícita desta entrega;
+- conteúdo aprovado intacto;
+- hero e sete imagens quando elegíveis;
 - leitura estática completa;
-- relations em destaque;
-- moments;
-- música;
 - light/dark;
-- mobile;
-- metadata social pelo contrato central após a PR #47 estar disponível na base;
-- artwork 2.5D se disponível;
-- narração editorial se o áudio for fornecido/aprovado;
-- beats/legendas/seek/reduced motion quando a narração existir.
+- desktop/mobile e mínimo suportado;
+- metadata social específica pelo helper central e caminho real;
+- proteção de conteúdo privado e detalhes de provenance/review;
+- cinematic apenas se houver implementação revisada, com reduced motion e fallback estático.
 
-Sem texto, artwork ou narração autorizados, o scaffold deve continuar testável por fixture explicitamente não canônica, sem fabricar conteúdo da campanha.
+Dandelion continua um candidato válido para o primeiro **perfil tipado de entity** quando houver fonte autorizada; não precisa ser reaberto nem removido para que Pipipi prove a lore pioneira.
 
 ## Assets pendentes para o slice real
 
-- texto/canon autorizado da lore escolhida;
-- artwork principal e, se desejado, recortes 2.5D;
-- narração editorial gravada/aprovada;
-- timestamps finais dos beats após o áudio real existir.
+- conteúdo concluído de Pipipi disponível ao implementador com classificação de publicação clara;
+- sete imagens preparadas, com bytes/URLs de runtime e eligibility pública verificáveis;
+- qualquer artwork/cinematic adicional explicitamente aprovado;
+- narração editorial somente se fornecida/aprovada;
+- timestamps finais dos beats somente depois de áudio real existir.
 
-Esses assets são dependências de conteúdo, não bloqueadores da infraestrutura.
+Esses assets são dependências de conteúdo, não prova de integração.
 
 ## Critério de pronto
 
-Uma entity autorizada possui uma página editorial coerente, acessível e compartilhável que compõe memória estruturada sem expor estado administrativo nem promover evidência bruta a canon; narração e 2.5D são progressivos e nunca bloqueiam a leitura estática.
+Uma lore/entity autorizada possui uma página editorial coerente, acessível e compartilhável que compõe memória estruturada sem expor estado administrativo nem promover evidência bruta a canon; narração e 2.5D são progressivos e nunca bloqueiam a leitura estática. Para Pipipi, “pronto” exige ainda evidência da rota, conteúdo, mídia e metadata específicas; “publicado” exige deployment deliberado e smoke da URL real.
