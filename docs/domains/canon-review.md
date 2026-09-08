@@ -2,7 +2,7 @@
 
 > Status: schema implementado; operação integrada ainda preparada/planejada
 > Owner: review/canon
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-08
 
 ## Objetivo
 
@@ -33,6 +33,40 @@ approved canon / publication
 ```
 
 Cada nível preserva o anterior como provenance.
+
+## Curadoria de dados reais — rodada #99
+
+A [issue #99](https://github.com/Faysk/tda/issues/99) usa dados reais da campanha para alimentar lore e World Explorer, mas **não cria um caminho alternativo ao review gate**.
+
+A curadoria por Cuscuz deve produzir material revisável com, no mínimo, estas quatro dimensões já pertencentes aos contratos existentes:
+
+1. **provenance:** fonte identificável e suficiente para voltar à evidência original sem copiar transcript privado para docs/issues;
+2. **natureza da claim:** distinguir explicitamente fato suportado pela fonte, inferência/interpretação e conflito/ambiguidade;
+3. **review:** candidato continua candidato até decisão humana autorizada; ausência de revisão nunca é convertida em aprovação por conveniência do grafo/lore;
+4. **visibility:** definir audience antes de qualquer projection pública; `private`, `review_only`, `private_master` ou equivalente não pode escapar para browser/metadata público.
+
+A rodada não aprova enum, coluna ou tabela nova por documentação. Se o schema atual não conseguir representar alguma distinção sem ambiguidade, registrar a lacuna no owner de dados antes de inventar metadata ad hoc.
+
+### Fluxo recomendado para entities e relações
+
+```text
+resumo/transcript/evidência real
+  -> extração/classificação com provenance
+  -> candidate revisável
+  -> decisão humana
+  -> canon entry quando apropriado
+  -> entity/relation projection autorizada
+  -> lore/grafo conforme visibility
+```
+
+Para relações, o contrato adicional está em [relations-data-contract](../features/relations-data-contract.md): coocorrência, inferência de modelo ou proximidade visual não viram edge canônico. Relação pública precisa de fonte/revisão e pode ter visibility mais restrita que seus endpoints.
+
+### Privacidade da própria curadoria
+
+- não colocar transcrição bruta, conversa pessoal, source payload integral ou IDs sensíveis em issue, fixture pública ou documentação;
+- exemplos sintéticos devem continuar claramente sintéticos;
+- dataset de teste visual não prova que a relação existe na campanha;
+- screenshots de revisão podem comprovar composição/UX, mas não substituem receipt, query, teste de audience ou decisão humana registrada.
 
 ## Canon candidate
 
@@ -168,6 +202,8 @@ Uma publication pode omitir canon sensível. Um canon entry não precisa existir
 ## Publicação do site
 
 O frontend público consulta somente conteúdo explicitamente publicado/permitido. Não gerar página pública diretamente de candidate ou transcript.
+
+Na rodada #99, isso vale tanto para Pipipi quanto para dados do grafo: uma página/edge visualmente pronta não é publicação sem visibility apropriada, projection pública e evidência do ambiente publicado.
 
 ## Auditabilidade
 

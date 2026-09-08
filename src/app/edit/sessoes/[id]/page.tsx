@@ -1,5 +1,8 @@
 import { requireCapability } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	authorizeCampaignCapability,
+	EDIT_CAPABILITIES,
+} from "@/features/edit/access/policy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -65,8 +68,13 @@ function DisabledEdit() {
 }
 
 export default async function EditSessionPage({ params, searchParams }: PageProps) {
-	await requireCapability(EDIT_CAPABILITIES.transcriptRead, `/edit/sessoes/${encodeURIComponent((await params).id)}`);
+	const access = await requireCapability(EDIT_CAPABILITIES.transcriptRead, `/edit/sessoes/${encodeURIComponent((await params).id)}`);
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
+	const canEdit = authorizeCampaignCapability(
+		access,
+		EDIT_CAPABILITIES.contentEdit,
+		CAMPAIGN_SLUG,
+	).ok;
 	const { id } = await params;
 	const sourceSessionId = String(id || "").trim();
 	if (!sourceSessionId || sourceSessionId.length > 220) notFound();
@@ -125,8 +133,16 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 	return (
 		<section className={styles.shell}>
 			<div className={styles.unsafeBanner} role="status">
-				<strong>Acesso autorizado · integração em andamento</strong>
-				<span>Salvar nesta tela altera a transcrição real da campanha.</span>
+				<strong>
+					{canEdit
+						? "Acesso autorizado · integração em andamento"
+						: "Acesso de leitura · edição não autorizada"}
+				</strong>
+				<span>
+					{canEdit
+						? "Salvar nesta tela altera a transcrição real da campanha."
+						: "Você pode consultar a transcrição, mas sua conta não pode alterar falas."}
+				</span>
 			</div>
 
 			<header className={styles.workbenchHeader}>
@@ -148,6 +164,7 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 
 			<TranscriptEditor
 				batchOffset={batchOffset}
+				editable={canEdit}
 				segments={editorSegments}
 				sessionId={session.id}
 			/>

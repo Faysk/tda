@@ -31,9 +31,14 @@ function DisabledEdit() {
 export default async function EditPage() {
 	const access = await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit");
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
+	const canProcessLocal = authorizeCampaignCapability(
+		access,
+		EDIT_CAPABILITIES.localProcess,
+		CAMPAIGN_SLUG,
+	).ok;
 	const canComposeWorld = authorizeCampaignCapability(
 		access,
-		EDIT_CAPABILITIES.contentEdit,
+		EDIT_CAPABILITIES.worldLayoutEdit,
 		CAMPAIGN_SLUG,
 	).ok;
 
@@ -62,13 +67,9 @@ export default async function EditPage() {
 				<div>
 					<div className={styles.muted}>TDA / EDIT</div>
 					<h1 className={styles.pageTitle}>Sessões</h1>
-					<Link href="/edit/processamento">Processamento local</Link>
-					{canComposeWorld ? (
-						<>
-							{" · "}
-							<Link href="/edit/mundo">Composição do mundo</Link>
-						</>
-					) : null}
+					{canProcessLocal ? <Link href="/edit/processamento">Processamento local</Link> : null}
+					{canProcessLocal && canComposeWorld ? " · " : null}
+					{canComposeWorld ? <Link href="/edit/mundo">Composição do mundo</Link> : null}
 				</div>
 				<div className={styles.muted}>{sessions.length} sessões disponíveis</div>
 			</header>

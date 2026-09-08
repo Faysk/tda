@@ -2,7 +2,7 @@
 
 > Status: proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda**
 > Owner: narrative-memory / database / security
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-08
 
 Este documento fecha o suficiente da semântica de relações para permitir o primeiro World Explorer com fixtures e preparar uma migration futura sem moldar o banco ao React Flow.
 
@@ -156,6 +156,51 @@ evidence
 A semântica específica (`friend_of`, `owes_debt_to` etc.) precisa estar explícita no candidato/decisão; não inferir apenas pela ordem do array.
 
 Se essa reutilização de `canon_candidates` ficar ambígua em uso real, uma future ADR pode aprovar `relation_candidates`. Não criar agora sem necessidade observada.
+
+## Edição autorizada no grafo — rodada #99
+
+A [issue #99](https://github.com/Faysk/tda/issues/99) prepara edição compreensível a partir do World Explorer, mas o grafo é apenas ponto de entrada da UX. **Selecionar, arrastar ou desenhar uma edge no cliente nunca é autoridade suficiente para criar/alterar fato narrativo.**
+
+### Layout não é relation
+
+- mover node altera somente layout editorial, conforme o owner do [World Explorer](world-explorer.md) e ADR-0010;
+- posição, pan, zoom ou proximidade visual não são source, canon, relation type nem visibility;
+- salvar layout e salvar relation são mutations distintas, com capabilities, revisions e feedback próprios;
+- cancelar/reverter posição visual não deve sugerir rollback de relation já persistida.
+
+### Fluxo de edição factual
+
+Uma edição de relation deve começar por seleção explícita e apresentar formulário compreensível com source/target, tipo, direção quando aplicável, visibility, fonte/revisão necessária e temporalidade apenas quando suportada.
+
+Antes de persistir, o boundary server-side precisa revalidar:
+
+- identidade verificada;
+- capability exata e scope/campaign/ownership;
+- endpoints existentes e pertencentes à campanha;
+- relation type permitido;
+- visibility permitida ao ator e ao fluxo de publicação;
+- provenance/canon source exigida por este contrato;
+- `expectedRevision`/versão equivalente quando a migration definir concorrência otimista;
+- ausência de conflito, duplicata simétrica ou transição de lifecycle inválida.
+
+Login, role name exibido pela UI ou capability de layout não concedem edição factual por inferência.
+
+### UX mínima sem criar contrato visual paralelo
+
+A composição deve reutilizar Design System/Edit existentes:
+
+- `Salvar` é ação explícita e só anuncia sucesso após confirmação durável;
+- `Cancelar` descarta apenas rascunho local não persistido;
+- validation error mantém campos e explica correção;
+- dependency error mantém rascunho e não afirma save;
+- conflict preserva rascunho, mostra que o dado mudou e exige refresh/reconciliação; não há retry cego;
+- source/review/visibility ficam legíveis ao editor, mas detalhes privados não saem na projection pública.
+
+Isso é requisito de comportamento, não aprovação de `DataTable`, modal, drawer ou biblioteca nova.
+
+### Curadoria antes da relation
+
+O primeiro dataset real da #99 deve seguir [canon/review](../domains/canon-review.md). Extração pode sugerir candidato com fonte, natureza da claim e visibility, mas somente revisão humana autorizada pode promover a relation necessária ao grafo. Inferência/conflict não vira edge factual para melhorar densidade visual.
 
 ## Directionality
 
@@ -349,7 +394,10 @@ Cada tipo precisa de exemplos reais antes de entrar na seed.
 - duplicata simétrica é impedida;
 - índices suportam 1-hop por source e target;
 - RLS/policies não vazam relation secreta;
-- grants/RPCs revisados.
+- grants/RPCs revisados;
+- mutation factual valida actor/capability/scope no servidor;
+- concorrência evita last-write-wins silencioso;
+- audit/source/review permanecem na mesma operação lógica quando o desenho físico for aprovado.
 
 ## Índices esperados
 
@@ -435,16 +483,19 @@ O dataset visual de referência pode gerar fixtures, mas não rows canônicas se
 8. quais 8–12 relation types cobrem 90% da campanha real?;
 9. como tratar pets/companions quando ainda não estiver claro se são PC/NPC/concept?;
 10. como representar vínculo com divindade/patrono sem conflar pessoa, facção e conceito?
+11. qual capability física existente ou nova, explicitamente aprovada, autoriza create/update/end/supersede de relation sem conflar com a capability de layout?
+12. qual shape de revision/audit garante conflito recuperável sem apagar decisão humana concorrente?
 
 ## Critério para aprovar migration
 
 - responder as open questions necessárias para V1;
-- validar o vocabulário com exemplos reais de Dandelion/Screacky/Astel;
+- validar o vocabulário com exemplos reais revisados da campanha, sem publicar material privado na documentação;
 - desenhar RLS/RPC/capabilities;
 - escrever migration + rollback lógico;
 - criar queries de teste para 1-hop e visibilidade;
 - criar seed mínimo apenas de tipos aprovados;
+- testar create/update/conflict/cross-campaign/visibility/audit no boundary server-side;
 - rodar advisors pós-migration;
 - documentar resultado real em `database/`.
 
-Até isso acontecer, o World Explorer usa fixtures/projection demo e o schema de produção permanece inalterado.
+Até isso acontecer, o World Explorer usa fixtures/projection demo e o schema de relations de produção permanece inalterado. A #99 define o próximo alvo, não autoriza DDL, grant ou publicação por si só.

@@ -73,6 +73,50 @@ A primeira versão precisa:
 - timeline completa;
 - busca semântica em todo o canon.
 
+## Rodada #99 — dados reais e edição autorizada
+
+A [issue #99](https://github.com/Faysk/tda/issues/99) prioriza substituir a demonstração por dados reais revisados e preparar uma experiência de edição autorizada. Isso **não transforma o canvas público em editor de canon** e não altera sozinho o estado de implementação deste documento.
+
+### Projection de dados reais
+
+A primeira projection real deve entrar somente depois de curadoria/revisão conforme [canon-review](../domains/canon-review.md) e [relations-data-contract](relations-data-contract.md):
+
+- cada entity/relation exibida precisa estar resolvida para IDs canônicos e permitida para a audience;
+- a relação precisa preservar provenance suficiente para voltar à decisão/fonte revisada;
+- inferência, conflito e candidato não aprovado não aparecem como fato apenas para preencher o grafo;
+- visibility do edge é avaliada independentemente dos endpoints;
+- transcript bruto, notes de review, confidence interna e source payload não chegam ao browser.
+
+### Duas edições diferentes
+
+A experiência deve distinguir de forma inequívoca:
+
+1. **Mover/reorganizar node** — edita somente layout editorial de apresentação. Não altera entity, relation, canon, source ou visibility.
+2. **Editar relação/fato** — abre fluxo administrativo separado, com seleção explícita, formulário compreensível, `Salvar`/`Cancelar`, feedback de sucesso/erro e conflito de revisão. Essa operação pertence ao contrato narrativo e não pode ser inferida a partir de dragging.
+
+A UI pode partir de seleção no grafo, mas toda mutation factual precisa revalidar server-side:
+
+- identidade;
+- capability exata;
+- campaign/scope/ownership;
+- revision/expected version quando o storage suportar concorrência otimista;
+- fonte/review/visibility exigidos pelo contrato;
+- payload mínimo sem confiar em estado visual do cliente.
+
+Login por si só não concede nenhuma dessas capacidades.
+
+### Conflito e recuperação
+
+- conflito de revision preserva o rascunho e exige refresh/reconciliação; não há retry cego;
+- falha de dependência não deve ser apresentada como alteração salva;
+- cancelar abandona somente o rascunho local ainda não persistido;
+- salvar layout e salvar relação possuem receipts/feedback distintos quando existirem;
+- undo visual de posição não deve sugerir rollback factual.
+
+### Gate operacional atual
+
+O drift remoto de persistência de layout identificado na issue #95 continua uma dependência de governança. A #99 não deve reaplicar migration, inventar timestamp local equivalente nem usar a existência remota como prova de que o fluxo editorial de layout está reconciliado. A edição factual de relations também continua dependente do contrato/migration próprios.
+
 ## Rotas
 
 ### Canônica
@@ -237,7 +281,7 @@ Contrato inicial:
 - leitura pública recebe apenas positions de nodes já autorizados;
 - dragging público nunca salva automaticamente.
 
-Ainda não existe migration/RPC/grant aprovado para esse storage. O runtime apenas aceita e sanitiza o DTO opcional para que a futura persistência não exija refazer o canvas.
+O contrato versionado local e o estado físico remoto de layout estão em reconciliação operacional pela issue #95. Até essa reconciliação concluir, não reaplicar DDL nem declarar o fluxo editorial persistente pronto apenas porque tabela/RPC remotas foram observadas.
 
 ## Profundidade
 
@@ -422,7 +466,7 @@ A fundação já possui:
 
 `@xyflow/react` permanece fixado na linha 12.x verificada pelo lockfile do projeto.
 
-Este recorte não aplica migration, relation real, RLS, Auth, DNS ou deployment.
+Este recorte não aplica relation real, não publica dado privado e não transforma a observação remota de layout em autorização para nova DDL/deploy.
 
 ## Critérios para ligar ao Supabase
 
@@ -437,10 +481,11 @@ Antes de substituir fixtures por relations reais:
 - profile/slug resolution consistente;
 - tests com visão DM/player/public.
 
-Antes de persistir layout editorial:
+Antes de considerar persistência editorial de layout operacionalmente pronta:
 
+- reconciliar a issue #95 entre history remoto e arquivos versionados;
 - shape físico revisado pelo owner de dados/Supabase;
-- capability oficial definida no catálogo;
+- capability oficial confirmada no catálogo e com origem versionada;
 - scope/ownership validados;
 - optimistic concurrency por revision;
 - auditoria de `updated_by/updated_at` equivalente;
@@ -463,3 +508,5 @@ Avaliar utilidade, não quantidade de edges:
 ## Critério de pronto V1
 
 Um usuário autorizado consegue abrir `/mundo`, compreender a constelação visível da campanha, selecionar e reorganizar nodes localmente, explorar uma vizinhança focada, consultar relações por lista/inspector e navegar para perfis sem depender do grafo como única fonte e sem receber dados fora de sua audience.
+
+A rodada #99 só pode declarar a evolução para dados reais/edição concluída quando houver evidência separada de: dataset revisado e autorizado; projection sem leak; mutation factual server-side com concorrência/erro cobertos; edição de layout diferenciada; CI do SHA; e, se houver publicação, smoke do ambiente deliberadamente publicado.

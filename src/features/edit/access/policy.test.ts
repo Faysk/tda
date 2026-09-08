@@ -135,4 +135,45 @@ describe("authorizeCampaignCapability", () => {
 			),
 		).toEqual({ ok: false, reason: "forbidden" });
 	});
+
+	it("does not treat transcript read as local processing access", () => {
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [grant()] }),
+				EDIT_CAPABILITIES.localProcess,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+	});
+
+	it("keeps World layout authority separate from content editing", () => {
+		const contentEditGrant = grant({ action: EDIT_CAPABILITIES.contentEdit });
+		const layoutGrant = grant({ action: EDIT_CAPABILITIES.worldLayoutEdit });
+
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [contentEditGrant] }),
+				EDIT_CAPABILITIES.worldLayoutEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [layoutGrant] }),
+				EDIT_CAPABILITIES.contentEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [layoutGrant] }),
+				EDIT_CAPABILITIES.worldLayoutEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: true, profileId: "profile-1" });
+	});
 });

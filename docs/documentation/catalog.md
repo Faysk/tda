@@ -15,7 +15,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-07 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente; production ativa | 2026-09-07 |
 | [Publicação controlada](../releases.md) | Não declarado | Não declarado | Não declarado |
-| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-07 |
+| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-08 |
 
 ## docs/adr
 
@@ -61,7 +61,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Gestão de entregas](../delivery/README.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
-| [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | vigente | 2026-09-07 |
+| [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | vigente | 2026-09-08 |
 | [Medição de esforço e qualidade](../delivery/measurement.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
 | [Composição de candidato e marcos](../delivery/release-candidate.md) | Prancheta - Organização de entregas; decisão de escopo por Polvo - Coordenação e produto | preparado | 2026-09-07 |
 | [Fluxo de entregas](../delivery/workflow.md) | Prancheta - Organização de entregas; execução por Polvo - Coordenação | preparado | 2026-09-07 |
@@ -89,7 +89,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Domínios do TDA](../domains/README.md) | produto/arquitetura | vigente | 2026-09-06 |
-| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | schema implementado; operação integrada ainda preparada/planejada | 2026-09-06 |
+| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | schema implementado; operação integrada ainda preparada/planejada | 2026-09-08 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-07 |
@@ -107,7 +107,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado | 2026-09-07 |
 | [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md) | Edit / aplicação + segurança | compatibilidade temporária de desenvolvimento | 2026-09-07 |
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
-| [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-07 |
+| [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-08 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-06 |
@@ -116,7 +116,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
 | [Feature — Quests e ganchos](../features/quests-hooks.md) | narrative-memory | preparado/em desenho | 2026-09-06 |
-| [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda** | 2026-09-06 |
+| [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda** | 2026-09-08 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
@@ -157,7 +157,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, migração e rollback](../operations/local-companion.md) | local-companion/processing | preparado; base executável sintética em branch/PR | 2026-09-07 |
-| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
+| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-07 |
 
 ## Cobertura
