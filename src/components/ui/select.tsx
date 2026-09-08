@@ -23,6 +23,7 @@ type SelectProps<T extends string> = Readonly<{
 	ariaLabel: string;
 	className?: string;
 	disabled?: boolean;
+	embedded?: boolean;
 }>;
 
 function firstEnabledIndex<T extends string>(options: readonly SelectOption<T>[]) {
@@ -57,6 +58,7 @@ export function Select<T extends string>({
 	ariaLabel,
 	className,
 	disabled = false,
+	embedded = false,
 }: SelectProps<T>) {
 	const [open, setOpen] = useState(false);
 	const selectedIndex = options.findIndex((option) => option.value === value);
@@ -172,7 +174,10 @@ export function Select<T extends string>({
 	}
 
 	return (
-		<div ref={rootRef} className={classNames(styles.root, className)}>
+		<div
+			ref={rootRef}
+			className={classNames(styles.root, embedded ? styles.embedded : undefined, className)}
+		>
 			<button
 				ref={triggerRef}
 				type="button"
@@ -182,7 +187,7 @@ export function Select<T extends string>({
 				aria-expanded={open}
 				aria-controls={listboxId}
 				disabled={disabled}
-				onClick={() => setOpen((value) => !value)}
+				onClick={() => setOpen((current) => !current)}
 				onKeyDown={handleTriggerKeyDown}
 			>
 				<span className={styles.value}>{selected?.label ?? "Selecionar"}</span>
