@@ -40,14 +40,31 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
+	const strokeWidth = highlighted ? 3.6 : 2.8;
+	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.96;
 	const visibleClassName = `${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`;
 
 	return (
 		<>
 			<path
+				d={path}
+				fill="none"
+				stroke="rgba(2, 5, 8, 0.72)"
+				strokeWidth={strokeWidth + 3.2}
+				strokeOpacity={dimmed ? 0.12 : 0.6}
+				vectorEffect="non-scaling-stroke"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				className={styles.relationUnderlay}
+				aria-hidden="true"
+			/>
+			<path
 				id={`${props.id}-visible`}
 				d={path}
 				fill="none"
+				stroke={stroke}
+				strokeWidth={strokeWidth}
+				strokeOpacity={strokeOpacity}
 				markerEnd={props.markerEnd}
 				className={`react-flow__edge-path ${visibleClassName}`}
 				data-family={family}
@@ -57,10 +74,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				strokeLinejoin="round"
 				style={{
 					...props.style,
-					stroke,
-					strokeWidth: highlighted ? 3.4 : 2.6,
-					strokeOpacity: dimmed ? 0.18 : highlighted ? 1 : 0.95,
-					filter: `drop-shadow(0 0 ${highlighted ? 9 : 5}px ${stroke})`,
+					filter: `drop-shadow(0 0 ${highlighted ? 10 : 6}px ${stroke})`,
 				}}
 			/>
 			<path
