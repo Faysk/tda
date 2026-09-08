@@ -16,32 +16,23 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
-test("World Explorer renders relation strokes without clipping them in the React Flow SVG", async ({ page }) => {
+test("World Explorer paints relation strokes in the same visible layer as edge labels", async ({ page }) => {
 	await page.goto("/mundo");
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
-	const edges = page.locator("[data-world-edge]");
+	const labelLayer = page.locator(".react-flow__edgelabel-renderer");
+	await expect(labelLayer).toBeVisible();
+	const edges = labelLayer.locator("[data-world-edge]");
 	await expect(edges.first()).toBeVisible();
 	expect(await edges.count()).toBeGreaterThan(0);
-
-	const layerPaint = await edges.first().evaluate((element) => {
-		const edgeLayer = element.closest("svg");
-		if (!edgeLayer) throw new Error("World edge SVG not found");
-		const style = getComputedStyle(edgeLayer);
-		return {
-			overflow: style.overflow,
-			display: style.display,
-			visibility: style.visibility,
-		};
-	});
-
-	expect(layerPaint.overflow).not.toBe("hidden");
-	expect(layerPaint.display).not.toBe("none");
-	expect(layerPaint.visibility).not.toBe("hidden");
 
 	const paint = await edges.first().evaluate((element) => {
 		const style = getComputedStyle(element);
 		const path = element as SVGPathElement;
+		const svg = element.closest("svg");
+		if (!svg) throw new Error("Independent world edge SVG not found");
+		const svgStyle = getComputedStyle(svg);
+		const rect = svg.getBoundingClientRect();
 		return {
 			stroke: style.stroke,
 			strokeWidth: Number.parseFloat(style.strokeWidth),
@@ -49,6 +40,11 @@ test("World Explorer renders relation strokes without clipping them in the React
 			vectorEffect: style.vectorEffect,
 			length: path.getTotalLength(),
 			d: path.getAttribute("d"),
+			svgPosition: svgStyle.position,
+			svgOverflow: svgStyle.overflow,
+			width: rect.width,
+			height: rect.height,
+			insideNativeEdgeLayer: Boolean(element.closest(".react-flow__edges")),
 		};
 	});
 
@@ -56,9 +52,14 @@ test("World Explorer renders relation strokes without clipping them in the React
 	expect(paint.length).toBeGreaterThan(20);
 	expect(paint.stroke).not.toBe("none");
 	expect(paint.stroke).not.toBe("rgba(0, 0, 0, 0)");
-	expect(paint.strokeWidth).toBeGreaterThanOrEqual(2.5);
+	expect(paint.strokeWidth).toBeGreaterThanOrEqual(3);
 	expect(paint.strokeOpacity).toBeGreaterThanOrEqual(0.9);
 	expect(paint.vectorEffect).toBe("non-scaling-stroke");
+	expect(paint.svgPosition).toBe("absolute");
+	expect(paint.svgOverflow).not.toBe("hidden");
+	expect(paint.width).toBeGreaterThan(20);
+	expect(paint.height).toBeGreaterThan(20);
+	expect(paint.insideNativeEdgeLayer).toBe(false);
 });
 
 test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
