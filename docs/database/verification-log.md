@@ -10,6 +10,96 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-08 — preflight read-only da persistência editorial do World Explorer
+
+### Escopo
+
+Preflight do próximo recorte de `/edit/mundo`: escolher e validar em branch a forma física candidata para persistência de layout, sem executar DDL/DML de ativação no Supabase canônico.
+
+### Estado remoto observado
+
+Project ref confirmado: `dmrqnbdvbkfqzctcerbx`.
+
+O migration history remoto mais recente observado contém:
+
+- `20260908144711 transcript_review_default`;
+- `20260908064257 edit_transcript_segment_atomic`;
+- `20260907084234 add_transcript_segment_revision`;
+- `20260906211040 relax_reboot_entity_name_lookup`;
+- `20260906210427 backfill_narrative_entity_links`;
+- `20260906210333 align_tda_domain_identity`.
+
+A capability `campaign.world.layout.edit` não foi encontrada no catálogo observado e `public.save_world_layout_snapshot_atomic(...)` não existe no schema remoto desta verificação. Nenhum objeto de persistência do World layout foi criado por este preflight.
+
+### Drift identificado
+
+O migration history remoto usa IDs diferentes dos arquivos locais atualmente presentes para dois changesets:
+
+- remoto `20260908064257 edit_transcript_segment_atomic` vs local `20260907115300_edit_transcript_segment_atomic.sql`;
+- remoto `20260908144711 transcript_review_default` vs local `20260908134500_transcript_review_default.sql`.
+
+Foi feita inspeção read-only adicional do estado físico:
+
+- `edit_transcript_segment_atomic(...)` existe como `SECURITY INVOKER`;
+- assinatura/corpo observados correspondem ao contrato do arquivo local;
+- comentário esperado está presente;
+- `anon` e `authenticated` não possuem `EXECUTE`;
+- `service_role` possui `EXECUTE`;
+- `search_path` observado é `pg_catalog, public`;
+- `transcript_segments.needs_review` possui default físico `true`.
+
+Essa equivalência funcional observada **não corrige o drift de versionamento** e não autoriza reescrever migration history. A aplicação de novas migrations no projeto canônico permanece bloqueada até reconciliação operacional explícita pelo runbook.
+
+### Advisors
+
+Security advisor reexecutado em 2026-09-08:
+
+- 38 ocorrências informativas de `rls_enabled_no_policy`;
+- 8 warnings de `SECURITY DEFINER` executáveis por `authenticated`, correspondentes às RPCs legadas já inventariadas;
+- Leaked Password Protection continua desabilitada.
+
+Performance advisor reexecutado:
+
+- 49 FKs sem covering index;
+- 26 índices sem uso registrado.
+
+Nenhum warning foi convertido automaticamente em DDL. O estado foi usado somente como baseline de comparação para futura aplicação deliberada.
+
+### Candidato preparado no repositório
+
+A branch `feat/world-layout-persistence-candidate` prepara, sem aplicação remota:
+
+- `20260908192500_world_layout_capability.sql` — define `campaign.world.layout.edit` (`narrative`) sem conceder role/assignment;
+- `20260908192600_world_layout_snapshot_atomic.sql` — storage dedicado `world_layout_snapshots` + RPC `save_world_layout_snapshot_atomic(...)` server-only, optimistic concurrency e audit atômico;
+- PostgreSQL 16 sintético/descartável via `tools/world-layout-db.py`;
+- testes de RLS/grants, autorização/scope, payload, revision/conflict/no-op e rollback em falha do audit;
+- ADR-0011 registrando a forma física candidata e o gate de ativação.
+
+O job PostgreSQL do PR candidato passou integralmente, incluindo `python tools/world-layout-db.py`. Nenhuma conexão ao Supabase de produção é usada pelo teste sintético.
+
+### Ações tomadas
+
+- somente SQL read-only no Supabase canônico;
+- advisors read-only executados;
+- nenhuma migration aplicada;
+- nenhuma tabela/função/capability criada no Supabase;
+- nenhum role permission/assignment alterado;
+- nenhum dado narrativo, Auth, grant, RLS, DNS ou deploy alterado;
+- drift registrado em `migrations.md` e neste log.
+
+### Gate seguinte
+
+Antes de qualquer aplicação física do World layout:
+
+1. integrar e validar em CI terminal a migration candidata;
+2. reconciliar formalmente os IDs remotos/locais divergentes sem reescrever história;
+3. confirmar o SHA exato da `main` candidata;
+4. executar uma rodada separada/autorizada do database runbook;
+5. revalidar objetos/grants/history e advisors após aplicação;
+6. só então conectar `/edit/mundo` à leitura/escrita real e conceder a capability necessária.
+
+---
+
 ## 2026-09-07 — auditoria das RPCs `SECURITY DEFINER`
 
 ### Escopo
