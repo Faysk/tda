@@ -40,23 +40,10 @@ test("Discord entry is clear and has no alternate credentials", async ({
 	).toBe(true);
 });
 
-test("administrative pages disclose no data even with the legacy flag enabled", async ({
+test("administrative pages disclose no data when access resolution is unavailable", async ({
 	page,
 	request,
 }) => {
-	for (const path of [
-		"/edit",
-		"/edit/mundo",
-		"/edit/processamento",
-		"/edit/sessoes/private-fixture",
-	]) {
-		await page.goto(path);
-		await expect(page).toHaveURL(/\/conta\?acesso=negado$/);
-		await expect(
-			page.getByRole("heading", { name: "Acesso à campanha" }),
-		).toBeVisible();
-		await expect(page.locator("body")).not.toContainText("private-fixture");
-	}
 	const result = await request.get("/api/auth/me");
 	expect(result.status()).toBe(503);
 	expect(await result.json()).toEqual({
@@ -65,6 +52,24 @@ test("administrative pages disclose no data even with the legacy flag enabled", 
 		capabilities: [],
 	});
 	expect(result.headers()["cache-control"]).toContain("no-store");
+
+	for (const path of [
+		"/edit",
+		"/edit/mundo",
+		"/edit/processamento",
+		"/edit/sessoes/private-fixture",
+	]) {
+		await page.goto(path);
+		await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/);
+		await expect(
+			page.getByRole("heading", { name: "Acesso à campanha" }),
+		).toBeVisible();
+		await expect(page.locator("main").getByRole("alert")).toContainText(
+			"não conseguiu verificar seu acesso",
+		);
+		await expect(page.locator("body")).not.toContainText("private-fixture");
+	}
+
 	expect((await request.get("/auth/logout")).status()).toBe(405);
 	expect((await request.get("/auth/discord")).status()).toBe(405);
 });

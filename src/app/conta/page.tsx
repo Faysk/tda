@@ -14,7 +14,12 @@ export const metadata: Metadata = {
 	title: "Minha conta",
 	robots: { index: false, follow: false },
 };
-export default async function AccountPage() {
+export default async function AccountPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ acesso?: string }>;
+}) {
+	const query = await searchParams;
 	const access = await currentAccess();
 	const allowed =
 		access.context &&
@@ -50,6 +55,12 @@ export default async function AccountPage() {
 			? "Escolha uma das tarefas disponíveis para sua conta nesta campanha."
 			: "Sua conta está vinculada. Nenhuma tarefa administrativa está disponível para você neste momento.",
 	};
+	const accessNotice =
+		query.acesso === "negado"
+			? "Sua conta não tem acesso à área que você tentou abrir. Use uma das tarefas disponíveis abaixo."
+			: query.acesso === "indisponivel"
+				? "A área que você tentou abrir não conseguiu verificar seu acesso. Tente novamente em instantes."
+				: null;
 	return (
 		<section className={`${styles.shell} ${styles.accountShell}`}>
 			<div className={styles.eyebrow}>TDA · SUA CONTA</div>
@@ -59,6 +70,11 @@ export default async function AccountPage() {
 			<p className={styles.description} role="status">
 				{descriptions[access.state]}
 			</p>
+			{accessNotice ? (
+				<p className={styles.notice} role="alert">
+					{accessNotice}
+				</p>
+			) : null}
 			<nav aria-label="Espaços da campanha" className={styles.taskGrid}>
 				{[
 					{

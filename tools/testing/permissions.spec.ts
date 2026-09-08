@@ -245,3 +245,26 @@ test("account tasks reflect access and remain usable at narrow widths", async ({
 		tasks.getByRole("link", { name: "Abrir Edit", exact: true }),
 	).toHaveCount(0);
 });
+
+test("private route returns distinguish denied from unavailable access", async ({
+	page,
+	context,
+}) => {
+	await login(context, "manager");
+	await page.goto("/edit");
+	await expect(page).toHaveURL(/\/conta\?acesso=negado$/u);
+	await expect(page.locator("main").getByRole("alert")).toContainText(
+		"não tem acesso à área que você tentou abrir",
+	);
+	await expect(
+		page.getByRole("link", { name: "Consultar permissões", exact: true }),
+	).toBeVisible();
+
+	await context.clearCookies();
+	await login(context, "unavailable");
+	await page.goto("/edit");
+	await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/u);
+	await expect(page.locator("main").getByRole("alert")).toContainText(
+		"não conseguiu verificar seu acesso",
+	);
+});
