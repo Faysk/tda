@@ -126,6 +126,25 @@ describe("Discord OAuth boundary (synthetic)", () => {
 			"/conta",
 		);
 	});
+	it("preserves validated return when the provider is temporarily unavailable", async () => {
+		mocks.available.mockResolvedValueOnce(false);
+		const body = new FormData();
+		body.set("next", "/edit/processamento?tab=fila");
+		const result = await startDiscord(
+			new Request(`${origin}/auth/discord`, {
+				method: "POST",
+				headers: { origin },
+				body,
+			}),
+		);
+		const location = new URL(result.headers.get("location") ?? origin);
+		expect(location.pathname).toBe("/entrar");
+		expect(location.searchParams.get("erro")).toBe("indisponivel");
+		expect(location.searchParams.get("next")).toBe(
+			"/edit/processamento?tab=fila",
+		);
+		expect(mocks.signIn).not.toHaveBeenCalled();
+	});
 	it("rejects cross-origin login and logout", async () => {
 		for (const handler of [startDiscord, logout])
 			expect(
@@ -152,13 +171,15 @@ describe("Discord OAuth boundary (synthetic)", () => {
 		expect(mocks.exchange).toHaveBeenCalledTimes(1);
 	});
 	it("handles cancellation without exchanging or reflecting provider error text", async () => {
-		flow();
+		flow("/edit");
 		const result = await finishDiscord(
 			callback("error=access_denied&error_description=private"),
 		);
-		expect(result.headers.get("location")).toBe(
-			`${origin}/entrar?erro=cancelado`,
-		);
+		const location = new URL(result.headers.get("location") ?? origin);
+		expect(location.pathname).toBe("/entrar");
+		expect(location.searchParams.get("erro")).toBe("cancelado");
+		expect(location.searchParams.get("next")).toBe("/edit");
+		expect(location.search).not.toContain("private");
 		expect(mocks.exchange).not.toHaveBeenCalled();
 	});
 	it("uses trusted origin and saved return, ignoring host and next parameters", async () => {
@@ -171,6 +192,17 @@ describe("Discord OAuth boundary (synthetic)", () => {
 		);
 		expect(result.headers.get("location")).toBe(`${origin}/edit/sessoes/test`);
 		expect(result.headers.get("cache-control")).toContain("no-store");
+	});
+	it("preserves validated return after exchange failure", async () => {
+		flow("/edit/sessoes/test?batch=2");
+		mocks.exchange.mockResolvedValueOnce({ error: {} });
+		const result = await finishDiscord(callback());
+		const location = new URL(result.headers.get("location") ?? origin);
+		expect(location.pathname).toBe("/entrar");
+		expect(location.searchParams.get("erro")).toBe("callback");
+		expect(location.searchParams.get("next")).toBe(
+			"/edit/sessoes/test?batch=2",
+		);
 	});
 	it("denies expired code and missing verified user", async () => {
 		flow();
