@@ -22,6 +22,12 @@ const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 	context: "var(--world-edge-context, #8f9aa8)",
 };
 
+const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
+	conflict: "8 6",
+	mystic: "3 6",
+	origin: "10 5",
+};
+
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const routeOffset = props.data?.routeOffset ?? 28;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
@@ -43,7 +49,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const stroke = RELATION_STROKES[family];
 	const strokeWidth = highlighted ? 4.4 : 3.2;
 	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.98;
-	const visibleClassName = `${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`;
 
 	return (
 		<>
@@ -53,6 +58,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				stroke="rgba(2, 5, 8, 0.9)"
 				strokeWidth={strokeWidth + 4.4}
 				strokeOpacity={dimmed ? 0.1 : 0.78}
+				strokeDasharray={RELATION_DASHES[family]}
 				vectorEffect="non-scaling-stroke"
 				strokeLinecap="round"
 				strokeLinejoin="round"
@@ -63,7 +69,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				path={path}
 				markerEnd={props.markerEnd}
 				interactionWidth={30}
-				className={visibleClassName}
 				data-family={family}
 				data-world-edge={props.id}
 				vectorEffect="non-scaling-stroke"
@@ -75,6 +80,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					stroke,
 					strokeWidth,
 					strokeOpacity,
+					strokeDasharray: RELATION_DASHES[family],
+					filter: "none",
 				}}
 			/>
 			{item ? (
