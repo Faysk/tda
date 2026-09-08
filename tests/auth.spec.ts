@@ -64,7 +64,7 @@ test("administrative pages disclose no data when access resolution is unavailabl
 		await expect(
 			page.getByRole("heading", { name: "Acesso à campanha" }),
 		).toBeVisible();
-		await expect(page.getByRole("alert")).toContainText(
+		await expect(page.locator("main").getByRole("alert")).toContainText(
 			"não conseguiu verificar seu acesso",
 		);
 		await expect(page.locator("body")).not.toContainText("private-fixture");
