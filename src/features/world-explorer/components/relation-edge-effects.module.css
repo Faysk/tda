@@ -1,0 +1,68 @@
+@keyframes worldRelationFlow {
+	to {
+		stroke-dashoffset: -22;
+	}
+}
+
+.flowMotion {
+	animation: worldRelationFlow 780ms linear infinite;
+}
+
+/* The relation legend is a fieldset for semantics, but its native border reads
+   like an accidental UI frame. Keep the semantics and render it as a compact
+   legend strip that belongs to the TDA design system. */
+:global(fieldset:has(> span[data-family])) {
+	min-inline-size: 0;
+	margin: 0;
+	border: 0;
+	padding: 2px 0 12px;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family]) {
+	padding: 5px 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 82%, transparent);
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family]::before) {
+	width: 18px;
+	height: 2px;
+	border-radius: 999px;
+	box-shadow: none;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="affinity"]::before) {
+	background: #65c98a;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="family"]::before) {
+	background: #e4b455;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="creative"]::before) {
+	background: #f0a14d;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="conflict"]::before) {
+	background: repeating-linear-gradient(
+		90deg,
+		#ef5c58 0 5px,
+		transparent 5px 8px
+	);
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="mystic"]::before) {
+	background: repeating-linear-gradient(
+		90deg,
+		#a97df2 0 3px,
+		transparent 3px 7px
+	);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.flowMotion {
+		animation: none;
+		stroke-dashoffset: 0;
+	}
+}
