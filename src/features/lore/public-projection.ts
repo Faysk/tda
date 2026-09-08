@@ -1,4 +1,4 @@
-import { formatSessionDate } from "@/features/sessions/model";
+import { formatSessionDate } from "../sessions/model";
 import type {
 	LoreCardDTO,
 	LoreEntityType,
