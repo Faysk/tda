@@ -33,7 +33,7 @@ A capability `campaign.world.layout.edit` não foi encontrada no catálogo obser
 
 ### Drift identificado
 
-O migration history remoto usa IDs diferentes dos arquivos locais atualmente presentes para dois changesets:
+O migration history remoto usava IDs diferentes dos arquivos locais então presentes para dois changesets:
 
 - remoto `20260908064257 edit_transcript_segment_atomic` vs local `20260907115300_edit_transcript_segment_atomic.sql`;
 - remoto `20260908144711 transcript_review_default` vs local `20260908134500_transcript_review_default.sql`.
@@ -48,7 +48,7 @@ Foi feita inspeção read-only adicional do estado físico:
 - `search_path` observado é `pg_catalog, public`;
 - `transcript_segments.needs_review` possui default físico `true`.
 
-Essa equivalência funcional observada **não corrige o drift de versionamento** e não autoriza reescrever migration history. A aplicação de novas migrations no projeto canônico permanece bloqueada até reconciliação operacional explícita pelo runbook.
+A reconciliação posterior de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711` sem reexecutar DDL. Permanece aberto somente o drift de versionamento de `edit_transcript_segment_atomic`; equivalência funcional observada não autoriza reescrever migration history.
 
 ### Advisors
 
@@ -67,7 +67,7 @@ Nenhum warning foi convertido automaticamente em DDL. O estado foi usado somente
 
 ### Candidato preparado no repositório
 
-A branch `feat/world-layout-persistence-candidate` prepara, sem aplicação remota:
+A branch `feat/world-layout-persistence-candidate` preparou, sem aplicação remota:
 
 - `20260908192500_world_layout_capability.sql` — define `campaign.world.layout.edit` (`narrative`) sem conceder role/assignment;
 - `20260908192600_world_layout_snapshot_atomic.sql` — storage dedicado `world_layout_snapshots` + RPC `save_world_layout_snapshot_atomic(...)` server-only, optimistic concurrency e audit atômico;
@@ -91,12 +91,46 @@ O job PostgreSQL do PR candidato passou integralmente, incluindo `python tools/w
 
 Antes de qualquer aplicação física do World layout:
 
-1. integrar e validar em CI terminal a migration candidata;
-2. reconciliar formalmente os IDs remotos/locais divergentes sem reescrever história;
-3. confirmar o SHA exato da `main` candidata;
-4. executar uma rodada separada/autorizada do database runbook;
-5. revalidar objetos/grants/history e advisors após aplicação;
-6. só então conectar `/edit/mundo` à leitura/escrita real e conceder a capability necessária.
+1. reconciliar formalmente o ID remoto/local ainda divergente de `edit_transcript_segment_atomic` sem reescrever história;
+2. confirmar o SHA exato da `main` candidata;
+3. executar uma rodada separada/autorizada do database runbook;
+4. revalidar objetos/grants/history e advisors após aplicação;
+5. só então conectar `/edit/mundo` à leitura/escrita real e conceder a capability necessária.
+
+---
+
+## 2026-09-08 — default de review de transcrição e reconciliação de migration ID
+
+### Escopo
+
+Aplicação e verificação da mudança forward-only que alinha o default físico de `public.transcript_segments.needs_review` ao invariante atual `review_status='pending' => needs_review=true`, seguida de reconciliação documental do ID de migration registrado pelo Supabase.
+
+### Estado observado antes da mudança
+
+- `needs_review DEFAULT false`;
+- distribuição: `pending/false=30.839`, `pending/true=17`, `needs_review/true=1`;
+- nenhuma CHECK constraint foi adicionada entre `review_status` e `needs_review`.
+
+### Aplicação
+
+O SQL aplicado alterou somente o default de `needs_review` para `true`. Não houve backfill, alteração de linhas históricas, grant, RLS, RPC, Auth ou deploy de aplicação.
+
+O migration history remoto registrou a mudança como:
+
+- `20260908144711 transcript_review_default`.
+
+A candidata originalmente integrada no repositório possuía o mesmo SQL sob `20260908134500_transcript_review_default.sql`. A reconciliação posterior apenas renomeia o arquivo local e atualiza os consumidores sintéticos/documentação para corresponder ao ID remoto; o DDL não é reexecutado.
+
+### Verificação pós-aplicação
+
+- `information_schema.columns.column_default` para `public.transcript_segments.needs_review` passou a `true`;
+- as contagens históricas permaneceram exatamente `pending/false=30.839`, `pending/true=17`, `needs_review/true=1`;
+- advisors de segurança/performance foram reexecutados sem nova classe de alerta relacionada à mudança;
+- permaneceram as dívidas já conhecidas de RLS sem policy em várias tabelas, funções `SECURITY DEFINER` executáveis por `authenticated`, leaked-password protection desabilitada, FKs sem índice e índices ainda sem uso.
+
+### Estado final
+
+A geração de novos `pending/false` por omissão de `needs_review` foi interrompida pelo default. As 30.839 linhas históricas continuam intocadas e precisam ser classificadas antes de qualquer backfill ou CHECK constraint.
 
 ---
 

@@ -78,18 +78,11 @@ A estratégia é:
 - `20260906210427 backfill_narrative_entity_links`
 - `20260906211040 relax_reboot_entity_name_lookup`
 
-### 2026-09-07 — concorrência otimista do Edit
+### 2026-09-07/08 — concorrência otimista do Edit e review de transcrição
 
 - `20260907084234 add_transcript_segment_revision`
-
-### 2026-09-08 — novas entradas remotas observadas
-
-A inspeção read-only de 2026-09-08 encontrou também:
-
 - `20260908064257 edit_transcript_segment_atomic`
 - `20260908144711 transcript_review_default`
-
-Esses IDs **não correspondem aos nomes/versionamentos locais atualmente presentes** (`20260907115300_edit_transcript_segment_atomic.sql` e `20260908134500_transcript_review_default.sql`). Até reconciliar conteúdo/linha histórica, tratar isso como drift conhecido e **não aplicar novas migrations no Supabase canônico por inferência de equivalência**.
 
 ## Boundary do reboot aplicado
 
@@ -134,22 +127,20 @@ Validação pós-migration registrada: 30.857 segmentos preservados, zero `revis
 
 ## Drift conhecido observado em 2026-09-08
 
-O banco canônico contém duas entradas remotas que não possuem o mesmo versionamento dos arquivos locais de mesmo objetivo nominal:
+A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. Permanece um drift conhecido de versionamento para a mutation atômica de transcript:
 
-- remoto `20260908064257 edit_transcript_segment_atomic` vs local `20260907115300_edit_transcript_segment_atomic.sql`;
-- remoto `20260908144711 transcript_review_default` vs local `20260908134500_transcript_review_default.sql`.
+- remoto `20260908064257 edit_transcript_segment_atomic`;
+- local `20260907115300_edit_transcript_segment_atomic.sql`.
 
-A presença de nome lógico semelhante **não prova identidade de bytes/DDL**. Antes de qualquer nova aplicação de migration no projeto canônico, o owner de dados deve comparar definição física, conteúdo pretendido e histórico, então reconciliar por documentação/migration apropriada sem reescrever silenciosamente história já aplicada.
+A inspeção read-only confirmou que a função física remota possui assinatura, comportamento, `SECURITY INVOKER`, `search_path`, comentário e grants compatíveis com o contrato do arquivo local. Ainda assim, equivalência funcional observada não autoriza reescrever history nem reexecutar DDL. A reconciliação desse ID deve ocorrer em recorte próprio pelo database runbook.
 
-Este drift não impede preparar migrations candidatas em branch/CI sintético, mas bloqueia tratar essas candidatas como prontas para aplicação remota.
-
-## Migration candidata / arquivo local em reconciliação
+## Migration local em reconciliação
 
 ### `20260907115300_edit_transcript_segment_atomic`
 
-**Estado:** arquivo local versionado. O ID exato `20260907115300` não foi observado no histórico remoto em 2026-09-08; existe uma entrada remota `20260908064257 edit_transcript_segment_atomic`. **Não assumir equivalência até reconciliação explícita.**
+**Estado:** arquivo local versionado; a função já foi aplicada no Supabase canônico, mas o migration history remoto a registrou como `20260908064257 edit_transcript_segment_atomic`. Esse ID permanece drift conhecido e deve ser reconciliado em recorte próprio, sem reexecutar DDL.
 
-Objetivo do arquivo local:
+Objetivo:
 
 - criar `public.edit_transcript_segment_atomic(...)` como boundary server-only `SECURITY INVOKER`;
 - revalidar `segment -> session -> campaign` pelo slug antes de qualquer write;
@@ -187,14 +178,11 @@ Limites da validação isolada:
 - sem migration history remoto pós-aplicação;
 - somente `READ COMMITTED`.
 
-Ainda pendente antes de qualquer reconciliação/aplicação:
+Ainda pendente:
 
-- comparar a definição física remota com o arquivo local;
-- reconciliar o ID histórico sem fabricar aplicação retroativa;
-- revalidar função, grants e migration history remotamente;
-- executar advisors de segurança/performance depois de qualquer correção;
-- registrar o resultado no `verification-log.md`;
-- manter integração Auth/Edit coerente com o estado físico real.
+- reconciliar o ID local `20260907115300` com o migration history remoto `20260908064257` sem reexecutar DDL;
+- registrar a reconciliação no `verification-log.md`;
+- integrar Auth/Edit em recorte próprio.
 
 Rollback lógico:
 
@@ -202,11 +190,11 @@ Rollback lógico:
 - se já houver consumidor, primeiro desligar o adapter canônico e restaurar o caminho anterior;
 - não remover `transcript_segments.revision` e não apagar eventos de audit para simular rollback de edição.
 
-### `20260908134500_transcript_review_default`
+### `20260908144711_transcript_review_default`
 
-**Estado:** arquivo local versionado. O ID exato `20260908134500` não foi observado no histórico remoto em 2026-09-08; existe uma entrada remota `20260908144711 transcript_review_default`. **Reconciliar antes de afirmar identidade/aplicação do arquivo local.**
+**Estado:** aplicada no Supabase canônico em 2026-09-08. O SQL é idêntico ao da candidata originalmente versionada como `20260908134500_transcript_review_default.sql`; esta reconciliação alinha somente o ID local ao migration history remoto, sem reexecutar DDL.
 
-Objetivo do arquivo local:
+Objetivo:
 
 - alinhar o default físico de `public.transcript_segments.needs_review` para `true`;
 - manter coerência com o default existente `review_status = 'pending'` e com o invariante atual do Edit/import;
@@ -219,10 +207,11 @@ Compatibilidade e limites:
 - não adiciona CHECK constraint enquanto a massa histórica inconsistente não for reconciliada;
 - writers que persistem `needs_review` explicitamente continuam com o mesmo comportamento.
 
-Validação candidata:
+Validação:
 
-- o PostgreSQL sintético do job `transcript-import-postgres` aplica o arquivo local e executa `supabase/tests/transcript_review_default.sql`;
-- o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`.
+- o PostgreSQL sintético do job `transcript-import-postgres` aplica a migration e executa `supabase/tests/transcript_review_default.sql`;
+- o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`;
+- no Supabase canônico, o default foi confirmado como `true` e as contagens históricas permaneceram `pending/false=30.839`, `pending/true=17`, `needs_review/true=1` após a aplicação.
 
 Rollback lógico:
 
@@ -364,7 +353,7 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 
 ## Candidatos de importação de transcrição
 
-- `20260907193704_transcript_import_capability`: define `campaign.transcript.import` (mixed), sem grants de roles/operadores.
+- `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
 - `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisado pelo owner SQL e validado em PostgreSQL scratch com concorrência real, **não aplicado em produção**.
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
