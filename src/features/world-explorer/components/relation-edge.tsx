@@ -55,7 +55,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				vectorEffect="non-scaling-stroke"
 				strokeLinecap="round"
 				strokeLinejoin="round"
-				aria-hidden="true"
+				pointerEvents="none"
 			/>
 			<path
 				id={`${props.id}-visible`}
