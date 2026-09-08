@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -181,6 +181,33 @@ Rollback lógico:
 - se ainda sem consumidor, remover/revogar a função em migration corretiva é reversível;
 - se já houver consumidor, primeiro desligar o adapter canônico e restaurar o caminho anterior;
 - não remover `transcript_segments.revision` e não apagar eventos de audit para simular rollback de edição.
+
+### `20260908134500_transcript_review_default`
+
+**Estado:** candidata versionada; **não aplicar no Supabase canônico antes de CI terminal e integração da PR correspondente**.
+
+Objetivo:
+
+- alinhar o default físico de `public.transcript_segments.needs_review` para `true`;
+- manter coerência com o default existente `review_status = 'pending'` e com o invariante atual do Edit/import;
+- impedir que novos writers que omitam `needs_review` fabriquem novos registros `pending/false`.
+
+Compatibilidade e limites:
+
+- não altera linhas históricas;
+- não executa backfill;
+- não adiciona CHECK constraint enquanto a massa histórica inconsistente não for reconciliada;
+- writers que persistem `needs_review` explicitamente continuam com o mesmo comportamento.
+
+Validação candidata:
+
+- o PostgreSQL sintético do job `transcript-import-postgres` aplica a migration e executa `supabase/tests/transcript_review_default.sql`;
+- o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`.
+
+Rollback lógico:
+
+- antes de qualquer dependência nova do default, uma migration corretiva pode restaurar o default anterior;
+- não apagar nem reclassificar linhas históricas como forma de rollback.
 
 ## Regras para migration nova
 
