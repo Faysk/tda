@@ -157,7 +157,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-07 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, migração e rollback](../operations/local-companion.md) | local-companion/processing | preparado; base executável sintética em branch/PR | 2026-09-07 |
-| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-07 |
+| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-07 |
 
 ## Cobertura
