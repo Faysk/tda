@@ -47,5 +47,9 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const focusId = resolveWorldFocusId(DANDELION_WORLD_DEMO, requestedFocus);
 	const projection = buildWorldProjection(DANDELION_WORLD_DEMO, focusId);
 
-	return <WorldExplorerClient projection={projection} />;
+	return (
+		<main style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+			<WorldExplorerClient projection={projection} />
+		</main>
+	);
 }
