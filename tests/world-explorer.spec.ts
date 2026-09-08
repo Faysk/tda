@@ -18,19 +18,27 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 
 test("World Explorer renders relation strokes independently of fitView zoom", async ({ page }) => {
 	await page.goto("/mundo");
-	const edges = page.locator(".react-flow__edge-path");
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
+
+	const edges = page.locator("[data-world-edge]");
+	await expect(edges.first()).toBeVisible();
 	expect(await edges.count()).toBeGreaterThan(0);
 
 	const paint = await edges.first().evaluate((element) => {
 		const style = getComputedStyle(element);
+		const path = element as SVGPathElement;
 		return {
 			stroke: style.stroke,
 			strokeWidth: Number.parseFloat(style.strokeWidth),
 			strokeOpacity: Number.parseFloat(style.strokeOpacity),
 			vectorEffect: style.vectorEffect,
+			length: path.getTotalLength(),
+			d: path.getAttribute("d"),
 		};
 	});
 
+	expect(paint.d).toBeTruthy();
+	expect(paint.length).toBeGreaterThan(20);
 	expect(paint.stroke).not.toBe("none");
 	expect(paint.stroke).not.toBe("rgba(0, 0, 0, 0)");
 	expect(paint.strokeWidth).toBeGreaterThanOrEqual(2.5);
