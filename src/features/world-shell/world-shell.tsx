@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import styles from "./world-shell.module.css";
@@ -99,11 +99,6 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 		() => WORLD_NAV_ITEMS.find((item) => itemIsCurrent(pathname, item.href)),
 		[pathname],
 	);
-
-	useEffect(() => {
-		const dialog = dialogRef.current;
-		if (dialog?.open) dialog.close();
-	}, [pathname]);
 
 	const openDrawer = () => {
 		const dialog = dialogRef.current;
