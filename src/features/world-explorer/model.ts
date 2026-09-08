@@ -14,7 +14,8 @@ export const WORLD_ENTITY_TYPES = [
 export type WorldEntityType = (typeof WORLD_ENTITY_TYPES)[number];
 
 export type WorldNodeKind = "entity" | "moment";
-
+export type WorldGraphMode = "overview" | "focus";
+export type WorldNodeProminence = "hero" | "primary" | "supporting" | "context";
 export type WorldRelationDirection = "directed" | "symmetric";
 
 export type WorldRelationFamily =
@@ -28,6 +29,11 @@ export type WorldRelationFamily =
 	| "creative"
 	| "context";
 
+export type WorldPositionHint = Readonly<{
+	x: number;
+	y: number;
+}>;
+
 export type WorldNodeDTO = {
 	id: string;
 	slug: string | null;
@@ -38,6 +44,10 @@ export type WorldNodeDTO = {
 	imageUrl?: string;
 	status?: string;
 	route?: string;
+	/** Presentation-only weight. It never changes narrative authority. */
+	prominence?: WorldNodeProminence;
+	/** Optional curated seed used only by the canvas layout. */
+	layoutHint?: WorldPositionHint;
 };
 
 export type WorldEdgeDTO = {
@@ -52,7 +62,9 @@ export type WorldEdgeDTO = {
 
 export type WorldGraphProjection = {
 	demo: boolean;
-	focusId: string;
+	mode: WorldGraphMode;
+	focusId: string | null;
+	heroIds: string[];
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
 };
@@ -60,6 +72,7 @@ export type WorldGraphProjection = {
 export type WorldDemoDataset = {
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
+	heroIds?: string[];
 };
 
 export const WORLD_FILTERS = [
@@ -77,3 +90,18 @@ export type WorldFilter = (typeof WORLD_FILTERS)[number];
 export function isWorldFilter(value: string): value is WorldFilter {
 	return WORLD_FILTERS.includes(value as WorldFilter);
 }
+
+export const WORLD_RELATION_FILTERS = [
+	"all",
+	"affinity",
+	"family",
+	"conflict",
+	"authority",
+	"faction",
+	"origin",
+	"mystic",
+	"creative",
+	"context",
+] as const;
+
+export type WorldRelationFilter = (typeof WORLD_RELATION_FILTERS)[number];
