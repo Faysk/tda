@@ -35,7 +35,12 @@ test("World Explorer nodes use semantic silhouettes and floating edge anchors", 
 	await expect(edge).toHaveAttribute("data-edge-anchor", "floating");
 });
 
-test("floating World Explorer edge geometry follows a dragged hero", async ({ page }) => {
+test("floating World Explorer edge geometry follows a dragged hero", async ({ page }, testInfo) => {
+	test.skip(
+		testInfo.project.name === "mobile",
+		"Freeform mouse dragging is a desktop canvas interaction; mobile validates the same floating geometry and anchors without synthesizing a mouse drag.",
+	);
+
 	await page.goto("/mundo");
 	const hero = page.locator('[data-world-node="astel"]');
 	const edge = page.locator('[data-world-edge="dandelion-astel"]');
