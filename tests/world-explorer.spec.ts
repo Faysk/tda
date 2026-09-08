@@ -20,19 +20,17 @@ test("World Explorer renders relation strokes across the full canvas independent
 	await page.goto("/mundo");
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
-	const canvas = page.getByTestId("world-canvas");
-	const edgeLayer = canvas.locator("svg.react-flow__edges");
 	const edges = page.locator("[data-world-edge]");
-	await expect(edgeLayer).toBeVisible();
 	await expect(edges.first()).toBeVisible();
 	expect(await edges.count()).toBeGreaterThan(0);
 
-	const layerPaint = await edgeLayer.evaluate((element) => {
+	const layerPaint = await edges.first().evaluate((element) => {
+		const edgeLayer = element.closest("svg");
 		const canvas = element.closest('[data-testid="world-canvas"]');
-		if (!canvas) throw new Error("World canvas not found");
+		if (!edgeLayer || !canvas) throw new Error("World edge layer or canvas not found");
 		const canvasRect = canvas.getBoundingClientRect();
-		const edgeRect = element.getBoundingClientRect();
-		const style = getComputedStyle(element);
+		const edgeRect = edgeLayer.getBoundingClientRect();
+		const style = getComputedStyle(edgeLayer);
 		return {
 			widthRatio: edgeRect.width / canvasRect.width,
 			heightRatio: edgeRect.height / canvasRect.height,
