@@ -4,6 +4,7 @@ import {
 	type WorldLayout,
 } from "../constellation-layout";
 import { routeWorldEdgePorts } from "../edge-routing";
+import { worldLayoutOverrides } from "../layout-contract";
 import type {
 	WorldEdgeDTO,
 	WorldGraphProjection,
@@ -49,6 +50,11 @@ function layoutWithOverrides(
 	positionOverrides?: Readonly<WorldLayout>,
 ): WorldLayout {
 	const layout = constellationWorldLayout(projection);
+
+	for (const [id, position] of Object.entries(worldLayoutOverrides(projection))) {
+		layout[id] = position;
+	}
+
 	if (!positionOverrides) return layout;
 	for (const [id, position] of Object.entries(positionOverrides)) {
 		if (projection.nodes.some((node) => node.id === id)) layout[id] = position;

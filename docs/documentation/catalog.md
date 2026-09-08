@@ -30,6 +30,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0007 — Edit como workbench server-first orientado a capabilities](../adr/0007-edit-workbench.md) | Não declarado | Não declarado | Não declarado |
 | [ADR-0008 — autorização orientada a capabilities e scope](../adr/0008-capability-authorization.md) | identity/access + arquitetura + segurança | accepted | Não declarado |
 | [ADR-0009 — World Explorer multi-hub e layout espacial reorganizável](../adr/0009-world-explorer-multihub-layout.md) | frontend / narrative-memory | accepted | 2026-09-08 |
+| [ADR-0010 — persistência editorial do layout do World Explorer separada do canon](../adr/0010-world-explorer-editorial-layout-persistence.md) | frontend / narrative-memory / identity-access | accepted | 2026-09-08 |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -118,7 +119,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
-| [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | arquitetura aprovada; vertical slice visual em implementação | 2026-09-07 |
+| [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | fundação multi-hub e roteamento implementados; layout editorial preparado; dados reais pendentes | 2026-09-08 |
 
 ## docs/integrations
 
@@ -160,4 +161,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-94 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+95 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

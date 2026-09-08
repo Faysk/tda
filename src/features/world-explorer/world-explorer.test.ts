@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { toReactFlowGraph } from "./adapters/react-flow";
 import { constellationWorldLayout } from "./constellation-layout";
 import { routeWorldEdgePorts } from "./edge-routing";
 import { DANDELION_WORLD_DEMO } from "./fixtures/dandelion";
+import { sanitizeWorldLayoutProjection } from "./layout-contract";
+import type { WorldDemoDataset, WorldLayoutProjection } from "./model";
 import {
 	buildWorldProjection,
 	filterWorldRelations,
@@ -62,6 +65,79 @@ describe("World Explorer constellation layout", () => {
 		const projection = buildWorldProjection(DANDELION_WORLD_DEMO, "astel");
 		const layout = constellationWorldLayout(projection);
 		expect(layout.astel).toEqual({ x: 0, y: 0 });
+	});
+});
+
+describe("World Explorer editorial layout contract", () => {
+	it("filters stale, hidden and malformed coordinates before projection", () => {
+		const layout: WorldLayoutProjection = {
+			schemaVersion: 1,
+			view: "overview",
+			revision: 7,
+			positions: {
+				dandelion: { x: 120, y: -80 },
+				astel: { x: Number.POSITIVE_INFINITY, y: 20 },
+				ivory: { x: 7_000, y: 0 },
+				"secret-node": { x: 15, y: 15 },
+			},
+		};
+
+		const sanitized = sanitizeWorldLayoutProjection(
+			layout,
+			new Set(["dandelion", "astel", "ivory"]),
+			"overview",
+		);
+
+		expect(sanitized).toEqual({
+			schemaVersion: 1,
+			view: "overview",
+			revision: 7,
+			positions: { dandelion: { x: 120, y: -80 } },
+		});
+	});
+
+	it("applies editorial overview positions while keeping local dragging highest priority", () => {
+		const dataset: WorldDemoDataset = {
+			...DANDELION_WORLD_DEMO,
+			layout: {
+				schemaVersion: 1,
+				view: "overview",
+				revision: 3,
+				positions: {
+					dandelion: { x: 100, y: 200 },
+					astel: { x: -320, y: 75 },
+					"not-visible": { x: 1, y: 1 },
+				},
+			},
+		};
+		const projection = buildWorldProjection(dataset);
+		const graph = toReactFlowGraph(projection, null, {
+			dandelion: { x: 777, y: 888 },
+		});
+		const dandelion = graph.nodes.find((node) => node.id === "dandelion");
+		const astel = graph.nodes.find((node) => node.id === "astel");
+
+		expect(projection.layout?.positions["not-visible"]).toBeUndefined();
+		expect(dandelion?.position).toEqual({ x: 777, y: 888 });
+		expect(astel?.position).toEqual({ x: -320, y: 75 });
+	});
+
+	it("does not reuse overview persistence inside a focused exploration", () => {
+		const dataset: WorldDemoDataset = {
+			...DANDELION_WORLD_DEMO,
+			layout: {
+				schemaVersion: 1,
+				view: "overview",
+				revision: 4,
+				positions: { astel: { x: 900, y: 900 } },
+			},
+		};
+		const projection = buildWorldProjection(dataset, "astel");
+		const graph = toReactFlowGraph(projection);
+		const astel = graph.nodes.find((node) => node.id === "astel");
+
+		expect(projection.layout).toBeUndefined();
+		expect(astel?.position).toEqual({ x: 0, y: 0 });
 	});
 });
 
