@@ -1,0 +1,100 @@
+@keyframes worldRelationFlow {
+	from {
+		stroke-dashoffset: 0;
+	}
+	to {
+		stroke-dashoffset: -48;
+	}
+}
+
+.flowMotion {
+	stroke-dashoffset: 0;
+	animation-name: worldRelationFlow;
+	animation-duration: 820ms;
+	animation-timing-function: linear;
+	animation-iteration-count: infinite;
+	animation-play-state: running;
+	will-change: stroke-dashoffset;
+}
+
+/* The relation legend is a fieldset for semantics, but the native fieldset
+   frame reads like an accidental horizontal rule in the World Explorer. */
+:global(fieldset:has(> span[data-family])) {
+	min-inline-size: 0;
+	margin: 0 !important;
+	border: 0 !important;
+	outline: 0 !important;
+	box-shadow: none !important;
+	padding: 2px 0 12px;
+	background: transparent;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family]) {
+	padding: 5px 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 82%, transparent);
+	color: var(--ds-foreground-soft);
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family]::before) {
+	width: 20px;
+	height: 3px;
+	border-radius: 999px;
+	box-shadow: none;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="affinity"]) {
+	border-color: color-mix(in srgb, #65c98a 34%, var(--ds-border-subtle));
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="affinity"]::before) {
+	background: #65c98a;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="family"]) {
+	border-color: color-mix(in srgb, #e4b455 34%, var(--ds-border-subtle));
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="family"]::before) {
+	background: #e4b455;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="creative"]) {
+	border-color: color-mix(in srgb, #f0a14d 34%, var(--ds-border-subtle));
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="creative"]::before) {
+	background: #f0a14d;
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="conflict"]) {
+	border-color: color-mix(in srgb, #ef5c58 34%, var(--ds-border-subtle));
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="conflict"]::before) {
+	background: repeating-linear-gradient(
+		90deg,
+		#ef5c58 0 5px,
+		transparent 5px 8px
+	);
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="mystic"]) {
+	border-color: color-mix(in srgb, #a97df2 34%, var(--ds-border-subtle));
+}
+
+:global(fieldset:has(> span[data-family]) > span[data-family="mystic"]::before) {
+	background: repeating-linear-gradient(
+		90deg,
+		#a97df2 0 3px,
+		transparent 3px 7px
+	);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.flowMotion {
+		animation: none;
+		stroke-dashoffset: 0;
+	}
+}
