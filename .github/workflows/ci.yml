@@ -23,6 +23,7 @@ jobs:
       - run: pnpm exec vitest run src/features/transcript-sync/database.test.ts
         env:
           TDA_SYNTHETIC_POSTGRES: "1"
+      - run: python tools/world-layout-db.py
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
