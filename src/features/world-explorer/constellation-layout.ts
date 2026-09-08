@@ -96,7 +96,8 @@ function averagePosition(ids: readonly string[], layout: WorldLayout): WorldPosi
 function stableSignatureAngle(signature: string): number {
 	let hash = 0;
 	for (const character of signature) {
-		hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
+		const codePoint = character.codePointAt(0) ?? 0;
+		hash = (hash * 31 + codePoint) >>> 0;
 	}
 	return ((hash % 360) / 180) * Math.PI;
 }
