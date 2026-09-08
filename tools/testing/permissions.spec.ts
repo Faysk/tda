@@ -253,7 +253,7 @@ test("private route returns distinguish denied from unavailable access", async (
 	await login(context, "manager");
 	await page.goto("/edit");
 	await expect(page).toHaveURL(/\/conta\?acesso=negado$/u);
-	await expect(page.getByRole("alert")).toContainText(
+	await expect(page.locator("main").getByRole("alert")).toContainText(
 		"não tem acesso à área que você tentou abrir",
 	);
 	await expect(
@@ -264,7 +264,7 @@ test("private route returns distinguish denied from unavailable access", async (
 	await login(context, "unavailable");
 	await page.goto("/edit");
 	await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/u);
-	await expect(page.getByRole("alert")).toContainText(
+	await expect(page.locator("main").getByRole("alert")).toContainText(
 		"não conseguiu verificar seu acesso",
 	);
 });
