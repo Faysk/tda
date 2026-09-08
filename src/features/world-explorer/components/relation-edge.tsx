@@ -1,13 +1,25 @@
 "use client";
 
 import {
-	BaseEdge,
 	EdgeLabelRenderer,
 	getSmoothStepPath,
 	type EdgeProps,
 } from "@xyflow/react";
 import type { WorldFlowEdge } from "../adapters/react-flow";
+import type { WorldRelationFamily } from "../model";
 import styles from "./world-explorer.module.css";
+
+const RELATION_STROKES: Record<WorldRelationFamily, string> = {
+	affinity: "var(--world-edge-affinity, #65c98a)",
+	family: "var(--world-edge-family, #e4b455)",
+	conflict: "var(--world-edge-conflict, #ef5c58)",
+	authority: "var(--world-edge-context, #8f9aa8)",
+	faction: "var(--world-edge-context, #8f9aa8)",
+	origin: "var(--world-edge-origin, #6caee8)",
+	mystic: "var(--world-edge-mystic, #a97df2)",
+	creative: "var(--world-edge-creative, #f0a14d)",
+	context: "var(--world-edge-context, #8f9aa8)",
+};
 
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const routeOffset = props.data?.routeOffset ?? 28;
@@ -27,16 +39,37 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const family = props.data?.family ?? "context";
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
+	const stroke = RELATION_STROKES[family];
+	const visibleClassName = `${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`;
 
 	return (
 		<>
-			<BaseEdge
-				id={props.id}
-				path={path}
+			<path
+				id={`${props.id}-visible`}
+				d={path}
+				fill="none"
 				markerEnd={props.markerEnd}
-				className={`${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`}
+				className={`react-flow__edge-path ${visibleClassName}`}
 				data-family={family}
-				interactionWidth={30}
+				data-world-edge={props.id}
+				vectorEffect="non-scaling-stroke"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				style={{
+					...props.style,
+					stroke,
+					strokeWidth: highlighted ? 3.4 : 2.6,
+					strokeOpacity: dimmed ? 0.18 : highlighted ? 1 : 0.95,
+					filter: `drop-shadow(0 0 ${highlighted ? 9 : 5}px ${stroke})`,
+				}}
+			/>
+			<path
+				d={path}
+				fill="none"
+				stroke="transparent"
+				strokeWidth={30}
+				className="react-flow__edge-interaction"
+				pointerEvents="stroke"
 			/>
 			{item ? (
 				<EdgeLabelRenderer>
