@@ -19,6 +19,7 @@ import {
 	type NodeTypes,
 } from "@xyflow/react";
 import { PublicLink } from "@/components/public-link";
+import { Select } from "@/components/ui";
 import {
 	rerouteWorldEdges,
 	toReactFlowGraph,
@@ -70,13 +71,19 @@ const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
 function nodeTypeLabel(node: WorldNodeDTO): string {
 	if (node.kind === "moment") return "Momento";
 	switch (node.entityType) {
-		case "pc": return "Herói / personagem";
-		case "npc": return "NPC";
-		case "location": return "Lugar";
+		case "pc":
+			return "Herói / personagem";
+		case "npc":
+			return "NPC";
+		case "location":
+			return "Lugar";
 		case "faction":
-		case "organization": return "Facção / organização";
-		case "song": return "Música";
-		default: return "Entidade";
+		case "organization":
+			return "Facção / organização";
+		case "song":
+			return "Música";
+		default:
+			return "Entidade";
 	}
 }
 
@@ -150,7 +157,9 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 	function resizePanel(event: ReactPointerEvent<HTMLElement>) {
 		if (!resizeStart.current) return;
 		setPanelWidth(
-			clampPanelWidth(resizeStart.current.width + resizeStart.current.x - event.clientX),
+			clampPanelWidth(
+				resizeStart.current.width + resizeStart.current.x - event.clientX,
+			),
 		);
 	}
 
@@ -178,11 +187,27 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 						</p>
 					</div>
 					<div className={styles.headerActions}>
-						{projection.demo ? <span className={styles.demoBadge}>Demonstração · relações não canônicas</span> : null}
+						{projection.demo ? (
+							<span className={styles.demoBadge}>
+								Demonstração · relações não canônicas
+							</span>
+						) : null}
 						<fieldset className={styles.viewToggle}>
 							<legend className={styles.srOnly}>Modo de visualização</legend>
-							<button type="button" aria-pressed={view === "canvas"} onClick={() => setView("canvas")}>Canvas</button>
-							<button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>Lista</button>
+							<button
+								type="button"
+								aria-pressed={view === "canvas"}
+								onClick={() => setView("canvas")}
+							>
+								Canvas
+							</button>
+							<button
+								type="button"
+								aria-pressed={view === "list"}
+								onClick={() => setView("list")}
+							>
+								Lista
+							</button>
 						</fieldset>
 					</div>
 				</header>
@@ -191,20 +216,37 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					<label className={styles.searchField}>
 						<span className={styles.srOnly}>Buscar no mundo</span>
 						<span aria-hidden="true">⌕</span>
-						<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar pessoa, lugar ou memória..." />
+						<input
+							type="search"
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Buscar pessoa, lugar ou memória..."
+						/>
 					</label>
-					<label className={styles.relationSelect}>
+					<div className={styles.relationSelect}>
 						<span>Relação</span>
-						<select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as WorldRelationFilter)}>
-							{RELATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-						</select>
-					</label>
-					<button className={styles.resetButton} type="button" onClick={resetLayout}>Reorganizar</button>
+						<Select
+							value={relationFilter}
+							options={RELATION_OPTIONS}
+							onChange={setRelationFilter}
+							ariaLabel="Filtrar por relação"
+							embedded
+						/>
+					</div>
+					<button className={styles.resetButton} type="button" onClick={resetLayout}>
+						Reorganizar
+					</button>
 				</div>
 
 				<fieldset className={styles.filters} aria-label="Filtrar o grafo">
 					{FILTER_OPTIONS.map((option) => (
-						<button key={option.value} type="button" className={filter === option.value ? styles.filterActive : undefined} aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
+						<button
+							key={option.value}
+							type="button"
+							className={filter === option.value ? styles.filterActive : undefined}
+							aria-pressed={filter === option.value}
+							onClick={() => setFilter(option.value)}
+						>
 							{option.label}
 						</button>
 					))}
@@ -249,7 +291,12 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					</div>
 				) : null}
 
-				<AccessibleRelations projection={visibleProjection} selectedId={selected?.id ?? null} onSelect={setSelectedId} compact={view === "canvas"} />
+				<AccessibleRelations
+					projection={visibleProjection}
+					selectedId={selected?.id ?? null}
+					onSelect={setSelectedId}
+					compact={view === "canvas"}
+				/>
 			</section>
 
 			<aside className={styles.inspector} aria-live="polite">
@@ -265,11 +312,23 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 					onPointerMove={resizePanel}
 					onPointerUp={stopResize}
 					onKeyDown={(event) => {
-						if (event.key === "ArrowLeft") setPanelWidth((value) => clampPanelWidth(value + 24));
-						if (event.key === "ArrowRight") setPanelWidth((value) => clampPanelWidth(value - 24));
+						if (event.key === "ArrowLeft") {
+							setPanelWidth((value) => clampPanelWidth(value + 24));
+						}
+						if (event.key === "ArrowRight") {
+							setPanelWidth((value) => clampPanelWidth(value - 24));
+						}
 					}}
 				/>
-				<button className={styles.panelToggle} type="button" onClick={() => setPanelCollapsed((value) => !value)} aria-expanded={!panelCollapsed} aria-label={panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"}>
+				<button
+					className={styles.panelToggle}
+					type="button"
+					onClick={() => setPanelCollapsed((value) => !value)}
+					aria-expanded={!panelCollapsed}
+					aria-label={
+						panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"
+					}
+				>
 					{panelCollapsed ? "‹" : "›"}
 				</button>
 				{!panelCollapsed ? (
@@ -284,11 +343,23 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 						<div className={styles.overviewInspector}>
 							<p className={styles.eyebrow}>Visão geral</p>
 							<h2>A campanha</h2>
-							<p>Nenhum personagem é o centro permanente. Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa.</p>
+							<p>
+								Nenhum personagem é o centro permanente. Selecione qualquer nó para
+								inspecionar seus laços sem reorganizar o mapa.
+							</p>
 							<dl className={styles.overviewStats}>
-								<div><dt>Heróis visíveis</dt><dd>{visibleProjection.heroIds.length}</dd></div>
-								<div><dt>Nós</dt><dd>{visibleProjection.nodes.length}</dd></div>
-								<div><dt>Relações</dt><dd>{visibleProjection.edges.length}</dd></div>
+								<div>
+									<dt>Heróis visíveis</dt>
+									<dd>{visibleProjection.heroIds.length}</dd>
+								</div>
+								<div>
+									<dt>Nós</dt>
+									<dd>{visibleProjection.nodes.length}</dd>
+								</div>
+								<div>
+									<dt>Relações</dt>
+									<dd>{visibleProjection.edges.length}</dd>
+								</div>
 							</dl>
 						</div>
 					)
@@ -309,9 +380,10 @@ function InspectorContent({
 	focus?: WorldNodeDTO;
 	onSelect: (id: string) => void;
 }) {
-	const relation = focus && selected.id !== focus.id
-		? relationLabelFor(projection, selected.id, focus.id)
-		: null;
+	const relation =
+		focus && selected.id !== focus.id
+			? relationLabelFor(projection, selected.id, focus.id)
+			: null;
 	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
 	const connections = projection.edges
 		.flatMap((edge) => {
@@ -320,20 +392,49 @@ function InspectorContent({
 			const destination = nodeById.get(destinationId);
 			return destination ? [{ edge, destination }] : [];
 		})
-		.sort((left, right) => left.destination.label.localeCompare(right.destination.label, "pt-BR"));
+		.sort((left, right) =>
+			left.destination.label.localeCompare(right.destination.label, "pt-BR"),
+		);
 
 	return (
 		<>
 			<div className={styles.inspectorHero} aria-hidden="true">
-				{selected.imageUrl ? <Image className={styles.inspectorImage} src={selected.imageUrl} alt="" fill sizes="520px" /> : <span className={styles.inspectorInitial}>{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}</span>}
+				{selected.imageUrl ? (
+					<Image
+						className={styles.inspectorImage}
+						src={selected.imageUrl}
+						alt=""
+						fill
+						sizes="520px"
+					/>
+				) : (
+					<span className={styles.inspectorInitial}>
+						{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}
+					</span>
+				)}
 			</div>
 			<p className={styles.eyebrow}>{nodeTypeLabel(selected)}</p>
 			<h2>{selected.label}</h2>
-			{selected.subtitle ? <p className={styles.inspectorSubtitle}>{selected.subtitle}</p> : null}
-			{selected.id === projection.focusId ? <p className={styles.focusNote}>Foco exploratório atual.</p> : relation && focus ? <p className={styles.relationSummary}>Relação com {focus.label}: {relation}.</p> : null}
-			<p className={styles.inspectorCopy}>Selecionar apenas inspeciona. Você pode percorrer as conexões visíveis abaixo ou abrir um foco explícito sem transformar esta entity no centro permanente da campanha.</p>
+			{selected.subtitle ? (
+				<p className={styles.inspectorSubtitle}>{selected.subtitle}</p>
+			) : null}
+			{selected.id === projection.focusId ? (
+				<p className={styles.focusNote}>Foco exploratório atual.</p>
+			) : relation && focus ? (
+				<p className={styles.relationSummary}>
+					Relação com {focus.label}: {relation}.
+				</p>
+			) : null}
+			<p className={styles.inspectorCopy}>
+				Selecionar apenas inspeciona. Você pode percorrer as conexões visíveis abaixo ou
+				abrir um foco explícito sem transformar esta entity no centro permanente da
+				campanha.
+			</p>
 
-			<section className={inspectorStyles.connections} aria-labelledby={`world-inspector-connections-${selected.id}`}>
+			<section
+				className={inspectorStyles.connections}
+				aria-labelledby={`world-inspector-connections-${selected.id}`}
+			>
 				<div className={inspectorStyles.connectionsHeader}>
 					<h3 id={`world-inspector-connections-${selected.id}`}>Conexões visíveis</h3>
 					<span>{connections.length}</span>
@@ -351,34 +452,75 @@ function InspectorContent({
 										<strong>{destination.label}</strong>
 										<small>{nodeTypeLabel(destination)}</small>
 									</span>
-									<span className={inspectorStyles.relationBadge} data-family={edge.family}>{edge.label}</span>
-									<span className={inspectorStyles.connectionArrow} aria-hidden="true">›</span>
+									<span
+										className={inspectorStyles.relationBadge}
+										data-family={edge.family}
+									>
+										{edge.label}
+									</span>
+									<span className={inspectorStyles.connectionArrow} aria-hidden="true">
+										›
+									</span>
 								</button>
 							</li>
 						))}
 					</ul>
 				) : (
-					<p className={inspectorStyles.connectionsEmpty}>Nenhuma conexão permanece visível com os filtros atuais.</p>
+					<p className={inspectorStyles.connectionsEmpty}>
+						Nenhuma conexão permanece visível com os filtros atuais.
+					</p>
 				)}
 			</section>
 
 			{selected.slug && selected.id !== projection.focusId ? (
-				<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>Explorar conexões de {selected.label}</PublicLink>
+				<PublicLink
+					className={styles.focusAction}
+					href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}
+				>
+					Explorar conexões de {selected.label}
+				</PublicLink>
 			) : projection.mode === "focus" ? (
-				<PublicLink className={styles.focusAction} href="/mundo">Voltar à visão geral</PublicLink>
+				<PublicLink className={styles.focusAction} href="/mundo">
+					Voltar à visão geral
+				</PublicLink>
 			) : null}
-			{selected.route ? <PublicLink className={styles.profileAction} href={selected.route}>Ver perfil completo</PublicLink> : null}
+			{selected.route ? (
+				<PublicLink className={styles.profileAction} href={selected.route}>
+					Ver perfil completo
+				</PublicLink>
+			) : null}
 		</>
 	);
 }
 
-function AccessibleRelations({ projection, selectedId, onSelect, compact }: { projection: WorldGraphProjection; selectedId: string | null; onSelect: (id: string) => void; compact: boolean }) {
+function AccessibleRelations({
+	projection,
+	selectedId,
+	onSelect,
+	compact,
+}: {
+	projection: WorldGraphProjection;
+	selectedId: string | null;
+	onSelect: (id: string) => void;
+	compact: boolean;
+}) {
 	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
-	const relations = selectedId ? projection.edges.filter((edge) => edge.source === selectedId || edge.target === selectedId) : projection.edges;
+	const relations = selectedId
+		? projection.edges.filter(
+				(edge) => edge.source === selectedId || edge.target === selectedId,
+			)
+		: projection.edges;
 	return (
-		<section className={`${styles.relationList} ${compact ? styles.relationListCompact : ""}`} aria-labelledby="world-relations-title">
+		<section
+			className={`${styles.relationList} ${compact ? styles.relationListCompact : ""}`}
+			aria-labelledby="world-relations-title"
+		>
 			<h2 id="world-relations-title">Relações em lista</h2>
-			<p>{selectedId ? "Laços visíveis da seleção atual." : "Alternativa textual ao canvas completo."}</p>
+			<p>
+				{selectedId
+					? "Laços visíveis da seleção atual."
+					: "Alternativa textual ao canvas completo."}
+			</p>
 			{relations.length > 0 ? (
 				<ul>
 					{relations.map((edge) => {
@@ -387,15 +529,22 @@ function AccessibleRelations({ projection, selectedId, onSelect, compact }: { pr
 						const destination = selectedId === edge.source ? target : source;
 						return (
 							<li key={edge.id}>
-								<button type="button" onClick={() => destination && onSelect(destination.id)}>
-									<strong>{source?.label ?? edge.source} ↔ {target?.label ?? edge.target}</strong>
+								<button
+									type="button"
+									onClick={() => destination && onSelect(destination.id)}
+								>
+									<strong>
+										{source?.label ?? edge.source} ↔ {target?.label ?? edge.target}
+									</strong>
 									<span className={styles.relationLabelText}>{edge.label}</span>
 								</button>
 							</li>
 						);
 					})}
 				</ul>
-			) : <p>Nenhuma relação visível para os filtros atuais.</p>}
+			) : (
+				<p>Nenhuma relação visível para os filtros atuais.</p>
+			)}
 		</section>
 	);
 }
