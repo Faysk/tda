@@ -76,17 +76,57 @@ test("World Explorer exposes honest SSR metadata through the central public cont
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
 });
 
-test("World Explorer can switch to the textual view and filter relations", async ({ page }) => {
+test("World Explorer can switch to the textual view and filter relations with the DS select", async ({ page }) => {
 	await page.goto("/mundo");
 	await page.getByRole("button", { name: "Lista" }).click();
 	const relations = page.locator('section[aria-labelledby="world-relations-title"]');
 	await expect(relations.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
 	await expect(page.getByTestId("world-canvas")).toHaveCount(0);
 
-	await page.getByLabel("Relação").selectOption("conflict");
-	await expect(page.getByLabel("Relação")).toHaveValue("conflict");
+	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
+	await relationTrigger.click();
+	await page.getByRole("option", { name: "Conflito" }).click();
+	await expect(relationTrigger).toContainText("Conflito");
 	await expect(relations.getByText("Conflito", { exact: true })).toBeVisible();
 	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
+});
+
+test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
+	await page.goto("/mundo");
+	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
+	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
+	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
+
+	await relationTrigger.click();
+	await expect(listbox).toBeVisible();
+	const firstPaint = await listbox.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			background: style.backgroundColor,
+			borderWidth: style.borderTopWidth,
+			borderRadius: style.borderTopLeftRadius,
+		};
+	});
+	expect(firstPaint.background).not.toBe("rgba(0, 0, 0, 0)");
+	expect(firstPaint.borderWidth).not.toBe("0px");
+	expect(firstPaint.borderRadius).not.toBe("0px");
+	await page.keyboard.press("Escape");
+
+	const wasDark = await themeToggle.getAttribute("aria-checked");
+	await themeToggle.click();
+	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
+	await page.waitForTimeout(800);
+
+	await relationTrigger.click();
+	await expect(listbox).toBeVisible();
+	await expect.poll(() => listbox.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(firstPaint.background);
+
+	const nativeRelationSelect = await page.locator("select").evaluateAll((selects) =>
+		selects.some((select) =>
+			Array.from((select as HTMLSelectElement).options).some((option) => option.text === "Conflito"),
+		),
+	);
+	expect(nativeRelationSelect).toBe(false);
 });
 
 test("World Explorer nodes are movable without changing the URL", async ({ page }) => {
@@ -103,6 +143,15 @@ test("World Explorer nodes are movable without changing the URL", async ({ page 
 	const after = await astel.getAttribute("style");
 	expect(after).not.toBe(before);
 	await expect(page).toHaveURL(/\/mundo$/);
+});
+
+test("World Explorer collapses the side inspector before it can squeeze intermediate widths", async ({ page }) => {
+	await page.setViewportSize({ width: 1024, height: 900 });
+	await page.goto("/mundo");
+	await expect(page.getByTestId("world-canvas")).toBeVisible();
+	await expect(page.getByLabel("Ajustar largura do painel")).toBeHidden();
+	await expect(page.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
 
 test("World Explorer stays inside the viewport including the 320px minimum", async ({ page }) => {
