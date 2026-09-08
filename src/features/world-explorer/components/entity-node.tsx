@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { WorldFlowNode } from "../adapters/react-flow";
 import styles from "./world-explorer.module.css";
@@ -29,28 +30,14 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 			data-prominence={prominence}
 		>
 			{HANDLES.flatMap((handle) => [
-				<Handle
-					key={handle.source}
-					id={handle.source}
-					type="source"
-					position={handle.position}
-					className={styles.hiddenHandle}
-					isConnectable={false}
-				/>,
-				<Handle
-					key={handle.target}
-					id={handle.target}
-					type="target"
-					position={handle.position}
-					className={styles.hiddenHandle}
-					isConnectable={false}
-				/>,
+				<Handle key={handle.source} id={handle.source} type="source" position={handle.position} className={styles.hiddenHandle} isConnectable={false} />,
+				<Handle key={handle.target} id={handle.target} type="target" position={handle.position} className={styles.hiddenHandle} isConnectable={false} />,
 			])}
 			<div className={styles.nodePortrait} aria-hidden="true">
 				{item.imageUrl ? (
-					<img src={item.imageUrl} alt="" />
+					<Image className={styles.nodeImage} src={item.imageUrl} alt="" fill sizes={isHero ? "116px" : "90px"} />
 				) : (
-					<span>{initials(item.label)}</span>
+					<span className={styles.nodeInitials}>{initials(item.label)}</span>
 				)}
 				{isHero ? <i className={styles.heroOrbit} /> : null}
 			</div>
