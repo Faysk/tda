@@ -1,13 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
-import {
-	formatArchiveDuration,
-	formatArchiveNumber,
-	type SessionArchiveItem,
-} from "@/features/sessions/archive";
+import type { SessionArchiveItem } from "@/features/sessions/archive";
 import { formatSessionDate } from "@/features/sessions/model";
 import styles from "./session-list.module.css";
 
@@ -31,12 +27,13 @@ function compareDates(
 	b: SessionArchiveItem,
 	oldestFirst = false,
 ) {
-	if (!a.date && !b.date) return 0;
+	if (!a.date && !b.date) return collator.compare(a.title, b.title);
 	if (!a.date) return 1;
 	if (!b.date) return -1;
-	return oldestFirst
+	const result = oldestFirst
 		? a.date.localeCompare(b.date)
 		: b.date.localeCompare(a.date);
+	return result || collator.compare(a.title, b.title);
 }
 
 function SearchIcon() {
@@ -66,34 +63,6 @@ function ListIcon() {
 			<circle cx="4.5" cy="6" r=".8" />
 			<circle cx="4.5" cy="12" r=".8" />
 			<circle cx="4.5" cy="18" r=".8" />
-		</svg>
-	);
-}
-
-function ClockIcon() {
-	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true">
-			<circle cx="12" cy="12" r="8" />
-			<path d="M12 7v5l3 2" />
-		</svg>
-	);
-}
-
-function PeopleIcon() {
-	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true">
-			<circle cx="9" cy="9" r="3" />
-			<path d="M3.5 19c.6-3.1 2.4-5 5.5-5s5 1.9 5.5 5" />
-			<circle cx="17" cy="8" r="2.2" />
-			<path d="M16 13.5c2.8-.3 4.2 1.4 4.5 4" />
-		</svg>
-	);
-}
-
-function WordsIcon() {
-	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true">
-			<path d="M5 6h14M5 10h14M5 14h10M5 18h7" />
 		</svg>
 	);
 }
@@ -129,24 +98,6 @@ function Artwork({
 			fill
 			sizes={sizes}
 		/>
-	);
-}
-
-function Metric({
-	icon,
-	value,
-	label,
-}: {
-	icon: ReactNode;
-	value: string;
-	label: string;
-}) {
-	return (
-		<span className={styles.metric} title={`${label}: ${value}`}>
-			<span className={styles.metricIcon}>{icon}</span>
-			<span>{value}</span>
-			<span className={styles.srOnly}>{label}</span>
-		</span>
 	);
 }
 
@@ -186,23 +137,7 @@ function GridCard({
 							"O resumo desta sessão ainda não está disponível."}
 					</p>
 					<div className={styles.cardFooter}>
-						<div className={styles.metrics}>
-							<Metric
-								icon={<ClockIcon />}
-								value={formatArchiveDuration(session.durationMs)}
-								label="Duração registrada"
-							/>
-							<Metric
-								icon={<PeopleIcon />}
-								value={formatArchiveNumber(session.participantCount)}
-								label="Participantes"
-							/>
-							<Metric
-								icon={<WordsIcon />}
-								value={formatArchiveNumber(session.wordCount)}
-								label="Palavras"
-							/>
-						</div>
+						<span className={styles.readCue}>Abrir memória</span>
 						<span className={styles.openMark} aria-hidden="true">
 							<ArrowIcon />
 						</span>
@@ -210,21 +145,6 @@ function GridCard({
 				</div>
 			</Link>
 		</article>
-	);
-}
-
-function MobileMetric({
-	label,
-	value,
-}: {
-	label: string;
-	value: string;
-}) {
-	return (
-		<span className={styles.mobileMetric}>
-			<span>{label}</span>
-			<strong>{value}</strong>
-		</span>
 	);
 }
 
@@ -253,24 +173,6 @@ function ListRow({ session }: { session: SessionArchiveItem }) {
 				<span className={styles.mobileLabel}>Data</span>
 				<span>{date || "—"}</span>
 			</time>
-			<div className={styles.durationCell}>
-				<MobileMetric
-					label="Duração"
-					value={formatArchiveDuration(session.durationMs)}
-				/>
-			</div>
-			<div className={styles.participantCell}>
-				<MobileMetric
-					label="Participantes"
-					value={formatArchiveNumber(session.participantCount)}
-				/>
-			</div>
-			<div className={styles.wordsCell}>
-				<MobileMetric
-					label="Palavras"
-					value={formatArchiveNumber(session.wordCount)}
-				/>
-			</div>
 			<p className={styles.listSummary}>
 				{session.summary ||
 					"O resumo desta sessão ainda não está disponível."}
@@ -425,9 +327,6 @@ export function SessionList({
 							<span>Sessão</span>
 							<span>Arco</span>
 							<span>Data</span>
-							<span>Duração</span>
-							<span>Participantes</span>
-							<span>Palavras</span>
 							<span>Resumo</span>
 							<span />
 						</div>
