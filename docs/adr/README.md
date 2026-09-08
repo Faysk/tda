@@ -24,6 +24,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0006](0006-react-flow-world-explorer.md) | accepted | React Flow visualiza o World Explorer sem definir domínio/schema |
 | [0007](0007-edit-workbench.md) | accepted | Edit é workbench server-first, incremental e orientado a capabilities |
 | [0008](0008-capability-authorization.md) | accepted | Auth novo autoriza por capability + scope, sem super-role implícita |
+| [0009](0009-world-explorer-multihub-layout.md) | accepted | World Explorer abre multi-hub; foco é temporário e dragging é layout local |
 
 ## Quando criar ADR
 
@@ -45,6 +46,8 @@ A adoção de React Flow recebeu ADR porque define a engine de uma superfície p
 O Edit recebeu ADR porque define uma superfície administrativa principal, seu boundary de autorização, sua estratégia de migração do legado e a decisão de permanecer dentro do mesmo frontend/runtime do TDA.
 
 Auth/capabilities recebeu ADR porque muda a estratégia de autorização do reboot: novas superfícies deixam de decidir acesso por nome de role e passam a exigir capability + scope + ownership explícitos.
+
+O World Explorer multi-hub recebeu ADR porque substitui partes estruturais do primeiro slice do ADR-0006: a visão padrão deixa de ter um único foco central e o dragging público passa a ser reorganização visual local, sem virar dado de canon ou persistência implícita.
 
 ## Regra histórica
 
