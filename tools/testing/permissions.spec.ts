@@ -233,6 +233,12 @@ test("account tasks reflect access and remain usable at narrow widths", async ({
 	await login(context, "manager");
 	await page.goto("/conta");
 	await expect(
+		page.getByRole("heading", { name: "Seu espaço na campanha" }),
+	).toBeVisible();
+	await expect(page.getByRole("status")).toContainText(
+		"Escolha uma das tarefas disponíveis",
+	);
+	await expect(
 		tasks.getByRole("link", { name: "Consultar permissões", exact: true }),
 	).toBeVisible();
 	await expect(

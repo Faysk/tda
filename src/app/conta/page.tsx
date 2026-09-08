@@ -37,6 +37,7 @@ export default async function AccountPage() {
 			EDIT_CAPABILITIES.localProcess,
 			CAMPAIGN_SLUG,
 		).ok;
+	const hasTasks = allowed || permissionsAllowed || localAllowed;
 	const descriptions = {
 		anonymous: "Entre com sua conta do Discord para consultar seu acesso.",
 		unavailable:
@@ -45,15 +46,15 @@ export default async function AccountPage() {
 			"Você entrou com o Discord. Sua conta ainda precisa ser vinculada a um perfil da campanha. Fale com a pessoa responsável pela campanha.",
 		authenticated_linked_no_grants:
 			"Sua conta está vinculada, mas ainda não tem permissão para acessar a administração. Fale com a pessoa responsável pela campanha.",
-		authenticated_linked: allowed
-			? "Seu acesso às transcrições da campanha está liberado."
-			: "Sua conta está vinculada, mas não tem permissão de leitura das transcrições.",
+		authenticated_linked: hasTasks
+			? "Escolha uma das tarefas disponíveis para sua conta nesta campanha."
+			: "Sua conta está vinculada. Nenhuma tarefa administrativa está disponível para você neste momento.",
 	};
 	return (
 		<section className={`${styles.shell} ${styles.accountShell}`}>
 			<div className={styles.eyebrow}>TDA · SUA CONTA</div>
 			<h1 className={styles.title}>
-				{allowed ? "Seu espaço na campanha" : "Acesso à campanha"}
+				{hasTasks ? "Seu espaço na campanha" : "Acesso à campanha"}
 			</h1>
 			<p className={styles.description} role="status">
 				{descriptions[access.state]}
