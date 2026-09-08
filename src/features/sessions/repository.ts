@@ -53,7 +53,8 @@ export async function listPublishedSessionArchive(): Promise<
 	SessionArchiveItem[] | null
 > {
 	const sessions = await listPublishedSessions();
-	if (!sessions?.length) return sessions;
+	if (sessions === null) return null;
+	if (sessions.length === 0) return [];
 
 	const client = publishedDataClient();
 	if (!client) return null;
