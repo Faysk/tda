@@ -10,6 +10,54 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-08 — reconciliação do migration history do World Explorer
+
+### Escopo
+
+Reconciliação read-only do estado já aplicado de persistência editorial do World Explorer com os arquivos versionados do TDA. Nenhum DDL/DML foi reexecutado e nenhuma linha de migration history foi editada.
+
+### Migration history remoto confirmado
+
+O projeto canônico registra, com os statements executados preservados em `supabase_migrations.schema_migrations`:
+
+- `20260908203249 world_layout_capability`;
+- `20260908203331 world_layout_snapshot_atomic`;
+- `20260908203441 world_layout_service_role_privileges`;
+- `20260908203642 world_layout_site_editor_grant`.
+
+Os statements das duas primeiras entradas são equivalentes aos candidatos originalmente versionados como `20260908192500_world_layout_capability.sql` e `20260908192600_world_layout_snapshot_atomic.sql`. A reconciliação local apenas alinha os filenames aos IDs remotos.
+
+As duas entradas adicionais registram explicitamente mudanças já existentes no remoto:
+
+- `world_layout_service_role_privileges`: revoga os privilégios herdados/default de `service_role` na tabela e concede somente `SELECT`, `INSERT`, `UPDATE`;
+- `world_layout_site_editor_grant`: concede `campaign.world.layout.edit` ao role narrativo existente `site_editor`, sem criar profile/user assignment.
+
+### Estado físico observado
+
+- `public.world_layout_snapshots` existe e permanecia vazia (`0` snapshots) na inspeção que abriu #95;
+- RLS está habilitado sem policy de browser;
+- `save_world_layout_snapshot_atomic(...)` é `SECURITY INVOKER` e o boundary permanece server-only;
+- `service_role` possui `SELECT/INSERT/UPDATE` na tabela, sem `DELETE`;
+- `campaign.world.layout.edit` existe e está ligada ao role `site_editor`;
+- nenhum conteúdo editorial foi alterado durante a reconciliação.
+
+### Repositório
+
+A PR #98 reconcilia o repo sem reaplicar schema:
+
+- `20260908203249_world_layout_capability.sql`;
+- `20260908203331_world_layout_snapshot_atomic.sql`;
+- `20260908203441_world_layout_service_role_privileges.sql`;
+- `20260908203642_world_layout_site_editor_grant.sql`.
+
+O PostgreSQL sintético foi atualizado para representar o estado aplicado: a capability já pertence a `site_editor`, porém nenhum assignment é criado pela migration. O primeiro write continua proibido até existir assignment ativo no scope da campanha; depois o teste cobre payload, save, no-op, stale conflict, revision/audit e rollback em falha do audit.
+
+### Limites
+
+A reconciliação do World não resolve o drift separado de `edit_transcript_segment_atomic` (`20260907115300` local vs `20260908064257` remoto), nem a massa histórica `pending/false` da #73. Esses recortes permanecem independentes.
+
+---
+
 ## 2026-09-08 — preflight read-only da persistência editorial do World Explorer
 
 ### Escopo

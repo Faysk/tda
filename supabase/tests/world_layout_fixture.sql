@@ -23,6 +23,12 @@ create table public.permission_catalog(
   created_at timestamptz not null default now()
 );
 
+create table public.role_definitions(
+  id uuid primary key,
+  slug text not null unique,
+  plane text not null check (plane in ('technical', 'narrative', 'mixed'))
+);
+
 create table public.role_permissions(
   role_id uuid not null,
   permission_action text not null references public.permission_catalog(action),
@@ -55,13 +61,14 @@ create table public.audit_log(
 alter table public.campaigns enable row level security;
 alter table public.profiles enable row level security;
 alter table public.permission_catalog enable row level security;
+alter table public.role_definitions enable row level security;
 alter table public.role_permissions enable row level security;
 alter table public.role_assignments enable row level security;
 alter table public.audit_log enable row level security;
 
 grant usage on schema public, extensions to service_role, anon, authenticated;
 grant select on public.campaigns, public.profiles, public.permission_catalog,
-  public.role_permissions, public.role_assignments, public.audit_log to service_role;
+  public.role_definitions, public.role_permissions, public.role_assignments, public.audit_log to service_role;
 grant insert on public.audit_log to service_role;
 
 insert into public.campaigns(id, slug)
@@ -71,4 +78,11 @@ insert into public.profiles(id, auth_user_id)
 values (
   '33333333-3333-4333-8333-333333333333',
   '44444444-4444-4444-8444-444444444444'
+);
+
+insert into public.role_definitions(id, slug, plane)
+values (
+  '55555555-5555-4555-8555-555555555555',
+  'site_editor',
+  'narrative'
 );

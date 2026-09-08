@@ -1,4 +1,4 @@
-"""Run World layout candidate migrations in a disposable PostgreSQL cluster.
+"""Run reconciled World layout migrations in a disposable PostgreSQL cluster.
 
 Synthetic only: Unix socket, no TCP, no inherited PG credentials, no production
 seed and no Supabase connection. Exits non-zero on any fixture/migration/assertion
