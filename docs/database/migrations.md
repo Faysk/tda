@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -82,9 +82,18 @@ A estratégia é:
 
 - `20260907084234 add_transcript_segment_revision`
 
+### 2026-09-08 — novas entradas remotas observadas
+
+A inspeção read-only de 2026-09-08 encontrou também:
+
+- `20260908064257 edit_transcript_segment_atomic`
+- `20260908144711 transcript_review_default`
+
+Esses IDs **não correspondem aos nomes/versionamentos locais atualmente presentes** (`20260907115300_edit_transcript_segment_atomic.sql` e `20260908134500_transcript_review_default.sql`). Até reconciliar conteúdo/linha histórica, tratar isso como drift conhecido e **não aplicar novas migrations no Supabase canônico por inferência de equivalência**.
+
 ## Boundary do reboot aplicado
 
-As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas no histórico remoto do novo repositório TDA.
+As quatro migrations abaixo são mudanças explicitamente assumidas, versionadas e já observadas com IDs correspondentes no histórico remoto do novo repositório TDA.
 
 ### `20260906210333_align_tda_domain_identity`
 
@@ -123,13 +132,24 @@ Objetivo:
 
 Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
 
-## Migration candidata — ainda não aplicada
+## Drift conhecido observado em 2026-09-08
+
+O banco canônico contém duas entradas remotas que não possuem o mesmo versionamento dos arquivos locais de mesmo objetivo nominal:
+
+- remoto `20260908064257 edit_transcript_segment_atomic` vs local `20260907115300_edit_transcript_segment_atomic.sql`;
+- remoto `20260908144711 transcript_review_default` vs local `20260908134500_transcript_review_default.sql`.
+
+A presença de nome lógico semelhante **não prova identidade de bytes/DDL**. Antes de qualquer nova aplicação de migration no projeto canônico, o owner de dados deve comparar definição física, conteúdo pretendido e histórico, então reconciliar por documentação/migration apropriada sem reescrever silenciosamente história já aplicada.
+
+Este drift não impede preparar migrations candidatas em branch/CI sintético, mas bloqueia tratar essas candidatas como prontas para aplicação remota.
+
+## Migration candidata / arquivo local em reconciliação
 
 ### `20260907115300_edit_transcript_segment_atomic`
 
-**Estado:** arquivo versionado na branch da issue #32; **não observado/aplicado no Supabase de produção** nesta preparação.
+**Estado:** arquivo local versionado. O ID exato `20260907115300` não foi observado no histórico remoto em 2026-09-08; existe uma entrada remota `20260908064257 edit_transcript_segment_atomic`. **Não assumir equivalência até reconciliação explícita.**
 
-Objetivo:
+Objetivo do arquivo local:
 
 - criar `public.edit_transcript_segment_atomic(...)` como boundary server-only `SECURITY INVOKER`;
 - revalidar `segment -> session -> campaign` pelo slug antes de qualquer write;
@@ -167,14 +187,14 @@ Limites da validação isolada:
 - sem migration history remoto pós-aplicação;
 - somente `READ COMMITTED`.
 
-Ainda pendente antes de produção:
+Ainda pendente antes de qualquer reconciliação/aplicação:
 
-- reconciliar/confirmar o SHA exato que será aplicado contra a `main` vigente;
-- aplicar pelo database runbook no projeto canônico;
+- comparar a definição física remota com o arquivo local;
+- reconciliar o ID histórico sem fabricar aplicação retroativa;
 - revalidar função, grants e migration history remotamente;
-- executar advisors de segurança/performance;
-- registrar a aplicação no `verification-log.md`;
-- integrar Auth/Edit em recorte próprio.
+- executar advisors de segurança/performance depois de qualquer correção;
+- registrar o resultado no `verification-log.md`;
+- manter integração Auth/Edit coerente com o estado físico real.
 
 Rollback lógico:
 
@@ -184,9 +204,9 @@ Rollback lógico:
 
 ### `20260908134500_transcript_review_default`
 
-**Estado:** candidata versionada; **não aplicar no Supabase canônico antes de CI terminal e integração da PR correspondente**.
+**Estado:** arquivo local versionado. O ID exato `20260908134500` não foi observado no histórico remoto em 2026-09-08; existe uma entrada remota `20260908144711 transcript_review_default`. **Reconciliar antes de afirmar identidade/aplicação do arquivo local.**
 
-Objetivo:
+Objetivo do arquivo local:
 
 - alinhar o default físico de `public.transcript_segments.needs_review` para `true`;
 - manter coerência com o default existente `review_status = 'pending'` e com o invariante atual do Edit/import;
@@ -201,13 +221,52 @@ Compatibilidade e limites:
 
 Validação candidata:
 
-- o PostgreSQL sintético do job `transcript-import-postgres` aplica a migration e executa `supabase/tests/transcript_review_default.sql`;
+- o PostgreSQL sintético do job `transcript-import-postgres` aplica o arquivo local e executa `supabase/tests/transcript_review_default.sql`;
 - o assert falha se `information_schema.columns.column_default` para `needs_review` não for `true`.
 
 Rollback lógico:
 
 - antes de qualquer dependência nova do default, uma migration corretiva pode restaurar o default anterior;
 - não apagar nem reclassificar linhas históricas como forma de rollback.
+
+## Candidatos de persistência editorial do World Explorer
+
+### `20260908192500_world_layout_capability`
+
+**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- definir `campaign.world.layout.edit` no `permission_catalog` com plane `narrative`;
+- não criar grants, role permissions ou assignments automaticamente;
+- preparar uma autorização separada de `campaign.content.edit` para a mutation física de layout.
+
+### `20260908192600_world_layout_snapshot_atomic`
+
+**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- criar `world_layout_snapshots`, separado de entities/relations/canon;
+- manter um snapshot `overview` por campaign com `schema_version`, `revision`, `positions`, actor e timestamps;
+- habilitar RLS sem policy de browser;
+- expor somente a `service_role` `SELECT/INSERT/UPDATE`, sem `DELETE`;
+- criar `save_world_layout_snapshot_atomic(...)` como `SECURITY INVOKER` server-only;
+- revalidar identidade, capability, assignment ativo e scope;
+- validar payload/limites defensivos;
+- aplicar optimistic concurrency por `expected_revision`;
+- registrar `world_layout.update` no `audit_log` na mesma transação;
+- retornar `unchanged` sem bump de revision/audit quando o snapshot não muda.
+
+Validação candidata:
+
+- `tools/world-layout-db.py` cria PostgreSQL 16 descartável, Unix socket only, sem TCP/credenciais de ambiente;
+- aplica fixture sintética + migrations `*_world_layout_*.sql` + `supabase/tests/world_layout_snapshot_atomic.sql`;
+- cobre grants, RLS, ausência de grant automático, autorização/scope, payload inválido, save inicial, no-op, conflito, revision `+1`, audit e rollback quando audit falha.
+
+Ativação remota permanece bloqueada até reconciliar o drift conhecido acima e executar o database runbook completo.
+
+Contrato arquitetural: [ADR-0011](../adr/0011-world-explorer-layout-physical-persistence.md).
 
 ## Regras para migration nova
 
@@ -302,9 +361,10 @@ Há drift quando:
 Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
+
 ## Candidatos de importação de transcrição
 
-- `20260907193704_transcript_import_capability`: define campaign.transcript.import (mixed), sem grants de roles/operadores.
+- `20260907193704_transcript_import_capability`: define `campaign.transcript.import` (mixed), sem grants de roles/operadores.
 - `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisado pelo owner SQL e validado em PostgreSQL scratch com concorrência real, **não aplicado em produção**.
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
