@@ -43,7 +43,7 @@
 		bottom: 0;
 		z-index: 45;
 		width: 100%;
-		min-height: 60px;
+		min-height: 68px;
 		max-height: min(62dvh, 600px);
 		overflow: auto;
 		padding: 24px var(--ds-page-gutter) 28px;
