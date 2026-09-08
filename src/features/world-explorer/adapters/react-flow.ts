@@ -1,9 +1,9 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import {
-	closestCardinalHandles,
 	constellationWorldLayout,
 	type WorldLayout,
 } from "../constellation-layout";
+import { routeWorldEdgePorts } from "../edge-routing";
 import type {
 	WorldEdgeDTO,
 	WorldGraphProjection,
@@ -26,6 +26,8 @@ export type WorldFlowEdgeData = {
 	family: WorldRelationFamily;
 	isHighlighted: boolean;
 	isDimmed: boolean;
+	routeOffset: number;
+	labelOffset: { x: number; y: number };
 };
 
 export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
@@ -63,6 +65,7 @@ export function toReactFlowGraph(
 	edges: WorldFlowEdge[];
 } {
 	const layout = layoutWithOverrides(projection, positionOverrides);
+	const routes = routeWorldEdgePorts(layout, projection.edges);
 	const connected = connectedNodeIds(projection, selectedId ?? null);
 	const hasSelection = Boolean(selectedId);
 	const nodes: WorldFlowNode[] = projection.nodes.map((item) => {
@@ -90,10 +93,7 @@ export function toReactFlowGraph(
 	});
 
 	const edges: WorldFlowEdge[] = projection.edges.map((item) => {
-		const handles = closestCardinalHandles(
-			layout[item.source] ?? { x: 0, y: 0 },
-			layout[item.target] ?? { x: 0, y: 0 },
-		);
+		const route = routes[item.id];
 		const isHighlighted = Boolean(
 			selectedId && (item.source === selectedId || item.target === selectedId),
 		);
@@ -102,13 +102,15 @@ export function toReactFlowGraph(
 			type: "worldRelation",
 			source: item.source,
 			target: item.target,
-			sourceHandle: handles.sourceHandle,
-			targetHandle: handles.targetHandle,
+			sourceHandle: route?.sourceHandle,
+			targetHandle: route?.targetHandle,
 			data: {
 				item,
 				family: item.family,
 				isHighlighted,
 				isDimmed: hasSelection && !isHighlighted,
+				routeOffset: route?.offset ?? 28,
+				labelOffset: route?.labelOffset ?? { x: 0, y: 0 },
 			},
 			deletable: false,
 			selectable: true,
@@ -127,16 +129,27 @@ export function rerouteWorldEdges(
 	nodes: readonly WorldFlowNode[],
 	edges: readonly WorldFlowEdge[],
 ): WorldFlowEdge[] {
-	const positions = new Map(nodes.map((node) => [node.id, node.position]));
+	const layout: WorldLayout = Object.fromEntries(
+		nodes.map((node) => [node.id, node.position]),
+	);
+	const relationItems = edges
+		.map((edge) => edge.data?.item)
+		.filter((item): item is WorldEdgeDTO => Boolean(item));
+	const routes = routeWorldEdgePorts(layout, relationItems);
 	return edges.map((edge) => {
-		const source = positions.get(edge.source);
-		const target = positions.get(edge.target);
-		if (!source || !target) return edge;
-		const handles = closestCardinalHandles(source, target);
+		const route = routes[edge.id];
+		if (!route) return edge;
 		return {
 			...edge,
-			sourceHandle: handles.sourceHandle,
-			targetHandle: handles.targetHandle,
+			sourceHandle: route.sourceHandle,
+			targetHandle: route.targetHandle,
+			data: edge.data
+				? {
+					...edge.data,
+					routeOffset: route.offset,
+					labelOffset: route.labelOffset,
+				}
+				: edge.data,
 		};
 	});
 }
