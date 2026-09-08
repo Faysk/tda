@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: Prancheta - Organização de entregas
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 > Fonte de verdade: GitHub para PR/SHA/checks; documentos donos para contrato; evidência operacional específica para integração/publicação
 
 Este é o **único registro operacional de status das entregas**. Roadmap define prioridade e direção de produto; documentos donos definem contrato; Lupa mantém auditoria independente; deployments registra publicação. Não copiar esta tabela para roadmap, índices ou relatórios paralelos.
@@ -19,6 +19,18 @@ Este é o **único registro operacional de status das entregas**. Roadmap define
 - Documentação de entregas: PR #65 integrada em `0188e82eca481a2773c3e2a731b4ef5fd1017e77`, com CI terminal aprovado; não exige deployment.
 - MIDIA #54: preparação integrada em `e804006` após checks aprovados no candidato `9900117` (runs `34163641533` e `34163641537`). Nenhum upload, promoção de referências ou deployment executado por esse merge.
 - Próxima prioridade: fechar Edit/import/local real e revisões narrativas existentes, sem novas frentes.
+
+## Rodada coordenada #99 — lore, curadoria e grafo
+
+A issue [#99](https://github.com/Faysk/tda/issues/99) coordena três resultados relacionados, mas **não muda sozinha o estágio de entrega de nenhum deles**. Cada frente continua no documento dono e só avança neste inventário com PR/SHA/evidência próprios.
+
+- **PIPIPI / Pipoca:** alvo da rodada é tornar Pipipi a lore pioneira completa em `/lore/pipipi`, reutilizando o Presentation Engine de [perfis editoriais](../features/entity-profiles.md), o Design System e metadata pública central. O trabalho local e as sete imagens preparadas são dependências conhecidas; não há nesta linha evidência suficiente para declarar rota integrada, CI final ou publicação. Cinematic é opcional e não bloqueia leitura estática.
+- **CURADORIA / Cuscuz:** inventariar resumos/transcrições reais sem copiar material privado para docs/issues; produzir candidatos com provenance, distinção entre fato explícito/inferência/conflito, estado de revisão e visibility antes de qualquer promoção. Contrato dono: [evidence](../domains/evidence.md) + [canon/review](../domains/canon-review.md). Candidato revisável não é canon nem publicação.
+- **GRAFO / Espaguete:** substituir demonstrações por projection de dados reais apenas quando aprovados para a audience e preparar edição autorizada. Mover node altera layout editorial; editar relação/fato é operação narrativa separada, com fonte, revisão, visibility, capability server-side, concorrência e recuperação de erro. Owners: [World Explorer](../features/world-explorer.md) e [relations](../features/relations-data-contract.md). O drift operacional de layout permanece acompanhado pela #95 e não deve ser mascarado por esta rodada.
+- **ACESSO / Crachá + Chaveiro:** mapear capabilities existentes para layout, conteúdo e publicação; login não cria grant implícito. Qualquer mutation precisa de validação server-side no boundary dono.
+- **PUBLICAÇÃO / Foguete + Marreta + Balde:** publicação de Pipipi é deliberada e posterior a revisão, CI, desktop/mobile, mídia/OG e leitura pública verificadas. Merge ou URL planejada não equivalem a publicação.
+
+Dependência documental: Prancheta mantém **somente o estágio/evidência** aqui; roadmap registra ordem e os documentos donos preservam os contratos. Não criar spec paralela da #99 nem copiar transcrição, relação secreta ou IDs privados para fixtures/documentação pública.
 
 ## Corte histórico inicial
 
