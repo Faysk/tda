@@ -29,6 +29,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0006 — React Flow como engine de visualização do World Explorer](../adr/0006-react-flow-world-explorer.md) | frontend / narrative-memory | aceito | Não declarado |
 | [ADR-0007 — Edit como workbench server-first orientado a capabilities](../adr/0007-edit-workbench.md) | Não declarado | Não declarado | Não declarado |
 | [ADR-0008 — autorização orientada a capabilities e scope](../adr/0008-capability-authorization.md) | identity/access + arquitetura + segurança | accepted | Não declarado |
+| [ADR-0009 — World Explorer multi-hub e layout espacial reorganizável](../adr/0009-world-explorer-multihub-layout.md) | frontend / narrative-memory | accepted | 2026-09-08 |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -159,4 +160,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-93 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+94 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
