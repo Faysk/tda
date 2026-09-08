@@ -85,3 +85,10 @@ A revisão automática rejeitou iniciar `pnpm start --port 3102` com as variáve
 - [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
 - Next.js: documentação instalada em `node_modules/next/dist/docs`, guias de Auth, cookies, route handlers e proxy.
 - `Faysk/dnd-scribe`: `apps/web/components/auth/login-buttons.tsx`, `apps/web/lib/supabase/server.ts`, `apps/web/app/auth/callback/route.ts`. Revalidados PKCE, cookies SSR e retorno interno; Google e arquitetura monolítica não foram transportados.
+
+
+## UX de conta — incremento de 2026-09-08
+
+Candidato de #96: os destinos da conta são apresentados como cartões com título e descrição, filtrados pelas mesmas capabilities server-side. Histórias públicas e logout ficam separados das tarefas. Login Discord mantém o fluxo existente. O cabeçalho permite quebra em telas de até 360px para evitar sobreposição entre marca e navegação.
+
+Aceite: perfil de leitura vê transcrições/Edit, perfil de gestão vê consulta de permissões, sem trocar autorização por visibilidade. Teste sintético de navegador cobre esses perfis, foco e ausência de sobreposição/overflow em 320px; captura desktop e light/dark para revisão visual. Integração não implica deployment nem ativação do Edit ou processamento real. Não há migration ou alteração de grants.
