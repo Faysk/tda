@@ -66,7 +66,8 @@ test("World Explorer inspector traverses visible connections without changing fo
 	await page.goto("/mundo");
 	await page.locator('[data-world-node="astel"]').click();
 
-	await expect(page.getByRole("heading", { level: 3, name: "Conexões visíveis" })).toBeVisible();
+	await page.getByRole("tab", { name: /Laços/ }).click();
+	await expect(page.getByRole("heading", { level: 3, name: "Conexões de Astel" })).toBeVisible();
 	const ravenConnection = page.getByRole("button", { name: "Selecionar Raven Queen; relação Vínculo místico" });
 	await expect(ravenConnection).toBeVisible();
 	await ravenConnection.click();
