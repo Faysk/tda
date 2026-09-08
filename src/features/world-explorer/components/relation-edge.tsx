@@ -23,6 +23,21 @@ const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 	context: "#8f9aa8",
 };
 
+// The moving dash needs its own brighter value. Painting the animation with the
+// exact same color as the solid relation made the dash offset technically move
+// while remaining almost impossible to perceive on the canvas.
+const RELATION_MOTION_STROKES: Record<WorldRelationFamily, string> = {
+	affinity: "#d9ffe7",
+	family: "#fff0b5",
+	conflict: "#ffd6d2",
+	authority: "#e2e9f0",
+	faction: "#e2e9f0",
+	origin: "#d7ecff",
+	mystic: "#eadcff",
+	creative: "#ffe0bd",
+	context: "#e2e9f0",
+};
+
 const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
 	conflict: "5 5",
 	mystic: "2 5",
@@ -63,7 +78,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
-	const strokeWidth = highlighted ? 4 : 3;
+	const motionStroke = RELATION_MOTION_STROKES[family];
+	const strokeWidth = highlighted ? 3.6 : 3;
 	const strokeOpacity = dimmed ? 0.12 : highlighted ? 1 : 0.94;
 	const dash = RELATION_DASHES[family];
 
@@ -131,12 +147,15 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 							d={path}
 							className={effects.flowMotion}
 							fill="none"
-							stroke={stroke}
-							strokeWidth={2.4}
+							stroke={motionStroke}
+							strokeWidth={2.6}
 							strokeOpacity={0.98}
-							strokeDasharray="2 9"
+							strokeDasharray="1 11"
+							strokeDashoffset="0"
 							vectorEffect="non-scaling-stroke"
 							strokeLinecap="round"
+							data-family={family}
+							data-motion-contrast="bright"
 							data-world-edge-motion={props.id}
 						/>
 					) : null}
