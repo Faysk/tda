@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { buildPublicMetadata } from "@/config/public-metadata";
 import { LorePage } from "./components/lore-page";
 import type { LoreRouteKind } from "./model";
 import { findPublishedLoreProfile } from "./repository";
@@ -15,13 +16,14 @@ export async function buildLoreMetadata(
 	}
 
 	const href = `/${routeKind}/${encodeURIComponent(slug)}`;
-	return {
+	return buildPublicMetadata({
 		title: profile.identity.name,
 		description:
 			profile.identity.summary ??
-			`Memórias, relações e momentos de ${profile.identity.name}.`,
-		alternates: { canonical: href },
-	};
+			`Conheça ${profile.identity.name} no arquivo de histórias e memórias da campanha.`,
+		pathname: href,
+		type: "article",
+	});
 }
 
 export async function renderLoreRoutePage(
