@@ -267,6 +267,7 @@
 
 @media (max-width: 980px) {
 	.tabs { margin-top: 16px; }
+	.tabs button { min-height: 44px; }
 	.tabPanel { margin-top: 14px; }
 	.connectionList button { min-height: 52px; }
 	.summaryStats { max-width: 520px; }
