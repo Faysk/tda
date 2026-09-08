@@ -28,7 +28,9 @@ function matchesFilter(node: WorldNodeDTO, filter: WorldFilter): boolean {
 }
 
 function datasetHeroIds(dataset: WorldDemoDataset): string[] {
-	const explicit = dataset.heroIds?.filter((id) => dataset.nodes.some((node) => node.id === id));
+	const explicit = dataset.heroIds?.filter((id) =>
+		dataset.nodes.some((node) => node.id === id),
+	);
 	if (explicit?.length) return explicit;
 	return dataset.nodes
 		.filter((node) => node.kind === "entity" && node.entityType === "pc")
@@ -54,8 +56,14 @@ export function filterWorldProjection(
 	filter: WorldFilter,
 ): WorldGraphProjection {
 	if (filter === "all") return projection;
+
+	const preserveHeroContext =
+		projection.mode === "overview" && filter !== "characters";
 	const nodes = projection.nodes.filter(
-		(node) => node.id === projection.focusId || matchesFilter(node, filter),
+		(node) =>
+			node.id === projection.focusId ||
+			(preserveHeroContext && projection.heroIds.includes(node.id)) ||
+			matchesFilter(node, filter),
 	);
 	const visibleIds = new Set(nodes.map((node) => node.id));
 	return {
