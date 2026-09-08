@@ -6,7 +6,10 @@ import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { sessionPublicMetadata } from "@/features/sessions/metadata";
-import { formatSessionDate } from "@/features/sessions/model";
+import {
+	formatSessionDate,
+	type PublishedSession,
+} from "@/features/sessions/model";
 import {
 	findPublishedSession,
 	listPublishedSessions,
@@ -18,11 +21,54 @@ export const dynamic = "force-dynamic";
 
 type SessionParams = { params: Promise<{ id: string }> };
 
+type Direction = "previous" | "next";
+
 export async function generateMetadata({ params }: SessionParams): Promise<Metadata> {
 	const { id } = await params;
 	const session = await findPublishedSession(id);
 	if (!session) notFound();
 	return sessionPublicMetadata(session);
+}
+
+function SessionNavigationCard({
+	session,
+	direction,
+}: {
+	session: PublishedSession;
+	direction: Direction;
+}) {
+	const href = `/sessoes/${encodeURIComponent(session.id)}`;
+	const image = session.coverImage || session.heroImage;
+	const isNext = direction === "next";
+
+	return (
+		<Link
+			className={`${styles.link}${isNext ? ` ${styles.next}` : ""}`}
+			href={href}
+		>
+			<span className={styles.linkMedia} aria-hidden="true">
+				{image ? (
+					<Image
+						className={styles.linkImage}
+						src={image}
+						alt=""
+						fill
+						sizes="(max-width: 700px) calc(100vw - 40px), 420px"
+					/>
+				) : (
+					<span className={styles.linkFallback}>TDA</span>
+				)}
+				<span className={styles.linkShade} />
+			</span>
+			<span className={styles.linkCopy}>
+				<span className={styles.label}>
+					{isNext ? "Próxima sessão →" : "← Sessão anterior"}
+				</span>
+				<strong className={styles.linkTitle}>{session.title}</strong>
+				{session.arc ? <span className={styles.linkArc}>{session.arc}</span> : null}
+			</span>
+		</Link>
+	);
 }
 
 export default async function Session({ params }: SessionParams) {
@@ -47,7 +93,7 @@ export default async function Session({ params }: SessionParams) {
 	const shareDescription = sessionShareDescription(session.summary, session.title);
 
 	return (
-		<article>
+		<article className={styles.page}>
 			<header className={`${styles.hero}${image ? ` ${styles.heroWithArt}` : ""}`}>
 				{image ? (
 					<>
@@ -62,49 +108,43 @@ export default async function Session({ params }: SessionParams) {
 						<div className={styles.overlay} aria-hidden="true" />
 					</>
 				) : null}
-				<div className={styles.content}>
-					<Link className={styles.back} href="/sessoes">
-						← Todas as sessões
-					</Link>
-					<Eyebrow className={styles.eyebrow}>
-						{session.arc || "Memória da campanha"}
-					</Eyebrow>
-					<DisplayTitle className={styles.title}>{session.title}</DisplayTitle>
-					{date ? (
-						<time className={styles.date} dateTime={session.date}>
-							{date}
-						</time>
-					) : null}
+				<div className={styles.heroInner}>
+					<div className={styles.content}>
+						<Link className={styles.back} href="/sessoes">
+							<span aria-hidden="true">←</span>
+							<span>Arquivo de sessões</span>
+						</Link>
+						<Eyebrow className={styles.eyebrow}>
+							{session.arc || "Memória da campanha"}
+						</Eyebrow>
+						<DisplayTitle className={styles.title}>{session.title}</DisplayTitle>
+						{date ? (
+							<time className={styles.date} dateTime={session.date}>
+								{date}
+							</time>
+						) : null}
+					</div>
 				</div>
 			</header>
 
 			<div className={styles.body}>
-				<SessionShareActions
-					title={session.title}
-					description={shareDescription}
-				/>
+				<div className={styles.readingIntro}>
+					<span className={styles.chapterMark} aria-hidden="true">
+						◆
+					</span>
+					<SessionShareActions
+						title={session.title}
+						description={shareDescription}
+					/>
+				</div>
 				<StoryMarkdown source={story} title={session.title} />
 				{previous || next ? (
 					<nav className={styles.pagination} aria-label="Navegação entre sessões">
 						{previous ? (
-							<Link
-								className={styles.link}
-								href={`/sessoes/${encodeURIComponent(previous.id)}`}
-							>
-								<span className={styles.label}>← Sessão anterior</span>
-								<strong className={styles.linkTitle}>{previous.title}</strong>
-							</Link>
-						) : (
-							<span aria-hidden="true" />
-						)}
+							<SessionNavigationCard session={previous} direction="previous" />
+						) : null}
 						{next ? (
-							<Link
-								className={`${styles.link} ${styles.next}`}
-								href={`/sessoes/${encodeURIComponent(next.id)}`}
-							>
-								<span className={styles.label}>Próxima sessão →</span>
-								<strong className={styles.linkTitle}>{next.title}</strong>
-							</Link>
+							<SessionNavigationCard session={next} direction="next" />
 						) : null}
 					</nav>
 				) : null}
