@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	BaseEdge,
 	EdgeLabelRenderer,
 	getSmoothStepPath,
 	type EdgeProps,
@@ -41,17 +40,18 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
+	const visibleClassName = `${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`;
 
 	return (
 		<>
-			<BaseEdge
-				id={props.id}
-				path={path}
+			<path
+				id={`${props.id}-visible`}
+				d={path}
+				fill="none"
 				markerEnd={props.markerEnd}
-				className={`${styles.relationPath} ${highlighted ? styles.relationPathHighlighted : ""} ${dimmed ? styles.relationPathDimmed : ""}`}
+				className={`react-flow__edge-path ${visibleClassName}`}
 				data-family={family}
 				data-world-edge={props.id}
-				interactionWidth={30}
 				vectorEffect="non-scaling-stroke"
 				strokeLinecap="round"
 				strokeLinejoin="round"
@@ -62,6 +62,14 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					strokeOpacity: dimmed ? 0.18 : highlighted ? 1 : 0.95,
 					filter: `drop-shadow(0 0 ${highlighted ? 9 : 5}px ${stroke})`,
 				}}
+			/>
+			<path
+				d={path}
+				fill="none"
+				stroke="transparent"
+				strokeWidth={30}
+				className="react-flow__edge-interaction"
+				pointerEvents="stroke"
 			/>
 			{item ? (
 				<EdgeLabelRenderer>
