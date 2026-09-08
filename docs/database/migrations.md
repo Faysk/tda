@@ -132,20 +132,15 @@ Objetivo:
 
 Validação pós-migration registrada: 30.857 segmentos preservados, zero `revision` nula e intervalo inicial `0..0`.
 
-## Drift conhecido observado em 2026-09-08
+## Migration history reconciliado em 2026-09-08
 
-A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. A persistência do World Explorer também foi reconciliada com os quatro IDs efetivamente registrados no remoto. Permanece um drift conhecido de versionamento para a mutation atômica de transcript:
+A reconciliação de `transcript_review_default` alinhou o arquivo local ao ID remoto `20260908144711`. A persistência do World Explorer foi reconciliada com os quatro IDs efetivamente registrados no remoto. Nesta rodada, `edit_transcript_segment_atomic` também foi alinhada ao ID remoto `20260908064257` após comparação read-only do `statements` preservado em `supabase_migrations.schema_migrations` com o SQL local. Nenhum DDL foi reexecutado e nenhuma linha do migration history foi editada.
 
-- remoto `20260908064257 edit_transcript_segment_atomic`;
-- local `20260907115300_edit_transcript_segment_atomic.sql`.
+## Mutation atômica do Edit aplicada e reconciliada
 
-A inspeção read-only confirmou que a função física remota possui assinatura, comportamento, `SECURITY INVOKER`, `search_path`, comentário e grants compatíveis com o contrato do arquivo local. Ainda assim, equivalência funcional observada não autoriza reescrever history nem reexecutar DDL. A reconciliação desse ID deve ocorrer em recorte próprio pelo database runbook.
+### `20260908064257_edit_transcript_segment_atomic`
 
-## Migration local em reconciliação
-
-### `20260907115300_edit_transcript_segment_atomic`
-
-**Estado:** arquivo local versionado; a função já foi aplicada no Supabase canônico, mas o migration history remoto a registrou como `20260908064257 edit_transcript_segment_atomic`. Esse ID permanece drift conhecido e deve ser reconciliado em recorte próprio, sem reexecutar DDL.
+**Estado:** aplicada no Supabase canônico e reconciliada com o migration history remoto. O SQL versionado permanece equivalente ao changeset originalmente mantido localmente como `20260907115300_edit_transcript_segment_atomic.sql`; a mudança deste recorte alinha somente o filename/ID local, sem reexecutar DDL.
 
 Objetivo:
 
@@ -182,14 +177,12 @@ Limites da validação isolada:
 - schema de teste mínimo, não dump completo do Supabase;
 - sem Auth/PostgREST real;
 - sem advisors do projeto canônico;
-- sem migration history remoto pós-aplicação;
 - somente `READ COMMITTED`.
 
 Ainda pendente:
 
-- reconciliar o ID local `20260907115300` com o migration history remoto `20260908064257` sem reexecutar DDL;
-- registrar a reconciliação no `verification-log.md`;
-- integrar Auth/Edit em recorte próprio.
+- registrar smoke real do caminho canônico do Edit em release deliberada;
+- remover `unsafe-mutation.ts` e `TDA_EDIT_UNSAFE` somente após esse smoke, em recorte separado.
 
 Rollback lógico:
 
