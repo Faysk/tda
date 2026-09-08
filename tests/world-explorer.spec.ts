@@ -16,13 +16,36 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
+test("World Explorer renders relation strokes independently of fitView zoom", async ({ page }) => {
+	await page.goto("/mundo");
+	const edges = page.locator("path[data-world-edge]");
+	expect(await edges.count()).toBeGreaterThan(0);
+
+	const paint = await edges.first().evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			stroke: style.stroke,
+			strokeWidth: Number.parseFloat(style.strokeWidth),
+			strokeOpacity: Number.parseFloat(style.strokeOpacity),
+			vectorEffect: style.vectorEffect,
+		};
+	});
+
+	expect(paint.stroke).not.toBe("none");
+	expect(paint.stroke).not.toBe("rgba(0, 0, 0, 0)");
+	expect(paint.strokeWidth).toBeGreaterThanOrEqual(2.5);
+	expect(paint.strokeOpacity).toBeGreaterThanOrEqual(0.9);
+	expect(paint.vectorEffect).toBe("non-scaling-stroke");
+});
+
 test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
 	await page.goto("/mundo");
 	await page.locator('[data-world-node="astel"]').click();
 
 	await expect(page.getByRole("heading", { level: 3, name: "Conexões visíveis" })).toBeVisible();
-	await expect(page.getByText("Vínculo místico", { exact: true }).first()).toBeVisible();
-	await page.getByRole("button", { name: "Selecionar Raven Queen; relação Vínculo místico" }).click();
+	const ravenConnection = page.getByRole("button", { name: "Selecionar Raven Queen; relação Vínculo místico" });
+	await expect(ravenConnection).toBeVisible();
+	await ravenConnection.click();
 
 	await expect(page.getByRole("heading", { level: 2, name: "Raven Queen", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Selecionar Astel; relação Vínculo místico" })).toBeVisible();
