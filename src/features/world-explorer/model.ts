@@ -34,6 +34,20 @@ export type WorldPositionHint = Readonly<{
 	y: number;
 }>;
 
+/**
+ * Audience-filtered presentation data for the campaign overview.
+ *
+ * It is deliberately separate from entities/relations/canon and contains only
+ * world-space coordinates that the current projection is already authorized to
+ * expose. Camera/zoom state is intentionally not part of the contract.
+ */
+export type WorldLayoutProjection = {
+	schemaVersion: 1;
+	view: "overview";
+	revision: number;
+	positions: Record<string, WorldPositionHint>;
+};
+
 export type WorldNodeDTO = {
 	id: string;
 	slug: string | null;
@@ -67,12 +81,15 @@ export type WorldGraphProjection = {
 	heroIds: string[];
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
+	/** Optional server-filtered editorial placement for overview mode only. */
+	layout?: WorldLayoutProjection;
 };
 
 export type WorldDemoDataset = {
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
 	heroIds?: string[];
+	layout?: WorldLayoutProjection;
 };
 
 export const WORLD_FILTERS = [
