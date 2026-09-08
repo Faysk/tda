@@ -105,6 +105,8 @@ export async function requireCapability(
 	const access = await currentAccess();
 	if (access.state === "anonymous")
 		redirect(`/entrar?next=${encodeURIComponent(safeReturnPath(returnTo))}`);
+	if (access.state === "unavailable")
+		redirect("/conta?acesso=indisponivel");
 	if (
 		!access.context ||
 		!authorizeCampaignCapability(access.context, capability, CAMPAIGN_SLUG).ok
