@@ -1,13 +1,15 @@
 "use server";
 
-import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import { getVerifiedServerIdentity } from "@/features/auth/server";
+import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { unsafeUpdateTranscriptSegment } from "./unsafe-mutation";
+import { mutateTranscriptSegment } from "./mutation";
+import { persistTranscriptMutation } from "./persistence";
 
 export type UpdateTranscriptSegmentActionInput = Readonly<{
 	sessionId: string;
 	segmentId: string;
+	expectedRevision: number;
 	text: string;
 	speaker: string;
 	reviewStatus: string;
@@ -16,20 +18,58 @@ export type UpdateTranscriptSegmentActionInput = Readonly<{
 export async function updateTranscriptSegmentAction(
 	input: UpdateTranscriptSegmentActionInput,
 ) {
-	const access = await authorizeCampaignCapabilityServer({ action: EDIT_CAPABILITIES.contentEdit, campaignSlug: CAMPAIGN_SLUG });
-	if (!access.ok) return { ok: false as const, issues: [access.reason] };
+	const identity = await getVerifiedServerIdentity();
+	if (!identity.ok) {
+		return {
+			ok: false as const,
+			reason: identity.reason,
+			issues: [identity.reason],
+		};
+	}
+
 	try {
-		return await unsafeUpdateTranscriptSegment({
-			sessionId: input.sessionId,
-			segmentId: input.segmentId,
-			edit: {
+		const result = await mutateTranscriptSegment(
+			{
+				authUserId: identity.authUserId,
+				campaignSlug: CAMPAIGN_SLUG,
+				segmentId: input.segmentId,
+				expectedRevision: input.expectedRevision,
 				text: input.text,
 				speaker: input.speaker,
 				reviewStatus: input.reviewStatus,
 			},
-		});
+			{
+				resolveAccessContext: loadEditAccessContext,
+				persist: persistTranscriptMutation,
+			},
+		);
+
+		if (!result.ok) {
+			return {
+				ok: false as const,
+				reason: result.reason,
+				issues:
+					result.reason === "validation"
+						? result.issues
+						: [result.reason],
+			};
+		}
+
+		return {
+			ok: true as const,
+			revision: result.revision,
+			segment: {
+				text: input.text.trim(),
+				speaker: input.speaker.trim(),
+				reviewStatus: input.reviewStatus,
+			},
+		};
 	} catch {
 		console.error("[edit] transcript update failed");
-		return { ok: false as const, issues: ["update_failed"] as const };
+		return {
+			ok: false as const,
+			reason: "dependency_unavailable" as const,
+			issues: ["dependency_unavailable"] as const,
+		};
 	}
 }
