@@ -2,15 +2,28 @@
 
 import Image from "next/image";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import type { CSSProperties } from "react";
 import type { WorldFlowNode } from "../adapters/react-flow";
+import {
+	WORLD_PORT_LANES,
+	type WorldPortSide,
+	worldPortHandleId,
+} from "../edge-routing";
 import styles from "./world-explorer.module.css";
 
-const HANDLES = [
-	{ source: "source-top", target: "target-top", position: Position.Top },
-	{ source: "source-right", target: "target-right", position: Position.Right },
-	{ source: "source-bottom", target: "target-bottom", position: Position.Bottom },
-	{ source: "source-left", target: "target-left", position: Position.Left },
-] as const;
+const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
+	{ side: "top", position: Position.Top },
+	{ side: "right", position: Position.Right },
+	{ side: "bottom", position: Position.Bottom },
+	{ side: "left", position: Position.Left },
+];
+
+function laneStyle(side: WorldPortSide, lane: number): CSSProperties {
+	const placement = `${50 + lane * 14}%`;
+	return side === "top" || side === "bottom"
+		? { left: placement }
+		: { top: placement };
+}
 
 function initials(label: string): string {
 	return label
@@ -29,10 +42,33 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 			data-world-node={item.id}
 			data-prominence={prominence}
 		>
-			{HANDLES.flatMap((handle) => [
-				<Handle key={handle.source} id={handle.source} type="source" position={handle.position} className={styles.hiddenHandle} isConnectable={false} />,
-				<Handle key={handle.target} id={handle.target} type="target" position={handle.position} className={styles.hiddenHandle} isConnectable={false} />,
-			])}
+			{SIDES.flatMap(({ side, position }) =>
+				WORLD_PORT_LANES.flatMap((lane) => {
+					const sourceId = worldPortHandleId("source", side, lane);
+					const targetId = worldPortHandleId("target", side, lane);
+					const style = laneStyle(side, lane);
+					return [
+						<Handle
+							key={sourceId}
+							id={sourceId}
+							type="source"
+							position={position}
+							style={style}
+							className={styles.hiddenHandle}
+							isConnectable={false}
+						/>,
+						<Handle
+							key={targetId}
+							id={targetId}
+							type="target"
+							position={position}
+							style={style}
+							className={styles.hiddenHandle}
+							isConnectable={false}
+						/>,
+					];
+				}),
+			)}
 			<div className={styles.nodePortrait} aria-hidden="true">
 				{item.imageUrl ? (
 					<Image className={styles.nodeImage} src={item.imageUrl} alt="" fill sizes={isHero ? "116px" : "90px"} />
