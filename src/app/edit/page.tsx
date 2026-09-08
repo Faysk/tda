@@ -55,6 +55,8 @@ export default async function EditPage() {
 					<div className={styles.muted}>TDA / EDIT</div>
 					<h1 className={styles.pageTitle}>Sessões</h1>
 					<Link href="/edit/processamento">Processamento local</Link>
+					{" · "}
+					<Link href="/edit/mundo">Composição do mundo</Link>
 				</div>
 				<div className={styles.muted}>{sessions.length} sessões disponíveis</div>
 			</header>
