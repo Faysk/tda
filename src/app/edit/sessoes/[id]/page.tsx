@@ -103,6 +103,7 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 
 	const editorSegments = page.segments.map((segment) => ({
 		id: segment.id,
+		revision: segment.revision,
 		startMs: segment.startMs,
 		endMs: segment.endMs,
 		text: segment.text,
