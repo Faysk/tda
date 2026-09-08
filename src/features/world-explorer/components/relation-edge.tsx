@@ -3,7 +3,7 @@
 import {
 	BaseEdge,
 	EdgeLabelRenderer,
-	getSmoothStepPath,
+	getBezierPath,
 	type EdgeProps,
 } from "@xyflow/react";
 import type { WorldFlowEdge } from "../adapters/react-flow";
@@ -23,38 +23,53 @@ const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 };
 
 const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
-	conflict: "8 6",
-	mystic: "3 6",
-	origin: "10 5",
+	conflict: "5 5",
+	mystic: "2 5",
+	origin: "7 5",
 };
+
+function relationCurvature(
+	family: WorldRelationFamily,
+	routeOffset: number,
+): number {
+	const familyBase =
+		family === "mystic"
+			? 0.33
+			: family === "conflict"
+				? 0.3
+				: family === "creative"
+					? 0.28
+					: 0.24;
+	const laneVariation = Math.min(0.11, Math.max(0, routeOffset - 24) * 0.007);
+	return Math.min(0.44, familyBase + laneVariation);
+}
 
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const routeOffset = props.data?.routeOffset ?? 28;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
-	const [path, labelX, labelY] = getSmoothStepPath({
+	const family = props.data?.family ?? "context";
+	const curvature = relationCurvature(family, routeOffset);
+	const [path, labelX, labelY] = getBezierPath({
 		sourceX: props.sourceX,
 		sourceY: props.sourceY,
 		sourcePosition: props.sourcePosition,
 		targetX: props.targetX,
 		targetY: props.targetY,
 		targetPosition: props.targetPosition,
-		borderRadius: 18,
-		offset: routeOffset,
-		stepPosition: 0.5,
+		curvature,
 	});
 	const item = props.data?.item;
-	const family = props.data?.family ?? "context";
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
 	const stroke = RELATION_STROKES[family];
-	const strokeWidth = highlighted ? 4.4 : 3.2;
-	const strokeOpacity = dimmed ? 0.2 : highlighted ? 1 : 0.98;
+	const strokeWidth = highlighted ? 3 : 1.9;
+	const strokeOpacity = dimmed ? 0.11 : highlighted ? 1 : 0.76;
 	const dash = RELATION_DASHES[family];
 
-	// EdgeLabelRenderer is already proven visible in Chrome because it paints the
-	// relation labels. Paint the visual stroke in that same transformed HTML
-	// layer instead of relying on React Flow's internal edge SVG stacking layer.
-	const paintPadding = Math.max(72, routeOffset + 36);
+	// Chrome has been unreliable painting the native React Flow edge SVG in this
+	// composition. Keep the hit target there, but paint the visible curve in the
+	// same transformed layer as labels, which is proven stable in both themes.
+	const paintPadding = Math.max(120, routeOffset * 3);
 	const paintLeft = Math.min(props.sourceX, props.targetX) - paintPadding;
 	const paintTop = Math.min(props.sourceY, props.targetY) - paintPadding;
 	const paintWidth = Math.abs(props.targetX - props.sourceX) + paintPadding * 2;
@@ -65,7 +80,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 			<BaseEdge
 				id={`${props.id}-interaction`}
 				path={path}
-				interactionWidth={30}
+				interactionWidth={32}
 				style={{
 					fill: "none",
 					stroke: "transparent",
@@ -91,12 +106,11 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						d={path}
 						fill="none"
 						stroke="var(--ds-canvas)"
-						strokeWidth={strokeWidth + 5}
-						strokeOpacity={dimmed ? 0.08 : 0.92}
+						strokeWidth={strokeWidth + 3.4}
+						strokeOpacity={dimmed ? 0.04 : highlighted ? 0.78 : 0.58}
 						strokeDasharray={dash}
 						vectorEffect="non-scaling-stroke"
 						strokeLinecap="round"
-						strokeLinejoin="round"
 					/>
 					<path
 						d={path}
@@ -107,8 +121,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						strokeDasharray={dash}
 						vectorEffect="non-scaling-stroke"
 						strokeLinecap="round"
-						strokeLinejoin="round"
 						data-family={family}
+						data-edge-curve="bezier"
 						data-world-edge={props.id}
 					/>
 				</svg>
