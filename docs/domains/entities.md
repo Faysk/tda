@@ -2,7 +2,7 @@
 
 > Status: preparado
 > Owner: narrative-memory/entities
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-06
 
 ## Objetivo
 
