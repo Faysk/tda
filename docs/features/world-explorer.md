@@ -1,8 +1,8 @@
 # Feature — World Explorer / Ecos da Jornada
 
-> Status: arquitetura aprovada; vertical slice visual em implementação
+> Status: fundação multi-hub e roteamento implementados; layout editorial preparado; dados reais pendentes
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-08
 
 ## Valor
 
@@ -10,12 +10,11 @@ O World Explorer é a superfície que transforma memória estruturada em explora
 
 Ele deve permitir responder perguntas como:
 
-- quem está ligado a Dandelion?
-- qual é a relação de Screacky com Ivory?
-- quais lugares estão ligados a determinado personagem?
-- quais músicas, eventos ou quests orbitam uma entity?
-- como chegar de uma pessoa/lugar a outra sem ler dezenas de páginas?
-- quais momentos importantes pertencem à trajetória dessa entity?
+- quem está ligado a determinada personagem, NPC ou lugar?
+- qual é a relação entre duas entities?
+- quais lugares, facções, músicas ou momentos estão ligados aos protagonistas?
+- como navegar de uma memória para outra sem ler dezenas de páginas?
+- quais conexões merecem aprofundamento em perfil, lore ou timeline?
 
 O World Explorer não substitui perfis, lore ou timeline. Ele conecta essas superfícies.
 
@@ -29,14 +28,16 @@ Nome técnico/documental:
 
 **World Explorer**
 
-A interface pode usar `Mundo` como item de navegação principal e `Ecos da Jornada` como título editorial da experiência.
+A interface usa `Mundo` como item de navegação principal e `Ecos da Jornada` como título editorial da experiência.
 
 ## Referências oficiais
 
-- referências visuais aprovadas pelo proprietário em 2026-09-06;
+- referências visuais aprovadas pelo proprietário;
 - [Design System oficial](../design-system/README.md);
 - [composição visual](../design-system/world-explorer-ui.md);
-- [ADR React Flow](../adr/0006-react-flow-world-explorer.md);
+- [ADR-0006 — React Flow](../adr/0006-react-flow-world-explorer.md);
+- [ADR-0009 — multi-hub](../adr/0009-world-explorer-multihub-layout.md);
+- [ADR-0010 — layout editorial](../adr/0010-world-explorer-editorial-layout-persistence.md);
 - [relations](relations-graph.md);
 - [knowledge/audience](knowledge-audience.md);
 - legado revalidado em [legacy/README.md](../legacy/README.md).
@@ -45,24 +46,25 @@ A interface pode usar `Mundo` como item de navegação principal e `Ecos da Jorn
 
 A primeira versão precisa:
 
-1. abrir em `/mundo`;
-2. mostrar uma entity focal;
-3. mostrar relações diretas autorizadas;
-4. permitir selecionar/focar outra entity;
-5. filtrar tipos de node/relation relevantes;
-6. abrir inspector contextual;
-7. navegar ao perfil completo;
-8. mostrar lista alternativa de relações;
-9. funcionar em light/dark;
-10. funcionar em desktop/mobile;
+1. abrir em `/mundo` como visão geral multi-hub;
+2. mostrar protagonistas visíveis com peso narrativo equivalente, sem centro permanente;
+3. mostrar relações autorizadas entre heroes e contexto;
+4. permitir seleção para inspector sem alterar a URL;
+5. permitir foco explícito e temporário via `?foco=`;
+6. permitir busca e filtros de node/relation;
+7. permitir reorganização local por dragging;
+8. abrir inspector contextual e navegar ao perfil completo quando houver rota canônica;
+9. mostrar lista alternativa de relações;
+10. funcionar em light/dark, desktop/mobile e largura mínima suportada;
 11. respeitar audience/RBAC antes do payload chegar ao browser.
 
 ## Fora do escopo V1
 
-- edição de relation pelo canvas;
+- edição de relation pelo canvas público;
 - criação de entity pelo canvas;
-- grafo completo da campanha;
-- layout colaborativo persistente;
+- grafo completo da campanha como default;
+- persistência automática do dragging público;
+- storage físico do layout editorial antes do contrato de dados/autorização específico;
 - multiplayer/realtime cursor;
 - physics simulation contínua;
 - conhecimento/segredos completos antes do modelo ser aprovado;
@@ -71,22 +73,20 @@ A primeira versão precisa:
 - timeline completa;
 - busca semântica em todo o canon.
 
-Essas features podem se integrar depois sem deformar o primeiro slice.
-
 ## Rotas
 
 ### Canônica
 
 `/mundo`
 
-Pode aceitar estado serializável por query:
+Estado exploratório serializável pode usar query:
 
 ```text
 /mundo?foco=<slug-ou-id>
-/mundo?foco=dandelion&tipo=personagem
+/mundo?foco=astel
 ```
 
-Não colocar listas gigantes de edge IDs na URL.
+Não colocar listas gigantes de edge IDs nem posições de canvas na URL.
 
 ### Rotas editoriais derivadas
 
@@ -100,7 +100,7 @@ A navegação pode expor:
 - `/musicas/[slug]`;
 - `/quests/[slug]`.
 
-Internamente todas podem resolver para `entities`, respeitando `entity_type`.
+Internamente todas podem resolver para `entities`, respeitando `entity_type` e o resolver canônico de Lore.
 
 ## Query/projection
 
@@ -110,15 +110,16 @@ Pipeline:
 
 ```text
 request + identidade/audience
-  -> resolver entity focal
-  -> consultar relations autorizadas
-  -> consultar metadata pública necessária
-  -> aplicar filtros
-  -> construir projection
-  -> enviar DTO mínimo
+  -> construir conjunto autorizado de nodes/edges
+  -> resolver overview ou foco temporário
+  -> carregar metadata pública necessária
+  -> carregar layout editorial aplicável, quando existir
+  -> intersectar layout com IDs já autorizados
+  -> construir projection mínima
+  -> enviar ao browser
 ```
 
-### Node DTO conceitual
+### Node DTO
 
 ```ts
 type WorldNodeDTO = {
@@ -131,10 +132,14 @@ type WorldNodeDTO = {
   imageUrl?: string;
   status?: string;
   route?: string;
+  prominence?: "hero" | "primary" | "supporting" | "context";
+  layoutHint?: { x: number; y: number };
 };
 ```
 
-### Edge DTO conceitual
+`prominence` e `layoutHint` são apresentação. Não aumentam autoridade canônica.
+
+### Edge DTO
 
 ```ts
 type WorldEdgeDTO = {
@@ -144,9 +149,22 @@ type WorldEdgeDTO = {
   relationType: string;
   label: string;
   direction: "directed" | "symmetric";
-  family?: string;
+  family: string;
 };
 ```
+
+### Layout projection opcional
+
+```ts
+type WorldLayoutProjection = {
+  schemaVersion: 1;
+  view: "overview";
+  revision: number;
+  positions: Record<string, { x: number; y: number }>;
+};
+```
+
+Esse layout é estado editorial de apresentação e precisa chegar ao browser já filtrado para a mesma audience da graph projection.
 
 Não incluir no DTO público:
 
@@ -156,45 +174,92 @@ Não incluir no DTO público:
 - source transcript privada;
 - metadata integral;
 - relations secretas;
+- positions de nodes não autorizados;
 - dados de profiles que não pertencem à narrativa exibida.
+
+## Visão geral multi-hub
+
+`/mundo` abre em `overview`.
+
+Nesse estado:
+
+- nenhum personagem é centro permanente;
+- PCs visíveis são hubs pares;
+- contexto se distribui como constelação;
+- o seed inicial é determinístico;
+- `layoutHint` pode orientar composição curatorial sem virar canon;
+- um layout editorial autorizado pode substituir posições do seed;
+- dragging local continua podendo reorganizar a sessão atual.
+
+A existência de múltiplos hubs é decisão de apresentação, não classificação de importância narrativa persistida no banco.
 
 ## Focus model
 
-Uma única entity é o foco principal do canvas.
+`?foco=<slug>` é uma exploração temporária da vizinhança de uma entity.
 
-Ao trocar o foco:
+Ao entrar em foco:
 
-1. URL pode ser atualizada sem reload completo;
-2. projection é recalculada;
-3. layout radial reorienta nodes;
-4. inspector acompanha o novo foco;
-5. estado de filtros é preservado quando fizer sentido.
+1. a projection pode ser reduzida a 1-hop;
+2. a entity fica centralizada apenas nesse recorte;
+3. seleção continua separada de foco;
+4. voltar a `/mundo` restaura a visão geral;
+5. o layout editorial de `overview` não é reaplicado ao recorte focado no contrato inicial.
 
-Seleção e foco são estados distintos no primeiro slice: selecionar um node atualiza apenas o inspector; promover aquela entity a foco exige a ação explícita `Explorar conexões de ...`, que atualiza `?foco=` e recalcula a projection. Isso evita reorganização inesperada do grafo durante inspeção simples.
+Selecionar um node atualiza inspector/destaque e não muda a URL. Promover a seleção a foco exige ação explícita `Explorar conexões de ...`.
+
+## Layout e dragging
+
+Precedência de posição:
+
+```text
+seed determinístico
+  -> layoutHint curatorial
+  -> layout editorial autorizado
+  -> override local do dragging da sessão atual
+```
+
+A ação `Reorganizar` restaura o seed da projection atual no cliente. Ela não grava no Supabase.
+
+O roteamento de edges usa ports/lane allocation determinísticos e recalcula as rotas quando nodes são movidos, evitando que todas as relações saiam do mesmo ponto de um hub congestionado.
+
+## Persistência editorial
+
+ADR-0010 separa layout persistente de canon/relations.
+
+Contrato inicial:
+
+- somente `overview` é persistível;
+- coordinates usam espaço lógico do canvas, não pixels de viewport;
+- câmera/pan/zoom não são persistidos;
+- snapshot possui `revision` para optimistic concurrency;
+- stale IDs são ignorados;
+- nodes novos usam seed determinístico;
+- leitura pública recebe apenas positions de nodes já autorizados;
+- dragging público nunca salva automaticamente.
+
+Ainda não existe migration/RPC/grant aprovado para esse storage. O runtime apenas aceita e sanitiza o DTO opcional para que a futura persistência não exija refazer o canvas.
 
 ## Profundidade
 
-### 1-hop
+### Overview
 
-Default.
+Mostra a constelação autorizada necessária para compreender a campanha sem obrigar um foco central.
 
-Mostra relações diretas do foco.
+### 1-hop focado
+
+`?foco=` reduz a leitura às relações diretas da entity quando a exploração precisa de clareza.
 
 ### 2-hop
 
-Disponível por expansão explícita.
-
-Deve ter limite e filtros para evitar explosão combinatória.
+Pode ser adicionado por expansão explícita com limite e filtros.
 
 ### Full graph
 
-Não é V1.
-
-Se um dia existir, será uma visão especializada e não o default do produto.
+Não é V1. Se existir no futuro, será uma visão especializada e permission-aware.
 
 ## Filtros
 
-Filtros possíveis:
+Filtros atuais/candidatos:
 
 - todos;
 - PCs/personagens;
@@ -207,28 +272,27 @@ Filtros possíveis:
 - famílias de relação;
 - status temporal/ativo.
 
+Filtros podem preservar heroes/contexto necessário para a relação continuar compreensível.
+
 Filtro de UI nunca substitui filtro de autorização.
 
 ## Busca
 
 Busca global deve ser permission-aware.
 
-### Resultado entity
+Ao encontrar uma entity, a interface pode:
 
-Selecionar resultado:
+- selecionar no overview;
+- abrir foco explícito;
+- abrir perfil completo conforme ação.
 
-- navega/foca no World Explorer; ou
-- abre perfil completo conforme ação.
-
-### Resultado sessão/momento
-
-Pode abrir a sessão ou, futuramente, projetar um moment node.
+Sessões/momentos podem abrir a sessão ou projetar um moment node quando o contrato real existir.
 
 ## Inspector
 
 O inspector recebe a entity/moment selecionado.
 
-### Dados mínimos
+Dados mínimos desejados:
 
 - título;
 - subtítulo;
@@ -236,42 +300,12 @@ O inspector recebe a entity/moment selecionado.
 - tags editoriais autorizadas;
 - resumo;
 - relations em destaque;
-- CTA para detalhe.
+- CTA para detalhe;
+- indicação do foco temporário quando pertinente.
 
-### Relações em destaque
+O inspector é resumo, não duplicação da página completa.
 
-Critério não deve ser simplesmente “primeiras 5 linhas do banco”.
-
-Possíveis sinais futuros:
-
-- relation marcada editorialmente;
-- relevância narrativa;
-- atividade recente;
-- relação com foco atual;
-- importância canônica.
-
-No primeiro slice, fixture explícita é suficiente.
-
-## Perfil completo de entity
-
-O perfil editorial é uma feature irmã.
-
-Estrutura futura provável:
-
-- hero;
-- overview;
-- canon/lore;
-- relações;
-- momentos;
-- timeline;
-- sessões;
-- músicas;
-- galeria;
-- knowledge autorizado quando existir.
-
-O inspector é resumo, não duplicação da página inteira.
-
-O vertical slice não duplica o roteamento preparado pela frente Lore. Enquanto a PR de Lore permanecer draft, `route` fica opcional e o inspector mostra o estado pendente; depois da integração, o World Explorer deve reutilizar o resolver canônico de Lore em vez de introduzir um segundo mapa de `entityType -> rota`.
+Próximos recortes devem ampliar navegação contextual e informações úteis sem introduzir um segundo resolver de perfis.
 
 ## Relations
 
@@ -285,33 +319,25 @@ Não derivar edge canônico diretamente de:
 - artwork mostrando personagens juntos;
 - fixture visual.
 
-O modelo de dados está em [relations-data-contract.md](relations-data-contract.md).
+O modelo de dados continua em [relations-data-contract.md](relations-data-contract.md).
 
 ## Moments/eventos
 
-A referência visual inclui itens que funcionam melhor como momento/evento do que entity.
+Momentos podem ser projections de sessão/canon entry/contrato futuro.
 
-Decisão:
-
-- não adicionar `event` a `entities` só para satisfazer o canvas;
-- momentos podem ser projections de sessão/canon entry/contrato futuro;
-- o mesmo canvas aceita `kind=moment` sem alterar a registry narrativa.
+Não adicionar `event` a `entities` apenas para satisfazer o canvas.
 
 ## Música
 
 Música pode existir como `entities(type=song)`.
 
-Uma performance específica de uma música em determinada sessão pode ser um moment/canon relation, não outra song entity obrigatoriamente.
+Uma performance específica em determinada sessão pode ser moment/canon relation, não outra song entity obrigatoriamente.
 
 ## Segurança e knowledge
 
-O World Explorer é uma das superfícies mais sensíveis do produto porque conexões podem revelar segredos mesmo quando textos individuais parecem inofensivos.
+Conexões podem revelar segredos mesmo quando textos individuais parecem inofensivos.
 
-Exemplo:
-
-Mostrar um edge `serve_a` entre um NPC e um vilão pode revelar mais do que mostrar os dois nomes isoladamente.
-
-Portanto autorização é aplicada em:
+Autorização é aplicada em:
 
 - node;
 - edge;
@@ -319,67 +345,49 @@ Portanto autorização é aplicada em:
 - inspector;
 - busca;
 - relation list;
-- paths/expansion.
+- paths/expansion;
+- layout persistido antes de sua projection pública.
 
-O servidor deve assumir que **a própria existência da relação pode ser segredo**.
+O servidor deve assumir que **a própria existência da relação ou de um node no layout pode ser segredo**.
 
 ## Semântica de “quem sabe”
 
 O World Explorer V1 mostra a visão permitida ao usuário, não necessariamente tudo que o personagem sabe na ficção.
 
-Quando [knowledge-audience.md](knowledge-audience.md) for implementado, poderemos oferecer perspectivas como:
-
-- visão pública;
-- visão da mesa;
-- visão de um personagem;
-- visão DM.
-
-Isso exige consulta authorization-aware e não pode ser simulado escondendo nodes no cliente.
+Quando [knowledge-audience.md](knowledge-audience.md) amadurecer, poderão existir perspectivas públicas, da mesa, de personagem ou DM. Isso exige projection authorization-aware e não pode ser simulado escondendo nodes no cliente.
 
 ## Acessibilidade
 
-### Relação textual alternativa
+Toda graph projection precisa de representação textual acessível.
 
-Toda graph projection deve ter uma representação textual acessível, por exemplo:
+Requisitos:
 
-```text
-Dandelion
-- é companheiro de Screacky
-- é amigo de Astel
-- tem vínculo com O Reino Vai Cantar
-```
-
-A lista pode aparecer no inspector ou em view alternável.
-
-### Teclado
-
-- foco entra no canvas de forma previsível;
-- nodes têm accessible name;
-- Enter/Space seleciona quando aplicável;
-- Escape fecha inspector/drawer quando apropriado;
-- foco não fica preso no canvas.
+- nodes com accessible name;
+- foco visível e navegação previsível;
+- lista textual alternativa de relações;
+- inspector utilizável sem depender de cor;
+- relation family comunicada por label e estilo, não só cor;
+- controles touch adequados;
+- `prefers-reduced-motion` respeitado;
+- nenhuma armadilha de foco no canvas.
 
 ## Mobile
 
 Contrato:
 
 - canvas permanece utilizável;
-- inspector vira bottom sheet/drawer;
-- filtros não ocupam múltiplas linhas permanentemente;
-- search pode virar overlay;
-- sidebar não fica fixa;
-- controles têm alvos >= 44px quando essenciais;
-- relation list é alternativa natural ao canvas.
+- inspector vira composição sticky/sheet;
+- filtros continuam compactos;
+- MiniMap pode ser omitido em telas estreitas;
+- relation list é alternativa natural;
+- controles essenciais têm alvos adequados;
+- viewport não cria overflow horizontal no mínimo suportado.
 
 ## Empty/loading/error
 
 ### Sem relações
 
 Não mostrar canvas vazio sem explicação.
-
-Exemplo:
-
-> Ainda não há relações publicadas para esta memória.
 
 ### Loading
 
@@ -393,36 +401,28 @@ Oferecer retry e navegação por lista/perfil.
 
 Responder como não disponível conforme boundary de segurança; não revelar que existe mas é secreta.
 
-## Primeiro slice: Dandelion
+## Estado atual do vertical slice
 
-Objetivo do protótipo/vertical slice:
+A implementação atual usa fixture explícita em `src/features/world-explorer/fixtures/dandelion.ts`. As relações são marcadas como demonstração não canônica e nunca são escritas no Supabase.
 
-- route `/mundo`;
-- Dandelion como foco default/demo;
-- 10–15 nodes;
-- custom entity node;
-- custom relation edge;
-- layout radial;
-- inspector;
-- filtros básicos;
-- light/dark;
-- mobile bottom sheet;
-- relation list acessível;
-- sem escrita no Supabase.
+A fundação já possui:
 
-### Fixtures
+- `/mundo` em overview multi-hub;
+- `?foco=` como 1-hop temporário;
+- custom nodes/edges em React Flow;
+- nodes arrastáveis;
+- busca e filtros;
+- seleção separada de foco;
+- MiniMap/controls;
+- inspector responsivo;
+- lista textual alternativa;
+- edge ports/lane routing;
+- layout editorial DTO opcional e sanitização defensiva;
+- testes unitários/E2E para interação e viewport mínimo.
 
-Dados de fixture devem viver separados de dados reais e ser marcados como demonstração.
+`@xyflow/react` permanece fixado na linha 12.x verificada pelo lockfile do projeto.
 
-Uma relação desenhada na referência não é automaticamente canon.
-
-### Estado do recorte em implementação
-
-O recorte visual iniciado em `feat/world-explorer-visual-slice` usa somente fixture explícita em `src/features/world-explorer/fixtures/dandelion.ts`. O código separa DTO/projection, layout radial puro, adapter React Flow e componentes de apresentação. A rota `/mundo` resolve `?foco=` no servidor e entrega somente a projection 1-hop para o cliente; filtros do protótipo operam sobre essa projection já limitada.
-
-A versão de `@xyflow/react` foi revalidada em 2026-09-07 antes da implementação: `12.11.6`, linha 12.x suportada e licença MIT. O pacote é fixado exatamente, conforme a política do repositório. O lockfile ainda precisa ser regenerado pelo `pnpm` canônico antes de a PR ser considerada validada.
-
-Este recorte não altera root layout, rotas de Lore, Supabase, relations, RLS, DNS ou deployment. A integração com perfis completos permanece deliberadamente pendente do resolver canônico da frente Lore.
+Este recorte não aplica migration, relation real, RLS, Auth, DNS ou deployment.
 
 ## Critérios para ligar ao Supabase
 
@@ -433,26 +433,33 @@ Antes de substituir fixtures por relations reais:
 - RLS/autorização testadas;
 - nenhuma relation criada apenas por coocorrência;
 - relation types estáveis;
-- queries por 1-hop indexadas;
+- queries indexadas para projection esperada;
 - profile/slug resolution consistente;
 - tests com visão DM/player/public.
 
+Antes de persistir layout editorial:
+
+- shape físico revisado pelo owner de dados/Supabase;
+- capability oficial definida no catálogo;
+- scope/ownership validados;
+- optimistic concurrency por revision;
+- auditoria de `updated_by/updated_at` equivalente;
+- testes que provem ausência de leak de IDs/positions secretos;
+- mutation transacional e rollback operacional definidos.
+
 ## Métricas futuras
 
-A feature deve ser avaliada por utilidade, não por quantidade de edges.
-
-Métricas possíveis:
+Avaliar utilidade, não quantidade de edges:
 
 - tempo para localizar uma entity;
 - taxa de clique para perfil;
-- número de mudanças de foco por sessão de navegação;
+- mudanças de foco;
 - uso de filtros;
-- performance com 20/50/100 nodes em dataset de teste;
-- acessibilidade/keyboard completion;
-- ausência de vazamento em testes de audience.
+- performance com datasets maiores;
+- completion por teclado;
+- ausência de vazamento em testes de audience;
+- necessidade real de ajuste editorial persistente vs seed determinístico.
 
 ## Critério de pronto V1
 
-Validação de suporte em 2026-09-07: lockfile regenerado por pnpm 12.3.4, grupo de filtros convertido em `fieldset` acessível e catálogo documental regenerado. `pnpm check` (59 testes unitários), build e 45 E2E passaram localmente em Node 24.20.0, incluindo foco, filtros, metadata e largura mínima de 320 px. Revisão visual local em desktop e 390 px confirmou a composição dos filtros. Permanecem três avisos de especificidade CSS, sem bloqueio de lint; esta evidência não representa merge, deploy ou validação de dados reais. A integração central de imagem/metadata continua sob seu ownership próprio.
-
-Um usuário autorizado consegue abrir `/mundo`, compreender visualmente as relações diretas de uma entity, navegar para outra, consultar detalhes e chegar ao perfil completo sem depender do grafo como única fonte e sem receber dados fora de sua audience.
+Um usuário autorizado consegue abrir `/mundo`, compreender a constelação visível da campanha, selecionar e reorganizar nodes localmente, explorar uma vizinhança focada, consultar relações por lista/inspector e navegar para perfis sem depender do grafo como única fonte e sem receber dados fora de sua audience.
