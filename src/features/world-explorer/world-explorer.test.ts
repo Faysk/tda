@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { constellationWorldLayout } from "./constellation-layout";
+import { routeWorldEdgePorts } from "./edge-routing";
 import { DANDELION_WORLD_DEMO } from "./fixtures/dandelion";
 import {
 	buildWorldProjection,
@@ -61,5 +62,39 @@ describe("World Explorer constellation layout", () => {
 		const projection = buildWorldProjection(DANDELION_WORLD_DEMO, "astel");
 		const layout = constellationWorldLayout(projection);
 		expect(layout.astel).toEqual({ x: 0, y: 0 });
+	});
+});
+
+describe("World Explorer edge routing", () => {
+	it("allocates deterministic lane-aware handles", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO);
+		const layout = constellationWorldLayout(projection);
+		const first = routeWorldEdgePorts(layout, projection.edges);
+		const second = routeWorldEdgePorts(layout, projection.edges);
+
+		expect(first).toEqual(second);
+		expect(Object.keys(first)).toHaveLength(projection.edges.length);
+		for (const route of Object.values(first)) {
+			expect(route.sourceHandle).toMatch(/^source-(top|right|bottom|left)-(m2|m1|c|p1|p2)$/);
+			expect(route.targetHandle).toMatch(/^target-(top|right|bottom|left)-(m2|m1|c|p1|p2)$/);
+			expect(route.offset).toBeGreaterThanOrEqual(24);
+		}
+	});
+
+	it("spreads a busy hero across more than one visible port", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO);
+		const layout = constellationWorldLayout(projection);
+		const routes = routeWorldEdgePorts(layout, projection.edges);
+		const handles = projection.edges
+			.filter((edge) => edge.source === "dandelion" || edge.target === "dandelion")
+			.map((edge) =>
+				edge.source === "dandelion"
+					? routes[edge.id]?.sourceHandle
+					: routes[edge.id]?.targetHandle,
+			)
+			.filter((handle): handle is string => Boolean(handle));
+
+		expect(handles.length).toBeGreaterThan(2);
+		expect(new Set(handles).size).toBeGreaterThan(1);
 	});
 });
