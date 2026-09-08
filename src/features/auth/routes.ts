@@ -7,6 +7,13 @@ import { serverAuthClient } from "./server";
 
 const FLOW_COOKIE = "tda-discord-flow";
 
+type LoginError =
+	| "cancelado"
+	| "sessao"
+	| "callback"
+	| "inicio"
+	| "indisponivel";
+
 async function clearAuthCookies() {
 	const jar = await cookies();
 	for (const { name } of jar.getAll()) {
@@ -26,28 +33,41 @@ function response(path: string, origin: string) {
 	return result;
 }
 
+function loginErrorPath(error: LoginError, next: unknown = "/conta") {
+	const params = new URLSearchParams({ erro: error });
+	const returnPath = safeReturnPath(next);
+	if (returnPath !== "/conta") params.set("next", returnPath);
+	return `/entrar?${params.toString()}`;
+}
+
 export async function startDiscord(request: Request) {
 	const config = authConfig();
 	if (!config)
 		return new Response("Login temporariamente indisponível.", { status: 503 });
 	if (request.headers.get("origin") !== config.origin)
 		return new Response(null, { status: 403 });
-	if (!(await discordAvailable()))
-		return response("/entrar?erro=indisponivel", config.origin);
+	let next = "/conta";
 	try {
 		const input = await request.formData();
-		const next = safeReturnPath(input.get("next"));
+		next = safeReturnPath(input.get("next"));
+	} catch {
+		return response(loginErrorPath("inicio"), config.origin);
+	}
+	if (!(await discordAvailable()))
+		return response(loginErrorPath("indisponivel", next), config.origin);
+	try {
 		const nonce = randomUUID();
 		const callback = new URL("/auth/callback", config.origin);
 		callback.searchParams.set("flow", nonce);
 		const client = await serverAuthClient();
-		if (!client) return response("/entrar?erro=indisponivel", config.origin);
+		if (!client)
+			return response(loginErrorPath("indisponivel", next), config.origin);
 		const { data, error } = await client.auth.signInWithOAuth({
 			provider: "discord",
 			options: { redirectTo: callback.href, skipBrowserRedirect: true },
 		});
 		if (error || !data.url)
-			return response("/entrar?erro=inicio", config.origin);
+			return response(loginErrorPath("inicio", next), config.origin);
 		const jar = await cookies();
 		jar.set(FLOW_COOKIE, JSON.stringify({ nonce, next }), {
 			httpOnly: true,
@@ -58,7 +78,7 @@ export async function startDiscord(request: Request) {
 		});
 		return response(data.url, config.origin);
 	} catch {
-		return response("/entrar?erro=inicio", config.origin);
+		return response(loginErrorPath("inicio", next), config.origin);
 	}
 }
 
@@ -89,22 +109,26 @@ export async function finishDiscord(request: Request) {
 		nonce.length !== expected.length ||
 		!timingSafeEqual(Buffer.from(nonce), Buffer.from(expected))
 	)
-		return response("/entrar?erro=sessao", config.origin);
+		return response(loginErrorPath("sessao"), config.origin);
+	const next = safeReturnPath(flow.next);
 	if (input.has("error"))
 		return response(
-			input.get("error") === "access_denied"
-				? "/entrar?erro=cancelado"
-				: "/entrar?erro=callback",
+			loginErrorPath(
+				input.get("error") === "access_denied" ? "cancelado" : "callback",
+				next,
+			),
 			config.origin,
 		);
 	const code = input.get("code");
 	if (!code || code.length > 4096)
-		return response("/entrar?erro=callback", config.origin);
+		return response(loginErrorPath("callback", next), config.origin);
 	try {
 		const client = await serverAuthClient();
-		if (!client) return response("/entrar?erro=indisponivel", config.origin);
+		if (!client)
+			return response(loginErrorPath("indisponivel", next), config.origin);
 		const { error } = await client.auth.exchangeCodeForSession(code);
-		if (error) return response("/entrar?erro=callback", config.origin);
+		if (error)
+			return response(loginErrorPath("callback", next), config.origin);
 		const { data, error: userError } = await client.auth.getUser();
 		if (
 			userError ||
@@ -117,12 +141,12 @@ export async function finishDiscord(request: Request) {
 			} finally {
 				await clearAuthCookies();
 			}
-			return response("/entrar?erro=callback", config.origin);
+			return response(loginErrorPath("callback", next), config.origin);
 		}
-		return response(safeReturnPath(flow.next), config.origin);
+		return response(next, config.origin);
 	} catch {
 		await clearAuthCookies();
-		return response("/entrar?erro=callback", config.origin);
+		return response(loginErrorPath("callback", next), config.origin);
 	}
 }
 
