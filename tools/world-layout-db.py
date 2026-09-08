@@ -60,18 +60,23 @@ def wait_for(sql, *, attempts=80, delay=0.05):
 
 
 def start_psql(sql):
-    return subprocess.Popen(
+    process = subprocess.Popen(
         psql_args,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
         text=True,
-    ), sql
+    )
+    process.stdin.write(sql)
+    process.stdin.close()
+    # communicate() tries to flush a non-None stdin even when already closed.
+    process.stdin = None
+    return process
 
 
-def finish_psql(process, sql, *, timeout=10):
-    stdout, stderr = process.communicate(sql, timeout=timeout)
+def collect_psql(process, *, timeout=10):
+    stdout, stderr = process.communicate(timeout=timeout)
     if process.returncode != 0:
         raise RuntimeError(
             f"psql concurrency session failed rc={process.returncode}\nstdout={stdout}\nstderr={stderr}"
@@ -129,7 +134,7 @@ try:
         """
     )
 
-    first_insert_a, first_insert_a_sql = start_psql(
+    first_insert_a = start_psql(
         """
         begin;
         set application_name = 'tda-world-layout-insert-a';
@@ -145,8 +150,6 @@ try:
         commit;
         """
     )
-    first_insert_a.stdin.write(first_insert_a_sql)
-    first_insert_a.stdin.close()
     wait_for(
         """
         select exists (
@@ -158,7 +161,7 @@ try:
         """
     )
 
-    first_insert_b, first_insert_b_sql = start_psql(
+    first_insert_b = start_psql(
         """
         begin;
         set application_name = 'tda-world-layout-insert-b';
@@ -173,8 +176,6 @@ try:
         commit;
         """
     )
-    first_insert_b.stdin.write(first_insert_b_sql)
-    first_insert_b.stdin.close()
     wait_for(
         """
         select exists (
@@ -185,14 +186,8 @@ try:
         """
     )
 
-    first_insert_a_out, first_insert_a_err = first_insert_a.communicate(timeout=10)
-    first_insert_b_out, first_insert_b_err = first_insert_b.communicate(timeout=10)
-    if first_insert_a.returncode != 0 or first_insert_b.returncode != 0:
-        raise RuntimeError(
-            "first-insert concurrency session failed\n"
-            f"A rc={first_insert_a.returncode} stdout={first_insert_a_out} stderr={first_insert_a_err}\n"
-            f"B rc={first_insert_b.returncode} stdout={first_insert_b_out} stderr={first_insert_b_err}"
-        )
+    first_insert_a_out = collect_psql(first_insert_a)
+    first_insert_b_out = collect_psql(first_insert_b)
     assert_saved_conflict(first_insert_a_out, first_insert_b_out, 1, "first-insert race")
     if scalar(
         """
@@ -203,7 +198,7 @@ try:
     ) != "1:1":
         raise RuntimeError("first-insert race must leave revision=1 and exactly one audit row")
 
-    update_a, update_a_sql = start_psql(
+    update_a = start_psql(
         """
         begin;
         set application_name = 'tda-world-layout-update-a';
@@ -219,8 +214,6 @@ try:
         commit;
         """
     )
-    update_a.stdin.write(update_a_sql)
-    update_a.stdin.close()
     wait_for(
         """
         select exists (
@@ -232,7 +225,7 @@ try:
         """
     )
 
-    update_b, update_b_sql = start_psql(
+    update_b = start_psql(
         """
         begin;
         set application_name = 'tda-world-layout-update-b';
@@ -247,8 +240,6 @@ try:
         commit;
         """
     )
-    update_b.stdin.write(update_b_sql)
-    update_b.stdin.close()
     wait_for(
         """
         select exists (
@@ -259,14 +250,8 @@ try:
         """
     )
 
-    update_a_out, update_a_err = update_a.communicate(timeout=10)
-    update_b_out, update_b_err = update_b.communicate(timeout=10)
-    if update_a.returncode != 0 or update_b.returncode != 0:
-        raise RuntimeError(
-            "existing-row concurrency session failed\n"
-            f"A rc={update_a.returncode} stdout={update_a_out} stderr={update_a_err}\n"
-            f"B rc={update_b.returncode} stdout={update_b_out} stderr={update_b_err}"
-        )
+    update_a_out = collect_psql(update_a)
+    update_b_out = collect_psql(update_b)
     assert_saved_conflict(update_a_out, update_b_out, 2, "existing-row race")
     if scalar(
         """
