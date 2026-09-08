@@ -154,7 +154,7 @@ export function WorldLayoutEditorClient({ projection }: { projection: WorldGraph
 						<p className={styles.feedback}>Não foi possível acessar a área de transferência.</p>
 					) : null}
 
-					<pre className={styles.snapshot} aria-label="Snapshot editorial candidato">
+					<pre className={styles.snapshot}>
 						{serialized || "Nenhum snapshot disponível."}
 					</pre>
 				</aside>
