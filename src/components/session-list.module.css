@@ -173,8 +173,9 @@
 .cardLink:focus-visible,
 .sessionText a:focus-visible,
 .rowAction:focus-visible {
-	outline: 2px solid var(--ds-control-focus-ring);
+	outline: 2px solid var(--ds-accent);
 	outline-offset: 3px;
+	box-shadow: var(--ds-control-focus-ring);
 }
 
 .viewToggle button.activeView {
@@ -205,7 +206,7 @@
 }
 
 .resultBar button {
-	min-height: 40px;
+	min-height: 44px;
 	padding: 0 8px;
 	border: 0;
 	background: transparent;
@@ -370,41 +371,12 @@
 	border-top: 1px solid var(--ds-border);
 }
 
-.metrics {
-	display: flex;
-	min-width: 0;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 14px;
-}
-
-.metric {
-	display: inline-flex;
-	min-width: 0;
-	align-items: center;
-	gap: 6px;
+.readCue {
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-ui);
 	font-size: 0.72rem;
-	font-variant-numeric: tabular-nums;
-}
-
-.metricIcon {
-	display: inline-grid;
-	width: 16px;
-	height: 16px;
-	place-items: center;
-	flex: 0 0 auto;
-}
-
-.metricIcon svg {
-	width: 15px;
-	height: 15px;
-	fill: none;
-	stroke: currentColor;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-	stroke-width: 1.55;
+	font-weight: 650;
+	letter-spacing: 0.02em;
 }
 
 .openMark {
@@ -439,13 +411,10 @@
 .listRow {
 	display: grid;
 	grid-template-columns:
-		minmax(260px, 1.45fr)
-		minmax(150px, 0.78fr)
-		132px
-		110px
-		118px
-		112px
-		minmax(220px, 1.25fr)
+		minmax(270px, 1.4fr)
+		minmax(160px, 0.75fr)
+		140px
+		minmax(280px, 1.5fr)
 		40px;
 	gap: 16px;
 	align-items: center;
@@ -517,9 +486,6 @@
 
 .arcCell,
 .dateCell,
-.durationCell,
-.participantCell,
-.wordsCell,
 .listSummary {
 	min-width: 0;
 	color: var(--ds-foreground-soft);
@@ -535,24 +501,8 @@
 	-webkit-line-clamp: 2;
 }
 
-.dateCell,
-.durationCell,
-.participantCell,
-.wordsCell {
+.dateCell {
 	font-variant-numeric: tabular-nums;
-}
-
-.mobileMetric {
-	display: block;
-}
-
-.mobileMetric > span:first-child {
-	display: none;
-}
-
-.mobileMetric strong {
-	color: inherit;
-	font-weight: 500;
 }
 
 .mobileLabel {
@@ -626,6 +576,10 @@
 		color: var(--ds-accent);
 	}
 
+	.card:hover .readCue {
+		color: var(--ds-foreground);
+	}
+
 	.listRow:hover {
 		background: var(--ds-surface-hover);
 	}
@@ -639,25 +593,6 @@
 	.viewToggle button:hover {
 		border-color: var(--ds-accent);
 		color: var(--ds-accent);
-	}
-}
-
-@media (max-width: 1580px) {
-	.listHeader,
-	.listRow {
-		grid-template-columns:
-			minmax(250px, 1.5fr)
-			minmax(145px, 0.8fr)
-			128px
-			104px
-			112px
-			112px
-			40px;
-	}
-
-	.listHeader > :nth-child(7),
-	.listSummary {
-		display: none;
 	}
 }
 
@@ -678,16 +613,14 @@
 	.listHeader,
 	.listRow {
 		grid-template-columns:
-			minmax(250px, 1.55fr)
-			128px
-			104px
-			112px
-			112px
+			minmax(260px, 1.5fr)
+			minmax(150px, 0.8fr)
+			136px
 			40px;
 	}
 
-	.listHeader > :nth-child(2),
-	.arcCell {
+	.listHeader > :nth-child(4),
+	.listSummary {
 		display: none;
 	}
 }
@@ -725,12 +658,12 @@
 	.listRow {
 		display: grid;
 		min-height: 0;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: minmax(0, 1fr) minmax(0, 0.55fr) 40px;
 		grid-template-areas:
 			"session session action"
-			"arc arc arc"
-			"duration participant words";
-		gap: 12px 10px;
+			"arc date date"
+			"summary summary summary";
+		gap: 12px 14px;
 		padding: 16px;
 		border: 1px solid var(--ds-border);
 		border-radius: var(--ds-radius-lg);
@@ -760,68 +693,39 @@
 		font-size: 0.68rem;
 	}
 
-	.arcCell {
-		display: block;
-		grid-area: arc;
-		padding-top: 11px;
-		border-top: 1px solid var(--ds-border);
-		color: var(--ds-accent);
-		font-size: 0.66rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-
-	.dateCell,
-	.listSummary {
-		display: none;
-	}
-
-	.durationCell,
-	.participantCell,
-	.wordsCell {
-		display: block;
-		min-width: 0;
-		padding: 10px 0 0;
-		border-top: 1px solid var(--ds-border);
-	}
-
-	.durationCell {
-		grid-area: duration;
-	}
-
-	.participantCell {
-		grid-area: participant;
-	}
-
-	.wordsCell {
-		grid-area: words;
-	}
-
-	.mobileMetric {
+	.arcCell,
+	.dateCell {
 		display: grid;
 		gap: 4px;
+		padding-top: 11px;
+		border-top: 1px solid var(--ds-border);
 	}
 
-	.mobileMetric > span:first-child {
+	.arcCell {
+		grid-area: arc;
+		color: var(--ds-accent);
+	}
+
+	.dateCell {
+		grid-area: date;
+		text-align: right;
+	}
+
+	.mobileLabel {
 		display: block;
-		overflow: hidden;
 		color: var(--ds-foreground-muted);
 		font-size: 0.56rem;
 		font-weight: 700;
 		letter-spacing: 0.045em;
-		text-overflow: ellipsis;
 		text-transform: uppercase;
-		white-space: nowrap;
 	}
 
-	.mobileMetric strong {
-		overflow: hidden;
-		color: var(--ds-foreground);
-		font-size: 0.76rem;
-		font-weight: 600;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	.listSummary {
+		display: -webkit-box;
+		grid-area: summary;
+		padding-top: 11px;
+		border-top: 1px solid var(--ds-border);
+		-webkit-line-clamp: 2;
 	}
 
 	.rowAction {
@@ -838,12 +742,12 @@
 	}
 
 	.search,
-	.selectField {
+	.selectField,
+	.toolbarEnd {
 		grid-column: auto;
 	}
 
 	.toolbarEnd {
-		grid-column: auto;
 		gap: 8px;
 	}
 
@@ -871,10 +775,6 @@
 	.cardTitle {
 		font-size: clamp(1.55rem, 7vw, 1.9rem);
 	}
-
-	.summary {
-		-webkit-line-clamp: 3;
-	}
 }
 
 @media (max-width: 520px) {
@@ -895,10 +795,6 @@
 		padding: 10px 2px;
 	}
 
-	.metrics {
-		gap: 11px;
-	}
-
 	.cardDate {
 		top: auto;
 		right: 12px;
@@ -906,7 +802,11 @@
 	}
 
 	.listRow {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px;
+		grid-template-columns: minmax(0, 1fr) 40px;
+		grid-template-areas:
+			"session action"
+			"arc arc"
+			"summary summary";
 		padding: 14px;
 	}
 
@@ -916,6 +816,10 @@
 
 	.sessionText a {
 		font-size: 1.12rem;
+	}
+
+	.dateCell {
+		display: none;
 	}
 }
 

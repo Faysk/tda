@@ -1,86 +1,64 @@
 import type { PublishedSession } from "./model";
 
-export type SessionArchiveMetrics = Readonly<{
-	durationMs: number | null;
-	wordCount: number | null;
-	participantCount: number | null;
-}>;
-
-export type SessionArchiveItem = PublishedSession & SessionArchiveMetrics;
+export type SessionArchiveItem = PublishedSession;
 
 export type SessionArchiveSummary = Readonly<{
 	sessions: number;
-	durationMs: number | null;
-	durationCoverage: number;
-	wordCount: number | null;
-	wordCoverage: number;
-	participantCount: number | null;
-	participantCoverage: number;
+	arcs: number;
+	firstDate: string;
+	latestDate: string;
 }>;
 
-export function parseArchiveMetric(value: unknown): number | null {
-	if (
-		typeof value === "number" &&
-		Number.isSafeInteger(value) &&
-		value >= 0
-	) {
-		return value;
-	}
-	if (typeof value === "string" && /^\d+$/.test(value)) {
-		const parsed = Number(value);
-		return Number.isSafeInteger(parsed) ? parsed : null;
-	}
-	return null;
-}
-
-export function formatArchiveDuration(value: number | null) {
-	if (value === null) return "—";
-	if (value === 0) return "0 min";
-	if (value < 60_000) return "< 1 min";
-	const minutes = Math.floor(value / 60_000);
-	const hours = Math.floor(minutes / 60);
-	const remaining = minutes % 60;
-	if (!hours) return `${minutes} min`;
-	return `${hours} h${remaining ? ` ${remaining} min` : ""}`;
-}
-
 const numberFormatter = new Intl.NumberFormat("pt-BR");
+const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
+	month: "short",
+	timeZone: "UTC",
+});
 
-export function formatArchiveNumber(value: number | null) {
-	return value === null ? "—" : numberFormatter.format(value);
+function archiveDateParts(value: string) {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+	const [year, month, day] = value.split("-").map(Number);
+	if (!year || !month || !day) return null;
+	const date = new Date(Date.UTC(year, month - 1, day));
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day
+	) {
+		return null;
+	}
+	return { date, day, year };
+}
+
+export function formatArchiveNumber(value: number) {
+	return numberFormatter.format(value);
+}
+
+export function formatArchiveDate(value: string) {
+	const parts = archiveDateParts(value);
+	if (!parts) return "—";
+	const month = monthFormatter.format(parts.date).replace(/\.$/, "");
+	return `${String(parts.day).padStart(2, "0")} ${month} ${parts.year}`;
 }
 
 export function summarizeSessionArchive(
 	sessions: readonly SessionArchiveItem[],
 ): SessionArchiveSummary {
-	const withDuration = sessions.filter((session) => session.durationMs !== null);
-	const withWords = sessions.filter((session) => session.wordCount !== null);
-	const withParticipants = sessions.filter(
-		(session) => session.participantCount !== null,
-	);
+	const arcs = new Set<string>();
+	const dates: string[] = [];
+
+	for (const session of sessions) {
+		const arc = session.arc.trim();
+		if (arc) arcs.add(arc.toLocaleLowerCase("pt-BR"));
+		if (archiveDateParts(session.date)) dates.push(session.date);
+	}
+
+	dates.sort();
 
 	return {
 		sessions: sessions.length,
-		durationMs: withDuration.length
-			? withDuration.reduce(
-					(total, session) => total + (session.durationMs ?? 0),
-					0,
-				)
-			: null,
-		durationCoverage: withDuration.length,
-		wordCount: withWords.length
-			? withWords.reduce(
-					(total, session) => total + (session.wordCount ?? 0),
-					0,
-				)
-			: null,
-		wordCoverage: withWords.length,
-		participantCount: withParticipants.length
-			? withParticipants.reduce(
-					(total, session) => total + (session.participantCount ?? 0),
-					0,
-				)
-			: null,
-		participantCoverage: withParticipants.length,
+		arcs: arcs.size,
+		firstDate: dates[0] ?? "",
+		latestDate: dates.at(-1) ?? "",
 	};
 }

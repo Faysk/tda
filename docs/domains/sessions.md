@@ -107,6 +107,24 @@ Exemplo:
 - master note: privado;
 - canon entry: audience própria.
 
+### Arquivo público `/sessoes`
+
+O arquivo público pode compor e agregar somente campos que já pertencem ao contrato publicado da session, hoje:
+
+- `source_session_id` usado pela URL pública;
+- título;
+- data;
+- arco;
+- resumo curto;
+- artwork pública elegível;
+- estado `published` e boundary da campanha.
+
+Totais exibidos no hero do arquivo podem derivar desses próprios campos, como quantidade de memórias publicadas, quantidade de arcos e intervalo de datas.
+
+Não promover para `/sessoes` métricas que pertencem ao leitor privado de transcrições. Em especial, palavras, duração registrada e participações não viram públicas apenas porque podem ser agregadas sem mostrar o texto bruto. Uma futura mudança de audience para essas métricas precisa ser decisão explícita de produto/domínio, com contrato e revisão de segurança próprios.
+
+O repository público continua server-only e estreito; não deve consultar transcrições ou perfis para enriquecer cards públicos.
+
 ## Compatibilidade de URL
 
 O legado usava fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo`. O reboot converte apenas formatos conhecidos para `/sessoes/{sourceSessionId}` sem reintroduzir frontend legado.
@@ -117,6 +135,7 @@ O legado usava fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessio
 - participant pertence a uma session;
 - participant não é identity global;
 - publicar session não publica automaticamente fontes;
+- o arquivo público não amplia a audience de métricas privadas por agregação;
 - provenance nunca é removida por reconciliação;
 - lifecycle narrativo/editorial e processing job não devem ser tratados como o mesmo estado.
 
