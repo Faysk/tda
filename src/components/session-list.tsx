@@ -228,11 +228,7 @@ function MobileMetric({
 	);
 }
 
-function ListRow({
-	session,
-}: {
-	session: SessionArchiveItem;
-}) {
+function ListRow({ session }: { session: SessionArchiveItem }) {
 	const href = `/sessoes/${encodeURIComponent(session.id)}`;
 	const date = formatSessionDate(session.date);
 
@@ -370,7 +366,8 @@ export function SessionList({
 						</select>
 					</label>
 
-					<div className={styles.viewToggle} role="group" aria-label="Visualização">
+					<fieldset className={styles.viewToggle}>
+						<legend className={styles.srOnly}>Visualização</legend>
 						<button
 							type="button"
 							className={view === "grid" ? styles.activeView : undefined}
@@ -389,7 +386,7 @@ export function SessionList({
 						>
 							<ListIcon />
 						</button>
-					</div>
+					</fieldset>
 				</div>
 			</div>
 
@@ -444,7 +441,9 @@ export function SessionList({
 			) : (
 				<div className={styles.empty} role="status">
 					<strong>Nenhuma sessão por aqui.</strong>
-					<span>Tente outro termo ou limpe os filtros para ver o arquivo completo.</span>
+					<span>
+						Tente outro termo ou limpe os filtros para ver o arquivo completo.
+					</span>
 				</div>
 			)}
 		</div>
