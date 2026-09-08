@@ -83,6 +83,7 @@ test("authorized real route renders scoped data, provenance, search and mobile l
 	page,
 	context,
 }, testInfo) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
 	await login(context, "manager");
 	await page.goto(path);
 	await expect(
@@ -183,6 +184,7 @@ test("account tasks reflect access and remain usable at narrow widths", async ({
 	page,
 	context,
 }, testInfo) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
 	await login(context, "reader");
 	await page.goto("/conta");
 	const tasks = page.getByRole("navigation", { name: "Espaços da campanha" });
