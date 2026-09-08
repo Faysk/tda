@@ -4,10 +4,10 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await page.goto("/mundo");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
 	await expect(page.getByText("Demonstração · relações não canônicas")).toBeVisible();
-	await expect(page.getByRole("heading", { level: 2, name: "A campanha" })).toBeVisible();
+	await expect(page.getByRole("heading", { level: 2, name: "A campanha", exact: true })).toBeVisible();
 
 	await page.locator('[data-world-node="astel"]').click();
-	await expect(page.getByRole("heading", { level: 2, name: "Astel" })).toBeVisible();
+	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
 	await expect(page).toHaveURL(/\/mundo$/);
 
 	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
@@ -35,11 +35,14 @@ test("World Explorer exposes honest SSR metadata through the central public cont
 test("World Explorer can switch to the textual view and filter relations", async ({ page }) => {
 	await page.goto("/mundo");
 	await page.getByRole("button", { name: "Lista" }).click();
-	await expect(page.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
+	const relations = page.locator('section[aria-labelledby="world-relations-title"]');
+	await expect(relations.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
 	await expect(page.getByTestId("world-canvas")).toHaveCount(0);
 
 	await page.getByLabel("Relação").selectOption("conflict");
-	await expect(page.getByText("Conflito", { exact: true }).first()).toBeVisible();
+	await expect(page.getByLabel("Relação")).toHaveValue("conflict");
+	await expect(relations.getByText("Conflito", { exact: true })).toBeVisible();
+	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
 });
 
 test("World Explorer nodes are movable without changing the URL", async ({ page }) => {
