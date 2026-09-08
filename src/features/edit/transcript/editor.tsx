@@ -20,6 +20,7 @@ import styles from "../workbench.module.css";
 
 type Segment = Readonly<{
 	id: string;
+	revision: number;
 	startMs: number;
 	endMs: number;
 	text: string;
@@ -57,8 +58,10 @@ function issueMessage(issues: readonly string[]): string {
 	if (issues.includes("text_too_long")) return "O texto ultrapassa 10.000 caracteres.";
 	if (issues.includes("speaker_required")) return "Informe o speaker.";
 	if (issues.includes("speaker_too_long")) return "O speaker ultrapassa 160 caracteres.";
-	if (issues.includes("segment_not_found")) return "A fala não foi encontrada nesta sessão.";
+	if (issues.includes("not_found") || issues.includes("segment_not_found")) return "A fala não foi encontrada nesta sessão.";
 	if (issues.includes("dependency_unavailable")) return "O serviço de edição está indisponível. Tente novamente.";
+	if (issues.includes("forbidden")) return "Sua conta não tem permissão para editar esta fala.";
+	if (issues.includes("unauthenticated")) return "Sua sessão expirou. Entre novamente para salvar.";
 	return "Não foi possível salvar esta fala. Tente novamente.";
 }
 
@@ -109,6 +112,7 @@ function SegmentEditor({
 	const [editor, setEditor] = useState(() =>
 		createTranscriptEditorState(toDraft(initial)),
 	);
+	const [revision, setRevision] = useState(initial.revision);
 	const textRef = useRef<HTMLTextAreaElement>(null);
 	const speakerRef = useRef<HTMLInputElement>(null);
 	const dirty = isTranscriptEditorDirty(editor);
@@ -122,6 +126,7 @@ function SegmentEditor({
 		const result = await updateTranscriptSegmentAction({
 			sessionId,
 			segmentId: initial.id,
+			expectedRevision: revision,
 			text: submission.text,
 			speaker: submission.speaker,
 			reviewStatus: submission.reviewStatus,
@@ -137,10 +142,11 @@ function SegmentEditor({
 			);
 			return;
 		}
+		setRevision(result.revision);
 		const persisted: TranscriptDraft = {
 			text: result.segment.text,
 			speaker: result.segment.speaker,
-			reviewStatus: result.segment.reviewStatus,
+			reviewStatus: result.segment.reviewStatus as TranscriptReviewStatus,
 		};
 		setEditor((current) =>
 			completeTranscriptSaveSuccess(current, submission, persisted),
