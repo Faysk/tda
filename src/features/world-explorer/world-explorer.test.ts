@@ -1,55 +1,65 @@
 import { describe, expect, it } from "vitest";
+import { constellationWorldLayout } from "./constellation-layout";
 import { DANDELION_WORLD_DEMO } from "./fixtures/dandelion";
-import { buildWorldProjection, resolveWorldFocusId } from "./projection";
-import { closestCardinalHandles, radialWorldLayout } from "./radial-layout";
+import {
+	buildWorldProjection,
+	filterWorldRelations,
+	resolveWorldFocusId,
+	searchWorldProjection,
+} from "./projection";
 
-describe("World Explorer demo projection", () => {
-	it("resolves focus by slug and falls back without exposing an unknown node", () => {
+describe("World Explorer V2 projection", () => {
+	it("opens as a campaign overview instead of forcing Dandelion as centre", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO);
+		expect(projection.mode).toBe("overview");
+		expect(projection.focusId).toBeNull();
+		expect(projection.heroIds).toEqual(expect.arrayContaining(["dandelion", "screacky", "astel"]));
+		expect(projection.nodes).toHaveLength(DANDELION_WORLD_DEMO.nodes.length);
+		expect(projection.edges).toHaveLength(DANDELION_WORLD_DEMO.edges.length);
+	});
+
+	it("resolves an explicit focus without falling back to a different hero", () => {
 		expect(resolveWorldFocusId(DANDELION_WORLD_DEMO, "ASTEL")).toBe("astel");
-		expect(resolveWorldFocusId(DANDELION_WORLD_DEMO, "missing")).toBe(
-			"dandelion",
-		);
+		expect(resolveWorldFocusId(DANDELION_WORLD_DEMO, "missing")).toBeNull();
+		expect(resolveWorldFocusId(DANDELION_WORLD_DEMO, undefined)).toBeNull();
 	});
 
-	it("keeps only direct neighbours and preserves the focus through filters", () => {
-		const projection = buildWorldProjection(
-			DANDELION_WORLD_DEMO,
-			"dandelion",
-			"locations",
-		);
-		expect(projection.nodes.map((node) => node.id)).toEqual([
-			"dandelion",
-			"reino-fadas",
-		]);
-		expect(projection.edges).toHaveLength(1);
+	it("keeps explicit focus as a bounded direct-neighbour exploration", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO, "astel");
+		expect(projection.mode).toBe("focus");
+		expect(projection.focusId).toBe("astel");
+		expect(projection.nodes.some((node) => node.id === "raven-queen")).toBe(true);
+		expect(
+			projection.edges.every((edge) => edge.source === "astel" || edge.target === "astel"),
+		).toBe(true);
 	});
 
-	it("can refocus on a selected neighbour without turning selection into focus", () => {
-		const initial = buildWorldProjection(DANDELION_WORLD_DEMO, "dandelion");
-		expect(initial.nodes.some((node) => node.id === "astel")).toBe(true);
-		const refocused = buildWorldProjection(DANDELION_WORLD_DEMO, "astel");
-		expect(refocused.focusId).toBe("astel");
-		expect(refocused.nodes.some((node) => node.id === "raven-queen")).toBe(true);
+	it("can filter relation families and search while preserving connected context", () => {
+		const overview = buildWorldProjection(DANDELION_WORLD_DEMO);
+		const conflicts = filterWorldRelations(overview, "conflict");
+		expect(conflicts.edges.length).toBeGreaterThan(0);
+		expect(conflicts.edges.every((edge) => edge.family === "conflict")).toBe(true);
+
+		const result = searchWorldProjection(overview, "Astel");
+		expect(result.nodes.some((node) => node.id === "astel")).toBe(true);
+		expect(result.nodes.some((node) => node.id === "raven-queen")).toBe(true);
 	});
 });
 
-describe("World Explorer radial layout", () => {
-	it("is deterministic and keeps the focus at the origin", () => {
-		const projection = buildWorldProjection(DANDELION_WORLD_DEMO, "dandelion");
-		const first = radialWorldLayout(projection);
-		const second = radialWorldLayout(projection);
+describe("World Explorer constellation layout", () => {
+	it("is deterministic and gives peer heroes distinct positions", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO);
+		const first = constellationWorldLayout(projection);
+		const second = constellationWorldLayout(projection);
 		expect(first).toEqual(second);
-		expect(first.dandelion).toEqual({ x: 0, y: 0 });
+		expect(first.dandelion).not.toEqual({ x: 0, y: 0 });
+		expect(first.dandelion).not.toEqual(first.astel);
+		expect(first.screacky).not.toEqual(first.astel);
 	});
 
-	it("routes connections through the nearest cardinal handles", () => {
-		expect(closestCardinalHandles({ x: 0, y: 0 }, { x: 100, y: 20 })).toEqual({
-			sourceHandle: "source-right",
-			targetHandle: "target-left",
-		});
-		expect(closestCardinalHandles({ x: 0, y: 0 }, { x: 10, y: -100 })).toEqual({
-			sourceHandle: "source-top",
-			targetHandle: "target-bottom",
-		});
+	it("centres only an explicitly focused exploration", () => {
+		const projection = buildWorldProjection(DANDELION_WORLD_DEMO, "astel");
+		const layout = constellationWorldLayout(projection);
+		expect(layout.astel).toEqual({ x: 0, y: 0 });
 	});
 });
