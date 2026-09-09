@@ -16,6 +16,7 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	expect(initialCanvas).not.toBeNull();
 	expect(initialCanvas?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(310);
 	expect(initialCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
+	const initialWidth = initialCanvas?.width ?? 0;
 
 	const collapse = page.getByRole("button", {
 		name: "Recolher navegação do mundo",
@@ -26,9 +27,11 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 		page.getByRole("button", { name: "Expandir navegação do mundo" }),
 	).toBeVisible();
 
-	const collapsedCanvas = await canvas.boundingBox();
-	expect(collapsedCanvas).not.toBeNull();
-	expect(collapsedCanvas?.width ?? 0).toBeGreaterThan(initialCanvas?.width ?? 0);
+	// The rail animates through the design-system motion token; assert the settled
+	// layout rather than sampling the first frame immediately after the click.
+	await expect
+		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
+		.toBeGreaterThan(initialWidth);
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
