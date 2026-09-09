@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-09
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -379,6 +379,49 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 - `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisado pelo owner SQL e validado em PostgreSQL scratch com concorrência real, **não aplicado em produção**.
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
+
+## Candidato de sessão exclusiva de edição do World Explorer
+
+### `20260909173000_world_edit_lease`
+
+**Estado:** migration candidata versionada nesta implementação; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- permitir que o mesmo `/mundo` alterne entre exploração e edição editorial de layout sem criar um segundo editor concorrente;
+- garantir no banco apenas uma sessão ativa de edição de layout por campanha;
+- manter posições em rascunho server-side e invisíveis à projection pública até publicação explícita;
+- renovar a sessão por lease com expiração, evitando lock permanente quando aba, navegador ou conexão desaparecem;
+- publicar chamando o boundary já aplicado `save_world_layout_snapshot_atomic(...)`, preservando optimistic concurrency e `audit_log` existentes;
+- permitir descarte do rascunho sem tocar no snapshot publicado.
+
+Segurança e compatibilidade:
+
+- reutiliza exclusivamente `campaign.world.layout.edit`; não amplia `campaign.content.edit` e não autoriza CRUD factual de entities/relations;
+- tabela `world_edit_leases` fica com RLS habilitado, sem grants para `anon`/`authenticated`;
+- RPCs são `SECURITY INVOKER` e executáveis por `service_role`, com revalidação interna de identidade, capability, assignment ativo e scope;
+- token de lease identifica a sessão/aba editorial, não usuário nem segredo de autorização;
+- draft contém somente coordenadas de nodes já autorizados pelo contrato do layout; canon, relations, visibility e conhecimento não entram no payload;
+- nenhuma alteração de relations, entities, canon ou publication é feita por esta migration.
+
+Concorrência e recuperação:
+
+- lease ativo de outra sessão retorna `busy` em vez de roubar o lock;
+- lease expirado pode ser recuperado pelo mesmo editor com o draft preservado;
+- novo editor após expiração inicia do snapshot publicado vigente;
+- conflito de `revision` preserva o draft e bloqueia publicação silenciosa sobre versão mais nova.
+
+Validação ainda necessária antes de aplicação remota:
+
+- `pnpm check`, build e Playwright do SHA final;
+- ensaio PostgreSQL descartável dos cinco RPCs, incluindo duas sessões concorrentes, expiração/recovery, payload inválido, capability/scope e rollback de publish;
+- revisão dos grants/RLS e comparação com o migration history somente depois de eventual aplicação deliberada.
+
+Rollback lógico:
+
+- antes da ativação do consumidor, remover os RPCs e `world_edit_leases` em migration corretiva é reversível;
+- após ativação, primeiro desligar o toggle/boundary no app, deixar leases expirarem e então remover a infraestrutura em migration corretiva;
+- nunca apagar `world_layout_snapshots` ou `audit_log` para desfazer esta feature.
 
 ## Candidato de estabilização de aliases narrativos
 
