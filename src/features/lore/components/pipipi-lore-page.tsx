@@ -92,6 +92,47 @@ const ghostAfterSection: Record<string, { src: string; position: "left" | "right
 	},
 };
 
+function renderInlineMarkup(text: string, keyPrefix: string) {
+	return text
+		.split(/(<strong>[\s\S]*?<\/strong>)/g)
+		.filter(Boolean)
+		.map((part, index) => {
+			const strong = part.match(/^<strong>([\s\S]*)<\/strong>$/);
+			return strong ? (
+				<strong key={`${keyPrefix}-strong-${index}`}>{strong[1]}</strong>
+			) : (
+				part
+			);
+		});
+}
+
+/**
+ * O pack editorial versionado usa apenas p, blockquote e strong.
+ * Renderizamos esse subconjunto explicitamente como React para manter o texto
+ * aprovado sem abrir uma superfície de HTML arbitrário no runtime.
+ */
+function EditorialContent({ html }: { html: string }) {
+	const blocks = [
+		...html.matchAll(
+			/<blockquote><p>([\s\S]*?)<\/p><\/blockquote>|<p>([\s\S]*?)<\/p>/g,
+		),
+	];
+
+	return blocks.map((match, index) => {
+		const isQuote = match[1] !== undefined;
+		const text = isQuote ? match[1] : (match[2] ?? "");
+		const content = renderInlineMarkup(text, `editorial-${index}`);
+
+		return isQuote ? (
+			<blockquote key={`quote-${index}`}>
+				<p>{content}</p>
+			</blockquote>
+		) : (
+			<p key={`paragraph-${index}`}>{content}</p>
+		);
+	});
+}
+
 function StorySection({
 	section,
 }: {
@@ -107,11 +148,9 @@ function StorySection({
 				<header>
 					<h2>{section.title}</h2>
 				</header>
-				<div
-					className={styles.prose}
-					// Conteúdo editorial estático e versionado; não recebe HTML de usuário.
-					dangerouslySetInnerHTML={{ __html: section.html }}
-				/>
+				<div className={styles.prose}>
+					<EditorialContent html={section.html} />
+				</div>
 			</section>
 
 			{section.sceneAfter ? (
@@ -203,10 +242,9 @@ export function PipipiLorePage() {
 					<span>✦</span>
 					<p>{PIPIPI_STORY.turningPoint.kicker}</p>
 					<h2>{PIPIPI_STORY.turningPoint.title}</h2>
-					<div
-						className={styles.turningPointText}
-						dangerouslySetInnerHTML={{ __html: PIPIPI_STORY.turningPoint.html }}
-					/>
+					<div className={styles.turningPointText}>
+						<EditorialContent html={PIPIPI_STORY.turningPoint.html} />
+					</div>
 				</aside>
 
 				<PartHeader part={PIPIPI_STORY.parts[1]} />
@@ -246,7 +284,9 @@ export function PipipiLorePage() {
 						aria-hidden="true"
 					/>
 					<div className={styles.finaleCopy}>
-						<div dangerouslySetInnerHTML={{ __html: PIPIPI_STORY.finaleHtml }} />
+						<div>
+							<EditorialContent html={PIPIPI_STORY.finaleHtml} />
+						</div>
 						<strong>Quando você não consegue salvar alguém, ainda pode ficar.</strong>
 					</div>
 				</section>
