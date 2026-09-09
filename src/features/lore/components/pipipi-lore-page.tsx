@@ -15,8 +15,8 @@ const sceneConfig: Record<
 	}
 > = {
 	casa: {
-		background: "/lore/pipipi/casa-bg.webp",
-		subject: "/lore/pipipi/casa-subject.webp",
+		background: "/lore/pipipi/casa-bg.avif",
+		subject: "/lore/pipipi/casa-subject.avif",
 		title: "A Casa tinha outro nome",
 		eyebrow: "02 · O outro nome da Casa",
 		caption:
@@ -24,8 +24,8 @@ const sceneConfig: Record<
 		motion: "cinematic",
 	},
 	"super-herois": {
-		background: "/lore/pipipi/super-bg.webp",
-		subject: "/lore/pipipi/super-subject.webp",
+		background: "/lore/pipipi/super-bg.avif",
+		subject: "/lore/pipipi/super-subject.avif",
 		title: "Os super-heróis não vieram salvá-la",
 		eyebrow: "A mesma memória, outro significado",
 		caption:
@@ -33,8 +33,8 @@ const sceneConfig: Record<
 		motion: "cinematic",
 	},
 	corredores: {
-		background: "/lore/pipipi/corredores-bg.webp",
-		subject: "/lore/pipipi/corredores-subject.webp",
+		background: "/lore/pipipi/corredores-bg.avif",
+		subject: "/lore/pipipi/corredores-subject.avif",
 		title: "Algumas crianças nunca foram para casa",
 		eyebrow: "Memória · corredores",
 		caption:
@@ -42,8 +42,8 @@ const sceneConfig: Record<
 		motion: "showcase",
 	},
 	cadeira: {
-		background: "/lore/pipipi/cadeira-bg.webp",
-		subject: "/lore/pipipi/cadeira-subject.webp",
+		background: "/lore/pipipi/cadeira-bg.avif",
+		subject: "/lore/pipipi/cadeira-subject.avif",
 		title: "A cadeira",
 		eyebrow: "Ficar também era cuidar",
 		caption:
@@ -51,8 +51,8 @@ const sceneConfig: Record<
 		motion: "breath",
 	},
 	"ultimo-dia": {
-		background: "/lore/pipipi/ultimo-dia-bg.webp",
-		subject: "/lore/pipipi/ultimo-dia-subject.webp",
+		background: "/lore/pipipi/ultimo-dia-bg.avif",
+		subject: "/lore/pipipi/ultimo-dia-subject.avif",
 		title: "O último dia",
 		eyebrow: "Todo mundo ficou",
 		caption:
@@ -60,8 +60,8 @@ const sceneConfig: Record<
 		motion: "breath",
 	},
 	acordou: {
-		background: "/lore/pipipi/acordou-bg.webp",
-		subject: "/lore/pipipi/acordou-subject.webp",
+		background: "/lore/pipipi/acordou-bg.avif",
+		subject: "/lore/pipipi/acordou-subject.avif",
 		title: "Quando Pipipi acordou",
 		eyebrow: "Pela primeira vez em muito tempo, nada doía",
 		caption: "Quando abriu os olhos novamente, Pipipi estava leve.",
@@ -71,23 +71,23 @@ const sceneConfig: Record<
 
 const ghostAfterSection: Record<string, { src: string; position: "left" | "right" }> = {
 	"o-que-ficou-depois-da-morte": {
-		src: "/lore/pipipi/ghost-soft.webp",
+		src: "/lore/pipipi/ghost-soft.avif",
 		position: "right",
 	},
 	"a-ferida-que-pipipi-nunca-nomeou": {
-		src: "/lore/pipipi/ghost-cry.webp",
+		src: "/lore/pipipi/ghost-cry.avif",
 		position: "left",
 	},
 	"pipipi-e-dandelion": {
-		src: "/lore/pipipi/ghost-flute.webp",
+		src: "/lore/pipipi/ghost-flute.avif",
 		position: "right",
 	},
 	"a-pulseirinha": {
-		src: "/lore/pipipi/ghost-surprise.webp",
+		src: "/lore/pipipi/ghost-surprise.avif",
 		position: "left",
 	},
 	"o-coracao-de-pipipi": {
-		src: "/lore/pipipi/ghost-hearts.webp",
+		src: "/lore/pipipi/ghost-hearts.avif",
 		position: "right",
 	},
 };
@@ -149,7 +149,7 @@ export function PipipiLorePage() {
 			<header className={styles.hero} id="topo">
 				<Image
 					className={styles.heroBackground}
-					src="/lore/pipipi/stage-bg.webp"
+					src="/lore/pipipi/stage-bg.avif"
 					alt=""
 					fill
 					priority
@@ -170,7 +170,7 @@ export function PipipiLorePage() {
 				</div>
 				<div className={styles.heroGhost} aria-hidden="true">
 					<Image
-						src="/lore/pipipi/ghost-flute.webp"
+						src="/lore/pipipi/ghost-flute.avif"
 						alt=""
 						width={962}
 						height={1000}
@@ -222,7 +222,7 @@ export function PipipiLorePage() {
 						<h2>Algumas coisas terminaram naquele quarto. Outras continuaram voando com ela.</h2>
 					</div>
 					<Image
-						src="/lore/pipipi/acordou-subject.webp"
+						src="/lore/pipipi/acordou-subject.avif"
 						alt="Pipipi como um pequeno fantasminha verde e luminoso."
 						width={800}
 						height={1000}
@@ -239,7 +239,7 @@ export function PipipiLorePage() {
 
 				<section className={styles.finale}>
 					<Image
-						src="/lore/pipipi/ghost-soft.webp"
+						src="/lore/pipipi/ghost-soft.avif"
 						alt=""
 						width={720}
 						height={720}
