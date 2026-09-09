@@ -1,12 +1,7 @@
 import Image from "next/image";
-import type { LoreProfileDTO } from "../model";
 import { PIPIPI_STORY, type PipipiSceneId } from "../pipipi-story";
 import { PipipiCinematicScene } from "./pipipi-cinematic-scene";
 import styles from "./pipipi-lore-page.module.css";
-
-type PipipiLorePageProps = {
-	profile?: LoreProfileDTO;
-};
 
 const sceneConfig: Record<
 	PipipiSceneId,
@@ -148,7 +143,7 @@ function PartHeader({ part }: { part: (typeof PIPIPI_STORY.parts)[number] }) {
 	);
 }
 
-export function PipipiLorePage(_props: PipipiLorePageProps = {}) {
+export function PipipiLorePage() {
 	return (
 		<article className={styles.page}>
 			<header className={styles.hero} id="topo">
@@ -163,7 +158,7 @@ export function PipipiLorePage(_props: PipipiLorePageProps = {}) {
 				/>
 				<div className={styles.heroShade} />
 				<div className={styles.heroCopy}>
-					<p className={styles.heroEyebrow}>Pipipi</p>
+					<p className={styles.heroEyebrow}>{PIPIPI_STORY.hero.eyebrow}</p>
 					<h1>
 						A Casa Onde os <span>Super-Heróis Visitavam</span>
 					</h1>
