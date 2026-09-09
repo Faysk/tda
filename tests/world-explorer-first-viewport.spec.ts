@@ -1,0 +1,53 @@
+import { expect, test } from "@playwright/test";
+
+test("World Explorer exposes the graph immediately and gives desktop space back when the rail collapses", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Ecos da Jornada", exact: true }),
+	).toBeVisible();
+	const canvas = page.getByTestId("world-canvas");
+	await expect(canvas).toBeVisible();
+
+	const initialCanvas = await canvas.boundingBox();
+	expect(initialCanvas).not.toBeNull();
+	expect(initialCanvas?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(310);
+	expect(initialCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
+
+	const collapse = page.getByRole("button", {
+		name: "Recolher navegação do mundo",
+	});
+	await expect(collapse).toBeVisible();
+	await collapse.click();
+	await expect(
+		page.getByRole("button", { name: "Expandir navegação do mundo" }),
+	).toBeVisible();
+
+	const collapsedCanvas = await canvas.boundingBox();
+	expect(collapsedCanvas).not.toBeNull();
+	expect(collapsedCanvas?.width ?? 0).toBeGreaterThan(initialCanvas?.width ?? 0);
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBeTruthy();
+});
+
+test("World Explorer keeps mobile navigation and graph accessible without a desktop rail", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/mundo");
+
+	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
+	await expect(page.getByTestId("world-canvas")).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Recolher navegação do mundo" }),
+	).toHaveCount(0);
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBeTruthy();
+});
