@@ -122,6 +122,24 @@ test("World Explorer can switch to the textual view and filter relations with th
 	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
 });
 
+test("World Explorer explains an empty search and recovers when the query is cleared", async ({ page }) => {
+	await page.goto("/mundo");
+	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
+	const canvas = page.getByTestId("world-canvas");
+
+	await search.fill("memoria-que-nao-existe");
+	await expect(page.getByText("Nenhuma relação visível para os filtros atuais.")).toBeVisible();
+	await expect.poll(() =>
+		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
+	).toContain("Nenhum resultado visível");
+
+	await search.fill("");
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
+	await expect.poll(() =>
+		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
+	).not.toContain("Nenhum resultado visível");
+});
+
 test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
 	await page.goto("/mundo");
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
