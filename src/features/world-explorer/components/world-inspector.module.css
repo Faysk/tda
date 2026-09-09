@@ -132,7 +132,7 @@
 	letter-spacing: 0.01em;
 }
 
-.connectionsHeader > span {
+.connectionsHeader.connectionsHeader > span {
 	display: inline-grid;
 	min-width: 28px;
 	height: 28px;
