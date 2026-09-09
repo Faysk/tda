@@ -67,13 +67,15 @@ location -> faction
 
 A possibilidade técnica não significa que todo par de tipos precise ser permitido. `relation_types` pode restringir ou documentar combinações no futuro.
 
-## Duas camadas propostas
+## Camadas de domínio propostas
 
 ```text
 relation_types
 entity_relations
 entity_relation_sources
 ```
+
+Essas três estruturas carregam semântica/provenance. A candidata #119 acrescenta `world_relation_styles` como armazenamento **de apresentação**, separado do contrato factual; essa tabela não transforma cor/espessura/traço em semântica de relation.
 
 ### `relation_types`
 
@@ -91,6 +93,8 @@ Campos propostos:
 | `description text` | contrato da relação |
 | `is_system boolean` | distingue tipos base de customizações futuras |
 | `created_at/updated_at` | auditoria técnica |
+
+A #119 ainda não fecha a convenção de inversas; o schema candidato mantém apenas `directionality` + label canônica nesta fatia.
 
 ### `entity_relations`
 
@@ -114,6 +118,8 @@ Campos propostos:
 | `created_by uuid?` | profile que materializou/aprovou |
 | `created_at/updated_at` | auditoria |
 | `metadata jsonb` | extensão não estrutural |
+
+A primeira migration candidata #119 é deliberadamente menor que este desenho completo: persiste endpoints/tipo/status/visibility/audit e deixa temporalidade narrativa explícita para uma evolução posterior, em vez de inventar datas sem caso real validado.
 
 `metadata` não deve receber listas de fontes, endpoints, directionality, audience ou campos que mereçam query/index.
 
@@ -156,6 +162,61 @@ evidence
 A semântica específica (`friend_of`, `owes_debt_to` etc.) precisa estar explícita no candidato/decisão; não inferir apenas pela ordem do array.
 
 Se essa reutilização de `canon_candidates` ficar ambígua em uso real, uma future ADR pode aprovar `relation_candidates`. Não criar agora sem necessidade observada.
+
+## Candidato físico #119 — autoria manual sem atalho de canon
+
+A PR #119 versiona `20260909215000_world_graph_authoring` como primeira implementação física candidata deste contrato. Na inspeção read-only de 2026-09-10, a migration **ainda não estava aplicada** no Supabase canônico.
+
+A fatia introduz:
+
+- `relation_types` por campaign;
+- `entity_relations` first-class;
+- `entity_relation_sources` para provenance;
+- `world_relation_styles` para apresentação, sem misturar estilo com verdade narrativa;
+- `world_graph_heads` + `world_graph_revisions` para revision/snapshot;
+- draft factual privado acoplado ao lease exclusivo do World já existente.
+
+### Separação semântica x apresentação
+
+`relation_types.family`, directionality e label continuam semântica. Cor, espessura e traço ficam em `world_relation_styles` ou override de edge e são consumidos pela projection/React Flow como **apresentação editorial**.
+
+Portanto o princípio "family não define cor física" permanece válido. O que muda em relação ao rascunho anterior deste contrato é que a apresentação pode ser persistida explicitamente em tabela própria, em vez de existir apenas em tokens de UI. Esse storage visual não pode ser usado para inferir relation type, canon, visibility ou audience.
+
+### Capability e sessão
+
+Autoria factual candidata exige:
+
+- `campaign.content.edit` no scope correto; e
+- lease vigente de `campaign.world.layout.edit` para a mesma identity/profile/campaign.
+
+A capability de layout isolada **não** concede autoria factual. O lease é mecanismo de concorrência/sessão, não elevação de permissão.
+
+### Draft e publish
+
+A edição factual fica em `draft_graph` privado até publicação explícita. O publish candidato:
+
+- valida revision do head;
+- valida IDs/endpoints/tipos/status/visibility;
+- normaliza endpoints simétricos antes de persistir;
+- rejeita duplicata ativa incompatível;
+- publica facts + layout na mesma transação SQL;
+- cria snapshot append-only quando o grafo factual muda;
+- grava `world_graph.publish` no audit;
+- não promove candidate/IA automaticamente.
+
+### Provenance ainda não concluída pela UI desta fatia
+
+A #119 cria `entity_relation_sources`, mas **não cria ainda uma mutation para anexar uma nova `canon_entry` a uma relação**. O `service_role` recebe somente leitura nessa tabela nesta fatia.
+
+Por isso o server boundary bloqueia uma relation ativa `public_campaign`/`public_web` sem source já existente e retorna `review_required` antes do RPC de publicação. Uma relation nova pode ser preparada como `private_*`/`review_only`, mas não ganha legitimidade pública só porque foi desenhada/editada no World.
+
+A fatia seguinte de provenance/review precisa anexar source de forma autorizada e auditável, em vez de liberar write genérico em `entity_relation_sources`.
+
+### Ativação pública separada
+
+Mesmo com schema/autoria instalados, `/mundo` não deve trocar automaticamente do demo para dados reais. A projection canônica pública da #119 fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true` e deve ser ativada somente depois de curadoria/review/visibility e validação visual do dataset real.
+
+O preflight de 2026-09-10 encontrou 3 entities no banco, apenas 1 `active/public_web`, e 0 `canon_entries`; portanto ativação pública neste estado seria prematura e degradaria a experiência demonstrativa atual.
 
 ## Edição autorizada no grafo — rodada #99
 
@@ -216,9 +277,7 @@ Exemplos possíveis, sujeitos ao vocabulário real:
 
 A UI pode renderizar uma única edge.
 
-No banco, endpoints devem ser normalizados para impedir duplicatas `A-B` e `B-A`.
-
-**Detalhe de implementação da normalização ainda precisa ser definido antes da DDL** porque depende de constraint/function e do catálogo `relation_types`.
+Na migration candidata #119, endpoints simétricos são normalizados no boundary de publish antes da persistência e duplicatas ativas são rejeitadas. Isso precisa continuar coberto por teste; não confiar na ordenação enviada pelo cliente.
 
 ### `directed`
 
@@ -233,7 +292,7 @@ Exemplos:
 - `betrayed`;
 - `originates_from`.
 
-A UI pode apresentar label diferente no sentido inverso usando `inverse_slug`.
+A UI pode apresentar label diferente no sentido inverso usando contrato futuro de inversa; a #119 não fecha `inverse_slug` nesta fatia.
 
 ## Inversas
 
@@ -257,7 +316,7 @@ Antes da seed final, escolher uma única convenção:
 
 `family` é classificação semântica útil para filtro, visual e analytics; não define cor física.
 
-Famílias candidatas:
+Famílias da primeira migration candidata:
 
 - `affinity`;
 - `family`;
@@ -267,15 +326,15 @@ Famílias candidatas:
 - `origin`;
 - `mystic`;
 - `creative`;
-- `other`.
+- `context`.
 
-A lista só deve ser fechada depois de testar relações reais da campanha.
+A lista deve continuar validada contra relações reais da campanha antes de ser tratada como vocabulário definitivo.
 
-A UI converte family/type em tokens visuais. Banco **não guarda hexadecimal**.
+A apresentação pode persistir hexadecimal/linha/espessura em `world_relation_styles` e overrides de edge, mas **as tabelas semânticas não usam esses valores para definir o significado da relação**.
 
 ## Lifecycle
 
-Estados propostos:
+Estados propostos/candidatos:
 
 - `active`;
 - `ended`;
@@ -294,13 +353,13 @@ sessão 10: A allied_with B
 sessão 22: aliança termina
 ```
 
-A relation pode passar para `ended` com `ended_session_id`, preservando a timeline.
+A relation pode passar para `ended`, preservando a timeline. A #119 ainda não adiciona `ended_session_id`/temporalidade detalhada; isso não autoriza hard delete para simular história.
 
 Se a relação anterior era factual mas foi substituída por retcon, usar `superseded`/histórico apropriado, não DELETE como correção editorial comum.
 
 ## Visibility
 
-Reutilizar, se confirmado na migration, o vocabulário já presente em `entities`, `canon_entries` e `publications`:
+Reutilizar o vocabulário já presente em `entities`, `canon_entries` e `publications` e adotado pela candidata #119:
 
 - `private_master`;
 - `private_players`;
@@ -384,12 +443,12 @@ Abaixo é **vocabulário de trabalho**, não seed aprovada:
 
 Cada tipo precisa de exemplos reais antes de entrar na seed.
 
-## Constraints obrigatórias a desenhar na migration
+## Constraints obrigatórias no desenho físico
 
 - source e target pertencem à mesma campanha da relation;
 - source != target, salvo tipo explicitamente self-referential (nenhum previsto agora);
 - relation type existe;
-- datas/status coerentes;
+- datas/status coerentes quando temporalidade for adicionada;
 - endpoints não são deletados silenciosamente;
 - duplicata simétrica é impedida;
 - índices suportam 1-hop por source e target;
@@ -397,7 +456,9 @@ Cada tipo precisa de exemplos reais antes de entrar na seed.
 - grants/RPCs revisados;
 - mutation factual valida actor/capability/scope no servidor;
 - concorrência evita last-write-wins silencioso;
-- audit/source/review permanecem na mesma operação lógica quando o desenho físico for aprovado.
+- audit/source/review permanecem na mesma operação lógica conforme cada fatia ganhar suporte.
+
+A #119 cobre o núcleo de endpoints/tipo/duplicata/authorization/revision/audit; provenance write e temporalidade detalhada continuam explicitamente fora desta primeira fatia.
 
 ## Índices esperados
 
@@ -410,7 +471,7 @@ No mínimo, avaliar:
 entity_relation_sources(canon_entry_id)
 ```
 
-A forma final depende das queries reais e advisors após dados de teste.
+A forma final depende das queries reais e advisors após dados de teste. A candidata #119 cria índices para os principais caminhos source/target/type/status; advisors pós-migration continuam gate antes de chamar isso de otimizado.
 
 ## Delete policy
 
@@ -437,7 +498,7 @@ Mudanças relevantes precisam entrar em `audit_log` ou mecanismo equivalente do 
 - restore;
 - source attachment/removal.
 
-A estratégia exata de trigger vs application log será definida na migration/feature do Edit.
+A candidata #119 registra `world_graph.publish` por snapshot factual publicado. Auditoria granular de source attachment/removal pertence à fatia de provenance e não deve ser simulada por metadata.
 
 ## API/projection
 
@@ -457,7 +518,7 @@ Projection pública mínima:
 }
 ```
 
-Temporalidade, source e status detalhados entram apenas quando a experiência pedir.
+Temporalidade, source e status detalhados entram apenas quando a experiência pedir. Estilo visual pode ser projetado separadamente sem expor provenance/review privado.
 
 ## Backfill
 
@@ -471,31 +532,29 @@ Primeiro conjunto real deve vir de:
 
 O dataset visual de referência pode gerar fixtures, mas não rows canônicas sem revisão.
 
-## Open questions antes da DDL
+## Open questions antes de declarar a V1 factual completa
 
 1. convenção de inverse types;
 2. `rival_of` é simétrica ou pode ser unilateral?;
-3. relation type custom por campanha será permitido na V1?;
-4. `visibility` exatamente reaproveita enum/check atual ou ganha domínio compartilhado?;
-5. como normalizar endpoints simétricos em constraint segura?;
-6. `created_by` aponta profile ou decisão de review?;
-7. uma relation pode existir sem `canon_entry` por import histórico manual?;
-8. quais 8–12 relation types cobrem 90% da campanha real?;
-9. como tratar pets/companions quando ainda não estiver claro se são PC/NPC/concept?;
-10. como representar vínculo com divindade/patrono sem conflar pessoa, facção e conceito?
-11. qual capability física existente ou nova, explicitamente aprovada, autoriza create/update/end/supersede de relation sem conflar com a capability de layout?
-12. qual shape de revision/audit garante conflito recuperável sem apagar decisão humana concorrente?
+3. relation type custom por campanha será permitido além do catálogo inicial?;
+4. quais 8–12 relation types cobrem 90% da campanha real?;
+5. uma relation histórica importada pode existir sem `canon_entry` e, se sim, sob qual estado/visibility sem escapar do review gate?;
+6. como anexar/remover `entity_relation_sources` com capability, audit e conflito sem abrir CRUD genérico?;
+7. como tratar pets/companions quando ainda não estiver claro se são PC/NPC/concept?;
+8. como representar vínculo com divindade/patrono sem conflar pessoa, facção e conceito?;
+9. quando temporalidade real exigir `started_session_id`/`ended_session_id`, qual migration compatível adiciona isso sem inventar história para relações existentes?;
+10. qual UX de review/provenance permite promover uma relation privada/review para pública com receipt claro?
 
-## Critério para aprovar migration
+## Critério para aprovar/aplicar a migration candidata #119
 
-- responder as open questions necessárias para V1;
-- validar o vocabulário com exemplos reais revisados da campanha, sem publicar material privado na documentação;
-- desenhar RLS/RPC/capabilities;
-- escrever migration + rollback lógico;
-- criar queries de teste para 1-hop e visibilidade;
-- criar seed mínimo apenas de tipos aprovados;
-- testar create/update/conflict/cross-campaign/visibility/audit no boundary server-side;
-- rodar advisors pós-migration;
-- documentar resultado real em `database/`.
+- contrato físico e invariantes revisados contra o banco real;
+- capability e boundary documentados em `database/security.md` + `rpc-inventory.md`;
+- PostgreSQL sintético cobrindo autorização, draft/publish/recovery, conflito, duplicata simétrica e rollback;
+- CI terminal no SHA exato, incluindo build/E2E;
+- preflight read-only do Supabase, migration history e advisors imediatamente antes do DDL;
+- aplicação controlada pelo database runbook;
+- validação pós-migration de RLS/grants/RPCs, contagens existentes e migration history;
+- `verification-log.md` atualizado somente com evidência realmente observada;
+- nenhuma ativação de `TDA_WORLD_CANONICAL_ENABLED` até existir dataset real revisado suficiente e validação visual da experiência pública.
 
-Até isso acontecer, o World Explorer usa fixtures/projection demo e o schema de relations de produção permanece inalterado. A #99 define o próximo alvo, não autoriza DDL, grant ou publicação por si só.
+Até a aplicação deliberada dessa migration, o schema de relations de produção permanece inalterado. Mesmo depois da infraestrutura instalada, o World público continua demonstrativo até a ativação canônica ser explicitamente autorizada; a existência de tabelas novas não é aprovação de fatos nem publicação de dados reais.
