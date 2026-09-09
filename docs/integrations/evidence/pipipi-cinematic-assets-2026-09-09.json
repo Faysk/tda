@@ -1,0 +1,189 @@
+{
+  "feature": "pipipi-cinematic-lore",
+  "preparedAt": "2026-09-09",
+  "sourceDirectory": "local build artifact only; not runtime source of truth",
+  "runtimeDirectory": "public/lore/pipipi/",
+  "assetCount": 18,
+  "assets": [
+    {
+      "filename": "stage-bg.webp",
+      "runtimePath": "/lore/pipipi/stage-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 120858,
+      "sha256": "9d9f5090b2d32c4cb9cd0dd35f18d2b7cd5fe79d54b41b177b860b2f682d5fbc"
+    },
+    {
+      "filename": "casa-bg.webp",
+      "runtimePath": "/lore/pipipi/casa-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 117558,
+      "sha256": "b01d86b8da2e33251d6019e0dc1f24e10cfae10f4e8a0909f9e633af28667e14"
+    },
+    {
+      "filename": "casa-subject.webp",
+      "runtimePath": "/lore/pipipi/casa-subject.webp",
+      "width": 800,
+      "height": 1000,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 163006,
+      "sha256": "85f82544a68b0f974bc7db8c0b58cba18fc618e80578ca0b6717d5c7584511e0"
+    },
+    {
+      "filename": "super-bg.webp",
+      "runtimePath": "/lore/pipipi/super-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 139012,
+      "sha256": "f9a6918c5d70e85abfbe5106cfaf8b698eb48ee9ca8c70dd4424240961ce067f"
+    },
+    {
+      "filename": "super-subject.webp",
+      "runtimePath": "/lore/pipipi/super-subject.webp",
+      "width": 840,
+      "height": 1050,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 192558,
+      "sha256": "bc760626589e112497c6d3bfcadc5bab82af81cec6962cb2dd20bafb2a5ae6c6"
+    },
+    {
+      "filename": "corredores-bg.webp",
+      "runtimePath": "/lore/pipipi/corredores-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 171250,
+      "sha256": "bd545433f28aebe4da5de201679eb9d8f93c1f98e94bb1f2d440df3360991382"
+    },
+    {
+      "filename": "corredores-subject.webp",
+      "runtimePath": "/lore/pipipi/corredores-subject.webp",
+      "width": 880,
+      "height": 1100,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 246720,
+      "sha256": "ea686756fc020c72ca51325a52867f706bc2f18a0abb9f6541666f333db46f49"
+    },
+    {
+      "filename": "cadeira-bg.webp",
+      "runtimePath": "/lore/pipipi/cadeira-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 112394,
+      "sha256": "98849c073f86ba0b9165478ab25b2f5a27a58d5c5b9167df53eb2e33d4ac17b9"
+    },
+    {
+      "filename": "cadeira-subject.webp",
+      "runtimePath": "/lore/pipipi/cadeira-subject.webp",
+      "width": 845,
+      "height": 1050,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 171304,
+      "sha256": "3102d701f6276830c8bb083b7ee90ef893958af009f28a1cd4d16b59ccf82c0b"
+    },
+    {
+      "filename": "ultimo-dia-bg.webp",
+      "runtimePath": "/lore/pipipi/ultimo-dia-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 166132,
+      "sha256": "66e105c1648bd9d7a162e59a2cbbc553b82661f7e227972b8ec2105368ecf263"
+    },
+    {
+      "filename": "ultimo-dia-subject.webp",
+      "runtimePath": "/lore/pipipi/ultimo-dia-subject.webp",
+      "width": 840,
+      "height": 1050,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 185718,
+      "sha256": "15b4e910d6b37b46fd1ce214997a33170275f956b3254dc695ea5597df1be99f"
+    },
+    {
+      "filename": "acordou-bg.webp",
+      "runtimePath": "/lore/pipipi/acordou-bg.webp",
+      "width": 1280,
+      "height": 720,
+      "mode": "RGB",
+      "alpha": false,
+      "bytes": 97118,
+      "sha256": "e6e17188cd353682aaf9083f68acde453565f544cb2340f391ff7ab950178cdd"
+    },
+    {
+      "filename": "acordou-subject.webp",
+      "runtimePath": "/lore/pipipi/acordou-subject.webp",
+      "width": 800,
+      "height": 1000,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 124392,
+      "sha256": "a98db34fb4c08dde8964f63b03a7d2713d8e66b4fcd48c215f48fd996e33391d"
+    },
+    {
+      "filename": "ghost-flute.webp",
+      "runtimePath": "/lore/pipipi/ghost-flute.webp",
+      "width": 847,
+      "height": 880,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 95402,
+      "sha256": "16a5fe00ba9b6634b70e2b714a65ec9cec7fee2f39d3eaa555045c975d0561e9"
+    },
+    {
+      "filename": "ghost-soft.webp",
+      "runtimePath": "/lore/pipipi/ghost-soft.webp",
+      "width": 880,
+      "height": 880,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 81842,
+      "sha256": "5ea487a2eca2e1a76e43d03a0f1dc30c7a8296fbc86ef184a084569e85c8cbe2"
+    },
+    {
+      "filename": "ghost-cry.webp",
+      "runtimePath": "/lore/pipipi/ghost-cry.webp",
+      "width": 880,
+      "height": 880,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 73378,
+      "sha256": "aa54388b09d186dee2e80638d3abd6e6a001fa56973bc26e5feae920343cee46"
+    },
+    {
+      "filename": "ghost-surprise.webp",
+      "runtimePath": "/lore/pipipi/ghost-surprise.webp",
+      "width": 880,
+      "height": 880,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 80226,
+      "sha256": "a281256358f815a8db97b3e590c426900cf6837e71707941717d0b58fb071c9b"
+    },
+    {
+      "filename": "ghost-hearts.webp",
+      "runtimePath": "/lore/pipipi/ghost-hearts.webp",
+      "width": 880,
+      "height": 880,
+      "mode": "RGBA",
+      "alpha": true,
+      "bytes": 81126,
+      "sha256": "2a6168243ee2ea6b00385e1e944d2e2ed8b1116de0b7224102cd23d42e2d9562"
+    }
+  ]
+}
