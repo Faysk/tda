@@ -110,8 +110,9 @@ function relationTypeDto(row: RelationTypeRow, style?: StyleRow): WorldRelationT
 	const lineStyle = LINE_STYLES.has(style?.line_style as WorldLineStyle)
 		? (style?.line_style as WorldLineStyle)
 		: "solid";
-	const color = /^#[0-9a-f]{6}$/iu.test(style?.color ?? "")
-		? (style?.color as string).toLowerCase()
+	const styleColor = style?.color ?? "";
+	const color = /^#[0-9a-f]{6}$/iu.test(styleColor)
+		? styleColor.toLowerCase()
 		: "#8f9aa8";
 	return {
 		slug: row.slug,
@@ -224,8 +225,9 @@ export async function loadWorldDataset(
 		const lineStyle = LINE_STYLES.has(row.line_style_override as WorldLineStyle)
 			? (row.line_style_override as WorldLineStyle)
 			: type.style.lineStyle;
-		const color = /^#[0-9a-f]{6}$/iu.test(row.color_override ?? "")
-			? (row.color_override as string).toLowerCase()
+		const relationColor = row.color_override ?? "";
+		const color = /^#[0-9a-f]{6}$/iu.test(relationColor)
+			? relationColor.toLowerCase()
 			: type.style.color;
 		return [
 			{
