@@ -15,7 +15,7 @@
 }
 
 .modeBar button {
-	min-height: 42px;
+	min-height: 44px;
 	border: 0;
 	border-radius: 10px;
 	background: transparent;
@@ -26,7 +26,7 @@
 	cursor: pointer;
 }
 
-.modeBar button[aria-selected="true"] {
+.modeBar button[aria-pressed="true"] {
 	background: var(--ds-surface-elevated);
 	color: var(--ds-text);
 	box-shadow: var(--ds-shadow-sm);
@@ -71,7 +71,7 @@
 
 .formHeading > button,
 .advanced button {
-	min-height: 36px;
+	min-height: 44px;
 	border: 1px solid var(--ds-border);
 	border-radius: 10px;
 	background: transparent;
@@ -81,7 +81,8 @@
 	cursor: pointer;
 }
 
-.form label {
+.form label,
+.field {
 	display: grid;
 	gap: 6px;
 	color: var(--ds-text-muted);
@@ -92,7 +93,7 @@
 .form input:not([type="checkbox"]):not([type="color"]),
 .form textarea {
 	width: 100%;
-	min-height: 42px;
+	min-height: 44px;
 	box-sizing: border-box;
 	border: 1px solid var(--ds-border);
 	border-radius: 11px;
@@ -110,7 +111,7 @@
 
 .form input[type="color"] {
 	width: 100%;
-	height: 42px;
+	height: 44px;
 	padding: 3px;
 	border: 1px solid var(--ds-border);
 	border-radius: 11px;
@@ -142,7 +143,7 @@
 
 .primaryButton,
 .dangerButton {
-	min-height: 42px;
+	min-height: 44px;
 	border-radius: 11px;
 	font: inherit;
 	font-size: 0.8rem;
@@ -241,12 +242,11 @@
 	font-weight: 700;
 }
 
-.checkbox {
-	display: flex !important;
-	grid-template-columns: none;
+.form .checkbox {
+	display: flex;
 	align-items: center;
-	gap: 8px !important;
-	min-height: 40px;
+	gap: 8px;
+	min-height: 44px;
 }
 
 .checkbox input {
@@ -269,13 +269,6 @@
 @media (max-width: 520px) {
 	.modeBar {
 		grid-template-columns: 1fr;
-	}
-
-	.modeBar button,
-	.primaryButton,
-	.dangerButton,
-	.listBlock button {
-		min-height: 44px;
 	}
 
 	.twoColumns,
