@@ -6,13 +6,28 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.getByText("Demo · não canônico")).toBeVisible();
 	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
 
+	const allRelationLabels = page.locator("[data-world-edge-label]");
+	await expect(allRelationLabels.first()).toBeVisible();
+	const labelCountBeforeSelection = await allRelationLabels.count();
+	expect(labelCountBeforeSelection).toBeGreaterThan(1);
+
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-state]'),
+	).toHaveText("Selecionado");
 	await expect(page).toHaveURL(/\/mundo$/);
+
+	const labelCountAfterSelection = await allRelationLabels.count();
+	expect(labelCountAfterSelection).toBeGreaterThan(0);
+	expect(labelCountAfterSelection).toBeLessThan(labelCountBeforeSelection);
 
 	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
 	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
 	await expect(page.getByText("Foco exploratório atual.")).toBeVisible();
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-state]'),
+	).toHaveText("Foco · selecionado");
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
