@@ -246,8 +246,13 @@ end;
 $$;
 reset role;
 
+-- Simulate wall-clock expiry while keeping the row internally valid: a real lease
+-- naturally expires after acquisition, it does not move expires_at before acquired_at.
 update public.world_edit_leases
-set expires_at = clock_timestamp() - interval '1 second';
+set acquired_at = acquired_at - interval '2 minutes',
+    heartbeat_at = heartbeat_at - interval '2 minutes',
+    draft_updated_at = draft_updated_at - interval '2 minutes',
+    expires_at = clock_timestamp() - interval '1 second';
 
 set role service_role;
 do $$
