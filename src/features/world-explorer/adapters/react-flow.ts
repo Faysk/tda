@@ -74,6 +74,7 @@ export function toReactFlowGraph(
 	const routes = routeWorldEdgePorts(layout, projection.edges);
 	const connected = connectedNodeIds(projection, selectedId ?? null);
 	const hasSelection = Boolean(selectedId);
+	const labelById = new Map(projection.nodes.map((node) => [node.id, node.label]));
 	const nodes: WorldFlowNode[] = projection.nodes.map((item) => {
 		const isHero = projection.heroIds.includes(item.id);
 		return {
@@ -93,7 +94,7 @@ export function toReactFlowGraph(
 			selectable: true,
 			selected: item.id === selectedId,
 			focusable: true,
-			ariaLabel: `${item.label}${item.subtitle ? ` — ${item.subtitle}` : ""}`,
+			ariaLabel: `${item.label}${item.subtitle ? ` — ${item.subtitle}` : ""}${item.id === projection.focusId ? " — foco exploratório" : ""}`,
 			zIndex: item.id === selectedId ? 5 : isHero ? 3 : item.id === projection.focusId ? 4 : 1,
 		};
 	});
@@ -103,6 +104,8 @@ export function toReactFlowGraph(
 		const isHighlighted = Boolean(
 			selectedId && (item.source === selectedId || item.target === selectedId),
 		);
+		const sourceLabel = labelById.get(item.source) ?? item.source;
+		const targetLabel = labelById.get(item.target) ?? item.target;
 		return {
 			id: item.id,
 			type: "worldRelation",
@@ -121,7 +124,7 @@ export function toReactFlowGraph(
 			deletable: false,
 			selectable: true,
 			focusable: true,
-			ariaLabel: `${item.label}: ${item.source} → ${item.target}`,
+			ariaLabel: `${item.label}: ${sourceLabel} → ${targetLabel}`,
 			markerEnd:
 				item.direction === "directed"
 					? { type: MarkerType.ArrowClosed, width: 17, height: 17 }
