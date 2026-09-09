@@ -379,3 +379,33 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 - `20260907193705_transcript_import_atomic`: recibo durável e consumer transacional service-only; revisado pelo owner SQL e validado em PostgreSQL scratch com concorrência real, **não aplicado em produção**.
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
+
+## Candidato de estabilização de aliases narrativos
+
+### `20260908231000_backfill_screacky_historical_alias`
+
+**Estado:** migration candidata versionada; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- preservar `Screacky` como `name`/slug vigente da entity PC existente;
+- adicionar `Screaky` somente como alias histórico para resolução/busca;
+- não alterar `entity_type`, visibility, canon, relações ou qualquer conteúdo narrativo.
+
+Matching e segurança:
+
+- restringe o alvo à campanha `yuhara-main`, `slug='screacky'` e `entity_type='pc'`;
+- falha se o alvo não resolver para exatamente uma entity;
+- só faz `array_append` quando o alias ainda não existe, tornando o backfill idempotente;
+- não contém UUID de produção nem texto de transcrição.
+
+Validação pré-aplicação:
+
+- inspeção read-only confirmou exatamente um alvo, `name=Screacky`, `visibility=private_players` e aliases vazio;
+- a expressão candidata projeta somente a adição de um alias, sem mudança de audience;
+- nenhuma escrita foi executada no Supabase durante a estabilização #102.
+
+Rollback lógico:
+
+- antes de existir consumidor dependente do alias, uma migration corretiva pode remover apenas o valor `Screaky` do array dessa entity;
+- não renomear `name`/slug nem apagar a entity para simular rollback.

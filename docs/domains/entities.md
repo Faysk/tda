@@ -82,7 +82,11 @@ Os respectivos `profile_characters` e 12 participações históricas estão vinc
 
 ### Grafia Screacky/Screaky
 
-Existe divergência histórica entre `Screacky` no banco e `Screaky` em material legado. Não corrigir silenciosamente. Confirmar nome canônico com o proprietário e registrar a grafia alternativa em aliases.
+Existe divergência histórica entre `Screacky` no banco e `Screaky` em material legado. A estabilização #102 preserva `Screacky` como `name`/slug vigente e adiciona `Screaky` somente como alias histórico por migration versionada `20260908231000_backfill_screacky_historical_alias.sql`.
+
+Essa migration é idempotente e não altera tipo, visibility, canon ou relações. Enquanto estiver apenas em branch/PR, o alias **não está aplicado no Supabase**; merge também não substitui aplicação deliberada e validação pelo database runbook.
+
+Outras variações encontradas em resumos, quando ainda não possuem entity existente e identidade resolvida, permanecem conflitos de curadoria. Não criar entity nem alias por semelhança textual isolada.
 
 ## Visibility
 
