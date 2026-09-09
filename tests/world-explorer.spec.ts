@@ -7,8 +7,8 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
 
 	const allRelationLabels = page.locator("[data-world-edge-label]");
+	await expect.poll(async () => allRelationLabels.count()).toBeGreaterThan(1);
 	const labelCountBeforeSelection = await allRelationLabels.count();
-	expect(labelCountBeforeSelection).toBeGreaterThan(1);
 
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
@@ -17,9 +17,9 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	).toHaveText("Selecionado");
 	await expect(page).toHaveURL(/\/mundo$/);
 
+	await expect.poll(async () => allRelationLabels.count()).toBeLessThan(labelCountBeforeSelection);
 	const labelCountAfterSelection = await allRelationLabels.count();
 	expect(labelCountAfterSelection).toBeGreaterThan(0);
-	expect(labelCountAfterSelection).toBeLessThan(labelCountBeforeSelection);
 
 	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
 	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
