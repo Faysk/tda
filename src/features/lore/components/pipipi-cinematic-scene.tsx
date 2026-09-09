@@ -42,11 +42,27 @@ export function PipipiCinematicScene({
 
 		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 		let frame = 0;
-		let visible = true;
+		let visible = false;
+
+		const resetMotion = () => {
+			root.style.setProperty("--scene-progress", "0");
+			root.style.setProperty("--scene-bg-x", "0px");
+			root.style.setProperty("--scene-bg-y", "0px");
+			root.style.setProperty("--scene-bg-scale", "1.035");
+			root.style.setProperty("--scene-subject-x", "0px");
+			root.style.setProperty("--scene-subject-y", "0px");
+			root.style.setProperty("--scene-subject-scale", "1");
+			root.style.setProperty("--scene-copy-opacity", "1");
+			root.style.setProperty("--scene-copy-y", "0px");
+		};
 
 		const render = () => {
 			frame = 0;
-			if (reducedMotion.matches || !visible) return;
+			if (!visible) return;
+			if (reducedMotion.matches) {
+				resetMotion();
+				return;
+			}
 
 			const rect = root.getBoundingClientRect();
 			const viewport = window.innerHeight;
@@ -85,29 +101,35 @@ export function PipipiCinematicScene({
 		};
 
 		const schedule = () => {
-			if (!frame) frame = window.requestAnimationFrame(render);
+			if (visible && !frame) frame = window.requestAnimationFrame(render);
 		};
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				visible = entries[0]?.isIntersecting ?? true;
+				visible = entries[0]?.isIntersecting ?? false;
+				root.dataset.active = visible ? "true" : "false";
 				if (visible) schedule();
 			},
 			{ rootMargin: "20% 0%" },
 		);
 		observer.observe(root);
 
+		const onMotionPreferenceChange = () => {
+			if (reducedMotion.matches) resetMotion();
+			else schedule();
+		};
+
 		window.addEventListener("scroll", schedule, { passive: true });
 		window.addEventListener("resize", schedule, { passive: true });
-		reducedMotion.addEventListener("change", schedule);
-		schedule();
+		reducedMotion.addEventListener("change", onMotionPreferenceChange);
 
 		return () => {
 			observer.disconnect();
 			window.removeEventListener("scroll", schedule);
 			window.removeEventListener("resize", schedule);
-			reducedMotion.removeEventListener("change", schedule);
+			reducedMotion.removeEventListener("change", onMotionPreferenceChange);
 			if (frame) window.cancelAnimationFrame(frame);
+			delete root.dataset.active;
 		};
 	}, [motion]);
 
