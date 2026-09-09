@@ -8,6 +8,8 @@ export type PipipiCinematicSceneProps = {
 	id: "casa" | "super-herois" | "corredores" | "cadeira" | "ultimo-dia" | "acordou";
 	background: string;
 	subject?: string;
+	subjectWidth?: number;
+	subjectHeight?: number;
 	title: string;
 	eyebrow: string;
 	caption: string;
@@ -29,6 +31,8 @@ export function PipipiCinematicScene({
 	id,
 	background,
 	subject,
+	subjectWidth = 800,
+	subjectHeight = 1000,
 	title,
 	eyebrow,
 	caption,
@@ -156,8 +160,8 @@ export function PipipiCinematicScene({
 							className={styles.sceneSubject}
 							src={subject}
 							alt=""
-							width={800}
-							height={1000}
+							width={subjectWidth}
+							height={subjectHeight}
 							sizes="(max-width: 760px) 78vw, 58vw"
 						/>
 					) : null}
