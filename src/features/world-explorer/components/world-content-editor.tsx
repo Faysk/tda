@@ -189,7 +189,8 @@ export function WorldContentEditor({
 
 	return (
 		<section className={styles.editor} aria-label="Editar Mundo">
-			<div className={styles.modeBar} role="group" aria-label="Ferramentas de edição do Mundo">
+			<fieldset className={styles.modeBar}>
+				<legend className={styles.srOnly}>Ferramentas de edição do Mundo</legend>
 				{([
 					["entity", selected ? "Elemento" : "Novo elemento"],
 					["relation", "Ligações"],
@@ -204,7 +205,7 @@ export function WorldContentEditor({
 						{label}
 					</button>
 				))}
-			</div>
+			</fieldset>
 
 			{section === "entity" ? (
 				selected ? (
