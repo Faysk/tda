@@ -20,6 +20,7 @@ export type WorldGraphFailure =
 	| "dependency_unavailable"
 	| "invalid_payload"
 	| "duplicate"
+	| "review_required"
 	| "lease_lost"
 	| "conflict";
 
@@ -151,6 +152,56 @@ export async function publishWorldEditStateAction(
 	}
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	// Public relation facts must remain behind the existing canon/review gate.
+	// The World editor may persist private/review material, but it cannot promote
+	// an active relation to a published audience until a canon source is attached.
+	const { data: campaign, error: campaignError } = await client
+		.from("campaigns")
+		.select("id")
+		.eq("slug", CAMPAIGN_SLUG)
+		.maybeSingle();
+	if (campaignError || !campaign?.id) {
+		if (campaignError) console.error("World publication campaign lookup failed", campaignError.message);
+		return { ok: false, reason: "dependency_unavailable" };
+	}
+
+	const { data: lease, error: leaseError } = await client
+		.from("world_edit_leases")
+		.select("draft_graph")
+		.eq("campaign_id", campaign.id)
+		.eq("holder_profile_id", contentAccess.profileId)
+		.eq("lease_token", leaseToken)
+		.maybeSingle();
+	if (leaseError || !lease) {
+		if (leaseError) console.error("World publication draft lookup failed", leaseError.message);
+		return { ok: false, reason: leaseError ? "dependency_unavailable" : "lease_lost" };
+	}
+
+	const publicationDraft = sanitizeWorldGraphDraft(lease.draft_graph);
+	if (!publicationDraft) return { ok: false, reason: "invalid_payload" };
+	const publishedRelationIds = publicationDraft.edges
+		.filter(
+			(edge) =>
+				edge.status === "active" &&
+				(edge.visibility === "public_campaign" || edge.visibility === "public_web"),
+		)
+		.map((edge) => edge.id);
+
+	if (publishedRelationIds.length) {
+		const { data: sources, error: sourceError } = await client
+			.from("entity_relation_sources")
+			.select("relation_id")
+			.in("relation_id", publishedRelationIds);
+		if (sourceError) {
+			console.error("World publication source lookup failed", sourceError.message);
+			return { ok: false, reason: "dependency_unavailable" };
+		}
+		const sourcedRelationIds = new Set((sources ?? []).map((source) => source.relation_id));
+		if (publishedRelationIds.some((relationId) => !sourcedRelationIds.has(relationId))) {
+			return { ok: false, reason: "review_required" };
+		}
+	}
 
 	const { data, error } = await client.rpc("publish_world_edit_state_atomic", {
 		p_auth_user_id: contentAccess.authUserId,
