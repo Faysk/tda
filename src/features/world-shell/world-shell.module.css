@@ -131,11 +131,6 @@
 	color: var(--ds-foreground-soft);
 }
 
-.navItemCompact .navCopy,
-.navItemCompact .navArrow {
-	display: none;
-}
-
 .navCopy {
 	min-width: 0;
 }
@@ -173,6 +168,11 @@
 	transition:
 		opacity var(--ds-motion-fast) var(--ds-ease-standard),
 		transform var(--ds-motion-fast) var(--ds-ease-soft);
+}
+
+.navItemCompact .navCopy,
+.navItemCompact .navArrow {
+	display: none;
 }
 
 .navItemCurrent {
