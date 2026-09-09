@@ -189,7 +189,7 @@ export function WorldContentEditor({
 
 	return (
 		<section className={styles.editor} aria-label="Editar Mundo">
-			<div className={styles.modeBar} aria-label="Ferramentas de edição do Mundo">
+			<div className={styles.modeBar} role="group" aria-label="Ferramentas de edição do Mundo">
 				{([
 					["entity", selected ? "Elemento" : "Novo elemento"],
 					["relation", "Ligações"],
