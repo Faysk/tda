@@ -12,14 +12,15 @@ create table public.world_edit_leases (
   acquired_at timestamptz not null default clock_timestamp(),
   heartbeat_at timestamptz not null default clock_timestamp(),
   draft_updated_at timestamptz not null default clock_timestamp(),
-  expires_at timestamptz not null
+  expires_at timestamptz not null,
+  check (expires_at > acquired_at)
 );
 
 create index world_edit_leases_holder_profile_idx
   on public.world_edit_leases(holder_profile_id);
 
 alter table public.world_edit_leases enable row level security;
-revoke all on public.world_edit_leases from public, anon, authenticated;
+revoke all on public.world_edit_leases from public, anon, authenticated, service_role;
 grant select, insert, update, delete on public.world_edit_leases to service_role;
 
 create function public.acquire_world_edit_lease_atomic(
@@ -77,6 +78,13 @@ begin
   if not found then
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
+
+  -- A missing lease row cannot be protected by SELECT ... FOR UPDATE. Serialize
+  -- acquisition per campaign so two first editors cannot race into a unique-key error.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(v_campaign_id::text, 0)
+  );
+  v_now := clock_timestamp();
 
   select snapshot.revision, snapshot.positions
   into v_layout_revision, v_layout_positions
@@ -249,6 +257,7 @@ begin
   where lease.campaign_id = v_campaign_id
   for update;
 
+  v_now := clock_timestamp();
   if not found
      or v_existing.holder_profile_id <> p_actor_profile_id
      or v_existing.lease_token <> p_lease_token
@@ -359,6 +368,7 @@ begin
   where lease.campaign_id = v_campaign_id
   for update;
 
+  v_now := clock_timestamp();
   if not found
      or v_existing.holder_profile_id <> p_actor_profile_id
      or v_existing.lease_token <> p_lease_token
@@ -376,6 +386,8 @@ begin
     v_current_revision := 0;
   end if;
 
+  -- Preserve the latest private draft even when publication has moved forward. The
+  -- caller gets a conflict and can reconcile without silently losing its composition.
   update public.world_edit_leases lease
   set draft_positions = p_positions,
       draft_updated_at = v_now,
@@ -459,6 +471,7 @@ begin
   where lease.campaign_id = v_campaign_id
   for update;
 
+  v_now := clock_timestamp();
   if not found
      or v_existing.holder_profile_id <> p_actor_profile_id
      or v_existing.lease_token <> p_lease_token
