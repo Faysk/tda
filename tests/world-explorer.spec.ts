@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
 	await page.goto("/mundo");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
-	await expect(page.getByText("Demonstração · relações não canônicas")).toBeVisible();
-	await expect(page.getByRole("heading", { level: 2, name: "A campanha", exact: true })).toBeVisible();
+	await expect(page.getByText("Demo · não canônico")).toBeVisible();
+	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
 
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
