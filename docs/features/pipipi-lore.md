@@ -1,6 +1,6 @@
 # Pipipi — lore cinematográfica pioneira
 
-> Status: candidato em branch; não integrado e não publicado
+> Status: candidato completo em branch; aguardando gates finais de CI/QA e decisão de merge/publicação
 > Owner: narrative-memory / frontend
 > Última revisão: 2026-09-09
 > Branch candidata: `feat/pipipi-cinematic-lore`
@@ -50,9 +50,11 @@ Cenas preparadas:
 
 ## Assets
 
-Os derivados web candidatos são destinados a `public/lore/pipipi/` e incluem backgrounds, subjects transparentes e portraits de fantasma. Masters/intermediários não são fonte de runtime.
+O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
 
-Antes de integração, os bytes efetivamente referenciados pela rota precisam estar presentes no branch/PR e passar pela revisão visual. Falta de asset deve ser tratada como gate de entrega, não mascarada com publicação parcial.
+Por limitação do canal de integração usado para esta PR, os bytes AVIF são versionados de forma determinística em `.asset-staging/pipipi/` como 28 chunks base64 de um único arquivo `ustar`. `tools/bootstrap-pipipi-assets.mjs` valida a integridade do base64, do tar e de cada um dos 18 assets por SHA-256 antes de materializá-los em `public/lore/pipipi/`.
+
+`pnpm dev` e `pnpm build` executam essa materialização antes de iniciar o Next.js. Assim, um checkout limpo do SHA testado produz exatamente os bytes registrados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-09.json`; bundle incompleto ou alterado falha o build em vez de publicar uma página parcial.
 
 ## Runtime e performance
 
@@ -83,7 +85,7 @@ A rota continua sendo candidata até merge e publicação deliberados.
 - desktop e mobile revisados visualmente;
 - `prefers-reduced-motion` funcional;
 - foco/links/heading hierarchy utilizáveis por teclado;
-- todos os assets de runtime presentes no SHA testado;
+- todos os assets de runtime reproduzíveis e validados por hash no SHA testado;
 - `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm design:check`, `pnpm docs:check` e `pnpm db:docs:check` verdes no mesmo SHA;
 - merge e publicação tratados como ações separadas.
 
