@@ -4,6 +4,7 @@ import {
 	editDataClient,
 	publishedDataClient,
 } from "@/integrations/supabase/server";
+import { DANDELION_WORLD_DEMO } from "./fixtures/dandelion";
 import type {
 	WorldDemoDataset,
 	WorldEntityType,
@@ -54,6 +55,14 @@ type RelationRow = {
 	color_override: string | null;
 	line_style_override: string | null;
 	line_width_override: number | string | null;
+};
+
+const EMPTY_WORLD: WorldDemoDataset = {
+	demo: false,
+	nodes: [],
+	edges: [],
+	relationTypes: [],
+	heroIds: [],
 };
 
 const ENTITY_TYPES = new Set<WorldEntityType>([
@@ -115,12 +124,18 @@ function relationTypeDto(row: RelationTypeRow, style?: StyleRow): WorldRelationT
 	};
 }
 
+function unavailableWorldDataset(): WorldDemoDataset {
+	return process.env.TDA_WORLD_DEMO_FALLBACK === "true"
+		? { ...DANDELION_WORLD_DEMO, demo: true }
+		: EMPTY_WORLD;
+}
+
 export async function loadWorldDataset(
 	audience: WorldAudience,
 	campaignSlug = CAMPAIGN_SLUG,
 ): Promise<WorldDemoDataset> {
 	const client = audience === "editor" ? editDataClient() : publishedDataClient();
-	if (!client) return { demo: false, nodes: [], edges: [], relationTypes: [], heroIds: [] };
+	if (!client) return unavailableWorldDataset();
 
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
@@ -128,7 +143,7 @@ export async function loadWorldDataset(
 		.eq("slug", campaignSlug)
 		.maybeSingle();
 	if (campaignError) throw new Error(`World campaign lookup failed: ${campaignError.message}`);
-	if (!campaign?.id) return { demo: false, nodes: [], edges: [], relationTypes: [], heroIds: [] };
+	if (!campaign?.id) return EMPTY_WORLD;
 
 	let entityQuery = client
 		.from("entities")
@@ -159,7 +174,9 @@ export async function loadWorldDataset(
 			},
 		];
 	});
-	const visibleIds = new Set(nodes.filter((node) => node.status !== "archived").map((node) => node.id));
+	const visibleIds = new Set(
+		nodes.filter((node) => node.status !== "archived").map((node) => node.id),
+	);
 
 	let typeQuery = client
 		.from("relation_types")
@@ -236,7 +253,10 @@ export async function loadWorldDataset(
 		demo: false,
 		nodes: activeNodes,
 		edges: edges.filter(
-			(edge) => edge.status !== "archived" && activeIds.has(edge.source) && activeIds.has(edge.target),
+			(edge) =>
+				edge.status !== "archived" &&
+				activeIds.has(edge.source) &&
+				activeIds.has(edge.target),
 		),
 		relationTypes,
 		heroIds: activeNodes.filter((node) => node.entityType === "pc").map((node) => node.id),
