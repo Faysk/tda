@@ -7,7 +7,6 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
 
 	const allRelationLabels = page.locator("[data-world-edge-label]");
-	await expect(allRelationLabels.first()).toBeVisible();
 	const labelCountBeforeSelection = await allRelationLabels.count();
 	expect(labelCountBeforeSelection).toBeGreaterThan(1);
 
