@@ -38,7 +38,7 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	).toBeTruthy();
 });
 
-test("World Explorer keeps mobile navigation and graph accessible without a desktop rail", async ({
+test("World Explorer keeps mobile navigation, controls and inspector sheet touch-safe", async ({
 	page,
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -49,6 +49,21 @@ test("World Explorer keeps mobile navigation and graph accessible without a desk
 	await expect(
 		page.getByRole("button", { name: "Recolher navegação do mundo" }),
 	).toHaveCount(0);
+
+	const detailToggle = page.getByRole("button", { name: "Recolher painel de detalhes" });
+	await expect(detailToggle).toBeVisible();
+	const detailToggleBox = await detailToggle.boundingBox();
+	expect(detailToggleBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(detailToggleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+	const flowControl = page.locator(".react-flow__controls-button").first();
+	await expect(flowControl).toBeVisible();
+	const flowControlBox = await flowControl.boundingBox();
+	expect(flowControlBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(flowControlBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+	await detailToggle.click();
+	await expect(page.getByRole("button", { name: "Abrir painel de detalhes" })).toBeVisible();
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
