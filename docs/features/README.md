@@ -13,6 +13,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
 
+Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
+
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
@@ -23,6 +25,7 @@ Candidato em revisão: [Estatísticas privadas de transcrições](transcript-sta
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
+| Pipipi / lore cinematográfica | candidato em branch; não publicado | [Pipipi](pipipi-lore.md) |
 | relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
 | contrato de dados de relations | proposta para revisão; nenhuma DDL aplicada | [Relations data contract](relations-data-contract.md) |
 | knowledge/audience | em desenho | [Conhecimento e audiência](knowledge-audience.md) |
