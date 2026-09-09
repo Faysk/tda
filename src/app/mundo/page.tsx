@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import "@xyflow/react/dist/style.css";
 import { buildPublicMetadata } from "@/config/public-metadata";
+import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { WorldExplorerClient } from "@/features/world-explorer/components/world-explorer-client";
 import { DANDELION_WORLD_DEMO } from "@/features/world-explorer/fixtures/dandelion";
+import { loadPublishedWorldLayout } from "@/features/world-explorer/layout-repository";
 import {
 	buildWorldProjection,
 	resolveWorldFocusId,
@@ -46,10 +50,19 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const requestedFocus = requestedFocusFrom(query);
 	const focusId = resolveWorldFocusId(DANDELION_WORLD_DEMO, requestedFocus);
 	const projection = buildWorldProjection(DANDELION_WORLD_DEMO, focusId);
+	projection.layout = await loadPublishedWorldLayout(projection);
+
+	const editAccess =
+		projection.mode === "overview"
+			? await authorizeCampaignCapabilityServer({
+					action: EDIT_CAPABILITIES.worldLayoutEdit,
+					campaignSlug: CAMPAIGN_SLUG,
+				})
+			: null;
 
 	return (
 		<main style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-			<WorldExplorerClient projection={projection} />
+			<WorldExplorerClient projection={projection} canEditLayout={editAccess?.ok === true} />
 		</main>
 	);
 }

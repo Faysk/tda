@@ -3,13 +3,13 @@ import type { WorldGraphProjection, WorldNodeDTO } from "./model";
 export type WorldPosition = { x: number; y: number };
 export type WorldLayout = Record<string, WorldPosition>;
 
-const HERO_RADIUS_X = 290;
-const HERO_RADIUS_Y = 215;
-const SATELLITE_RADIUS = 245;
-const SATELLITE_DEPTH_STEP = 118;
-const SHARED_CLUSTER_SPACING = 96;
-const OUTER_RADIUS_X = 610;
-const OUTER_RADIUS_Y = 430;
+const HERO_RADIUS_X = 270;
+const HERO_RADIUS_Y = 200;
+const SATELLITE_RADIUS = 225;
+const SATELLITE_DEPTH_STEP = 108;
+const SHARED_CLUSTER_SPACING = 88;
+const OUTER_RADIUS_X = 560;
+const OUTER_RADIUS_Y = 400;
 const MAX_AFFINITY_DEPTH = 4;
 
 function pointOnEllipse(
@@ -125,7 +125,7 @@ export function constellationWorldLayout(
 			.filter((node) => node.id !== projection.focusId)
 			.sort(nodeStableOrder);
 		neighbours.forEach((node, index) => {
-			layout[node.id] = pointOnEllipse(index, neighbours.length, 390, 300);
+			layout[node.id] = pointOnEllipse(index, neighbours.length, 370, 285);
 		});
 		return applyHints(projection, layout);
 	}

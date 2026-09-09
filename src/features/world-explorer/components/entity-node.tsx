@@ -73,9 +73,17 @@ function visualMark(kind: VisualKind): string {
 	}
 }
 
+function stateLabel(isFocus: boolean, selected: boolean): string | null {
+	if (isFocus && selected) return "Foco · selecionado";
+	if (selected) return "Selecionado";
+	if (isFocus) return "Foco";
+	return null;
+}
+
 export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed } = data;
 	const kind = visualKind(item, isHero);
+	const state = stateLabel(isFocus, selected);
 	return (
 		<div
 			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
@@ -110,6 +118,11 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 					];
 				}),
 			)}
+			{state ? (
+				<span className={nodeStyles.nodeState} data-node-state aria-hidden="true">
+					{state}
+				</span>
+			) : null}
 			<div className={nodeStyles.nodePortrait} aria-hidden="true">
 				{item.imageUrl ? (
 					<Image

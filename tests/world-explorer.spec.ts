@@ -3,16 +3,30 @@ import { expect, test } from "@playwright/test";
 test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
 	await page.goto("/mundo");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
-	await expect(page.getByText("Demonstração · relações não canônicas")).toBeVisible();
-	await expect(page.getByRole("heading", { level: 2, name: "A campanha", exact: true })).toBeVisible();
+	await expect(page.getByText("Demo · não canônico")).toBeVisible();
+	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
+
+	const allRelationLabels = page.locator("[data-world-edge-label]");
+	await expect.poll(async () => allRelationLabels.count()).toBeGreaterThan(1);
+	const labelCountBeforeSelection = await allRelationLabels.count();
 
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-state]'),
+	).toHaveText("Selecionado");
 	await expect(page).toHaveURL(/\/mundo$/);
+
+	await expect.poll(async () => allRelationLabels.count()).toBeLessThan(labelCountBeforeSelection);
+	const labelCountAfterSelection = await allRelationLabels.count();
+	expect(labelCountAfterSelection).toBeGreaterThan(0);
 
 	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
 	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
 	await expect(page.getByText("Foco exploratório atual.")).toBeVisible();
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-state]'),
+	).toHaveText("Foco · selecionado");
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
 });
 
@@ -106,6 +120,24 @@ test("World Explorer can switch to the textual view and filter relations with th
 	await expect(relationTrigger).toContainText("Conflito");
 	await expect(relations.getByText("Conflito", { exact: true })).toBeVisible();
 	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
+});
+
+test("World Explorer explains an empty search and recovers when the query is cleared", async ({ page }) => {
+	await page.goto("/mundo");
+	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
+	const canvas = page.getByTestId("world-canvas");
+
+	await search.fill("memoria-que-nao-existe");
+	await expect(page.getByText("Nenhuma relação visível para os filtros atuais.")).toBeVisible();
+	await expect.poll(() =>
+		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
+	).toContain("Nenhum resultado visível");
+
+	await search.fill("");
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
+	await expect.poll(() =>
+		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
+	).not.toContain("Nenhum resultado visível");
 });
 
 test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {

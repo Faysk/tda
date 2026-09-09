@@ -60,7 +60,7 @@
 	border-color: color-mix(in srgb, var(--ds-foreground-muted) 65%, var(--ds-control-border));
 }
 
-.entityNodeHero .nodePortrait {
+.entityNode.entityNodeHero .nodePortrait {
 	border-color: color-mix(in srgb, var(--ds-accent) 78%, var(--ds-control-border));
 	box-shadow:
 		0 0 0 4px var(--ds-accent-muted),
@@ -76,7 +76,7 @@
 		0 14px 38px var(--ds-ambient-accent);
 }
 
-.entityNodeFocus .nodePortrait {
+.entityNode.entityNodeFocus .nodePortrait {
 	border-color: var(--ds-accent-strong);
 	box-shadow:
 		0 0 0 6px var(--ds-accent-muted),
@@ -84,13 +84,38 @@
 		0 18px 48px var(--ds-ambient-cool);
 }
 
-.entityNodeSelected .nodePortrait {
+.entityNode.entityNodeSelected .nodePortrait {
 	transform: translateY(-3px) scale(1.05);
 	border-color: var(--ds-accent-strong);
 	box-shadow:
 		0 0 0 5px var(--ds-accent-muted),
 		0 0 42px var(--ds-ambient-accent),
 		0 18px 44px var(--ds-ambient-cool);
+}
+
+.nodeState {
+	position: absolute;
+	z-index: 4;
+	bottom: calc(100% + 13px);
+	left: 50%;
+	max-width: 148px;
+	transform: translateX(-50%);
+	padding: 4px 8px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 60%, var(--ds-control-border));
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 95%, transparent);
+	color: var(--ds-accent-strong);
+	font: 760 0.56rem/1 var(--ds-font-ui);
+	letter-spacing: 0.025em;
+	text-align: center;
+	white-space: nowrap;
+	box-shadow: 0 5px 18px var(--ds-ambient-cool);
+	pointer-events: none;
+}
+
+.entityNodeFocus:not(.entityNodeSelected) .nodeState {
+	border-color: var(--ds-control-border);
+	color: var(--ds-foreground-soft);
 }
 
 .nodeImage {
@@ -209,6 +234,7 @@
 	.nodeSubtitle { display: none; }
 	.nodeLabel { max-width: 132px; font-size: 0.66rem; }
 	.entityNodeHero .nodeLabel { font-size: 0.74rem; }
+	.nodeState { bottom: calc(100% + 10px); font-size: 0.54rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -216,5 +242,5 @@
 	.nodePortrait,
 	.nodeLabel { transition: none; }
 	.entityNode:hover .nodePortrait,
-	.entityNodeSelected .nodePortrait { transform: none; }
+	.entityNode.entityNodeSelected .nodePortrait { transform: none; }
 }
