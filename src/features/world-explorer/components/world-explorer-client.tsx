@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
 	useEffect,
 	useMemo,
@@ -27,6 +28,7 @@ import {
 	type WorldFlowNode,
 } from "../adapters/react-flow";
 import type { WorldLayout } from "../constellation-layout";
+import { captureWorldLayoutCandidate } from "../editorial-layout";
 import type {
 	WorldEdgeDTO,
 	WorldFilter,
@@ -40,6 +42,13 @@ import {
 	relationLabelFor,
 	searchWorldProjection,
 } from "../projection";
+import {
+	acquireWorldEditLeaseAction,
+	publishWorldEditLayoutAction,
+	releaseWorldEditLeaseAction,
+	renewWorldEditLeaseAction,
+	saveWorldEditDraftAction,
+} from "../world-edit-actions";
 import { WorldEntityNode } from "./entity-node";
 import inspectorStyles from "./world-inspector.module.css";
 import { WorldRelationEdge } from "./relation-edge";
@@ -48,6 +57,10 @@ import responsive from "./world-responsive.module.css";
 
 const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
+const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
+const WORLD_EDIT_HEARTBEAT_MS = 20_000;
+const WORLD_EDIT_DRAFT_DEBOUNCE_MS = 500;
+const WORLD_BUSY_NOTICE_MS = 5_000;
 
 const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 	{ value: "all", label: "Todos" },
@@ -76,6 +89,7 @@ type InspectorConnection = {
 };
 
 type InspectorTab = "overview" | "relations" | "moments";
+type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
 
 function nodeTypeLabel(node: WorldNodeDTO): string {
 	if (node.kind === "moment") return "Momento";
@@ -100,16 +114,50 @@ function clampPanelWidth(value: number) {
 	return Math.min(520, Math.max(320, value));
 }
 
-export function WorldExplorerClient({ projection }: { projection: WorldGraphProjection }) {
+function leaseFailureMessage(reason: string): string {
+	switch (reason) {
+		case "unauthenticated":
+			return "Sua sessão expirou. Entre novamente antes de editar o Mundo.";
+		case "profile_unresolved":
+			return "Sua conta ainda não está vinculada a um perfil que possa editar o Mundo.";
+		case "forbidden":
+			return "Sua conta não possui permissão para editar o layout do Mundo.";
+		case "conflict":
+			return "O layout publicado mudou enquanto este rascunho estava aberto. O rascunho foi preservado; recarregue antes de publicar.";
+		case "lease_lost":
+			return "A sessão exclusiva de edição expirou. O mapa local foi preservado, mas precisa de uma nova sessão antes de publicar.";
+		case "invalid_payload":
+			return "O rascunho contém uma posição inválida e não foi salvo.";
+		default:
+			return "Não foi possível confirmar a edição agora. Nenhuma alteração foi publicada.";
+	}
+}
+
+export function WorldExplorerClient({
+	projection,
+	canEditLayout = false,
+}: {
+	projection: WorldGraphProjection;
+	canEditLayout?: boolean;
+}) {
+	const router = useRouter();
 	const [filter, setFilter] = useState<WorldFilter>("all");
 	const [relationFilter, setRelationFilter] = useState<WorldRelationFilter>("all");
 	const [query, setQuery] = useState("");
 	const [selectedId, setSelectedId] = useState<string | null>(projection.focusId);
 	const [view, setView] = useState<"canvas" | "list">("canvas");
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
+	const positionOverridesRef = useRef<WorldLayout>({});
 	const [panelWidth, setPanelWidth] = useState(370);
 	const [panelCollapsed, setPanelCollapsed] = useState(false);
+	const [editState, setEditState] = useState<WorldEditState>("view");
+	const [leaseToken, setLeaseToken] = useState<string | null>(null);
+	const [editDirty, setEditDirty] = useState(false);
+	const [editFeedback, setEditFeedback] = useState<string | null>(null);
+	const [busyNotice, setBusyNotice] = useState<string | null>(null);
 	const resizeStart = useRef<{ x: number; width: number } | null>(null);
+	const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const visibleProjection = useMemo(() => {
 		const byType = filterWorldProjection(projection, filter);
@@ -125,6 +173,10 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 	const [edges, setEdges, onEdgesChange] = useEdgesState<WorldFlowEdge>(graph.edges);
 
 	useEffect(() => {
+		positionOverridesRef.current = positionOverrides;
+	}, [positionOverrides]);
+
+	useEffect(() => {
 		setNodes(graph.nodes);
 		setEdges(graph.edges);
 	}, [graph, setEdges, setNodes]);
@@ -135,27 +187,227 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 		}
 	}, [selectedId, visibleProjection.nodes]);
 
+	useEffect(() => {
+		if (editState !== "editing" || !leaseToken) return;
+		let cancelled = false;
+		const heartbeat = window.setInterval(() => {
+			void renewWorldEditLeaseAction(leaseToken).then((result) => {
+				if (cancelled || result.ok) return;
+				if (result.reason === "lease_lost" || result.reason === "forbidden") {
+					setEditState("view");
+					setLeaseToken(null);
+					window.localStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+				}
+				setEditFeedback(leaseFailureMessage(result.reason));
+			});
+		}, WORLD_EDIT_HEARTBEAT_MS);
+		return () => {
+			cancelled = true;
+			window.clearInterval(heartbeat);
+		};
+	}, [editState, leaseToken]);
+
+	useEffect(
+		() => () => {
+			if (draftTimer.current) clearTimeout(draftTimer.current);
+			if (busyTimer.current) clearTimeout(busyTimer.current);
+		},
+		[],
+	);
+
 	const selected = selectedId
 		? visibleProjection.nodes.find((node) => node.id === selectedId)
 		: undefined;
 	const focus = projection.focusId
 		? projection.nodes.find((node) => node.id === projection.focusId)
 		: undefined;
+	const editing = editState === "editing" || editState === "publishing";
+
+	function candidateFrom(overrides: WorldLayout) {
+		const fullGraph = toReactFlowGraph(projection, null, overrides);
+		return captureWorldLayoutCandidate(
+			projection,
+			Object.fromEntries(
+				fullGraph.nodes.map((node) => [
+					node.id,
+					{ x: node.position.x, y: node.position.y },
+				]),
+			),
+		);
+	}
+
+	function showBusyNotice(message: string) {
+		setBusyNotice(message);
+		if (busyTimer.current) clearTimeout(busyTimer.current);
+		busyTimer.current = setTimeout(() => setBusyNotice(null), WORLD_BUSY_NOTICE_MS);
+	}
+
+	function markLeaseLost(reason: string) {
+		setEditState("view");
+		setLeaseToken(null);
+		window.localStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		setEditFeedback(leaseFailureMessage(reason));
+	}
+
+	function scheduleDraftSave(overrides: WorldLayout) {
+		if (editState !== "editing" || !leaseToken) return;
+		if (draftTimer.current) clearTimeout(draftTimer.current);
+		draftTimer.current = setTimeout(() => {
+			const candidate = candidateFrom(overrides);
+			if (!candidate) {
+				setEditFeedback(leaseFailureMessage("invalid_payload"));
+				return;
+			}
+			void saveWorldEditDraftAction(leaseToken, candidate).then((result) => {
+				if (result.ok) {
+					setEditFeedback("Rascunho salvo. Só você vê estas posições até publicar.");
+					return;
+				}
+				if (result.reason === "lease_lost" || result.reason === "forbidden") {
+					markLeaseLost(result.reason);
+					return;
+				}
+				setEditFeedback(leaseFailureMessage(result.reason));
+			});
+		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
+	}
 
 	function rememberNodePosition(node: WorldFlowNode) {
-		setPositionOverrides((current) => ({
-			...current,
+		const nextOverrides: WorldLayout = {
+			...positionOverridesRef.current,
 			[node.id]: { x: node.position.x, y: node.position.y },
-		}));
+		};
+		positionOverridesRef.current = nextOverrides;
+		setPositionOverrides(nextOverrides);
 		const positionedNodes = nodes.map((item) =>
 			item.id === node.id ? { ...item, position: node.position } : item,
 		);
 		setEdges((current) => rerouteWorldEdges(positionedNodes, current));
+		if (editState === "editing") {
+			setEditDirty(true);
+			setEditFeedback("Alterações locais — salvando rascunho…");
+			scheduleDraftSave(nextOverrides);
+		}
 	}
 
 	function resetLayout() {
+		positionOverridesRef.current = {};
 		setPositionOverrides({});
 		setSelectedId(projection.focusId);
+		if (editState === "editing") {
+			setEditDirty(true);
+			setEditFeedback("Composição restaurada para o estado publicado — salvando rascunho…");
+			scheduleDraftSave({});
+		}
+	}
+
+	async function startEditing() {
+		if (!canEditLayout || projection.mode !== "overview" || editState !== "view") return;
+		setEditState("acquiring");
+		setEditFeedback("Obtendo sessão exclusiva de edição…");
+		let token = window.localStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		if (!token) {
+			token = crypto.randomUUID();
+			window.localStorage.setItem(WORLD_EDIT_LEASE_STORAGE_KEY, token);
+		}
+
+		const result = await acquireWorldEditLeaseAction(token);
+		if (!result.ok) {
+			setEditState("view");
+			if (result.reason === "busy") {
+				showBusyNotice(
+					result.sameActor
+						? "Você já está editando o Mundo em outra aba."
+						: `${result.holderLabel} está editando o Mundo neste momento.`,
+				);
+				setEditFeedback(null);
+				return;
+			}
+			window.localStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+			setEditFeedback(leaseFailureMessage(result.reason));
+			return;
+		}
+
+		setLeaseToken(token);
+		positionOverridesRef.current = result.draft.positions;
+		setPositionOverrides(result.draft.positions);
+		setEditDirty(result.status !== "acquired");
+		setEditState("editing");
+		setEditFeedback(
+			result.status === "acquired"
+				? "Edição exclusiva ativa. Alterações ficam em rascunho até publicar."
+				: "Rascunho de edição recuperado. Revise antes de publicar.",
+		);
+	}
+
+	async function publishEditing() {
+		if (editState !== "editing" || !leaseToken) return;
+		if (draftTimer.current) {
+			clearTimeout(draftTimer.current);
+			draftTimer.current = null;
+		}
+		setEditState("publishing");
+		setEditFeedback("Validando rascunho antes de publicar…");
+
+		const candidate = candidateFrom(positionOverridesRef.current);
+		if (!candidate) {
+			setEditState("editing");
+			setEditFeedback(leaseFailureMessage("invalid_payload"));
+			return;
+		}
+		const draftResult = await saveWorldEditDraftAction(leaseToken, candidate);
+		if (!draftResult.ok) {
+			if (draftResult.reason === "lease_lost" || draftResult.reason === "forbidden") {
+				markLeaseLost(draftResult.reason);
+			} else {
+				setEditState("editing");
+				setEditFeedback(leaseFailureMessage(draftResult.reason));
+			}
+			return;
+		}
+
+		setEditFeedback("Publicando composição para todos…");
+		const publishResult = await publishWorldEditLayoutAction(leaseToken);
+		if (!publishResult.ok) {
+			if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
+				markLeaseLost(publishResult.reason);
+			} else {
+				setEditState("editing");
+				setEditFeedback(leaseFailureMessage(publishResult.reason));
+			}
+			return;
+		}
+
+		window.localStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		setLeaseToken(null);
+		setEditDirty(false);
+		setEditState("view");
+		setEditFeedback(
+			publishResult.status === "unchanged"
+				? "Nenhuma mudança de layout precisava ser publicada."
+				: "Composição publicada para todos.",
+		);
+		router.refresh();
+	}
+
+	async function discardEditing() {
+		if (!leaseToken || (editState !== "editing" && editState !== "publishing")) return;
+		if (draftTimer.current) {
+			clearTimeout(draftTimer.current);
+			draftTimer.current = null;
+		}
+		const result = await releaseWorldEditLeaseAction(leaseToken);
+		if (!result.ok) {
+			setEditFeedback(leaseFailureMessage(result.reason));
+			return;
+		}
+		window.localStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		setLeaseToken(null);
+		setEditDirty(false);
+		setEditState("view");
+		positionOverridesRef.current = {};
+		setPositionOverrides({});
+		setEditFeedback("Rascunho descartado. O mapa publicado foi mantido.");
 	}
 
 	function startResize(event: ReactPointerEvent<HTMLElement>) {
@@ -183,26 +435,25 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 		<div
 			className={`${styles.explorer} ${responsive.layout} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
 			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
+			data-world-edit-state={editState}
 		>
 			<section
 				className={`${styles.canvasColumn} ${responsive.canvasColumn}`}
 				aria-labelledby="world-explorer-title"
 			>
 				<header className={styles.explorerHeader}>
-					<div>
+					<div className={styles.titleCluster}>
 						<p className={styles.eyebrow}>Mapa da campanha</p>
-						<h1 id="world-explorer-title">Ecos da Jornada</h1>
-						<p>
-							{projection.mode === "focus" && focus
-								? `Conexões diretas visíveis ao redor de ${focus.label}.`
-								: "Heróis, pessoas, lugares e memórias formando uma constelação da campanha."}
-						</p>
+						<div className={styles.titleLine}>
+							<h1 id="world-explorer-title">Ecos da Jornada</h1>
+							{projection.mode === "focus" && focus ? (
+								<span className={styles.focusContext}>Conexões de {focus.label}</span>
+							) : null}
+						</div>
 					</div>
 					<div className={styles.headerActions}>
 						{projection.demo ? (
-							<span className={styles.demoBadge}>
-								Demonstração · relações não canônicas
-							</span>
+							<span className={styles.demoBadge}>Demo · não canônico</span>
 						) : null}
 						<fieldset className={styles.viewToggle}>
 							<legend className={styles.srOnly}>Modo de visualização</legend>
@@ -221,8 +472,56 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 								Lista
 							</button>
 						</fieldset>
+						{canEditLayout && projection.mode === "overview" ? (
+							<div className={styles.editGroup}>
+								<button
+									type="button"
+									className={`${styles.editToggle}${editing ? ` ${styles.editToggleActive}` : ""}`}
+									aria-pressed={editing}
+									disabled={editState === "acquiring" || editState === "publishing"}
+									onClick={() => {
+										if (editState === "editing") void publishEditing();
+										else if (editState === "view") void startEditing();
+									}}
+								>
+									<span aria-hidden="true">
+										{editing ? "●" : editState === "acquiring" ? "…" : "○"}
+									</span>
+									{editState === "publishing"
+										? "Publicando…"
+										: editState === "acquiring"
+											? "Abrindo…"
+											: editState === "editing"
+												? editDirty
+													? "Publicar"
+													: "Concluir"
+												: "Edit"}
+								</button>
+								{editState === "editing" ? (
+									<button
+										type="button"
+										className={styles.discardEdit}
+										onClick={() => void discardEditing()}
+									>
+										Descartar
+									</button>
+								) : null}
+							</div>
+						) : null}
 					</div>
 				</header>
+
+				{busyNotice ? (
+					<div className={styles.editNotice} role="status">
+						{busyNotice}
+					</div>
+				) : null}
+				{editFeedback ? (
+					<div className={styles.editFeedback} role="status">
+						<span aria-hidden="true">{editing ? "●" : "·"}</span>
+						{editFeedback}
+					</div>
+				) : null}
 
 				<div className={`${styles.toolbar} ${responsive.toolbar}`}>
 					<label className={`${styles.searchField} ${responsive.search}`}>
@@ -250,7 +549,7 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 						type="button"
 						onClick={resetLayout}
 					>
-						Reorganizar
+						{editing ? "Restaurar publicado" : "Reorganizar"}
 					</button>
 				</div>
 
@@ -358,11 +657,9 @@ export function WorldExplorerClient({ projection }: { projection: WorldGraphProj
 						/>
 					) : (
 						<div className={styles.overviewInspector}>
-							<p className={styles.eyebrow}>Visão geral</p>
-							<h2>A campanha</h2>
+							<h2>Visão geral</h2>
 							<p>
-								Nenhum personagem é o centro permanente. Selecione qualquer nó para
-								inspecionar seus laços sem reorganizar o mapa.
+								Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa.
 							</p>
 							<dl className={styles.overviewStats}>
 								<div>
@@ -435,7 +732,7 @@ function InspectorContent({
 						src={selected.imageUrl}
 						alt=""
 						fill
-							sizes="520px"
+						sizes="520px"
 					/>
 				) : (
 					<span className={styles.inspectorInitial}>
