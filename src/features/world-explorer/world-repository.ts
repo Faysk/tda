@@ -125,16 +125,25 @@ function relationTypeDto(row: RelationTypeRow, style?: StyleRow): WorldRelationT
 	};
 }
 
+function demoWorldDataset(): WorldDemoDataset {
+	return { ...DANDELION_WORLD_DEMO, demo: true };
+}
+
 function unavailableWorldDataset(): WorldDemoDataset {
-	return process.env.TDA_WORLD_DEMO_FALLBACK === "true"
-		? { ...DANDELION_WORLD_DEMO, demo: true }
-		: EMPTY_WORLD;
+	return process.env.TDA_WORLD_DEMO_FALLBACK === "true" ? demoWorldDataset() : EMPTY_WORLD;
 }
 
 export async function loadWorldDataset(
 	audience: WorldAudience,
 	campaignSlug = CAMPAIGN_SLUG,
 ): Promise<WorldDemoDataset> {
+	// Canonical authoring can be deployed before the public projection is activated.
+	// This prevents a sparse or not-yet-reviewed dataset from replacing the current
+	// demonstrative World merely because the new tables already exist in production.
+	if (audience === "public" && process.env.TDA_WORLD_CANONICAL_ENABLED !== "true") {
+		return demoWorldDataset();
+	}
+
 	const client = audience === "editor" ? editDataClient() : publishedDataClient();
 	if (!client) return unavailableWorldDataset();
 
