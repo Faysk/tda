@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-09
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -90,6 +90,10 @@ A estratégia é:
 - `20260908203331 world_layout_snapshot_atomic`
 - `20260908203441 world_layout_service_role_privileges`
 - `20260908203642 world_layout_site_editor_grant`
+
+### 2026-09-09 — lease exclusivo do World Explorer
+
+- `20260909205836 world_edit_lease` — migration aplicada remotamente; arquivo local equivalente preservado como `20260909173000_world_edit_lease.sql` até reconciliação nominal deliberada.
 
 ## Boundary do reboot aplicado
 
@@ -380,11 +384,11 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
 
-## Candidato de sessão exclusiva de edição do World Explorer
+## Sessão exclusiva de edição do World Explorer
 
 ### `20260909173000_world_edit_lease`
 
-**Estado:** migration candidata versionada nesta implementação; **não aplicada no Supabase canônico**.
+**Estado:** aplicada no Supabase canônico em 2026-09-09 sob o migration history remoto `20260909205836 world_edit_lease`. O arquivo local mantém o ID candidato original até uma reconciliação nominal deliberada; não reexecutar DDL para alinhar nomes.
 
 Objetivo:
 
@@ -411,17 +415,68 @@ Concorrência e recuperação:
 - novo editor após expiração inicia do snapshot publicado vigente;
 - conflito de `revision` preserva o draft e bloqueia publicação silenciosa sobre versão mais nova.
 
-Validação ainda necessária antes de aplicação remota:
+Validação observada antes/após a aplicação:
 
-- `pnpm check`, build e Playwright do SHA final;
-- ensaio PostgreSQL descartável dos cinco RPCs, incluindo duas sessões concorrentes, expiração/recovery, payload inválido, capability/scope e rollback de publish;
-- revisão dos grants/RLS e comparação com o migration history somente depois de eventual aplicação deliberada.
+- `pnpm check`, build e Playwright passaram no SHA de integração da #117;
+- PostgreSQL 16 descartável validou os RPCs, incluindo duas sessões concorrentes, expiração/recovery, payload inválido, capability/scope e rollback de publish;
+- a migration foi aplicada de forma deliberada ao Supabase canônico e o deployment correspondente ficou READY;
+- smoke público confirmou `/`, `/sessoes`, `/mundo` e `/conta`; fluxo autenticado completo de edição continua sendo um gate separado quando houver fixture/credencial apropriada.
 
 Rollback lógico:
 
-- antes da ativação do consumidor, remover os RPCs e `world_edit_leases` em migration corretiva é reversível;
+- antes de consumidores dependerem do lease, remover os RPCs e `world_edit_leases` em migration corretiva é reversível;
 - após ativação, primeiro desligar o toggle/boundary no app, deixar leases expirarem e então remover a infraestrutura em migration corretiva;
 - nunca apagar `world_layout_snapshots` ou `audit_log` para desfazer esta feature.
+
+## Candidato de autoria canônica do World Explorer
+
+### `20260909215000_world_graph_authoring`
+
+**Estado:** migration candidata versionada na PR #119; **não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- introduzir `relation_types`, `world_relation_styles`, `entity_relations`, `entity_relation_sources`, `world_graph_heads` e `world_graph_revisions` sem acoplar o schema ao React Flow;
+- estender o lease exclusivo existente com revision e rascunho factual privado;
+- permitir criação/edição/arquivamento manual de entities, relações e tipos por um editor autorizado;
+- persistir estilo editorial de relação em tabela separada da semântica (`world_relation_styles`), mantendo cor/traço/espessura como apresentação;
+- publicar conteúdo factual e layout na mesma transação SQL, com revisions separadas e `audit_log` de publicação do grafo;
+- manter IA/candidatos fora do caminho de promoção automática.
+
+Segurança e autorização:
+
+- autoria factual exige `campaign.content.edit` e uma sessão exclusiva válida de `campaign.world.layout.edit`;
+- o browser não recebe grants diretos das tabelas ou RPCs editoriais;
+- RLS fica habilitado nas novas tabelas sem policy pública;
+- `service_role` recebe apenas os privilégios necessários ao boundary server-side;
+- RPCs de acquire/save/publish usam `SECURITY INVOKER`, `search_path = pg_catalog, public`, revalidam identidade/profile/campaign/scope e falham fechado em lease perdido, payload inválido ou conflito;
+- a projection pública continua filtrada no servidor e não usa o rascunho privado como fonte de autorização.
+
+Concorrência e integridade:
+
+- `world_graph_heads.revision` protege publicação factual por optimistic concurrency;
+- o rascunho preserva `base_graph_revision` e sobrevive à recuperação do mesmo editor, mas é zerado na transferência do lease para outro editor;
+- relações simétricas são normalizadas antes de persistir e duplicatas ativas são rejeitadas;
+- IDs cross-campaign, endpoints ausentes, tipos inexistentes, self-edge e colisões de nome/slug são rejeitados;
+- exclusão editorial normal é arquivamento; publicação cria snapshot append-only em `world_graph_revisions` quando o conteúdo factual muda.
+
+Validação pré-aplicação:
+
+- PostgreSQL 16 descartável via `tools/world-layout-db.py` aplica a migration candidata e cobre autorização, draft/publish/recovery, conflito e concorrência sem conexão ao banco canônico;
+- unit tests do World e demais suites passam antes do gate de documentação; build/E2E do SHA final continuam obrigatórios;
+- a migration não deve ser aplicada remotamente até CI terminal, revisão do contrato/segurança e autorização deliberada de release.
+
+Limites e pendências antes da aplicação remota:
+
+- confirmar no contrato de relations como `entity_relation_sources` participa da autoria manual inicial; a tabela existe, mas a UI desta fatia não anexa fonte canônica automaticamente;
+- atualizar `docs/database/security.md`, `docs/database/rpc-inventory.md` e o contrato de relações para refletir o boundary realmente aprovado antes de merge/aplicação;
+- executar inspeção read-only do schema/migration history real e advisors antes do DDL remoto;
+- registrar a verificação em `docs/database/verification-log.md` somente após aplicação/validação real.
+
+Rollback lógico:
+
+- antes de qualquer consumidor publicado, uma migration corretiva pode remover RPCs/tabelas novas e as colunas adicionadas ao lease, sem tocar em entities, canon, transcrições, layout publicado ou audit histórico existente;
+- depois de publicação factual real, primeiro desligar o consumidor e preservar `world_graph_revisions`/audit; não apagar relações ou snapshots para simular rollback.
 
 ## Candidato de estabilização de aliases narrativos
 
