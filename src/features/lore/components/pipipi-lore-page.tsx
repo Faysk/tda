@@ -30,7 +30,7 @@ const sceneConfig: Record<
 	},
 	"super-herois": {
 		background: "/lore/pipipi/super-bg.webp",
-		subject: "/lore/pipipi/cadeira-subject.webp",
+		subject: "/lore/pipipi/super-subject.webp",
 		title: "Os super-heróis não vieram salvá-la",
 		eyebrow: "A mesma memória, outro significado",
 		caption:
@@ -57,7 +57,7 @@ const sceneConfig: Record<
 	},
 	"ultimo-dia": {
 		background: "/lore/pipipi/ultimo-dia-bg.webp",
-		subject: "/lore/pipipi/cadeira-subject.webp",
+		subject: "/lore/pipipi/ultimo-dia-subject.webp",
 		title: "O último dia",
 		eyebrow: "Todo mundo ficou",
 		caption:
@@ -85,6 +85,14 @@ const ghostAfterSection: Record<string, { src: string; position: "left" | "right
 	},
 	"pipipi-e-dandelion": {
 		src: "/lore/pipipi/ghost-flute.webp",
+		position: "right",
+	},
+	"a-pulseirinha": {
+		src: "/lore/pipipi/ghost-surprise.webp",
+		position: "left",
+	},
+	"o-coracao-de-pipipi": {
+		src: "/lore/pipipi/ghost-hearts.webp",
 		position: "right",
 	},
 };
@@ -140,9 +148,7 @@ function PartHeader({ part }: { part: (typeof PIPIPI_STORY.parts)[number] }) {
 	);
 }
 
-export function PipipiLorePage({ profile }: PipipiLorePageProps) {
-	const identityName = profile?.identity.name ?? "Pipipi";
-
+export function PipipiLorePage(_props: PipipiLorePageProps = {}) {
 	return (
 		<article className={styles.page}>
 			<header className={styles.hero} id="topo">
@@ -157,7 +163,7 @@ export function PipipiLorePage({ profile }: PipipiLorePageProps) {
 				/>
 				<div className={styles.heroShade} />
 				<div className={styles.heroCopy}>
-					<p className={styles.heroEyebrow}>{identityName}</p>
+					<p className={styles.heroEyebrow}>Pipipi</p>
 					<h1>
 						A Casa Onde os <span>Super-Heróis Visitavam</span>
 					</h1>
@@ -171,7 +177,7 @@ export function PipipiLorePage({ profile }: PipipiLorePageProps) {
 					<Image
 						src="/lore/pipipi/ghost-flute.webp"
 						alt=""
-						width={1000}
+						width={962}
 						height={1000}
 						priority
 						sizes="(max-width: 760px) 62vw, 34vw"
@@ -218,13 +224,13 @@ export function PipipiLorePage({ profile }: PipipiLorePageProps) {
 				<section className={styles.ghostArrival} aria-label="Pipipi depois da morte">
 					<div className={styles.ghostArrivalCopy}>
 						<p>Depois daquele quarto</p>
-						<h2>Pipipi passa a existir fora dos quadros.</h2>
+						<h2>Algumas coisas terminaram naquele quarto. Outras continuaram voando com ela.</h2>
 					</div>
 					<Image
 						src="/lore/pipipi/acordou-subject.webp"
 						alt="Pipipi como um pequeno fantasminha verde e luminoso."
-						width={900}
-						height={900}
+						width={800}
+						height={1000}
 						sizes="(max-width: 760px) 66vw, 38vw"
 					/>
 				</section>
