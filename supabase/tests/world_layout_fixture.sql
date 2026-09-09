@@ -13,7 +13,8 @@ create table public.campaigns(
 
 create table public.profiles(
   id uuid primary key,
-  auth_user_id uuid unique
+  auth_user_id uuid unique,
+  display_name text not null
 );
 
 create table public.permission_catalog(
@@ -74,10 +75,11 @@ grant insert on public.audit_log to service_role;
 insert into public.campaigns(id, slug)
 values ('11111111-1111-4111-8111-111111111111', 'synthetic-campaign');
 
-insert into public.profiles(id, auth_user_id)
+insert into public.profiles(id, auth_user_id, display_name)
 values (
   '33333333-3333-4333-8333-333333333333',
-  '44444444-4444-4444-8444-444444444444'
+  '44444444-4444-4444-8444-444444444444',
+  'Editor Um'
 );
 
 insert into public.role_definitions(id, slug, plane)
