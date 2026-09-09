@@ -7,7 +7,6 @@ import type {
 	LoreProfileDTO,
 } from "../model";
 import { LoreExperience } from "./lore-experience";
-import { PipipiLorePage } from "./pipipi-lore-page";
 import styles from "./lore-page.module.css";
 
 type LorePageProps = {
@@ -125,10 +124,6 @@ function LoreBlock({ block }: { block: LoreBlockDTO }) {
 }
 
 export function LorePage({ profile }: LorePageProps) {
-	if (profile.identity.slug.toLowerCase() === "pipipi") {
-		return <PipipiLorePage profile={profile} />;
-	}
-
 	return (
 		<article className={styles.page}>
 			<LoreExperience
