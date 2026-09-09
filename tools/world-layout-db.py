@@ -47,6 +47,17 @@ def run_psql(sql):
     return run(psql_args, input=sql, text=True)
 
 
+def run_sql_file(path):
+    try:
+        return run_psql(path.read_text(encoding="utf-8"))
+    except subprocess.CalledProcessError as error:
+        relative = path.relative_to(repo)
+        raise RuntimeError(
+            f"PostgreSQL contract failed in {relative}\n"
+            f"stdout={error.stdout}\nstderr={error.stderr}"
+        ) from error
+
+
 def scalar(sql):
     return run_psql(sql).stdout.strip()
 
@@ -138,7 +149,7 @@ try:
         repo / "supabase/tests/world_edit_lease_atomic.sql",
     ]
     for path in paths:
-        run_psql(path.read_text(encoding="utf-8"))
+        run_sql_file(path)
 
     # The SQL assertions above exercise grants, authorization, lease recovery,
     # private drafts, stale conflict and audit rollback. Reset only synthetic
