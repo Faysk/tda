@@ -8,6 +8,8 @@ const sceneConfig: Record<
 	{
 		background: string;
 		subject?: string;
+		subjectWidth?: number;
+		subjectHeight?: number;
 		title: string;
 		eyebrow: string;
 		caption: string;
@@ -17,6 +19,8 @@ const sceneConfig: Record<
 	casa: {
 		background: "/lore/pipipi/casa-bg.avif",
 		subject: "/lore/pipipi/casa-subject.avif",
+		subjectWidth: 541,
+		subjectHeight: 680,
 		title: "A Casa tinha outro nome",
 		eyebrow: "02 · O outro nome da Casa",
 		caption:
@@ -26,6 +30,8 @@ const sceneConfig: Record<
 	"super-herois": {
 		background: "/lore/pipipi/super-bg.avif",
 		subject: "/lore/pipipi/super-subject.avif",
+		subjectWidth: 544,
+		subjectHeight: 680,
 		title: "Os super-heróis não vieram salvá-la",
 		eyebrow: "A mesma memória, outro significado",
 		caption:
@@ -35,6 +41,8 @@ const sceneConfig: Record<
 	corredores: {
 		background: "/lore/pipipi/corredores-bg.avif",
 		subject: "/lore/pipipi/corredores-subject.avif",
+		subjectWidth: 551,
+		subjectHeight: 680,
 		title: "Algumas crianças nunca foram para casa",
 		eyebrow: "Memória · corredores",
 		caption:
@@ -44,6 +52,8 @@ const sceneConfig: Record<
 	cadeira: {
 		background: "/lore/pipipi/cadeira-bg.avif",
 		subject: "/lore/pipipi/cadeira-subject.avif",
+		subjectWidth: 631,
+		subjectHeight: 680,
 		title: "A cadeira",
 		eyebrow: "Ficar também era cuidar",
 		caption:
@@ -53,6 +63,8 @@ const sceneConfig: Record<
 	"ultimo-dia": {
 		background: "/lore/pipipi/ultimo-dia-bg.avif",
 		subject: "/lore/pipipi/ultimo-dia-subject.avif",
+		subjectWidth: 544,
+		subjectHeight: 680,
 		title: "O último dia",
 		eyebrow: "Todo mundo ficou",
 		caption:
@@ -62,6 +74,8 @@ const sceneConfig: Record<
 	acordou: {
 		background: "/lore/pipipi/acordou-bg.avif",
 		subject: "/lore/pipipi/acordou-subject.avif",
+		subjectWidth: 551,
+		subjectHeight: 680,
 		title: "Quando Pipipi acordou",
 		eyebrow: "Pela primeira vez em muito tempo, nada doía",
 		caption: "Quando abriu os olhos novamente, Pipipi estava leve.",
@@ -69,26 +83,39 @@ const sceneConfig: Record<
 	},
 };
 
-const ghostAfterSection: Record<string, { src: string; position: "left" | "right" }> = {
+const ghostAfterSection: Record<
+	string,
+	{ src: string; position: "left" | "right"; width: number; height: number }
+> = {
 	"o-que-ficou-depois-da-morte": {
 		src: "/lore/pipipi/ghost-soft.avif",
 		position: "right",
+		width: 600,
+		height: 597,
 	},
 	"a-ferida-que-pipipi-nunca-nomeou": {
 		src: "/lore/pipipi/ghost-cry.avif",
 		position: "left",
+		width: 596,
+		height: 600,
 	},
 	"pipipi-e-dandelion": {
 		src: "/lore/pipipi/ghost-flute.avif",
 		position: "right",
+		width: 589,
+		height: 600,
 	},
 	"a-pulseirinha": {
 		src: "/lore/pipipi/ghost-surprise.avif",
 		position: "left",
+		width: 600,
+		height: 590,
 	},
 	"o-coracao-de-pipipi": {
 		src: "/lore/pipipi/ghost-hearts.avif",
 		position: "right",
+		width: 560,
+		height: 600,
 	},
 };
 
@@ -163,7 +190,13 @@ function StorySection({
 					className={`${styles.ghostInterlude} ${ghost.position === "left" ? styles.ghostInterludeLeft : styles.ghostInterludeRight}`}
 					aria-hidden="true"
 				>
-					<Image src={ghost.src} alt="" width={760} height={760} sizes="(max-width: 760px) 52vw, 30vw" />
+					<Image
+						src={ghost.src}
+						alt=""
+						width={ghost.width}
+						height={ghost.height}
+						sizes="(max-width: 760px) 52vw, 30vw"
+					/>
 				</aside>
 			) : null}
 		</>
@@ -212,8 +245,8 @@ export function PipipiLorePage() {
 					<Image
 						src="/lore/pipipi/ghost-flute.avif"
 						alt=""
-						width={962}
-						height={1000}
+						width={589}
+						height={600}
 						priority
 						sizes="(max-width: 760px) 62vw, 34vw"
 					/>
@@ -263,8 +296,8 @@ export function PipipiLorePage() {
 					<Image
 						src="/lore/pipipi/acordou-subject.avif"
 						alt="Pipipi como um pequeno fantasminha verde e luminoso."
-						width={800}
-						height={1000}
+						width={551}
+						height={680}
 						sizes="(max-width: 760px) 66vw, 38vw"
 					/>
 				</section>
@@ -280,8 +313,8 @@ export function PipipiLorePage() {
 					<Image
 						src="/lore/pipipi/ghost-soft.avif"
 						alt=""
-						width={720}
-						height={720}
+						width={600}
+						height={597}
 						aria-hidden="true"
 					/>
 					<div className={styles.finaleCopy}>
