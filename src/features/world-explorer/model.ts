@@ -9,9 +9,19 @@ export const WORLD_ENTITY_TYPES = [
 	"concept",
 	"item",
 	"arc",
+	"other",
 ] as const;
 
 export type WorldEntityType = (typeof WORLD_ENTITY_TYPES)[number];
+
+export const WORLD_VISIBILITIES = [
+	"private_master",
+	"private_players",
+	"review_only",
+	"public_campaign",
+	"public_web",
+] as const;
+export type WorldVisibility = (typeof WORLD_VISIBILITIES)[number];
 
 export type WorldNodeKind = "entity" | "moment";
 export type WorldGraphMode = "overview" | "focus";
@@ -28,6 +38,8 @@ export type WorldRelationFamily =
 	| "mystic"
 	| "creative"
 	| "context";
+
+export type WorldLineStyle = "solid" | "dashed" | "dotted";
 
 export type WorldPositionHint = Readonly<{
 	x: number;
@@ -48,6 +60,22 @@ export type WorldLayoutProjection = {
 	positions: Record<string, WorldPositionHint>;
 };
 
+export type WorldRelationStyleDTO = Readonly<{
+	color: string;
+	lineStyle: WorldLineStyle;
+	lineWidth: number;
+}>;
+
+export type WorldRelationTypeDTO = Readonly<{
+	slug: string;
+	label: string;
+	direction: WorldRelationDirection;
+	family: WorldRelationFamily;
+	description: string;
+	isActive: boolean;
+	style: WorldRelationStyleDTO;
+}>;
+
 export type WorldNodeDTO = {
 	id: string;
 	slug: string | null;
@@ -57,6 +85,9 @@ export type WorldNodeDTO = {
 	subtitle?: string;
 	imageUrl?: string;
 	status?: string;
+	visibility?: WorldVisibility;
+	summary?: string;
+	aliases?: string[];
 	route?: string;
 	/** Presentation-only weight. It never changes narrative authority. */
 	prominence?: WorldNodeProminence;
@@ -72,6 +103,9 @@ export type WorldEdgeDTO = {
 	label: string;
 	direction: WorldRelationDirection;
 	family: WorldRelationFamily;
+	status?: string;
+	visibility?: WorldVisibility;
+	style?: WorldRelationStyleDTO;
 };
 
 export type WorldGraphProjection = {
@@ -81,16 +115,63 @@ export type WorldGraphProjection = {
 	heroIds: string[];
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
+	relationTypes: WorldRelationTypeDTO[];
 	/** Optional server-filtered editorial placement for overview mode only. */
 	layout?: WorldLayoutProjection;
 };
 
 export type WorldDemoDataset = {
+	demo?: boolean;
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
+	relationTypes?: WorldRelationTypeDTO[];
 	heroIds?: string[];
 	layout?: WorldLayoutProjection;
 };
+
+export type WorldGraphDraftNode = Readonly<{
+	id: string;
+	name: string;
+	slug: string | null;
+	entityType: WorldEntityType;
+	status: string;
+	visibility: WorldVisibility;
+	summary: string;
+	aliases: string[];
+}>;
+
+export type WorldGraphDraftRelationType = Readonly<{
+	slug: string;
+	label: string;
+	direction: WorldRelationDirection;
+	family: WorldRelationFamily;
+	description: string;
+	isActive: boolean;
+	color: string;
+	lineStyle: WorldLineStyle;
+	lineWidth: number;
+}>;
+
+export type WorldGraphDraftEdge = Readonly<{
+	id: string;
+	source: string;
+	target: string;
+	relationType: string;
+	labelOverride: string | null;
+	status: "active" | "ended" | "superseded" | "retcon_pending" | "archived";
+	visibility: WorldVisibility;
+	colorOverride: string | null;
+	lineStyleOverride: WorldLineStyle | null;
+	lineWidthOverride: number | null;
+}>;
+
+export type WorldGraphDraft = Readonly<{
+	schemaVersion: 1;
+	revision: number;
+	nodes: WorldGraphDraftNode[];
+	edges: WorldGraphDraftEdge[];
+	relationTypes: WorldGraphDraftRelationType[];
+}>;
 
 export const WORLD_FILTERS = [
 	"all",
