@@ -96,10 +96,10 @@ function renderInlineMarkup(text: string, keyPrefix: string) {
 	return text
 		.split(/(<strong>[\s\S]*?<\/strong>)/g)
 		.filter(Boolean)
-		.map((part, index) => {
+		.map((part) => {
 			const strong = part.match(/^<strong>([\s\S]*)<\/strong>$/);
 			return strong ? (
-				<strong key={`${keyPrefix}-strong-${index}`}>{strong[1]}</strong>
+				<strong key={`${keyPrefix}:strong:${strong[1]}`}>{strong[1]}</strong>
 			) : (
 				part
 			);
@@ -118,17 +118,18 @@ function EditorialContent({ html }: { html: string }) {
 		),
 	];
 
-	return blocks.map((match, index) => {
+	return blocks.map((match) => {
 		const isQuote = match[1] !== undefined;
-		const text = isQuote ? match[1] : (match[2] ?? "");
-		const content = renderInlineMarkup(text, `editorial-${index}`);
+		const text = match[1] ?? match[2] ?? "";
+		const blockKey = `${isQuote ? "quote" : "paragraph"}:${text}`;
+		const content = renderInlineMarkup(text, blockKey);
 
 		return isQuote ? (
-			<blockquote key={`quote-${index}`}>
+			<blockquote key={blockKey}>
 				<p>{content}</p>
 			</blockquote>
 		) : (
-			<p key={`paragraph-${index}`}>{content}</p>
+			<p key={blockKey}>{content}</p>
 		);
 	});
 }
