@@ -140,6 +140,7 @@ try:
         [
             *(repo / "supabase/migrations").glob("*_world_layout_*.sql"),
             *(repo / "supabase/migrations").glob("*_world_edit_*.sql"),
+            *(repo / "supabase/migrations").glob("*_world_graph_*.sql"),
         ]
     )
     paths = [
@@ -147,17 +148,24 @@ try:
         *migration_paths,
         repo / "supabase/tests/world_layout_snapshot_atomic.sql",
         repo / "supabase/tests/world_edit_lease_atomic.sql",
+        repo / "supabase/tests/world_graph_authoring_atomic.sql",
     ]
     for path in paths:
         run_sql_file(path)
 
     # The SQL assertions above exercise grants, authorization, lease recovery,
-    # private drafts, stale conflict and audit rollback. Reset only synthetic
-    # World state, then use real PostgreSQL sessions to prove lock behavior.
+    # private drafts, factual graph publication, stale conflict and audit rollback.
+    # Reset only synthetic World state, then use real PostgreSQL sessions to prove
+    # the low-level layout/lease lock behavior under concurrent transactions.
     run_psql(
         """
         delete from public.world_edit_leases;
-        delete from public.audit_log where action = 'world_layout.update';
+        delete from public.audit_log where action in ('world_layout.update', 'world_graph.publish');
+        delete from public.world_graph_revisions;
+        delete from public.world_graph_heads;
+        delete from public.entity_relations;
+        delete from public.world_relation_styles;
+        delete from public.relation_types;
         delete from public.world_layout_snapshots;
         """
     )
@@ -356,7 +364,7 @@ try:
     ) != "33333333-3333-4333-8333-333333333333:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa":
         raise RuntimeError("lease race must preserve the first editor/token only")
 
-    print("WORLD_LAYOUT_DATABASE_OK synthetic=true layout_concurrency=real lease_concurrency=real")
+    print("WORLD_LAYOUT_DATABASE_OK synthetic=true layout_concurrency=real lease_concurrency=real graph_authoring=true")
 finally:
     if started:
         run([str(binary / "pg_ctl"), "-D", str(data), "-m", "fast", "-w", "stop"])
