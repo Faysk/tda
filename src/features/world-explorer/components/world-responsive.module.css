@@ -107,7 +107,26 @@
 		display: grid;
 		width: 44px;
 		height: 44px;
+		place-items: center;
+		background: color-mix(in srgb, var(--ds-surface-elevated) 96%, var(--ds-accent-muted));
 		box-shadow: 0 8px 24px var(--ds-ambient-cool);
+		font-size: 0;
+	}
+
+	.panelToggle::before {
+		content: "⌄";
+		color: var(--ds-foreground-soft);
+		font: 760 1.15rem/1 var(--ds-font-ui);
+	}
+
+	.panelToggle[aria-expanded="false"]::before {
+		content: "⌃";
+		color: var(--ds-accent-strong);
+	}
+
+	.panelToggle:hover::before,
+	.panelToggle:focus-visible::before {
+		color: var(--ds-accent-strong);
 	}
 
 	.layout :global(.react-flow__controls-button) {
