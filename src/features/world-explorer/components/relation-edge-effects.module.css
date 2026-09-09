@@ -21,10 +21,10 @@
    frame reads like an accidental horizontal rule in the World Explorer. */
 :global(fieldset:has(> span[data-family])) {
 	min-inline-size: 0;
-	margin: 0 !important;
-	border: 0 !important;
-	outline: 0 !important;
-	box-shadow: none !important;
+	margin: 0;
+	border: 0;
+	outline: 0;
+	box-shadow: none;
 	padding: 2px 0 12px;
 	background: transparent;
 }
