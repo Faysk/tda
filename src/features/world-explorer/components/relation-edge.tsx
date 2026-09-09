@@ -195,10 +195,12 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						/>
 					) : null}
 				</svg>
-				{item ? (
+				{item && !dimmed ? (
 					<div
-						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""} ${dimmed ? styles.edgeLabelDimmed : ""}`}
+						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""}`}
 						data-family={family}
+						data-world-edge-label={props.id}
+						aria-hidden="true"
 						style={{
 							transform: `translate(-50%, -50%) translate(${labelX + labelOffset.x}px, ${labelY + labelOffset.y}px)`,
 						}}
