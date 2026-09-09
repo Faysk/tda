@@ -35,7 +35,7 @@
 	}
 
 	.canvasColumn {
-		padding: 18px var(--ds-page-gutter) 0;
+		padding: 12px var(--ds-page-gutter) 0;
 	}
 
 	.inspector {
