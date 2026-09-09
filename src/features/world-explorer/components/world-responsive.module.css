@@ -10,6 +10,29 @@
 	min-width: 0;
 }
 
+.layout :global([data-testid="world-canvas"]) {
+	position: relative;
+}
+
+.layout :global([data-testid="world-canvas"]:not(:has(.react-flow__node)))::after {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 6;
+	width: min(340px, calc(100% - 40px));
+	padding: 18px 20px;
+	transform: translate(-50%, -50%);
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
+	box-shadow: 0 16px 44px var(--ds-ambient-cool);
+	color: var(--ds-foreground-soft);
+	content: "Nenhum resultado visível. Ajuste a busca ou os filtros.";
+	font: 650 0.78rem/1.5 var(--ds-font-ui);
+	text-align: center;
+	pointer-events: none;
+}
+
 .layout[data-world-edit-state="editing"] :global([data-testid="world-canvas"]),
 .layout[data-world-edit-state="publishing"] :global([data-testid="world-canvas"]) {
 	border-color: color-mix(in srgb, var(--ds-accent) 62%, var(--ds-control-border));
