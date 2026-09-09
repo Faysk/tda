@@ -60,7 +60,7 @@
 	border-color: color-mix(in srgb, var(--ds-foreground-muted) 65%, var(--ds-control-border));
 }
 
-.entityNodeHero .nodePortrait {
+.entityNode.entityNodeHero .nodePortrait {
 	border-color: color-mix(in srgb, var(--ds-accent) 78%, var(--ds-control-border));
 	box-shadow:
 		0 0 0 4px var(--ds-accent-muted),
@@ -76,7 +76,7 @@
 		0 14px 38px var(--ds-ambient-accent);
 }
 
-.entityNodeFocus .nodePortrait {
+.entityNode.entityNodeFocus .nodePortrait {
 	border-color: var(--ds-accent-strong);
 	box-shadow:
 		0 0 0 6px var(--ds-accent-muted),
@@ -84,7 +84,7 @@
 		0 18px 48px var(--ds-ambient-cool);
 }
 
-.entityNodeSelected .nodePortrait {
+.entityNode.entityNodeSelected .nodePortrait {
 	transform: translateY(-3px) scale(1.05);
 	border-color: var(--ds-accent-strong);
 	box-shadow:
@@ -242,5 +242,5 @@
 	.nodePortrait,
 	.nodeLabel { transition: none; }
 	.entityNode:hover .nodePortrait,
-	.entityNodeSelected .nodePortrait { transform: none; }
+	.entityNode.entityNodeSelected .nodePortrait { transform: none; }
 }
