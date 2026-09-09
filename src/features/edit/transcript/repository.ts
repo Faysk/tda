@@ -22,7 +22,6 @@ export type EditTranscriptSegment = Readonly<{
 	speakerRole: string | null;
 	trackKey: string | null;
 	reviewStatus: TranscriptReviewStatus;
-	needsReview: boolean;
 	sourceSegmentId: string | null;
 	sourceFileId: string | null;
 	sourceChunkId: string | null;
@@ -53,7 +52,6 @@ function toSegment(row: Record<string, unknown>): EditTranscriptSegment {
 		typeof row.start_ms !== "number" ||
 		typeof row.end_ms !== "number" ||
 		typeof row.text !== "string" ||
-		typeof row.needs_review !== "boolean" ||
 		!reviewStatus
 	) {
 		throw new Error("Transcript row does not match the Edit contract");
@@ -72,7 +70,6 @@ function toSegment(row: Record<string, unknown>): EditTranscriptSegment {
 		speakerRole: typeof row.speaker_role === "string" ? row.speaker_role : null,
 		trackKey: typeof row.track_key === "string" ? row.track_key : null,
 		reviewStatus,
-		needsReview: row.needs_review,
 		sourceSegmentId:
 			typeof row.source_segment_id === "string" ? row.source_segment_id : null,
 		sourceFileId:
@@ -103,7 +100,7 @@ export async function readTranscriptPage(
 	let query = client
 		.from("transcript_segments")
 		.select(
-			"id,session_id,revision,start_ms,end_ms,text,speaker_name,character_name,speaker_role,track_key,review_status,needs_review,source_segment_id,source_file_id,source_chunk_id,text_chars,text_words",
+			"id,session_id,revision,start_ms,end_ms,text,speaker_name,character_name,speaker_role,track_key,review_status,source_segment_id,source_file_id,source_chunk_id,text_chars,text_words",
 		)
 		.eq("session_id", input.sessionId)
 		.order("start_ms", { ascending: true })
