@@ -34,12 +34,17 @@ export async function generateMetadata({
 	const pathname = shareFocusedEntity
 		? `/mundo?foco=${encodeURIComponent(focus?.slug ?? "")}`
 		: "/mundo";
+	const demoSuffix = dataset.demo ? " — demonstração" : "";
 	const title = shareFocusedEntity
-		? `${focus?.label ?? "Memória"} · Ecos da Jornada`
-		: "Ecos da Jornada";
-	const description = shareFocusedEntity
-		? `Explore os laços públicos de ${focus?.label ?? "uma memória"} no Mundo da campanha.`
-		: "Pessoas, lugares e histórias conectadas no Mundo da campanha.";
+		? `${focus?.label ?? "Memória"} · Ecos da Jornada${demoSuffix}`
+		: `Ecos da Jornada${demoSuffix}`;
+	const description = dataset.demo
+		? shareFocusedEntity
+			? `Demonstração do World Explorer do TDA com ${focus?.label ?? "uma memória"} em foco. As relações exibidas neste recorte não são canon.`
+			: "Demonstração multi-hub do World Explorer do TDA. As relações exibidas neste recorte visual não são canon."
+		: shareFocusedEntity
+			? `Explore os laços públicos de ${focus?.label ?? "uma memória"} no Mundo da campanha.`
+			: "Pessoas, lugares e histórias conectadas no Mundo da campanha.";
 
 	return buildPublicMetadata({ title, description, pathname });
 }
