@@ -48,6 +48,7 @@ function dependencies(
 				speakerRole: "player",
 				trackKey: "track-1",
 				reviewStatus: "pending" as const,
+				needsReview: true,
 				sourceSegmentId: "source-1",
 				sourceFileId: null,
 				sourceChunkId: null,
@@ -147,6 +148,7 @@ describe("queryTranscriptPage", () => {
 			await queryTranscriptPage(
 				{ authUserId: "auth-user", campaignSlug: "yuhara-main", sessionId },
 				deps,
+			),
 		).toEqual({ ok: false, reason: "not_found" });
 	});
 
