@@ -1,4 +1,4 @@
-"""Run reconciled World layout migrations in a disposable PostgreSQL cluster.
+"""Run World layout/editor migrations in a disposable PostgreSQL cluster.
 
 Synthetic only: Unix socket, no TCP, no inherited PG credentials, no production
 seed and no Supabase connection. Exits non-zero on any fixture/migration/assertion
@@ -93,6 +93,15 @@ def assert_saved_conflict(first, second, revision, label):
         )
 
 
+def assert_acquired_busy(first, second):
+    acquired = '"status": "acquired"' in first and '"ok": true' in first
+    busy = '"reason": "busy"' in second and '"ok": false' in second
+    if not acquired or not busy:
+        raise RuntimeError(
+            f"lease race expected acquired + busy; first={first!r} second={second!r}"
+        )
+
+
 started = False
 try:
     run(
@@ -116,19 +125,27 @@ try:
     run([str(binary / "pg_ctl"), "-D", str(data), "-l", str(root / "postgres.log"), "-w", "start"])
     started = True
 
+    migration_paths = sorted(
+        [
+            *(repo / "supabase/migrations").glob("*_world_layout_*.sql"),
+            *(repo / "supabase/migrations").glob("*_world_edit_*.sql"),
+        ]
+    )
     paths = [
         repo / "supabase/tests/world_layout_fixture.sql",
-        *sorted((repo / "supabase/migrations").glob("*_world_layout_*.sql")),
+        *migration_paths,
         repo / "supabase/tests/world_layout_snapshot_atomic.sql",
+        repo / "supabase/tests/world_edit_lease_atomic.sql",
     ]
     for path in paths:
         run_psql(path.read_text(encoding="utf-8"))
 
-    # The SQL assertions above exercise authorization, stale conflict, idempotent
-    # no-op saves and audit rollback. Reset only synthetic World state, then use
-    # two real PostgreSQL sessions to prove the lock behavior under concurrency.
+    # The SQL assertions above exercise grants, authorization, lease recovery,
+    # private drafts, stale conflict and audit rollback. Reset only synthetic
+    # World state, then use real PostgreSQL sessions to prove lock behavior.
     run_psql(
         """
+        delete from public.world_edit_leases;
         delete from public.audit_log where action = 'world_layout.update';
         delete from public.world_layout_snapshots;
         """
@@ -262,7 +279,73 @@ try:
     ) != '2:{"node-a": {"x": 300, "y": -50}}:2':
         raise RuntimeError("existing-row race must preserve winner payload, revision=2 and two audit rows")
 
-    print("WORLD_LAYOUT_DATABASE_OK synthetic=true concurrency=real")
+    # Two first-time editor sessions race while no lease row exists. The acquire
+    # RPC must serialize on the campaign advisory lock: one succeeds, the other
+    # waits and then receives busy instead of a primary-key/500 failure.
+    run_psql("delete from public.world_edit_leases;")
+    lease_a = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-edit-lease-a';
+        set role service_role;
+        select public.acquire_world_edit_lease_atomic(
+          '44444444-4444-4444-8444-444444444444',
+          '33333333-3333-4333-8333-333333333333',
+          'synthetic-campaign',
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+        );
+        select pg_sleep(3);
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-edit-lease-a'
+            and wait_event_type = 'Timeout'
+            and wait_event = 'PgSleep'
+        );
+        """
+    )
+
+    lease_b = start_psql(
+        """
+        begin;
+        set application_name = 'tda-world-edit-lease-b';
+        set role service_role;
+        select public.acquire_world_edit_lease_atomic(
+          '88888888-8888-4888-8888-888888888888',
+          '77777777-7777-4777-8777-777777777777',
+          'synthetic-campaign',
+          'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+        );
+        commit;
+        """
+    )
+    wait_for(
+        """
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = 'tda-world-edit-lease-b'
+            and wait_event_type = 'Lock'
+            and wait_event = 'advisory'
+        );
+        """
+    )
+
+    lease_a_out = collect_psql(lease_a)
+    lease_b_out = collect_psql(lease_b)
+    assert_acquired_busy(lease_a_out, lease_b_out)
+    if scalar(
+        """
+        select holder_profile_id::text || ':' || lease_token::text
+        from public.world_edit_leases;
+        """
+    ) != "33333333-3333-4333-8333-333333333333:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa":
+        raise RuntimeError("lease race must preserve the first editor/token only")
+
+    print("WORLD_LAYOUT_DATABASE_OK synthetic=true layout_concurrency=real lease_concurrency=real")
 finally:
     if started:
         run([str(binary / "pg_ctl"), "-D", str(data), "-m", "fast", "-w", "stop"])
