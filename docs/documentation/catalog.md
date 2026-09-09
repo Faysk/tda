@@ -24,7 +24,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0001 — TDA como identidade canônica; dnd-scribe como legado](../adr/0001-project-identity.md) | Não declarado | accepted | Não declarado |
 | [ADR-0002 — Reutilizar o Supabase existente como única base](../adr/0002-existing-supabase.md) | Não declarado | accepted | Não declarado |
 | [ADR-0003 — Processamento pesado local; produto cloud](../adr/0003-local-heavy-processing.md) | Não declarado | accepted | Não declarado |
-| [ADR-0004 — Registry única de entities para PC, NPC e mundo](../adr/0004-canonical-entities.md) | Não declarado | accepted | Não declarado |
+| [ADR-0004 — Registry única de entities para PC, NPC e mundo narrativo](../adr/0004-canonical-entities.md) | Não declarado | accepted | Não declarado |
 | [ADR-0005 — Canon exige fonte e revisão](../adr/0005-canon-review-gate.md) | Não declarado | accepted | Não declarado |
 | [ADR-0006 — React Flow como engine de visualização do World Explorer](../adr/0006-react-flow-world-explorer.md) | frontend / narrative-memory | aceito | Não declarado |
 | [ADR-0007 — Edit como workbench server-first orientado a capabilities](../adr/0007-edit-workbench.md) | Não declarado | Não declarado | Não declarado |
@@ -115,6 +115,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | preparado / implementação candidata | 2026-09-07 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
+| [Pipipi — lore cinematográfica pioneira](../features/pipipi-lore.md) | narrative-memory / frontend | candidato em branch; não integrado e não publicado | 2026-09-09 |
 | [Feature — Quests e ganchos](../features/quests-hooks.md) | narrative-memory | preparado/em desenho | 2026-09-06 |
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda** | 2026-09-08 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
@@ -162,4 +163,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-96 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+97 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
