@@ -298,6 +298,66 @@ O CI usa PostgreSQL 16 descartável por Unix socket, sem TCP ou credenciais do a
 
 Somente depois de CI terminal, drift reconciliado e aplicação deliberada pelo database runbook os grants físicos poderão ser revalidados no Supabase real.
 
+## `SECURITY INVOKER` server-only do World graph — candidato #119
+
+A PR #119 adiciona a migration candidata `20260909215000_world_graph_authoring` para autoria factual manual do World sem transformar React Flow em schema nem usar layout como fonte de verdade.
+
+**Estado:** candidata versionada; não aplicada no Supabase canônico na inspeção read-only de 2026-09-10.
+
+Objetos novos:
+
+- `relation_types` para semântica por campanha;
+- `world_relation_styles` para apresentação de tipos, separada da semântica;
+- `entity_relations` para vínculos first-class entre `entities`;
+- `entity_relation_sources` para provenance por `canon_entry`;
+- `world_graph_heads` e `world_graph_revisions` para optimistic concurrency + snapshots publicados;
+- extensão do `world_edit_leases` com `base_graph_revision`, `draft_graph` e estado de inicialização do draft factual.
+
+Boundary proposto:
+
+- RLS habilitado nas tabelas novas e nenhuma policy de browser;
+- `PUBLIC`, `anon` e `authenticated` sem acesso direto às tabelas/RPCs editoriais;
+- `service_role` como caller SQL pretendido, sem exposição do secret ao browser;
+- autoria factual exige `campaign.content.edit` e um lease vigente de `campaign.world.layout.edit` para a mesma identity/profile/campaign;
+- `acquire_world_graph_draft_atomic`, `save_world_graph_draft_atomic` e `publish_world_edit_state_atomic` usam `SECURITY INVOKER` e `search_path = pg_catalog, public`;
+- cada RPC revalida `auth_user_id -> profile_id`, scope/campaign, lease, limites de payload e revision antes de escrever;
+- publicação factual e layout compartilham a mesma transação SQL para evitar estado parcialmente publicado;
+- conflito preserva o rascunho; novo holder não herda draft factual privado do holder anterior.
+
+### Review/provenance
+
+Relação factual pública não pode ser inventada apenas no editor. O contrato continua sendo `evidence -> candidate -> human review -> canon_entry -> relation -> entity_relation_sources`.
+
+A fatia #119 cria a tabela de provenance e **não** cria ainda o fluxo de anexar uma `canon_entry` nova a uma relação. O boundary da aplicação bloqueia `public_campaign`/`public_web` quando a relação ativa não possui source já existente. Assim, relações novas desta fatia devem permanecer `private_*` ou `review_only` até a fatia de provenance/review.
+
+`service_role` recebe apenas `SELECT` em `entity_relation_sources` nesta fatia; não existe CRUD genérico de source. Isso é limitação deliberada, não permissão implícita para publicar sem prova.
+
+### Ativação pública separada
+
+A existência das tabelas canônicas não ativa automaticamente o dataset real em `/mundo`. A projection pública canônica fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true`; sem essa ativação deliberada, o World público continua no dataset demonstrativo explicitamente não canônico. O objetivo é permitir autoria/curadoria sem trocar uma experiência funcional por um dataset ainda esparso ou não revisado.
+
+A ativação futura exige, no mínimo:
+
+- dados reais revisados e visibility compatível com web;
+- provenance das relações públicas;
+- inspeção visual/UX do dataset real;
+- smoke público sem vazamento de nodes/edges privados;
+- decisão deliberada de configuração/release.
+
+### Preflight read-only observado antes de DDL
+
+Na inspeção de 2026-09-10:
+
+- `world_edit_leases`: 0 leases ativos;
+- `world_layout_snapshots`: 0 rows;
+- `entities`: 3 rows, somente 1 `active/public_web`;
+- `canon_entries`: 0 rows;
+- as seis tabelas novas do World graph ainda não existiam;
+- migration history terminava em `20260909205836 world_edit_lease`;
+- advisors existentes foram consultados e não justificam abrir policies amplas para silenciar `rls_enabled_no_policy`.
+
+Portanto aplicar a infraestrutura pode ser compatível com o runtime atual, mas ativar a projection pública canônica neste estado seria prematuro.
+
 ## Secrets e service roles
 
 Nunca versionar:
