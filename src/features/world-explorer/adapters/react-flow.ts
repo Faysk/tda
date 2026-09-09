@@ -11,6 +11,7 @@ import type {
 	WorldNodeDTO,
 	WorldNodeProminence,
 	WorldRelationFamily,
+	WorldRelationStyleDTO,
 } from "../model";
 import { connectedNodeIds } from "../projection";
 
@@ -25,6 +26,7 @@ export type WorldFlowNodeData = {
 export type WorldFlowEdgeData = {
 	item: WorldEdgeDTO;
 	family: WorldRelationFamily;
+	style?: WorldRelationStyleDTO;
 	isHighlighted: boolean;
 	isDimmed: boolean;
 	routeOffset: number;
@@ -116,6 +118,7 @@ export function toReactFlowGraph(
 			data: {
 				item,
 				family: item.family,
+				style: item.style,
 				isHighlighted,
 				isDimmed: hasSelection && !isHighlighted,
 				routeOffset: route?.offset ?? 28,
