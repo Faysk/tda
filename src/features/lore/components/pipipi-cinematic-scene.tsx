@@ -134,7 +134,7 @@ export function PipipiCinematicScene({
 							className={styles.sceneSubject}
 							src={subject}
 							alt=""
-							width={1000}
+							width={800}
 							height={1000}
 							sizes="(max-width: 760px) 78vw, 58vw"
 						/>
