@@ -46,18 +46,29 @@ test("World Workspace navigation becomes a non-reserving overlay on mobile", asy
 	test.skip(testInfo.project.name !== "mobile", "Mobile overlay contract.");
 
 	await page.goto("/mundo");
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"closed",
+	);
 	const stage = page.getByTestId("world-workspace-stage");
 	const before = await stage.boundingBox();
+
+	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"open",
+	);
+	await expect(page.getByTestId("world-workspace-navigation")).toBeVisible();
+	const open = await stage.boundingBox();
+
+	expect(before).not.toBeNull();
+	expect(open).not.toBeNull();
+	expect(Math.abs((open?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
 
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).first().click();
 	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
 		"data-world-navigation",
 		"closed",
 	);
-	const after = await stage.boundingBox();
-
-	expect(before).not.toBeNull();
-	expect(after).not.toBeNull();
-	expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 });
