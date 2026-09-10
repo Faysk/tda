@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
@@ -14,7 +14,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
-	const navigationPanelRef = useRef<HTMLElement>(null);
+	const navigationPanelRef = useRef<HTMLDivElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
 	const navigationToggleRef = useRef<HTMLButtonElement>(null);
 
@@ -29,13 +29,13 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
 	}, []);
 
-	function closeNavigation() {
+	const closeNavigation = useCallback(() => {
 		const shouldRestoreFocus = window.matchMedia("(max-width: 820px)").matches;
 		setNavigationOpen(false);
 		if (shouldRestoreFocus) {
 			window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
 		}
-	}
+	}, []);
 
 	useEffect(() => {
 		const mobile = window.matchMedia("(max-width: 820px)");
@@ -76,7 +76,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 
 		document.addEventListener("keydown", containNavigationFocus);
 		return () => document.removeEventListener("keydown", containNavigationFocus);
-	}, [navigationOpen]);
+	}, [navigationOpen, closeNavigation]);
 
 	const navigationIsModal = navigationOpen && mobileNavigation;
 
@@ -87,12 +87,11 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			data-world-navigation={navigationOpen ? "open" : "closed"}
 			data-testid="world-workspace"
 		>
-			{/* biome-ignore lint/a11y/useSemanticElements: desktop complementary sidebar becomes a modal dialog only at the mobile breakpoint. */}
-			<aside
+			<div
 				ref={navigationPanelRef}
 				id="world-workspace-navigation"
 				className={styles.navigationPanel}
-				role={navigationIsModal ? "dialog" : undefined}
+				role={navigationIsModal ? "dialog" : "complementary"}
 				aria-modal={navigationIsModal || undefined}
 				aria-label="Navegação do mundo"
 				aria-hidden={!navigationOpen}
@@ -117,7 +116,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 						Voltar ao início
 					</Link>
 				</div>
-			</aside>
+			</div>
 
 			<button
 				type="button"
