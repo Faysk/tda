@@ -16,6 +16,7 @@ import {
 	GLOBAL_LOADING_STOP_EVENT,
 	type GlobalLoadingEventDetail,
 } from "./events";
+import themeStyles from "./global-loading-theme.module.css";
 import styles from "./global-loading.module.css";
 
 type LoaderPhase = "hidden" | "active" | "leaving";
@@ -136,6 +137,7 @@ function LoaderVisual({
 
 	const className = [
 		styles.overlay,
+		themeStyles.overlay,
 		phase === "leaving" ? styles.leaving : styles.active,
 		serverFallback ? styles.serverFallback : "",
 	]
@@ -151,28 +153,44 @@ function LoaderVisual({
 			aria-label="Carregando"
 		>
 			<div className={styles.loader} aria-hidden="true">
-				<div className={`${styles.halo} ${styles.haloOuter}`} />
-				<div className={`${styles.halo} ${styles.haloMid}`} />
-				<div className={`${styles.halo} ${styles.haloCore}`} />
+				<div
+					className={`${styles.halo} ${styles.haloOuter} ${themeStyles.haloOuter}`}
+				/>
+				<div
+					className={`${styles.halo} ${styles.haloMid} ${themeStyles.haloMid}`}
+				/>
+				<div
+					className={`${styles.halo} ${styles.haloCore} ${themeStyles.haloCore}`}
+				/>
 
-				<div className={`${styles.orbit} ${styles.orbitOne}`}>
-					<i />
+				<div
+					className={`${styles.orbit} ${styles.orbitOne} ${themeStyles.orbitOne}`}
+				>
+					<i className={themeStyles.orbitPoint} />
 				</div>
-				<div className={`${styles.orbit} ${styles.orbitTwo}`}>
-					<i />
+				<div
+					className={`${styles.orbit} ${styles.orbitTwo} ${themeStyles.orbitTwo}`}
+				>
+					<i className={themeStyles.orbitPoint} />
 				</div>
-				<div className={`${styles.orbit} ${styles.orbitThree}`}>
-					<i />
+				<div
+					className={`${styles.orbit} ${styles.orbitThree} ${themeStyles.orbitThree}`}
+				>
+					<i className={themeStyles.orbitPoint} />
 				</div>
 
-				<div className={`${styles.trail} ${styles.trailOne}`} />
-				<div className={`${styles.trail} ${styles.trailTwo}`} />
+				<div
+					className={`${styles.trail} ${styles.trailOne} ${themeStyles.trailOne}`}
+				/>
+				<div
+					className={`${styles.trail} ${styles.trailTwo} ${themeStyles.trailTwo}`}
+				/>
 
 				<div className={styles.logoFrame}>
-					<div className={styles.logoShadow} />
+					<div className={`${styles.logoShadow} ${themeStyles.logoShadow}`} />
 					<div className={styles.logoSpin} ref={logoSpinRef}>
 						<Image
-							className={styles.logoImage}
+							className={`${styles.logoImage} ${themeStyles.logoImage}`}
 							src="/brand/tda-mark-white.svg"
 							alt=""
 							width={176}
@@ -181,10 +199,18 @@ function LoaderVisual({
 					</div>
 				</div>
 
-				<div className={`${styles.spark} ${styles.sparkOne}`} />
-				<div className={`${styles.spark} ${styles.sparkTwo}`} />
-				<div className={`${styles.spark} ${styles.sparkThree}`} />
-				<div className={`${styles.spark} ${styles.sparkFour}`} />
+				<div
+					className={`${styles.spark} ${styles.sparkOne} ${themeStyles.spark}`}
+				/>
+				<div
+					className={`${styles.spark} ${styles.sparkTwo} ${themeStyles.spark}`}
+				/>
+				<div
+					className={`${styles.spark} ${styles.sparkThree} ${themeStyles.spark}`}
+				/>
+				<div
+					className={`${styles.spark} ${styles.sparkFour} ${themeStyles.spark}`}
+				/>
 			</div>
 		</div>
 	);
