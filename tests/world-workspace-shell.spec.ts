@@ -40,6 +40,25 @@ test("World Workspace hides the public chrome and gives closed navigation zero c
 	);
 });
 
+test("World Workspace returns collapsed inspector width to the canvas", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop inspector width contract.");
+
+	await page.goto("/mundo");
+	const canvas = page.getByTestId("world-canvas");
+	const inspector = page.locator('aside[aria-live="polite"]');
+	const before = await canvas.boundingBox();
+
+	expect(before).not.toBeNull();
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
+	await expect(page.getByRole("button", { name: "Abrir painel de detalhes" })).toBeVisible();
+	await expect
+		.poll(async () => (await inspector.boundingBox())?.width ?? -1)
+		.toBeLessThan(2);
+	await expect
+		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
+		.toBeGreaterThan((before?.width ?? 0) + 200);
+});
+
 test("World Workspace navigation becomes a non-reserving overlay on mobile", async ({
 	page,
 }, testInfo) => {
