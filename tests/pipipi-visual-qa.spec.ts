@@ -52,6 +52,16 @@ test("captures Pipipi hero and cinematic checkpoints", async ({ page }, testInfo
 			name: "Algumas coisas terminaram naquele quarto. Outras continuaram voando com ela.",
 		});
 		await ghostArrival.scrollIntoViewIfNeeded();
+		const ghostSection = ghostArrival.locator("..").locator("..");
+		const ghostImage = ghostSection.locator("img");
+		await expect(ghostImage).toBeVisible();
+		await expect
+			.poll(async () =>
+				ghostImage.evaluate((image) =>
+					image instanceof HTMLImageElement && image.complete ? image.naturalWidth : 0,
+				),
+			)
+			.toBeGreaterThan(0);
 		await captureViewport(page, `${testInfo.project.name}-04-ghost-arrival.png`);
 
 		await page.emulateMedia({ reducedMotion: "reduce" });
