@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
+import polish from "./world-shell-polish.module.css";
 import styles from "./world-shell.module.css";
 
 export function WorldShell({ children }: { children: React.ReactNode }) {
@@ -27,7 +28,9 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 	};
 
 	return (
-		<div className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed}` : ""}`}>
+		<div
+			className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed} ${polish.shellCollapsed}` : ""}`}
+		>
 			<aside className={styles.sidebar}>
 				<div className={styles.sidebarInner}>
 					{railCollapsed ? null : <WorldNavigationIntro />}
