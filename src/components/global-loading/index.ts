@@ -5,6 +5,7 @@ export {
 	GLOBAL_LOADING_STOP_EVENT,
 	type GlobalLoadingEventDetail,
 } from "./events";
+export { GlobalFormLoadingBridge } from "./form-loading-bridge";
 export {
 	GlobalLoadingProvider,
 	GlobalRouteLoading,
