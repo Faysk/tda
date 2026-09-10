@@ -1,0 +1,76 @@
+name: Pipipi Phase 3 Polish
+
+on:
+  push:
+    branches: [feat/pipipi-cinematic-lore]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/pipipi-cinematic-lore
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Apply reviewed Phase 3 polish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('src/features/lore/components/pipipi-lore-page.tsx')
+          text = page.read_text()
+          replacements = [
+              ('\t\t\t<main className={styles.story}>', '\t\t\t<div className={styles.story}>'),
+              ('\t\t\t</main>\n\t\t</article>', '\t\t\t</div>\n\t\t</article>'),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              assert count == 1, (old, count)
+              text = text.replace(old, new)
+          page.write_text(text)
+
+          css = Path('src/features/lore/components/pipipi-lore-page.module.css')
+          text = css.read_text()
+          replacements = [
+              ('\tmin-height: min(100svh, 980px);', '\tmin-height: calc(100svh - 82px);'),
+              ('\tanimation: heroGhostFloat 6.4s ease-in-out infinite;\n\twill-change: transform;', ''),
+              ('\tanimation: scrollCue 1.8s ease-in-out infinite;', '\tanimation: scrollCue 1.8s ease-in-out 3;'),
+              ('\t--scene-copy-opacity: 0.25;', '\t--scene-copy-opacity: 1;'),
+              ('\t--scene-copy-y: 28px;', '\t--scene-copy-y: 0px;'),
+              ('\tanimation: afterlifeFloat 7s ease-in-out infinite;', ''),
+              ('\tanimation: afterlifeFloat 7.5s ease-in-out infinite;', ''),
+              ('\t.cinematicStage { height: 78svh; top: 11svh; }', '\t.cinematicStage { height: 100svh; top: 0; }'),
+              ('\t.cinematicStage { height: 70svh; top: 15svh; }', '\t.cinematicStage { height: 100svh; top: 0; }'),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              assert count == 1, (old, count)
+              text = text.replace(old, new)
+
+          for block in [
+              '''@keyframes heroGhostFloat {\n\t0%,\n\t100% {\n\t\ttransform: translate(-50%, -50%) rotate(-1deg) scale(0.99);\n\t}\n\t35% {\n\t\ttransform: translate(-48.8%, -54%) rotate(0.8deg) scale(1.015);\n\t}\n\t70% {\n\t\ttransform: translate(-51.2%, -52%) rotate(-0.4deg) scale(1.006);\n\t}\n}\n\n''',
+              '''@keyframes afterlifeFloat {\n\t0%, 100% { transform: translateY(0) rotate(-1deg); }\n\t50% { transform: translateY(-18px) rotate(1deg); }\n}\n\n''',
+          ]:
+              count = text.count(block)
+              assert count == 1, ('keyframe block', count)
+              text = text.replace(block, '')
+
+          css.write_text(text)
+
+          workflow = Path('.github/workflows/pipipi-phase3-polish.yml')
+          workflow.unlink()
+          PY
+      - name: Commit polish and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/lore/components/pipipi-lore-page.tsx src/features/lore/components/pipipi-lore-page.module.css .github/workflows/pipipi-phase3-polish.yml
+          git commit -m "fix(lore): polish Pipipi cinematic QA findings"
+          git push origin HEAD:feat/pipipi-cinematic-lore
