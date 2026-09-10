@@ -19,6 +19,12 @@ export type CinematicSceneArtDirection = Readonly<{
 	focalPoint: CinematicFocalPoint;
 	mobileFocalPoint?: CinematicFocalPoint;
 	mobileMotion?: Partial<CinematicMotionScale>;
+	/**
+	 * Freezes background and subject transforms while preserving the scene's
+	 * sticky storytelling and copy reveal. Use this when the approved artwork
+	 * already has a strong composition that parallax would only disturb.
+	 */
+	staticMedia?: boolean;
 }>;
 
 /**
