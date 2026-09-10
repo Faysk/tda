@@ -6,7 +6,6 @@ import { PublicLink as Link } from "@/components/public-link";
 import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-shell.module.css";
-import polish from "./world-shell-polish.module.css";
 
 export function WorldShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
@@ -28,10 +27,8 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 	};
 
 	return (
-		<div
-			className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed} ${polish.shellCollapsed}` : ""}`}
-		>
-			<aside className={styles.sidebar} data-testid="world-navigation-sidebar">
+		<div className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed}` : ""}`}>
+			<aside className={styles.sidebar}>
 				<div className={styles.sidebarInner}>
 					{railCollapsed ? null : <WorldNavigationIntro />}
 					<WorldNavigation pathname={pathname} compact={railCollapsed} />
@@ -39,17 +36,16 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 						<button
 							type="button"
 							className={styles.railToggle}
-							data-testid="world-navigation-trigger"
 							onClick={() => setRailCollapsed((value) => !value)}
 							aria-expanded={!railCollapsed}
 							aria-label={
 								railCollapsed
-									? "Explorar universo"
+									? "Expandir navegação do mundo"
 									: "Recolher navegação do mundo"
 							}
-							title={railCollapsed ? "Explorar universo" : "Recolher navegação"}
+							title={railCollapsed ? "Expandir navegação" : "Recolher navegação"}
 						>
-							<span aria-hidden="true">{railCollapsed ? "☰" : "‹"}</span>
+							<span aria-hidden="true">{railCollapsed ? "›" : "‹"}</span>
 							{railCollapsed ? null : <span>Recolher</span>}
 						</button>
 						<Link
@@ -70,7 +66,6 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 					<button
 						type="button"
 						className={styles.menuButton}
-						data-testid="world-mobile-navigation-trigger"
 						onClick={openDrawer}
 						aria-haspopup="dialog"
 					>
