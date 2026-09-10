@@ -64,11 +64,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					onClick={() => setNavigationOpen((value) => !value)}
 					aria-controls="world-workspace-navigation"
 					aria-expanded={navigationOpen}
-					aria-label={
-						navigationOpen
-							? "Recolher navegação do mundo"
-							: "Explorar universo"
-					}
+					aria-hidden={navigationOpen}
+					tabIndex={navigationOpen ? -1 : 0}
+					aria-label={navigationOpen ? "Recolher navegação do mundo" : "Explorar universo"}
 				>
 					<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
 					<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
