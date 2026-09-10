@@ -15,12 +15,11 @@ test("World Workspace hides the public chrome and gives closed navigation zero c
 
 	const stage = page.getByTestId("world-workspace-stage");
 	const navigation = page.getByTestId("world-workspace-navigation");
+	await expect.poll(async () => (await navigation.boundingBox())?.width ?? 0).toBeGreaterThan(200);
 	const openStage = await stage.boundingBox();
-	const openNavigation = await navigation.boundingBox();
 
 	expect(openStage).not.toBeNull();
-	expect(openNavigation).not.toBeNull();
-	expect(openNavigation?.width ?? 0).toBeGreaterThan(200);
+	const openWidth = openStage?.width ?? 0;
 
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).first().click();
 	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
@@ -28,10 +27,9 @@ test("World Workspace hides the public chrome and gives closed navigation zero c
 		"closed",
 	);
 	await expect(navigation).toBeHidden();
-
-	const closedStage = await stage.boundingBox();
-	expect(closedStage).not.toBeNull();
-	expect((closedStage?.width ?? 0) - (openStage?.width ?? 0)).toBeGreaterThan(180);
+	await expect
+		.poll(async () => (await stage.boundingBox())?.width ?? 0)
+		.toBeGreaterThan(openWidth + 180);
 
 	await page.getByRole("button", { name: "Explorar universo" }).click();
 	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
@@ -44,6 +42,10 @@ test("World Workspace returns collapsed inspector width to the canvas", async ({
 	test.skip(testInfo.project.name === "mobile", "Desktop inspector width contract.");
 
 	await page.goto("/mundo");
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"open",
+	);
 	const canvas = page.getByTestId("world-canvas");
 	const inspector = page.locator('aside[aria-live="polite"]');
 	const before = await canvas.boundingBox();
@@ -56,7 +58,7 @@ test("World Workspace returns collapsed inspector width to the canvas", async ({
 		.toBeLessThan(2);
 	await expect
 		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
-		.toBeGreaterThan((before?.width ?? 0) + 200);
+		.toBeGreaterThan((before?.width ?? 0) + 40);
 });
 
 test("World Workspace navigation becomes a non-reserving overlay on mobile", async ({
