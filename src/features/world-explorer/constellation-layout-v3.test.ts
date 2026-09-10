@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { constellationWorldLayout } from "./constellation-layout";
+import {
+	buildWorldHeroAffinityIndex,
+	constellationWorldLayout,
+} from "./constellation-layout";
 import type { WorldDemoDataset } from "./model";
 import { buildWorldProjection } from "./projection";
 
@@ -66,6 +69,70 @@ function distance(left: { x: number; y: number }, right: { x: number; y: number 
 }
 
 describe("World Explorer affinity layout", () => {
+	it("indexes tied nearest heroes for the whole visible topology", () => {
+		const projection = buildWorldProjection(AFFINITY_DATASET);
+		const affinities = buildWorldHeroAffinityIndex(projection, projection.heroIds);
+
+		expect(affinities.get("bridge")).toEqual({
+			heroIds: ["hero-a", "hero-b"],
+			distance: 1,
+		});
+		expect(affinities.get("echo")).toEqual({
+			heroIds: ["hero-a", "hero-b"],
+			distance: 2,
+		});
+		expect(affinities.get("direct")).toEqual({ heroIds: ["hero-a"], distance: 1 });
+		expect(affinities.get("deep")).toEqual({ heroIds: ["hero-a"], distance: 2 });
+	});
+
+	it("keeps the affinity traversal bounded to the editorial layout depth", () => {
+		const dataset: WorldDemoDataset = {
+			...AFFINITY_DATASET,
+			nodes: [
+				...AFFINITY_DATASET.nodes,
+				{ id: "depth-3", slug: null, kind: "moment", label: "Depth 3" },
+				{ id: "depth-4", slug: null, kind: "moment", label: "Depth 4" },
+				{ id: "depth-5", slug: null, kind: "moment", label: "Depth 5" },
+			],
+			edges: [
+				...AFFINITY_DATASET.edges,
+				{
+					id: "deep-depth-3",
+					source: "deep",
+					target: "depth-3",
+					relationType: "context",
+					label: "Context",
+					direction: "symmetric",
+					family: "context",
+				},
+				{
+					id: "depth-3-depth-4",
+					source: "depth-3",
+					target: "depth-4",
+					relationType: "context",
+					label: "Context",
+					direction: "symmetric",
+					family: "context",
+				},
+				{
+					id: "depth-4-depth-5",
+					source: "depth-4",
+					target: "depth-5",
+					relationType: "context",
+					label: "Context",
+					direction: "symmetric",
+					family: "context",
+				},
+			],
+		};
+		const projection = buildWorldProjection(dataset);
+		const affinities = buildWorldHeroAffinityIndex(projection, projection.heroIds);
+
+		expect(affinities.get("depth-3")).toEqual({ heroIds: ["hero-a"], distance: 3 });
+		expect(affinities.get("depth-4")).toEqual({ heroIds: ["hero-a"], distance: 4 });
+		expect(affinities.has("depth-5")).toBe(false);
+	});
+
 	it("places shared context between peer heroes instead of assigning the first hero", () => {
 		const projection = buildWorldProjection(AFFINITY_DATASET);
 		const layout = constellationWorldLayout(projection);
