@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { PublicLink as Link } from "@/components/public-link";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
-import styles from "@/features/edit/workbench.module.css";
+import styles from "@/features/edit/processing/processing.module.css";
 
 export const metadata: Metadata = {
-	title: "Processamento local",
+	title: "Processamento",
 	description: "Fila e conexão com o serviço local de processamento.",
 };
 
@@ -16,12 +15,10 @@ export default async function ProcessingPage() {
 		"/edit/processamento",
 	);
 	return (
-		<section className={styles.shell}>
+		<section className={styles.page}>
 			<header className={styles.pageHeader}>
-				<div>
-					<Link href="/edit">Edit</Link>
-					<h1 className={styles.pageTitle}>Processamento local</h1>
-				</div>
+				<div className={styles.breadcrumb}>Edit / Processamento</div>
+				<h1>Processamento</h1>
 			</header>
 			<ProcessingPanel />
 		</section>
