@@ -61,6 +61,36 @@ test("World Workspace returns collapsed inspector width to the canvas", async ({
 		.toBeGreaterThan((before?.width ?? 0) + 40);
 });
 
+test("World Workspace mobile inspector collapses to zero space and reopens from its floating control", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile inspector overlay contract.");
+
+	await page.goto("/mundo");
+	const inspector = page.locator('aside[aria-live="polite"]');
+	const collapse = page.getByRole("button", { name: "Recolher painel de detalhes" });
+
+	await expect(inspector).toBeVisible();
+	await collapse.click();
+
+	const reopen = page.getByRole("button", { name: "Abrir painel de detalhes" });
+	await expect(reopen).toBeVisible();
+	await expect
+		.poll(async () => (await inspector.boundingBox())?.height ?? -1)
+		.toBeLessThan(2);
+
+	const reopenBox = await reopen.boundingBox();
+	expect(reopenBox).not.toBeNull();
+	expect(reopenBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(reopenBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+	await reopen.click();
+	await expect(page.getByRole("button", { name: "Recolher painel de detalhes" })).toBeVisible();
+	await expect
+		.poll(async () => (await inspector.boundingBox())?.height ?? 0)
+		.toBeGreaterThan(68);
+});
+
 test("World Workspace navigation becomes a non-reserving overlay on mobile", async ({
 	page,
 }, testInfo) => {
