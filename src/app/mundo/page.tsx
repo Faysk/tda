@@ -72,7 +72,15 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	projection.layout = await loadPublishedWorldLayout(projection);
 
 	return (
-		<div style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+		<div
+			style={{
+				display: "grid",
+				minWidth: 0,
+				maxWidth: "100%",
+				minHeight: "100dvh",
+				overflowX: "clip",
+			}}
+		>
 			<WorldExplorerProvider>
 				<WorldExplorerClient
 					projection={projection}
