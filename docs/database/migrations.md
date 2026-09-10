@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-10
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -13,7 +13,7 @@ A estratégia é:
 
 - história remota anterior permanece no Supabase e legado;
 - novas mudanças do reboot entram em `Faysk/tda/supabase/migrations`;
-- versão/nome remoto e arquivo local devem corresponder após aplicação;
+- versão/nome remoto e arquivo local devem corresponder após aplicação ou a divergência precisa ficar explicitamente documentada;
 - migration candidata pode existir no repo antes da aplicação, mas precisa estar explicitamente marcada como não aplicada;
 - migrations de transição preservam consumidores legados enquanto necessários;
 - o procedimento operacional obrigatório está em `docs/operations/database-runbook.md`.
@@ -90,6 +90,15 @@ A estratégia é:
 - `20260908203331 world_layout_snapshot_atomic`
 - `20260908203441 world_layout_service_role_privileges`
 - `20260908203642 world_layout_site_editor_grant`
+
+### 2026-09-09 — lease exclusivo do World Explorer
+
+- `20260909205836 world_edit_lease` — migration aplicada remotamente; arquivo local equivalente preservado como `20260909173000_world_edit_lease.sql` até reconciliação nominal deliberada.
+
+### 2026-09-10 — autoria factual do World Explorer
+
+- `20260910002529 world_graph_authoring` — migration aplicada remotamente; arquivo local equivalente permanece `20260909215000_world_graph_authoring.sql`. Não reexecutar DDL para alinhar somente o número.
+- `20260910012546 world_graph_provenance_guard` — hardening aplicado remotamente; arquivo local equivalente `20260910005000_world_graph_provenance_guard.sql`. Não reexecutar DDL para alinhar somente o timestamp.
 
 ## Boundary do reboot aplicado
 
@@ -347,7 +356,7 @@ Dependendo da mudança:
 - advisors de segurança/performance;
 - consumidores legados ainda funcionam;
 - nenhum dado canônico foi criado sem aprovação;
-- migration history remoto corresponde ao arquivo.
+- migration history remoto corresponde ao arquivo ou a divergência nominal está documentada sem reexecutar DDL.
 
 ## Rollback
 
@@ -366,10 +375,10 @@ Há drift quando:
 
 - Supabase possui DDL que o repo não conhece;
 - repo possui migration que produção não aplicou;
-- versão/nome não corresponde;
+- versão/nome não corresponde e a divergência não está registrada;
 - documentação descreve constraint/coluna inexistente.
 
-Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
+Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Uma mudança aplicada com ID remoto diferente do filename local deve ser registrada como equivalência operacional e não ser reexecutada apenas para satisfazer nomenclatura.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
 
@@ -380,11 +389,11 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
 
-## Candidato de sessão exclusiva de edição do World Explorer
+## Sessão exclusiva de edição do World Explorer
 
 ### `20260909173000_world_edit_lease`
 
-**Estado:** migration candidata versionada nesta implementação; **não aplicada no Supabase canônico**.
+**Estado:** aplicada no Supabase canônico em 2026-09-09 sob o migration history remoto `20260909205836 world_edit_lease`. O arquivo local mantém o ID candidato original até uma reconciliação nominal deliberada; não reexecutar DDL para alinhar nomes.
 
 Objetivo:
 
@@ -411,17 +420,113 @@ Concorrência e recuperação:
 - novo editor após expiração inicia do snapshot publicado vigente;
 - conflito de `revision` preserva o draft e bloqueia publicação silenciosa sobre versão mais nova.
 
-Validação ainda necessária antes de aplicação remota:
+Validação observada antes/após a aplicação:
 
-- `pnpm check`, build e Playwright do SHA final;
-- ensaio PostgreSQL descartável dos cinco RPCs, incluindo duas sessões concorrentes, expiração/recovery, payload inválido, capability/scope e rollback de publish;
-- revisão dos grants/RLS e comparação com o migration history somente depois de eventual aplicação deliberada.
+- `pnpm check`, build e Playwright passaram no SHA de integração da #117;
+- PostgreSQL 16 descartável validou os RPCs, incluindo duas sessões concorrentes, expiração/recovery, payload inválido, capability/scope e rollback de publish;
+- a migration foi aplicada de forma deliberada ao Supabase canônico e o deployment correspondente ficou READY;
+- smoke público confirmou `/`, `/sessoes`, `/mundo` e `/conta`; fluxo autenticado completo de edição continua sendo um gate separado quando houver fixture/credencial apropriada.
 
 Rollback lógico:
 
-- antes da ativação do consumidor, remover os RPCs e `world_edit_leases` em migration corretiva é reversível;
+- antes de consumidores dependerem do lease, remover os RPCs e `world_edit_leases` em migration corretiva é reversível;
 - após ativação, primeiro desligar o toggle/boundary no app, deixar leases expirarem e então remover a infraestrutura em migration corretiva;
 - nunca apagar `world_layout_snapshots` ou `audit_log` para desfazer esta feature.
+
+## Autoria canônica do World Explorer — infraestrutura aplicada
+
+### `20260909215000_world_graph_authoring`
+
+**Estado:** aplicada no Supabase canônico em 2026-09-10 sob o migration history remoto `20260910002529 world_graph_authoring`. O arquivo local preserva o ID original da PR #119; não reexecutar DDL apenas para alinhar o timestamp.
+
+Objetivo:
+
+- introduzir `relation_types`, `world_relation_styles`, `entity_relations`, `entity_relation_sources`, `world_graph_heads` e `world_graph_revisions` sem acoplar o schema ao React Flow;
+- estender o lease exclusivo existente com revision e rascunho factual privado;
+- permitir criação/edição/arquivamento manual de entities, relações e tipos por um editor autorizado;
+- persistir estilo editorial de relação em tabela separada da semântica (`world_relation_styles`), mantendo cor/traço/espessura como apresentação;
+- publicar conteúdo factual e layout na mesma transação SQL, com revisions separadas e `audit_log` de publicação do grafo;
+- manter IA/candidatos fora do caminho de promoção automática.
+
+Segurança e autorização:
+
+- autoria factual exige `campaign.content.edit` e uma sessão exclusiva válida de `campaign.world.layout.edit`;
+- o browser não recebe grants diretos das tabelas ou RPCs editoriais;
+- RLS está habilitado nas seis novas tabelas sem policy pública;
+- `service_role` recebe somente os privilégios versionados; não possui `DELETE` nas tabelas factuais, recebe apenas `SELECT` em `entity_relation_sources` e não recebe `UPDATE` em `world_graph_revisions`;
+- RPCs de acquire/save/publish são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e revalidam identidade/profile/campaign/scope/lease/revision;
+- a projection pública continua filtrada no servidor e não usa o rascunho privado como fonte de autorização.
+
+Concorrência e integridade:
+
+- `world_graph_heads.revision` protege publicação factual por optimistic concurrency;
+- o rascunho preserva `base_graph_revision` e sobrevive à recuperação do mesmo editor, mas é zerado na transferência do lease para outro editor;
+- relações simétricas são normalizadas antes de persistir e duplicatas ativas são rejeitadas;
+- IDs cross-campaign, endpoints ausentes, tipos inexistentes, self-edge e colisões de nome/slug são rejeitados;
+- exclusão editorial normal é arquivamento; publicação cria snapshot append-only em `world_graph_revisions` quando o conteúdo factual muda.
+
+Validação observada:
+
+- o SHA candidato anterior à rodada documental passou `pnpm check`, build, Playwright/E2E, processamento e PostgreSQL sintético com `tools/world-layout-db.py`;
+- preflight remoto confirmou 0 leases ativos, 0 snapshots, 3 entities, 0 canon entries e ausência das seis tabelas antes do DDL;
+- pós-migration: `entities=3`, `canon_entries=0`, `world_layout_snapshots=0`, `world_edit_leases=0` e todas as seis tabelas factuais novas permaneceram vazias;
+- RLS/grants/RPC signatures/security/search_path foram revalidados fisicamente;
+- `world_graph_snapshot_json` projetou 3 nodes, 0 edges e 0 relation types;
+- chamadas negativas de acquire/publish com identity inexistente retornaram `forbidden` sem criar lease/revision/relation/audit;
+- nenhum `world_graph.publish` foi produzido pela aplicação da infraestrutura.
+
+Advisors pós-aplicação:
+
+- security: 46 `rls_enabled_no_policy` informativos, incluindo deliberadamente as seis tabelas novas deny-by-default; mesmas 8 funções `SECURITY DEFINER` legadas executáveis por `authenticated`; Leaked Password Protection desabilitada;
+- performance: 59 FKs sem covering index e 30 índices sem uso registrado.
+
+O INFO de `entity_relation_sources(canon_entry_id)` vira candidato de índice quando o fluxo de provenance realmente consultar por fonte. Nenhum índice/policy foi adicionado apenas para silenciar advisor.
+
+Limites de produto após a aplicação:
+
+- a #119 **não** cria mutation de anexação de `canon_entry` a uma relation; `service_role` possui somente leitura de `entity_relation_sources`;
+- relações novas devem permanecer `private_*`/`review_only` até a fatia de provenance/review;
+- o server action impede publicação de relation ativa `public_campaign/public_web` sem source já existente;
+- `TDA_WORLD_CANONICAL_ENABLED` continua desligado por padrão; com apenas 1 entity `public_web` e 0 canon entries, ativação pública agora seria prematura.
+
+Rollback lógico:
+
+- se o consumidor precisar ser retirado, desligá-lo primeiro e deixar o schema aditivo inerte enquanto a correção é preparada;
+- uma eventual migration corretiva deve preservar facts/revisions/audit já existentes e remover objetos somente quando comprovadamente sem consumidor;
+- não apagar relações, snapshots ou audit para simular rollback.
+
+## Hardening do provenance no publish do World graph
+
+### `20260910005000_world_graph_provenance_guard`
+
+**Estado:** aplicada no Supabase canônico em 2026-09-10 sob o migration history remoto `20260910012546 world_graph_provenance_guard`.
+
+Objetivo:
+
+- fechar o bypass em que um caller interno com `service_role` podia chamar `publish_world_edit_state_atomic(...)` diretamente e contornar o precheck de provenance feito pelo server action;
+- exigir, dentro da própria RPC e antes de qualquer write de graph/layout/audit, que toda relation `active` com visibility `public_campaign` ou `public_web` possua `entity_relation_sources` apontando para `canon_entries` da mesma campaign com `status='active'`;
+- retornar `review_required` sem consumir o lease nem publicar qualquer estado quando o gate não estiver satisfeito;
+- preservar o boundary como `SECURITY INVOKER`, `search_path = pg_catalog, public`, sem `EXECUTE` para `anon/authenticated` e com `service_role` como caller SQL esperado.
+
+Estratégia forward-only:
+
+- a migration histórica `20260909215000_world_graph_authoring.sql` já havia sido aplicada remotamente e não foi reescrita;
+- a correção usa `pg_get_functiondef(...)` para localizar a definição física conhecida e injeta o guard imediatamente antes do primeiro write da RPC;
+- a migration falha fechada se o marcador esperado da função não existir, evitando aplicar uma transformação silenciosa sobre uma definição divergente;
+- a execução é idempotente para ambientes scratch em que o mesmo guard já esteja materializado.
+
+Validação observada:
+
+- PostgreSQL 16 descartável executou a migration corretiva e `supabase/tests/world_graph_authoring_atomic.sql` passou no job `transcript-import-postgres` da CI #551;
+- o teste chama a RPC diretamente com relation `active/public_web` sem source e exige `review_required`, com zero mutation em entities, relations, relation types, layout snapshots, graph revisions/head revision e audit;
+- o happy path factual permanece permitido com relation `review_only`;
+- pós-aplicação remota, `pg_get_functiondef` confirmou o guard na função física; `prosecdef=false`; `search_path=pg_catalog, public`; `anon/authenticated` sem `EXECUTE`; `service_role` com `EXECUTE`;
+- antes do hardening havia 0 leases ativos, 0 relations, 0 graph revisions e 0 `world_graph.publish`; a aplicação não criou fatos canônicos.
+
+Rollback lógico:
+
+- se houver necessidade real de desfazer o hardening, criar migration corretiva explícita que substitua a função por uma definição revisada; não editar migration history nem remover provenance para forçar publicação;
+- enquanto não houver fluxo de source/review, relações novas permanecem privadas/review e `TDA_WORLD_CANONICAL_ENABLED` continua desligado.
 
 ## Candidato de estabilização de aliases narrativos
 

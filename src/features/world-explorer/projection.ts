@@ -69,8 +69,7 @@ export function filterWorldProjection(
 ): WorldGraphProjection {
 	if (filter === "all") return projection;
 
-	const preserveHeroContext =
-		projection.mode === "overview" && filter !== "characters";
+	const preserveHeroContext = projection.mode === "overview" && filter !== "characters";
 	const nodes = projection.nodes.filter(
 		(node) =>
 			node.id === projection.focusId ||
@@ -151,16 +150,19 @@ export function buildWorldProjection(
 	filter: WorldFilter = "all",
 ): WorldGraphProjection {
 	const heroIds = datasetHeroIds(dataset);
+	const relationTypes = dataset.relationTypes ?? [];
+	const demo = dataset.demo ?? true;
 	if (!focusId) {
 		const nodes = dataset.nodes;
 		return filterWorldProjection(
 			{
-				demo: true,
+				demo,
 				mode: "overview",
 				focusId: null,
 				heroIds,
 				nodes,
 				edges: dataset.edges,
+				relationTypes,
 				layout: sanitizeWorldLayoutProjection(
 					dataset.layout,
 					new Set(nodes.map((node) => node.id)),
@@ -186,12 +188,13 @@ export function buildWorldProjection(
 	}
 
 	const projection: WorldGraphProjection = {
-		demo: true,
+		demo,
 		mode: "focus",
 		focusId,
 		heroIds: heroIds.filter((id) => neighborIds.has(id)),
 		nodes: dataset.nodes.filter((node) => neighborIds.has(node.id)),
 		edges: directEdges,
+		relationTypes,
 	};
 	return filterWorldProjection(projection, filter);
 }

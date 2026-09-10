@@ -12,6 +12,7 @@ export default defineConfig({
 			env: {
 				TDA_READ_PUBLISHED_DATA: "false",
 				TDA_EDIT_UNSAFE: "true",
+				TDA_WORLD_DEMO_FALLBACK: "true",
 				SUPABASE_PUBLISHABLE_KEY: "",
 				TDA_AUTH_ORIGIN: "",
 			},
@@ -33,6 +34,7 @@ export default defineConfig({
 				TDA_READ_EDIT_DATA: "false",
 				TDA_EDIT_UNSAFE: "false",
 				TDA_READ_PUBLISHED_DATA: "false",
+				TDA_WORLD_DEMO_FALLBACK: "true",
 			},
 		},
 	],

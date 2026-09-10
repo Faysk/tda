@@ -5,12 +5,12 @@ import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { WorldExplorerClient } from "@/features/world-explorer/components/world-explorer-client";
-import { DANDELION_WORLD_DEMO } from "@/features/world-explorer/fixtures/dandelion";
 import { loadPublishedWorldLayout } from "@/features/world-explorer/layout-repository";
 import {
 	buildWorldProjection,
 	resolveWorldFocusId,
 } from "@/features/world-explorer/projection";
+import { loadWorldDataset } from "@/features/world-explorer/world-repository";
 
 type MundoPageProps = {
 	searchParams: Promise<{ foco?: string | string[] }>;
@@ -27,20 +27,24 @@ export async function generateMetadata({
 }: MundoPageProps): Promise<Metadata> {
 	const query = await searchParams;
 	const requestedFocus = requestedFocusFrom(query);
-	const focusId = resolveWorldFocusId(DANDELION_WORLD_DEMO, requestedFocus);
-	const focus = focusId
-		? DANDELION_WORLD_DEMO.nodes.find((node) => node.id === focusId)
-		: undefined;
+	const dataset = await loadWorldDataset("public");
+	const focusId = resolveWorldFocusId(dataset, requestedFocus);
+	const focus = focusId ? dataset.nodes.find((node) => node.id === focusId) : undefined;
 	const shareFocusedEntity = Boolean(requestedFocus && focus?.slug);
 	const pathname = shareFocusedEntity
 		? `/mundo?foco=${encodeURIComponent(focus?.slug ?? "")}`
 		: "/mundo";
+	const demoSuffix = dataset.demo ? " — demonstração" : "";
 	const title = shareFocusedEntity
-		? `${focus?.label ?? "Memória"} · Ecos da Jornada — demonstração`
-		: "Ecos da Jornada — demonstração";
-	const description = shareFocusedEntity
-		? `Demonstração do World Explorer do TDA com ${focus?.label ?? "uma memória"} em foco. As relações exibidas neste recorte não são canon.`
-		: "Demonstração multi-hub do World Explorer do TDA. As relações exibidas neste recorte visual não são canon.";
+		? `${focus?.label ?? "Memória"} · Ecos da Jornada${demoSuffix}`
+		: `Ecos da Jornada${demoSuffix}`;
+	const description = dataset.demo
+		? shareFocusedEntity
+			? `Demonstração do World Explorer do TDA com ${focus?.label ?? "uma memória"} em foco. As relações exibidas neste recorte não são canon.`
+			: "Demonstração multi-hub do World Explorer do TDA. As relações exibidas neste recorte visual não são canon."
+		: shareFocusedEntity
+			? `Explore os laços públicos de ${focus?.label ?? "uma memória"} no Mundo da campanha.`
+			: "Pessoas, lugares e histórias conectadas no Mundo da campanha.";
 
 	return buildPublicMetadata({ title, description, pathname });
 }
@@ -48,21 +52,31 @@ export async function generateMetadata({
 export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const query = await searchParams;
 	const requestedFocus = requestedFocusFrom(query);
-	const focusId = resolveWorldFocusId(DANDELION_WORLD_DEMO, requestedFocus);
-	const projection = buildWorldProjection(DANDELION_WORLD_DEMO, focusId);
+	const [layoutAccess, contentAccess] = await Promise.all([
+		authorizeCampaignCapabilityServer({
+			action: EDIT_CAPABILITIES.worldLayoutEdit,
+			campaignSlug: CAMPAIGN_SLUG,
+		}),
+		authorizeCampaignCapabilityServer({
+			action: EDIT_CAPABILITIES.contentEdit,
+			campaignSlug: CAMPAIGN_SLUG,
+		}),
+	]);
+	const canEditLayout = layoutAccess.ok === true;
+	const canEditContent = contentAccess.ok === true;
+	const fullWorldEditor = canEditLayout && canEditContent;
+	const dataset = await loadWorldDataset(fullWorldEditor ? "editor" : "public");
+	const focusId = resolveWorldFocusId(dataset, requestedFocus);
+	const projection = buildWorldProjection(dataset, focusId);
 	projection.layout = await loadPublishedWorldLayout(projection);
-
-	const editAccess =
-		projection.mode === "overview"
-			? await authorizeCampaignCapabilityServer({
-					action: EDIT_CAPABILITIES.worldLayoutEdit,
-					campaignSlug: CAMPAIGN_SLUG,
-				})
-			: null;
 
 	return (
 		<main style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-			<WorldExplorerClient projection={projection} canEditLayout={editAccess?.ok === true} />
+			<WorldExplorerClient
+				projection={projection}
+				canEditLayout={canEditLayout}
+				canEditContent={fullWorldEditor}
+			/>
 		</main>
 	);
 }

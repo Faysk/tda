@@ -12,7 +12,7 @@ import {
 	getFloatingEdgeGeometry,
 	type FloatingNodeBox,
 } from "../floating-edge-geometry";
-import type { WorldRelationFamily } from "../model";
+import type { WorldLineStyle, WorldRelationFamily } from "../model";
 import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
 
@@ -46,15 +46,18 @@ const RELATION_DASHES: Partial<Record<WorldRelationFamily, string>> = {
 	origin: "7 5",
 };
 
+const STYLE_DASHES: Record<WorldLineStyle, string | undefined> = {
+	solid: undefined,
+	dashed: "7 5",
+	dotted: "2 5",
+};
+
 type InternalNodeLike = {
 	measured?: { width?: number; height?: number };
 	internals?: { positionAbsolute?: { x: number; y: number } };
 };
 
-function relationCurvature(
-	family: WorldRelationFamily,
-	routeOffset: number,
-): number {
+function relationCurvature(family: WorldRelationFamily, routeOffset: number): number {
 	const familyBase =
 		family === "mystic"
 			? 0.33
@@ -92,6 +95,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const routeOffset = props.data?.routeOffset ?? 28;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
 	const family = props.data?.family ?? "context";
+	const customStyle = props.data?.style;
 	const curvature = relationCurvature(family, routeOffset);
 	const sourceX = floating?.sourceX ?? props.sourceX;
 	const sourceY = floating?.sourceY ?? props.sourceY;
@@ -111,11 +115,14 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const item = props.data?.item;
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
-	const stroke = RELATION_STROKES[family];
+	const stroke = customStyle?.color ?? RELATION_STROKES[family];
 	const motionStroke = RELATION_MOTION_STROKES[family];
-	const strokeWidth = highlighted ? 3.6 : 3;
+	const baseWidth = customStyle?.lineWidth ?? 3;
+	const strokeWidth = highlighted ? baseWidth + 0.6 : baseWidth;
 	const strokeOpacity = dimmed ? 0.12 : highlighted ? 1 : 0.94;
-	const dash = RELATION_DASHES[family];
+	const dash = customStyle
+		? STYLE_DASHES[customStyle.lineStyle]
+		: RELATION_DASHES[family];
 
 	// Chrome has been unreliable painting the native React Flow edge SVG in this
 	// composition. Keep the hit target there, but paint the visible curve in the
@@ -183,7 +190,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 							className={effects.flowMotion}
 							fill="none"
 							stroke={motionStroke}
-							strokeWidth={2.6}
+							strokeWidth={Math.max(2, Math.min(3.4, baseWidth - 0.2))}
 							strokeOpacity={0.98}
 							strokeDasharray="1 11"
 							strokeDashoffset="0"

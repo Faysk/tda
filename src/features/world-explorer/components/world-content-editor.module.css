@@ -1,0 +1,278 @@
+.editor {
+	display: grid;
+	gap: 16px;
+	padding-top: 10px;
+}
+
+.modeBar {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 4px;
+	padding: 4px;
+	border: 1px solid color-mix(in srgb, var(--ds-border) 82%, transparent);
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--ds-surface) 82%, transparent);
+}
+
+.modeBar button {
+	min-height: 44px;
+	border: 0;
+	border-radius: 10px;
+	background: transparent;
+	color: var(--ds-text-muted);
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.modeBar button[aria-pressed="true"] {
+	background: var(--ds-surface-elevated);
+	color: var(--ds-text);
+	box-shadow: var(--ds-shadow-sm);
+}
+
+.stack,
+.form {
+	display: grid;
+	gap: 12px;
+}
+
+.form {
+	padding: 14px;
+	border: 1px solid var(--ds-border);
+	border-radius: 16px;
+	background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+}
+
+.formHeading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.formHeading span {
+	display: block;
+	margin-bottom: 3px;
+	color: var(--ds-text-muted);
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.formHeading h3,
+.listBlock h3 {
+	margin: 0;
+	font-size: 0.94rem;
+	line-height: 1.3;
+}
+
+.formHeading > button,
+.advanced button {
+	min-height: 44px;
+	border: 1px solid var(--ds-border);
+	border-radius: 10px;
+	background: transparent;
+	color: var(--ds-text-muted);
+	font: inherit;
+	font-size: 0.76rem;
+	cursor: pointer;
+}
+
+.form label,
+.field {
+	display: grid;
+	gap: 6px;
+	color: var(--ds-text-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.form input:not([type="checkbox"]):not([type="color"]),
+.form textarea {
+	width: 100%;
+	min-height: 44px;
+	box-sizing: border-box;
+	border: 1px solid var(--ds-border);
+	border-radius: 11px;
+	background: var(--ds-canvas);
+	color: var(--ds-text);
+	font: inherit;
+	font-size: 0.84rem;
+	padding: 9px 11px;
+}
+
+.form textarea {
+	resize: vertical;
+	line-height: 1.5;
+}
+
+.form input[type="color"] {
+	width: 100%;
+	height: 44px;
+	padding: 3px;
+	border: 1px solid var(--ds-border);
+	border-radius: 11px;
+	background: var(--ds-canvas);
+	cursor: pointer;
+}
+
+.form input:focus-visible,
+.form textarea:focus-visible,
+.modeBar button:focus-visible,
+.formHeading > button:focus-visible,
+.listBlock button:focus-visible,
+.primaryButton:focus-visible,
+.dangerButton:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+
+.twoColumns,
+.styleGrid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.styleGrid {
+	grid-template-columns: minmax(72px, 0.8fr) minmax(110px, 1.2fr) minmax(72px, 0.7fr);
+}
+
+.primaryButton,
+.dangerButton {
+	min-height: 44px;
+	border-radius: 11px;
+	font: inherit;
+	font-size: 0.8rem;
+	font-weight: 800;
+	cursor: pointer;
+}
+
+.primaryButton {
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 70%, var(--ds-border));
+	background: var(--ds-accent);
+	color: var(--ds-accent-contrast);
+}
+
+.dangerButton {
+	border: 1px solid color-mix(in srgb, var(--ds-danger) 46%, var(--ds-border));
+	background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+	color: var(--ds-danger);
+}
+
+.emptyCallout,
+.editorHint {
+	margin: 0;
+	padding: 11px 12px;
+	border: 1px solid var(--ds-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+	color: var(--ds-text-muted);
+	font-size: 0.76rem;
+	line-height: 1.5;
+}
+
+.listBlock {
+	display: grid;
+	gap: 9px;
+}
+
+.listBlock > p {
+	margin: 0;
+	color: var(--ds-text-muted);
+	font-size: 0.78rem;
+}
+
+.listBlock ul {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.listBlock button {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 44px;
+	padding: 8px 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: 11px;
+	background: var(--ds-surface);
+	color: var(--ds-text);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.listBlock button strong {
+	font-size: 0.78rem;
+}
+
+.listBlock button span:last-child {
+	color: var(--ds-text-muted);
+	font-size: 0.68rem;
+}
+
+.colorDot {
+	width: 12px;
+	height: 12px;
+	border: 1px solid color-mix(in srgb, var(--ds-text) 24%, transparent);
+	border-radius: 999px;
+}
+
+.advanced {
+	display: grid;
+	gap: 10px;
+	padding: 10px;
+	border: 1px dashed var(--ds-border);
+	border-radius: 12px;
+}
+
+.advanced summary {
+	cursor: pointer;
+	color: var(--ds-text-muted);
+	font-size: 0.76rem;
+	font-weight: 700;
+}
+
+.form .checkbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+}
+
+.checkbox input {
+	width: 18px;
+	height: 18px;
+}
+
+.srOnly {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+@media (max-width: 520px) {
+	.modeBar {
+		grid-template-columns: 1fr;
+	}
+
+	.twoColumns,
+	.styleGrid {
+		grid-template-columns: 1fr;
+	}
+}
