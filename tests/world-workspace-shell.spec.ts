@@ -94,6 +94,29 @@ test("World Workspace navigation becomes a non-reserving overlay on mobile", asy
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 });
 
+test("mobile navigation closes with Escape and returns focus to its trigger", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile keyboard navigation contract.");
+
+	await page.goto("/mundo");
+	const trigger = page.getByRole("button", { name: "Explorar universo" });
+	await expect(trigger).toBeVisible();
+	await trigger.click();
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"open",
+	);
+
+	await page.keyboard.press("Escape");
+
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"closed",
+	);
+	await expect(trigger).toBeFocused();
+});
+
 test("collapsed mobile inspector leaves document flow and keeps only its reopen control", async ({
 	page,
 }, testInfo) => {
