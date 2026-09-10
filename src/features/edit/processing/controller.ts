@@ -5,8 +5,10 @@ import {
 	type BridgeErrorCode,
 	type Capabilities,
 	type Health,
+	type JobEvent,
 	type LocalJob,
 	type ResultSummary,
+	type SystemSnapshot,
 } from "./protocol";
 
 export type ProcessingState = Readonly<{
@@ -15,6 +17,9 @@ export type ProcessingState = Readonly<{
 	health: Health | null;
 	capabilities: Capabilities | null;
 	jobs: readonly LocalJob[];
+	system: SystemSnapshot | null;
+	events: readonly JobEvent[];
+	observedJobId: string | null;
 	error: BridgeErrorCode | null;
 	checkedAt: string | null;
 	result: ResultSummary | null;
@@ -27,6 +32,9 @@ const initial: ProcessingState = {
 	health: null,
 	capabilities: null,
 	jobs: [],
+	system: null,
+	events: [],
+	observedJobId: null,
 	error: null,
 	checkedAt: null,
 	result: null,
@@ -105,12 +113,30 @@ export class ProcessingController {
 		const health = await this.bridge.health(signal);
 		const capabilities = await this.bridge.capabilities(signal);
 		const jobs = await this.bridge.jobs(signal);
+		const observedJob =
+			jobs.find((job) => job.status === "running") ??
+			jobs.find((job) => job.status === "queued") ??
+			jobs[0] ??
+			null;
+
+		const [system, events] = await Promise.all([
+			capabilities.capabilities.includes("system.telemetry")
+				? this.bridge.system(signal).catch(() => null)
+				: Promise.resolve(null),
+			observedJob && capabilities.capabilities.includes("job.events")
+				? this.bridge.events(observedJob.id, signal).catch(() => [])
+				: Promise.resolve([] as JobEvent[]),
+		]);
+
 		if (!signal.aborted)
 			this.update({
 				connection: "connected",
 				health,
 				capabilities,
 				jobs,
+				system,
+				events,
+				observedJobId: observedJob?.id ?? null,
 				checkedAt: new Date().toISOString(),
 			});
 	}

@@ -79,7 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 						</div>
 					</header>
 					<main id="conteudo">{children}</main>
-					<footer>
+					<footer className="site-footer">
 						Tem Dado Aqui <span>Histórias que ficam com a gente.</span>
 					</footer>
 				</GlobalLoadingProvider>

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
 from .store import Conflict, Store
+from .telemetry import SystemTelemetry
 
 
 class JobRequest(BaseModel):
@@ -35,6 +36,7 @@ def create_app(root, token, origins, port=8765, run_worker=True):
     if not re.fullmatch(r'[A-Za-z0-9_-]{43,256}', token):
         raise ValueError('TOKEN_TOO_SHORT')
     store = Store(root)
+    telemetry = SystemTelemetry()
     worker_healthy = True
 
     async def worker():
@@ -77,6 +79,7 @@ def create_app(root, token, origins, port=8765, run_worker=True):
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
+    app.state.telemetry = telemetry
     app.router.redirect_slashes = False
 
     @app.middleware('http')
@@ -151,8 +154,16 @@ def create_app(root, token, origins, port=8765, run_worker=True):
 
     @app.get('/api/v1/capabilities')
     def capabilities():
-        return dict(capabilities=['synthetic.fixture'], sync=False,
-                    device=dict(id=store.setting('device'), label='TDA local'))
+        return dict(
+            capabilities=['synthetic.fixture', 'job.events', 'system.telemetry'],
+            sync=False,
+            device=dict(id=store.setting('device'), label='TDA local'),
+        )
+
+    @app.get('/api/v1/system')
+    def system():
+        # Telemetry is intentionally best-effort and must not affect queue health.
+        return telemetry.snapshot()
 
     @app.get('/api/v1/lifecycle')
     def lifecycle():

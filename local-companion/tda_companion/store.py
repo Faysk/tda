@@ -17,7 +17,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -29,8 +29,15 @@ class Store:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
                     code TEXT NOT NULL, at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                PRAGMA user_version=1;
             """)
+            event_columns = {
+                row['name'] for row in db.execute("PRAGMA table_info(events)").fetchall()
+            }
+            if 'level' not in event_columns:
+                db.execute("ALTER TABLE events ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")
+            if 'data' not in event_columns:
+                db.execute("ALTER TABLE events ADD COLUMN data TEXT")
+            db.execute("PRAGMA user_version=2")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -57,22 +64,38 @@ class Store:
         with self.tx() as db:
             db.execute("UPDATE settings SET value=? WHERE key='paused'", (json.dumps(paused),))
 
-    def event(self, db, job_id, code):
-        db.execute("INSERT INTO events(job_id,code,at) VALUES (?,?,?)", (job_id, code, utc_now()))
+    def event(self, db, job_id, code, data=None, level='info'):
+        payload = json.dumps(data, ensure_ascii=False, separators=(',', ':')) if data else None
+        db.execute(
+            "INSERT INTO events(job_id,code,at,level,data) VALUES (?,?,?,?,?)",
+            (job_id, code, utc_now(), level, payload),
+        )
 
     def recover(self):
         with self.tx() as db:
             for row in db.execute("SELECT id FROM jobs WHERE status='running'").fetchall():
                 db.execute("UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',updated=? WHERE id=?", (utc_now(), row['id']))
-                self.event(db, row['id'], 'PROCESS_INTERRUPTED')
+                self.event(db, row['id'], 'PROCESS_INTERRUPTED', level='warning')
 
     @staticmethod
     def dto(row):
         body = json.loads(row['body'])
-        return dict(id=row['id'], kind=body['kind'], status=row['status'], stage=row['stage'],
-                    progress=dict(completed=row['completed'], total=body['units'], unit='items'),
-                    error=dict(code=row['error'], recoverable=True) if row['error'] else None,
-                    result_available=row['result'] is not None, updated_at=row['updated'])
+        return dict(
+            id=row['id'],
+            kind=body['kind'],
+            status=row['status'],
+            stage=row['stage'],
+            progress=dict(completed=row['completed'], total=body['units'], unit='items'),
+            error=dict(code=row['error'], recoverable=True) if row['error'] else None,
+            result_available=row['result'] is not None,
+            updated_at=row['updated'],
+            attempt=row['attempt'],
+            context=dict(
+                campaign_id=body['campaign_id'],
+                session_id=body['session_id'],
+                source_id=body['source_id'],
+            ),
+        )
 
     def submit(self, key, body):
         signature = sha256_json(body)
@@ -85,7 +108,7 @@ class Store:
             job_id = str(uuid4())
             db.execute("INSERT INTO jobs(id,idem,signature,body,status,stage,updated) VALUES (?,?,?,?,'queued','queued',?)",
                        (job_id, key, signature, json.dumps(body), utc_now()))
-            self.event(db, job_id, 'QUEUED')
+            self.event(db, job_id, 'QUEUED', {'total': body['units']})
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
     def get(self, job_id):
@@ -102,7 +125,20 @@ class Store:
     def events(self, job_id):
         self.get(job_id)
         with self.tx() as db:
-            return [dict(r) for r in db.execute("SELECT seq,code,at FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100", (job_id,))]
+            rows = db.execute(
+                "SELECT seq,code,at,level,data FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100",
+                (job_id,),
+            ).fetchall()
+            return [
+                dict(
+                    seq=row['seq'],
+                    code=row['code'],
+                    at=row['at'],
+                    level=row['level'],
+                    data=json.loads(row['data']) if row['data'] else {},
+                )
+                for row in rows
+            ]
 
     def action(self, job_id, action):
         with self.tx() as db:
@@ -121,7 +157,12 @@ class Store:
                     raise Conflict('JOB_NOT_RETRYABLE')
                 status = 'queued'
             db.execute("UPDATE jobs SET status=?,stage=?,error=NULL,updated=? WHERE id=?", (status, status, utc_now(), job_id))
-            self.event(db, job_id, status.upper())
+            self.event(
+                db,
+                job_id,
+                status.upper(),
+                level='warning' if status == 'cancelled' else 'info',
+            )
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
     def claim(self):
@@ -131,9 +172,16 @@ class Store:
             row = db.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY updated LIMIT 1").fetchone()
             if not row:
                 return None
-            db.execute("UPDATE jobs SET status='running',stage='fixture',attempt=attempt+1,updated=? WHERE id=?", (utc_now(), row['id']))
-            self.event(db, row['id'], 'RUNNING')
-            return row['id'], row['attempt'] + 1
+            body = json.loads(row['body'])
+            next_attempt = row['attempt'] + 1
+            db.execute("UPDATE jobs SET status='running',stage='fixture',attempt=?,updated=? WHERE id=?", (next_attempt, utc_now(), row['id']))
+            self.event(
+                db,
+                row['id'],
+                'RUNNING',
+                {'attempt': next_attempt, 'total': body['units']},
+            )
+            return row['id'], next_attempt
 
     def step(self, job_id, attempt):
         """Commit a real synthetic work unit and progress together; fence stale workers."""
@@ -160,7 +208,12 @@ class Store:
                         'transcript_json': '[]'}))
             db.execute("UPDATE jobs SET completed=?,status=?,stage=?,result=?,updated=? WHERE id=?",
                        (completed, 'succeeded' if done else 'running', 'complete' if done else 'fixture', result, utc_now(), job_id))
-            self.event(db, job_id, 'SUCCEEDED' if done else 'UNIT_COMMITTED')
+            self.event(
+                db,
+                job_id,
+                'SUCCEEDED' if done else 'UNIT_COMMITTED',
+                {'completed': completed, 'total': body['units']},
+            )
             return not done
 
     def result(self, job_id):
@@ -175,4 +228,4 @@ class Store:
         with self.tx() as db:
             changed = db.execute("UPDATE jobs SET status='failed',error='FIXTURE_EXECUTION_FAILED',updated=? WHERE id=? AND status='running' AND attempt=?", (utc_now(), job_id, attempt)).rowcount
             if changed:
-                self.event(db, job_id, 'FIXTURE_EXECUTION_FAILED')
+                self.event(db, job_id, 'FIXTURE_EXECUTION_FAILED', level='error')

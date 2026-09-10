@@ -2,83 +2,158 @@
 
 > Status: preparado / implementação candidata
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-07
-> Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento` e testes associados
+> Última revisão: 2026-09-10
+> Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion` e testes associados
 
-Implementação candidata na branch `codex/local-processing-ui`. Este recorte entrega UI/adapters e ensaio sintético integrado. **Não é transcrição ASR completa, instalação Windows, sincronização cloud ou publicação.**
+A evolução corrente está na branch `codex/processing-workbench-v2`. O recorte transforma `/edit/processamento` em uma superfície operacional compacta, adiciona telemetria local best-effort e expõe eventos estruturados do companion para o log da interface. **Ainda não é transcrição ASR completa, instalação Windows, sincronização cloud ou publicação.** O job HTTP executável continua sendo `synthetic.fixture`; o ASR preservado permanece uma referência de integração para a próxima etapa.
 
 ## Contratos e ownership
 
 - [Fluxos de dados](../architecture/data-flows.md), [domínio de processamento](../domains/processing.md) e [companion](../integrations/local-companion.md) preservam site/Edit cloud e áudio/processamento pesado local.
-- API negociada com Motorzinho: `/api/v1`, versão wire `"1"`, serviço inicial `0.1.0`. Contrato detalhado e implementação do serviço na [PR #57](https://github.com/Faysk/tda/pull/57); o documento dono é `docs/integrations/local-companion-v1.md` naquela entrega. Esta UI não altera backend/instalador.
-- Rota `/edit/processamento`, dentro do mesmo Next/app e Design System. `requireCapability(EDIT_CAPABILITIES.localProcess)` exige action exata `campaign.local.process`, assignment ativo em `campaign/yuhara-main` ou `project/tda`, pelo resolver existente. Chaveiro confirmou a action no catálogo físico; nenhuma grant, migration ou consulta de produção foi executada por esta frente.
-- `/conta` oferece entrada quando essa capability é válida, inclusive para operador sem leitura de transcrição; `/edit` também aponta para a rota, que sempre revalida autorização.
-- Ler/editar transcrição, gerenciar uploads ou executar jobs técnicos não implica essa permissão. O usuário Windows não concede autorização cloud. O token do serviço é uma autorização local distinta.
-- Parafuso confirmou que `/edit/sessoes/[sourceSessionId]` edita segmentos existentes: `edit_transcript_segment_atomic` não é consumidor de importação. O futuro handoff depende de recibo e identidade resolvida server-side.
+- API do companion permanece em `/api/v1`, versão wire `"1"`, destino fixo `http://127.0.0.1:8765/api/v1`; não há URL arbitrária, proxy cloud nem descoberta de outros PCs.
+- `/edit/processamento` continua protegido por `requireCapability(EDIT_CAPABILITIES.localProcess)` e pela action `campaign.local.process` no scope permitido. O usuário Windows não concede autorização cloud e o token do companion é uma autorização local distinta.
+- O Edit continua sendo um workbench dentro do mesmo Next.js e do mesmo Design System. A navegação própria do Edit é compacta; o logo TDA é a saída intencional para a superfície pública.
+- Ler/editar transcrição, processar localmente, importar e publicar continuam capabilities distintas. Nenhuma nova grant, DDL de Supabase ou escrita em produção faz parte deste recorte.
 
-## Comportamento entregue
+## Workbench de processamento
 
-O painel começa desconectado e não sonda portas automaticamente. Após ação explícita, consulta health público mínimo, exige versão compatível e só então envia o token manual para capabilities e jobs. Destino do produto é fixo `http://127.0.0.1:8765/api/v1`; sem URL arbitrária, proxy cloud ou descoberta de outros PCs.
+A tela segue a diretriz de que uma superfície operacional deve mostrar primeiro o trabalho, não uma apresentação da página. O título é compacto e a primeira viewport prioriza:
 
-Estados distintos: desconectado, conectando, versão incompatível, em preparação, pronto e fila pausada. Falhas de rede eliminam a projeção anterior para não exibir informação antiga como atual. Timeout, credencial revogada, origem recusada, resposta inválida e conflito recebem diagnóstico/ação específicos. `Failed to fetch` não distingue serviço ausente, CORS e permissão do navegador; a UI não inventa essa causa.
+1. conexão e recursos do computador local;
+2. resumo da fila;
+3. trabalho em execução e progresso real;
+4. próximos trabalhos e concluídos recentes;
+5. detalhes e log do trabalho observado;
+6. estado de sincronização.
 
-Enquanto conectada e visível, a aba consulta a cada três segundos, sem chamadas concorrentes. Ocultar suspende a consulta; voltar consulta novamente. Desconectar aborta requests e ignora respostas tardias, limpa token e dados da tela, mas não cancela jobs persistidos.
+O pareamento ocupa espaço somente enquanto for necessário. Depois de conectado, a área vira uma faixa compacta com serviço, versão, sistema e ações operacionais. A fila diferencia trabalho ativo, aguardando, concluído e falha/interrupção sem transformar toda informação em cards grandes.
 
-Fila mostra status e etapa do serviço; progresso usa somente contadores `completed/total/unit` válidos. `null` significa sem medida, sem porcentagem inventada. Falha recuperável/interrupção permite **Repetir trabalho**, com confirmação identificando o job e sem prometer checkpoint exato. Cancelar pede confirmação e aguarda estado retornado. **Retomar fila** confirma que jobs pendentes voltarão a executar; pausar só impede novos claims. O serviço decide transições e persistência.
+O progresso continua usando **somente** `completed/total/unit` aceito pelo protocolo. `null` significa ausência de medida; a UI não fabrica porcentagem, ETA, nome de participante, título de sessão, resumo ou artwork.
 
-O botão de ensaio aparece somente com capability local `synthetic.fixture` e só executa quando pronto. Envia exclusivamente identidades `synthetic-*` e três unidades, sem escolher áudio/modelo/GPU. Reenvio após resposta perdida conserva a mesma Idempotency-Key em memória da aba; após recarregar, consultar a fila antes de iniciar outro ensaio.
+Antes de ASR real estar conectado, um `synthetic.fixture` é apresentado como ensaio sintético. Informações editoriais que normalmente nascem depois da transcrição — título narrativo, resumo, classificação e imagem — não são inventadas na fase técnica.
 
-Resultados são validados por versão, job ID e identidade do pacote. A UI retém apenas projeção de IDs, não conteúdo do bundle. Mostra **Sincronização não configurada** sempre neste corte, mesmo que uma futura versão anuncie `sync:true`: isso não substitui autorização nem recibo validado.
+## Shell do Edit
 
-## Segurança e suporte ao navegador
+O nested layout de `/edit` agora possui uma navegação de workbench própria. A superfície pública continua existindo no root app, mas seu header/footer são removidos da composição visual quando o subtree do Edit está ativo. Dentro do workbench, o logo oficial TDA aponta para `/` e é a única navegação deliberada para o site público.
 
-Token manual URL-safe fica somente na memória, sem cookie, storage, query string, log ou envio cloud. O campo é apagado ao conectar. Desconectar não revoga o token no serviço; revogação exige regeneração no aplicativo local conforme operação do Motorzinho. O operador não deve colar credenciais Supabase nesse campo.
+A rail inicial contém apenas destinos que já existem no reboot: Sessões, Processamento e Mundo. Não são criadas rotas fictícias para reproduzir mockups. Em telas menores, a rail se converte em uma barra horizontal compacta para preservar largura de trabalho.
 
-Requests usam CORS, `credentials:omit`, `redirect:error`, `cache:no-store`, `referrerPolicy:no-referrer`; mutations exigem JSON e bearer. Jobs criados carregam Idempotency-Key. Paths e IDs são validados; respostas são limitadas a 1 MiB inclusive streaming sem Content-Length. Bearer não segue redirects. O serviço exige Host loopback, Origin exata e preflight restrito; essas proteções não são substituídas por esconder botões.
+## Telemetria do computador local
 
-Loopback HTTP é uma origem potencialmente confiável, mas o acesso por páginas HTTPS continua sujeito a CORS, políticas e permissões do navegador. O Chrome documenta Local Network Access; sua permissão não autoriza qualquer origem a usar o serviço. Fontes consultadas em 2026-09-07: [Chrome LNA](https://developer.chrome.com/blog/local-network-access), [MDN mixed content](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content) e [MDN local network access](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Local_network_access).
+Quando o companion anuncia `system.telemetry`, a UI consulta `GET /api/v1/system` junto da atualização normal do painel. O endpoint é autenticado e retorna somente uma projeção operacional limitada:
 
-Operação em falha:
+```json
+{
+  "sampled_at": "2026-09-10T20:00:00Z",
+  "host": {
+    "os": "Windows 11",
+    "cpu": "Intel Core i7-14700HX"
+  },
+  "cpu": { "utilization_percent": 32.0 },
+  "memory": {
+    "used_bytes": 19327352832,
+    "total_bytes": 68719476736,
+    "percent": 28.1
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "name": "NVIDIA GeForce RTX 4070 Laptop GPU",
+      "utilization_percent": 78,
+      "memory_used_bytes": 6871947673,
+      "memory_total_bytes": 8589934592
+    }
+  ]
+}
+```
 
-1. Confirmar que o serviço está aberto no **mesmo computador do navegador** e na versão API v1.
-2. Conferir a origem exata permitida no aplicativo local, incluindo scheme/host/porta; Preview não ganha wildcard automaticamente.
-3. Se houver prompt de rede local, permitir somente para o site autorizado. Se negado, revisar a permissão desse site nas configurações do navegador.
-4. Pareamento recusado: obter token válido no aplicativo local; não enviar token em ticket ou captura.
-5. Perda de resposta durante mutation: reconectar e consultar fila; não assumir que o comando falhou. Reenvio sintético na mesma aba conserva a chave.
+CPU/RAM usam `psutil`; NVIDIA GPU/VRAM usam NVML através de `nvidia-ml-py`. O sampler não envia hostname, path, token, áudio ou conteúdo transcrito. NVML é opcional em runtime: ausência de GPU NVIDIA, driver indisponível ou erro de sensor produz lista de GPUs vazia e **não torna a fila indisponível**.
 
-Não desativar segurança do browser, instalar certificado não confiável ou usar túnel para contornar a política. Se a política do dispositivo/navegador bloquear o bridge, o site permanece utilizável para conteúdo sincronizado; usar operação local aprovada e registrar navegador/versão/origem/código sem token. Firefox/Safari/Edge e uma origem cloud realmente publicada ainda precisam de smoke dedicado; o teste automatizado abaixo usa Chromium e documento HTTPS sintético.
+O mesmo isolamento existe no browser: falha de `/system` apenas remove a projeção de telemetria daquela leitura. Health, capabilities e jobs continuam sendo a fronteira que decide se o serviço está conectado.
 
-## Validação e reprodução
+## Eventos e log operacional
 
-`pnpm check` verifica tipos, lint, testes unitários, Design System e documentação. `pnpm build` produz o mesmo app Next. `pnpm test:processing` executa testes browser desktop/mobile numa fixture fora de `src/app`; ela nunca cria rota pública nem bypass de Auth. Mocks só existem nesse harness, claramente identificado. O CI executa essa suíte após E2E do app.
+`GET /api/v1/jobs/{job_id}/events` já era uma fronteira do companion. O schema local de eventos evolui para uma forma aditiva e estruturada:
 
-`pnpm test:processing:integration` exige `TDA_COMPANION_PYTHON` (Python isolado já preparado) e `TDA_COMPANION_PACKAGE` (diretório `local-companion` da PR #57). Não instala dependências. Cria scratch novo em `test-results`, token exclusivamente sintético e subprocesso próprio na porta **18765**; recusa porta ocupada e encerra somente o processo criado. A fixture traduz o destino apenas nesse ensaio; o endpoint de produto continua 8765.
+```json
+{
+  "seq": 32,
+  "code": "TRACK_PROGRESS",
+  "at": "2026-09-10T20:14:18Z",
+  "level": "info",
+  "data": {
+    "track": 1,
+    "total_tracks": 4,
+    "speaker": "Yuhara",
+    "percent": 82
+  }
+}
+```
 
-Evidências em 2026-09-07:
+A tabela SQLite local `events` passa de `seq/job_id/code/at` para também aceitar `level` e `data`. A abertura de uma base v1 migra aditivamente para `user_version=2`; jobs existentes não são descartados. Os eventos sintéticos já registram contexto factual de fila, tentativa e unidades concluídas.
 
-Ensaio integrado reexecutado com a PR #57 no SHA `a5cad8345519b0e82c267b66711577332301d71f`. O CI desta UI valida o commit candidato da própria PR; não aplica nem publica o serviço.
+O painel observa prioritariamente o job em execução, depois um job aguardando e por fim o mais recente. Se `job.events` estiver disponível, carrega até os eventos validados pelo protocolo e apresenta o histórico em uma região `role="log"`.
 
-- 27 testes de protocolo/controller/capability passaram: versões, paths, limites de resposta, progresso inválido, erro HTTP/rede, perda de conexão, resposta tardia, concorrência e idempotência de envio incerto.
-- Seis testes browser passaram em 1440×1000 e 390×844: pairing, estado, progresso, cancelamento contextual, preparo/pausa, retry, ausência de token em storage/cookie e sem overflow horizontal. Capturas revisadas; sem erro JavaScript nesses fluxos.
-- Dois ensaios com o **serviço real em scratch** passaram: UI → pairing → job sintético → resultado → reconexão com fila preservada; contexto HTTPS sintético → fetch loopback real, health 200, sem bearer 401, capabilities autenticada 200, mutation JSON 200 e origem hostil bloqueada por CORS. Permissão LNA foi concedida ao contexto de teste pelo Playwright; nenhuma flag de desativação de segurança foi usada. Isso não comprova o prompt manual do navegador em produção.
-- Runtime local: Node 24.19.0 já fornecido no ambiente; CI usa `.node-version` 24.20.0. Next 16.3.4 e React 19.2.8 confirmados como estáveis atuais no registry; lockfile preservado. Nenhuma tecnologia de produto trocada. O harness reutiliza o Vite já transitivo do Vitest apenas para teste.
-- `agent-browser` não estava disponível como executável; a operação equivalente foi realizada com Playwright já instalado e inspeção das capturas. Sem instalação no Windows.
-- Referência read-only: `D:/Projects/dnd/local-companion` (health/publication/lifecycle). `E:/Project/craig-to-text` contém somente `data` no estado observado; conteúdo não inspecionado. Ausência de fonte/engine executável permanece lacuna.
+### Zueira sem telemetria falsa
 
-Esses testes não medem qualidade ASR, GPU, retomada de transcrição pesada ou desempenho real. Não houve áudio pessoal, deployment, DDL, grants, publicação ou gravação cloud.
+O companion persiste **fatos**, não frases engraçadas. A camada `presentation.ts` pode anexar uma mensagem leve a códigos conhecidos, sem alterar o fato original.
 
-## Próximo marco: bundle → recibo → revisão
+Exemplos permitidos somente quando o evento correspondente existir:
 
-Contrato em alinhamento com Carteiro e Cofrinho; não é endpoint ativo neste PR:
+- `TRACK_PROGRESS` com `speaker=Yuhara` → “A voizinha de Yuhara está rendendo serviço hoje 👀”;
+- `NOISE_REDUCTION_PROGRESS` → comentário sobre chiado somente porque redução de ruído está realmente ocorrendo;
+- `BACKGROUND_SPEECH_DETECTED` → comentário sobre conversa ao fundo somente após detecção real;
+- `DOG_BARK_IGNORED` → comentário sobre cachorro somente após esse evento real.
 
-| Fronteira | Requisito antes de habilitar envio |
-| --- | --- |
-| Exportação local | Motorzinho produz envelope `tda_local_result_v1`; `publication_bundle_v1` é pacote de publicação **sem transcrição completa**. Artefatos de transcript precisam de contrato versionado próprio (incluindo segmentos, offsets, source IDs/hashes e limites), sem áudio, paths privados ou tokens. |
-| Identidade | Resolver campanha + sessão interna + source/session externos no servidor; não confiar em campaign/session do browser sem authorization e vínculo. Job ID local não é UUID de sessão cloud. |
-| Idempotência | Identidade versionada + hashes canônicos de artefatos imutáveis; retry conserva identidade/payload. Mesmo ID com hash diferente é conflito e não sobrescreve silenciosamente. |
-| Autorização | Action de importação e scopes precisam de confirmação explícita com Cofrinho/Chaveiro. `campaign.local.process` ou `campaign.upload.manage` não bastam por inferência. Identidade vem da sessão verificada no servidor; nenhum token local/Supabase administrativo vai no payload. |
-| Recepção | Carteiro propõe POST same-origin `/api/transcript-imports` e consulta `/api/transcript-imports/receipt`, ambos ainda dependentes de contrato. Apenas persistência transacional/durável e receipt `committed` com identidade/hash/count correspondentes podem concluir sync. |
-| Estados | Pendente → enviando → aguardando confirmação → confirmado. Timeout/accepted sem receipt fica pendente de consulta; falha recuperável reenvia com mesma chave; conflito exige revisão. Nunca promover resposta em memória a recibo durável. |
-| Handoff Edit | Somente após receipt validado e resolução de `sourceSessionId`, oferecer `/edit/sessoes/[sourceSessionId]`; leitura segue sua própria capability. Importar evidência não aprova canon/publicação. |
+A UI **não** pode emitir “removendo chiado”, “ignorando cachorro”, “família falando ao fundo” ou equivalentes apenas para entretenimento. Se o pipeline não reportou a atividade, ela não aconteceu para fins de interface.
 
-O gate seguinte é um ensaio integrado sintético com export real + consumidor autorizado + persistência durável + receipt consultável + leitura no Edit. Depois disso preparar teste ASR real **explicitamente autorizado**, com fonte/engine disponível e sem carga pesada iniciada por esta entrega.
+## Relação com o ASR preservado
+
+`local-companion/tda_companion/legacy/transcriber.py` já possui `progress_update` com eventos úteis para a próxima integração: verificação/download/carregamento do modelo, fallback CUDA, retomada de checkpoint, `track`, `total_tracks`, `speaker`, `percent` e conclusão.
+
+Esse transcriber processa tracks sequencialmente. Portanto a UI final deve representar, por exemplo:
+
+```text
+✓ Fehh       concluído
+● Yuhara     transcrevendo · 82%
+○ Noah       aguardando
+○ Allya      aguardando
+```
+
+Não mostrar quatro barras avançando em paralelo quando o engine está executando uma track por vez.
+
+A próxima etapa de backend é adaptar esse callback para o supervisor moderno e para eventos estruturados, criando um job real de transcrição sem tornar o módulo legado a arquitetura normativa.
+
+## Comportamento e segurança preservados
+
+O painel começa desconectado e não sonda portas automaticamente. Após ação explícita, consulta health público mínimo, exige versão compatível e só então envia o bearer de pareamento para endpoints autenticados.
+
+Enquanto conectada e visível, a aba atualiza em ciclo de três segundos, sem chamadas concorrentes. Ocultar a aba suspende a atualização; voltar consulta novamente. Desconectar aborta requests e respostas tardias, limpa token e projeções da tela, mas não cancela jobs persistidos.
+
+Token manual URL-safe fica somente na memória, sem cookie, storage, query string, log ou envio cloud. Requests mantêm CORS, `credentials:omit`, `redirect:error`, `cache:no-store`, `referrerPolicy:no-referrer`, limite de resposta e validação de IDs. O companion continua exigindo Host loopback, Origin autorizada e bearer em todas as rotas privadas.
+
+Falha recuperável/interrupção permite **Repetir trabalho**, sem prometer checkpoint exato. Cancelar exige confirmação. **Retomar fila** confirma que trabalhos pendentes podem voltar a executar; pausar impede novos claims sem interromper o trabalho ativo.
+
+O ensaio sintético continua disponível apenas quando a capability `synthetic.fixture` é anunciada e o lifecycle está pronto. Ele não usa áudio, modelo ou GPU para produzir transcrição.
+
+## Sincronização
+
+Resultados continuam validados por versão, job ID e identidade do pacote. A UI retém somente a projeção necessária. Este recorte continua mostrando **Sincronização não configurada.** Conclusão local não significa envio, importação, revisão, canon ou publicação.
+
+O próximo contrato de handoff permanece: artefato versionado → identidade server-side → autorização explícita de importação → persistência durável → receipt consultável → leitura/revisão no Edit.
+
+## Validação
+
+Comandos de gate do repositório:
+
+```text
+pnpm check
+pnpm build
+pnpm test:processing
+```
+
+O companion é validado em Windows e Linux pelo workflow `.github/workflows/companion.yml`. A branch adiciona testes específicos para autenticação/forma da telemetria, migração SQLite v1→v2, eventos estruturados e apresentação de GPU/VRAM + log factual no harness do painel.
+
+**Estado desta revisão:** código em branch candidata; CI/PR ainda são a evidência necessária antes de declarar o recorte validado, integrado à `main` ou publicado.
+
+Os testes deste marco não medem qualidade ASR, throughput real de Whisper, precisão de diarização, retomada de uma transcrição pesada nem desempenho de uma GPU física. Nenhum áudio pessoal, deployment, grant, DDL de Supabase ou publicação faz parte da entrega.
