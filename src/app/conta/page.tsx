@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, Button } from "@/components/ui";
 import { currentAccess } from "@/features/auth/server";
 import { authConfig } from "@/features/auth/config";
