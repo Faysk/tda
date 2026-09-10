@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   deployments: write
+  pull-requests: read
 
 concurrency:
   group: tda-production
@@ -32,7 +33,7 @@ env:
 jobs:
   release:
     name: staged-release
-    if: vars.TDA_CICD_BOOTSTRAP_READY == 'true' && vars.TDA_PRODUCTION_CD_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
@@ -69,6 +70,33 @@ jobs:
           echo "short=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "release=prod-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
+      - name: Verify Production source provenance
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/commits/${SOURCE_SHA}/pulls" > source-prs.json
+
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const sha = process.env.SOURCE_SHA;
+            const prs = JSON.parse(fs.readFileSync("source-prs.json", "utf8"));
+            const match = prs.find((pr) =>
+              pr.merged_at &&
+              pr.base?.ref === "main" &&
+              pr.head?.ref === "Preview" &&
+              pr.merge_commit_sha === sha
+            );
+            if (!match) {
+              throw new Error(`Production source ${sha} is not the merge result of an authorized Preview -> main pull request`);
+            }
+            console.log(`PRODUCTION_SOURCE_OK PR #${match.number} Preview -> main ${sha}`);
+          '
+
       - uses: pnpm/action-setup@v6
         with:
           version: 12.3.4
@@ -86,9 +114,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing production secret VERCEL_TOKEN"; exit 1; }
-          [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] || { echo "::error::Missing production secret SUPABASE_ACCESS_TOKEN"; exit 1; }
-          [[ -n "${SUPABASE_DB_PASSWORD:-}" ]] || { echo "::error::Missing production secret SUPABASE_DB_PASSWORD"; exit 1; }
+          MISSING=0
+          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+            echo "::error::Missing production secret VERCEL_TOKEN"
+            MISSING=1
+          fi
+          if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
+            echo "::error::Missing production secret SUPABASE_ACCESS_TOKEN"
+            MISSING=1
+          fi
+          if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            echo "::error::Missing production secret SUPABASE_DB_PASSWORD"
+            MISSING=1
+          fi
+          [[ "$MISSING" -eq 0 ]] || exit 1
 
       - name: Validate migration policy
         run: node tools/ci/check-migrations.mjs
@@ -242,6 +281,7 @@ jobs:
             if (health.ok !== true) throw new Error("Staged production health is not ok");
             if (health.environment !== "production") throw new Error(`Expected production environment, got ${health.environment}`);
             if (health.commit !== process.env.SOURCE_SHA) throw new Error(`Health commit mismatch: ${health.commit}`);
+            if (version.commit !== process.env.SOURCE_SHA) throw new Error(`Version commit mismatch: ${version.commit}`);
             if (version.release !== process.env.RELEASE_ID) throw new Error(`Release id mismatch: ${version.release}`);
           '
 
@@ -270,6 +310,7 @@ jobs:
             const version = JSON.parse(fs.readFileSync("canonical-version.json", "utf8"));
             if (health.ok !== true) throw new Error("Canonical production health is not ok");
             if (health.commit !== process.env.SOURCE_SHA) throw new Error(`Canonical commit mismatch: ${health.commit}`);
+            if (version.commit !== process.env.SOURCE_SHA) throw new Error(`Canonical version commit mismatch: ${version.commit}`);
             if (version.release !== process.env.RELEASE_ID) throw new Error(`Canonical release mismatch: ${version.release}`);
           '
 
@@ -305,6 +346,7 @@ jobs:
           - Staged/tested deployment: $DEPLOYMENT_URL
           - Canonical production: $PRODUCTION_ORIGIN
           - Supabase project: \`$SUPABASE_PROJECT_REF\`
+          - Source provenance (Preview -> main): PASS
           - Migration overlay/history gate: PASS
           - Migration dry-run: PASS
           - Migration apply/exact verification: PASS
