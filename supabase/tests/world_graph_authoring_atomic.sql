@@ -136,6 +136,134 @@ end;
 $$;
 reset role;
 
+-- A direct service-role RPC call must not bypass canon/review provenance.
+-- The rejection happens before graph/layout/audit writes and leaves the private
+-- draft recoverable until the caller explicitly releases/discards the lease.
+set role service_role;
+do $$
+declare
+  result jsonb;
+  token uuid := '15161616-1516-4516-8516-151616161616';
+  draft jsonb;
+begin
+  result := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'status' <> 'acquired' then
+    raise exception 'provenance guard fixture must acquire lease: %', result;
+  end if;
+
+  result := public.acquire_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'ok' <> 'true' or (result->>'baseRevision')::bigint <> 0 then
+    raise exception 'provenance guard fixture must acquire factual draft: %', result;
+  end if;
+
+  draft := jsonb_build_object(
+    'schemaVersion', 1,
+    'revision', 0,
+    'nodes', jsonb_build_array(
+      jsonb_build_object(
+        'id','10101010-1010-4010-8010-101010101010',
+        'name','Herói Um',
+        'slug','heroi-um',
+        'entityType','pc',
+        'status','active',
+        'visibility','public_web',
+        'summary','Identidade estrutural sintética.',
+        'aliases',jsonb_build_array('Primeiro Herói')
+      ),
+      jsonb_build_object(
+        'id','21212121-2121-4121-8121-212121212121',
+        'name','NPC Sem Fonte',
+        'slug','npc-sem-fonte',
+        'entityType','npc',
+        'status','active',
+        'visibility','public_web',
+        'summary','Somente rascunho para o teste de provenance.',
+        'aliases','[]'::jsonb
+      )
+    ),
+    'relationTypes', jsonb_build_array(
+      jsonb_build_object(
+        'slug','rival_of',
+        'label','Rivalidade',
+        'direction','symmetric',
+        'family','conflict',
+        'description','Relação sintética sem fonte.',
+        'isActive',true,
+        'color','#aa6655',
+        'lineStyle','dashed',
+        'lineWidth',3
+      )
+    ),
+    'edges', jsonb_build_array(
+      jsonb_build_object(
+        'id','22222222-2222-4222-8222-222222222222',
+        'source','10101010-1010-4010-8010-101010101010',
+        'target','21212121-2121-4121-8121-212121212121',
+        'relationType','rival_of',
+        'labelOverride','Rivais sem fonte',
+        'status','active',
+        'visibility','public_web',
+        'colorOverride',null,
+        'lineStyleOverride',null,
+        'lineWidthOverride',null
+      )
+    )
+  );
+
+  result := public.save_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token,
+    draft
+  );
+  if result->>'status' <> 'draft_saved' then
+    raise exception 'provenance guard fixture draft must save privately: %', result;
+  end if;
+
+  result := public.publish_world_edit_state_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result <> '{"ok":false,"reason":"review_required"}'::jsonb then
+    raise exception 'direct unsourced public publish must fail review gate: %', result;
+  end if;
+
+  if (select count(*) from public.entities) <> 1
+     or exists (select 1 from public.entity_relations)
+     or exists (select 1 from public.relation_types)
+     or exists (select 1 from public.world_layout_snapshots)
+     or exists (select 1 from public.world_graph_revisions)
+     or coalesce((select revision from public.world_graph_heads where campaign_id='11111111-1111-4111-8111-111111111111'), 0) <> 0
+     or exists (select 1 from public.audit_log where action in ('world_layout.update','world_graph.publish')) then
+    raise exception 'review_required must leave canonical graph/layout/audit unchanged';
+  end if;
+
+  result := public.release_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'ok' <> 'true' then
+    raise exception 'provenance guard fixture cleanup failed: %', result;
+  end if;
+end;
+$$;
+reset role;
+
 set role service_role;
 do $$
 declare
@@ -212,7 +340,7 @@ begin
         'relationType','friend_of',
         'labelOverride','Amigos de viagem',
         'status','active',
-        'visibility','public_web',
+        'visibility','review_only',
         'colorOverride','#66bb88',
         'lineStyleOverride','dashed',
         'lineWidthOverride',4
