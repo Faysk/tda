@@ -2,14 +2,14 @@
 
 > Status: vigente / revisão de hardening em andamento
 > Owner: segurança/dados
-> Última verificação: 2026-09-08
+> Última verificação: 2026-09-10
 > Projeto: `dmrqnbdvbkfqzctcerbx`
 
 Este documento classifica funções privilegiadas/expostas relevantes do schema `public`. `SECURITY DEFINER` merece atenção especial porque executa com privilégios do owner; funções `SECURITY INVOKER` server-only também são registradas quando representam um boundary de write sensível.
 
 ## Estado verificado
 
-Na inspeção de produção revalidada em 2026-09-08 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
+Na inspeção de produção revalidada em 2026-09-10 foram encontradas **8 funções `SECURITY DEFINER` em `public`**.
 
 Para as oito:
 
@@ -129,15 +129,13 @@ A definição observada resolve a campanha da nota, exige autorização admin e 
 
 A inspeção read-only de 2026-09-08 confirmou a função física no Supabase canônico sob migration history remoto `20260908064257 edit_transcript_segment_atomic`.
 
-A definição física observada corresponde ao contrato do arquivo local `20260907115300_edit_transcript_segment_atomic.sql` quanto a assinatura, corpo da função, `SECURITY INVOKER`, `search_path`, comentário e grants efetivos:
+A definição física observada corresponde ao contrato versionado quanto a assinatura, corpo da função, `SECURITY INVOKER`, `search_path`, comentário e grants efetivos:
 
 - `anon`: sem `EXECUTE`;
 - `authenticated`: sem `EXECUTE`;
 - `service_role`: com `EXECUTE`;
 - `search_path = pg_catalog, public`;
 - comentário server-only esperado presente.
-
-Existe, porém, **drift de versionamento** entre o ID remoto e o nome do arquivo local. A equivalência funcional observada não autoriza reescrever migration history nem tratar os IDs como iguais. A reconciliação operacional permanece pendente em `migrations.md`.
 
 Boundary físico observado/local:
 
@@ -153,9 +151,9 @@ Boundary físico observado/local:
 
 ### `save_world_layout_snapshot_atomic(...)` e sessão exclusiva
 
-A persistência editorial do World layout foi integrada pela #117 e aplicada deliberadamente ao Supabase canônico. O migration history remoto registra `20260909205836 world_edit_lease` para a sessão exclusiva; o arquivo local equivalente preserva seu ID de desenvolvimento, sem reexecutar DDL apenas para alinhar nomes.
+A persistência editorial do World layout está aplicada no Supabase canônico. O migration history remoto contém `20260908203249 world_layout_capability`, `20260908203331 world_layout_snapshot_atomic`, `20260908203441 world_layout_service_role_privileges`, `20260908203642 world_layout_site_editor_grant` e `20260909205836 world_edit_lease`.
 
-RPCs observadas/contratadas deste boundary:
+RPCs observadas deste boundary:
 
 - `save_world_layout_snapshot_atomic(uuid,uuid,text,bigint,jsonb)`;
 - `acquire_world_edit_lease_atomic(uuid,uuid,text,uuid)`;
@@ -164,13 +162,13 @@ RPCs observadas/contratadas deste boundary:
 - `publish_world_edit_layout_atomic(uuid,uuid,text,uuid)`;
 - `release_world_edit_lease_atomic(uuid,uuid,text,uuid)`.
 
-Classificação:
+Classificação observada:
 
 - `SECURITY INVOKER`;
 - `search_path = pg_catalog, public`;
 - `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
-- `service_role`: grant de `EXECUTE` pretendido/observado;
-- `world_layout_snapshots` e `world_edit_leases` com RLS habilitado e sem policy de browser.
+- `service_role`: caller SQL autorizado;
+- storages do World layout/lease com RLS habilitado e sem policy de browser.
 
 Boundary:
 
@@ -179,89 +177,89 @@ Boundary:
 - lease exclusivo protege sessão editorial e recovery do mesmo holder;
 - `expected_revision`/`base_layout_revision` controlam concorrência otimista;
 - payload de positions é limitado a IDs/coords válidos;
-- publish grava `world_layout.update` em audit na mesma operação lógica;
 - dragging público não recebe permissão para persistir por inferência.
 
 A leitura pública continua intersectando positions apenas com IDs já autorizados; chaves do JSONB de layout nunca decidem audience.
 
-## RPCs server-only candidatas do World graph — #119
+## RPCs server-only do World graph — estado remoto #119
 
-A migration candidata `20260909215000_world_graph_authoring` adiciona três RPCs de autoria factual. Na inspeção read-only de 2026-09-10 elas **ainda não existiam no Supabase canônico**; portanto os itens abaixo descrevem o contrato versionado da #119, não estado físico já aplicado.
+A migration local `20260909215000_world_graph_authoring.sql` foi aplicada deliberadamente em 2026-09-10 e registrada remotamente como `20260910002529 world_graph_authoring`. O ID local/remoto divergente fica documentado; não reexecutar DDL para alinhar nomes.
 
-### `acquire_world_graph_draft_atomic(uuid,uuid,text,uuid)`
+### `world_graph_snapshot_json(uuid)`
 
-Classe: aquisição de rascunho factual privado vinculado ao lease do World.
+Helper server-only que monta o snapshot factual mínimo da campanha para inicialização/revisão do draft.
 
-Boundary candidato:
+Estado observado:
 
 - `SECURITY INVOKER`;
 - `search_path = pg_catalog, public`;
-- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
-- `service_role`: único caller SQL pretendido;
-- revalida `auth_user_id -> profile_id`;
-- exige `campaign.content.edit` no scope correto;
-- exige lease vigente do mesmo profile/token/campaign;
-- inicializa draft a partir do snapshot canônico e fixa `base_graph_revision`;
-- recovery do mesmo editor preserva draft; handoff para outro editor zera o draft factual privado.
+- sem `EXECUTE` para `anon/authenticated`;
+- `service_role` com `EXECUTE`;
+- no pós-migration da campanha principal retornou `3` nodes, `0` edges e `0` relation types; nenhum dado factual novo foi criado pela aplicação do schema.
+
+### `acquire_world_graph_draft_atomic(uuid,uuid,text,uuid)`
+
+Boundary de aquisição/inicialização do draft factual dentro do lease de layout já existente.
+
+Revalida:
+
+- `auth_user_id -> profile_id`;
+- `campaign.content.edit` no scope correto;
+- campaign;
+- holder/token/expiração do lease;
+- base revision factual.
+
+O draft publicado é inicializado somente dentro do lease autorizado; o trigger `world_edit_lease_graph_handoff` zera o draft factual se o holder mudar, preservando recovery apenas para o mesmo editor.
 
 ### `save_world_graph_draft_atomic(uuid,uuid,text,uuid,jsonb)`
 
-Classe: persistência privada do rascunho factual.
+Boundary de autosave privado do draft factual.
 
-Boundary candidato:
-
-- mesmas restrições de execução e capability da aquisição;
-- valida shape/limites do payload antes de armazenar;
-- exige revision compatível com `base_graph_revision`;
-- conflito com head factual mais novo falha fechado e preserva rascunho;
-- não grava entities/relations canônicas antes do publish.
+Revalida identity, capability/scope, lease, shape/limites de payload e `base_graph_revision`. Conflito de revision retorna erro recuperável e não promove rascunho para estado publicado.
 
 ### `publish_world_edit_state_atomic(uuid,uuid,text,uuid)`
 
-Classe: publicação transacional de grafo factual + layout editorial.
+Boundary atômico de publicação conjunta de layout + grafo factual.
 
-Boundary candidato:
+Invariantes versionadas:
 
-- `SECURITY INVOKER`, `search_path = pg_catalog, public`, `service_role` only;
-- exige `campaign.content.edit` e lease válido de `campaign.world.layout.edit` para a mesma identity/profile;
-- valida endpoints, tipos, status, visibility, UUIDs, duplicatas, relações simétricas e revision antes de escrever;
-- publica layout e fatos na mesma transação SQL;
-- incrementa `world_graph_heads.revision` apenas quando o snapshot factual muda;
-- registra snapshot append-only em `world_graph_revisions` e `world_graph.publish` no `audit_log`;
-- remove o lease apenas após publicação concluída;
-- não promove candidate/IA automaticamente.
+- exige `campaign.content.edit` + lease vigente de `campaign.world.layout.edit`;
+- valida relation types, entities e relations antes do write factual;
+- rejeita IDs cross-campaign, self-edge, tipo ausente, payload inválido e duplicata ativa incompatível;
+- normaliza endpoints de relation simétrica antes de persistir;
+- usa `world_graph_heads.revision` para optimistic concurrency;
+- publica layout pela RPC de snapshot na mesma transação;
+- grava snapshot append-only em `world_graph_revisions` e `world_graph.publish` no audit apenas quando o conteúdo factual muda;
+- remove o lease somente após publish bem-sucedido;
+- conflito/falha retorna sem declarar publicação concluída.
 
-### Gate de review/provenance fora da RPC
+Estado físico observado para as RPCs novas:
 
-A #119 cria `entity_relation_sources(relation_id, canon_entry_id)` e mantém a regra de que uma relação pública precisa de fonte/revisão. Nesta fatia, `service_role` recebe somente `SELECT` nessa tabela e não existe mutation genérica para anexar `canon_entry` nova.
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- `anon`: sem `EXECUTE`;
+- `authenticated`: sem `EXECUTE`;
+- `service_role`: com `EXECUTE`.
 
-Antes de chamar `publish_world_edit_state_atomic`, o server action verifica relações ativas `public_campaign`/`public_web` no draft e exige source já existente em `entity_relation_sources`; ausência retorna `review_required` e a RPC de publish não é chamada. Isso impede a UI desta fatia de inventar um atalho de publicação, mas **não conclui o fluxo de provenance**: relações novas devem permanecer privadas/review até uma fatia específica de source/review.
+Chamadas de acquire/publish com identity/profile inexistentes foram executadas como teste negativo pós-migration e retornaram `forbidden`, sem criar lease, revision, relation ou audit.
 
-### Projection pública independente da existência das RPCs
+### Provenance e ativação pública
 
-A aplicação não ativa dados canônicos em `/mundo` só porque a migration foi aplicada. `TDA_WORLD_CANONICAL_ENABLED=true` é um gate deliberado separado; sem ele, a superfície pública continua usando o dataset demonstrativo não canônico. Esse gate evita substituir a experiência atual por um dataset esparso antes de curadoria/review/validação visual.
+`entity_relation_sources` foi criada com RLS e `service_role` **somente com SELECT**. A #119 não oferece mutation genérica para anexar `canon_entry`; portanto relação nova não deve sair de `private_*`/`review_only` até o fluxo de review/provenance existir.
 
-### Validação candidata
+Antes de chamar `publish_world_edit_state_atomic`, o server action da #119 verifica relações ativas `public_campaign`/`public_web` no draft e exige source já existente em `entity_relation_sources`; ausência retorna `review_required` e a RPC de publish não é chamada. Esse gate evita um atalho de publicação, mas **não conclui o fluxo de provenance**.
 
-`tools/world-layout-db.py` aplica migrations em PostgreSQL 16 descartável e cobre, entre outros:
+O app mantém a projection pública canônica atrás de `TDA_WORLD_CANONICAL_ENABLED=true`. A aplicação da infraestrutura não alterou esse gate nem publicou canon: no pós-migration havia `0` relation types, `0` relations, `0` sources, `0` graph heads/revisions e `0` `world_graph.publish` no audit.
 
-- browser roles sem grants diretos;
-- layout-only sem autoria factual;
-- acquire/save/publish do grafo;
-- draft não vazando para tabelas canônicas antes de publish;
-- publicação conjunta de layout + grafo;
-- normalização simétrica/estilo;
-- recovery e concorrência.
-
-A aplicação remota continua condicionada a CI terminal no SHA final, preflight read-only, advisors e execução deliberada do database runbook.
+O performance advisor sinalizou `entity_relation_sources(canon_entry_id)` sem covering index, além de FKs de actor/audit do novo domínio. Nenhum índice foi adicionado automaticamente apenas para silenciar INFO; o índice de provenance fica candidato quando esse lookup se tornar caminho real do fluxo de review.
 
 ## Auditoria de consumidores
 
 ### TDA reboot
 
-Busca no código atual do `Faysk/tda` não encontrou chamadas diretas conhecidas às oito RPCs legadas acima. A integração Supabase atual do site público é server-only e focada em dados publicados.
+A integração Supabase do site público permanece server-only e focada em dados autorizados. O World layout integrado pela #117 possui consumidor server-side protegido por capability. A #119 acrescenta consumidores server-side para as três RPCs factuais, também protegidos por capabilities e lease.
 
-O World layout integrado pela #117 possui consumidor server-side protegido por capability. A #119 acrescenta consumidores candidatos para as três RPCs factuais, todos via server actions; enquanto a migration não for aplicada, essa autoria factual não deve ser publicada em produção.
+O World público permanece demonstrativo por padrão. A projection canônica pública só entra com configuração deliberada posterior, depois de curadoria/provenance/visibility e validação visual.
 
 ### `Faysk/dnd-scribe`
 
