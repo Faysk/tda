@@ -9,15 +9,7 @@ import {
 	type CSSProperties,
 	type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-	Controls,
-	MiniMap,
-	ReactFlow,
-	useEdgesState,
-	useNodesState,
-	type EdgeTypes,
-	type NodeTypes,
-} from "@xyflow/react";
+import { useEdgesState, useNodesState } from "@xyflow/react";
 import { Select } from "@/components/ui";
 import {
 	rerouteWorldEdges,
@@ -42,18 +34,14 @@ import {
 	filterWorldRelations,
 	searchWorldProjection,
 } from "../projection";
+import { WorldCanvas } from "./world-canvas";
 import { WorldContentEditor } from "./world-content-editor";
-import { WorldEntityNode } from "./entity-node";
 import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
 } from "./world-inspector";
-import { WorldRelationEdge } from "./relation-edge";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
-
-const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
-const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
 
 const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 	{ value: "all", label: "Todos" },
@@ -438,33 +426,15 @@ export function WorldExplorerClient({
 				) : null}
 
 				{view === "canvas" ? (
-					<div className={styles.canvas} data-testid="world-canvas">
-						<ReactFlow<WorldFlowNode, WorldFlowEdge>
-							nodes={nodes}
-							edges={edges}
-							nodeTypes={NODE_TYPES}
-							edgeTypes={EDGE_TYPES}
-							nodeOrigin={[0.5, 0.5]}
-							nodesConnectable={false}
-							nodesDraggable
-							elementsSelectable
-							selectionOnDrag
-							panOnScroll
-							panOnDrag={false}
-							fitView
-							fitViewOptions={{ padding: 0.18, maxZoom: 1.05 }}
-							minZoom={0.28}
-							maxZoom={1.8}
-							onNodesChange={onNodesChange}
-							onEdgesChange={onEdgesChange}
-							onNodeClick={(_, node) => setSelectedId(node.id)}
-							onNodeDragStop={(_, node) => rememberNodePosition(node)}
-							onPaneClick={() => setSelectedId(null)}
-						>
-							<Controls showInteractive={false} position="bottom-left" />
-							<MiniMap position="bottom-right" pannable zoomable />
-						</ReactFlow>
-					</div>
+					<WorldCanvas
+						nodes={nodes}
+						edges={edges}
+						onNodesChange={onNodesChange}
+						onEdgesChange={onEdgesChange}
+						onNodeSelect={(node) => setSelectedId(node.id)}
+						onNodeDragStop={rememberNodePosition}
+						onPaneClick={() => setSelectedId(null)}
+					/>
 				) : null}
 
 				<WorldAccessibleRelations
