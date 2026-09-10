@@ -19,9 +19,9 @@ test("World inspector presents authorized context without inventing unavailable 
 	await expect(entityMeta.getByText("Herói / personagem", { exact: true })).toBeVisible();
 	await expect(entityMeta.getByText("Sem rota publicada", { exact: true })).toBeVisible();
 
-	const astelRelation = overview
-		.getByRole("button", { name: "Selecionar Astel; relação Amizade" })
-		.first();
+	const astelRelation = overview.getByRole("button", {
+		name: "Explorar relação Amizade com Astel",
+	});
 	await expect(astelRelation).toBeVisible();
 	await astelRelation.click();
 	await expect(
@@ -41,9 +41,9 @@ test("World contextual inspector stays usable as the mobile sheet", async ({ pag
 		inspector.getByRole("heading", { level: 2, name: "Dandelion", exact: true }),
 	).toBeVisible();
 
-	const relationChip = inspector
-		.getByRole("button", { name: "Selecionar Astel; relação Amizade" })
-		.first();
+	const relationChip = inspector.getByRole("button", {
+		name: "Explorar relação Amizade com Astel",
+	});
 	const chipBox = await relationChip.boundingBox();
 	expect(chipBox).not.toBeNull();
 	expect(chipBox?.height ?? 0).toBeGreaterThanOrEqual(40);
