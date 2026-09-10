@@ -8,7 +8,8 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 ## Runbooks
 
-- [CI/CD — operação, bootstrap e gates](ci-cd.md)
+- [CI/CD — operação, promoção e recuperação](ci-cd.md)
+- [CI/CD — configuração administrativa](cicd-admin-setup.md)
 - [Ambientes e configuração](environments.md)
 - [Release, deploy e rollback](release-runbook.md)
 - [Histórico de deployments](deployments.md)
@@ -25,12 +26,14 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 4. toda release conhece seu SHA;
 5. migration e app precisam de compatibilidade coordenada;
 6. rollback é pensado antes da promoção;
-7. Preview não usa production irrestrita;
+7. Preview não usa Production irrestrita;
 8. deploy não é forma de testar mudança em loop;
 9. estado de fornecedor precisa ser verificado na conta correta;
 10. incidentes e desvios viram documentação/ADR quando revelam regra nova;
 11. GitHub Actions é o controlador de entrega e Vercel Git auto-deploy permanece desligado;
-12. Preview e Production só executam quando os gates explícitos do [runbook CI/CD](ci-cd.md) estão armados.
+12. CI verde em `Preview` publica homologação automaticamente;
+13. Production só publica SHA comprovadamente originado de PR `Preview -> main`;
+14. branch protection é governança adicional, nunca substituto do provenance gate de Production.
 
 ## Matriz rápida
 
@@ -48,4 +51,6 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 
 Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal. Todo deployment deliberado deve acrescentar evidência em `deployments.md`.
 
-A esteira de entrega tem documentação própria porque mistura GitHub, Vercel e Supabase e contém gates que precisam permanecer coerentes entre si. Alteração em workflow, variável de ativação, migration boundary, estratégia staged/promotion ou rollback deve revisar [CI/CD — operação, bootstrap e gates](ci-cd.md) e, quando estrutural, o [ADR-0012](../adr/0012-github-actions-controlled-delivery.md).
+A esteira de entrega tem documentação própria porque mistura GitHub, Vercel e Supabase e contém gates que precisam permanecer coerentes entre si. Alteração em workflow, credencial, migration boundary, provenance, estratégia staged/promotion ou rollback deve revisar [CI/CD — operação, promoção e recuperação](ci-cd.md) e, quando estrutural, o [ADR-0012](../adr/0012-github-actions-controlled-delivery.md).
+
+Configuração de Environments, secrets e rulesets/branch protection deve seguir [CI/CD — configuração administrativa](cicd-admin-setup.md). Valores secretos nunca entram na documentação.
