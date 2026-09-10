@@ -227,7 +227,8 @@ export async function publishWorldEditStateAction(
 		payload.reason === "forbidden" ||
 		payload.reason === "lease_lost" ||
 		payload.reason === "invalid_payload" ||
-		payload.reason === "duplicate"
+		payload.reason === "duplicate" ||
+		payload.reason === "review_required"
 	) {
 		return { ok: false, reason: payload.reason };
 	}
