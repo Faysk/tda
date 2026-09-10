@@ -3,15 +3,14 @@
 import Image from "next/image";
 import { useState } from "react";
 import { PublicLink } from "@/components/public-link";
-import type { WorldEdgeDTO, WorldGraphProjection, WorldNodeDTO } from "../model";
+import type { WorldGraphProjection, WorldNodeDTO } from "../model";
 import { relationLabelFor } from "../projection";
-import inspectorStyles from "./world-inspector.module.css";
+import {
+	buildWorldInspectorContext,
+	type WorldInspectorConnection,
+} from "../world-inspector-context";
 import styles from "./world-explorer.module.css";
-
-type InspectorConnection = {
-	edge: WorldEdgeDTO;
-	destination: WorldNodeDTO;
-};
+import inspectorStyles from "./world-inspector.module.css";
 
 type InspectorTab = "overview" | "relations" | "moments";
 
@@ -34,6 +33,21 @@ function nodeTypeLabel(node: WorldNodeDTO): string {
 	}
 }
 
+function prominenceLabel(node: WorldNodeDTO): string | null {
+	switch (node.prominence) {
+		case "hero":
+			return "Herói no mapa";
+		case "primary":
+			return "Destaque no mapa";
+		case "supporting":
+			return "Apoio no mapa";
+		case "context":
+			return "Contexto no mapa";
+		default:
+			return null;
+	}
+}
+
 export function WorldInspectorContent({
 	selected,
 	projection,
@@ -52,24 +66,15 @@ export function WorldInspectorContent({
 		focus && selected.id !== focus.id
 			? relationLabelFor(projection, selected.id, focus.id)
 			: null;
-	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
-	const connections: InspectorConnection[] = projection.edges
-		.flatMap((edge) => {
-			if (edge.source !== selected.id && edge.target !== selected.id) return [];
-			const destinationId = edge.source === selected.id ? edge.target : edge.source;
-			const destination = nodeById.get(destinationId);
-			return destination ? [{ edge, destination }] : [];
-		})
-		.sort((left, right) =>
-			left.destination.label.localeCompare(right.destination.label, "pt-BR"),
-		);
-	const moments = connections.filter(({ destination }) => destination.kind === "moment");
-	const characterConnections = connections.filter(
-		({ destination }) =>
-			destination.kind === "entity" &&
-			(destination.entityType === "pc" || destination.entityType === "npc"),
-	);
-	const contextualConnections = connections.length - characterConnections.length;
+	const context = buildWorldInspectorContext(selected, projection);
+	const {
+		connections,
+		moments,
+		characterConnections,
+		contextualConnections,
+		visibleRelationHighlights,
+	} = context;
+	const prominence = prominenceLabel(selected);
 	const tabs: Array<{ id: InspectorTab; label: string; count?: number }> = [
 		{ id: "overview", label: "Visão geral" },
 		{ id: "relations", label: "Laços", count: connections.length },
@@ -80,26 +85,36 @@ export function WorldInspectorContent({
 
 	return (
 		<>
-			<div className={styles.inspectorHero} aria-hidden="true">
-				{selected.imageUrl ? (
-					<Image
-						className={styles.inspectorImage}
-						src={selected.imageUrl}
-						alt=""
-						fill
-						sizes="520px"
-					/>
-				) : (
-					<span className={styles.inspectorInitial}>
-						{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}
-					</span>
-				)}
-			</div>
-			<p className={styles.eyebrow}>{nodeTypeLabel(selected)}</p>
-			<h2>{selected.label}</h2>
-			{selected.subtitle ? (
-				<p className={styles.inspectorSubtitle}>{selected.subtitle}</p>
-			) : null}
+			<section className={inspectorStyles.identityCard} aria-labelledby={`world-inspector-${selected.id}`}>
+				<div className={inspectorStyles.identityMedia} aria-hidden="true">
+					{selected.imageUrl ? (
+						<Image
+							className={inspectorStyles.identityImage}
+							src={selected.imageUrl}
+							alt=""
+							fill
+							sizes="520px"
+						/>
+					) : (
+						<span className={inspectorStyles.identityInitial}>
+							{selected.label.slice(0, 1).toLocaleUpperCase("pt-BR")}
+						</span>
+					)}
+					<span className={inspectorStyles.identityShade} />
+				</div>
+				<div className={inspectorStyles.identityCopy}>
+					<p className={inspectorStyles.identityEyebrow}>{nodeTypeLabel(selected)}</p>
+					<h2 id={`world-inspector-${selected.id}`}>{selected.label}</h2>
+					{selected.subtitle ? (
+						<p className={inspectorStyles.identitySubtitle}>{selected.subtitle}</p>
+					) : null}
+					<div className={inspectorStyles.identityBadges}>
+						{selected.status ? <span>{selected.status}</span> : null}
+						{prominence ? <span>{prominence}</span> : null}
+						{selected.id === projection.focusId ? <span>Foco atual</span> : null}
+					</div>
+				</div>
+			</section>
 
 			<div
 				className={inspectorStyles.tabs}
@@ -135,10 +150,16 @@ export function WorldInspectorContent({
 							Relação com {focus.label}: {relation}.
 						</p>
 					) : null}
-					<p className={styles.inspectorCopy}>
-						Selecionar apenas inspeciona. Você pode percorrer os laços sem reorganizar o mapa
-						ou abrir um foco explícito quando quiser estudar só esse núcleo narrativo.
-					</p>
+
+					<div className={inspectorStyles.summaryBlock}>
+						<p className={inspectorStyles.sectionEyebrow}>Contexto público</p>
+						<p className={inspectorStyles.summaryCopy}>
+							{selected.summary?.trim()
+								? selected.summary
+								: "Este recorte não traz um resumo narrativo público. Use os laços visíveis para percorrer o contexto disponível sem alterar o foco da URL."}
+						</p>
+					</div>
+
 					<dl className={inspectorStyles.summaryStats}>
 						<div>
 							<dt>Laços</dt>
@@ -153,9 +174,33 @@ export function WorldInspectorContent({
 							<dd>{contextualConnections}</dd>
 						</div>
 					</dl>
+
+					{visibleRelationHighlights.length ? (
+						<div className={inspectorStyles.relationHighlights}>
+							<div className={inspectorStyles.relationHighlightsHeader}>
+								<p className={inspectorStyles.sectionEyebrow}>Relações visíveis</p>
+								<span>{connections.length}</span>
+							</div>
+							<div className={inspectorStyles.relationChips}>
+								{visibleRelationHighlights.map(({ edge, destination }) => (
+									<button
+										key={edge.id}
+										type="button"
+										data-family={edge.family}
+										onClick={() => onSelect(destination.id)}
+										aria-label={`Selecionar ${destination.label}; relação ${edge.label}`}
+										title={`${edge.label} · ${destination.label}`}
+									>
+										{edge.label}
+									</button>
+								))}
+							</div>
+						</div>
+					) : null}
+
 					{connections.length ? (
 						<div className={inspectorStyles.overviewRelations}>
-							<h3>Relações em destaque</h3>
+							<h3>Conexões em destaque</h3>
 							<ConnectionList connections={connections.slice(0, 4)} onSelect={onSelect} />
 						</div>
 					) : null}
@@ -210,11 +255,13 @@ export function WorldInspectorContent({
 				</p>
 			) : (
 				<div className={inspectorStyles.actions}>
+					{selected.route ? (
+						<PublicLink className={`${styles.profileAction} ${inspectorStyles.primaryAction}`} href={selected.route}>
+							Abrir perfil de {selected.label}
+						</PublicLink>
+					) : null}
 					{selected.slug && selected.id !== projection.focusId ? (
-						<PublicLink
-							className={styles.focusAction}
-							href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}
-						>
+						<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>
 							Explorar conexões de {selected.label}
 						</PublicLink>
 					) : projection.mode === "focus" ? (
@@ -222,13 +269,32 @@ export function WorldInspectorContent({
 							Voltar à visão geral
 						</PublicLink>
 					) : null}
-					{selected.route ? (
-						<PublicLink className={styles.profileAction} href={selected.route}>
-							Ver perfil completo
-						</PublicLink>
-					) : null}
 				</div>
 			)}
+
+			<section className={inspectorStyles.entityMeta} aria-label={`Entidade no mundo: ${selected.label}`}>
+				<p className={inspectorStyles.sectionEyebrow}>Entidade no mundo</p>
+				<dl>
+					<div>
+						<dt>Tipo</dt>
+						<dd>{nodeTypeLabel(selected)}</dd>
+					</div>
+					<div>
+						<dt>Perfil público</dt>
+						<dd>{selected.route ? "Disponível" : "Sem rota publicada"}</dd>
+					</div>
+					<div>
+						<dt>Conexões visíveis</dt>
+						<dd>{connections.length}</dd>
+					</div>
+					{selected.aliases?.length ? (
+						<div>
+							<dt>Aliases</dt>
+							<dd>{selected.aliases.join(", ")}</dd>
+						</div>
+					) : null}
+				</dl>
+			</section>
 		</>
 	);
 }
@@ -237,7 +303,7 @@ function ConnectionList({
 	connections,
 	onSelect,
 }: {
-	connections: InspectorConnection[];
+	connections: WorldInspectorConnection[];
 	onSelect: (id: string) => void;
 }) {
 	return (
