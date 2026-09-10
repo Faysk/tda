@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PublicLink as Link } from "@/components/public-link";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
