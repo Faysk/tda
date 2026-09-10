@@ -1,7 +1,10 @@
 import Image from "next/image";
+import { PIPIPI_CINEMATIC_ART_DIRECTION } from "../art-directions/pipipi";
 import { PIPIPI_STORY, type PipipiSceneId } from "../pipipi-story";
 import { PipipiCinematicScene } from "./pipipi-cinematic-scene";
+import mobileStyles from "./pipipi-lore-mobile.module.css";
 import styles from "./pipipi-lore-page.module.css";
+import polishStyles from "./pipipi-lore-polish.module.css";
 
 const sceneConfig: Record<
 	PipipiSceneId,
@@ -182,7 +185,11 @@ function StorySection({
 			</section>
 
 			{section.sceneAfter ? (
-				<PipipiCinematicScene id={section.sceneAfter} {...sceneConfig[section.sceneAfter]} />
+				<PipipiCinematicScene
+					id={section.sceneAfter}
+					{...sceneConfig[section.sceneAfter]}
+					artDirection={PIPIPI_CINEMATIC_ART_DIRECTION[section.sceneAfter]}
+				/>
 			) : null}
 
 			{ghost ? (
@@ -241,7 +248,11 @@ export function PipipiLorePage() {
 						Começar a história ↓
 					</a>
 				</div>
-				<div className={styles.heroGhost} aria-hidden="true">
+				<div
+					className={`${styles.heroGhost} ${polishStyles.heroGhostIdle}`}
+					data-hero-ghost="idle"
+					aria-hidden="true"
+				>
 					<Image
 						src="/lore/pipipi/ghost-flute.avif"
 						alt=""
@@ -256,7 +267,10 @@ export function PipipiLorePage() {
 				</div>
 			</header>
 
-			<nav className={styles.chapterNav} aria-label="Capítulos da história">
+			<nav
+				className={`${styles.chapterNav} ${mobileStyles.chapterNav}`}
+				aria-label="Capítulos da história"
+			>
 				{PIPIPI_STORY.parts.map((part) => (
 					<a key={part.id} href={`#${part.id}`}>
 						<span>{part.number}</span> {part.title}

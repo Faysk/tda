@@ -67,6 +67,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 						<div className="header-actions">
 							<nav aria-label="Navegação principal">
 								<Link href="/sessoes">Sessões</Link>
+								<Link className="lore-nav-link" href="/lore">
+									Lores
+								</Link>
 								<Link className="world-nav-link" href="/mundo">
 									Mundo
 								</Link>

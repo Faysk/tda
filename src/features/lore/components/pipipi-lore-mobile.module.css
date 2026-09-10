@@ -1,0 +1,30 @@
+@media (max-width: 650px) {
+	.chapterNav {
+		width: calc(100% - 20px);
+		max-width: none;
+		gap: 2px;
+		justify-content: space-between;
+		padding: 6px;
+		overflow-x: visible;
+	}
+
+	.chapterNav a {
+		min-width: 0;
+		flex: 1 1 0;
+		padding: 8px 5px;
+		font-size: 0.64rem;
+		text-align: center;
+		white-space: nowrap;
+	}
+
+	.chapterNav span {
+		margin-right: 3px;
+	}
+}
+
+@media (max-width: 390px) {
+	.chapterNav a {
+		font-size: 0.6rem;
+		letter-spacing: -0.01em;
+	}
+}
