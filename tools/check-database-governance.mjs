@@ -27,6 +27,7 @@ const databaseIndex = read("docs/database/README.md");
 const migrationDocs = read("docs/database/migrations.md");
 const securityDocs = read("docs/database/security.md");
 const runbook = read("docs/operations/database-runbook.md");
+const supabaseReadme = read("supabase/README.md");
 const agents = read("AGENTS.md");
 
 for (const requiredLink of [
@@ -58,12 +59,20 @@ for (const [label, content] of [
 	}
 }
 
-const migrationsDir = path.join(root, "supabase", "migrations");
-const migrationFiles = fs
-	.readdirSync(migrationsDir, { withFileTypes: true })
-	.filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-	.map((entry) => entry.name)
-	.sort();
+const listSql = (relativeDir) => {
+	const directory = path.join(root, relativeDir);
+	if (!fs.existsSync(directory)) {
+		throw new Error(`Missing database directory: ${relativeDir}`);
+	}
+	return fs
+		.readdirSync(directory, { withFileTypes: true })
+		.filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
+		.map((entry) => entry.name)
+		.sort();
+};
+
+const migrationFiles = listSql("supabase/migrations");
+const candidateFiles = listSql("supabase/candidates");
 
 if (!migrationFiles.length) {
 	throw new Error("No reboot migrations found under supabase/migrations");
@@ -80,6 +89,17 @@ if (undocumented.length) {
 	);
 }
 
+const undocumentedCandidates = candidateFiles.filter((filename) => {
+	const migrationId = filename.slice(0, -".sql".length);
+	return !migrationDocs.includes(migrationId) || !supabaseReadme.includes(filename);
+});
+
+if (undocumentedCandidates.length) {
+	throw new Error(
+		`Undocumented migration candidates: ${undocumentedCandidates.join(", ")}. Record them as non-production candidates in docs/database/migrations.md and supabase/README.md.`,
+	);
+}
+
 console.log(
-	`DATABASE_GOVERNANCE_OK migrations=${migrationFiles.length} project=${canonicalProjectRef}`,
+	`DATABASE_GOVERNANCE_OK migrations=${migrationFiles.length} candidates=${candidateFiles.length} project=${canonicalProjectRef}`,
 );
