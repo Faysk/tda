@@ -2,12 +2,13 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-10
 
 Este diretório contém os procedimentos que devem ser executáveis por alguém que não estava na cabeça de quem implementou a feature.
 
 ## Runbooks
 
+- [CI/CD — operação, bootstrap e gates](ci-cd.md)
 - [Ambientes e configuração](environments.md)
 - [Release, deploy e rollback](release-runbook.md)
 - [Histórico de deployments](deployments.md)
@@ -27,7 +28,9 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 7. Preview não usa production irrestrita;
 8. deploy não é forma de testar mudança em loop;
 9. estado de fornecedor precisa ser verificado na conta correta;
-10. incidentes e desvios viram documentação/ADR quando revelam regra nova.
+10. incidentes e desvios viram documentação/ADR quando revelam regra nova;
+11. GitHub Actions é o controlador de entrega e Vercel Git auto-deploy permanece desligado;
+12. Preview e Production só executam quando os gates explícitos do [runbook CI/CD](ci-cd.md) estão armados.
 
 ## Matriz rápida
 
@@ -44,3 +47,5 @@ Este diretório contém os procedimentos que devem ser executáveis por alguém 
 ## Runbook incompleto é dívida
 
 Toda feature que exige procedimento manual recorrente deve adicionar/atualizar runbook. Não deixar passos críticos apenas em chat, memória ou histórico de terminal. Todo deployment deliberado deve acrescentar evidência em `deployments.md`.
+
+A esteira de entrega tem documentação própria porque mistura GitHub, Vercel e Supabase e contém gates que precisam permanecer coerentes entre si. Alteração em workflow, variável de ativação, migration boundary, estratégia staged/promotion ou rollback deve revisar [CI/CD — operação, bootstrap e gates](ci-cd.md) e, quando estrutural, o [ADR-0012](../adr/0012-github-actions-controlled-delivery.md).
