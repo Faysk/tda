@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-09
+> Última revisão: 2026-09-10
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -13,7 +13,7 @@ A estratégia é:
 
 - história remota anterior permanece no Supabase e legado;
 - novas mudanças do reboot entram em `Faysk/tda/supabase/migrations`;
-- versão/nome remoto e arquivo local devem corresponder após aplicação;
+- versão/nome remoto e arquivo local devem corresponder após aplicação ou a divergência precisa ficar explicitamente documentada;
 - migration candidata pode existir no repo antes da aplicação, mas precisa estar explicitamente marcada como não aplicada;
 - migrations de transição preservam consumidores legados enquanto necessários;
 - o procedimento operacional obrigatório está em `docs/operations/database-runbook.md`.
@@ -94,6 +94,10 @@ A estratégia é:
 ### 2026-09-09 — lease exclusivo do World Explorer
 
 - `20260909205836 world_edit_lease` — migration aplicada remotamente; arquivo local equivalente preservado como `20260909173000_world_edit_lease.sql` até reconciliação nominal deliberada.
+
+### 2026-09-10 — autoria factual do World Explorer
+
+- `20260910002529 world_graph_authoring` — migration aplicada remotamente; arquivo local equivalente permanece `20260909215000_world_graph_authoring.sql`. Não reexecutar DDL para alinhar somente o número.
 
 ## Boundary do reboot aplicado
 
@@ -351,7 +355,7 @@ Dependendo da mudança:
 - advisors de segurança/performance;
 - consumidores legados ainda funcionam;
 - nenhum dado canônico foi criado sem aprovação;
-- migration history remoto corresponde ao arquivo.
+- migration history remoto corresponde ao arquivo ou a divergência nominal está documentada sem reexecutar DDL.
 
 ## Rollback
 
@@ -370,10 +374,10 @@ Há drift quando:
 
 - Supabase possui DDL que o repo não conhece;
 - repo possui migration que produção não aplicou;
-- versão/nome não corresponde;
+- versão/nome não corresponde e a divergência não está registrada;
 - documentação descreve constraint/coluna inexistente.
 
-Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Ela vira drift se for tratada como aplicada sem aparecer no histórico remoto ou se produção receber a mudança sem o arquivo correspondente.
+Uma migration explicitamente marcada como **candidata/não aplicada** não é drift por si só. Uma mudança aplicada com ID remoto diferente do filename local deve ser registrada como equivalência operacional e não ser reexecutada apenas para satisfazer nomenclatura.
 
 Antes de qualquer grande etapa de banco, verificar migration history + schema real. O `database-audit.md` serve como fotografia datada, não como substituto dessa verificação.
 
@@ -428,11 +432,11 @@ Rollback lógico:
 - após ativação, primeiro desligar o toggle/boundary no app, deixar leases expirarem e então remover a infraestrutura em migration corretiva;
 - nunca apagar `world_layout_snapshots` ou `audit_log` para desfazer esta feature.
 
-## Candidato de autoria canônica do World Explorer
+## Autoria canônica do World Explorer — infraestrutura aplicada
 
 ### `20260909215000_world_graph_authoring`
 
-**Estado:** migration candidata versionada na PR #119; **não aplicada no Supabase canônico**.
+**Estado:** aplicada no Supabase canônico em 2026-09-10 sob o migration history remoto `20260910002529 world_graph_authoring`. O arquivo local preserva o ID original da PR #119; não reexecutar DDL apenas para alinhar o timestamp.
 
 Objetivo:
 
@@ -447,9 +451,9 @@ Segurança e autorização:
 
 - autoria factual exige `campaign.content.edit` e uma sessão exclusiva válida de `campaign.world.layout.edit`;
 - o browser não recebe grants diretos das tabelas ou RPCs editoriais;
-- RLS fica habilitado nas novas tabelas sem policy pública;
-- `service_role` recebe apenas os privilégios necessários ao boundary server-side;
-- RPCs de acquire/save/publish usam `SECURITY INVOKER`, `search_path = pg_catalog, public`, revalidam identidade/profile/campaign/scope e falham fechado em lease perdido, payload inválido ou conflito;
+- RLS está habilitado nas seis novas tabelas sem policy pública;
+- `service_role` recebe somente os privilégios versionados; não possui `DELETE` nas tabelas factuais, recebe apenas `SELECT` em `entity_relation_sources` e não recebe `UPDATE` em `world_graph_revisions`;
+- RPCs de acquire/save/publish são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e revalidam identidade/profile/campaign/scope/lease/revision;
 - a projection pública continua filtrada no servidor e não usa o rascunho privado como fonte de autorização.
 
 Concorrência e integridade:
@@ -460,23 +464,35 @@ Concorrência e integridade:
 - IDs cross-campaign, endpoints ausentes, tipos inexistentes, self-edge e colisões de nome/slug são rejeitados;
 - exclusão editorial normal é arquivamento; publicação cria snapshot append-only em `world_graph_revisions` quando o conteúdo factual muda.
 
-Validação pré-aplicação:
+Validação observada:
 
-- PostgreSQL 16 descartável via `tools/world-layout-db.py` aplica a migration candidata e cobre autorização, draft/publish/recovery, conflito e concorrência sem conexão ao banco canônico;
-- unit tests do World e demais suites passam antes do gate de documentação; build/E2E do SHA final continuam obrigatórios;
-- a migration não deve ser aplicada remotamente até CI terminal, revisão do contrato/segurança e autorização deliberada de release.
+- o SHA candidato anterior à rodada documental passou `pnpm check`, build, Playwright/E2E, processamento e PostgreSQL sintético com `tools/world-layout-db.py`;
+- preflight remoto confirmou 0 leases ativos, 0 snapshots, 3 entities, 0 canon entries e ausência das seis tabelas antes do DDL;
+- pós-migration: `entities=3`, `canon_entries=0`, `world_layout_snapshots=0`, `world_edit_leases=0` e todas as seis tabelas factuais novas permaneceram vazias;
+- RLS/grants/RPC signatures/security/search_path foram revalidados fisicamente;
+- `world_graph_snapshot_json` projetou 3 nodes, 0 edges e 0 relation types;
+- chamadas negativas de acquire/publish com identity inexistente retornaram `forbidden` sem criar lease/revision/relation/audit;
+- nenhum `world_graph.publish` foi produzido pela aplicação da infraestrutura.
 
-Limites e pendências antes da aplicação remota:
+Advisors pós-aplicação:
 
-- confirmar no contrato de relations como `entity_relation_sources` participa da autoria manual inicial; a tabela existe, mas a UI desta fatia não anexa fonte canônica automaticamente;
-- atualizar `docs/database/security.md`, `docs/database/rpc-inventory.md` e o contrato de relações para refletir o boundary realmente aprovado antes de merge/aplicação;
-- executar inspeção read-only do schema/migration history real e advisors antes do DDL remoto;
-- registrar a verificação em `docs/database/verification-log.md` somente após aplicação/validação real.
+- security: 46 `rls_enabled_no_policy` informativos, incluindo deliberadamente as seis tabelas novas deny-by-default; mesmas 8 funções `SECURITY DEFINER` legadas executáveis por `authenticated`; Leaked Password Protection desabilitada;
+- performance: 59 FKs sem covering index e 30 índices sem uso registrado.
+
+O INFO de `entity_relation_sources(canon_entry_id)` vira candidato de índice quando o fluxo de provenance realmente consultar por fonte. Nenhum índice/policy foi adicionado apenas para silenciar advisor.
+
+Limites de produto após a aplicação:
+
+- a #119 **não** cria mutation de anexação de `canon_entry` a uma relation; `service_role` possui somente leitura de `entity_relation_sources`;
+- relações novas devem permanecer `private_*`/`review_only` até a fatia de provenance/review;
+- o server action impede publicação de relation ativa `public_campaign/public_web` sem source já existente;
+- `TDA_WORLD_CANONICAL_ENABLED` continua desligado por padrão; com apenas 1 entity `public_web` e 0 canon entries, ativação pública agora seria prematura.
 
 Rollback lógico:
 
-- antes de qualquer consumidor publicado, uma migration corretiva pode remover RPCs/tabelas novas e as colunas adicionadas ao lease, sem tocar em entities, canon, transcrições, layout publicado ou audit histórico existente;
-- depois de publicação factual real, primeiro desligar o consumidor e preservar `world_graph_revisions`/audit; não apagar relações ou snapshots para simular rollback.
+- se o consumidor precisar ser retirado, desligá-lo primeiro e deixar o schema aditivo inerte enquanto a correção é preparada;
+- uma eventual migration corretiva deve preservar facts/revisions/audit já existentes e remover objetos somente quando comprovadamente sem consumidor;
+- não apagar relações, snapshots ou audit para simular rollback.
 
 ## Candidato de estabilização de aliases narrativos
 
