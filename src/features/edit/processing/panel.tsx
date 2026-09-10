@@ -264,7 +264,7 @@ export function ProcessingPanel() {
 
 				{connected ? (
 					<>
-						<div className={styles.telemetry} role="group" aria-label="Uso do computador local">
+						<section className={styles.telemetry} aria-label="Uso do computador local">
 							{gpu ? <GpuMetric gpu={gpu} /> : null}
 							<Metric
 								label="CPU"
@@ -280,7 +280,7 @@ export function ProcessingPanel() {
 										: "Telemetria indisponível"
 								}
 							/>
-						</div>
+						</section>
 						<div className={styles.connectionActions}>
 							<Button size="sm" disabled={state.busy} onClick={() => void controller.refresh()}>
 								Atualizar estado
@@ -396,11 +396,11 @@ export function ProcessingPanel() {
 										) : (
 											<p className={styles.noProgress}>Sem medida de progresso nesta etapa.</p>
 										)}
-										<div className={styles.pipeline} role="group" aria-label="Etapa atual do processamento">
+										<section className={styles.pipeline} aria-label="Etapa atual do processamento">
 											<span data-state={activeJob.stage === "queued" ? "current" : "done"}>Preparação</span>
 											<span data-state={["fixture", "transcribing", "diarization", "noise_cleanup", "resuming"].includes(activeJob.stage) ? "current" : activeJob.stage === "complete" ? "done" : "pending"}>Processamento</span>
 											<span data-state={activeJob.stage === "complete" ? "current" : "pending"}>Consolidação</span>
-										</div>
+										</section>
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
