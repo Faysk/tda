@@ -5,6 +5,7 @@ import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { WorldExplorerClient } from "@/features/world-explorer/components/world-explorer-client";
+import { WorldExplorerProvider } from "@/features/world-explorer/components/world-explorer-provider";
 import { loadPublishedWorldLayout } from "@/features/world-explorer/layout-repository";
 import {
 	buildWorldProjection,
@@ -71,12 +72,14 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	projection.layout = await loadPublishedWorldLayout(projection);
 
 	return (
-		<main style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-			<WorldExplorerClient
-				projection={projection}
-				canEditLayout={canEditLayout}
-				canEditContent={fullWorldEditor}
-			/>
-		</main>
+		<div style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
+			<WorldExplorerProvider>
+				<WorldExplorerClient
+					projection={projection}
+					canEditLayout={canEditLayout}
+					canEditContent={fullWorldEditor}
+				/>
+			</WorldExplorerProvider>
+		</div>
 	);
 }

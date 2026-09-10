@@ -3,114 +3,16 @@
 import { useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
+import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
+import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-shell.module.css";
-
-type WorldNavItem = Readonly<{
-	href: string;
-	label: string;
-	description: string;
-	glyph: string;
-}>;
-
-const WORLD_NAV_ITEMS: readonly WorldNavItem[] = [
-	{
-		href: "/mundo",
-		label: "Ecos da Jornada",
-		description: "Mapa de memória",
-		glyph: "E",
-	},
-	{
-		href: "/personagens",
-		label: "Personagens",
-		description: "Protagonistas da mesa",
-		glyph: "P",
-	},
-	{
-		href: "/npcs",
-		label: "NPCs",
-		description: "Pessoas do mundo",
-		glyph: "N",
-	},
-	{
-		href: "/lugares",
-		label: "Lugares",
-		description: "Territórios e destinos",
-		glyph: "L",
-	},
-	{
-		href: "/faccoes",
-		label: "Facções",
-		description: "Grupos e forças",
-		glyph: "F",
-	},
-	{
-		href: "/musicas",
-		label: "Músicas",
-		description: "Sons da jornada",
-		glyph: "M",
-	},
-] as const;
-
-function itemIsCurrent(pathname: string, href: string) {
-	return pathname === href || (href !== "/mundo" && pathname.startsWith(`${href}/`));
-}
-
-function WorldNav({
-	pathname,
-	onNavigate,
-	compact = false,
-}: {
-	pathname: string;
-	onNavigate?: () => void;
-	compact?: boolean;
-}) {
-	return (
-		<nav className={styles.navigation} aria-label="Explorar o universo da campanha">
-			{WORLD_NAV_ITEMS.map((item) => {
-				const current = itemIsCurrent(pathname, item.href);
-				return (
-					<Link
-						key={item.href}
-						className={`${styles.navItem}${current ? ` ${styles.navItemCurrent}` : ""}${compact ? ` ${styles.navItemCompact}` : ""}`}
-						href={item.href}
-						aria-current={current ? "page" : undefined}
-						aria-label={compact ? item.label : undefined}
-						title={compact ? `${item.label} — ${item.description}` : undefined}
-						onClick={onNavigate}
-					>
-						<span className={styles.navMark} aria-hidden="true">
-							{compact ? item.glyph : null}
-						</span>
-						<span className={styles.navCopy}>
-							<strong>{item.label}</strong>
-							<small>{item.description}</small>
-						</span>
-						<span className={styles.navArrow} aria-hidden="true">
-							→
-						</span>
-					</Link>
-				);
-			})}
-		</nav>
-	);
-}
-
-function ShellIntro() {
-	return (
-		<div className={styles.intro}>
-			<p>Arquivo vivo</p>
-			<h2>Mundo da campanha</h2>
-			<span>Pessoas, lugares e memórias conectadas pela história.</span>
-		</div>
-	);
-}
 
 export function WorldShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
 	const current = useMemo(
-		() => WORLD_NAV_ITEMS.find((item) => itemIsCurrent(pathname, item.href)),
+		() => WORLD_NAV_ITEMS.find((item) => worldNavItemIsCurrent(pathname, item.href)),
 		[pathname],
 	);
 
@@ -128,8 +30,8 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 		<div className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed}` : ""}`}>
 			<aside className={styles.sidebar}>
 				<div className={styles.sidebarInner}>
-					{railCollapsed ? null : <ShellIntro />}
-					<WorldNav pathname={pathname} compact={railCollapsed} />
+					{railCollapsed ? null : <WorldNavigationIntro />}
+					<WorldNavigation pathname={pathname} compact={railCollapsed} />
 					<div className={styles.sidebarFooter}>
 						<button
 							type="button"
@@ -185,7 +87,7 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 				aria-label="Navegação do universo da campanha"
 			>
 				<div className={styles.drawerHeader}>
-					<ShellIntro />
+					<WorldNavigationIntro />
 					<button
 						type="button"
 						className={styles.closeButton}
@@ -195,7 +97,7 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 						×
 					</button>
 				</div>
-				<WorldNav pathname={pathname} onNavigate={closeDrawer} />
+				<WorldNavigation pathname={pathname} onNavigate={closeDrawer} />
 				<Link className={styles.drawerHomeLink} href="/" onClick={closeDrawer}>
 					<span aria-hidden="true">←</span> Voltar ao início
 				</Link>

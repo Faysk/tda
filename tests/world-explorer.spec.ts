@@ -183,14 +183,14 @@ test("World Explorer nodes are movable without changing the URL", async ({ page 
 	const astel = page.locator('[data-world-node="astel"]').locator("..");
 	const before = await astel.getAttribute("style");
 	const box = await astel.boundingBox();
+	expect(box).not.toBeNull();
 	if (box) {
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.mouse.down();
 		await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 30, { steps: 6 });
 		await page.mouse.up();
 	}
-	const after = await astel.getAttribute("style");
-	expect(after).not.toBe(before);
+	await expect.poll(() => astel.getAttribute("style")).not.toBe(before);
 	await expect(page).toHaveURL(/\/mundo$/);
 });
 
