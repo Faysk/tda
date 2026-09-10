@@ -79,6 +79,29 @@ for (const id of [
 		await expect(page.getByRole("searchbox")).toHaveCount(0);
 	});
 }
+
+test("World Conductor is exposed only by the real world layout capability", async ({
+	page,
+	context,
+}) => {
+	await login(context, "conductor");
+	await page.goto("/mundo");
+	const conductor = page.getByTestId("world-conductor");
+	await expect(conductor).toBeVisible();
+	await expect(
+		conductor.getByRole("button", { name: "Conduzir o layout do Mundo" }),
+	).toBeVisible();
+	await expect(page.locator('[data-world-content-edit="disabled"]')).toBeVisible();
+
+	await page.goto("/mundo?foco=astel");
+	await expect(page.getByTestId("world-conductor")).toHaveCount(0);
+
+	await context.clearCookies();
+	await login(context, "manager");
+	await page.goto("/mundo");
+	await expect(page.getByTestId("world-conductor")).toHaveCount(0);
+});
+
 test("authorized real route renders scoped data, provenance, search and mobile layout", async ({
 	page,
 	context,
