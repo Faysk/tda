@@ -1,12 +1,6 @@
 import type { ComponentProps } from "react";
 import { PublicLink as Link } from "../public-link";
-import {
-	Button,
-	actionStyles,
-	type ActionSize,
-	type ActionStyleOptions,
-	type ActionVariant,
-} from "./button";
+import { actionStyles, type ActionStyleOptions } from "./button";
 
 export { Button, actionStyles } from "./button";
 export type { ActionSize, ActionVariant } from "./button";
