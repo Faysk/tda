@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorldLayout } from "../constellation-layout";
 import type { WorldGraphDraft, WorldLayoutProjection } from "../model";
 import {
@@ -111,6 +111,14 @@ export function useWorldEditSession({
 		graphDraftRef.current = graphDraft;
 	}, [graphDraft]);
 
+	const markLeaseLost = useCallback((reason: string) => {
+		draftSequence.current += 1;
+		setState("view");
+		setLeaseToken(null);
+		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		setFeedback(worldEditFailureMessage(reason));
+	}, []);
+
 	useEffect(() => {
 		if (state !== "editing" || !leaseToken) return;
 		let cancelled = false;
@@ -128,7 +136,7 @@ export function useWorldEditSession({
 			cancelled = true;
 			window.clearInterval(heartbeat);
 		};
-	}, [state, leaseToken]);
+	}, [state, leaseToken, markLeaseLost]);
 
 	useEffect(
 		() => () => {
@@ -143,14 +151,6 @@ export function useWorldEditSession({
 		setBusyNotice(message);
 		if (busyTimer.current) clearTimeout(busyTimer.current);
 		busyTimer.current = setTimeout(() => setBusyNotice(null), WORLD_BUSY_NOTICE_MS);
-	}
-
-	function markLeaseLost(reason: string) {
-		draftSequence.current += 1;
-		setState("view");
-		setLeaseToken(null);
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		setFeedback(worldEditFailureMessage(reason));
 	}
 
 	function enqueueSave<T>(operation: () => Promise<T>): Promise<T> {
