@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
@@ -10,6 +10,7 @@ import styles from "./world-workspace-shell.module.css";
 export function WorldWorkspaceShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
+	const navigationToggleRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		const desktop = window.matchMedia("(min-width: 821px)");
@@ -18,6 +19,20 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		desktop.addEventListener("change", syncNavigationToViewport);
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
 	}, []);
+
+	useEffect(() => {
+		if (!navigationOpen || !window.matchMedia("(max-width: 820px)").matches) return;
+
+		const closeOnEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			setNavigationOpen(false);
+			window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+		};
+
+		document.addEventListener("keydown", closeOnEscape);
+		return () => document.removeEventListener("keydown", closeOnEscape);
+	}, [navigationOpen]);
 
 	return (
 		<div
@@ -62,6 +77,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 
 			<section className={styles.stage} data-testid="world-workspace-stage">
 				<button
+					ref={navigationToggleRef}
 					type="button"
 					className={styles.navigationToggle}
 					onClick={() => setNavigationOpen((value) => !value)}
