@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	worldEditFailureMessage,
 	worldLayoutPositionsEqual,
-} from "./use-world-edit-session";
+} from "./world-edit-session-model";
 
 describe("World edit session helpers", () => {
 	it("compares layout positions independent of object key order", () => {
