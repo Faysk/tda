@@ -7,8 +7,8 @@ import type {
 	WorldRelationFilter,
 	WorldRelationTypeDTO,
 } from "../model";
+import chrome from "./world-floating-chrome.module.css";
 import styles from "./world-explorer.module.css";
-import responsive from "./world-responsive.module.css";
 
 const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 	{ value: "all", label: "Todos" },
@@ -51,6 +51,16 @@ type WorldFloatingChromeProps = Readonly<{
 	activeRelationTypes: WorldRelationTypeDTO[];
 }>;
 
+function filterClass(active: boolean) {
+	return `${styles.filterActive && active ? styles.filterActive : ""} ${chrome.filterChip}${active ? ` ${chrome.filterChipActive}` : ""}`.trim();
+}
+
+function legendItemStyle(color?: string) {
+	return color
+		? ({ "--world-relation-color": color } as CSSProperties)
+		: undefined;
+}
+
 export function WorldFloatingChrome({
 	query,
 	onQueryChange,
@@ -67,11 +77,11 @@ export function WorldFloatingChrome({
 	activeRelationTypes,
 }: WorldFloatingChromeProps) {
 	return (
-		<div className={styles.floatingChrome} data-testid="world-floating-chrome">
-			<div className={`${styles.toolbar} ${responsive.toolbar} ${styles.chromePrimary}`}>
-				<label className={`${styles.searchField} ${responsive.search}`}>
+		<div className={chrome.root} data-testid="world-floating-chrome">
+			<div className={`${styles.toolbar} ${chrome.primary}`}>
+				<label className={`${styles.searchField} ${chrome.searchSurface}`}>
 					<span className={styles.srOnly}>Buscar no mundo</span>
-					<span className={styles.searchGlyph} aria-hidden="true">
+					<span className={chrome.searchGlyph} aria-hidden="true">
 						⌕
 					</span>
 					<input
@@ -82,7 +92,7 @@ export function WorldFloatingChrome({
 					/>
 				</label>
 
-				<div className={`${styles.relationSelect} ${responsive.relation}`}>
+				<div className={`${styles.relationSelect} ${chrome.relationSurface}`}>
 					<span>Relação</span>
 					<Select
 						value={relationFilter}
@@ -94,7 +104,7 @@ export function WorldFloatingChrome({
 				</div>
 
 				<button
-					className={`${styles.resetButton} ${responsive.reset}`}
+					className={`${styles.resetButton} ${chrome.resetSurface}`}
 					type="button"
 					disabled={resetDisabled}
 					onClick={onReset}
@@ -102,7 +112,7 @@ export function WorldFloatingChrome({
 					{resetLabel}
 				</button>
 
-				<fieldset className={styles.viewToggle}>
+				<fieldset className={`${styles.viewToggle} ${chrome.viewSurface}`}>
 					<legend className={styles.srOnly}>Modo de visualização</legend>
 					<button
 						type="button"
@@ -111,10 +121,10 @@ export function WorldFloatingChrome({
 						title="Canvas"
 						onClick={() => onViewChange("canvas")}
 					>
-						<span className={styles.viewGlyph} aria-hidden="true">
+						<span className={chrome.viewGlyph} aria-hidden="true">
 							⌘
 						</span>
-						<span className={styles.viewLabel}>Canvas</span>
+						<span className={chrome.viewLabel}>Canvas</span>
 					</button>
 					<button
 						type="button"
@@ -123,21 +133,21 @@ export function WorldFloatingChrome({
 						title="Lista"
 						onClick={() => onViewChange("list")}
 					>
-						<span className={styles.viewGlyph} aria-hidden="true">
+						<span className={chrome.viewGlyph} aria-hidden="true">
 							☷
 						</span>
-						<span className={styles.viewLabel}>Lista</span>
+						<span className={chrome.viewLabel}>Lista</span>
 					</button>
 				</fieldset>
 			</div>
 
-			<div className={styles.chromeSecondary}>
-				<fieldset className={styles.filters} aria-label="Filtrar o grafo">
+			<div className={chrome.secondary}>
+				<fieldset className={`${styles.filters} ${chrome.filterRail}`} aria-label="Filtrar o grafo">
 					{FILTER_OPTIONS.map((option) => (
 						<button
 							key={option.value}
 							type="button"
-							className={filter === option.value ? styles.filterActive : undefined}
+							className={filterClass(filter === option.value)}
 							aria-pressed={filter === option.value}
 							onClick={() => onFilterChange(option.value)}
 						>
@@ -147,22 +157,23 @@ export function WorldFloatingChrome({
 				</fieldset>
 
 				{demo ? (
-					<fieldset className={styles.relationLegend}>
+					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
 						<legend className={styles.srOnly}>Legenda de relações</legend>
-						<span data-family="affinity">Afinidade</span>
-						<span data-family="conflict">Conflito</span>
-						<span data-family="family">Família</span>
-						<span data-family="mystic">Místico</span>
-						<span data-family="creative">Criativo</span>
+						<span className={chrome.legendItem} data-family="affinity">Afinidade</span>
+						<span className={chrome.legendItem} data-family="conflict">Conflito</span>
+						<span className={chrome.legendItem} data-family="family">Família</span>
+						<span className={chrome.legendItem} data-family="mystic">Místico</span>
+						<span className={chrome.legendItem} data-family="creative">Criativo</span>
 					</fieldset>
 				) : activeRelationTypes.length ? (
-					<fieldset className={styles.relationLegend}>
+					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
 						<legend className={styles.srOnly}>Legenda de tipos de ligação</legend>
 						{activeRelationTypes.map((type) => (
 							<span
 								key={type.slug}
+								className={chrome.legendItem}
 								data-family={type.family}
-								style={{ "--world-relation-color": type.style.color } as CSSProperties}
+								style={legendItemStyle(type.style.color)}
 							>
 								{type.label}
 							</span>
