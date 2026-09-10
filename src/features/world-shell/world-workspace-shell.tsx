@@ -1,14 +1,20 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-workspace-shell.module.css";
 
 export function WorldWorkspaceShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
-	const [navigationOpen, setNavigationOpen] = useState(true);
+	const [navigationOpen, setNavigationOpen] = useState(false);
+
+	useEffect(() => {
+		if (window.matchMedia("(min-width: 821px)").matches) {
+			setNavigationOpen(true);
+		}
+	}, []);
 
 	return (
 		<div
