@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-10
 
 ## Ambientes conceituais
 
@@ -114,6 +114,8 @@ Antes de qualquer write/deploy, verificar conta correta. Uma ferramenta conectad
 
 A publicação automática da integração Git permanece desligada (`git.deploymentEnabled=false`). O GitHub Actions é o controlador da entrega: ele constrói artefatos com Vercel CLI pinada, publica Preview a partir de `Preview` e cria Production staged a partir de `main`. O domínio `dnd.faysk.dev` só troca de deployment após smoke positivo e `vercel promote` do mesmo artefato testado.
 
+A decisão arquitetural e o procedimento completo estão em [ADR-0012](../adr/0012-github-actions-controlled-delivery.md) e [CI/CD — operação, bootstrap e gates](ci-cd.md).
+
 ## Esteira CI/CD
 
 Há três ambientes lógicos e dois targets cloud:
@@ -143,6 +145,18 @@ A trava mestra e os dois switches de CD devem permanecer ausentes/false durante 
 Os IDs não secretos de team/projeto Vercel e project ref Supabase ficam pinados nos workflows para impedir publicação acidental em outro contexto. Secrets runtime da aplicação continuam na Vercel por ambiente; os GitHub secrets acima existem apenas para controlar deployment/migration.
 
 O bootstrap da política exige alinhar a branch `Preview` ao `main` atual antes de habilitar `TDA_ENFORCE_PROMOTION_SOURCE`. Depois disso, `main` representa somente releases promovidas pela linha de homologação.
+
+### Estado observado do bootstrap em 2026-09-10
+
+A infraestrutura versionada foi integrada pela PR #129. O commit de integração passou CI e Companion na `main`; o primeiro `Production CD` criado pelo `workflow_run` terminou `skipped`, confirmando que os gates impediram publicação automática.
+
+Depois disso, `main` avançou com integrações normais até `bb57edd6d8ea837be04a8979cfd938ec306e7945`. A branch `Preview`, que ainda apontava para `7305109d84cb5ce70eee07deabbc0b821f50f218`, foi avançada por fast-forward com `force=false` para esse HEAD da `main`. A operação foi aceita pelo GitHub, portanto não houve reescrita de histórico divergente da Preview.
+
+O alinhamento disparou CI/Companion em `Preview`. A ativação de Preview/Production continua separada do alinhamento: nenhum Environment, secret ou repository variable deve ser presumido configurado apenas porque a branch está sincronizada.
+
+Superfícies administrativas do GitHub que não forem legíveis pela conexão de automação devem ser registradas como **não verificadas**. Não inferir ausência nem presença de secret/variable/protection sem evidência da API/UI autorizada.
+
+A sequência completa de ativação e validação está em [CI/CD — operação, bootstrap e gates](ci-cd.md).
 
 ## Local companion
 

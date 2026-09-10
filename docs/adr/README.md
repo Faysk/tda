@@ -27,6 +27,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0009](0009-world-explorer-multihub-layout.md) | accepted | World Explorer abre multi-hub; foco é temporário e dragging é layout local |
 | [0010](0010-world-explorer-editorial-layout-persistence.md) | accepted | layout editorial é snapshot versionado separado de canon/relations e filtrado por audience |
 | [0011](0011-world-explorer-layout-physical-persistence.md) | accepted | snapshot físico fica em storage dedicado, com capability própria, optimistic concurrency e audit atômico |
+| [0012](0012-github-actions-controlled-delivery.md) | accepted | GitHub Actions é o único controlador de entrega; Vercel Git auto-deploy permanece desligado |
 
 ## Quando criar ADR
 
@@ -54,6 +55,8 @@ O World Explorer multi-hub recebeu ADR porque substitui partes estruturais do pr
 A persistência editorial do World Explorer recebeu ADR porque cria um novo ownership de estado: coordenadas podem ser salvas no futuro, mas continuam fora de canon/relations, exigem audience filtering, revision e autorização própria antes de qualquer storage físico.
 
 A persistência física do World Explorer recebeu ADR porque fecha a forma de storage e mutation boundary sem ativá-los ainda: snapshot dedicado por campaign/view, capability `campaign.world.layout.edit`, função server-only com optimistic concurrency e audit atômico.
+
+A entrega controlada recebeu ADR porque define um boundary operacional difícil de reverter: GitHub Actions é o controlador único, Vercel Git auto-deploy permanece desligado, Production é staged antes de tráfego e migrations usam overlay efêmero para preservar o history legado sem falsificá-lo no Git.
 
 ## Regra histórica
 

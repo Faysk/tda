@@ -170,7 +170,10 @@
 		display: none;
 	}
 
-	.panelToggle {
+	/* The legacy responsive sheet hid .panelToggle below 980px. Keep this
+	 * selector more specific so the Phase 7 floating reopen control remains
+	 * present regardless of CSS module chunk ordering. */
+	.layout .panelToggle {
 		top: 10px;
 		left: max(12px, var(--ds-page-gutter));
 		display: grid;
