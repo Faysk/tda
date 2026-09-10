@@ -13,27 +13,21 @@
 	}
 }
 
-/*
- * The corridor foreground contains Pipipi walking with another child. It was
- * the only approved moving scene still reading too far left after the first
- * responsive pass, so this remains a deliberately small compositional nudge.
- */
+/* Pipipi and her friend remain the approved moving composition. */
 :global([data-scene="corredores"]) .corridorSubject.corridorSubject.corridorSubject {
 	left: 14%;
 }
 
 /*
- * The three hospital-bed scenes now use one finished illustration each.
- * There is no foreground layer to re-register and no scroll-driven image
- * transform: one frame, one composition, one viewport. This deliberately
- * trades parallax for visual integrity in the scenes where the bed geometry
- * made layered compositing fragile.
+ * These three hospital-bed moments use one finished frame each. The higher
+ * specificity is intentional: it wins over the generic scroll-scene heights
+ * without coupling the base cinematic component to individual story scenes.
  */
-:global([data-static-media="true"]) {
+:global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
 	height: 100svh;
 }
 
-:global([data-static-media="true"] > div) {
+:global([data-static-media="true"][data-static-media="true"] > div) {
 	position: relative;
 	top: auto;
 	height: 100svh;
@@ -55,10 +49,7 @@
 }
 
 @media (min-width: 901px) {
-	/*
-	 * Corridor copy belongs on the bright, empty half of the composition. The
-	 * shade follows the copy so the girls stay unobstructed on the left/centre.
-	 */
+	/* Keep the girls unobstructed; the copy belongs on the empty right side. */
 	:global([data-scene="corredores"] > div > div:nth-child(2)) {
 		left: auto;
 		right: max(48px, 5vw);
@@ -77,10 +68,7 @@
 			linear-gradient(0deg, rgba(3, 6, 5, 0.58) 0%, transparent 48%);
 	}
 
-	/*
-	 * "O último dia" keeps the text bed at the bottom while opening the
-	 * upper-left portrait area where Pipipi's mother sits in the unified art.
-	 */
+	/* Open the left portrait area while retaining a safe text bed below. */
 	.ultimoDiaShade.ultimoDiaShade {
 		background:
 			linear-gradient(
@@ -100,8 +88,54 @@
 }
 
 @media (max-width: 900px) {
-	:global([data-static-media="true"]) {
-		height: 100svh;
+	/*
+	 * A portrait cover crop cannot show both sides of these deliberately wide
+	 * hospital compositions. On compact screens the full 16:9 artwork is shown
+	 * once, intact, and the copy sits beneath it. No duplicated layer, no crop
+	 * roulette, no scroll effect.
+	 */
+	:global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
+		height: auto;
+		min-height: 0;
+	}
+
+	:global([data-static-media="true"][data-static-media="true"] > div) {
+		display: grid;
+		grid-template-rows: auto auto;
+		height: auto;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	:global([data-static-media="true"] > div > div:first-child) {
+		position: relative;
+		inset: auto;
+		aspect-ratio: 16 / 9;
+		width: 100%;
+		height: auto;
+	}
+
+	:global([data-static-media="true"] [aria-hidden="true"] > img:first-of-type) {
+		object-fit: cover;
+		object-position: 50% 50%;
+	}
+
+	:global([data-static-media="true"] > div > div:first-child > div:last-child) {
+		background: linear-gradient(0deg, rgba(3, 6, 5, 0.22), transparent 42%);
+	}
+
+	:global([data-static-media="true"] > div > div:nth-child(2)) {
+		position: relative;
+		left: auto;
+		right: auto;
+		bottom: auto;
+		width: 100%;
+		padding: 22px 20px 30px;
+		background: #050907;
+	}
+
+	:global([data-static-media="true"] > div > div:nth-child(2) h3) {
+		max-width: 100%;
 	}
 
 	:global([data-scene="corredores"]) .corridorSubject.corridorSubject.corridorSubject {
@@ -113,5 +147,9 @@
 	.heroGhostIdle.heroGhostIdle {
 		animation: none;
 		will-change: auto;
+	}
+
+	:global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
+		height: auto;
 	}
 }
