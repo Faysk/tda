@@ -116,10 +116,10 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          vercel curl /api/health --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" > health.json
-          vercel curl /api/version --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" > version.json
-          vercel curl / --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --output /dev/null
-          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" -- --fail --silent --show-error --output /dev/null
+          vercel curl /api/health --deployment "$DEPLOYMENT_URL" > health.json
+          vercel curl /api/version --deployment "$DEPLOYMENT_URL" > version.json
+          vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
 
           node --input-type=module -e '
             import fs from "node:fs";
