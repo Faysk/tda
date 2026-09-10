@@ -1,0 +1,30 @@
+{
+  "feature": "pipipi-cinematic-lore",
+  "preparedAt": "2026-09-10",
+  "runtimeDirectory": "public/lore/pipipi/",
+  "format": "AVIF",
+  "distribution": "tracked directly in Git; no build-time reconstruction or staging required",
+  "assetCount": 18,
+  "totalBytes": 439157,
+  "sourceTarSha256": "004856faeee6913abc82de080cec097d0065dc770c3017fca6d98f550495e0ec",
+  "assets": [
+    {"filename":"acordou-bg.avif","runtimePath":"/lore/pipipi/acordou-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":24872,"sha256":"39f409991b7ceb198637333153bd457ab9338a6405e54c79974db54bf24cf982"},
+    {"filename":"acordou-subject.avif","runtimePath":"/lore/pipipi/acordou-subject.avif","width":551,"height":680,"mode":"RGBA","alpha":true,"bytes":15879,"sha256":"3db06b2a8216576452e99cc5d485b9d4e5da4fee7f28ff64856b507ef4d1ec9d"},
+    {"filename":"cadeira-bg.avif","runtimePath":"/lore/pipipi/cadeira-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":28439,"sha256":"5a5a0f4281b46824c4302a815fafff452734d4e1f2908fb4ac4734c88887a26a"},
+    {"filename":"cadeira-subject.avif","runtimePath":"/lore/pipipi/cadeira-subject.avif","width":631,"height":680,"mode":"RGBA","alpha":true,"bytes":16607,"sha256":"1b9678741fa029ed6c76c84d91f9abdcdc94b91d7b7c44ab40886f9b367c0752"},
+    {"filename":"casa-bg.avif","runtimePath":"/lore/pipipi/casa-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":31338,"sha256":"a2e400c56b9e18db51f06213d211e7ed81118a2675a89feaf460bb5bdb2a1959"},
+    {"filename":"casa-subject.avif","runtimePath":"/lore/pipipi/casa-subject.avif","width":541,"height":680,"mode":"RGBA","alpha":true,"bytes":27283,"sha256":"a3ea5b4cad8cccbe90ed01ad7306436639995120c6bddee01638ca113f647820"},
+    {"filename":"corredores-bg.avif","runtimePath":"/lore/pipipi/corredores-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":29227,"sha256":"50b5c88cf596b7f8c6d434abc7065df7af9c458710fce82a6c1fecd4f080cd23"},
+    {"filename":"corredores-subject.avif","runtimePath":"/lore/pipipi/corredores-subject.avif","width":551,"height":680,"mode":"RGBA","alpha":true,"bytes":33509,"sha256":"2fb0164a92fd12008f53e42e9433212d4787d3d788dc05cd017c662693235b13"},
+    {"filename":"ghost-cry.avif","runtimePath":"/lore/pipipi/ghost-cry.avif","width":596,"height":600,"mode":"RGBA","alpha":true,"bytes":17008,"sha256":"381de7c9a2cd8163891c081ee04f2893f2caa82f5f2d9d88b70e350320d4ae92"},
+    {"filename":"ghost-flute.avif","runtimePath":"/lore/pipipi/ghost-flute.avif","width":589,"height":600,"mode":"RGBA","alpha":true,"bytes":18345,"sha256":"135c4fa5a20fd7447d1470944b2a8fc1ce7e8ea69944ae886d9c3bf3d0c23611"},
+    {"filename":"ghost-hearts.avif","runtimePath":"/lore/pipipi/ghost-hearts.avif","width":560,"height":600,"mode":"RGBA","alpha":true,"bytes":18345,"sha256":"38ba8074b24a7cf0fc7448d5b13684eadecd785ec07935568654d15170dec84f"},
+    {"filename":"ghost-soft.avif","runtimePath":"/lore/pipipi/ghost-soft.avif","width":600,"height":597,"mode":"RGBA","alpha":true,"bytes":17015,"sha256":"cd04c7e3fbbc647fbf44d18f9b76778a1d31c3b6f56a447cce99aa0a6a437272"},
+    {"filename":"ghost-surprise.avif","runtimePath":"/lore/pipipi/ghost-surprise.avif","width":600,"height":590,"mode":"RGBA","alpha":true,"bytes":17663,"sha256":"4b73eff366efc85b47fdaffcca30d99cf392f21e8c498549dc6a2cc7036ac5ce"},
+    {"filename":"stage-bg.avif","runtimePath":"/lore/pipipi/stage-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":27571,"sha256":"a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816"},
+    {"filename":"super-bg.avif","runtimePath":"/lore/pipipi/super-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":34743,"sha256":"c372648d38ce17fe1dd3eb70fe4d7a038f13278930f8001efca875b57e889a7d"},
+    {"filename":"super-subject.avif","runtimePath":"/lore/pipipi/super-subject.avif","width":544,"height":680,"mode":"RGBA","alpha":true,"bytes":17481,"sha256":"0613f27dd4dc910835fe293198ba8a04aaa69f06566c05f034154b2d2aeb720b"},
+    {"filename":"ultimo-dia-bg.avif","runtimePath":"/lore/pipipi/ultimo-dia-bg.avif","width":1280,"height":720,"mode":"RGB","alpha":false,"bytes":39771,"sha256":"4f5fdf9203746e4a32592ba924a3ea4a4ec7c98ef8104050a5ec635ea929ae44"},
+    {"filename":"ultimo-dia-subject.avif","runtimePath":"/lore/pipipi/ultimo-dia-subject.avif","width":544,"height":680,"mode":"RGBA","alpha":true,"bytes":24061,"sha256":"b4be9868ca7af9e31caebe4dfe9939d32c784c8d69455af3fb940b0dfa8cd00a"}
+  ]
+}
