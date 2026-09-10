@@ -133,11 +133,12 @@ GitHub Environments esperados:
 
 Repository variables de ativação:
 
-- `TDA_PREVIEW_CD_ENABLED=true` — permite que o workflow de Preview publique após CI verde;
-- `TDA_PRODUCTION_CD_ENABLED=true` — permite staged deployment, migration gate e promoção de Production após CI verde;
+- `TDA_CICD_BOOTSTRAP_READY=true` — trava mestra adicional exigida por **ambos** os CDs. Deve permanecer ausente/false durante o merge inicial e só ser ligada depois que os GitHub Environments/secrets estiverem configurados e a branch `Preview` alinhada;
+- `TDA_PREVIEW_CD_ENABLED=true` — permite que o workflow de Preview publique após CI verde, mas somente se a trava mestra também estiver ativa;
+- `TDA_PRODUCTION_CD_ENABLED=true` — permite staged deployment, migration gate e promoção de Production após CI verde, mas somente se a trava mestra também estiver ativa;
 - `TDA_ENFORCE_PROMOTION_SOURCE=true` — exige `Preview -> main` em PRs de produção.
 
-Os dois switches de CD devem permanecer ausentes/false durante o bootstrap. Isso garante que simplesmente integrar os workflows na `main` não publique nada. Ativar primeiro Preview, comprovar um ciclo completo de homologação e somente depois ativar Production.
+A trava mestra e os dois switches de CD devem permanecer ausentes/false durante o bootstrap. Isso garante que simplesmente integrar os workflows na `main` ou alinhar `Preview` não publique nada, inclusive se algum switch específico tiver sido criado anteriormente. Depois de configurar Environments/secrets, ativar a trava mestra e primeiro o Preview, comprovar um ciclo completo de homologação e somente então ativar Production.
 
 Os IDs não secretos de team/projeto Vercel e project ref Supabase ficam pinados nos workflows para impedir publicação acidental em outro contexto. Secrets runtime da aplicação continuam na Vercel por ambiente; os GitHub secrets acima existem apenas para controlar deployment/migration.
 
