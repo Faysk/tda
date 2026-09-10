@@ -2,6 +2,23 @@ import { expect, test } from "@playwright/test";
 
 const overlay = '[data-global-loading="off"][aria-busy="true"][aria-label="Carregando"]';
 
+async function startBlockingLoad(page: Parameters<typeof test>[0] extends never ? never : any) {
+	await page.evaluate(() => {
+		const marker = document.createElement("div");
+		marker.id = "global-loader-theme-marker";
+		marker.setAttribute("aria-busy", "true");
+		document.body.append(marker);
+	});
+	await expect(page.locator(overlay)).toBeVisible();
+}
+
+async function stopBlockingLoad(page: Parameters<typeof test>[0] extends never ? never : any) {
+	await page.evaluate(() => {
+		document.getElementById("global-loader-theme-marker")?.remove();
+	});
+	await expect(page.locator(overlay)).toHaveCount(0, { timeout: 2500 });
+}
+
 test("global loader follows blocking busy state without flashing for instant work", async ({
 	page,
 }) => {
@@ -45,4 +62,35 @@ test("global loader ignores explicitly background busy work", async ({ page }) =
 	});
 	await page.waitForTimeout(220);
 	await expect(page.locator(overlay)).toHaveCount(0);
+});
+
+test("global loader follows the active light and dark design-system theme", async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem("tda-theme", "light"));
+	await page.goto("/");
+	await startBlockingLoad(page);
+
+	const light = await page.locator(overlay).evaluate((element) => {
+		const logo = element.querySelector("img");
+		return {
+			background: getComputedStyle(element).backgroundImage,
+			filter: logo ? getComputedStyle(logo).filter : "missing",
+		};
+	});
+	await stopBlockingLoad(page);
+
+	await page.evaluate(() => localStorage.setItem("tda-theme", "dark"));
+	await page.reload();
+	await startBlockingLoad(page);
+
+	const dark = await page.locator(overlay).evaluate((element) => {
+		const logo = element.querySelector("img");
+		return {
+			background: getComputedStyle(element).backgroundImage,
+			filter: logo ? getComputedStyle(logo).filter : "missing",
+		};
+	});
+
+	expect(light.filter).not.toBe("none");
+	expect(dark.filter).toBe("none");
+	expect(light.background).not.toBe(dark.background);
 });
