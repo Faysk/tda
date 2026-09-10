@@ -28,7 +28,7 @@ env:
 jobs:
   deploy:
     name: deploy-preview
-    if: vars.TDA_PREVIEW_CD_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    if: vars.TDA_CICD_BOOTSTRAP_READY == 'true' && vars.TDA_PREVIEW_CD_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
