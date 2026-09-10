@@ -2,6 +2,7 @@ import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
 import { Eyebrow, SectionTitle } from "@/components/ui";
 import { buildPublicMetadata, SITE_NAME } from "@/config/public-metadata";
+import { LoreHomeEntry } from "@/features/lore/components/lore-home-entry";
 import {
 	formatSessionDate,
 	type PublishedSession,
@@ -132,6 +133,8 @@ export default async function Home() {
 					</div>
 				)}
 			</section>
+
+			<LoreHomeEntry />
 
 			<section className={styles.memories} aria-labelledby="memories-title">
 				<div className={styles.sectionHeading}>
