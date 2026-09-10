@@ -111,7 +111,7 @@
 	filter:
 		drop-shadow(0 24px 34px rgba(0, 0, 0, 0.28))
 		drop-shadow(0 0 34px rgba(143, 255, 145, 0.18));
-
+	animation: heroGhostFloat 5.8s ease-in-out 4;
 }
 
 .heroGhost img {
@@ -119,6 +119,11 @@
 	width: 100%;
 	height: 100%;
 	object-fit: contain;
+}
+
+@keyframes heroGhostFloat {
+	0%, 100% { transform: translate(-50%, -50%) rotate(-0.35deg); }
+	50% { transform: translate(-50%, calc(-50% - 9px)) rotate(0.45deg); }
 }
 
 .heroScrollCue {
@@ -240,7 +245,7 @@
 .storySection {
 	display: grid;
 	grid-template-columns: minmax(210px, 0.32fr) minmax(0, 0.68fr);
-	gap: clamp(28px, 7vw, 90px);
+	gap: clamp(36px, 7vw, 96px);
 	width: min(1080px, calc(100% - 40px));
 	margin: 0 auto;
 	padding-top: clamp(76px, 10vw, 142px);
@@ -251,20 +256,24 @@
 	position: sticky;
 	top: 92px;
 	align-self: start;
+	min-width: 0;
+	container-type: inline-size;
 }
 
 .storySection h2 {
+	max-width: 100%;
 	margin: 0;
-	font: 600 clamp(2rem, 4vw, 4.2rem) / 1 var(--ds-font-display);
+	font: 600 clamp(2.2rem, 20cqi, 4.2rem) / 0.98 var(--ds-font-display);
 	letter-spacing: -0.045em;
 	text-wrap: balance;
 }
 
 .storySectionMajor h2 {
-	font-size: clamp(2.5rem, 5.3vw, 5.8rem);
+	font-size: clamp(2.6rem, 23cqi, 5rem);
 }
 
 .prose {
+	min-width: 0;
 	display: grid;
 	gap: 1.12em;
 	color: var(--ds-foreground-soft);
@@ -388,7 +397,7 @@
 
 .sceneBackground {
 	object-fit: cover;
-	object-position: center;
+	object-position: var(--scene-focus-x, 50%) var(--scene-focus-y, 50%);
 	transform: translate3d(var(--scene-bg-x), var(--scene-bg-y), 0) scale(var(--scene-bg-scale));
 	will-change: transform;
 }
@@ -460,7 +469,7 @@
 	z-index: 20;
 	left: max(24px, 5vw);
 	bottom: max(36px, 7vh);
-	width: min(650px, 44vw);
+	width: min(620px, 41vw);
 	color: #fff;
 	text-shadow: 0 3px 24px rgba(0, 0, 0, 0.64);
 	opacity: var(--scene-copy-opacity);
@@ -478,7 +487,7 @@
 
 .sceneCopy h3 {
 	margin: 0 0 16px;
-	font: 600 clamp(2.8rem, 6vw, 7rem) / 0.9 var(--ds-font-display);
+	font: 600 clamp(2.8rem, 5.4vw, 6.4rem) / 0.9 var(--ds-font-display);
 	letter-spacing: -0.055em;
 	text-wrap: balance;
 }
@@ -486,7 +495,7 @@
 .sceneCopy > p:last-child {
 	max-width: 52ch;
 	margin: 0;
-	color: rgba(255, 255, 255, 0.8);
+	color: rgba(255, 255, 255, 0.82);
 	font: 400 clamp(0.92rem, 1.15vw, 1.08rem) / 1.6 var(--ds-font-body);
 }
 
@@ -546,7 +555,6 @@
 	width: 100%;
 	height: auto;
 	filter: drop-shadow(0 0 32px rgba(139, 240, 141, 0.24));
-
 }
 
 .afterAct {
@@ -571,7 +579,6 @@
 	height: auto;
 	opacity: 0.88;
 	filter: drop-shadow(0 0 28px rgba(139, 240, 141, 0.18));
-
 }
 
 .ghostInterludeRight img { right: 2%; }
@@ -624,19 +631,29 @@
 	.partNumber { font-size: 3.7rem; }
 	.storySection { grid-template-columns: 1fr; gap: 24px; }
 	.storySection header { position: static; }
+	.storySection h2,
+	.storySectionMajor h2 { font-size: clamp(2.35rem, 9vw, 4.35rem); }
 	.cinematicScene { height: 145svh; }
 	.cinematicScene[data-motion="breath"] { height: 128svh; }
 	.cinematicScene[data-motion="showcase"] { height: 165svh; }
 	.cinematicStage { height: 100svh; top: 0; }
-	.sceneCopy { left: 20px; right: 20px; bottom: 22px; width: auto; }
-	.sceneCopy h3 { font-size: clamp(2.2rem, 10vw, 4.2rem); max-width: 92%; }
-	.sceneShade { background: linear-gradient(0deg, rgba(3, 6, 5, 0.88), rgba(3, 6, 5, 0.1) 65%); }
+	.sceneBackground {
+		object-position:
+			var(--scene-mobile-focus-x, var(--scene-focus-x, 50%))
+			var(--scene-mobile-focus-y, var(--scene-focus-y, 50%));
+	}
+	.sceneCopy { left: 20px; right: 24px; bottom: max(24px, env(safe-area-inset-bottom)); width: auto; }
+	.sceneCopy h3 { font-size: clamp(2.15rem, 9vw, 3.9rem); max-width: 88%; }
+	.sceneShade {
+		background:
+			linear-gradient(0deg, rgba(3, 6, 5, 0.92) 0%, rgba(3, 6, 5, 0.5) 28%, rgba(3, 6, 5, 0.08) 68%, transparent 82%);
+	}
 	.cinematicScene[data-scene="casa"] .sceneSubject { left: 38%; bottom: -4%; width: min(62vw, 520px); }
 	.cinematicScene[data-scene="super-herois"] .sceneSubject,
 	.cinematicScene[data-scene="cadeira"] .sceneSubject,
-	.cinematicScene[data-scene="ultimo-dia"] .sceneSubject { left: -4%; bottom: -8%; width: min(72vw, 620px); }
-	.cinematicScene[data-scene="corredores"] .sceneSubject { left: -4%; bottom: -12%; width: min(78vw, 650px); }
-	.cinematicScene[data-scene="acordou"] .sceneSubject { right: -2%; top: 5%; width: min(48vw, 360px); }
+	.cinematicScene[data-scene="ultimo-dia"] .sceneSubject { left: -2%; bottom: -8%; width: min(70vw, 600px); }
+	.cinematicScene[data-scene="corredores"] .sceneSubject { left: -2%; bottom: -10%; width: min(74vw, 610px); }
+	.cinematicScene[data-scene="acordou"] .sceneSubject { right: 6%; top: 8%; width: min(40vw, 320px); }
 	.ghostArrival,
 	.finale { grid-template-columns: 1fr; }
 	.ghostArrival img,
@@ -652,9 +669,8 @@
 	.partHeader,
 	.storySection { width: min(100% - 32px, 760px); }
 	.cinematicStage { height: 100svh; top: 0; }
-	.sceneBackground { object-position: center; }
-	.sceneCopy > p:last-child { font-size: 0.84rem; }
-	.sceneProgress { right: 8px; }
+	.sceneCopy > p:last-child { font-size: 0.9rem; }
+	.sceneProgress { right: 12px; }
 	.turningPoint { width: calc(100% - 20px); border-radius: 26px; }
 	.ghostArrival,
 	.finale { width: calc(100% - 20px); padding: 30px 22px; }
