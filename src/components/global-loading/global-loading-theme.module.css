@@ -24,14 +24,6 @@
 	--loader-theme-spark: rgba(247, 242, 232, 0.9);
 	--loader-theme-spark-glow: rgba(247, 242, 232, 0.32);
 	--loader-theme-logo-filter: none;
-
-	background:
-		radial-gradient(
-			circle at 50% 47%,
-			var(--loader-theme-center),
-			transparent 30%
-		),
-		var(--loader-theme-backdrop);
 }
 
 :global(:root[data-theme="light"]) .overlay {
@@ -82,7 +74,18 @@
 	}
 }
 
-.overlay::before {
+/* Extra specificity keeps the theme layer authoritative regardless of CSS chunk order. */
+.overlay.overlay {
+	background:
+		radial-gradient(
+			circle at 50% 47%,
+			var(--loader-theme-center),
+			transparent 30%
+		),
+		var(--loader-theme-backdrop);
+}
+
+.overlay.overlay::before {
 	background: radial-gradient(
 		ellipse at center,
 		transparent 0 30%,
@@ -91,7 +94,7 @@
 	);
 }
 
-.haloOuter {
+.overlay .haloOuter {
 	background: radial-gradient(
 		circle,
 		var(--loader-theme-halo-outer),
@@ -100,14 +103,14 @@
 	);
 }
 
-.haloMid {
+.overlay .haloMid {
 	border-color: var(--loader-theme-halo-mid);
 	box-shadow:
 		0 0 34px var(--loader-theme-halo-mid),
 		inset 0 0 30px var(--loader-theme-halo-mid-inner);
 }
 
-.haloCore {
+.overlay .haloCore {
 	background: radial-gradient(
 		circle,
 		var(--loader-theme-halo-core),
@@ -115,41 +118,41 @@
 	);
 }
 
-.logoShadow {
+.overlay .logoShadow {
 	background: var(--loader-theme-shadow);
 }
 
-.logoImage {
+.overlay .logoImage {
 	filter: var(--loader-theme-logo-filter);
 	transition: filter var(--ds-motion-theme) var(--ds-ease-standard);
 }
 
-.orbitOne {
+.overlay .orbitOne {
 	border-color: var(--loader-theme-orbit-one);
 }
 
-.orbitTwo {
+.overlay .orbitTwo {
 	border-color: var(--loader-theme-orbit-two);
 }
 
-.orbitThree {
+.overlay .orbitThree {
 	border-color: var(--loader-theme-orbit-three);
 }
 
-.orbitPoint {
+.overlay .orbitPoint {
 	background: var(--loader-theme-orbit-point);
 	box-shadow: 0 0 14px var(--loader-theme-orbit-glow);
 }
 
-.trailOne {
+.overlay .trailOne {
 	border-top-color: var(--loader-theme-trail-one);
 }
 
-.trailTwo {
+.overlay .trailTwo {
 	border-bottom-color: var(--loader-theme-trail-two);
 }
 
-.spark {
+.overlay .spark {
 	background: var(--loader-theme-spark);
 	box-shadow: 0 0 12px var(--loader-theme-spark-glow);
 }
