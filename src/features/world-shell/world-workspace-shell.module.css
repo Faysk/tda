@@ -208,6 +208,11 @@
 		padding-top: 18px;
 	}
 
+	.closeNavigation {
+		width: 44px;
+		height: 44px;
+	}
+
 	.mobileBackdrop {
 		position: fixed;
 		inset: 0;
