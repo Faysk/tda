@@ -11,8 +11,10 @@ import {
 } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
 import {
+	applyWorldFlowSelection,
 	rerouteWorldEdges,
 	toReactFlowGraph,
+	toReactFlowStructure,
 	type WorldFlowEdge,
 	type WorldFlowNode,
 } from "../adapters/react-flow";
@@ -128,9 +130,13 @@ export function WorldExplorerClient({
 		graphDraft: edit.graphDraft,
 	});
 
+	const graphStructure = useMemo(
+		() => toReactFlowStructure(visibleProjection, positionOverrides),
+		[visibleProjection, positionOverrides],
+	);
 	const graph = useMemo(
-		() => toReactFlowGraph(visibleProjection, selectedId, positionOverrides),
-		[visibleProjection, selectedId, positionOverrides],
+		() => applyWorldFlowSelection(graphStructure, selectedId),
+		[graphStructure, selectedId],
 	);
 	const [nodes, setNodes, onNodesChange] = useNodesState<WorldFlowNode>(graph.nodes);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<WorldFlowEdge>(graph.edges);
