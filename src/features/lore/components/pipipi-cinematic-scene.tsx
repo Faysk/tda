@@ -82,7 +82,7 @@ export function PipipiCinematicScene({
 			root.style.setProperty("--scene-bg-y", "0px");
 			root.style.setProperty(
 				"--scene-bg-scale",
-				compactViewport.matches ? "1.018" : "1.035",
+				staticMedia ? "1" : compactViewport.matches ? "1.018" : "1.035",
 			);
 			root.style.setProperty("--scene-subject-x", "0px");
 			root.style.setProperty("--scene-subject-y", "0px");
@@ -90,6 +90,14 @@ export function PipipiCinematicScene({
 			root.style.setProperty("--scene-copy-opacity", "1");
 			root.style.setProperty("--scene-copy-y", "0px");
 		};
+
+		if (staticMedia) {
+			resetMotion();
+			root.dataset.active = "true";
+			return () => {
+				delete root.dataset.active;
+			};
+		}
 
 		const render = () => {
 			frame = 0;
@@ -114,40 +122,30 @@ export function PipipiCinematicScene({
 			const baseScale = isCompact ? 1.018 : 1.035;
 
 			root.style.setProperty("--scene-progress", progress.toFixed(4));
-
-			if (staticMedia) {
-				root.style.setProperty("--scene-bg-x", "0px");
-				root.style.setProperty("--scene-bg-y", "0px");
-				root.style.setProperty("--scene-bg-scale", baseScale.toFixed(3));
-				root.style.setProperty("--scene-subject-x", "0px");
-				root.style.setProperty("--scene-subject-y", "0px");
-				root.style.setProperty("--scene-subject-scale", "1");
-			} else {
-				root.style.setProperty(
-					"--scene-bg-x",
-					`${centered * amount.x * backgroundXScale}px`,
-				);
-				root.style.setProperty(
-					"--scene-bg-y",
-					`${centered * amount.y * backgroundYScale}px`,
-				);
-				root.style.setProperty(
-					"--scene-bg-scale",
-					(baseScale + progress * amount.scale * zoomScale).toFixed(4),
-				);
-				root.style.setProperty(
-					"--scene-subject-x",
-					`${centered * -amount.x * 1.45 * subjectXScale}px`,
-				);
-				root.style.setProperty(
-					"--scene-subject-y",
-					`${(0.5 - progress) * amount.subjectY * subjectYScale}px`,
-				);
-				root.style.setProperty(
-					"--scene-subject-scale",
-					(0.985 + progress * amount.scale * 0.7 * zoomScale).toFixed(4),
-				);
-			}
+			root.style.setProperty(
+				"--scene-bg-x",
+				`${centered * amount.x * backgroundXScale}px`,
+			);
+			root.style.setProperty(
+				"--scene-bg-y",
+				`${centered * amount.y * backgroundYScale}px`,
+			);
+			root.style.setProperty(
+				"--scene-bg-scale",
+				(baseScale + progress * amount.scale * zoomScale).toFixed(4),
+			);
+			root.style.setProperty(
+				"--scene-subject-x",
+				`${centered * -amount.x * 1.45 * subjectXScale}px`,
+			);
+			root.style.setProperty(
+				"--scene-subject-y",
+				`${(0.5 - progress) * amount.subjectY * subjectYScale}px`,
+			);
+			root.style.setProperty(
+				"--scene-subject-scale",
+				(0.985 + progress * amount.scale * 0.7 * zoomScale).toFixed(4),
+			);
 
 			root.style.setProperty(
 				"--scene-copy-opacity",
