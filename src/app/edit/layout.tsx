@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EditShell } from "@/features/edit/shell/edit-shell";
 
 export const metadata: Metadata = {
 	robots: {
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function EditLayout({ children }: { children: React.ReactNode }) {
-	return children;
+	return <EditShell>{children}</EditShell>;
 }
