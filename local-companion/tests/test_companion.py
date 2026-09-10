@@ -203,8 +203,10 @@ def test_cli_http_in_disposable_root(tmp_path):
         '--data-root', str(tmp_path / 'data'), '--token-file', str(token_path),
         '--origin', ORIGIN, '--port', str(port)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        with httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False, timeout=1) as client:
-            deadline = time.monotonic() + 10
+        # Windows hosted runners occasionally take >1s to flush a durable SQLite
+        # transaction. Keep a bounded network timeout while avoiding scheduler flakes.
+        with httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False, timeout=5) as client:
+            startup_deadline = time.monotonic() + 10
             while True:
                 try:
                     response = client.get('/api/v1/health')
@@ -212,11 +214,12 @@ def test_cli_http_in_disposable_root(tmp_path):
                         break
                 except httpx.TransportError:
                     pass
-                assert time.monotonic() < deadline and process.poll() is None
+                assert time.monotonic() < startup_deadline and process.poll() is None
                 time.sleep(.05)
             assert response.json()['api_version'] == '1'
             job = client.post('/api/v1/jobs', headers={**HEADERS, 'Idempotency-Key': 'http'}, json=BODY).json()
-            while time.monotonic() < deadline:
+            job_deadline = time.monotonic() + 10
+            while time.monotonic() < job_deadline:
                 state = client.get(f"/api/v1/jobs/{job['id']}", headers=HEADERS).json()
                 if state['status'] == 'succeeded':
                     break

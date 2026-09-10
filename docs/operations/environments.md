@@ -96,6 +96,12 @@ Production usa a base existente. Preview não deve ganhar acesso total à produ�
 
 Mesmo no bypass temporário, `SUPABASE_SECRET_KEY` permanece server-only. O browser chama Server Components/Actions; não recebe cliente privilegiado.
 
+Na esteira vigente, Preview não executa `db push` contra Production. Migrations entram no Git, passam pelos testes sintéticos e pela política `tools/ci/check-migrations.mjs`; somente o workflow de Production liga explicitamente ao projeto `dmrqnbdvbkfqzctcerbx`.
+
+O migration history canônico contém entradas legadas anteriores ao reboot TDA que deliberadamente não são copiadas para este repositório. O boundary do TDA é `20260906210333`. Antes de qualquer push, Production cria um workdir Supabase efêmero, busca nele o history remoto, recusa entradas remotas desconhecidas a partir desse boundary e sobrepõe o conjunto TDA com os arquivos autoritativos de `supabase/migrations`. O `db push --dry-run --skip-vault` e o apply rodam somente nesse overlay. Depois do apply, o history é buscado novamente e o conjunto remoto a partir do boundary deve ser exatamente igual ao conjunto deployável do repo antes que o workflow prossiga para smoke/promotion. O overlay não usa `migration repair` e é descartado com o runner.
+
+Alterações destrutivas novas exigem revisão explícita e devem preferir expand → migrate → contract para preservar compatibilidade com a versão ainda publicada.
+
 ## R2 por ambiente
 
 - production public/private separados por audience;
@@ -105,6 +111,38 @@ Mesmo no bypass temporário, `SUPABASE_SECRET_KEY` permanece server-only. O brow
 ## Vercel
 
 Antes de qualquer write/deploy, verificar conta correta. Uma ferramenta conectada a `DND/dndscribe` ou outro team não prova que estamos no contexto `projeto-desenv-6905`.
+
+A publicação automática da integração Git permanece desligada (`git.deploymentEnabled=false`). O GitHub Actions é o controlador da entrega: ele constrói artefatos com Vercel CLI pinada, publica Preview a partir de `Preview` e cria Production staged a partir de `main`. O domínio `dnd.faysk.dev` só troca de deployment após smoke positivo e `vercel promote` do mesmo artefato testado.
+
+## Esteira CI/CD
+
+Há três ambientes lógicos e dois targets cloud:
+
+| Ambiente | Fonte | Publicação | Dados |
+| --- | --- | --- | --- |
+| Development | branches temporárias | nenhuma | local/sintético/configurado deliberadamente |
+| Preview | branch `Preview` | Vercel Preview após CI verde | sem migration automática em Production; R2 Preview |
+| Production | branch `main` | Vercel staged → DB overlay/gates → smoke → promote para `dnd.faysk.dev` | Supabase Production + R2 Production |
+
+Fluxo obrigatório após o bootstrap: branch temporária → PR para `Preview` → CI → Preview CD → homologação → PR `Preview` para `main` → CI → Production CD. O check `promotion-source` pode ser ativado com a repository variable `TDA_ENFORCE_PROMOTION_SOURCE=true`; uma vez ativo, PRs para `main` que não venham de `Preview` falham.
+
+GitHub Environments esperados:
+
+- `preview`: secret `VERCEL_TOKEN`;
+- `production`: secrets `VERCEL_TOKEN`, `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD`.
+
+Repository variables de ativação:
+
+- `TDA_CICD_BOOTSTRAP_READY=true` — trava mestra adicional exigida por **ambos** os CDs. Deve permanecer ausente/false durante o merge inicial e só ser ligada depois que os GitHub Environments/secrets estiverem configurados e a branch `Preview` alinhada;
+- `TDA_PREVIEW_CD_ENABLED=true` — permite que o workflow de Preview publique após CI verde, mas somente se a trava mestra também estiver ativa;
+- `TDA_PRODUCTION_CD_ENABLED=true` — permite staged deployment, migration gate e promoção de Production após CI verde, mas somente se a trava mestra também estiver ativa;
+- `TDA_ENFORCE_PROMOTION_SOURCE=true` — exige `Preview -> main` em PRs de produção.
+
+A trava mestra e os dois switches de CD devem permanecer ausentes/false durante o bootstrap. Isso garante que simplesmente integrar os workflows na `main` ou alinhar `Preview` não publique nada, inclusive se algum switch específico tiver sido criado anteriormente. Depois de configurar Environments/secrets, ativar a trava mestra e primeiro o Preview, comprovar um ciclo completo de homologação e somente então ativar Production.
+
+Os IDs não secretos de team/projeto Vercel e project ref Supabase ficam pinados nos workflows para impedir publicação acidental em outro contexto. Secrets runtime da aplicação continuam na Vercel por ambiente; os GitHub secrets acima existem apenas para controlar deployment/migration.
+
+O bootstrap da política exige alinhar a branch `Preview` ao `main` atual antes de habilitar `TDA_ENFORCE_PROMOTION_SOURCE`. Depois disso, `main` representa somente releases promovidas pela linha de homologação.
 
 ## Local companion
 

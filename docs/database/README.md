@@ -14,6 +14,7 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 - [RLS, RBAC, RPCs e segurança](security.md)
 - [Inventário de RPCs privilegiadas](rpc-inventory.md)
 - [Migrations e evolução do schema](migrations.md)
+- [Reconciliações do migration history](migration-reconciliations.md)
 - [Log de verificações de produção](verification-log.md)
 - [Modelo canônico de domínio](../data-model.md)
 - [Auditoria datada do banco](../database-audit.md)
