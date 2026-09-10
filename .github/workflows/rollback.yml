@@ -1,0 +1,94 @@
+name: Production Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: Vercel deployment URL or ID to restore
+        required: true
+        type: string
+      confirm:
+        description: Type ROLLBACK_TDA to confirm production traffic change
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: tda-production
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  VERCEL_CLI_VERSION: 59.11.7
+  PRODUCTION_ORIGIN: https://dnd.faysk.dev
+
+jobs:
+  rollback:
+    name: rollback-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://dnd.faysk.dev
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TARGET_DEPLOYMENT: ${{ inputs.deployment }}
+      CONFIRMATION: ${{ inputs.confirm }}
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Validate rollback request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONFIRMATION" == "ROLLBACK_TDA" ]] || { echo "::error::Confirmation must be exactly ROLLBACK_TDA"; exit 1; }
+          [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing production secret VERCEL_TOKEN"; exit 1; }
+          [[ -n "${TARGET_DEPLOYMENT:-}" ]] || { echo "::error::Missing rollback deployment"; exit 1; }
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      - name: Inspect rollback candidate
+        run: vercel inspect "$TARGET_DEPLOYMENT" --token="$VERCEL_TOKEN"
+
+      - name: Read candidate version before changing traffic
+        run: vercel curl /api/version --deployment "$TARGET_DEPLOYMENT" --token="$VERCEL_TOKEN" > target-version.json
+
+      - name: Roll back Production traffic
+        run: vercel rollback "$TARGET_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
+
+      - name: Verify canonical Production matches rollback candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 --retry-all-errors \
+            "$PRODUCTION_ORIGIN/api/health" > canonical-health.json
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 --retry-all-errors \
+            "$PRODUCTION_ORIGIN/api/version" > canonical-version.json
+
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const target = JSON.parse(fs.readFileSync("target-version.json", "utf8"));
+            const canonical = JSON.parse(fs.readFileSync("canonical-version.json", "utf8"));
+            const health = JSON.parse(fs.readFileSync("canonical-health.json", "utf8"));
+            if (health.ok !== true) throw new Error("Canonical health failed after rollback");
+            if (target.commit !== canonical.commit) throw new Error(`Rollback commit mismatch: target=${target.commit} canonical=${canonical.commit}`);
+            if (target.release !== canonical.release) throw new Error(`Rollback release mismatch: target=${target.release} canonical=${canonical.release}`);
+          '
+
+      - name: Rollback receipt
+        shell: bash
+        run: |
+          {
+            echo "## TDA Production rollback"
+            echo "- Candidate: \`$TARGET_DEPLOYMENT\`"
+            echo "- Canonical: $PRODUCTION_ORIGIN"
+            echo "- Health/version verification: PASS"
+            echo "- Database rollback: NOT PERFORMED (by design)"
+          } >> "$GITHUB_STEP_SUMMARY"
