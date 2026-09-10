@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { GlobalLoadingProvider } from "@/components/global-loading";
+import {
+	GlobalFormLoadingBridge,
+	GlobalLoadingProvider,
+} from "@/components/global-loading";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
@@ -29,6 +32,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 			<body>
 				<ThemeBootstrap />
 				<GlobalLoadingProvider>
+					<GlobalFormLoadingBridge />
 					<LegacyRouteBridge />
 					<a href="#conteudo" className="skip-link">
 						Pular para o conteúdo
