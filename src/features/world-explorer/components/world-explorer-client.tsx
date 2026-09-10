@@ -10,7 +10,6 @@ import {
 	type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
-import { Select } from "@/components/ui";
 import {
 	rerouteWorldEdges,
 	toReactFlowGraph,
@@ -24,43 +23,16 @@ import {
 	projectionWithWorldDraft,
 	useWorldExplorerView,
 } from "../hooks/use-world-explorer-view";
-import type {
-	WorldFilter,
-	WorldGraphProjection,
-	WorldLayoutProjection,
-	WorldRelationFilter,
-} from "../model";
+import type { WorldGraphProjection, WorldLayoutProjection } from "../model";
 import { WorldCanvas } from "./world-canvas";
 import { WorldContentEditor } from "./world-content-editor";
+import { WorldFloatingChrome } from "./world-floating-chrome";
 import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
 } from "./world-inspector";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
-
-const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
-	{ value: "all", label: "Todos" },
-	{ value: "characters", label: "Personagens" },
-	{ value: "npcs", label: "NPCs" },
-	{ value: "locations", label: "Lugares" },
-	{ value: "factions", label: "Facções" },
-	{ value: "songs", label: "Músicas" },
-	{ value: "moments", label: "Momentos" },
-];
-
-const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
-	{ value: "all", label: "Todas as relações" },
-	{ value: "affinity", label: "Afinidade" },
-	{ value: "conflict", label: "Conflito" },
-	{ value: "family", label: "Família" },
-	{ value: "authority", label: "Autoridade" },
-	{ value: "faction", label: "Facção" },
-	{ value: "mystic", label: "Místico" },
-	{ value: "creative", label: "Criativo" },
-	{ value: "origin", label: "Origem" },
-	{ value: "context", label: "Contexto" },
-];
 
 function clampPanelWidth(value: number) {
 	return Math.min(520, Math.max(320, value));
@@ -254,23 +226,6 @@ export function WorldExplorerClient({
 						{workingProjection.demo ? (
 							<span className={styles.demoBadge}>Demo · não canônico</span>
 						) : null}
-						<fieldset className={styles.viewToggle}>
-							<legend className={styles.srOnly}>Modo de visualização</legend>
-							<button
-								type="button"
-								aria-pressed={view === "canvas"}
-								onClick={() => setView("canvas")}
-							>
-								Canvas
-							</button>
-							<button
-								type="button"
-								aria-pressed={view === "list"}
-								onClick={() => setView("list")}
-							>
-								Lista
-							</button>
-						</fieldset>
 						{canEditLayout && projection.mode === "overview" ? (
 							<div className={styles.editGroup}>
 								<button
@@ -336,73 +291,21 @@ export function WorldExplorerClient({
 					</div>
 				) : null}
 
-				<div className={`${styles.toolbar} ${responsive.toolbar}`}>
-					<label className={`${styles.searchField} ${responsive.search}`}>
-						<span className={styles.srOnly}>Buscar no mundo</span>
-						<span aria-hidden="true">⌕</span>
-						<input
-							type="search"
-							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Buscar pessoa, lugar ou memória..."
-						/>
-					</label>
-					<div className={`${styles.relationSelect} ${responsive.relation}`}>
-						<span>Relação</span>
-						<Select
-							value={relationFilter}
-							options={RELATION_OPTIONS}
-							onChange={setRelationFilter}
-							ariaLabel="Filtrar por relação"
-							embedded
-						/>
-					</div>
-					<button
-						className={`${styles.resetButton} ${responsive.reset}`}
-						type="button"
-						disabled={edit.busy}
-						onClick={resetLayout}
-					>
-						{edit.editing ? "Restaurar posições" : "Reorganizar"}
-					</button>
-				</div>
-
-				<fieldset className={styles.filters} aria-label="Filtrar o grafo">
-					{FILTER_OPTIONS.map((option) => (
-						<button
-							key={option.value}
-							type="button"
-							className={filter === option.value ? styles.filterActive : undefined}
-							aria-pressed={filter === option.value}
-							onClick={() => setFilter(option.value)}
-						>
-							{option.label}
-						</button>
-					))}
-				</fieldset>
-
-				{workingProjection.demo ? (
-					<fieldset className={styles.relationLegend}>
-						<legend className={styles.srOnly}>Legenda de relações</legend>
-						<span data-family="affinity">Afinidade</span>
-						<span data-family="conflict">Conflito</span>
-						<span data-family="family">Família</span>
-						<span data-family="mystic">Místico</span>
-						<span data-family="creative">Criativo</span>
-					</fieldset>
-				) : activeRelationTypes.length ? (
-					<fieldset className={styles.relationLegend}>
-						<legend className={styles.srOnly}>Legenda de tipos de ligação</legend>
-						{activeRelationTypes.map((type) => (
-							<span
-								key={type.slug}
-								style={{ "--world-relation-color": type.style.color } as CSSProperties}
-							>
-								{type.label}
-							</span>
-						))}
-					</fieldset>
-				) : null}
+				<WorldFloatingChrome
+					query={query}
+					onQueryChange={setQuery}
+					filter={filter}
+					onFilterChange={setFilter}
+					relationFilter={relationFilter}
+					onRelationFilterChange={setRelationFilter}
+					view={view}
+					onViewChange={setView}
+					onReset={resetLayout}
+					resetLabel={edit.editing ? "Restaurar posições" : "Reorganizar"}
+					resetDisabled={edit.busy}
+					demo={workingProjection.demo}
+					activeRelationTypes={activeRelationTypes}
+				/>
 
 				{view === "canvas" ? (
 					<WorldCanvas
@@ -464,12 +367,12 @@ export function WorldExplorerClient({
 							onDraftChange={edit.updateGraphDraft}
 							onSelect={setSelectedId}
 						/>
-					) : edit.state === "publishing" && canEditContent ? (
+				) : edit.state === "publishing" && canEditContent ? (
 						<div className={styles.overviewInspector}>
 							<h2>Publicando…</h2>
 							<p>Validando o rascunho e registrando as alterações do Mundo.</p>
 						</div>
-					) : selected ? (
+				) : selected ? (
 						<WorldInspectorContent
 							key={selected.id}
 							selected={selected}
@@ -478,7 +381,7 @@ export function WorldExplorerClient({
 							onSelect={setSelectedId}
 							editing={edit.editing}
 						/>
-					) : (
+				) : (
 						<div className={styles.overviewInspector}>
 							<h2>Visão geral</h2>
 							<p>
