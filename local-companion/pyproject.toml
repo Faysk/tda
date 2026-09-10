@@ -3,7 +3,12 @@ name = "tda-companion"
 version = "0.1.0"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
-dependencies = ["fastapi==0.141.1", "uvicorn==0.52.4"]
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn==0.52.4",
+    "psutil==7.2.2",
+    "nvidia-ml-py==13.610.43",
+]
 
 [project.optional-dependencies]
 test = ["httpx==0.28.1", "pytest==9.1.1"]
