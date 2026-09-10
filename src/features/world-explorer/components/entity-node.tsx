@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import type { WorldFlowNode } from "../adapters/react-flow";
 import {
 	WORLD_PORT_LANES,
@@ -80,7 +80,7 @@ function stateLabel(isFocus: boolean, selected: boolean): string | null {
 	return null;
 }
 
-export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
+function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed } = data;
 	const kind = visualKind(item, isHero);
 	const state = stateLabel(isFocus, selected);
@@ -145,3 +145,5 @@ export function WorldEntityNode({ data, selected }: NodeProps<WorldFlowNode>) {
 		</div>
 	);
 }
+
+export const WorldEntityNode = memo(WorldEntityNodeComponent);
