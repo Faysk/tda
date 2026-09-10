@@ -117,6 +117,37 @@ test("mobile navigation closes with Escape and returns focus to its trigger", as
 	await expect(trigger).toBeFocused();
 });
 
+test("mobile navigation contains keyboard focus while its overlay is open", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile focus containment contract.");
+
+	await page.goto("/mundo");
+	const navigation = page.getByTestId("world-workspace-navigation");
+	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByRole("button", { name: "Recolher navegação do mundo" }).first()).toBeFocused();
+
+	await page.keyboard.press("Shift+Tab");
+	await expect
+		.poll(() =>
+			navigation.evaluate((panel) =>
+				Boolean(document.activeElement && panel.contains(document.activeElement)),
+			),
+		)
+		.toBe(true);
+
+	for (let step = 0; step < 8; step += 1) {
+		await page.keyboard.press("Tab");
+		await expect
+			.poll(() =>
+				navigation.evaluate((panel) =>
+					Boolean(document.activeElement && panel.contains(document.activeElement)),
+				),
+			)
+			.toBe(true);
+	}
+});
+
 test("collapsed mobile inspector leaves document flow and keeps only its reopen control", async ({
 	page,
 }, testInfo) => {
