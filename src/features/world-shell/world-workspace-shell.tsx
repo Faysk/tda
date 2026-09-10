@@ -26,11 +26,16 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	}, []);
 
 	useEffect(() => {
-		if (!navigationOpen || !window.matchMedia("(max-width: 820px)").matches) return;
+		const mobile = window.matchMedia("(max-width: 820px)");
+		if (!navigationOpen || !mobile.matches) return;
 
 		window.requestAnimationFrame(() => navigationCloseRef.current?.focus());
 
 		const containNavigationFocus = (event: KeyboardEvent) => {
+			// This listener can survive a mobile -> desktop resize when navigationOpen
+			// remains true, so revalidate the responsive contract on every key event.
+			if (!mobile.matches) return;
+
 			if (event.key === "Escape") {
 				event.preventDefault();
 				setNavigationOpen(false);
