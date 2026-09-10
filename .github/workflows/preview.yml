@@ -61,6 +61,11 @@ jobs:
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "short=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
