@@ -16,11 +16,11 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	"super-herois": {
 		focalPoint: { x: 50, y: 50 },
 		mobileFocalPoint: { x: 50, y: 50 },
-		mobileMotion: { backgroundX: 0.04, scale: 0.24 },
+		staticMedia: true,
 	},
 	corredores: {
 		focalPoint: { x: 50, y: 50 },
-		mobileFocalPoint: { x: 51, y: 50 },
+		mobileFocalPoint: { x: 50, y: 50 },
 		mobileMotion: {
 			backgroundX: 0,
 			backgroundY: 0.22,
@@ -34,25 +34,14 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 		// The portrait crop intentionally favors the mother's chair; Pipipi is a
 		// separate foreground layer and remains visible on the left.
 		mobileFocalPoint: { x: 72, y: 50 },
-		mobileMotion: {
-			backgroundX: 0,
-			backgroundY: 0.18,
-			subjectX: 0.1,
-			subjectY: 0.18,
-			scale: 0.18,
-		},
+		staticMedia: true,
 	},
 	"ultimo-dia": {
 		focalPoint: { x: 50, y: 50 },
-		// Current portrait composition is already strong; preserve it.
+		// Current portrait composition is already strong; preserve it exactly
+		// while scrolling instead of spending crop room on decorative parallax.
 		mobileFocalPoint: { x: 50, y: 50 },
-		mobileMotion: {
-			backgroundX: 0,
-			backgroundY: 0.18,
-			subjectX: 0.1,
-			subjectY: 0.16,
-			scale: 0.18,
-		},
+		staticMedia: true,
 	},
 	acordou: {
 		focalPoint: { x: 50, y: 50 },
