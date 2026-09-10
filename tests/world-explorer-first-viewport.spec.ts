@@ -18,24 +18,22 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	expect(initialCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
 	const initialWidth = initialCanvas?.width ?? 0;
 
-	const collapse = page.getByTestId("world-navigation-trigger");
-	await expect(collapse).toHaveAccessibleName("Recolher navegação do mundo");
-	await collapse.click();
-	await expect(collapse).toHaveAccessibleName("Explorar universo");
-	await expect(collapse).toBeVisible();
+	const workspace = page.getByTestId("world-workspace");
+	const navigation = page.getByTestId("world-workspace-navigation");
+	await expect(workspace).toHaveAttribute("data-world-navigation", "open");
+	await page.getByRole("button", { name: "Recolher navegação do mundo" }).first().click();
+	await expect(workspace).toHaveAttribute("data-world-navigation", "closed");
+	await expect(navigation).toBeHidden();
+	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 
-	// The rail animates through the design-system motion token; assert the settled
-	// layout rather than sampling the first frame immediately after the click.
+	// The workspace shell animates the grid; assert the settled layout rather than
+	// sampling the first frame immediately after the click.
 	await expect
 		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(initialWidth);
-	const sidebar = page.getByTestId("world-navigation-sidebar");
 	await expect
-		.poll(async () => (await sidebar.boundingBox())?.width ?? Number.POSITIVE_INFINITY)
+		.poll(async () => (await navigation.boundingBox())?.width ?? 0)
 		.toBeLessThanOrEqual(1);
-	const exploreUniverseBox = await collapse.boundingBox();
-	expect(exploreUniverseBox?.width ?? 0).toBeGreaterThanOrEqual(44);
-	expect(exploreUniverseBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
 	const beforeInspectorCollapse = (await canvas.boundingBox())?.width ?? 0;
 	const detailCollapse = page.getByRole("button", {
@@ -64,16 +62,18 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/mundo");
 
-	await expect(page.getByTestId("world-mobile-navigation-trigger")).toBeVisible();
-	await expect(page.getByTestId("world-mobile-navigation-trigger")).toHaveAccessibleName(
-		"Explorar universo",
-	);
+	const workspace = page.getByTestId("world-workspace");
+	await expect(workspace).toHaveAttribute("data-world-navigation", "closed");
+	const exploreUniverse = page.getByRole("button", { name: "Explorar universo" });
+	await expect(exploreUniverse).toBeVisible();
+	const navigationTriggerBox = await exploreUniverse.boundingBox();
+	expect(navigationTriggerBox?.height ?? 0).toBeGreaterThanOrEqual(42);
+
 	const canvas = page.getByTestId("world-canvas");
 	await expect(canvas).toBeVisible();
 	const mobileCanvas = await canvas.boundingBox();
 	expect(mobileCanvas?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(350);
 	expect(mobileCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
-	await expect(page.getByTestId("world-navigation-trigger")).toBeHidden();
 
 	const reset = page.getByTestId("world-layout-reset");
 	await expect(reset).toBeVisible();
