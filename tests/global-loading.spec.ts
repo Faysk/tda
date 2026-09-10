@@ -72,8 +72,10 @@ test("global loader follows the active light and dark design-system theme", asyn
 
 	const light = await page.locator(overlay).evaluate((element) => {
 		const logo = element.querySelector("img");
+		const style = getComputedStyle(element);
 		return {
-			background: getComputedStyle(element).backgroundImage,
+			backgroundImage: style.backgroundImage,
+			backgroundColor: style.backgroundColor,
 			filter: logo ? getComputedStyle(logo).filter : "missing",
 		};
 	});
@@ -85,13 +87,16 @@ test("global loader follows the active light and dark design-system theme", asyn
 
 	const dark = await page.locator(overlay).evaluate((element) => {
 		const logo = element.querySelector("img");
+		const style = getComputedStyle(element);
 		return {
-			background: getComputedStyle(element).backgroundImage,
+			backgroundImage: style.backgroundImage,
+			backgroundColor: style.backgroundColor,
 			filter: logo ? getComputedStyle(logo).filter : "missing",
 		};
 	});
 
 	expect(light.filter).not.toBe("none");
 	expect(dark.filter).toBe("none");
-	expect(light.background).not.toBe(dark.background);
+	expect(light.backgroundColor).not.toBe(dark.backgroundColor);
+	expect(light.backgroundImage).not.toBe(dark.backgroundImage);
 });
