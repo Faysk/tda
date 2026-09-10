@@ -51,7 +51,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-10 |
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-06 |
-| [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | 2026-09-10 |
+| [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
 | [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-06 |
 | [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-10 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
@@ -162,4 +162,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-96 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 19 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+96 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
