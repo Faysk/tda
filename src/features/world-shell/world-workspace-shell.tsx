@@ -14,7 +14,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
-	const navigationPanelRef = useRef<HTMLDivElement>(null);
+	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
 	const navigationToggleRef = useRef<HTMLButtonElement>(null);
 
@@ -79,6 +79,27 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	}, [navigationOpen, closeNavigation]);
 
 	const navigationIsModal = navigationOpen && mobileNavigation;
+	const navigationContent = (
+		<div className={styles.navigationInner}>
+			<div className={styles.navigationHeader}>
+				<WorldNavigationIntro />
+				<button
+					ref={navigationCloseRef}
+					type="button"
+					className={styles.closeNavigation}
+					onClick={closeNavigation}
+					aria-label="Recolher navegação do mundo"
+				>
+					×
+				</button>
+			</div>
+			<WorldNavigation pathname={pathname} />
+			<Link className={styles.homeLink} href="/">
+				<span aria-hidden="true">←</span>
+				Voltar ao início
+			</Link>
+		</div>
+	);
 
 	return (
 		<div
@@ -87,36 +108,30 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			data-world-navigation={navigationOpen ? "open" : "closed"}
 			data-testid="world-workspace"
 		>
-			<div
-				ref={navigationPanelRef}
-				id="world-workspace-navigation"
-				className={styles.navigationPanel}
-				role={navigationIsModal ? "dialog" : "complementary"}
-				aria-modal={navigationIsModal || undefined}
-				aria-label="Navegação do mundo"
-				aria-hidden={!navigationOpen}
-				data-testid="world-workspace-navigation"
-			>
-				<div className={styles.navigationInner}>
-					<div className={styles.navigationHeader}>
-						<WorldNavigationIntro />
-						<button
-							ref={navigationCloseRef}
-							type="button"
-							className={styles.closeNavigation}
-							onClick={closeNavigation}
-							aria-label="Recolher navegação do mundo"
-						>
-							×
-						</button>
-					</div>
-					<WorldNavigation pathname={pathname} />
-					<Link className={styles.homeLink} href="/">
-						<span aria-hidden="true">←</span>
-						Voltar ao início
-					</Link>
+			{navigationIsModal ? (
+				<div
+					ref={navigationPanelRef}
+					id="world-workspace-navigation"
+					className={styles.navigationPanel}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Navegação do mundo"
+					data-testid="world-workspace-navigation"
+				>
+					{navigationContent}
 				</div>
-			</div>
+			) : (
+				<aside
+					ref={navigationPanelRef}
+					id="world-workspace-navigation"
+					className={styles.navigationPanel}
+					aria-label="Navegação do mundo"
+					aria-hidden={!navigationOpen}
+					data-testid="world-workspace-navigation"
+				>
+					{navigationContent}
+				</aside>
+			)}
 
 			<button
 				type="button"
