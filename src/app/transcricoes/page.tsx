@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PublicLink as Link } from "@/components/public-link";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 import {
 	formatDuration,
