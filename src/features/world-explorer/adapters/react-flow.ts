@@ -37,11 +37,11 @@ export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
 export type WorldFlowEdge = Edge<WorldFlowEdgeData, "worldRelation">;
 
 function prominenceFor(
-	projection: WorldGraphProjection,
 	item: WorldNodeDTO,
+	isHero: boolean,
 ): WorldNodeProminence {
 	if (item.prominence) return item.prominence;
-	if (projection.heroIds.includes(item.id)) return "hero";
+	if (isHero) return "hero";
 	if (item.kind === "entity" && item.entityType === "npc") return "primary";
 	if (item.kind === "moment") return "context";
 	return "supporting";
@@ -52,6 +52,7 @@ function layoutWithOverrides(
 	positionOverrides?: Readonly<WorldLayout>,
 ): WorldLayout {
 	const layout = constellationWorldLayout(projection);
+	const visibleIds = new Set(projection.nodes.map((node) => node.id));
 
 	for (const [id, position] of Object.entries(worldLayoutOverrides(projection))) {
 		layout[id] = position;
@@ -59,7 +60,7 @@ function layoutWithOverrides(
 
 	if (!positionOverrides) return layout;
 	for (const [id, position] of Object.entries(positionOverrides)) {
-		if (projection.nodes.some((node) => node.id === id)) layout[id] = position;
+		if (visibleIds.has(id)) layout[id] = position;
 	}
 	return layout;
 }
@@ -76,9 +77,10 @@ export function toReactFlowGraph(
 	const routes = routeWorldEdgePorts(layout, projection.edges);
 	const connected = connectedNodeIds(projection, selectedId ?? null);
 	const hasSelection = Boolean(selectedId);
+	const heroIds = new Set(projection.heroIds);
 	const labelById = new Map(projection.nodes.map((node) => [node.id, node.label]));
 	const nodes: WorldFlowNode[] = projection.nodes.map((item) => {
-		const isHero = projection.heroIds.includes(item.id);
+		const isHero = heroIds.has(item.id);
 		return {
 			id: item.id,
 			type: "worldEntity",
@@ -87,7 +89,7 @@ export function toReactFlowGraph(
 				item,
 				isFocus: item.id === projection.focusId,
 				isHero,
-				prominence: prominenceFor(projection, item),
+				prominence: prominenceFor(item, isHero),
 				isDimmed: hasSelection && !connected.has(item.id),
 			},
 			draggable: true,
