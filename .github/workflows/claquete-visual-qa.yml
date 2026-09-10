@@ -1,0 +1,45 @@
+name: Claquete Visual QA
+
+on:
+  push:
+    branches:
+      - claquete/pipipi-responsive-art-direction
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TDA_READ_PUBLISHED_DATA: "false"
+      TDA_EDIT_UNSAFE: "true"
+      TDA_WORLD_DEMO_FALLBACK: "true"
+      SUPABASE_PUBLISHABLE_KEY: ""
+      TDA_AUTH_ORIGIN: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Start app
+        run: |
+          pnpm start --port 3101 > /tmp/tda-claquete.log 2>&1 &
+          for i in {1..45}; do
+            if curl --fail --silent http://127.0.0.1:3101/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tda-claquete.log
+          exit 1
+      - run: node tools/claquete-visual-capture.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claquete-visual-qa
+          path: visual-qa
+          if-no-files-found: error
