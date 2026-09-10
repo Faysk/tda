@@ -16,6 +16,8 @@ import styles from "./world-explorer.module.css";
 
 const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
+const NODE_ORIGIN: [number, number] = [0.5, 0.5];
+const FIT_VIEW_OPTIONS = { padding: 0.18, maxZoom: 1.05 } as const;
 
 type WorldCanvasProps = Readonly<{
 	nodes: WorldFlowNode[];
@@ -43,15 +45,16 @@ export function WorldCanvas({
 				edges={edges}
 				nodeTypes={NODE_TYPES}
 				edgeTypes={EDGE_TYPES}
-				nodeOrigin={[0.5, 0.5]}
+				nodeOrigin={NODE_ORIGIN}
 				nodesConnectable={false}
 				nodesDraggable
 				elementsSelectable
 				selectionOnDrag
 				panOnScroll
 				panOnDrag={false}
+				onlyRenderVisibleElements
 				fitView
-				fitViewOptions={{ padding: 0.18, maxZoom: 1.05 }}
+				fitViewOptions={FIT_VIEW_OPTIONS}
 				minZoom={0.28}
 				maxZoom={1.8}
 				onNodesChange={onNodesChange}
