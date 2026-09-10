@@ -22,6 +22,31 @@
 	left: 14%;
 }
 
+/*
+ * "O último dia" already has the right fixed composition. On desktop the
+ * generic left-side editorial shade was swallowing the mother seated at the
+ * far left, so this keeps the strong text bed at the bottom while opening the
+ * upper-left portrait area. Mobile keeps the approved portrait treatment.
+ */
+@media (min-width: 901px) {
+	.ultimoDiaShade.ultimoDiaShade {
+		background:
+			linear-gradient(
+				90deg,
+				rgba(3, 6, 5, 0.38) 0%,
+				rgba(3, 6, 5, 0.12) 38%,
+				transparent 70%
+			),
+			linear-gradient(
+				0deg,
+				rgba(3, 6, 5, 0.72) 0%,
+				rgba(3, 6, 5, 0.42) 26%,
+				rgba(3, 6, 5, 0.08) 58%,
+				transparent 74%
+			);
+	}
+}
+
 @media (max-width: 900px) {
 	:global([data-scene="corredores"]) .corridorSubject.corridorSubject.corridorSubject {
 		left: 4%;
