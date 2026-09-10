@@ -3,57 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
+import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
 import styles from "./world-shell.module.css";
-
-type WorldNavItem = Readonly<{
-	href: string;
-	label: string;
-	description: string;
-	glyph: string;
-}>;
-
-const WORLD_NAV_ITEMS: readonly WorldNavItem[] = [
-	{
-		href: "/mundo",
-		label: "Ecos da Jornada",
-		description: "Mapa de memória",
-		glyph: "E",
-	},
-	{
-		href: "/personagens",
-		label: "Personagens",
-		description: "Protagonistas da mesa",
-		glyph: "P",
-	},
-	{
-		href: "/npcs",
-		label: "NPCs",
-		description: "Pessoas do mundo",
-		glyph: "N",
-	},
-	{
-		href: "/lugares",
-		label: "Lugares",
-		description: "Territórios e destinos",
-		glyph: "L",
-	},
-	{
-		href: "/faccoes",
-		label: "Facções",
-		description: "Grupos e forças",
-		glyph: "F",
-	},
-	{
-		href: "/musicas",
-		label: "Músicas",
-		description: "Sons da jornada",
-		glyph: "M",
-	},
-] as const;
-
-function itemIsCurrent(pathname: string, href: string) {
-	return pathname === href || (href !== "/mundo" && pathname.startsWith(`${href}/`));
-}
 
 function WorldNav({
 	pathname,
@@ -67,7 +18,7 @@ function WorldNav({
 	return (
 		<nav className={styles.navigation} aria-label="Explorar o universo da campanha">
 			{WORLD_NAV_ITEMS.map((item) => {
-				const current = itemIsCurrent(pathname, item.href);
+				const current = worldNavItemIsCurrent(pathname, item.href);
 				return (
 					<Link
 						key={item.href}
@@ -110,7 +61,7 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
 	const current = useMemo(
-		() => WORLD_NAV_ITEMS.find((item) => itemIsCurrent(pathname, item.href)),
+		() => WORLD_NAV_ITEMS.find((item) => worldNavItemIsCurrent(pathname, item.href)),
 		[pathname],
 	);
 
