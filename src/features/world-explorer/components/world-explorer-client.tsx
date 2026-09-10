@@ -106,14 +106,16 @@ function layoutCandidateFor(
 	overrides: WorldLayout,
 ): WorldLayoutProjection | null {
 	const fullGraph = toReactFlowGraph(projection, null, overrides);
-	return captureWorldLayoutCandidate(
-		projection,
-		Object.fromEntries(
-			fullGraph.nodes.map((node) => [
-				node.id,
-				{ x: node.position.x, y: node.position.y },
-			]),
-		),
+	return (
+		captureWorldLayoutCandidate(
+			projection,
+			Object.fromEntries(
+				fullGraph.nodes.map((node) => [
+					node.id,
+					{ x: node.position.x, y: node.position.y },
+				]),
+			),
+		) ?? null
 	);
 }
 
