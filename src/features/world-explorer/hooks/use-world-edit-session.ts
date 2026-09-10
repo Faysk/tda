@@ -64,7 +64,9 @@ type UseWorldEditSessionOptions = Readonly<{
 	canEditContent: boolean;
 	canStartEditing: boolean;
 	publishedPositions: WorldLayout;
-	buildLayoutCandidate: (graphDraft: WorldGraphDraft | null) => WorldLayoutProjection | null;
+	buildLayoutCandidate: (
+		graphDraft: WorldGraphDraft | null,
+	) => WorldLayoutProjection | null | undefined;
 	onApplyLayoutDraft: (positions: WorldLayout) => void;
 	onReleaseLayout: () => void;
 	onEditingStarted?: () => void;
