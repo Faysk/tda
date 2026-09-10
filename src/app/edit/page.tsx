@@ -1,11 +1,11 @@
+import type { Metadata } from "next";
+import { PublicLink as Link } from "@/components/public-link";
+import { StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import type { Metadata } from "next";
-import Link from "next/link";
-import { StatusPill } from "@/components/ui";
 import { listUnsafeEditSessions } from "@/features/edit/sessions/repository";
 import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
