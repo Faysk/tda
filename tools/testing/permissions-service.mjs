@@ -6,11 +6,13 @@ const roles = [
 	{ id: "manage", name: "Gestão sintética", slug: "synthetic-manager" },
 	{ id: "read", name: "Leitura sintética", slug: "synthetic-reader" },
 	{ id: "technical", name: "Operação técnica", slug: "synthetic-technical" },
+	{ id: "conductor", name: "Condução do Mundo", slug: "synthetic-world-conductor" },
 ];
 const permissions = [
 	{ role_id: "manage", permission_action: "campaign.permissions.manage" },
 	{ role_id: "read", permission_action: "campaign.transcript.read" },
 	{ role_id: "technical", permission_action: "project.jobs.run" },
+	{ role_id: "conductor", permission_action: "campaign.world.layout.edit" },
 ];
 const profiles = [
 	"manager",
@@ -19,6 +21,7 @@ const profiles = [
 	"expired",
 	"foreign",
 	"technical",
+	"conductor",
 ].map((id) => ({
 	id,
 	display_name: `Pessoa ${id}`,
@@ -34,7 +37,9 @@ const assignments = profiles.map(({ id }) => ({
 		? "manage"
 		: id === "technical"
 			? "technical"
-			: "read",
+			: id === "conductor"
+				? "conductor"
+				: "read",
 	scope_type: ["project", "technical"].includes(id) ? "project" : "campaign",
 	scope_id: ["project", "technical"].includes(id)
 		? "tda"
