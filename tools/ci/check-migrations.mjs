@@ -4,6 +4,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const migrationsDir = path.join(root, "supabase", "migrations");
+const candidatesDir = path.join(root, "supabase", "candidates");
 const migrationName = /^(\d{14})_([a-z0-9_]+)\.sql$/;
 const allowDestructive = /^--\s*TDA:ALLOW_DESTRUCTIVE_MIGRATION:\s*\S.+$/m;
 const destructivePatterns = [
@@ -15,35 +16,50 @@ const destructivePatterns = [
 	/\balter\s+table\b[\s\S]*?\balter\s+column\b[\s\S]*?\btype\b/i,
 ];
 
-if (!fs.existsSync(migrationsDir)) {
-	throw new Error("supabase/migrations is missing");
+for (const [label, directory] of [
+	["deployable migrations", migrationsDir],
+	["migration candidates", candidatesDir],
+]) {
+	if (!fs.existsSync(directory)) {
+		throw new Error(`Missing ${label} directory: ${path.relative(root, directory)}`);
+	}
 }
 
-const files = fs
-	.readdirSync(migrationsDir, { withFileTypes: true })
-	.filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-	.map((entry) => entry.name)
-	.sort();
+const listSql = (directory) =>
+	fs
+		.readdirSync(directory, { withFileTypes: true })
+		.filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
+		.map((entry) => entry.name)
+		.sort();
 
+const files = listSql(migrationsDir);
+const candidateFiles = listSql(candidatesDir);
 const versions = new Map();
-for (const file of files) {
-	const match = file.match(migrationName);
-	if (!match) {
-		throw new Error(
-			`Invalid migration filename: ${file}. Expected <14 digit timestamp>_<snake_case>.sql`,
-		);
+
+for (const [kind, names] of [
+	["migration", files],
+	["candidate", candidateFiles],
+]) {
+	for (const file of names) {
+		const match = file.match(migrationName);
+		if (!match) {
+			throw new Error(
+				`Invalid ${kind} filename: ${file}. Expected <14 digit timestamp>_<snake_case>.sql`,
+			);
+		}
+		const version = match[1];
+		const previous = versions.get(version);
+		if (previous) {
+			throw new Error(
+				`Duplicate migration version ${version}: ${previous} and ${kind} ${file}`,
+			);
+		}
+		versions.set(version, `${kind} ${file}`);
 	}
-	const version = match[1];
-	if (versions.has(version)) {
-		throw new Error(
-			`Duplicate migration version ${version}: ${versions.get(version)} and ${file}`,
-		);
-	}
-	versions.set(version, file);
 }
 
 const range = process.argv[2];
-const changed = [];
+const changedDeployable = [];
 if (range) {
 	const output = execFileSync(
 		"git",
@@ -53,6 +69,7 @@ if (range) {
 			range,
 			"--",
 			"supabase/migrations",
+			"supabase/candidates",
 		],
 		{ cwd: root, encoding: "utf8" },
 	).trim();
@@ -60,22 +77,59 @@ if (range) {
 	for (const line of output ? output.split("\n") : []) {
 		const [status, ...parts] = line.split("\t");
 		if (!status || parts.length === 0) continue;
-		if (status.startsWith("D")) {
-			throw new Error(`Applied migration files must not be deleted: ${parts.at(-1)}`);
-		}
+
+		const source = parts[0];
+		const target = parts.at(-1);
+		const sourceIsMigration = source?.startsWith("supabase/migrations/");
+		const targetIsMigration = target?.startsWith("supabase/migrations/");
+		const targetIsCandidate = target?.startsWith("supabase/candidates/");
+
 		if (status.startsWith("R")) {
-			throw new Error(`Migration files must not be renamed: ${parts.join(" -> ")}`);
+			if (sourceIsMigration && targetIsCandidate) {
+				continue;
+			}
+			if (!sourceIsMigration && targetIsMigration) {
+				throw new Error(
+					`Do not promote an old candidate by renaming it into migrations: ${source} -> ${target}. Create a new current-timestamp migration after approval.`,
+				);
+			}
+			if (sourceIsMigration || targetIsMigration) {
+				throw new Error(`Deployable migration files must not be renamed: ${parts.join(" -> ")}`);
+			}
+			continue;
 		}
-		if (status.startsWith("A") || status.startsWith("M")) {
-			changed.push(parts.at(-1));
+
+		if (status.startsWith("D") && sourceIsMigration) {
+			const basename = path.basename(source);
+			const relocated = path.join(candidatesDir, basename);
+			if (!fs.existsSync(relocated)) {
+				throw new Error(`Deployable migration files must not be deleted: ${source}`);
+			}
+			const before = execFileSync("git", ["show", `${range.split("...")[0]}:${source}`], {
+				cwd: root,
+				encoding: "utf8",
+			});
+			const after = fs.readFileSync(relocated, "utf8");
+			if (before !== after) {
+				throw new Error(`Migration ${source} may move to candidates only without changing its SQL bytes.`);
+			}
+			continue;
+		}
+
+		if (status.startsWith("M") && targetIsMigration) {
+			throw new Error(
+				`Existing deployable migration must not be edited in place: ${target}. Add a new migration instead.`,
+			);
+		}
+
+		if (status.startsWith("A") && targetIsMigration) {
+			changedDeployable.push(target);
 		}
 	}
 }
 
-for (const repoPath of changed) {
-	if (!repoPath?.endsWith(".sql")) continue;
+for (const repoPath of changedDeployable) {
 	const absolute = path.join(root, repoPath);
-	if (!fs.existsSync(absolute)) continue;
 	const sql = fs.readFileSync(absolute, "utf8");
 	const destructive = destructivePatterns.some((pattern) => pattern.test(sql));
 	if (destructive && !allowDestructive.test(sql)) {
@@ -86,5 +140,5 @@ for (const repoPath of changed) {
 }
 
 console.log(
-	`MIGRATION_POLICY_OK total=${files.length} changed=${changed.length} range=${range || "none"}`,
+	`MIGRATION_POLICY_OK deployable=${files.length} candidates=${candidateFiles.length} added=${changedDeployable.length} range=${range || "none"}`,
 );
