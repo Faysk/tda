@@ -6,6 +6,7 @@ import {
 	DEFAULT_MOBILE_CINEMATIC_MOTION,
 	type CinematicSceneArtDirection,
 } from "../art-directions/cinematic";
+import polishStyles from "./pipipi-lore-polish.module.css";
 import styles from "./pipipi-lore-page.module.css";
 
 export type PipipiCinematicSceneProps = {
@@ -54,6 +55,7 @@ export function PipipiCinematicScene({
 	const rootRef = useRef<HTMLElement>(null);
 	const desktopFocus = artDirection?.focalPoint ?? { x: 50, y: 50 };
 	const mobileFocus = artDirection?.mobileFocalPoint ?? desktopFocus;
+	const staticMedia = artDirection?.staticMedia === true;
 	const sceneStyle: SceneCssVariables = {
 		"--scene-focus-x": `${desktopFocus.x}%`,
 		"--scene-focus-y": `${desktopFocus.y}%`,
@@ -112,30 +114,41 @@ export function PipipiCinematicScene({
 			const baseScale = isCompact ? 1.018 : 1.035;
 
 			root.style.setProperty("--scene-progress", progress.toFixed(4));
-			root.style.setProperty(
-				"--scene-bg-x",
-				`${centered * amount.x * backgroundXScale}px`,
-			);
-			root.style.setProperty(
-				"--scene-bg-y",
-				`${centered * amount.y * backgroundYScale}px`,
-			);
-			root.style.setProperty(
-				"--scene-bg-scale",
-				(baseScale + progress * amount.scale * zoomScale).toFixed(4),
-			);
-			root.style.setProperty(
-				"--scene-subject-x",
-				`${centered * -amount.x * 1.45 * subjectXScale}px`,
-			);
-			root.style.setProperty(
-				"--scene-subject-y",
-				`${(0.5 - progress) * amount.subjectY * subjectYScale}px`,
-			);
-			root.style.setProperty(
-				"--scene-subject-scale",
-				(0.985 + progress * amount.scale * 0.7 * zoomScale).toFixed(4),
-			);
+
+			if (staticMedia) {
+				root.style.setProperty("--scene-bg-x", "0px");
+				root.style.setProperty("--scene-bg-y", "0px");
+				root.style.setProperty("--scene-bg-scale", baseScale.toFixed(3));
+				root.style.setProperty("--scene-subject-x", "0px");
+				root.style.setProperty("--scene-subject-y", "0px");
+				root.style.setProperty("--scene-subject-scale", "1");
+			} else {
+				root.style.setProperty(
+					"--scene-bg-x",
+					`${centered * amount.x * backgroundXScale}px`,
+				);
+				root.style.setProperty(
+					"--scene-bg-y",
+					`${centered * amount.y * backgroundYScale}px`,
+				);
+				root.style.setProperty(
+					"--scene-bg-scale",
+					(baseScale + progress * amount.scale * zoomScale).toFixed(4),
+				);
+				root.style.setProperty(
+					"--scene-subject-x",
+					`${centered * -amount.x * 1.45 * subjectXScale}px`,
+				);
+				root.style.setProperty(
+					"--scene-subject-y",
+					`${(0.5 - progress) * amount.subjectY * subjectYScale}px`,
+				);
+				root.style.setProperty(
+					"--scene-subject-scale",
+					(0.985 + progress * amount.scale * 0.7 * zoomScale).toFixed(4),
+				);
+			}
+
 			root.style.setProperty(
 				"--scene-copy-opacity",
 				clamp(progress / 0.18, 0.25, 1).toFixed(3),
@@ -184,13 +197,14 @@ export function PipipiCinematicScene({
 			if (frame) window.cancelAnimationFrame(frame);
 			delete root.dataset.active;
 		};
-	}, [artDirection, motion]);
+	}, [artDirection, motion, staticMedia]);
 
 	return (
 		<section
 			className={styles.cinematicScene}
 			data-scene={id}
 			data-motion={motion}
+			data-static-media={staticMedia ? "true" : undefined}
 			ref={rootRef}
 			style={sceneStyle}
 			aria-label={title}
@@ -207,7 +221,7 @@ export function PipipiCinematicScene({
 					/>
 					{subject ? (
 						<Image
-							className={styles.sceneSubject}
+							className={`${styles.sceneSubject} ${id === "corredores" ? polishStyles.corridorSubject : ""}`}
 							src={subject}
 							alt=""
 							width={subjectWidth}
