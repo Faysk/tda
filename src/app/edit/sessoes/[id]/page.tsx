@@ -1,18 +1,18 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { PublicLink as Link } from "@/components/public-link";
+import { ActionLink, StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ActionLink, StatusPill } from "@/components/ui";
 import {
 	countUnsafeEditTranscriptSegments,
 	findUnsafeEditSessionBySourceId,
 } from "@/features/edit/sessions/repository";
-import { readTranscriptPage, type TranscriptCursor } from "@/features/edit/transcript/repository";
 import { TranscriptEditor } from "@/features/edit/transcript/editor";
+import { readTranscriptPage, type TranscriptCursor } from "@/features/edit/transcript/repository";
 import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
