@@ -66,7 +66,7 @@
 .root .viewSurface button {
 	position: relative;
 	min-width: 40px;
-	min-height: 36px;
+	min-height: 40px;
 	padding: 0 10px;
 }
 
@@ -162,6 +162,13 @@
 .legendItem[data-family="mystic"] { --world-relation-color: var(--world-edge-mystic); }
 .legendItem[data-family="creative"] { --world-relation-color: var(--world-edge-creative); }
 .legendItem[data-family="origin"] { --world-relation-color: var(--world-edge-origin); }
+
+@media (min-width: 1121px) {
+	.root + :global([data-testid="world-canvas"]) {
+		height: clamp(500px, calc(100dvh - 210px), 940px);
+		min-height: 500px;
+	}
+}
 
 @media (max-width: 1280px) {
 	.root .primary {
