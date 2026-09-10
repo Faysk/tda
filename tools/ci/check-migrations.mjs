@@ -5,6 +5,7 @@ import path from "node:path";
 const root = process.cwd();
 const migrationsDir = path.join(root, "supabase", "migrations");
 const candidatesDir = path.join(root, "supabase", "candidates");
+const reconciliationsPath = path.join(root, "supabase", "migration-reconciliations.json");
 const migrationName = /^(\d{14})_([a-z0-9_]+)\.sql$/;
 const allowDestructive = /^--\s*TDA:ALLOW_DESTRUCTIVE_MIGRATION:\s*\S.+$/m;
 const destructivePatterns = [
@@ -24,6 +25,26 @@ for (const [label, directory] of [
 		throw new Error(`Missing ${label} directory: ${path.relative(root, directory)}`);
 	}
 }
+
+if (!fs.existsSync(reconciliationsPath)) {
+	throw new Error("Missing supabase/migration-reconciliations.json");
+}
+
+const reconciliations = JSON.parse(fs.readFileSync(reconciliationsPath, "utf8"));
+if (
+	reconciliations.schemaVersion !== "tda_migration_reconciliations_v1" ||
+	reconciliations.projectRef !== "dmrqnbdvbkfqzctcerbx" ||
+	!Array.isArray(reconciliations.mappings)
+) {
+	throw new Error("Invalid migration reconciliation manifest");
+}
+
+const reconciliationByRename = new Map(
+	reconciliations.mappings.map((entry) => [
+		`${entry.from}->${entry.to}`,
+		entry,
+	]),
+);
 
 const listSql = (directory) =>
 	fs
@@ -65,6 +86,7 @@ if (range) {
 		"git",
 		[
 			"diff",
+			"-M",
 			"--name-status",
 			range,
 			"--",
@@ -88,13 +110,30 @@ if (range) {
 			if (sourceIsMigration && targetIsCandidate) {
 				continue;
 			}
+
+			if (sourceIsMigration && targetIsMigration) {
+				const from = path.basename(source);
+				const to = path.basename(target);
+				const reconciliation = reconciliationByRename.get(`${from}->${to}`);
+				if (!reconciliation) {
+					throw new Error(`Deployable migration files must not be renamed: ${source} -> ${target}`);
+				}
+				const blobSha = execFileSync("git", ["hash-object", target], {
+					cwd: root,
+					encoding: "utf8",
+				}).trim();
+				if (blobSha !== reconciliation.blobSha) {
+					throw new Error(
+						`Migration reconciliation changed SQL bytes for ${target}: expected ${reconciliation.blobSha}, got ${blobSha}`,
+					);
+				}
+				continue;
+			}
+
 			if (!sourceIsMigration && targetIsMigration) {
 				throw new Error(
 					`Do not promote an old candidate by renaming it into migrations: ${source} -> ${target}. Create a new current-timestamp migration after approval.`,
 				);
-			}
-			if (sourceIsMigration || targetIsMigration) {
-				throw new Error(`Deployable migration files must not be renamed: ${parts.join(" -> ")}`);
 			}
 			continue;
 		}
@@ -140,5 +179,5 @@ for (const repoPath of changedDeployable) {
 }
 
 console.log(
-	`MIGRATION_POLICY_OK deployable=${files.length} candidates=${candidateFiles.length} added=${changedDeployable.length} range=${range || "none"}`,
+	`MIGRATION_POLICY_OK deployable=${files.length} candidates=${candidateFiles.length} added=${changedDeployable.length} reconciliations=${reconciliations.mappings.length} range=${range || "none"}`,
 );
