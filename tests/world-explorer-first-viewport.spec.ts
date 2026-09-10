@@ -67,7 +67,7 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	const exploreUniverse = page.getByRole("button", { name: "Explorar universo" });
 	await expect(exploreUniverse).toBeVisible();
 	const navigationTriggerBox = await exploreUniverse.boundingBox();
-	expect(navigationTriggerBox?.height ?? 0).toBeGreaterThanOrEqual(42);
+	expect(navigationTriggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
 	const canvas = page.getByTestId("world-canvas");
 	await expect(canvas).toBeVisible();
