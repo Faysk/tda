@@ -210,6 +210,72 @@ Implementada:
 - `tools/check-design-system.mjs`;
 - E2E de tema, marca, responsividade e reduced motion.
 
+### Loader global de espera
+
+**Status em 2026-09-10: implementado, validado e aceito visualmente em uso real.** O loader global passa a ser parte do contrato de feedback do Design System, não um efeito isolado de uma página.
+
+A linguagem visual aprovada é deliberadamente simples na hierarquia e rica apenas nos detalhes de movimento:
+
+- overlay full-screen com fade e blur do conteúdo anterior;
+- marca oficial TDA centralizada, sem texto auxiliar;
+- rotação contínua em velocidade moderada durante a espera;
+- halos, órbitas, rastros e partículas sutis como camadas de apresentação separadas da geometria da marca;
+- ao concluir, a rotação desacelera, assenta a marca em posição estável e o overlay desaparece em fade;
+- o movimento é o mesmo em light e dark; o tema altera somente a paleta visual.
+
+O runtime está concentrado em `src/components/global-loading/`:
+
+```text
+global-loading.tsx                 provider, concorrência, fases e API pública
+global-loading.module.css          composição, motion e efeitos base
+global-loading-theme.module.css    paleta por tema e integração com tokens
+form-loading-bridge.tsx            submits nativos same-origin
+events.ts                          bridge imperativo por eventos
+index.ts                           exports públicos
+```
+
+O `GlobalLoadingProvider` usa tokens internos por operação. Vários carregamentos podem coexistir; o overlay só entra em saída quando todos os tokens ativos terminam. Esperas normais usam uma janela de aproximadamente `110 ms` antes de aparecer para evitar flash em operações instantâneas. A saída visual dura aproximadamente `680 ms`, incluindo a desaceleração final.
+
+#### Contrato de ativação
+
+O loader deve representar **espera bloqueante percebida pelo usuário**. Hoje entram no contrato:
+
+- navegação interna por `PublicLink`, que acompanha o pending state real do App Router;
+- submits nativos same-origin por `GlobalFormLoadingBridge`;
+- elementos com `aria-busy="true"`;
+- opt-in explícito por `data-global-loading="true"`;
+- estados existentes com `data-state="saving"` quando a espera é bloqueante;
+- hooks `useGlobalLoading()` e `useGlobalLoadingFlag()`;
+- bridge de eventos para integrações imperativas;
+- fallback de rota específico quando realmente necessário.
+
+Polling, heartbeat, prefetch, autosave silencioso e sincronização de fundo **não** devem abrir o overlay. Um subtree pode declarar `data-global-loading="off"` para manter trabalho de background fora do feedback global. O provider não intercepta `window.fetch` globalmente.
+
+Essa separação é de UX e de arquitetura: o loader comunica “você está esperando por esta ação”, não “algum request existe no sistema”.
+
+#### Tema escuro e tema claro
+
+O dark aprovado originalmente continua sendo a baseline visual. A versão clara não é outro loader: é a mesma composição usando a linguagem cromática do Design System.
+
+No tema claro, `global-loading-theme.module.css` deriva backdrop, vinheta, halos, órbitas, rastros e partículas de tokens como `--ds-canvas`, `--ds-foreground`, `--ds-accent` e `--ds-accent-strong` por `color-mix()`. A marca continua usando o master oficial `tda-mark-white.svg`; no light, somente a apresentação aplica filtro para obter a leitura escura, sem alterar o arquivo ou sua geometria.
+
+A resolução de tema segue o contrato global do TDA:
+
+- `:root[data-theme="dark"]` preserva a versão dark aprovada;
+- `:root[data-theme="light"]` usa canvas claro, foreground escuro e acento dourado contido;
+- quando `data-theme` não está definido, `prefers-color-scheme: light` fornece o fallback esperado;
+- não existe terceiro tema específico do loader.
+
+Isso protege o princípio de que **light e dark são o mesmo produto e preservam a mesma hierarquia**. A troca de tema não muda velocidade, tamanho, sequência ou significado da animação.
+
+#### Acessibilidade e comportamento
+
+O overlay expõe `role="status"`, `aria-busy="true"` e `aria-label="Carregando"`, embora não mostre texto visual. `prefers-reduced-motion: reduce` remove animações decorativas e evita depender de movimento para comunicar o estado.
+
+O loader não deve alterar semântica HTTP nem ser implementado por um boundary global que converta respostas dinâmicas de `notFound()` em streaming `200`. Por isso a navegação do App Router é observada no nível de link/estado pendente e fallbacks de rota ficam específicos.
+
+A validação automatizada cobre tema claro e escuro, estados bloqueantes, operações rápidas que não devem piscar, trabalho explicitamente de background e regressões de navegação. O aceite visual de produto foi confirmado após uso em produção em `2026-09-10`, encerrando esta frente como concluída.
+
 ### Superfícies públicas
 
 A composição pública foi modularizada:
