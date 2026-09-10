@@ -41,8 +41,20 @@ const mobileContext = await browser.newContext({
 	hasTouch: true,
 });
 const mobile = await mobileContext.newPage();
+
+await mobile.goto(`${baseURL}/`, { waitUntil: "networkidle" });
+await mobile.screenshot({ path: `${output}/mobile-home-752x1536.png` });
+const loreEntry = mobile.getByRole("link", { name: /Explorar lores/ });
+await loreEntry.scrollIntoViewIfNeeded();
+await mobile.waitForTimeout(200);
+await mobile.screenshot({ path: `${output}/mobile-home-lore-entry-752x1536.png` });
+
 await mobile.goto(`${baseURL}/lore/pipipi`, { waitUntil: "networkidle" });
 await mobile.screenshot({ path: `${output}/mobile-hero-752x1536.png` });
+const chapterNav = mobile.getByRole("navigation", { name: "Capítulos da história" });
+await chapterNav.scrollIntoViewIfNeeded();
+await mobile.waitForTimeout(160);
+await mobile.screenshot({ path: `${output}/mobile-chapter-nav-752x1536.png` });
 for (const id of ["casa", "super-herois", "corredores", "cadeira", "ultimo-dia", "acordou"]) {
 	await captureScene(mobile, id, `mobile-${id}-752x1536`);
 }
