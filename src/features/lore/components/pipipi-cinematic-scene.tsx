@@ -77,7 +77,7 @@ export function PipipiCinematicScene({
 		let visible = false;
 
 		const resetMotion = () => {
-			root.style.setProperty("--scene-progress", "0");
+			root.style.setProperty("--scene-progress", staticMedia ? "1" : "0");
 			root.style.setProperty("--scene-bg-x", "0px");
 			root.style.setProperty("--scene-bg-y", "0px");
 			root.style.setProperty(
@@ -203,6 +203,7 @@ export function PipipiCinematicScene({
 			data-scene={id}
 			data-motion={motion}
 			data-static-media={staticMedia ? "true" : undefined}
+			data-static-artwork={staticMedia ? background : undefined}
 			ref={rootRef}
 			style={sceneStyle}
 			aria-label={title}
