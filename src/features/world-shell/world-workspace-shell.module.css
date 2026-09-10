@@ -1,3 +1,12 @@
+:global(body:has([data-world-workspace-root]) > .site-header),
+:global(body:has([data-world-workspace-root]) > footer) {
+	display: none;
+}
+
+:global(body:has([data-world-workspace-root]) > main#conteudo) {
+	min-height: 100dvh;
+}
+
 .workspace {
 	--world-workspace-navigation-width: clamp(224px, 15.5vw, 270px);
 	position: relative;
