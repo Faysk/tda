@@ -101,7 +101,11 @@ test("keeps cinematic copy legible without JavaScript", async ({ browser }, test
 	expect(response?.status()).toBe(200);
 
 	const copy = page
-		.getByRole("heading", { name: "Algumas crianças nunca foram para casa" })
+		.locator('[data-scene="corredores"]')
+		.getByRole("heading", {
+			name: "Algumas crianças nunca foram para casa",
+			exact: true,
+		})
 		.locator("..");
 	await expect(copy).toBeVisible();
 	expect(
