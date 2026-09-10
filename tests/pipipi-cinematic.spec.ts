@@ -76,6 +76,22 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	expect(infiniteAnimations).toBe(0);
 });
 
+test("makes published cinematic lores discoverable from primary navigation", async ({ page }) => {
+	await page.goto("/");
+	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
+	const loresLink = primaryNav.getByRole("link", { name: "Lores", exact: true });
+	await expect(loresLink).toHaveAttribute("href", "/lore");
+
+	await loresLink.click();
+	await expect(page).toHaveURL(/\/lore$/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Histórias que ganharam outro palco." }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("link").filter({ hasText: "A Casa Onde os Super-Heróis Visitavam" }),
+	).toHaveAttribute("href", "/lore/pipipi");
+});
+
 test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
 	test.skip(
 		testInfo.project.name !== "desktop-1080p",
@@ -113,6 +129,82 @@ test("keeps cinematic copy legible without JavaScript", async ({ browser }, test
 	).toBe(1);
 
 	await context.close();
+});
+
+test("keeps editorial display headings inside their own column", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "mobile uses a single-column editorial layout");
+	await page.goto("/lore/pipipi");
+
+	for (const sectionId of [
+		"minha-mae-trabalhava-demais",
+		"pipipi-e-dandelion",
+		"a-pulseirinha",
+	]) {
+		const section = page.locator(`#${sectionId}`);
+		await section.scrollIntoViewIfNeeded();
+		const headingBox = await section.getByRole("heading", { level: 2 }).boundingBox();
+		const proseBox = await section.locator(":scope > div").boundingBox();
+		expect(headingBox, `${sectionId}: heading box`).not.toBeNull();
+		expect(proseBox, `${sectionId}: prose box`).not.toBeNull();
+		if (!headingBox || !proseBox) continue;
+
+		expect(
+			headingBox.x + headingBox.width,
+			`${sectionId}: heading must not enter prose column`,
+		).toBeLessThanOrEqual(proseBox.x - 8);
+	}
+});
+
+test("uses portrait focal points and keeps the flying Pipipi inside the stage", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "portrait art direction is a mobile contract");
+	await page.goto("/lore/pipipi");
+
+	const chairScene = page.locator('[data-scene="cadeira"]');
+	await chairScene.scrollIntoViewIfNeeded();
+	const chairObjectPosition = await chairScene
+		.locator("img")
+		.first()
+		.evaluate((image) => getComputedStyle(image).objectPosition);
+	expect(chairObjectPosition).toBe("72% 50%");
+
+	const wokeScene = page.locator('[data-scene="acordou"]');
+	await wokeScene.scrollIntoViewIfNeeded();
+	await expect(wokeScene).toHaveAttribute("data-active", "true");
+	await wokeScene.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		const absoluteTop = window.scrollY + rect.top;
+		window.scrollTo(
+			0,
+			absoluteTop + Math.max(1, rect.height - window.innerHeight) * 0.5,
+		);
+	});
+
+	await expect
+		.poll(async () =>
+			Number.parseFloat(
+				(await wokeScene.evaluate((element) =>
+					element.style.getPropertyValue("--scene-progress"),
+				)) || "0",
+			),
+		)
+		.toBeGreaterThan(0.2);
+
+	const stageBox = await wokeScene.locator(":scope > div").boundingBox();
+	const subjectBox = await wokeScene.locator("img").nth(1).boundingBox();
+	expect(stageBox).not.toBeNull();
+	expect(subjectBox).not.toBeNull();
+	if (stageBox && subjectBox) {
+		expect(subjectBox.x).toBeGreaterThanOrEqual(stageBox.x - 1);
+		expect(subjectBox.x + subjectBox.width).toBeLessThanOrEqual(
+			stageBox.x + stageBox.width + 1,
+		);
+	}
+
+	const mobileBackgroundX = Number.parseFloat(
+		(await wokeScene.evaluate((element) => element.style.getPropertyValue("--scene-bg-x"))) ||
+			"0",
+	);
+	expect(Math.abs(mobileBackgroundX)).toBeLessThanOrEqual(0.5);
 });
 
 test("runs finite viewport-driven motion and honors reduced motion", async ({ page }) => {
