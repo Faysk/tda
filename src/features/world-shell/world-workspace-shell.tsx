@@ -13,13 +13,17 @@ const MOBILE_NAVIGATION_FOCUSABLE =
 export function WorldWorkspaceShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
+	const [mobileNavigation, setMobileNavigation] = useState(false);
 	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
 	const navigationToggleRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		const desktop = window.matchMedia("(min-width: 821px)");
-		const syncNavigationToViewport = () => setNavigationOpen(desktop.matches);
+		const syncNavigationToViewport = () => {
+			setMobileNavigation(!desktop.matches);
+			setNavigationOpen(desktop.matches);
+		};
 		syncNavigationToViewport();
 		desktop.addEventListener("change", syncNavigationToViewport);
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
@@ -67,6 +71,8 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		return () => document.removeEventListener("keydown", containNavigationFocus);
 	}, [navigationOpen]);
 
+	const navigationIsModal = navigationOpen && mobileNavigation;
+
 	return (
 		<div
 			className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
@@ -78,6 +84,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				ref={navigationPanelRef}
 				id="world-workspace-navigation"
 				className={styles.navigationPanel}
+				role={navigationIsModal ? "dialog" : undefined}
+				aria-modal={navigationIsModal || undefined}
+				aria-label="Navegação do mundo"
 				aria-hidden={!navigationOpen}
 				data-testid="world-workspace-navigation"
 			>
@@ -107,10 +116,16 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				className={styles.mobileBackdrop}
 				onClick={() => setNavigationOpen(false)}
 				aria-label="Fechar navegação do mundo"
-				tabIndex={navigationOpen ? 0 : -1}
+				aria-hidden="true"
+				tabIndex={-1}
 			/>
 
-			<section className={styles.stage} data-testid="world-workspace-stage">
+			<section
+				className={styles.stage}
+				data-testid="world-workspace-stage"
+				aria-hidden={navigationIsModal || undefined}
+				inert={navigationIsModal || undefined}
+			>
 				<button
 					ref={navigationToggleRef}
 					type="button"
