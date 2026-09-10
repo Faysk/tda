@@ -37,18 +37,33 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
 		"A Casa Onde os Super-Heróis Visitavam",
 	);
-	await expect(page.getByRole("navigation", { name: "Capítulos da história" }).getByRole("link")).toHaveCount(3);
-	await expect(page.getByRole("heading", { name: "Pipipi não mentiu nenhuma vez." })).toBeVisible();
-	await expect(page.getByText("Quando você não consegue salvar alguém, ainda pode ficar.")).toBeVisible();
+	await expect(
+		page
+			.getByRole("navigation", { name: "Capítulos da história" })
+			.getByRole("link"),
+	).toHaveCount(3);
+	await expect(
+		page.getByRole("heading", { name: "Pipipi não mentiu nenhuma vez." }),
+	).toBeVisible();
+	await expect(
+		page
+			.getByText("Quando você não consegue salvar alguém, ainda pode ficar.", {
+				exact: true,
+			})
+			.last(),
+	).toBeVisible();
 
-	const renderedSceneIds = await page.locator("[data-scene]").evaluateAll((nodes) =>
-		nodes.map((node) => node.getAttribute("data-scene")),
-	);
+	const renderedSceneIds = await page
+		.locator("[data-scene]")
+		.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-scene")));
 	expect(renderedSceneIds).toEqual(sceneIds);
 });
 
 test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
-	test.skip(testInfo.project.name !== "desktop-1080p", "asset integrity only needs one browser project");
+	test.skip(
+		testInfo.project.name !== "desktop-1080p",
+		"asset integrity only needs one browser project",
+	);
 
 	for (const asset of runtimeAssets) {
 		const response = await request.get(`/lore/pipipi/${asset}`);
@@ -67,24 +82,47 @@ test("runs finite viewport-driven motion and honors reduced motion", async ({ pa
 	await scene.evaluate((element) => {
 		const rect = element.getBoundingClientRect();
 		const absoluteTop = window.scrollY + rect.top;
-		window.scrollTo(0, absoluteTop + Math.max(1, rect.height - window.innerHeight) * 0.55);
+		window.scrollTo(
+			0,
+			absoluteTop + Math.max(1, rect.height - window.innerHeight) * 0.55,
+		);
 	});
 
 	await expect
-		.poll(async () => Number.parseFloat(await scene.evaluate((element) => element.style.getPropertyValue("--scene-progress") || "0")))
+		.poll(async () =>
+			Number.parseFloat(
+				(await scene.evaluate((element) =>
+					element.style.getPropertyValue("--scene-progress"),
+				)) || "0",
+			),
+		)
 		.toBeGreaterThan(0.25);
 
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await expect
-		.poll(async () => scene.evaluate((element) => element.style.getPropertyValue("--scene-progress")))
+		.poll(async () =>
+			scene.evaluate((element) =>
+				element.style.getPropertyValue("--scene-progress"),
+			),
+		)
 		.toBe("0");
 	await expect
-		.poll(async () => scene.evaluate((element) => element.style.getPropertyValue("--scene-subject-y")))
+		.poll(async () =>
+			scene.evaluate((element) =>
+				element.style.getPropertyValue("--scene-subject-y"),
+			),
+		)
 		.toBe("0px");
 	await expect
-		.poll(async () => scene.evaluate((element) => element.style.getPropertyValue("--scene-copy-opacity")))
+		.poll(async () =>
+			scene.evaluate((element) =>
+				element.style.getPropertyValue("--scene-copy-opacity"),
+			),
+		)
 		.toBe("1");
 
-	const stagePosition = await scene.locator(":scope > div").evaluate((element) => getComputedStyle(element).position);
+	const stagePosition = await scene
+		.locator(":scope > div")
+		.evaluate((element) => getComputedStyle(element).position);
 	expect(stagePosition).toBe("relative");
 });
