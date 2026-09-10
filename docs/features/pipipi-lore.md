@@ -1,9 +1,9 @@
 # Pipipi — lore cinematográfica pioneira
 
-> Status: candidato completo em branch; Fases 1–3 concluídas; não integrado e não publicado
+> Status: implementação integrada à `main`; Fases 1–3 e QA/polimento concluídos; publicação em production ainda pendente
 > Owner: narrative-memory / frontend
 > Última revisão: 2026-09-10
-> Branch candidata: `feat/pipipi-cinematic-lore`
+> Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
 
@@ -19,7 +19,7 @@ A experiência é organizada em três atos editoriais:
 
 O texto aprovado da rodada fica versionado em `src/features/lore/pipipi-story.ts` e não é derivado automaticamente da projection pública do banco.
 
-Essa exceção é deliberada para a lore pioneira: na verificação de 2026-09-09 não existia entity `slug = 'pipipi'` na tabela `entities` de produção. O candidato **não cria uma entity nem altera o banco por conveniência**. A rota `/lore/pipipi` usa o conteúdo editorial aprovado diretamente até existir um contrato de projection pública equivalente e revisado.
+Essa exceção é deliberada para a lore pioneira: na verificação de 2026-09-09 não existia entity `slug = 'pipipi'` na tabela `entities` de produção. A implementação **não cria uma entity nem altera o banco por conveniência**. A rota `/lore/pipipi` usa o conteúdo editorial aprovado diretamente até existir um contrato de projection pública equivalente e revisado.
 
 Isso não generaliza uma nova família `/lore/[slug]`; continua sendo a exceção específica já prevista para Pipipi.
 
@@ -47,7 +47,18 @@ Cenas preparadas:
 - `ultimo-dia`;
 - `acordou`.
 
-`ultimo-dia` permanece uma **associação editorial candidata**: o asset existe no pack fornecido, mas o HTML oficial de origem não o associa explicitamente a uma seção. A ligação deve ser revisada antes de chamar a entrega de canônica/publicada.
+### Revisão editorial de `ultimo-dia`
+
+A associação foi revisada em 2026-09-10 diretamente contra o pack original fornecido pelo usuário (`pipipi-lore-premium.zip`). O HTML de origem não insere `assets/ultimo_dia.webp` por `<img>` em uma seção específica, portanto a implementação não deve fingir que existe um vínculo DOM que não existe.
+
+A associação editorial, porém, é sustentada pelo próprio pacote e pelo texto fonte em conjunto:
+
+- o asset original é nomeado explicitamente `assets/ultimo_dia.webp`;
+- a ilustração representa Pipipi em um quarto hospitalar cercada pela família, coerente com a passagem **O Dia em que Todo Mundo Faltou ao Trabalho**;
+- o texto dessa sequência registra a chegada dos familiares no mesmo dia e depois identifica esse dia como a última lembrança daquele dia;
+- trechos posteriores da própria lore tratam esse acontecimento como o último dia de Pipipi e como um dos dias mais felizes de sua curta vida.
+
+Com essa revisão, `ultimo-dia` deixa de ser uma associação pendente. A aprovação vale como composição editorial da lore; ela **não** autoriza inferir novos fatos narrativos a partir da ilustração além do texto aprovado.
 
 ## Assets
 
@@ -55,7 +66,7 @@ O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e
 
 Os 18 derivados finais ficam versionados **diretamente** em `public/lore/pipipi/`. Não existe reconstrução em `pnpm dev`/`pnpm build`, bundle de staging ou bootstrap de assets no caminho de produção.
 
-O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, tamanho e SHA-256 fixados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Assim, o SHA da branch contém exatamente os bytes que o navegador usa e a integridade pode ser conferida sem depender de materialização temporária.
+O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, tamanho e SHA-256 fixados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Assim, o SHA integrado contém exatamente os bytes que o navegador usa e a integridade pode ser conferida sem depender de materialização temporária.
 
 ## Runtime e performance
 
@@ -73,7 +84,7 @@ O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, taman
 
 `src/app/lore/pipipi/page.tsx` é uma rota dedicada e reutiliza `buildPublicMetadata`. Ela não consulta `findPublishedLoreProfile` enquanto a projection de Pipipi não existir, evitando que a lore aprovada retorne 404 apenas por ausência da entity no banco.
 
-A rota continua sendo candidata até merge e publicação deliberados.
+A rota está integrada à `main` pelo merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`. Em 2026-09-10, antes do próximo deployment deliberado, `https://dnd.faysk.dev/lore/pipipi` ainda respondia 404; isso comprova que integração e publicação continuam estados separados.
 
 ## QA e evidência da Fase 3
 
@@ -94,7 +105,17 @@ Checkpoint visual do produto: `be5110426cbf431c795fcbf9e5fcd7144e5dbe7a`.
 
 As capturas de QA são evidência efêmera de CI e não fazem parte do runtime nem precisam permanecer versionadas no repositório. Depois da inspeção, o spec de captura e os passos temporários de upload foram removidos, o workflow normal de CI foi restaurado e o catálogo documental foi regenerado. A cobertura E2E permanente de estrutura, assets, fallback, viewport, movimento finito e reduced motion permanece versionada em `tests/pipipi-cinematic.spec.ts`.
 
-## Critérios de aceite do candidato
+## Gate pós-merge
+
+O merge commit exato `28668fb169534d1de7cd8a47046a9fbd0d327dfe` foi validado novamente na `main`:
+
+- `CI` run 606: `completed / success`;
+- `Companion` run 363: `completed / success`;
+- ambos executados por `push` sobre o SHA exato do merge.
+
+Portanto, o recorte de implementação + QA + polimento está **100% concluído no código integrado**. O passo restante é operacional e separado: publicar deliberadamente esse SHA (ou um descendente validado que o contenha) e executar o smoke de production previsto no runbook.
+
+## Critérios de aceite técnico-editorial
 
 - texto aprovado preservado e coberto por teste estrutural;
 - ordem dos três atos preservada;
@@ -110,6 +131,7 @@ As capturas de QA são evidência efêmera de CI e não fazem parte do runtime n
 - nenhuma animação decorativa infinita na experiência Pipipi;
 - foco/links/heading hierarchy utilizáveis por teclado;
 - todos os assets de runtime versionados e validados por hash no SHA testado;
+- `ultimo-dia` revisado contra o pack original sem transformar ilustração em nova fonte factual;
 - `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm design:check`, `pnpm docs:check`, `pnpm db:docs:check`, build, E2E e `test:processing` verdes nos checkpoints de gate;
 - merge e publicação tratados como ações separadas.
 
@@ -119,5 +141,4 @@ As capturas de QA são evidência efêmera de CI e não fazem parte do runtime n
 - autoplay de áudio;
 - WebGL/GSAP/Pixi;
 - transformar todas as lores em páginas artesanais;
-- inferir novos fatos a partir das ilustrações;
-- declarar a associação de `ultimo-dia` canônica sem revisão editorial.
+- inferir novos fatos a partir das ilustrações.
