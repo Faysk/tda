@@ -213,6 +213,9 @@ export function ProcessingPanel() {
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
+	const finished = state.jobs.filter((job) =>
+		["succeeded", "cancelled"].includes(job.status),
+	);
 	const activeJob = running[0] ?? null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const gpu = state.system?.gpus[0] ?? null;
@@ -439,13 +442,13 @@ export function ProcessingPanel() {
 								</section>
 							) : null}
 
-							{succeeded.length ? (
+							{finished.length ? (
 								<section aria-labelledby="recent-jobs">
 									<div className={styles.sectionHeading}>
-										<h2 id="recent-jobs">Concluídos recentemente</h2>
-										<span>{succeeded.length}</span>
+										<h2 id="recent-jobs">Finalizados recentemente</h2>
+										<span>{finished.length}</span>
 									</div>
-									<ul className={styles.compactJobs}>{succeeded.slice(0, 4).map(renderRow)}</ul>
+									<ul className={styles.compactJobs}>{finished.slice(0, 4).map(renderRow)}</ul>
 								</section>
 							) : null}
 						</div>
