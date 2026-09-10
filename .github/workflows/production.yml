@@ -68,6 +68,11 @@ jobs:
           echo "short=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "release=prod-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
@@ -87,9 +92,8 @@ jobs:
       - name: Validate migration policy
         run: node tools/ci/check-migrations.mjs
 
-      - name: Install pinned deployment CLIs
-        run: |
-          npm install --global "vercel@${VERCEL_CLI_VERSION}"
+      - name: Install pinned Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@v1
