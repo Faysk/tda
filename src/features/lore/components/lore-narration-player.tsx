@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useGlobalLoadingFlag } from "@/components/global-loading";
 import type { LoreNarrationDTO } from "../model";
 import { findActiveLoreBeat, loreNarrationEndMs, loreNarrationWebVtt } from "../timeline";
 import styles from "./lore-narration-player.module.css";
@@ -31,6 +32,9 @@ export function LoreNarrationPlayer({
 		narration.durationMs ?? loreNarrationEndMs(narration),
 	);
 	const [playing, setPlaying] = useState(false);
+	const [playPending, setPlayPending] = useState(false);
+	const [buffering, setBuffering] = useState(false);
+	useGlobalLoadingFlag(playPending || buffering);
 	const activeBeat = useMemo(
 		() => findActiveLoreBeat(narration.beats, currentMs),
 		[narration.beats, currentMs],
@@ -44,13 +48,18 @@ export function LoreNarrationPlayer({
 		const audio = audioRef.current;
 		if (!audio) return;
 		if (audio.paused) {
+			setPlayPending(true);
 			try {
 				await audio.play();
 			} catch {
 				setPlaying(false);
+				setBuffering(false);
+			} finally {
+				setPlayPending(false);
 			}
 		} else {
 			audio.pause();
+			setBuffering(false);
 		}
 	};
 
@@ -74,8 +83,25 @@ export function LoreNarrationPlayer({
 			}}
 			onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1000)}
 			onPlay={() => setPlaying(true)}
-			onPause={() => setPlaying(false)}
-			onEnded={() => setPlaying(false)}
+			onPlaying={() => {
+				setPlaying(true);
+				setBuffering(false);
+			}}
+			onWaiting={() => {
+				if (!audioRef.current?.paused) setBuffering(true);
+			}}
+			onPause={() => {
+				setPlaying(false);
+				setBuffering(false);
+			}}
+			onError={() => {
+				setPlayPending(false);
+				setBuffering(false);
+			}}
+			onEnded={() => {
+				setPlaying(false);
+				setBuffering(false);
+			}}
 		>
 			<track kind="captions" src={captionsSrc} srcLang="pt-BR" label="Português" default />
 		</audio>

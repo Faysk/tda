@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: arquitetura
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-10
 
 Invariantes são regras que não devem ser quebradas silenciosamente por uma feature local. Se uma futura necessidade exigir violar uma delas, registrar ADR antes da mudança.
 
@@ -104,3 +104,13 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 64. O modo público do World Explorer não expõe criação/delete de edges/nodes.
 65. A primeira estratégia de layout é radial e própria; nova engine de layout exige necessidade observada e documentação.
 66. A adoção de React Flow não obriga páginas editoriais ou o restante do domínio a se tornarem Client Components.
+
+## Feedback de carregamento
+
+67. Espera bloqueante iniciada pelo usuário deve ter feedback visual global consistente; o loader oficial do TDA é o contrato padrão dessa espera.
+68. Navegação interna usa `PublicLink`/primitives que delegam a ele, para que o estado pendente do App Router participe do loader sem sacrificar prefetch.
+69. Operações de feature expõem espera bloqueante por `aria-busy="true"`, `data-global-loading="true"`, `useGlobalLoadingFlag()` ou `useGlobalLoading()`; o chamador que inicia a espera também é responsável por encerrá-la.
+70. Polling, heartbeat, prefetch, autosave silencioso e sincronização de fundo não acionam overlay global; quando necessário, um subtree pode declarar `data-global-loading="off"`.
+71. O loader não intercepta `fetch` globalmente e não deve alterar semântica HTTP. Em especial, preservar status reais como `404` vale mais do que obter um boundary de streaming genérico no layout raiz.
+72. Esperas instantâneas não devem piscar overlay: a infraestrutura aplica uma pequena janela antes de exibir o loader, exceto quando um fallback de rota precisa existir antes da hidratação.
+73. O loader preserva a geometria oficial da marca; halos, partículas, órbitas e motion são camadas de apresentação separadas e respeitam `prefers-reduced-motion`.

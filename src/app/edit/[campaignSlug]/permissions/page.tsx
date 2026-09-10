@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { getPermissionsForEdit } from "@/features/edit/permissions/server-query";
+import { PublicLink as Link } from "@/components/public-link";
 import { PermissionsDirectoryView } from "@/features/edit/permissions/directory";
 import { PERMISSIONS_MESSAGES } from "@/features/edit/permissions/model";
+import { getPermissionsForEdit } from "@/features/edit/permissions/server-query";
 import styles from "@/features/edit/permissions/permissions.module.css";
 
 export const metadata: Metadata = { title: "Permissões · Edit" };
