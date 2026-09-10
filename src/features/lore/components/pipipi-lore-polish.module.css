@@ -1,0 +1,36 @@
+.heroGhostIdle.heroGhostIdle {
+	animation: heroGhostIdle 5.8s ease-in-out infinite;
+	will-change: transform;
+}
+
+@keyframes heroGhostIdle {
+	0%,
+	100% {
+		transform: translate(-50%, -50%) rotate(-0.35deg) scale(1);
+	}
+	50% {
+		transform: translate(-50%, calc(-50% - 9px)) rotate(0.45deg) scale(1.006);
+	}
+}
+
+/*
+ * The corridor foreground contains Pipipi walking with another child. It was
+ * the only approved moving scene still reading too far left after the first
+ * responsive pass, so this is a deliberately small compositional nudge.
+ */
+:global([data-scene="corredores"]) .corridorSubject.corridorSubject.corridorSubject {
+	left: 14%;
+}
+
+@media (max-width: 900px) {
+	:global([data-scene="corredores"]) .corridorSubject.corridorSubject.corridorSubject {
+		left: 4%;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.heroGhostIdle.heroGhostIdle {
+		animation: none;
+		will-change: auto;
+	}
+}
