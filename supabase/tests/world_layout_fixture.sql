@@ -78,7 +78,8 @@ create unique index entities_campaign_slug_unique
 
 create table public.canon_entries(
   id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  status text not null default 'active' check (status in ('active','superseded','retcon_pending','archived'))
 );
 
 alter table public.campaigns enable row level security;
