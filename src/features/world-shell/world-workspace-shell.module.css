@@ -135,6 +135,27 @@
 	box-shadow: var(--ds-control-focus-ring);
 }
 
+@media (min-width: 1121px) {
+	:global([data-world-workspace-root] div:has(> aside button[aria-label="Abrir painel de detalhes"])) {
+		grid-template-columns: minmax(0, 1fr) 0;
+	}
+
+	:global([data-world-workspace-root] div:has(> aside button[aria-label="Abrir painel de detalhes"]) > aside) {
+		padding: 0;
+		border-left: 0;
+		box-shadow: none;
+	}
+
+	:global([data-world-workspace-root] div:has(> aside button[aria-label="Abrir painel de detalhes"]) > aside > :not(button[aria-label="Abrir painel de detalhes"])) {
+		display: none;
+	}
+
+	:global([data-world-workspace-root] div:has(> aside button[aria-label="Abrir painel de detalhes"]) > aside > button[aria-label="Abrir painel de detalhes"]) {
+		left: auto;
+		right: 12px;
+	}
+}
+
 @media (hover: hover) and (pointer: fine) {
 	.navigationToggle:hover,
 	.closeNavigation:hover {
