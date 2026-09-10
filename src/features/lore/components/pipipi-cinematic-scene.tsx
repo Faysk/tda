@@ -229,7 +229,9 @@ export function PipipiCinematicScene({
 							sizes="(max-width: 760px) 78vw, 58vw"
 						/>
 					) : null}
-					<div className={styles.sceneShade} />
+					<div
+						className={`${styles.sceneShade} ${id === "ultimo-dia" ? polishStyles.ultimoDiaShade : ""}`}
+					/>
 				</div>
 
 				<div className={styles.sceneCopy}>
