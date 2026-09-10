@@ -148,6 +148,33 @@ test("mobile navigation contains keyboard focus while its overlay is open", asyn
 	}
 });
 
+test("mobile focus containment stops when the viewport crosses to desktop", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Responsive focus lifecycle contract.");
+
+	await page.goto("/mundo");
+	const workspace = page.getByTestId("world-workspace");
+	const navigation = page.getByTestId("world-workspace-navigation");
+	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByRole("button", { name: "Recolher navegação do mundo" }).first()).toBeFocused();
+
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await expect(workspace).toHaveAttribute("data-world-navigation", "open");
+
+	const stageTrigger = page.getByTestId("world-workspace-stage").locator("button").first();
+	await stageTrigger.focus();
+	await page.keyboard.press("Tab");
+
+	await expect
+		.poll(() =>
+			navigation.evaluate((panel) =>
+				Boolean(document.activeElement && panel.contains(document.activeElement)),
+			),
+		)
+		.toBe(false);
+});
+
 test("collapsed mobile inspector leaves document flow and keeps only its reopen control", async ({
 	page,
 }, testInfo) => {
