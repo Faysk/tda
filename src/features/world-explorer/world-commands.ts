@@ -8,6 +8,7 @@ export type WorldCommandId =
 	| "world.toggleInspector"
 	| "world.enterConductor"
 	| "world.publish"
+	| "world.finishConductor"
 	| "world.discard"
 	| "world.focusSelection"
 	| "world.openProfile";
@@ -90,6 +91,12 @@ export const WORLD_COMMANDS: readonly WorldCommandDefinition[] = [
 		priority: "primary",
 	},
 	{
+		id: "world.finishConductor",
+		label: "Concluir",
+		group: "authoring",
+		priority: "primary",
+	},
+	{
 		id: "world.discard",
 		label: "Descartar",
 		group: "authoring",
@@ -133,6 +140,12 @@ export function worldCommandIsAvailable(
 				context.canEditLayout &&
 				context.editState === "editing" &&
 				context.hasChanges
+			);
+		case "world.finishConductor":
+			return (
+				context.canEditLayout &&
+				context.editState === "editing" &&
+				!context.hasChanges
 			);
 		case "world.discard":
 			return context.canEditLayout && context.editState === "editing";

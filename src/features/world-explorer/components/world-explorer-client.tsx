@@ -24,7 +24,9 @@ import {
 	useWorldExplorerView,
 } from "../hooks/use-world-explorer-view";
 import type { WorldGraphProjection, WorldLayoutProjection } from "../model";
+import type { WorldCommandContext } from "../world-commands";
 import { WorldCanvas } from "./world-canvas";
+import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
 import { WorldFloatingChrome } from "./world-floating-chrome";
 import {
@@ -196,9 +198,17 @@ export function WorldExplorerClient({
 		}
 	}
 
-	const editButtonLabel = canEditContent ? "Editar" : "Editar layout";
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
+	const commandContext: WorldCommandContext = {
+		mode: workingProjection.mode,
+		canEditLayout,
+		editState: edit.state,
+		hasChanges: edit.hasChanges,
+		hasSelection: Boolean(selected),
+		selectionIsFocus: Boolean(selected && selected.id === workingProjection.focusId),
+		hasProfileRoute: Boolean(selected?.route),
+	};
 
 	return (
 		<div
@@ -226,69 +236,21 @@ export function WorldExplorerClient({
 						{workingProjection.demo ? (
 							<span className={styles.demoBadge}>Demo · não canônico</span>
 						) : null}
-						{canEditLayout && projection.mode === "overview" ? (
-							<div className={styles.editGroup}>
-								<button
-									type="button"
-									className={`${styles.editToggle}${edit.editing ? ` ${styles.editToggleActive}` : ""}`}
-									aria-pressed={edit.editing}
-									aria-label={
-										edit.state === "editing"
-											? edit.hasChanges
-												? canEditContent
-													? "Publicar alterações do Mundo"
-													: "Publicar alterações do layout"
-												: "Concluir edição sem alterações"
-											: canEditContent
-												? "Editar o Mundo"
-												: "Editar layout do Mundo"
-									}
-									disabled={edit.busy}
-									onClick={() => {
-										if (edit.state === "editing") {
-											void (edit.hasChanges ? edit.publish() : edit.finish());
-										} else if (edit.state === "view") {
-											void edit.start();
-										}
-									}}
-								>
-									<span aria-hidden="true">
-										{edit.editing ? "●" : edit.state === "acquiring" ? "…" : "○"}
-									</span>
-									{edit.state === "publishing"
-										? "Publicando…"
-										: edit.state === "acquiring"
-											? "Abrindo…"
-											: edit.state === "editing"
-												? edit.hasChanges
-													? "Publicar"
-													: "Concluir"
-												: editButtonLabel}
-								</button>
-								{edit.state === "editing" ? (
-									<button
-										type="button"
-										className={styles.discardEdit}
-										onClick={() => void edit.discard()}
-									>
-										Descartar
-									</button>
-								) : null}
-							</div>
-						) : null}
 					</div>
 				</header>
 
-				{edit.busyNotice ? (
-					<div className={styles.editNotice} role="status">
-						{edit.busyNotice}
-					</div>
-				) : null}
-				{edit.feedback ? (
-					<div className={styles.editFeedback} role="status" aria-live="polite">
-						<span aria-hidden="true">{edit.editing ? "●" : "·"}</span>
-						{edit.feedback}
-					</div>
+				{canEditLayout && projection.mode === "overview" ? (
+					<WorldConductorBar
+						context={commandContext}
+						canEditContent={canEditContent}
+						busy={edit.busy}
+						busyNotice={edit.busyNotice}
+						feedback={edit.feedback}
+						onEnter={edit.start}
+						onPublish={edit.publish}
+						onFinish={edit.finish}
+						onDiscard={edit.discard}
+					/>
 				) : null}
 
 				<WorldFloatingChrome
