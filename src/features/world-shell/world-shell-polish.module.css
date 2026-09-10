@@ -1,6 +1,6 @@
-.shellCollapsed {
-	--world-shell-rail: 0px !important;
-	grid-template-columns: 0 minmax(0, 1fr) !important;
+.shellCollapsed.shellCollapsed {
+	--world-shell-rail: 0px;
+	grid-template-columns: 0 minmax(0, 1fr);
 }
 
 .shellCollapsed > aside {
@@ -45,10 +45,6 @@
 }
 
 @media (max-width: 820px) {
-	.shellCollapsed {
-		display: block !important;
-	}
-
 	.shellCollapsed button[aria-label="Explorar universo"] {
 		display: none;
 	}
