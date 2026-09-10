@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const overlay = '[data-global-loading="off"][aria-busy="true"][aria-label="Carregando"]';
 
-async function startBlockingLoad(page: Parameters<typeof test>[0] extends never ? never : any) {
+async function startBlockingLoad(page: Page) {
 	await page.evaluate(() => {
 		const marker = document.createElement("div");
 		marker.id = "global-loader-theme-marker";
@@ -12,7 +12,7 @@ async function startBlockingLoad(page: Parameters<typeof test>[0] extends never 
 	await expect(page.locator(overlay)).toBeVisible();
 }
 
-async function stopBlockingLoad(page: Parameters<typeof test>[0] extends never ? never : any) {
+async function stopBlockingLoad(page: Page) {
 	await page.evaluate(() => {
 		document.getElementById("global-loader-theme-marker")?.remove();
 	});
