@@ -64,7 +64,7 @@ type UseWorldEditSessionOptions = Readonly<{
 	canEditContent: boolean;
 	canStartEditing: boolean;
 	publishedPositions: WorldLayout;
-	buildLayoutCandidate: () => WorldLayoutProjection | null;
+	buildLayoutCandidate: (graphDraft: WorldGraphDraft | null) => WorldLayoutProjection | null;
 	onApplyLayoutDraft: (positions: WorldLayout) => void;
 	onReleaseLayout: () => void;
 	onEditingStarted?: () => void;
@@ -344,7 +344,7 @@ export function useWorldEditSession({
 		setState("publishing");
 		setFeedback("Validando o rascunho mais recente…");
 
-		const layoutCandidate = buildLayoutCandidate();
+		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
 		if (!layoutCandidate) {
 			setState("editing");
 			setFeedback(worldEditFailureMessage("invalid_payload"));
