@@ -79,7 +79,7 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }, testInfo) => {
 	await page.goto("/");
 	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
-	const navLoresLink = primaryNav.getByRole("link", { name: "Lores", exact: true });
+	const navLoresLink = primaryNav.locator('a.lore-nav-link');
 	await expect(navLoresLink).toHaveAttribute("href", "/lore");
 
 	if (testInfo.project.name === "mobile") {
