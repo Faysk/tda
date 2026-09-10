@@ -28,7 +28,7 @@ env:
 jobs:
   deploy:
     name: deploy-preview
-    if: vars.TDA_CICD_BOOTSTRAP_READY == 'true' && vars.TDA_PREVIEW_CD_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
@@ -124,10 +124,13 @@ jobs:
           node --input-type=module -e '
             import fs from "node:fs";
             const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
+            const version = JSON.parse(fs.readFileSync("version.json", "utf8"));
             const expected = process.env.SOURCE_SHA;
             if (health.ok !== true) throw new Error("Preview health is not ok");
             if (health.environment !== "preview") throw new Error(`Expected preview environment, got ${health.environment}`);
             if (health.commit !== expected) throw new Error(`Expected commit ${expected}, got ${health.commit}`);
+            if (version.commit !== expected) throw new Error(`Version commit mismatch: ${version.commit}`);
+            if (version.release !== `preview-${expected.slice(0, 12)}`) throw new Error(`Preview release id mismatch: ${version.release}`);
           '
 
       - name: Preview summary
