@@ -1,3 +1,4 @@
+import NextLink from "next/link";
 import type { AnchorHTMLAttributes } from "react";
 
 export type PublicLinkProps = Omit<
@@ -8,5 +9,5 @@ export type PublicLinkProps = Omit<
 };
 
 export function PublicLink({ href, ...props }: PublicLinkProps) {
-	return <a href={href} {...props} />;
+	return <NextLink href={href} {...props} />;
 }
