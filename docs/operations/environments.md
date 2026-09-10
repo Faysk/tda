@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-10
 
 ## Ambientes conceituais
 
@@ -96,7 +96,11 @@ Production usa a base existente. Preview não deve ganhar acesso total à produ�
 
 Mesmo no bypass temporário, `SUPABASE_SECRET_KEY` permanece server-only. O browser chama Server Components/Actions; não recebe cliente privilegiado.
 
-Na esteira vigente, Preview não executa `db push` contra Production. Migrations entram no Git, passam pelos testes sintéticos e pela política `tools/ci/check-migrations.mjs`; somente o workflow de Production liga explicitamente ao projeto `dmrqnbdvbkfqzctcerbx`, executa `db push --dry-run`, aplica migrations pendentes e verifica o histórico antes de promover tráfego. Alterações destrutivas novas exigem revisão explícita e devem preferir expand → migrate → contract para preservar compatibilidade com a versão ainda publicada.
+Na esteira vigente, Preview não executa `db push` contra Production. Migrations entram no Git, passam pelos testes sintéticos e pela política `tools/ci/check-migrations.mjs`; somente o workflow de Production liga explicitamente ao projeto `dmrqnbdvbkfqzctcerbx`.
+
+O migration history canônico contém entradas legadas anteriores ao reboot TDA que deliberadamente não são copiadas para este repositório. O boundary do TDA é `20260906210333`. Antes de qualquer push, Production cria um workdir Supabase efêmero, busca nele o history remoto, recusa entradas remotas desconhecidas a partir desse boundary e sobrepõe o conjunto TDA com os arquivos autoritativos de `supabase/migrations`. O `db push --dry-run --skip-vault` e o apply rodam somente nesse overlay. Depois do apply, o history é buscado novamente e o conjunto remoto a partir do boundary deve ser exatamente igual ao conjunto deployável do repo antes que o workflow prossiga para smoke/promotion. O overlay não usa `migration repair` e é descartado com o runner.
+
+Alterações destrutivas novas exigem revisão explícita e devem preferir expand → migrate → contract para preservar compatibilidade com a versão ainda publicada.
 
 ## R2 por ambiente
 
@@ -118,7 +122,7 @@ Há três ambientes lógicos e dois targets cloud:
 | --- | --- | --- | --- |
 | Development | branches temporárias | nenhuma | local/sintético/configurado deliberadamente |
 | Preview | branch `Preview` | Vercel Preview após CI verde | sem migration automática em Production; R2 Preview |
-| Production | branch `main` | Vercel staged → smoke → promote para `dnd.faysk.dev` | Supabase Production + R2 Production |
+| Production | branch `main` | Vercel staged → DB overlay/gates → smoke → promote para `dnd.faysk.dev` | Supabase Production + R2 Production |
 
 Fluxo obrigatório após o bootstrap: branch temporária → PR para `Preview` → CI → Preview CD → homologação → PR `Preview` para `main` → CI → Production CD. O check `promotion-source` pode ser ativado com a repository variable `TDA_ENFORCE_PROMOTION_SOURCE=true`; uma vez ativo, PRs para `main` que não venham de `Preview` falham.
 
