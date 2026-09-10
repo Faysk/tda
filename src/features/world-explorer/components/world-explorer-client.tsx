@@ -28,6 +28,7 @@ import {
 import type { WorldLayout } from "../constellation-layout";
 import { captureWorldLayoutCandidate } from "../editorial-layout";
 import { worldDatasetFromDraft } from "../graph-contract";
+import { useWorldEditSession } from "../hooks/use-world-edit-session";
 import type {
 	WorldFilter,
 	WorldGraphDraft,
@@ -41,18 +42,6 @@ import {
 	filterWorldRelations,
 	searchWorldProjection,
 } from "../projection";
-import {
-	acquireWorldGraphDraftAction,
-	publishWorldEditStateAction,
-	saveWorldGraphDraftAction,
-} from "../world-graph-actions";
-import {
-	acquireWorldLayoutSessionAction,
-	releaseWorldLayoutSessionAction,
-	renewWorldLayoutSessionAction,
-	saveWorldLayoutSessionDraftAction,
-} from "../world-layout-session-actions";
-import { publishWorldEditLayoutAction } from "../world-edit-actions";
 import { WorldContentEditor } from "./world-content-editor";
 import { WorldEntityNode } from "./entity-node";
 import {
@@ -65,10 +54,6 @@ import responsive from "./world-responsive.module.css";
 
 const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
-const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
-const WORLD_EDIT_HEARTBEAT_MS = 20_000;
-const WORLD_EDIT_DRAFT_DEBOUNCE_MS = 500;
-const WORLD_BUSY_NOTICE_MS = 5_000;
 
 const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 	{ value: "all", label: "Todos" },
@@ -93,25 +78,8 @@ const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
 	{ value: "context", label: "Contexto" },
 ];
 
-type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
-type LayoutDraftResult = Awaited<ReturnType<typeof saveWorldLayoutSessionDraftAction>>;
-type GraphDraftResult = Awaited<ReturnType<typeof saveWorldGraphDraftAction>>;
-
 function clampPanelWidth(value: number) {
 	return Math.min(520, Math.max(320, value));
-}
-
-function positionsEqual(
-	left: Readonly<Record<string, Readonly<{ x: number; y: number }>>>,
-	right: Readonly<Record<string, Readonly<{ x: number; y: number }>>>,
-) {
-	const leftIds = Object.keys(left).sort();
-	const rightIds = Object.keys(right).sort();
-	if (leftIds.length !== rightIds.length) return false;
-	return leftIds.every((id, index) => {
-		if (id !== rightIds[index]) return false;
-		return left[id]?.x === right[id]?.x && left[id]?.y === right[id]?.y;
-	});
 }
 
 function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayoutProjection {
@@ -123,25 +91,30 @@ function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayout
 	};
 }
 
-function editFailureMessage(reason: string): string {
-	switch (reason) {
-		case "unauthenticated":
-			return "Sua sessão expirou. Entre novamente antes de editar o Mundo.";
-		case "profile_unresolved":
-			return "Sua conta ainda não está vinculada a um perfil que possa editar o Mundo.";
-		case "forbidden":
-			return "Sua conta não possui permissão para esta edição do Mundo.";
-		case "conflict":
-			return "O Mundo publicado mudou enquanto este rascunho estava aberto. O rascunho foi preservado; recarregue antes de publicar.";
-		case "lease_lost":
-			return "A sessão exclusiva de edição expirou. Seu rascunho foi preservado para recuperação, mas precisa de uma nova sessão antes de publicar.";
-		case "invalid_payload":
-			return "Há um campo inválido no rascunho. Corrija-o antes de publicar.";
-		case "duplicate":
-			return "Já existe um elemento, slug ou ligação incompatível com esta alteração. Ajuste o rascunho e tente novamente.";
-		default:
-			return "Não foi possível confirmar a edição agora. Nenhuma alteração foi publicada.";
-	}
+function projectionWithDraft(
+	projection: WorldGraphProjection,
+	draft: WorldGraphDraft | null,
+): WorldGraphProjection {
+	if (!draft) return projection;
+	const next = buildWorldProjection(worldDatasetFromDraft(draft));
+	next.layout = projection.layout;
+	return next;
+}
+
+function layoutCandidateFor(
+	projection: WorldGraphProjection,
+	overrides: WorldLayout,
+): WorldLayoutProjection | null {
+	const fullGraph = toReactFlowGraph(projection, null, overrides);
+	return captureWorldLayoutCandidate(
+		projection,
+		Object.fromEntries(
+			fullGraph.nodes.map((node) => [
+				node.id,
+				{ x: node.position.x, y: node.position.y },
+			]),
+		),
+	);
 }
 
 export function WorldExplorerClient({
@@ -163,32 +136,34 @@ export function WorldExplorerClient({
 	const positionOverridesRef = useRef<WorldLayout>({});
 	const [panelWidth, setPanelWidth] = useState(370);
 	const [panelCollapsed, setPanelCollapsed] = useState(false);
-	const [editState, setEditState] = useState<WorldEditState>("view");
-	const [leaseToken, setLeaseToken] = useState<string | null>(null);
-	const [layoutDirty, setLayoutDirty] = useState(false);
-	const [graphDraft, setGraphDraft] = useState<WorldGraphDraft | null>(null);
-	const graphDraftRef = useRef<WorldGraphDraft | null>(null);
-	const [graphDirty, setGraphDirty] = useState(false);
-	const [editFeedback, setEditFeedback] = useState<string | null>(null);
-	const [busyNotice, setBusyNotice] = useState<string | null>(null);
 	const resizeStart = useRef<{ x: number; width: number } | null>(null);
-	const layoutDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const draftSequence = useRef(0);
-	const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
-	const editing = editState === "editing" || editState === "publishing";
-	const editBusy = editState === "acquiring" || editState === "publishing";
-	const hasEditChanges = layoutDirty || graphDirty;
-	const workingWithGraphDraft = Boolean(canEditContent && editing && graphDraft);
+	const edit = useWorldEditSession({
+		canEditLayout,
+		canEditContent,
+		canStartEditing: projection.mode === "overview",
+		publishedPositions: projection.layout?.positions ?? {},
+		buildLayoutCandidate: (draft) =>
+			layoutCandidateFor(
+				canEditContent ? projectionWithDraft(projection, draft) : projection,
+				positionOverridesRef.current,
+			),
+		onApplyLayoutDraft: (positions) => {
+			positionOverridesRef.current = positions;
+			setPositionOverrides(positions);
+		},
+		onReleaseLayout: () => {
+			positionOverridesRef.current = {};
+			setPositionOverrides({});
+		},
+		onEditingStarted: () => setPanelCollapsed(false),
+		onPublished: () => router.refresh(),
+	});
 
 	const workingProjection = useMemo(() => {
-		if (!workingWithGraphDraft || !graphDraft) return projection;
-		const next = buildWorldProjection(worldDatasetFromDraft(graphDraft));
-		next.layout = projection.layout;
-		return next;
-	}, [graphDraft, projection, workingWithGraphDraft]);
+		if (!canEditContent || !edit.editing || !edit.graphDraft) return projection;
+		return projectionWithDraft(projection, edit.graphDraft);
+	}, [canEditContent, edit.editing, edit.graphDraft, projection]);
 
 	const visibleProjection = useMemo(() => {
 		const byType = filterWorldProjection(workingProjection, filter);
@@ -208,10 +183,6 @@ export function WorldExplorerClient({
 	}, [positionOverrides]);
 
 	useEffect(() => {
-		graphDraftRef.current = graphDraft;
-	}, [graphDraft]);
-
-	useEffect(() => {
 		setNodes(graph.nodes);
 		setEdges(graph.edges);
 	}, [graph, setEdges, setNodes]);
@@ -222,36 +193,6 @@ export function WorldExplorerClient({
 		}
 	}, [selectedId, visibleProjection.nodes]);
 
-	useEffect(() => {
-		if (editState !== "editing" || !leaseToken) return;
-		let cancelled = false;
-		const heartbeat = window.setInterval(() => {
-			void renewWorldLayoutSessionAction(leaseToken).then((result) => {
-				if (cancelled || result.ok) return;
-				if (result.reason === "lease_lost" || result.reason === "forbidden") {
-					draftSequence.current += 1;
-					setEditState("view");
-					setLeaseToken(null);
-					window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-				}
-				setEditFeedback(editFailureMessage(result.reason));
-			});
-		}, WORLD_EDIT_HEARTBEAT_MS);
-		return () => {
-			cancelled = true;
-			window.clearInterval(heartbeat);
-		};
-	}, [editState, leaseToken]);
-
-	useEffect(
-		() => () => {
-			if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
-			if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
-			if (busyTimer.current) clearTimeout(busyTimer.current);
-		},
-		[],
-	);
-
 	const selected = selectedId
 		? visibleProjection.nodes.find((node) => node.id === selectedId)
 		: undefined;
@@ -259,132 +200,6 @@ export function WorldExplorerClient({
 		? workingProjection.nodes.find((node) => node.id === workingProjection.focusId)
 		: undefined;
 	const activeRelationTypes = workingProjection.relationTypes.filter((type) => type.isActive);
-
-	function candidateFrom(overrides: WorldLayout) {
-		const fullGraph = toReactFlowGraph(workingProjection, null, overrides);
-		return captureWorldLayoutCandidate(
-			workingProjection,
-			Object.fromEntries(
-				fullGraph.nodes.map((node) => [
-					node.id,
-					{ x: node.position.x, y: node.position.y },
-				]),
-			),
-		);
-	}
-
-	function showBusyNotice(message: string) {
-		setBusyNotice(message);
-		if (busyTimer.current) clearTimeout(busyTimer.current);
-		busyTimer.current = setTimeout(() => setBusyNotice(null), WORLD_BUSY_NOTICE_MS);
-	}
-
-	function markLeaseLost(reason: string) {
-		draftSequence.current += 1;
-		setEditState("view");
-		setLeaseToken(null);
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		setEditFeedback(editFailureMessage(reason));
-	}
-
-	function enqueueSave<T>(operation: () => Promise<T>): Promise<T> {
-		const request = saveQueue.current.then(operation);
-		saveQueue.current = request.then(
-			() => undefined,
-			() => undefined,
-		);
-		return request;
-	}
-
-	function queueLayoutDraftRequest(
-		token: string,
-		candidate: WorldLayoutProjection,
-	): Promise<LayoutDraftResult> {
-		return enqueueSave(async () => {
-			try {
-				return await saveWorldLayoutSessionDraftAction(token, candidate);
-			} catch {
-				return { ok: false, reason: "dependency_unavailable" } as const;
-			}
-		});
-	}
-
-	function queueGraphDraftRequest(
-		token: string,
-		draft: WorldGraphDraft,
-	): Promise<GraphDraftResult> {
-		return enqueueSave(async () => {
-			try {
-				return await saveWorldGraphDraftAction(token, draft);
-			} catch {
-				return { ok: false, reason: "dependency_unavailable" } as const;
-			}
-		});
-	}
-
-	function scheduleLayoutDraftSave(
-		candidate: WorldLayoutProjection,
-		pendingMessage = "Alterações locais — salvando rascunho…",
-	) {
-		if (editState !== "editing" || !leaseToken) return;
-		if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
-		const sequence = ++draftSequence.current;
-		setEditFeedback(pendingMessage);
-		layoutDraftTimer.current = setTimeout(() => {
-			layoutDraftTimer.current = null;
-			void queueLayoutDraftRequest(leaseToken, candidate).then((result) => {
-				if (sequence !== draftSequence.current) return;
-				if (result.ok) {
-					setEditFeedback(
-						canEditContent
-							? "Rascunho salvo. Só você vê estas alterações até publicar."
-							: "Rascunho salvo. Só você vê estas posições até publicar.",
-					);
-					return;
-				}
-				if (result.reason === "lease_lost" || result.reason === "forbidden") {
-					markLeaseLost(result.reason);
-					return;
-				}
-				setEditFeedback(editFailureMessage(result.reason));
-			});
-		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
-	}
-
-	function scheduleGraphDraftSave(
-		draft: WorldGraphDraft,
-		pendingMessage = "Alterações no Mundo — salvando rascunho…",
-	) {
-		if (!canEditContent || editState !== "editing" || !leaseToken) return;
-		if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
-		const sequence = ++draftSequence.current;
-		setEditFeedback(pendingMessage);
-		graphDraftTimer.current = setTimeout(() => {
-			graphDraftTimer.current = null;
-			void queueGraphDraftRequest(leaseToken, draft).then((result) => {
-				if (sequence !== draftSequence.current) return;
-				if (result.ok) {
-					setEditFeedback("Rascunho salvo. Só você vê estas alterações até publicar.");
-					return;
-				}
-				if (result.reason === "lease_lost" || result.reason === "forbidden") {
-					markLeaseLost(result.reason);
-					return;
-				}
-				setEditFeedback(editFailureMessage(result.reason));
-			});
-		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
-	}
-
-	function updateGraphDraft(next: WorldGraphDraft, message?: string) {
-		graphDraftRef.current = next;
-		setGraphDraft(next);
-		setGraphDirty(true);
-		scheduleGraphDraftSave(
-			next,
-			message ? `${message} Salvando rascunho…` : undefined,
-		);
-	}
 
 	function rememberNodePosition(node: WorldFlowNode) {
 		const nextOverrides: WorldLayout = {
@@ -397,14 +212,13 @@ export function WorldExplorerClient({
 			item.id === node.id ? { ...item, position: node.position } : item,
 		);
 		setEdges((current) => rerouteWorldEdges(positionedNodes, current));
-		if (editState === "editing") {
-			const candidate = candidateFrom(nextOverrides);
+		if (edit.state === "editing") {
+			const candidate = layoutCandidateFor(workingProjection, nextOverrides);
 			if (!candidate) {
-				setEditFeedback(editFailureMessage("invalid_payload"));
+				edit.reportFailure("invalid_payload");
 				return;
 			}
-			setLayoutDirty(true);
-			scheduleLayoutDraftSave(candidate);
+			edit.updateLayoutDraft(candidate);
 		}
 	}
 
@@ -412,214 +226,12 @@ export function WorldExplorerClient({
 		positionOverridesRef.current = {};
 		setPositionOverrides({});
 		setSelectedId(workingProjection.focusId);
-		if (editState === "editing") {
-			setLayoutDirty(false);
-			scheduleLayoutDraftSave(
-				publishedLayoutCandidate(projection),
-				"Restaurando as posições publicadas no rascunho…",
-			);
+		if (edit.state === "editing") {
+			edit.updateLayoutDraft(publishedLayoutCandidate(projection), {
+				dirty: false,
+				pendingMessage: "Restaurando as posições publicadas no rascunho…",
+			});
 		}
-	}
-
-	async function startEditing() {
-		if (!canEditLayout || projection.mode !== "overview" || editState !== "view") return;
-		setBusyNotice(null);
-		setEditState("acquiring");
-		setEditFeedback("Obtendo sessão exclusiva de edição…");
-		let token = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		if (!token) {
-			token = crypto.randomUUID();
-			window.sessionStorage.setItem(WORLD_EDIT_LEASE_STORAGE_KEY, token);
-		}
-
-		const result = await acquireWorldLayoutSessionAction(token);
-		if (!result.ok) {
-			setEditState("view");
-			if (result.reason === "busy") {
-				showBusyNotice(
-					result.sameActor
-						? "Você já está editando o Mundo em outra aba. Finalize aquela sessão ou aguarde a expiração para recuperar o rascunho."
-						: `${result.holderLabel} está editando o Mundo neste momento.`,
-				);
-				setEditFeedback(null);
-				return;
-			}
-			window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-			setEditFeedback(editFailureMessage(result.reason));
-			return;
-		}
-
-		let acquiredGraph: WorldGraphDraft | null = null;
-		if (canEditContent) {
-			const graphResult = await acquireWorldGraphDraftAction(token);
-			if (!graphResult.ok) {
-				await releaseWorldLayoutSessionAction(token);
-				window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-				setEditState("view");
-				setEditFeedback(editFailureMessage(graphResult.reason));
-				return;
-			}
-			acquiredGraph = graphResult.draft;
-		}
-
-		setLeaseToken(token);
-		positionOverridesRef.current = result.draft.positions;
-		setPositionOverrides(result.draft.positions);
-		setLayoutDirty(
-			!positionsEqual(result.draft.positions, projection.layout?.positions ?? {}),
-		);
-		graphDraftRef.current = acquiredGraph;
-		setGraphDraft(acquiredGraph);
-		setGraphDirty(Boolean(acquiredGraph && result.status !== "acquired"));
-		setPanelCollapsed(false);
-		setEditState("editing");
-		setEditFeedback(
-			result.status === "acquired"
-				? canEditContent
-					? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; só você vê o rascunho até publicar."
-					: "Edição exclusiva ativa. Alterações de posição ficam em rascunho até publicar."
-				: "Rascunho de edição recuperado. Revise antes de publicar.",
-		);
-	}
-
-	async function publishEditing() {
-		if (editState !== "editing" || !leaseToken || !hasEditChanges) return;
-		if (layoutDraftTimer.current) {
-			clearTimeout(layoutDraftTimer.current);
-			layoutDraftTimer.current = null;
-		}
-		if (graphDraftTimer.current) {
-			clearTimeout(graphDraftTimer.current);
-			graphDraftTimer.current = null;
-		}
-		const sequence = ++draftSequence.current;
-		setEditState("publishing");
-		setEditFeedback("Validando o rascunho mais recente…");
-
-		const layoutCandidate = candidateFrom(positionOverridesRef.current);
-		if (!layoutCandidate) {
-			setEditState("editing");
-			setEditFeedback(editFailureMessage("invalid_payload"));
-			return;
-		}
-		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
-		if (sequence !== draftSequence.current) return;
-		if (!layoutResult.ok) {
-			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
-				markLeaseLost(layoutResult.reason);
-			} else {
-				setEditState("editing");
-				setEditFeedback(editFailureMessage(layoutResult.reason));
-			}
-			return;
-		}
-
-		if (canEditContent) {
-			const latestGraph = graphDraftRef.current;
-			if (!latestGraph) {
-				setEditState("editing");
-				setEditFeedback("O rascunho factual não está disponível. Reabra a edição antes de publicar.");
-				return;
-			}
-			const graphResult = await queueGraphDraftRequest(leaseToken, latestGraph);
-			if (sequence !== draftSequence.current) return;
-			if (!graphResult.ok) {
-				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
-					markLeaseLost(graphResult.reason);
-				} else {
-					setEditState("editing");
-					setEditFeedback(editFailureMessage(graphResult.reason));
-				}
-				return;
-			}
-
-			setEditFeedback("Publicando o Mundo com as visibilidades configuradas…");
-			const publishResult = await publishWorldEditStateAction(leaseToken);
-			if (sequence !== draftSequence.current) return;
-			if (!publishResult.ok) {
-				if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
-					markLeaseLost(publishResult.reason);
-				} else {
-					setEditState("editing");
-					setEditFeedback(editFailureMessage(publishResult.reason));
-				}
-				return;
-			}
-			completePublishedEdit(
-				publishResult.status === "unchanged"
-					? "Nenhuma alteração precisava ser publicada."
-					: "Mundo publicado. Cada pessoa vê somente o que sua visibilidade permite.",
-			);
-			return;
-		}
-
-		setEditFeedback("Publicando composição para todos…");
-		const publishResult = await publishWorldEditLayoutAction(leaseToken);
-		if (sequence !== draftSequence.current) return;
-		if (!publishResult.ok) {
-			if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
-				markLeaseLost(publishResult.reason);
-			} else {
-				setEditState("editing");
-				setEditFeedback(editFailureMessage(publishResult.reason));
-			}
-			return;
-		}
-		completePublishedEdit(
-			publishResult.status === "unchanged"
-				? "Nenhuma mudança de layout precisava ser publicada."
-				: "Composição publicada para todos.",
-		);
-	}
-
-	function completePublishedEdit(message: string) {
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		setLeaseToken(null);
-		setLayoutDirty(false);
-		setGraphDirty(false);
-		graphDraftRef.current = null;
-		setGraphDraft(null);
-		setEditState("view");
-		setEditFeedback(message);
-		router.refresh();
-	}
-
-	async function releaseEditing(message: string) {
-		if (!leaseToken || editState !== "editing") return;
-		if (layoutDraftTimer.current) {
-			clearTimeout(layoutDraftTimer.current);
-			layoutDraftTimer.current = null;
-		}
-		if (graphDraftTimer.current) {
-			clearTimeout(graphDraftTimer.current);
-			graphDraftTimer.current = null;
-		}
-		draftSequence.current += 1;
-		setEditFeedback("Encerrando a sessão de edição…");
-		await saveQueue.current;
-		const result = await releaseWorldLayoutSessionAction(leaseToken);
-		if (!result.ok) {
-			setEditFeedback(editFailureMessage(result.reason));
-			return;
-		}
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		setLeaseToken(null);
-		setLayoutDirty(false);
-		setGraphDirty(false);
-		graphDraftRef.current = null;
-		setGraphDraft(null);
-		setEditState("view");
-		positionOverridesRef.current = {};
-		setPositionOverrides({});
-		setEditFeedback(message);
-	}
-
-	async function finishEditing() {
-		await releaseEditing("Edição encerrada sem alterações publicadas.");
-	}
-
-	async function discardEditing() {
-		await releaseEditing("Rascunho descartado. O Mundo publicado foi mantido.");
 	}
 
 	function startResize(event: ReactPointerEvent<HTMLElement>) {
@@ -645,15 +257,15 @@ export function WorldExplorerClient({
 
 	const editButtonLabel = canEditContent ? "Editar" : "Editar layout";
 	const authoringPanelVisible =
-		canEditContent && editState === "editing" && graphDraft !== null;
+		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
 
 	return (
 		<div
 			className={`${styles.explorer} ${responsive.layout} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
 			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
-			data-world-edit-state={editState}
+			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
-			aria-busy={editBusy}
+			aria-busy={edit.busy}
 		>
 			<section
 				className={`${styles.canvasColumn} ${responsive.canvasColumn}`}
@@ -694,11 +306,11 @@ export function WorldExplorerClient({
 							<div className={styles.editGroup}>
 								<button
 									type="button"
-									className={`${styles.editToggle}${editing ? ` ${styles.editToggleActive}` : ""}`}
-									aria-pressed={editing}
+									className={`${styles.editToggle}${edit.editing ? ` ${styles.editToggleActive}` : ""}`}
+									aria-pressed={edit.editing}
 									aria-label={
-										editState === "editing"
-											? hasEditChanges
+										edit.state === "editing"
+											? edit.hasChanges
 												? canEditContent
 													? "Publicar alterações do Mundo"
 													: "Publicar alterações do layout"
@@ -707,33 +319,33 @@ export function WorldExplorerClient({
 												? "Editar o Mundo"
 												: "Editar layout do Mundo"
 									}
-									disabled={editBusy}
+									disabled={edit.busy}
 									onClick={() => {
-										if (editState === "editing") {
-											void (hasEditChanges ? publishEditing() : finishEditing());
-										} else if (editState === "view") {
-											void startEditing();
+										if (edit.state === "editing") {
+											void (edit.hasChanges ? edit.publish() : edit.finish());
+										} else if (edit.state === "view") {
+											void edit.start();
 										}
 									}}
 								>
 									<span aria-hidden="true">
-										{editing ? "●" : editState === "acquiring" ? "…" : "○"}
+										{edit.editing ? "●" : edit.state === "acquiring" ? "…" : "○"}
 									</span>
-									{editState === "publishing"
+									{edit.state === "publishing"
 										? "Publicando…"
-										: editState === "acquiring"
+										: edit.state === "acquiring"
 											? "Abrindo…"
-											: editState === "editing"
-												? hasEditChanges
+											: edit.state === "editing"
+												? edit.hasChanges
 													? "Publicar"
 													: "Concluir"
 												: editButtonLabel}
 								</button>
-								{editState === "editing" ? (
+								{edit.state === "editing" ? (
 									<button
 										type="button"
 										className={styles.discardEdit}
-										onClick={() => void discardEditing()}
+										onClick={() => void edit.discard()}
 									>
 										Descartar
 									</button>
@@ -743,15 +355,15 @@ export function WorldExplorerClient({
 					</div>
 				</header>
 
-				{busyNotice ? (
+				{edit.busyNotice ? (
 					<div className={styles.editNotice} role="status">
-						{busyNotice}
+						{edit.busyNotice}
 					</div>
 				) : null}
-				{editFeedback ? (
+				{edit.feedback ? (
 					<div className={styles.editFeedback} role="status" aria-live="polite">
-						<span aria-hidden="true">{editing ? "●" : "·"}</span>
-						{editFeedback}
+						<span aria-hidden="true">{edit.editing ? "●" : "·"}</span>
+						{edit.feedback}
 					</div>
 				) : null}
 
@@ -779,10 +391,10 @@ export function WorldExplorerClient({
 					<button
 						className={`${styles.resetButton} ${responsive.reset}`}
 						type="button"
-						disabled={editBusy}
+						disabled={edit.busy}
 						onClick={resetLayout}
 					>
-						{editing ? "Restaurar posições" : "Reorganizar"}
+						{edit.editing ? "Restaurar posições" : "Reorganizar"}
 					</button>
 				</div>
 
@@ -894,14 +506,14 @@ export function WorldExplorerClient({
 					{panelCollapsed ? "‹" : "›"}
 				</button>
 				{!panelCollapsed ? (
-					authoringPanelVisible && graphDraft ? (
+					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
-							draft={graphDraft}
+							draft={edit.graphDraft}
 							selectedId={selectedId}
-							onDraftChange={updateGraphDraft}
+							onDraftChange={edit.updateGraphDraft}
 							onSelect={setSelectedId}
 						/>
-					) : editState === "publishing" && canEditContent ? (
+					) : edit.state === "publishing" && canEditContent ? (
 						<div className={styles.overviewInspector}>
 							<h2>Publicando…</h2>
 							<p>Validando o rascunho e registrando as alterações do Mundo.</p>
@@ -913,13 +525,13 @@ export function WorldExplorerClient({
 							projection={visibleProjection}
 							focus={focus}
 							onSelect={setSelectedId}
-							editing={editing}
+							editing={edit.editing}
 						/>
 					) : (
 						<div className={styles.overviewInspector}>
 							<h2>Visão geral</h2>
 							<p>
-								{canEditContent && editing
+								{canEditContent && edit.editing
 									? "Use o painel de edição para criar ou alterar elementos e ligações."
 									: "Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa."}
 							</p>
