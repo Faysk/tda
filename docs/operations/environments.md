@@ -127,6 +127,14 @@ GitHub Environments esperados:
 - `preview`: secret `VERCEL_TOKEN`;
 - `production`: secrets `VERCEL_TOKEN`, `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD`.
 
+Repository variables de ativação:
+
+- `TDA_PREVIEW_CD_ENABLED=true` — permite que o workflow de Preview publique após CI verde;
+- `TDA_PRODUCTION_CD_ENABLED=true` — permite staged deployment, migration gate e promoção de Production após CI verde;
+- `TDA_ENFORCE_PROMOTION_SOURCE=true` — exige `Preview -> main` em PRs de produção.
+
+Os dois switches de CD devem permanecer ausentes/false durante o bootstrap. Isso garante que simplesmente integrar os workflows na `main` não publique nada. Ativar primeiro Preview, comprovar um ciclo completo de homologação e somente depois ativar Production.
+
 Os IDs não secretos de team/projeto Vercel e project ref Supabase ficam pinados nos workflows para impedir publicação acidental em outro contexto. Secrets runtime da aplicação continuam na Vercel por ambiente; os GitHub secrets acima existem apenas para controlar deployment/migration.
 
 O bootstrap da política exige alinhar a branch `Preview` ao `main` atual antes de habilitar `TDA_ENFORCE_PROMOTION_SOURCE`. Depois disso, `main` representa somente releases promovidas pela linha de homologação.
