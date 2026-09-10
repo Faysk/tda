@@ -29,6 +29,14 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
 	}, []);
 
+	function closeNavigation() {
+		const shouldRestoreFocus = window.matchMedia("(max-width: 820px)").matches;
+		setNavigationOpen(false);
+		if (shouldRestoreFocus) {
+			window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+		}
+	}
+
 	useEffect(() => {
 		const mobile = window.matchMedia("(max-width: 820px)");
 		if (!navigationOpen || !mobile.matches) return;
@@ -42,8 +50,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 
 			if (event.key === "Escape") {
 				event.preventDefault();
-				setNavigationOpen(false);
-				window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+				closeNavigation();
 				return;
 			}
 
@@ -80,6 +87,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			data-world-navigation={navigationOpen ? "open" : "closed"}
 			data-testid="world-workspace"
 		>
+			{/* biome-ignore lint/a11y/useSemanticElements: desktop complementary sidebar becomes a modal dialog only at the mobile breakpoint. */}
 			<aside
 				ref={navigationPanelRef}
 				id="world-workspace-navigation"
@@ -97,7 +105,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 							ref={navigationCloseRef}
 							type="button"
 							className={styles.closeNavigation}
-							onClick={() => setNavigationOpen(false)}
+							onClick={closeNavigation}
 							aria-label="Recolher navegação do mundo"
 						>
 							×
@@ -114,7 +122,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			<button
 				type="button"
 				className={styles.mobileBackdrop}
-				onClick={() => setNavigationOpen(false)}
+				onClick={closeNavigation}
 				aria-label="Fechar navegação do mundo"
 				aria-hidden="true"
 				tabIndex={-1}
