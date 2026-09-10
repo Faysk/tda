@@ -30,6 +30,8 @@ const runtimeAssets = [
 	"ultimo-dia-subject.avif",
 ] as const;
 
+const staticBedScenes = ["super-herois", "cadeira", "ultimo-dia"] as const;
+
 test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	const response = await page.goto("/lore/pipipi");
 	expect(response?.status()).toBe(200);
@@ -66,20 +68,29 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 		.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-scene")));
 	expect(renderedSceneIds).toEqual(sceneIds);
 
-	const infiniteAnimations = await page.locator("article").evaluate((article) =>
-		Array.from(article.querySelectorAll("*")).filter((element) =>
-			getComputedStyle(element)
+	const heroGhost = page.locator('[data-hero-ghost="idle"]');
+	await expect(heroGhost).toBeVisible();
+	await expect
+		.poll(() =>
+			heroGhost.evaluate((element) => getComputedStyle(element).animationIterationCount),
+		)
+		.toBe("infinite");
+
+	const unexpectedInfiniteAnimations = await page.locator("article").evaluate((article) =>
+		Array.from(article.querySelectorAll("*")).filter((element) => {
+			if (element.hasAttribute("data-hero-ghost")) return false;
+			return getComputedStyle(element)
 				.animationIterationCount.split(",")
-				.some((count) => count.trim() === "infinite"),
-		).length,
+				.some((count) => count.trim() === "infinite");
+		}).length,
 	);
-	expect(infiniteAnimations).toBe(0);
+	expect(unexpectedInfiniteAnimations).toBe(0);
 });
 
 test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }, testInfo) => {
 	await page.goto("/");
 	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
-	const navLoresLink = primaryNav.locator('a.lore-nav-link');
+	const navLoresLink = primaryNav.locator("a.lore-nav-link");
 	await expect(navLoresLink).toHaveAttribute("href", "/lore");
 
 	if (testInfo.project.name === "mobile") {
@@ -203,6 +214,17 @@ test("uses portrait focal points and keeps the flying Pipipi inside the stage", 
 		.evaluate((image) => getComputedStyle(image).objectPosition);
 	expect(chairObjectPosition).toBe("72% 50%");
 
+	const corridorScene = page.locator('[data-scene="corredores"]');
+	await corridorScene.scrollIntoViewIfNeeded();
+	const corridorSubject = await corridorScene.locator("img").nth(1).boundingBox();
+	expect(corridorSubject).not.toBeNull();
+	if (corridorSubject) {
+		const viewportWidth = page.viewportSize()?.width ?? 1;
+		const subjectCenter = corridorSubject.x + corridorSubject.width / 2;
+		expect(subjectCenter).toBeGreaterThan(viewportWidth * 0.35);
+		expect(subjectCenter).toBeLessThan(viewportWidth * 0.55);
+	}
+
 	const wokeScene = page.locator('[data-scene="acordou"]');
 	await wokeScene.scrollIntoViewIfNeeded();
 	await expect(wokeScene).toHaveAttribute("data-active", "true");
@@ -243,7 +265,49 @@ test("uses portrait focal points and keeps the flying Pipipi inside the stage", 
 	expect(Math.abs(mobileBackgroundX)).toBeLessThanOrEqual(0.5);
 });
 
-test("runs finite viewport-driven motion and honors reduced motion", async ({ page }) => {
+test("keeps approved bed compositions fixed while the story scrolls", async ({ page }) => {
+	await page.goto("/lore/pipipi");
+
+	for (const sceneId of staticBedScenes) {
+		const scene = page.locator(`[data-scene="${sceneId}"]`);
+		await expect(scene).toHaveAttribute("data-static-media", "true");
+		await scene.scrollIntoViewIfNeeded();
+		await expect(scene).toHaveAttribute("data-active", "true");
+		await scene.evaluate((element) => {
+			const rect = element.getBoundingClientRect();
+			const absoluteTop = window.scrollY + rect.top;
+			window.scrollTo(
+				0,
+				absoluteTop + Math.max(1, rect.height - window.innerHeight) * 0.55,
+			);
+		});
+
+		await expect
+			.poll(() =>
+				scene.evaluate((element) =>
+					Number.parseFloat(element.style.getPropertyValue("--scene-progress") || "0"),
+				),
+			)
+			.toBeGreaterThan(0.25);
+
+		const mediaMotion = await scene.evaluate((element) => ({
+			backgroundX: element.style.getPropertyValue("--scene-bg-x"),
+			backgroundY: element.style.getPropertyValue("--scene-bg-y"),
+			subjectX: element.style.getPropertyValue("--scene-subject-x"),
+			subjectY: element.style.getPropertyValue("--scene-subject-y"),
+			subjectScale: element.style.getPropertyValue("--scene-subject-scale"),
+		}));
+		expect(mediaMotion).toEqual({
+			backgroundX: "0px",
+			backgroundY: "0px",
+			subjectX: "0px",
+			subjectY: "0px",
+			subjectScale: "1",
+		});
+	}
+});
+
+test("runs viewport-driven motion and honors reduced motion", async ({ page }) => {
 	await page.goto("/lore/pipipi");
 	const scene = page.locator('[data-scene="corredores"]');
 
@@ -297,6 +361,13 @@ test("runs finite viewport-driven motion and honors reduced motion", async ({ pa
 			),
 		)
 		.toBe("1");
+	await expect
+		.poll(() =>
+			page
+				.locator('[data-hero-ghost="idle"]')
+				.evaluate((element) => getComputedStyle(element).animationName),
+		)
+		.toBe("none");
 
 	const stagePosition = await scene
 		.locator(":scope > div")
