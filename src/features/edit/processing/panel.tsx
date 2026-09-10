@@ -211,7 +211,7 @@ export function ProcessingPanel() {
 	const queued = state.jobs.filter((job) => job.status === "queued");
 	const succeeded = state.jobs.filter((job) => job.status === "succeeded");
 	const attention = state.jobs.filter((job) =>
-		["failed", "interrupted", "cancelled"].includes(job.status),
+		["failed", "interrupted"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
@@ -264,7 +264,7 @@ export function ProcessingPanel() {
 
 				{connected ? (
 					<>
-						<div className={styles.telemetry} aria-label="Uso do computador local">
+						<div className={styles.telemetry} role="group" aria-label="Uso do computador local">
 							{gpu ? <GpuMetric gpu={gpu} /> : null}
 							<Metric
 								label="CPU"
@@ -352,12 +352,7 @@ export function ProcessingPanel() {
 						<Metric label="Processando" value={String(running.length)} />
 						<Metric label="Na fila" value={String(queued.length)} />
 						<Metric label="Concluídos" value={String(succeeded.length)} />
-						<Metric
-							label="Com atenção"
-							value={String(
-								state.jobs.filter((job) => ["failed", "interrupted"].includes(job.status)).length,
-							)}
-						/>
+						<Metric label="Com atenção" value={String(attention.length)} />
 					</section>
 
 					<div className={styles.workspace}>
@@ -382,7 +377,7 @@ export function ProcessingPanel() {
 										</div>
 										<div className={styles.activeMeta}>
 											<span>{stageLabels[activeJob.stage] ?? activeJob.stage}</span>
-											{trackContext?.track !== null && trackContext?.track !== undefined && trackContext.total !== null ? (
+											{trackContext?.track != null && trackContext.total != null ? (
 												<span>Arquivo {trackContext.track} de {trackContext.total}</span>
 											) : null}
 											{trackContext?.speaker ? <span>Voz: {trackContext.speaker}</span> : null}
@@ -401,7 +396,7 @@ export function ProcessingPanel() {
 										) : (
 											<p className={styles.noProgress}>Sem medida de progresso nesta etapa.</p>
 										)}
-										<div className={styles.pipeline} aria-label="Etapa atual do processamento">
+										<div className={styles.pipeline} role="group" aria-label="Etapa atual do processamento">
 											<span data-state={activeJob.stage === "queued" ? "current" : "done"}>Preparação</span>
 											<span data-state={["fixture", "transcribing", "diarization", "noise_cleanup", "resuming"].includes(activeJob.stage) ? "current" : activeJob.stage === "complete" ? "done" : "pending"}>Processamento</span>
 											<span data-state={activeJob.stage === "complete" ? "current" : "pending"}>Consolidação</span>
