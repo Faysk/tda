@@ -3,6 +3,7 @@ import { PIPIPI_CINEMATIC_ART_DIRECTION } from "../art-directions/pipipi";
 import { PIPIPI_STORY, type PipipiSceneId } from "../pipipi-story";
 import { PipipiCinematicScene } from "./pipipi-cinematic-scene";
 import styles from "./pipipi-lore-page.module.css";
+import mobileStyles from "./pipipi-lore-mobile.module.css";
 
 const sceneConfig: Record<
 	PipipiSceneId,
@@ -261,7 +262,10 @@ export function PipipiLorePage() {
 				</div>
 			</header>
 
-			<nav className={styles.chapterNav} aria-label="Capítulos da história">
+			<nav
+				className={`${styles.chapterNav} ${mobileStyles.chapterNav}`}
+				aria-label="Capítulos da história"
+			>
 				{PIPIPI_STORY.parts.map((part) => (
 					<a key={part.id} href={`#${part.id}`}>
 						<span>{part.number}</span> {part.title}
