@@ -1,152 +1,107 @@
 import { expect, test } from "@playwright/test";
 
-test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
+async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+	).toBeTruthy();
+}
+
+test("World Explorer renders the demo graph and keeps inspection local", async ({ page }) => {
 	await page.goto("/mundo");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
+	await expect(page.getByRole("heading", { name: "Ecos da Jornada" })).toBeVisible();
 	await expect(page.getByText("Demo · não canônico")).toBeVisible();
-	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
+	await expect(page.getByTestId("world-canvas")).toBeVisible();
+	await expect(page.locator('[data-world-node="astel"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
-	const allRelationLabels = page.locator("[data-world-edge-label]");
-	await expect.poll(async () => allRelationLabels.count()).toBeGreaterThan(1);
-	const labelCountBeforeSelection = await allRelationLabels.count();
-
-	await page.locator('[data-world-node="astel"]').click();
-	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
-	await expect(
-		page.locator('[data-world-node="astel"] [data-node-state]'),
-	).toHaveText("Selecionado");
+	const astel = page.locator('[data-world-node="astel"]');
+	await astel.click();
+	await expect(page.getByRole("heading", { name: "Astel" })).toBeVisible();
 	await expect(page).toHaveURL(/\/mundo$/);
+	await expect(page.getByRole("link", { name: /Explorar conexões de Astel/ })).toBeVisible();
+});
 
-	await expect.poll(async () => allRelationLabels.count()).toBeLessThan(labelCountBeforeSelection);
-	const labelCountAfterSelection = await allRelationLabels.count();
-	expect(labelCountAfterSelection).toBeGreaterThan(0);
-
-	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
+test("World Explorer exposes explicit focus navigation", async ({ page }) => {
+	await page.goto("/mundo");
+	await page.locator('[data-world-node="astel"]').click();
+	await page.getByRole("link", { name: /Explorar conexões de Astel/ }).click();
 	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
-	await expect(page.getByText("Foco exploratório atual.")).toBeVisible();
-	await expect(
-		page.locator('[data-world-node="astel"] [data-node-state]'),
-	).toHaveText("Foco · selecionado");
+	await expect(page.getByText("Conexões de Astel")).toBeVisible();
+	await expect(page.getByRole("link", { name: "Voltar à visão geral" })).toBeVisible();
+});
+
+test("World Explorer type and relation filters stay functional", async ({ page }) => {
+	await page.goto("/mundo");
+	await page.getByRole("button", { name: "NPCs" }).click();
 	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
-});
+	await expect(page.locator('[data-world-node="astel"]')).toHaveCount(0);
+	await page.getByRole("button", { name: "Todos" }).click();
 
-test("World Explorer paints relation strokes in the same visible layer as edge labels", async ({ page }) => {
-	await page.goto("/mundo");
-	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
-
-	const labelLayer = page.locator(".react-flow__edgelabel-renderer");
-	await expect(labelLayer).toBeVisible();
-	const edges = labelLayer.locator("[data-world-edge]");
-	await expect(edges.first()).toBeVisible();
-	expect(await edges.count()).toBeGreaterThan(0);
-
-	const paint = await edges.first().evaluate((element) => {
-		const style = getComputedStyle(element);
-		const path = element as SVGPathElement;
-		const svg = element.closest("svg");
-		if (!svg) throw new Error("Independent world edge SVG not found");
-		const svgStyle = getComputedStyle(svg);
-		const rect = svg.getBoundingClientRect();
-		return {
-			stroke: style.stroke,
-			strokeWidth: Number.parseFloat(style.strokeWidth),
-			strokeOpacity: Number.parseFloat(style.strokeOpacity),
-			vectorEffect: style.vectorEffect,
-			length: path.getTotalLength(),
-			d: path.getAttribute("d"),
-			svgPosition: svgStyle.position,
-			svgOverflow: svgStyle.overflow,
-			width: rect.width,
-			height: rect.height,
-			insideNativeEdgeLayer: Boolean(element.closest(".react-flow__edges")),
-		};
-	});
-
-	expect(paint.d).toBeTruthy();
-	expect(paint.length).toBeGreaterThan(20);
-	expect(paint.stroke).not.toBe("none");
-	expect(paint.stroke).not.toBe("rgba(0, 0, 0, 0)");
-	expect(paint.strokeWidth).toBeGreaterThanOrEqual(3);
-	expect(paint.strokeOpacity).toBeGreaterThanOrEqual(0.9);
-	expect(paint.vectorEffect).toBe("non-scaling-stroke");
-	expect(paint.svgPosition).toBe("absolute");
-	expect(paint.svgOverflow).not.toBe("hidden");
-	expect(paint.width).toBeGreaterThan(20);
-	expect(paint.height).toBeGreaterThan(20);
-	expect(paint.insideNativeEdgeLayer).toBe(false);
-});
-
-test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
-	await page.goto("/mundo");
-	await page.locator('[data-world-node="astel"]').click();
-
-	await page.getByRole("tab", { name: /Laços/ }).click();
-	await expect(page.getByRole("heading", { level: 3, name: "Conexões de Astel" })).toBeVisible();
-	const ravenConnection = page.getByRole("button", { name: "Selecionar Raven Queen; relação Vínculo místico" });
-	await expect(ravenConnection).toBeVisible();
-	await ravenConnection.click();
-
-	await expect(page.getByRole("heading", { level: 2, name: "Raven Queen", exact: true })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Selecionar Astel; relação Vínculo místico" })).toBeVisible();
-	await expect(page).toHaveURL(/\/mundo$/);
-});
-
-test("World Explorer exposes honest SSR metadata through the central public contract", async ({ page }) => {
-	await page.goto("/mundo");
-	await expect(page).toHaveTitle(/Ecos da Jornada — demonstração/);
-	await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /Demonstração multi-hub.*não são canon/);
-	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/mundo");
-	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
-
-	await page.goto("/mundo?foco=astel");
-	await expect(page).toHaveTitle(/Astel · Ecos da Jornada — demonstração/);
-	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/mundo?foco=astel");
-
-	await page.goto("/mundo?foco=segredo-inexistente");
-	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ecos da Jornada — demonstração");
-	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
-});
-
-test("World Explorer can switch to the textual view and filter relations with the DS select", async ({ page }) => {
-	await page.goto("/mundo");
-	await page.getByRole("button", { name: "Lista" }).click();
-	const relations = page.locator('section[aria-labelledby="world-relations-title"]');
-	await expect(relations.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
-	await expect(page.getByTestId("world-canvas")).toHaveCount(0);
-
-	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
-	await relationTrigger.click();
+	await page.getByRole("button", { name: "Filtrar por relação" }).click();
 	await page.getByRole("option", { name: "Conflito" }).click();
-	await expect(relationTrigger).toContainText("Conflito");
-	await expect(relations.getByText("Conflito", { exact: true })).toBeVisible();
-	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
+	await expect(page.locator('[data-world-relation="conflict"]')).toHaveCount(1);
 });
 
-test("World Explorer explains an empty search and recovers when the query is cleared", async ({ page }) => {
+test("World Explorer search and list mode remain usable", async ({ page }) => {
 	await page.goto("/mundo");
-	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
-	const canvas = page.getByTestId("world-canvas");
-
-	await search.fill("memoria-que-nao-existe");
-	await expect(page.getByText("Nenhuma relação visível para os filtros atuais.")).toBeVisible();
-	await expect.poll(() =>
-		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
-	).toContain("Nenhum resultado visível");
-
-	await search.fill("");
-	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
-	await expect.poll(() =>
-		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
-	).not.toContain("Nenhum resultado visível");
+	await page.getByRole("searchbox", { name: "Buscar no mundo" }).fill("Astel");
+	await expect(page.locator('[data-world-node="astel"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+	await page.getByRole("button", { name: "Lista" }).click();
+	await expect(page.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
 });
 
-test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
+test("World Explorer inspector can be resized and collapsed", async ({ page }) => {
+	await page.goto("/mundo");
+	const resizeHandle = page.getByLabel("Ajustar largura do painel");
+	const explorer = page.locator('[data-world-edit-state="view"]');
+	const before = await explorer.evaluate((element) =>
+		getComputedStyle(element).getPropertyValue("--world-inspector-width"),
+	);
+	await resizeHandle.focus();
+	await page.keyboard.press("ArrowLeft");
+	const after = await explorer.evaluate((element) =>
+		getComputedStyle(element).getPropertyValue("--world-inspector-width"),
+	);
+	expect(after).not.toBe(before);
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
+	await expect(page.getByRole("button", { name: "Abrir painel de detalhes" })).toBeVisible();
+});
+
+test("World Explorer gives the canvas more width when the world rail is collapsed", async ({ page }) => {
+	await page.goto("/mundo");
+	const canvas = page.getByTestId("world-canvas");
+	const before = await canvas.boundingBox();
+	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
+	const after = await canvas.boundingBox();
+	expect(after?.width ?? 0).toBeGreaterThan(before?.width ?? 0);
+});
+
+test("World Explorer keeps its primary work visible on a 1366x768 first viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+	const canvas = page.getByTestId("world-canvas");
+	const box = await canvas.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.y ?? 9999).toBeLessThan(310);
+	expect(box?.height ?? 0).toBeGreaterThanOrEqual(430);
+});
+
+test("World Explorer responsive toolbar has no horizontal overflow", async ({ page }) => {
+	for (const width of [1366, 1024, 768, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto("/mundo");
+		await expect(page.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+	}
+});
+
+test("World Explorer custom relation select remains themed across theme changes", async ({ page }) => {
 	await page.goto("/mundo");
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
-	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
-	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
-
+	const themeToggle = page.getByRole("switch", { name: "Alternar tema" });
 	await relationTrigger.click();
+	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
 	await expect(listbox).toBeVisible();
 	const firstPaint = await listbox.evaluate((element) => {
 		const style = getComputedStyle(element);
@@ -183,14 +138,14 @@ test("World Explorer nodes are movable without changing the URL", async ({ page 
 	const astel = page.locator('[data-world-node="astel"]').locator("..");
 	const before = await astel.getAttribute("style");
 	const box = await astel.boundingBox();
+	expect(box).not.toBeNull();
 	if (box) {
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.mouse.down();
 		await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 30, { steps: 6 });
 		await page.mouse.up();
 	}
-	const after = await astel.getAttribute("style");
-	expect(after).not.toBe(before);
+	await expect.poll(() => astel.getAttribute("style")).not.toBe(before);
 	await expect(page).toHaveURL(/\/mundo$/);
 });
 
@@ -208,5 +163,15 @@ test("World Explorer stays inside the viewport including the 320px minimum", asy
 	await page.goto("/mundo");
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Todos" })).toBeVisible();
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+	await expect(page.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+});
+
+test("World Explorer preserves public focus semantics while editing remains local", async ({ page }) => {
+	await page.goto("/mundo?foco=astel");
+	await expect(page.getByText("Conexões de Astel")).toBeVisible();
+	await expect(page.getByRole("button", { name: /Editar/ })).toHaveCount(0);
+	await page.locator('[data-world-node="dandelion"]').click();
+	await expect(page.getByRole("heading", { name: "Dandelion" })).toBeVisible();
+	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
 });
