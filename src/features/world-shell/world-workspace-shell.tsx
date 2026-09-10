@@ -110,7 +110,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		>
 			{navigationIsModal ? (
 				<div
-					ref={navigationPanelRef}
+					ref={(element) => {
+						navigationPanelRef.current = element;
+					}}
 					id="world-workspace-navigation"
 					className={styles.navigationPanel}
 					role="dialog"
@@ -122,7 +124,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				</div>
 			) : (
 				<aside
-					ref={navigationPanelRef}
+					ref={(element) => {
+						navigationPanelRef.current = element;
+					}}
 					id="world-workspace-navigation"
 					className={styles.navigationPanel}
 					aria-label="Navegação do mundo"
