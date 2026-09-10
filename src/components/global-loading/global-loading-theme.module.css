@@ -1,0 +1,158 @@
+.overlay {
+	/*
+	 * The approved dark loader remains the baseline. These defaults intentionally
+	 * mirror the existing visual values; light mode only swaps the semantic
+	 * palette through inherited custom properties.
+	 */
+	--loader-theme-backdrop: rgba(5, 6, 7, 0.9);
+	--loader-theme-center: rgba(255, 255, 255, 0.025);
+	--loader-theme-vignette-mid: rgba(0, 0, 0, 0.05);
+	--loader-theme-vignette-edge: rgba(0, 0, 0, 0.34);
+	--loader-theme-halo-outer: rgba(247, 242, 232, 0.085);
+	--loader-theme-halo-outer-soft: rgba(247, 242, 232, 0.018);
+	--loader-theme-halo-mid: rgba(247, 242, 232, 0.035);
+	--loader-theme-halo-mid-inner: rgba(247, 242, 232, 0.02);
+	--loader-theme-halo-core: rgba(247, 242, 232, 0.055);
+	--loader-theme-shadow: rgba(0, 0, 0, 0.28);
+	--loader-theme-orbit-one: rgba(247, 242, 232, 0.065);
+	--loader-theme-orbit-two: rgba(247, 242, 232, 0.028);
+	--loader-theme-orbit-three: rgba(247, 242, 232, 0.025);
+	--loader-theme-orbit-point: rgba(247, 242, 232, 0.7);
+	--loader-theme-orbit-glow: rgba(247, 242, 232, 0.26);
+	--loader-theme-trail-one: rgba(247, 242, 232, 0.13);
+	--loader-theme-trail-two: rgba(247, 242, 232, 0.06);
+	--loader-theme-spark: rgba(247, 242, 232, 0.9);
+	--loader-theme-spark-glow: rgba(247, 242, 232, 0.32);
+	--loader-theme-logo-filter: none;
+}
+
+:global(:root[data-theme="light"]) .overlay {
+	--loader-theme-backdrop: color-mix(in srgb, var(--ds-canvas) 92%, transparent);
+	--loader-theme-center: color-mix(in srgb, var(--ds-accent) 5%, transparent);
+	--loader-theme-vignette-mid: color-mix(in srgb, var(--ds-foreground) 2%, transparent);
+	--loader-theme-vignette-edge: color-mix(in srgb, var(--ds-foreground) 10%, transparent);
+	--loader-theme-halo-outer: color-mix(in srgb, var(--ds-accent) 12%, transparent);
+	--loader-theme-halo-outer-soft: color-mix(in srgb, var(--ds-accent) 3%, transparent);
+	--loader-theme-halo-mid: color-mix(in srgb, var(--ds-foreground) 8%, transparent);
+	--loader-theme-halo-mid-inner: color-mix(in srgb, var(--ds-accent) 3%, transparent);
+	--loader-theme-halo-core: color-mix(in srgb, var(--ds-accent) 8%, transparent);
+	--loader-theme-shadow: color-mix(in srgb, var(--ds-foreground) 10%, transparent);
+	--loader-theme-orbit-one: color-mix(in srgb, var(--ds-foreground) 11%, transparent);
+	--loader-theme-orbit-two: color-mix(in srgb, var(--ds-foreground) 5%, transparent);
+	--loader-theme-orbit-three: color-mix(in srgb, var(--ds-foreground) 4%, transparent);
+	--loader-theme-orbit-point: color-mix(in srgb, var(--ds-accent-strong) 72%, var(--ds-foreground));
+	--loader-theme-orbit-glow: color-mix(in srgb, var(--ds-accent) 24%, transparent);
+	--loader-theme-trail-one: color-mix(in srgb, var(--ds-accent) 18%, transparent);
+	--loader-theme-trail-two: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+	--loader-theme-spark: color-mix(in srgb, var(--ds-accent-strong) 76%, var(--ds-foreground));
+	--loader-theme-spark-glow: color-mix(in srgb, var(--ds-accent) 30%, transparent);
+	--loader-theme-logo-filter: brightness(0) saturate(100%);
+}
+
+@media (prefers-color-scheme: light) {
+	:global(:root:not([data-theme])) .overlay {
+		--loader-theme-backdrop: color-mix(in srgb, var(--ds-canvas) 92%, transparent);
+		--loader-theme-center: color-mix(in srgb, var(--ds-accent) 5%, transparent);
+		--loader-theme-vignette-mid: color-mix(in srgb, var(--ds-foreground) 2%, transparent);
+		--loader-theme-vignette-edge: color-mix(in srgb, var(--ds-foreground) 10%, transparent);
+		--loader-theme-halo-outer: color-mix(in srgb, var(--ds-accent) 12%, transparent);
+		--loader-theme-halo-outer-soft: color-mix(in srgb, var(--ds-accent) 3%, transparent);
+		--loader-theme-halo-mid: color-mix(in srgb, var(--ds-foreground) 8%, transparent);
+		--loader-theme-halo-mid-inner: color-mix(in srgb, var(--ds-accent) 3%, transparent);
+		--loader-theme-halo-core: color-mix(in srgb, var(--ds-accent) 8%, transparent);
+		--loader-theme-shadow: color-mix(in srgb, var(--ds-foreground) 10%, transparent);
+		--loader-theme-orbit-one: color-mix(in srgb, var(--ds-foreground) 11%, transparent);
+		--loader-theme-orbit-two: color-mix(in srgb, var(--ds-foreground) 5%, transparent);
+		--loader-theme-orbit-three: color-mix(in srgb, var(--ds-foreground) 4%, transparent);
+		--loader-theme-orbit-point: color-mix(in srgb, var(--ds-accent-strong) 72%, var(--ds-foreground));
+		--loader-theme-orbit-glow: color-mix(in srgb, var(--ds-accent) 24%, transparent);
+		--loader-theme-trail-one: color-mix(in srgb, var(--ds-accent) 18%, transparent);
+		--loader-theme-trail-two: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+		--loader-theme-spark: color-mix(in srgb, var(--ds-accent-strong) 76%, var(--ds-foreground));
+		--loader-theme-spark-glow: color-mix(in srgb, var(--ds-accent) 30%, transparent);
+		--loader-theme-logo-filter: brightness(0) saturate(100%);
+	}
+}
+
+/* Extra specificity keeps the theme layer authoritative regardless of CSS chunk order. */
+.overlay.overlay {
+	background:
+		radial-gradient(
+			circle at 50% 47%,
+			var(--loader-theme-center),
+			transparent 30%
+		),
+		var(--loader-theme-backdrop);
+}
+
+.overlay.overlay::before {
+	background: radial-gradient(
+		ellipse at center,
+		transparent 0 30%,
+		var(--loader-theme-vignette-mid) 55%,
+		var(--loader-theme-vignette-edge) 100%
+	);
+}
+
+.overlay .haloOuter {
+	background: radial-gradient(
+		circle,
+		var(--loader-theme-halo-outer),
+		var(--loader-theme-halo-outer-soft) 38%,
+		transparent 72%
+	);
+}
+
+.overlay .haloMid {
+	border-color: var(--loader-theme-halo-mid);
+	box-shadow:
+		0 0 34px var(--loader-theme-halo-mid),
+		inset 0 0 30px var(--loader-theme-halo-mid-inner);
+}
+
+.overlay .haloCore {
+	background: radial-gradient(
+		circle,
+		var(--loader-theme-halo-core),
+		transparent 67%
+	);
+}
+
+.overlay .logoShadow {
+	background: var(--loader-theme-shadow);
+}
+
+.overlay .logoImage {
+	filter: var(--loader-theme-logo-filter);
+	transition: filter var(--ds-motion-theme) var(--ds-ease-standard);
+}
+
+.overlay .orbitOne {
+	border-color: var(--loader-theme-orbit-one);
+}
+
+.overlay .orbitTwo {
+	border-color: var(--loader-theme-orbit-two);
+}
+
+.overlay .orbitThree {
+	border-color: var(--loader-theme-orbit-three);
+}
+
+.overlay .orbitPoint {
+	background: var(--loader-theme-orbit-point);
+	box-shadow: 0 0 14px var(--loader-theme-orbit-glow);
+}
+
+.overlay .trailOne {
+	border-top-color: var(--loader-theme-trail-one);
+}
+
+.overlay .trailTwo {
+	border-bottom-color: var(--loader-theme-trail-two);
+}
+
+.overlay .spark {
+	background: var(--loader-theme-spark);
+	box-shadow: 0 0 12px var(--loader-theme-spark-glow);
+}
