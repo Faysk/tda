@@ -6,8 +6,8 @@ Este diretório versiona mudanças do reboot TDA a partir do momento em que o no
 
 ## Diretórios
 
-- `supabase/migrations/`: **somente migrations autorizadas para aplicação remota**. O Production CD pode executar `supabase db push` sobre esta pasta.
-- `supabase/candidates/`: SQL candidato ainda não autorizado para Production. Pode ser executado somente em ensaios scratch explicitamente preparados para esse candidato; o Supabase CLI não o considera em `db push`.
+- `supabase/migrations/`: **somente migrations autorizadas para aplicação remota**. O Production CD usa estes arquivos como conjunto autoritativo do TDA dentro de um overlay efêmero que também contém o migration history legado já aplicado.
+- `supabase/candidates/`: SQL candidato ainda não autorizado para Production. Pode ser executado somente em ensaios scratch explicitamente preparados para esse candidato; o Supabase CLI não o considera no fluxo automático de Production.
 - `supabase/tests/`: fixtures e verificações SQL sintéticas.
 
 Promover um candidato não significa mover o arquivo histórico de volta para `migrations/`. Depois da aprovação, criar uma migration nova com timestamp atual, revisar o SQL contra o schema vigente e registrar a nova versão na documentação antes da aplicação. O candidato original permanece como evidência do desenho ensaiado ou é arquivado deliberadamente.
@@ -23,6 +23,24 @@ Promover um candidato não significa mover o arquivo histórico de volta para `m
 - RLS e grants são mudanças de contrato de segurança; revisar consumidores antes de alterar.
 - Dados narrativos derivados não viram canon por migration automática.
 - Identidade de entity deve convergir para UUID/slug; nomes são apresentação e busca. A constraint histórica `(campaign_id, name)` permanece apenas enquanto o consolidator legado usar esse `ON CONFLICT`.
+
+## Boundary e overlay de Production
+
+O primeiro timestamp de migration pertencente ao reboot TDA é `20260906210333`. Esse valor é o boundary operacional versionado no workflow de Production.
+
+O banco canônico possui migration history anterior a esse boundary que não pertence a este repositório. Como `supabase db push` compara o histórico remoto completo com os arquivos locais, executar o comando diretamente sobre `supabase/migrations` produziria um falso drift de migrations legadas ausentes.
+
+Por isso o Production CD usa um **overlay efêmero e descartável no runner**:
+
+1. cria um workdir Supabase temporário;
+2. liga explicitamente ao projeto canônico `dmrqnbdvbkfqzctcerbx`;
+3. busca, em modo somente leitura para o banco, o migration history remoto para esse workdir;
+4. exige que qualquer entrada remota a partir do boundary TDA exista com o mesmo filename em `supabase/migrations`;
+5. copia os arquivos autoritativos de `supabase/migrations` sobre o overlay, preservando o histórico legado apenas como contexto local;
+6. executa `db push --dry-run --skip-vault` e só depois `db push --skip-vault`;
+7. busca novamente o migration history e exige igualdade exata entre o conjunto TDA remoto e `supabase/migrations` antes do smoke/promotion.
+
+O overlay nunca é commitado, não executa `migration repair`, não reescreve o migration history remoto e não transforma migrations legadas em arquivos de autoria do TDA. Qualquer entrada remota nova a partir do boundary que não exista no repo faz o release falhar fechado e exige reconciliação deliberada.
 
 ## Primeiras migrations do reboot
 
