@@ -23,13 +23,21 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	});
 	await expect(collapse).toBeVisible();
 	await collapse.click();
-	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
+	const exploreUniverse = page.getByRole("button", { name: "Explorar universo" });
+	await expect(exploreUniverse).toBeVisible();
 
 	// The rail animates through the design-system motion token; assert the settled
 	// layout rather than sampling the first frame immediately after the click.
 	await expect
 		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(initialWidth);
+	const collapsedNavigationWidth = await exploreUniverse.evaluate(
+		(button) => button.closest("aside")?.getBoundingClientRect().width ?? Number.POSITIVE_INFINITY,
+	);
+	expect(collapsedNavigationWidth).toBeLessThanOrEqual(1);
+	const exploreUniverseBox = await exploreUniverse.boundingBox();
+	expect(exploreUniverseBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(exploreUniverseBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
 	const beforeInspectorCollapse = (await canvas.boundingBox())?.width ?? 0;
 	const detailCollapse = page.getByRole("button", {
