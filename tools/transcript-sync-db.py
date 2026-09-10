@@ -26,7 +26,7 @@ try:
     started = True
     paths = [
         repo/'supabase/tests/transcript_import_fixture.sql',
-        *sorted((repo/'supabase/migrations').glob('*_transcript_import_*.sql')),
+        *sorted((repo/'supabase/candidates').glob('*_transcript_import_*.sql')),
         repo/'supabase/migrations/20260908144711_transcript_review_default.sql',
         repo/'supabase/tests/transcript_review_default.sql',
     ]
