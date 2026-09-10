@@ -116,8 +116,9 @@ function boolean(value: unknown): boolean {
 	return value;
 }
 function nonNegativeInteger(value: unknown): number {
-	if (!Number.isSafeInteger(value) || Number(value) < 0) return invalid();
-	return Number(value);
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+		return invalid();
+	return value;
 }
 function nullableNonNegativeNumber(value: unknown): number | null {
 	if (value === null || value === undefined) return null;
