@@ -76,13 +76,23 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	expect(infiniteAnimations).toBe(0);
 });
 
-test("makes published cinematic lores discoverable from primary navigation", async ({ page }) => {
+test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }, testInfo) => {
 	await page.goto("/");
 	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
-	const loresLink = primaryNav.getByRole("link", { name: "Lores", exact: true });
-	await expect(loresLink).toHaveAttribute("href", "/lore");
+	const navLoresLink = primaryNav.getByRole("link", { name: "Lores", exact: true });
+	await expect(navLoresLink).toHaveAttribute("href", "/lore");
 
-	await loresLink.click();
+	if (testInfo.project.name === "mobile") {
+		await expect(navLoresLink).toBeHidden();
+		const homeLoresLink = page.getByRole("link", { name: /Explorar lores/ });
+		await expect(homeLoresLink).toBeVisible();
+		await expect(homeLoresLink).toHaveAttribute("href", "/lore");
+		await homeLoresLink.click();
+	} else {
+		await expect(navLoresLink).toBeVisible();
+		await navLoresLink.click();
+	}
+
 	await expect(page).toHaveURL(/\/lore$/);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Histórias que ganharam outro palco." }),
@@ -90,6 +100,32 @@ test("makes published cinematic lores discoverable from primary navigation", asy
 	await expect(
 		page.getByRole("link").filter({ hasText: "A Casa Onde os Super-Heróis Visitavam" }),
 	).toHaveAttribute("href", "/lore/pipipi");
+});
+
+test("keeps the three chapter links inside the mobile viewport", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "chapter compaction is a mobile contract");
+	await page.goto("/lore/pipipi");
+
+	const nav = page.getByRole("navigation", { name: "Capítulos da história" });
+	await expect(nav).toBeVisible();
+	const navMetrics = await nav.evaluate((element) => ({
+		clientWidth: element.clientWidth,
+		scrollWidth: element.scrollWidth,
+		left: element.getBoundingClientRect().left,
+		right: element.getBoundingClientRect().right,
+	}));
+	const viewportWidth = page.viewportSize()?.width ?? 1;
+	expect(navMetrics.scrollWidth).toBeLessThanOrEqual(navMetrics.clientWidth + 1);
+	expect(navMetrics.left).toBeGreaterThanOrEqual(0);
+	expect(navMetrics.right).toBeLessThanOrEqual(viewportWidth + 1);
+
+	for (const link of await nav.getByRole("link").all()) {
+		const box = await link.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.x).toBeGreaterThanOrEqual(navMetrics.left - 1);
+		expect(box.x + box.width).toBeLessThanOrEqual(navMetrics.right + 1);
+	}
 });
 
 test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
