@@ -213,7 +213,7 @@
 	}
 
 	.root .primary {
-		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-columns: minmax(0, 1fr) 44px auto;
 		gap: 7px;
 		padding: 5px;
 		border-radius: var(--ds-radius-md);
@@ -228,27 +228,40 @@
 		min-width: 0;
 	}
 
-	.root .viewSurface {
+	.root .resetSurface {
 		grid-column: 2 / 3;
+		width: 44px;
+		min-width: 44px;
+		min-height: 44px;
+		padding: 0;
+		font-size: 0;
 	}
 
-	.root .resetSurface {
-		grid-column: 1 / -1;
-		min-height: 44px;
+	.root .resetSurface::before {
+		content: "↺";
+		font: 760 1.05rem/1 var(--ds-font-ui);
+	}
+
+	.root .viewSurface {
+		grid-column: 3 / 4;
 	}
 
 	.root .filterChip {
 		min-height: 44px;
 	}
 
-	.root .legendItem {
-		min-height: 34px;
+	.secondary {
+		gap: 0;
+	}
+
+	.root .legendRail {
+		display: none;
 	}
 }
 
 @media (max-width: 420px) {
 	.root .primary {
-		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-columns: minmax(0, 1fr) 44px auto;
 	}
 
 	.root .relationSurface > span:first-child {
