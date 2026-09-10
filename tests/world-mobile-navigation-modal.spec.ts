@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("mobile navigation is modal and restores focus when closed by its control", async ({
+test("mobile navigation is modal, touch-safe and restores focus when closed by its control", async ({
 	page,
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile modal semantics contract.");
@@ -12,12 +12,18 @@ test("mobile navigation is modal and restores focus when closed by its control",
 	await trigger.click();
 
 	const navigation = page.getByRole("dialog", { name: "Navegação do mundo" });
+	const close = page.getByRole("button", { name: "Recolher navegação do mundo" });
 	await expect(navigation).toBeVisible();
 	await expect(navigation).toHaveAttribute("aria-modal", "true");
 	await expect(stage).toHaveAttribute("aria-hidden", "true");
 	await expect(stage).toHaveAttribute("inert", "");
 
-	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
+	const closeBox = await close.boundingBox();
+	expect(closeBox).not.toBeNull();
+	expect(closeBox?.width).toBeGreaterThanOrEqual(44);
+	expect(closeBox?.height).toBeGreaterThanOrEqual(44);
+
+	await close.click();
 
 	await expect(page.getByTestId("world-workspace-navigation")).not.toHaveAttribute("role", "dialog");
 	await expect(stage).not.toHaveAttribute("aria-hidden", "true");
