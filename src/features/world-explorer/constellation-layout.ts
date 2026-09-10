@@ -41,45 +41,65 @@ function buildAdjacency(projection: WorldGraphProjection): Map<string, Set<strin
 	return adjacency;
 }
 
-type HeroAffinity = {
+export type WorldHeroAffinity = Readonly<{
 	heroIds: string[];
 	distance: number;
-};
+}>;
 
-function nearestHeroAffinity(
-	adjacency: ReadonlyMap<string, ReadonlySet<string>>,
-	nodeId: string,
+/**
+ * Indexes the nearest hero set for the whole visible graph in bounded BFS layers.
+ *
+ * The previous layout walked the graph again for every non-hero node. That was
+ * fine for the demo fixture, but grew toward O(nodes × graph) as the campaign
+ * expanded. A multi-source traversal keeps the same nearest/tied-hero semantics
+ * while visiting each visible adjacency only a bounded number of times.
+ */
+export function buildWorldHeroAffinityIndex(
+	projection: WorldGraphProjection,
 	heroIds: readonly string[],
-): HeroAffinity | null {
-	const heroSet = new Set(heroIds);
-	const visited = new Set<string>([nodeId]);
-	let frontier = [nodeId];
+): ReadonlyMap<string, WorldHeroAffinity> {
+	const adjacency = buildAdjacency(projection);
+	const visibleIds = new Set(projection.nodes.map((node) => node.id));
+	const orderedHeroIds = [...new Set(heroIds)]
+		.filter((id) => visibleIds.has(id))
+		.sort((left, right) => left.localeCompare(right));
+	const heroSet = new Set(orderedHeroIds);
+	const affinities = new Map<string, WorldHeroAffinity>();
 
+	for (const heroId of orderedHeroIds) {
+		affinities.set(heroId, { heroIds: [heroId], distance: 0 });
+	}
+
+	let frontier = orderedHeroIds;
 	for (let distance = 1; distance <= MAX_AFFINITY_DEPTH; distance += 1) {
-		const next: string[] = [];
-		const matches = new Set<string>();
+		const candidates = new Map<string, Set<string>>();
 		for (const current of frontier) {
+			const currentAffinity = affinities.get(current);
+			if (!currentAffinity) continue;
 			for (const neighbour of adjacency.get(current) ?? []) {
-				if (visited.has(neighbour)) continue;
-				visited.add(neighbour);
-				if (heroSet.has(neighbour)) {
-					matches.add(neighbour);
-					continue;
-				}
-				next.push(neighbour);
+				if (heroSet.has(neighbour)) continue;
+				const existing = affinities.get(neighbour);
+				if (existing && existing.distance < distance) continue;
+				const nearestHeroes = candidates.get(neighbour) ?? new Set<string>();
+				for (const heroId of currentAffinity.heroIds) nearestHeroes.add(heroId);
+				candidates.set(neighbour, nearestHeroes);
 			}
 		}
-		if (matches.size > 0) {
-			return {
-				heroIds: [...matches].sort((left, right) => left.localeCompare(right)),
+
+		const next: string[] = [];
+		for (const [nodeId, nearestHeroes] of candidates) {
+			if (affinities.has(nodeId)) continue;
+			affinities.set(nodeId, {
+				heroIds: [...nearestHeroes].sort((left, right) => left.localeCompare(right)),
 				distance,
-			};
+			});
+			next.push(nodeId);
 		}
 		if (next.length === 0) break;
 		frontier = next;
 	}
 
-	return null;
+	return affinities;
 }
 
 function averagePosition(ids: readonly string[], layout: WorldLayout): WorldPosition {
@@ -113,10 +133,11 @@ export function constellationWorldLayout(
 	projection: WorldGraphProjection,
 ): WorldLayout {
 	const layout: WorldLayout = {};
-	const visible = new Set(projection.nodes.map((node) => node.id));
+	const nodeById = new Map(projection.nodes.map((node) => [node.id, node]));
+	const visible = new Set(nodeById.keys());
 	const heroes = projection.heroIds
 		.filter((id) => visible.has(id))
-		.map((id) => projection.nodes.find((node) => node.id === id))
+		.map((id) => nodeById.get(id))
 		.filter((node): node is WorldNodeDTO => Boolean(node));
 
 	if (projection.mode === "focus" && projection.focusId) {
@@ -142,15 +163,16 @@ export function constellationWorldLayout(
 	});
 
 	const heroIds = orderedHeroes.map((hero) => hero.id);
-	const adjacency = buildAdjacency(projection);
+	const heroIdSet = new Set(heroIds);
+	const affinities = buildWorldHeroAffinityIndex(projection, heroIds);
 	const satellites = new Map<string, { node: WorldNodeDTO; distance: number }[]>();
 	const shared = new Map<string, { heroIds: string[]; nodes: WorldNodeDTO[] }>();
 	const unanchored: WorldNodeDTO[] = [];
 
 	for (const node of projection.nodes) {
-		if (heroIds.includes(node.id)) continue;
-		const affinity = nearestHeroAffinity(adjacency, node.id, heroIds);
-		if (!affinity) {
+		if (heroIdSet.has(node.id)) continue;
+		const affinity = affinities.get(node.id);
+		if (!affinity || affinity.distance === 0) {
 			unanchored.push(node);
 			continue;
 		}
