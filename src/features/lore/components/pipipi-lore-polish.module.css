@@ -23,12 +23,96 @@
 }
 
 /*
- * "O último dia" already has the right fixed composition. On desktop the
- * generic left-side editorial shade was swallowing the mother seated at the
- * far left, so this keeps the strong text bed at the bottom while opening the
- * upper-left portrait area. Mobile keeps the approved portrait treatment.
+ * The three bed foregrounds were cut from the same 1280x720 source frame as
+ * their backgrounds. The original presentation scaled each subject with an
+ * independent max-width while the background kept scaling with the viewport;
+ * on large screens that produced a second bed and, in ultimo-dia, moved Pipipi
+ * over the mother at the left edge.
+ *
+ * On desktop we therefore keep the background at its real cover crop and put
+ * each cutout back at the coordinates measured in that source frame. The soft
+ * bottom mask dissolves the redundant blanket pixels into the matching bed
+ * underneath instead of exposing a hard compositing seam.
  */
 @media (min-width: 901px) {
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:first-of-type),
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:first-of-type),
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:first-of-type) {
+		transform: none;
+		will-change: auto;
+	}
+
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)),
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)),
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		bottom: auto;
+		max-width: none;
+		-webkit-mask-image: linear-gradient(
+			to bottom,
+			#000 0%,
+			#000 76%,
+			rgba(0, 0, 0, 0.92) 84%,
+			rgba(0, 0, 0, 0.52) 93%,
+			transparent 100%
+		);
+		mask-image: linear-gradient(
+			to bottom,
+			#000 0%,
+			#000 76%,
+			rgba(0, 0, 0, 0.92) 84%,
+			rgba(0, 0, 0, 0.52) 93%,
+			transparent 100%
+		);
+	}
+
+	/* Source placement: x=51, y=36, w=544 in a 1280x720 frame. */
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 3.984375vw;
+		top: calc(50vh - 25.3125vw);
+		width: 42.5vw;
+	}
+
+	/* Source placement: x=99, y=40, w=631 in a 1280x720 frame. */
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 7.734375vw;
+		top: calc(50vh - 25vw);
+		width: 49.296875vw;
+	}
+
+	/* Source placement: x=222, y=23, w=544 in a 1280x720 frame. */
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 17.34375vw;
+		top: calc(50vh - 26.328125vw);
+		width: 42.5vw;
+	}
+
+	/*
+	 * Corridor copy belongs on the bright, empty half of the composition. The
+	 * shade follows the copy so the girls stay unobstructed on the left/centre.
+	 */
+	:global([data-scene="corredores"] > div > div:nth-child(2)) {
+		left: auto;
+		right: max(48px, 5vw);
+		width: min(560px, 34vw);
+	}
+
+	:global([data-scene="corredores"] [aria-hidden="true"] > div:last-child) {
+		background:
+			linear-gradient(
+				270deg,
+				rgba(3, 6, 5, 0.8) 0%,
+				rgba(3, 6, 5, 0.42) 28%,
+				rgba(3, 6, 5, 0.1) 54%,
+				transparent 72%
+			),
+			linear-gradient(0deg, rgba(3, 6, 5, 0.58) 0%, transparent 48%);
+	}
+
+	/*
+	 * "O último dia" already has the right fixed composition. Keep the strong
+	 * text bed at the bottom while opening the upper-left portrait area where
+	 * the mother sits.
+	 */
 	.ultimoDiaShade.ultimoDiaShade {
 		background:
 			linear-gradient(
@@ -44,6 +128,30 @@
 				rgba(3, 6, 5, 0.08) 58%,
 				transparent 74%
 			);
+	}
+}
+
+/*
+ * If a desktop viewport is taller than 16:9, cover is driven by height rather
+ * than width. These equivalents preserve the same source-frame registration.
+ */
+@media (min-width: 901px) and (max-aspect-ratio: 16/9) {
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 81.805556vh);
+		top: 5vh;
+		width: 75.555556vh;
+	}
+
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 75.138889vh);
+		top: 5.555556vh;
+		width: 87.638889vh;
+	}
+
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 58.055556vh);
+		top: 3.194444vh;
+		width: 75.555556vh;
 	}
 }
 
