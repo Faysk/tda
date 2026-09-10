@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EditShell } from "@/features/edit/shell/edit-shell";
+import "./edit-shell-global.css";
 
 export const metadata: Metadata = {
 	robots: {
