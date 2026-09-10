@@ -7,6 +7,7 @@ const canonicalProjectRef = "dmrqnbdvbkfqzctcerbx";
 const requiredFiles = [
 	"docs/database/README.md",
 	"docs/database/migrations.md",
+	"docs/database/migration-reconciliations.md",
 	"docs/database/security.md",
 	"docs/database/rpc-inventory.md",
 	"docs/database/verification-log.md",
@@ -25,6 +26,7 @@ const read = (relativePath) =>
 
 const databaseIndex = read("docs/database/README.md");
 const migrationDocs = read("docs/database/migrations.md");
+const reconciliationDocs = read("docs/database/migration-reconciliations.md");
 const securityDocs = read("docs/database/security.md");
 const runbook = read("docs/operations/database-runbook.md");
 const supabaseReadme = read("supabase/README.md");
@@ -33,6 +35,7 @@ const agents = read("AGENTS.md");
 for (const requiredLink of [
 	"rpc-inventory.md",
 	"verification-log.md",
+	"migration-reconciliations.md",
 	"../operations/database-runbook.md",
 ]) {
 	if (!databaseIndex.includes(requiredLink)) {
@@ -51,6 +54,7 @@ if (!agents.includes("docs/operations/database-runbook.md")) {
 for (const [label, content] of [
 	["database index", databaseIndex],
 	["migration docs", migrationDocs],
+	["migration reconciliations", reconciliationDocs],
 	["security docs", securityDocs],
 	["database runbook", runbook],
 ]) {
@@ -78,10 +82,23 @@ if (!migrationFiles.length) {
 	throw new Error("No reboot migrations found under supabase/migrations");
 }
 
-const undocumented = migrationFiles.filter((filename) => {
+const migrationIsDocumented = (filename) => {
 	const migrationId = filename.slice(0, -".sql".length);
-	return !migrationDocs.includes(migrationId);
-});
+	if (migrationDocs.includes(migrationId)) return true;
+
+	const match = migrationId.match(/^(\d{14})_(.+)$/);
+	if (!match) return false;
+	const [, version, name] = match;
+
+	// Historical/remote sections use the canonical migration-history format
+	// `<timestamp> <name>` while detailed sections may use the local filename ID.
+	// Require both timestamp and full name so a loose name-only mention cannot pass.
+	return migrationDocs.includes(`${version} ${name}`);
+};
+
+const undocumented = migrationFiles.filter(
+	(filename) => !migrationIsDocumented(filename),
+);
 
 if (undocumented.length) {
 	throw new Error(
