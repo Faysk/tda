@@ -33,7 +33,14 @@ async function captureSection(page, id, filename) {
 	await page.screenshot({ path: `${output}/${filename}.png` });
 }
 
-const mobile = await browser.newPage({ viewport: { width: 752, height: 1536 } });
+// Match the supplied 752x1536 screenshots as a 376x768 CSS viewport at DPR 2.
+const mobileContext = await browser.newContext({
+	viewport: { width: 376, height: 768 },
+	deviceScaleFactor: 2,
+	isMobile: true,
+	hasTouch: true,
+});
+const mobile = await mobileContext.newPage();
 await mobile.goto(`${baseURL}/lore/pipipi`, { waitUntil: "networkidle" });
 await mobile.screenshot({ path: `${output}/mobile-hero-752x1536.png` });
 for (const id of ["casa", "super-herois", "corredores", "cadeira", "ultimo-dia", "acordou"]) {
@@ -41,7 +48,7 @@ for (const id of ["casa", "super-herois", "corredores", "cadeira", "ultimo-dia",
 }
 await mobile.goto(`${baseURL}/lore`, { waitUntil: "networkidle" });
 await mobile.screenshot({ path: `${output}/mobile-lore-index-752x1536.png` });
-await mobile.close();
+await mobileContext.close();
 
 const desktop = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 for (const [id, name] of [
