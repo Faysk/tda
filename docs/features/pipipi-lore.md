@@ -1,8 +1,8 @@
 # Pipipi — lore cinematográfica pioneira
 
-> Status: candidato em branch; não integrado e não publicado
+> Status: candidato completo em branch; Fases 1–3 concluídas; não integrado e não publicado
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-09
+> Última revisão: 2026-09-10
 > Branch candidata: `feat/pipipi-cinematic-lore`
 
 ## Objetivo
@@ -25,7 +25,7 @@ Isso não generaliza uma nova família `/lore/[slug]`; continua sendo a exceçã
 
 ## Composição visual
 
-O Hero usa um palco ilustrado como background e Pipipi fantasma como subject transparente separado. O subject recebe somente uma animação CSS curta e contínua de flutuação; não existe autoplay de áudio.
+O Hero usa um palco ilustrado como background e Pipipi fantasma como subject transparente separado. O portrait permanece estático; o único cue autônomo do Hero é a indicação de scroll, limitada a três ciclos. Não existe autoplay de áudio nem animação decorativa infinita na experiência Pipipi.
 
 As cenas principais usam a mesma gramática:
 
@@ -34,8 +34,9 @@ As cenas principais usam a mesma gramática:
 - texto da lore permanece em HTML fora da imagem;
 - scroll controla câmera e separação entre background/subject;
 - `corredores` recebe a maior amplitude;
-- `cadeira` e `ultimo-dia` usam movimento de respiração quase imperceptível;
-- `prefers-reduced-motion` remove sticky/parallax decorativo e preserva a composição estática.
+- `cadeira` e `ultimo-dia` usam amplitudes de movimento menores;
+- `prefers-reduced-motion` remove sticky/parallax decorativo e preserva a composição estática;
+- sem JavaScript, o texto cinematográfico permanece totalmente legível e visível.
 
 Cenas preparadas:
 
@@ -65,13 +66,33 @@ O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, taman
 - Hero prioriza somente os assets acima da dobra;
 - cenas posteriores ficam elegíveis a lazy loading do `next/image`;
 - mobile não depende de mouse;
-- reduced motion mantém toda a história legível.
+- reduced motion mantém toda a história legível;
+- nenhuma animação CSS da experiência Pipipi usa iteração infinita.
 
 ## Rota e metadata
 
 `src/app/lore/pipipi/page.tsx` é uma rota dedicada e reutiliza `buildPublicMetadata`. Ela não consulta `findPublishedLoreProfile` enquanto a projection de Pipipi não existir, evitando que a lore aprovada retorne 404 apenas por ausência da entity no banco.
 
 A rota continua sendo candidata até merge e publicação deliberados.
+
+## QA e evidência da Fase 3
+
+O polish final foi validado em Chromium real no CI em desktop 1080p, desktop 2K, mobile e `prefers-reduced-motion`.
+
+Checkpoint visual do produto: `be5110426cbf431c795fcbf9e5fcd7144e5dbe7a`.
+
+- workflow `CI` 590 concluído com sucesso;
+- workflow `Companion` 347 concluído com sucesso no mesmo SHA;
+- `pnpm check`, build, E2E, `test:processing` e job Postgres verdes;
+- artifact `pipipi-visual-qa` id `10135596709`, digest `sha256:91920be4f608ec019039a1012a2e6612006fdf847665e417cfcf15012a5334cb`;
+- Hero deixa de ser limitado a 980px em telas altas e ocupa o palco disponível abaixo do header;
+- cinematic mobile usa palco de viewport inteira, removendo o letterbox excessivo;
+- removido o `<main>` aninhado: a página preserva um único landmark principal fornecido pelo layout global;
+- fallback sem JavaScript começa com copy visível (`opacity: 1`, sem offset inicial);
+- animações decorativas infinitas foram removidas; o movimento narrativo principal continua dirigido por scroll;
+- captura de `ghost-arrival` espera a imagem lazy-loaded completar antes de registrar a evidência.
+
+As capturas de QA são evidência efêmera de CI e não fazem parte do runtime nem precisam permanecer versionadas no repositório.
 
 ## Critérios de aceite do candidato
 
@@ -80,13 +101,16 @@ A rota continua sendo candidata até merge e publicação deliberados.
 - turning point preservado literalmente;
 - seis cenas vinculadas exatamente uma vez;
 - backgrounds e subjects corretos por cena;
-- Hero com palco + ghost flutuante;
+- Hero com palco + portrait de ghost;
 - scroll cinematic sem loop de RAF permanente;
-- desktop e mobile revisados visualmente;
-- `prefers-reduced-motion` funcional;
+- desktop 1080p, desktop 2K e mobile revisados visualmente;
+- `prefers-reduced-motion` funcional e revisado;
+- fallback sem JavaScript legível;
+- landmark principal sem `<main>` aninhado;
+- nenhuma animação decorativa infinita na experiência Pipipi;
 - foco/links/heading hierarchy utilizáveis por teclado;
-- todos os assets de runtime reproduzíveis e validados por hash no SHA testado;
-- `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm design:check`, `pnpm docs:check` e `pnpm db:docs:check` verdes no mesmo SHA;
+- todos os assets de runtime versionados e validados por hash no SHA testado;
+- `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm design:check`, `pnpm docs:check`, `pnpm db:docs:check`, build, E2E e `test:processing` verdes nos checkpoints de gate;
 - merge e publicação tratados como ações separadas.
 
 ## Não objetivos desta rodada
