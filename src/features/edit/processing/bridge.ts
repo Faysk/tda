@@ -5,8 +5,10 @@ import {
 	parseCapabilities,
 	parseHealth,
 	parseJob,
+	parseJobEvents,
 	parseJobs,
 	parseResultSummary,
+	parseSystemSnapshot,
 } from "./protocol";
 
 export class LocalBridge {
@@ -103,6 +105,14 @@ export class LocalBridge {
 	}
 	async job(id: string, signal: AbortSignal) {
 		return parseJob(await this.json(`/jobs/${identifier(id)}`, signal));
+	}
+	async events(id: string, signal: AbortSignal) {
+		return parseJobEvents(
+			await this.json(`/jobs/${identifier(id)}/events`, signal),
+		);
+	}
+	async system(signal: AbortSignal) {
+		return parseSystemSnapshot(await this.json("/system", signal));
 	}
 	async lifecycle(action: "pause" | "resume", signal: AbortSignal) {
 		return parseHealth(await this.json("/lifecycle", signal, { action }));

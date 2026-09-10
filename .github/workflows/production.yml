@@ -42,6 +42,7 @@ jobs:
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -122,7 +123,16 @@ jobs:
             echo "::error::Missing production secret SUPABASE_ACCESS_TOKEN"
             MISSING=1
           fi
+          if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            echo "::error::Missing production secret SUPABASE_DB_PASSWORD"
+            MISSING=1
+          fi
           [[ "$MISSING" -eq 0 ]] || exit 1
+
+          if [[ "$SUPABASE_ACCESS_TOKEN" != sbp_* ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN must be a Supabase personal access token (sbp_...)."
+            exit 1
+          fi
 
       - name: Validate migration policy
         run: node tools/ci/check-migrations.mjs
@@ -135,7 +145,7 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      - name: Preflight passwordless Supabase database authentication
+      - name: Preflight Supabase database authentication
         shell: bash
         run: |
           set -euo pipefail
@@ -143,11 +153,16 @@ jobs:
           rm -rf "$AUTH_TEST"
           mkdir -p "$AUTH_TEST"
           supabase init --workdir "$AUTH_TEST" --yes
-          # No persistent Postgres password is stored in GitHub. With SUPABASE_ACCESS_TOKEN,
-          # the CLI obtains its temporary database login through the Supabase control plane.
-          supabase link --workdir "$AUTH_TEST" --project-ref "$SUPABASE_PROJECT_REF" --yes
-          supabase migration list --workdir "$AUTH_TEST" --linked >/dev/null
-          echo "Passwordless Supabase database authentication: PASS"
+          supabase link \
+            --workdir "$AUTH_TEST" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD" \
+            --yes
+          supabase migration list \
+            --workdir "$AUTH_TEST" \
+            --linked \
+            --password "$SUPABASE_DB_PASSWORD" >/dev/null
+          echo "Supabase database authentication: PASS"
 
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -190,10 +205,12 @@ jobs:
           # The repository intentionally starts at the TDA reboot boundary and does not
           # copy legacy dnd-scribe migrations. Build an ephemeral Supabase project that
           # contains the real remote history plus the authoritative TDA migration files.
-          # Authentication is passwordless: SUPABASE_ACCESS_TOKEN lets the CLI acquire a
-          # temporary database login instead of persisting the project's Postgres password.
           supabase init --workdir "$OVERLAY" --yes
-          supabase link --workdir "$OVERLAY" --project-ref "$SUPABASE_PROJECT_REF" --yes
+          supabase link \
+            --workdir "$OVERLAY" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD" \
+            --yes
           supabase migration fetch --workdir "$OVERLAY" --linked --yes
 
           find "$OVERLAY/supabase/migrations" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort > "$REMOTE_LIST"
@@ -228,13 +245,13 @@ jobs:
           echo "Authoritative TDA deployable files: $(wc -l < "$REPO_LIST")"
 
       - name: Show database migration state before release
-        run: supabase migration list --workdir "$SUPABASE_OVERLAY" --linked
+        run: supabase migration list --workdir "$SUPABASE_OVERLAY" --linked --password "$SUPABASE_DB_PASSWORD"
 
       - name: Dry-run Production migrations
-        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --dry-run --skip-vault
+        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --dry-run --skip-vault --password "$SUPABASE_DB_PASSWORD"
 
       - name: Apply pending Production migrations
-        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --skip-vault --yes
+        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --skip-vault --password "$SUPABASE_DB_PASSWORD" --yes
 
       - name: Verify exact migration history after release
         shell: bash

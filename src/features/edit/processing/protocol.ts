@@ -17,6 +17,11 @@ export type JobStatus =
 	| "failed"
 	| "cancelled"
 	| "interrupted";
+export type JobContext = {
+	campaignId: string;
+	sessionId: string;
+	sourceId: string;
+};
 export type LocalJob = {
 	id: string;
 	kind: string;
@@ -26,6 +31,35 @@ export type LocalJob = {
 	error: null | { code: string; recoverable: boolean };
 	result_available: boolean;
 	updated_at: string;
+	attempt: number;
+	context: JobContext | null;
+};
+export type JobEventLevel = "info" | "warning" | "error";
+export type JobEventValue = string | number | boolean | null;
+export type JobEvent = {
+	seq: number;
+	code: string;
+	at: string;
+	level: JobEventLevel;
+	data: Readonly<Record<string, JobEventValue>>;
+};
+export type SystemGpu = {
+	index: number;
+	name: string;
+	utilizationPercent: number | null;
+	memoryUsedBytes: number | null;
+	memoryTotalBytes: number | null;
+};
+export type SystemSnapshot = {
+	sampledAt: string;
+	host: { os: string; cpu: string | null };
+	cpu: { utilizationPercent: number | null };
+	memory: {
+		usedBytes: number | null;
+		totalBytes: number | null;
+		percent: number | null;
+	};
+	gpus: readonly SystemGpu[];
 };
 export type ResultSummary = {
 	jobId: string;
@@ -68,6 +102,10 @@ export function text(value: unknown, max = 128): string {
 		return invalid();
 	return value;
 }
+function nullableText(value: unknown, max = 160): string | null {
+	if (value === null || value === undefined) return null;
+	return text(value, max);
+}
 export function identifier(value: unknown): string {
 	const id = text(value);
 	if (!/^[A-Za-z0-9_-]+$/u.test(id)) return invalid();
@@ -76,6 +114,27 @@ export function identifier(value: unknown): string {
 function boolean(value: unknown): boolean {
 	if (typeof value !== "boolean") return invalid();
 	return value;
+}
+function nonNegativeInteger(value: unknown): number {
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+		return invalid();
+	return value;
+}
+function nullableNonNegativeNumber(value: unknown): number | null {
+	if (value === null || value === undefined) return null;
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+		return invalid();
+	return value;
+}
+function nullablePercent(value: unknown): number | null {
+	const parsed = nullableNonNegativeNumber(value);
+	if (parsed !== null && parsed > 100) return invalid();
+	return parsed;
+}
+function isoDate(value: unknown): string {
+	const parsed = text(value, 64);
+	if (!Number.isFinite(Date.parse(parsed))) return invalid();
+	return parsed;
 }
 export function parseHealth(value: unknown): Health {
 	const row = record(value);
@@ -132,8 +191,15 @@ export function parseJob(value: unknown): LocalJob {
 		};
 	}
 	const error = row.error === null ? null : record(row.error);
-	const updated = text(row.updated_at);
-	if (!Number.isFinite(Date.parse(updated))) return invalid();
+	let context: JobContext | null = null;
+	if (row.context !== undefined && row.context !== null) {
+		const rawContext = record(row.context);
+		context = {
+			campaignId: identifier(rawContext.campaign_id),
+			sessionId: identifier(rawContext.session_id),
+			sourceId: identifier(rawContext.source_id),
+		};
+	}
 	return {
 		id: identifier(row.id),
 		kind: text(row.kind),
@@ -144,7 +210,10 @@ export function parseJob(value: unknown): LocalJob {
 			? { code: text(error.code), recoverable: boolean(error.recoverable) }
 			: null,
 		result_available: boolean(row.result_available),
-		updated_at: updated,
+		updated_at: isoDate(row.updated_at),
+		attempt:
+			row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
+		context,
 	};
 }
 export function parseJobs(value: unknown): LocalJob[] {
@@ -153,6 +222,65 @@ export function parseJobs(value: unknown): LocalJob[] {
 	const jobs = rows.map(parseJob);
 	if (new Set(jobs.map((job) => job.id)).size !== jobs.length) return invalid();
 	return jobs;
+}
+export function parseJobEvents(value: unknown): JobEvent[] {
+	const rows = record(value).events;
+	if (!Array.isArray(rows) || rows.length > 100) return invalid();
+	return rows.map((value) => {
+		const row = record(value);
+		const level = row.level === undefined ? "info" : text(row.level, 16);
+		if (!["info", "warning", "error"].includes(level)) return invalid();
+		const rawData =
+			row.data === undefined || row.data === null ? {} : record(row.data);
+		const entries = Object.entries(rawData);
+		if (entries.length > 32) return invalid();
+		const data: Record<string, JobEventValue> = {};
+		for (const [key, raw] of entries) {
+			if (!/^[A-Za-z0-9_-]{1,64}$/u.test(key)) return invalid();
+			if (raw === null || typeof raw === "boolean") data[key] = raw;
+			else if (typeof raw === "number" && Number.isFinite(raw)) data[key] = raw;
+			else if (typeof raw === "string") data[key] = text(raw, 256);
+			else return invalid();
+		}
+		return {
+			seq: nonNegativeInteger(row.seq),
+			code: text(row.code, 80),
+			at: isoDate(row.at),
+			level: level as JobEventLevel,
+			data,
+		};
+	});
+}
+export function parseSystemSnapshot(value: unknown): SystemSnapshot {
+	const row = record(value);
+	const host = record(row.host);
+	const cpu = record(row.cpu);
+	const memory = record(row.memory);
+	if (!Array.isArray(row.gpus) || row.gpus.length > 16) return invalid();
+	const gpus = row.gpus.map((value) => {
+		const gpu = record(value);
+		return {
+			index: nonNegativeInteger(gpu.index),
+			name: text(gpu.name, 160),
+			utilizationPercent: nullablePercent(gpu.utilization_percent),
+			memoryUsedBytes: nullableNonNegativeNumber(gpu.memory_used_bytes),
+			memoryTotalBytes: nullableNonNegativeNumber(gpu.memory_total_bytes),
+		};
+	});
+	return {
+		sampledAt: isoDate(row.sampled_at),
+		host: {
+			os: text(host.os, 160),
+			cpu: nullableText(host.cpu),
+		},
+		cpu: { utilizationPercent: nullablePercent(cpu.utilization_percent) },
+		memory: {
+			usedBytes: nullableNonNegativeNumber(memory.used_bytes),
+			totalBytes: nullableNonNegativeNumber(memory.total_bytes),
+			percent: nullablePercent(memory.percent),
+		},
+		gpus,
+	};
 }
 // Only a small identity projection is retained. No bundle content is displayed or sent to cloud.
 export function parseResultSummary(

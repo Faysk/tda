@@ -1,4 +1,8 @@
-import type { BridgeErrorCode, JobStatus } from "./protocol";
+import type {
+	BridgeErrorCode,
+	JobEvent,
+	JobStatus,
+} from "./protocol";
 
 export const connectionHelp: Record<BridgeErrorCode, string> = {
 	unreachable:
@@ -20,8 +24,8 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 };
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
-	running: "Em execução",
-	succeeded: "Concluído localmente",
+	running: "Processando",
+	succeeded: "Concluído",
 	failed: "Falhou",
 	cancelled: "Cancelado",
 	interrupted: "Interrompido",
@@ -29,7 +33,132 @@ export const jobLabels: Record<JobStatus, string> = {
 export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
 	fixture: "Ensaio sintético",
+	checking_model: "Verificando modelo",
+	downloading_model: "Baixando modelo",
+	loading_cpu: "Carregando modelo na CPU",
+	loading_cuda: "Carregando modelo na GPU",
+	loading_cuda_fallback: "Ajustando uso de VRAM",
+	preparing: "Preparação",
+	diarization: "Separação de falas",
+	noise_cleanup: "Limpeza de ruído",
+	resuming: "Retomando checkpoint",
+	transcribing: "Transcrição",
+	consolidating: "Consolidação",
 	complete: "Resultado preparado",
 	cancelled: "Cancelado",
 	interrupted: "Execução interrompida",
 };
+
+const genericProgressJokes = [
+	"O PC segue firme e ainda não pediu férias.",
+	"Mais uma etapa domesticada sem sacrificar nenhum dado.",
+	"O hamster da GPU continua correndo. Tudo sob controle.",
+	"A máquina está trabalhando; a dignidade dela a gente avalia depois.",
+] as const;
+
+const transcriptionJokes = [
+	(speaker: string) => `A voizinha de ${speaker} está rendendo serviço hoje 👀`,
+	(speaker: string) => `Whisper e ${speaker} estão numa conversa séria agora.`,
+	(speaker: string) => `Mais um pedaço de ${speaker} domesticado pela GPU.`,
+] as const;
+
+function textData(event: JobEvent, key: string): string | null {
+	const value = event.data[key];
+	return typeof value === "string" ? value : null;
+}
+
+function numberData(event: JobEvent, key: string): number | null {
+	const value = event.data[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function choose<T>(values: readonly T[], seed: number): T {
+	return values[Math.abs(seed) % values.length];
+}
+
+export type PresentedJobEvent = Readonly<{
+	title: string;
+	detail?: string;
+}>;
+
+export function presentJobEvent(event: JobEvent): PresentedJobEvent {
+	const completed = numberData(event, "completed");
+	const total = numberData(event, "total");
+	const percent = numberData(event, "percent");
+	const speaker = textData(event, "speaker");
+	const track = numberData(event, "track");
+	const totalTracks = numberData(event, "total_tracks");
+
+	switch (event.code) {
+		case "QUEUED":
+			return { title: "Trabalho adicionado à fila." };
+		case "RUNNING":
+			return {
+				title: "Processamento iniciado.",
+				detail: "A máquina acordou. Agora vai.",
+			};
+		case "UNIT_COMMITTED":
+			return {
+				title:
+					completed !== null && total !== null
+						? `Unidade ${completed} de ${total} concluída.`
+						: "Unidade de trabalho concluída.",
+				detail: choose(genericProgressJokes, event.seq),
+			};
+		case "MODEL_LOADING":
+			return {
+				title: "Carregando modelo de transcrição na GPU.",
+				detail: "A VRAM recebeu visita. Esperamos que ela tenha arrumado a casa.",
+			};
+		case "TRACK_STARTED":
+			return {
+				title:
+					track !== null && totalTracks !== null
+						? `Arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
+						: `Transcrição iniciada${speaker ? ` — ${speaker}` : ""}.`,
+			};
+		case "TRACK_PROGRESS":
+			return {
+				title: `${speaker ? `Processando voz — ${speaker}` : "Transcrevendo áudio"}${percent !== null ? ` · ${Math.round(percent)}%` : ""}.`,
+				detail: speaker
+					? choose(transcriptionJokes, event.seq)(speaker)
+					: choose(genericProgressJokes, event.seq),
+			};
+		case "NOISE_REDUCTION_PROGRESS":
+			return {
+				title: `Reduzindo ruído de fundo${speaker ? ` — ${speaker}` : ""}${percent !== null ? ` · ${Math.round(percent)}%` : ""}.`,
+				detail: speaker
+					? `Separando os chiados de ${speaker} sem julgar ninguém ✨`
+					: "Separando o que é voz do que claramente queria virar podcast de ventilador.",
+			};
+		case "BACKGROUND_SPEECH_DETECTED":
+			return {
+				title: "Fala de fundo detectada.",
+				detail: "A família decidiu participar da sessão também.",
+			};
+		case "DOG_BARK_IGNORED":
+			return {
+				title: "Latido identificado e ignorado.",
+				detail: "O cachorro tentou entrar no canon. Pedido negado.",
+			};
+		case "TRACK_COMPLETED":
+			return {
+				title: `Arquivo concluído${speaker ? ` — ${speaker}` : ""}.`,
+				detail: "Uma voz a menos para a GPU interrogar.",
+			};
+		case "SUCCEEDED":
+			return {
+				title: "Processamento concluído com sucesso.",
+				detail: "Sobreviveu todo mundo. Inclusive o PC.",
+			};
+		case "CANCELLED":
+			return { title: "Processamento cancelado pelo operador." };
+		case "INTERRUPTED":
+		case "PROCESS_INTERRUPTED":
+			return { title: "Execução interrompida; o trabalho pode ser repetido." };
+		case "FIXTURE_EXECUTION_FAILED":
+			return { title: "O ensaio sintético encontrou uma falha." };
+		default:
+			return { title: event.code.replaceAll("_", " ").toLocaleLowerCase("pt-BR") };
+	}
+}

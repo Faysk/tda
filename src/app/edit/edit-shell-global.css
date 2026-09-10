@@ -1,0 +1,8 @@
+body:has([data-edit-shell="true"]) .site-header,
+body:has([data-edit-shell="true"]) .site-footer {
+	display: none;
+}
+
+body:has([data-edit-shell="true"]) #conteudo {
+	min-height: 100dvh;
+}

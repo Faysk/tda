@@ -114,7 +114,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-06 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
-| [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | preparado / implementação candidata | 2026-09-07 |
+| [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | preparado / implementação candidata | 2026-09-10 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
 | [Pipipi — lore cinematográfica pioneira](../features/pipipi-lore.md) | narrative-memory / frontend | implementação integrada à `main`; Fases 1–3 e QA/polimento concluídos; publicação em production ainda pendente | 2026-09-10 |
@@ -130,7 +130,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-07 |
-| [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | implementado em branch/PR; fixture sintética | 2026-09-07 |
+| [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | implementado em branch/PR; fixture sintética | 2026-09-10 |
 | [Companion local](../integrations/local-companion.md) | local-companion/processing | base sintética implementada em branch/PR; ASR real legado preservado | 2026-09-07 |
 | [Pré-flight R2 e assets das novas lores](../integrations/lore-media-preparation-2026-09-07.md) | integrations/media | preparado; execução central pendente | 2026-09-07 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |

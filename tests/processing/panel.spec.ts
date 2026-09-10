@@ -58,9 +58,7 @@ test("pairing, real reported progress, contextual cancel and disconnect", async 
 	expect(mutations).toEqual([]);
 	await page.getByRole("button", { name: "Cancelar trabalho" }).click();
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
-	await expect(
-		page.locator("li").getByText("Cancelado", { exact: true }),
-	).toBeVisible();
+	await expect(page.locator("li .ds-status")).toHaveText("Cancelado");
 	expect(mutations).toEqual(["/api/v1/jobs/synthetic-job/cancel"]);
 	await expect(
 		page.getByText("Sincronização não configurada.", { exact: true }),
