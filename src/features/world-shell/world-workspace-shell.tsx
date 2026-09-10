@@ -149,8 +149,8 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			<section
 				className={styles.stage}
 				data-testid="world-workspace-stage"
-				aria-hidden={navigationIsModal || undefined}
-				inert={navigationIsModal || undefined}
+				aria-hidden={navigationIsModal ? "true" : "false"}
+				inert={navigationIsModal}
 			>
 				<button
 					ref={navigationToggleRef}
