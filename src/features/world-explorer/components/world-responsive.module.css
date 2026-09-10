@@ -120,6 +120,37 @@
 		transform: translateX(-50%);
 	}
 
+	.inspector:has(.panelToggle[aria-expanded="false"]) {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		left: auto;
+		width: 68px;
+		height: 68px;
+		min-height: 0;
+		max-height: none;
+		overflow: visible;
+		padding: 0;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		box-shadow: none;
+		backdrop-filter: none;
+		pointer-events: none;
+	}
+
+	.inspector:has(.panelToggle[aria-expanded="false"])::before {
+		display: none;
+	}
+
+	.inspector:has(.panelToggle[aria-expanded="false"]) .panelToggle {
+		top: auto;
+		right: 12px;
+		bottom: 12px;
+		left: auto;
+		pointer-events: auto;
+	}
+
 	.resizer {
 		display: none;
 	}
@@ -187,8 +218,17 @@
 		padding-inline: max(16px, var(--ds-page-gutter));
 	}
 
+	.inspector:has(.panelToggle[aria-expanded="false"]) {
+		max-height: none;
+		padding-inline: 0;
+	}
+
 	.panelToggle {
 		left: max(14px, var(--ds-page-gutter));
+	}
+
+	.inspector:has(.panelToggle[aria-expanded="false"]) .panelToggle {
+		left: auto;
 	}
 }
 
