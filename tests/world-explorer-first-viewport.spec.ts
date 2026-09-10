@@ -46,10 +46,16 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	await expect
 		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(beforeInspectorCollapse);
-	const collapsedInspectorWidth = await detailOpen.evaluate(
-		(button) => button.parentElement?.getBoundingClientRect().width ?? Number.POSITIVE_INFINITY,
-	);
-	expect(collapsedInspectorWidth).toBeLessThanOrEqual(1);
+	await expect
+		.poll(
+			async () =>
+				await detailOpen.evaluate(
+					(button) =>
+						button.parentElement?.getBoundingClientRect().width ??
+						Number.POSITIVE_INFINITY,
+				),
+		)
+		.toBeLessThanOrEqual(1);
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -99,10 +105,16 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	await detailToggle.click();
 	const detailOpen = page.getByRole("button", { name: "Abrir painel de detalhes" });
 	await expect(detailOpen).toBeVisible();
-	const collapsedSheetHeight = await detailOpen.evaluate(
-		(button) => button.parentElement?.getBoundingClientRect().height ?? Number.POSITIVE_INFINITY,
-	);
-	expect(collapsedSheetHeight).toBeLessThanOrEqual(1);
+	await expect
+		.poll(
+			async () =>
+				await detailOpen.evaluate(
+					(button) =>
+						button.parentElement?.getBoundingClientRect().height ??
+						Number.POSITIVE_INFINITY,
+				),
+		)
+		.toBeLessThanOrEqual(1);
 	const reopenBox = await detailOpen.boundingBox();
 	expect(reopenBox?.width ?? 0).toBeGreaterThanOrEqual(44);
 	expect(reopenBox?.height ?? 0).toBeGreaterThanOrEqual(44);
