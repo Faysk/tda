@@ -123,6 +123,16 @@
 	pointer-events: none;
 }
 
+.utilityControls {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+	z-index: 40;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
 .mobileBackdrop {
 	display: none;
 }
@@ -230,6 +240,11 @@
 	.navigationToggle {
 		top: 10px;
 		left: 10px;
+	}
+
+	.utilityControls {
+		top: 10px;
+		right: 10px;
 	}
 }
 
