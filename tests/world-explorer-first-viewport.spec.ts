@@ -23,9 +23,7 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	});
 	await expect(collapse).toBeVisible();
 	await collapse.click();
-	await expect(
-		page.getByRole("button", { name: "Expandir navegação do mundo" }),
-	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 
 	// The rail animates through the design-system motion token; assert the settled
 	// layout rather than sampling the first frame immediately after the click.
