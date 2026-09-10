@@ -40,12 +40,12 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 							aria-expanded={!railCollapsed}
 							aria-label={
 								railCollapsed
-									? "Expandir navegação do mundo"
+									? "Explorar universo"
 									: "Recolher navegação do mundo"
 							}
-							title={railCollapsed ? "Expandir navegação" : "Recolher navegação"}
+							title={railCollapsed ? "Explorar universo" : "Recolher navegação"}
 						>
-							<span aria-hidden="true">{railCollapsed ? "›" : "‹"}</span>
+							<span aria-hidden="true">{railCollapsed ? "☰" : "‹"}</span>
 							{railCollapsed ? null : <span>Recolher</span>}
 						</button>
 						<Link
