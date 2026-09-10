@@ -208,8 +208,16 @@
 		padding-inline: 8px;
 	}
 
+	.railFooter {
+		width: 46px;
+		min-width: 46px;
+		justify-content: center;
+		overflow: visible;
+	}
+
 	.railFooter :global(.theme-toggle) {
-		display: none;
+		transform: scale(0.82);
+		transform-origin: center;
 	}
 }
 
