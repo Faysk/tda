@@ -1,0 +1,28 @@
+name: Claquete Pipipi Gate
+
+on:
+  push:
+    branches:
+      - claquete/pipipi-responsive-art-direction
+
+permissions:
+  contents: read
+
+jobs:
+  pipipi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test tests/pipipi-cinematic.spec.ts
