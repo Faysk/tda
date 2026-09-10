@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-10
+> Última revisão: 2026-09-07
 
 ## Ambientes conceituais
 
