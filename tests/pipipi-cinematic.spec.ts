@@ -53,10 +53,27 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 			.last(),
 	).toBeVisible();
 
+	await expect(page.locator("main")).toHaveCount(1);
+
+	const heroHeight = await page.locator("#topo").evaluate((element) =>
+		element.getBoundingClientRect().height,
+	);
+	const viewportHeight = page.viewportSize()?.height ?? 1;
+	expect(heroHeight).toBeGreaterThanOrEqual(viewportHeight * 0.8);
+
 	const renderedSceneIds = await page
 		.locator("[data-scene]")
 		.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-scene")));
 	expect(renderedSceneIds).toEqual(sceneIds);
+
+	const infiniteAnimations = await page.locator("article").evaluate((article) =>
+		Array.from(article.querySelectorAll("*")).filter((element) =>
+			getComputedStyle(element)
+				.animationIterationCount.split(",")
+				.some((count) => count.trim() === "infinite"),
+		).length,
+	);
+	expect(infiniteAnimations).toBe(0);
 });
 
 test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
@@ -72,12 +89,40 @@ test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => 
 	}
 });
 
+test("keeps cinematic copy legible without JavaScript", async ({ browser }, testInfo) => {
+	test.skip(
+		testInfo.project.name !== "desktop-1080p",
+		"the static fallback only needs one browser project",
+	);
+
+	const context = await browser.newContext({ javaScriptEnabled: false });
+	const page = await context.newPage();
+	const response = await page.goto("/lore/pipipi");
+	expect(response?.status()).toBe(200);
+
+	const copy = page
+		.getByRole("heading", { name: "Algumas crianças nunca foram para casa" })
+		.locator("..");
+	await expect(copy).toBeVisible();
+	expect(
+		await copy.evaluate((element) => Number.parseFloat(getComputedStyle(element).opacity)),
+	).toBe(1);
+
+	await context.close();
+});
+
 test("runs finite viewport-driven motion and honors reduced motion", async ({ page }) => {
 	await page.goto("/lore/pipipi");
 	const scene = page.locator('[data-scene="corredores"]');
 
 	await scene.scrollIntoViewIfNeeded();
 	await expect(scene).toHaveAttribute("data-active", "true");
+
+	const stageHeight = await scene
+		.locator(":scope > div")
+		.evaluate((element) => element.getBoundingClientRect().height);
+	const viewportHeight = page.viewportSize()?.height ?? 1;
+	expect(stageHeight).toBeGreaterThanOrEqual(viewportHeight * 0.95);
 
 	await scene.evaluate((element) => {
 		const rect = element.getBoundingClientRect();
