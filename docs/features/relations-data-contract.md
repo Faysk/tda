@@ -1,10 +1,10 @@
 # Feature — contrato de dados para relações
 
-> Status: proposta canônica para revisão; **nenhuma DDL aprovada/aplicada ainda**
+> Status: fundação física aplicada; provenance/review e vocabulário factual continuam em evolução
 > Owner: narrative-memory / database / security
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-10
 
-Este documento fecha o suficiente da semântica de relações para permitir o primeiro World Explorer com fixtures e preparar uma migration futura sem moldar o banco ao React Flow.
+Este documento define a semântica de relações usada pelo World Explorer sem moldar o domínio ao React Flow. A fundação física da #119 foi aplicada no Supabase canônico em 2026-09-10; isso **não** significa que relações reais tenham sido publicadas nem que o fluxo de provenance esteja concluído.
 
 A decisão de visualização está em [ADR-0006](../adr/0006-react-flow-world-explorer.md). Este documento trata apenas do **domínio**.
 
@@ -67,7 +67,7 @@ location -> faction
 
 A possibilidade técnica não significa que todo par de tipos precise ser permitido. `relation_types` pode restringir ou documentar combinações no futuro.
 
-## Camadas de domínio propostas
+## Camadas de domínio
 
 ```text
 relation_types
@@ -75,32 +75,31 @@ entity_relations
 entity_relation_sources
 ```
 
-Essas três estruturas carregam semântica/provenance. A candidata #119 acrescenta `world_relation_styles` como armazenamento **de apresentação**, separado do contrato factual; essa tabela não transforma cor/espessura/traço em semântica de relation.
+Essas três estruturas carregam semântica/provenance. A #119 acrescentou `world_relation_styles` como armazenamento **de apresentação**, separado do contrato factual; essa tabela não transforma cor/espessura/traço em semântica de relation.
 
 ### `relation_types`
 
 Catálogo estável da semântica.
 
-Campos propostos:
+Campos da primeira fundação física:
 
 | Campo | Papel |
 | --- | --- |
-| `slug text PK` | identificador estável, ex. `friend_of` |
+| `slug text` | identificador estável por campanha, ex. `friend_of` |
 | `label text` | label humano padrão |
-| `inverse_slug text?` | relação inversa quando dirigida |
 | `directionality text` | `directed` ou `symmetric` |
 | `family text` | agrupamento semântico para filtros/UI |
 | `description text` | contrato da relação |
 | `is_system boolean` | distingue tipos base de customizações futuras |
 | `created_at/updated_at` | auditoria técnica |
 
-A #119 ainda não fecha a convenção de inversas; o schema candidato mantém apenas `directionality` + label canônica nesta fatia.
+A #119 ainda não fecha a convenção de inversas; o schema aplicado mantém apenas `directionality` + label canônica nesta fatia.
 
 ### `entity_relations`
 
 Instância canônica/histórica do vínculo.
 
-Campos propostos:
+Campos relevantes da fundação aplicada:
 
 | Campo | Papel |
 | --- | --- |
@@ -111,15 +110,12 @@ Campos propostos:
 | `relation_type_slug text FK` | semântica |
 | `status text` | lifecycle |
 | `visibility text` | audience técnica/narrativa já usada no TDA |
-| `started_session_id uuid?` | início narrativo quando conhecido |
-| `ended_session_id uuid?` | fim narrativo quando conhecido |
-| `started_at timestamptz?` | temporalidade adicional quando necessária |
-| `ended_at timestamptz?` | temporalidade adicional quando necessária |
-| `created_by uuid?` | profile que materializou/aprovou |
+| `created_by/updated_by uuid?` | profiles ligados à materialização/edição |
+| `revision bigint` | versão física da relation |
 | `created_at/updated_at` | auditoria |
 | `metadata jsonb` | extensão não estrutural |
 
-A primeira migration candidata #119 é deliberadamente menor que este desenho completo: persiste endpoints/tipo/status/visibility/audit e deixa temporalidade narrativa explícita para uma evolução posterior, em vez de inventar datas sem caso real validado.
+A primeira migration é deliberadamente menor que o desenho completo de temporalidade narrativa: `started_session_id`, `ended_session_id` e datas narrativas explícitas ficam para evolução posterior, em vez de inventar datas sem caso real validado.
 
 `metadata` não deve receber listas de fontes, endpoints, directionality, audience ou campos que mereçam query/index.
 
@@ -127,7 +123,7 @@ A primeira migration candidata #119 é deliberadamente menor que este desenho co
 
 Relação canônica precisa ser rastreável a memória revisada.
 
-Primeira forma proposta:
+Forma física aplicada:
 
 | Campo | Papel |
 | --- | --- |
@@ -139,7 +135,7 @@ PK/unique: `(relation_id, canon_entry_id)`.
 
 O objetivo é permitir **mais de uma fonte** sem arrays de UUID.
 
-Se uma relation manual não possuir `canon_entry` correspondente, o fluxo recomendado é criar/revisar a afirmação canônica primeiro, em vez de criar edge sem prova.
+Se uma relation manual não possuir `canon_entry` correspondente, o fluxo recomendado é criar/revisar a afirmação canônica primeiro, em vez de criar edge público sem prova.
 
 ## Candidate flow
 
@@ -163,11 +159,11 @@ A semântica específica (`friend_of`, `owes_debt_to` etc.) precisa estar explí
 
 Se essa reutilização de `canon_candidates` ficar ambígua em uso real, uma future ADR pode aprovar `relation_candidates`. Não criar agora sem necessidade observada.
 
-## Candidato físico #119 — autoria manual sem atalho de canon
+## Fundação física #119 — autoria manual sem atalho de canon
 
-A PR #119 versiona `20260909215000_world_graph_authoring` como primeira implementação física candidata deste contrato. Na inspeção read-only de 2026-09-10, a migration **ainda não estava aplicada** no Supabase canônico.
+A migration versionada localmente como `20260909215000_world_graph_authoring.sql` foi aplicada deliberadamente em 2026-09-10 e registrada no migration history remoto como `20260910002529 world_graph_authoring`. O ID divergente fica documentado; não reexecutar DDL apenas para alinhar nomes.
 
-A fatia introduz:
+A fatia introduziu:
 
 - `relation_types` por campaign;
 - `entity_relations` first-class;
@@ -176,15 +172,17 @@ A fatia introduz:
 - `world_graph_heads` + `world_graph_revisions` para revision/snapshot;
 - draft factual privado acoplado ao lease exclusivo do World já existente.
 
+A aplicação preservou os dados existentes e não fabricou conteúdo: as novas tabelas factuais permaneceram vazias, `entities` continuou com 3 rows, `canon_entries` com 0, e não houve `world_graph.publish` durante a validação.
+
 ### Separação semântica x apresentação
 
 `relation_types.family`, directionality e label continuam semântica. Cor, espessura e traço ficam em `world_relation_styles` ou override de edge e são consumidos pela projection/React Flow como **apresentação editorial**.
 
-Portanto o princípio "family não define cor física" permanece válido. O que muda em relação ao rascunho anterior deste contrato é que a apresentação pode ser persistida explicitamente em tabela própria, em vez de existir apenas em tokens de UI. Esse storage visual não pode ser usado para inferir relation type, canon, visibility ou audience.
+Portanto o princípio "family não define cor física" permanece válido. A apresentação pode ser persistida explicitamente em tabela própria, mas esse storage visual não pode ser usado para inferir relation type, canon, visibility ou audience.
 
 ### Capability e sessão
 
-Autoria factual candidata exige:
+Autoria factual exige:
 
 - `campaign.content.edit` no scope correto; e
 - lease vigente de `campaign.world.layout.edit` para a mesma identity/profile/campaign.
@@ -193,7 +191,7 @@ A capability de layout isolada **não** concede autoria factual. O lease é meca
 
 ### Draft e publish
 
-A edição factual fica em `draft_graph` privado até publicação explícita. O publish candidato:
+A edição factual fica em `draft_graph` privado até publicação explícita. O publish aplicado:
 
 - valida revision do head;
 - valida IDs/endpoints/tipos/status/visibility;
@@ -206,17 +204,17 @@ A edição factual fica em `draft_graph` privado até publicação explícita. O
 
 ### Provenance ainda não concluída pela UI desta fatia
 
-A #119 cria `entity_relation_sources`, mas **não cria ainda uma mutation para anexar uma nova `canon_entry` a uma relação**. O `service_role` recebe somente leitura nessa tabela nesta fatia.
+A #119 criou `entity_relation_sources`, mas **não cria uma mutation para anexar uma nova `canon_entry` a uma relação**. O `service_role` recebe somente leitura nessa tabela nesta fatia.
 
-Por isso o server boundary bloqueia uma relation ativa `public_campaign`/`public_web` sem source já existente e retorna `review_required` antes do RPC de publicação. Uma relation nova pode ser preparada como `private_*`/`review_only`, mas não ganha legitimidade pública só porque foi desenhada/editada no World.
+Por isso o server boundary da aplicação bloqueia uma relation ativa `public_campaign`/`public_web` sem source já existente e retorna `review_required` antes do RPC de publicação. Uma relation nova pode ser preparada como `private_*`/`review_only`, mas não ganha legitimidade pública só porque foi desenhada/editada no World.
 
 A fatia seguinte de provenance/review precisa anexar source de forma autorizada e auditável, em vez de liberar write genérico em `entity_relation_sources`.
 
 ### Ativação pública separada
 
-Mesmo com schema/autoria instalados, `/mundo` não deve trocar automaticamente do demo para dados reais. A projection canônica pública da #119 fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true` e deve ser ativada somente depois de curadoria/review/visibility e validação visual do dataset real.
+Mesmo com schema/autoria instalados, `/mundo` não troca automaticamente do demo para dados reais. A projection canônica pública da #119 fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true` e deve ser ativada somente depois de curadoria/review/visibility e validação visual do dataset real.
 
-O preflight de 2026-09-10 encontrou 3 entities no banco, apenas 1 `active/public_web`, e 0 `canon_entries`; portanto ativação pública neste estado seria prematura e degradaria a experiência demonstrativa atual.
+A validação de 2026-09-10 encontrou 3 entities no banco, apenas 1 `active/public_web`, e 0 `canon_entries`; portanto ativação pública neste estado continua prematura e degradaria a experiência demonstrativa atual.
 
 ## Edição autorizada no grafo — rodada #99
 
@@ -241,7 +239,7 @@ Antes de persistir, o boundary server-side precisa revalidar:
 - relation type permitido;
 - visibility permitida ao ator e ao fluxo de publicação;
 - provenance/canon source exigida por este contrato;
-- `expectedRevision`/versão equivalente quando a migration definir concorrência otimista;
+- revision/versão equivalente quando o storage suportar concorrência otimista;
 - ausência de conflito, duplicata simétrica ou transição de lifecycle inválida.
 
 Login, role name exibido pela UI ou capability de layout não concedem edição factual por inferência.
@@ -277,7 +275,7 @@ Exemplos possíveis, sujeitos ao vocabulário real:
 
 A UI pode renderizar uma única edge.
 
-Na migration candidata #119, endpoints simétricos são normalizados no boundary de publish antes da persistência e duplicatas ativas são rejeitadas. Isso precisa continuar coberto por teste; não confiar na ordenação enviada pelo cliente.
+Na implementação #119, endpoints simétricos são normalizados no boundary de publish antes da persistência e duplicatas ativas são rejeitadas. Isso precisa continuar coberto por teste; não confiar na ordenação enviada pelo cliente.
 
 ### `directed`
 
@@ -316,7 +314,7 @@ Antes da seed final, escolher uma única convenção:
 
 `family` é classificação semântica útil para filtro, visual e analytics; não define cor física.
 
-Famílias da primeira migration candidata:
+Famílias da primeira migration aplicada:
 
 - `affinity`;
 - `family`;
@@ -334,7 +332,7 @@ A apresentação pode persistir hexadecimal/linha/espessura em `world_relation_s
 
 ## Lifecycle
 
-Estados propostos/candidatos:
+Estados da fundação aplicada:
 
 - `active`;
 - `ended`;
@@ -359,7 +357,7 @@ Se a relação anterior era factual mas foi substituída por retcon, usar `super
 
 ## Visibility
 
-Reutilizar o vocabulário já presente em `entities`, `canon_entries` e `publications` e adotado pela candidata #119:
+A fundação aplicada reutiliza o vocabulário já presente em `entities`, `canon_entries` e `publications`:
 
 - `private_master`;
 - `private_players`;
@@ -460,18 +458,11 @@ Cada tipo precisa de exemplos reais antes de entrar na seed.
 
 A #119 cobre o núcleo de endpoints/tipo/duplicata/authorization/revision/audit; provenance write e temporalidade detalhada continuam explicitamente fora desta primeira fatia.
 
-## Índices esperados
+## Índices
 
-No mínimo, avaliar:
+A implementação aplicada possui índices para os principais caminhos de exploração por campaign/source/target/type/status. O advisor pós-migration também sinalizou como INFO a FK `entity_relation_sources(canon_entry_id)` sem covering index.
 
-```text
-(campaign_id, source_entity_id, status)
-(campaign_id, target_entity_id, status)
-(campaign_id, relation_type_slug, status)
-entity_relation_sources(canon_entry_id)
-```
-
-A forma final depende das queries reais e advisors após dados de teste. A candidata #119 cria índices para os principais caminhos source/target/type/status; advisors pós-migration continuam gate antes de chamar isso de otimizado.
+O lookup por `canon_entry_id` é candidato natural quando a fatia de provenance/review realmente consultar relações a partir da fonte. Não criar/remover índice apenas para silenciar advisor antes de existir query path observada.
 
 ## Delete policy
 
@@ -498,7 +489,7 @@ Mudanças relevantes precisam entrar em `audit_log` ou mecanismo equivalente do 
 - restore;
 - source attachment/removal.
 
-A candidata #119 registra `world_graph.publish` por snapshot factual publicado. Auditoria granular de source attachment/removal pertence à fatia de provenance e não deve ser simulada por metadata.
+A #119 registra `world_graph.publish` por snapshot factual publicado. Auditoria granular de source attachment/removal pertence à fatia de provenance e não deve ser simulada por metadata.
 
 ## API/projection
 
@@ -545,16 +536,18 @@ O dataset visual de referência pode gerar fixtures, mas não rows canônicas se
 9. quando temporalidade real exigir `started_session_id`/`ended_session_id`, qual migration compatível adiciona isso sem inventar história para relações existentes?;
 10. qual UX de review/provenance permite promover uma relation privada/review para pública com receipt claro?
 
-## Critério para aprovar/aplicar a migration candidata #119
+## Gate para ativar o dataset canônico público
 
-- contrato físico e invariantes revisados contra o banco real;
-- capability e boundary documentados em `database/security.md` + `rpc-inventory.md`;
-- PostgreSQL sintético cobrindo autorização, draft/publish/recovery, conflito, duplicata simétrica e rollback;
-- CI terminal no SHA exato, incluindo build/E2E;
-- preflight read-only do Supabase, migration history e advisors imediatamente antes do DDL;
-- aplicação controlada pelo database runbook;
-- validação pós-migration de RLS/grants/RPCs, contagens existentes e migration history;
-- `verification-log.md` atualizado somente com evidência realmente observada;
-- nenhuma ativação de `TDA_WORLD_CANONICAL_ENABLED` até existir dataset real revisado suficiente e validação visual da experiência pública.
+A infraestrutura física #119 já passou pelo runbook de aplicação e validação. Isso encerra o gate de **schema**, não o gate de **canon público**.
 
-Até a aplicação deliberada dessa migration, o schema de relations de produção permanece inalterado. Mesmo depois da infraestrutura instalada, o World público continua demonstrativo até a ativação canônica ser explicitamente autorizada; a existência de tabelas novas não é aprovação de fatos nem publicação de dados reais.
+Antes de habilitar `TDA_WORLD_CANONICAL_ENABLED=true`:
+
+- existir dataset real revisado suficiente para não degradar a experiência;
+- relations públicas possuírem provenance válida;
+- visibility de nodes/edges estar revisada;
+- fluxo de source/review existir para novas relações públicas;
+- CI/release do consumidor estar verde;
+- inspeção visual/UX do dataset real ter sido concluída;
+- smoke público comprovar ausência de vazamento de nodes/edges privados.
+
+Até lá, o World público continua demonstrativo por padrão. A existência das tabelas aplicadas não é aprovação de fatos nem publicação de dados reais.
