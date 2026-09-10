@@ -13,7 +13,6 @@ import type {
 	WorldRelationFamily,
 	WorldRelationStyleDTO,
 } from "../model";
-import { connectedNodeIds } from "../projection";
 
 export type WorldFlowNodeData = {
 	item: WorldNodeDTO;
@@ -35,6 +34,10 @@ export type WorldFlowEdgeData = {
 
 export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
 export type WorldFlowEdge = Edge<WorldFlowEdgeData, "worldRelation">;
+export type WorldFlowGraph = Readonly<{
+	nodes: WorldFlowNode[];
+	edges: WorldFlowEdge[];
+}>;
 
 function prominenceFor(
 	item: WorldNodeDTO,
@@ -65,49 +68,46 @@ function layoutWithOverrides(
 	return layout;
 }
 
-export function toReactFlowGraph(
+/**
+ * Builds the expensive, selection-independent React Flow structure.
+ * Layout and edge routing only need to run when the visible projection or
+ * editorial positions change, not whenever the user clicks another node.
+ */
+export function toReactFlowStructure(
 	projection: WorldGraphProjection,
-	selectedId?: string | null,
 	positionOverrides?: Readonly<WorldLayout>,
-): {
-	nodes: WorldFlowNode[];
-	edges: WorldFlowEdge[];
-} {
+): WorldFlowGraph {
 	const layout = layoutWithOverrides(projection, positionOverrides);
 	const routes = routeWorldEdgePorts(layout, projection.edges);
-	const connected = connectedNodeIds(projection, selectedId ?? null);
-	const hasSelection = Boolean(selectedId);
 	const heroIds = new Set(projection.heroIds);
 	const labelById = new Map(projection.nodes.map((node) => [node.id, node.label]));
 	const nodes: WorldFlowNode[] = projection.nodes.map((item) => {
 		const isHero = heroIds.has(item.id);
+		const isFocus = item.id === projection.focusId;
 		return {
 			id: item.id,
 			type: "worldEntity",
 			position: layout[item.id] ?? { x: 0, y: 0 },
 			data: {
 				item,
-				isFocus: item.id === projection.focusId,
+				isFocus,
 				isHero,
 				prominence: prominenceFor(item, isHero),
-				isDimmed: hasSelection && !connected.has(item.id),
+				isDimmed: false,
 			},
 			draggable: true,
 			connectable: false,
 			deletable: false,
 			selectable: true,
-			selected: item.id === selectedId,
+			selected: false,
 			focusable: true,
-			ariaLabel: `${item.label}${item.subtitle ? ` — ${item.subtitle}` : ""}${item.id === projection.focusId ? " — foco exploratório" : ""}`,
-			zIndex: item.id === selectedId ? 5 : isHero ? 3 : item.id === projection.focusId ? 4 : 1,
+			ariaLabel: `${item.label}${item.subtitle ? ` — ${item.subtitle}` : ""}${isFocus ? " — foco exploratório" : ""}`,
+			zIndex: isHero ? 3 : isFocus ? 4 : 1,
 		};
 	});
 
 	const edges: WorldFlowEdge[] = projection.edges.map((item) => {
 		const route = routes[item.id];
-		const isHighlighted = Boolean(
-			selectedId && (item.source === selectedId || item.target === selectedId),
-		);
 		const sourceLabel = labelById.get(item.source) ?? item.source;
 		const targetLabel = labelById.get(item.target) ?? item.target;
 		return {
@@ -121,8 +121,8 @@ export function toReactFlowGraph(
 				item,
 				family: item.family,
 				style: item.style,
-				isHighlighted,
-				isDimmed: hasSelection && !isHighlighted,
+				isHighlighted: false,
+				isDimmed: false,
 				routeOffset: route?.offset ?? 28,
 				labelOffset: route?.labelOffset ?? { x: 0, y: 0 },
 			},
@@ -137,6 +137,79 @@ export function toReactFlowGraph(
 		};
 	});
 	return { nodes, edges };
+}
+
+/** Applies transient selection state without recalculating layout or edge routes. */
+export function applyWorldFlowSelection(
+	graph: WorldFlowGraph,
+	selectedId?: string | null,
+): WorldFlowGraph {
+	const hasSelection = Boolean(selectedId);
+	const connected = new Set<string>();
+	if (selectedId) {
+		connected.add(selectedId);
+		for (const edge of graph.edges) {
+			if (edge.source === selectedId) connected.add(edge.target);
+			if (edge.target === selectedId) connected.add(edge.source);
+		}
+	}
+
+	const nodes = graph.nodes.map((node) => {
+		const isSelected = node.id === selectedId;
+		const isDimmed = hasSelection && !connected.has(node.id);
+		const zIndex = isSelected
+			? 5
+			: node.data.isHero
+				? 3
+				: node.data.isFocus
+					? 4
+					: 1;
+		if (
+			node.selected === isSelected &&
+			node.data.isDimmed === isDimmed &&
+			node.zIndex === zIndex
+		) {
+			return node;
+		}
+		return {
+			...node,
+			selected: isSelected,
+			zIndex,
+			data: { ...node.data, isDimmed },
+		};
+	});
+
+	const edges = graph.edges.map((edge) => {
+		const isHighlighted = Boolean(
+			selectedId && (edge.source === selectedId || edge.target === selectedId),
+		);
+		const isDimmed = hasSelection && !isHighlighted;
+		if (
+			edge.data?.isHighlighted === isHighlighted &&
+			edge.data?.isDimmed === isDimmed
+		) {
+			return edge;
+		}
+		return {
+			...edge,
+			data: edge.data
+				? { ...edge.data, isHighlighted, isDimmed }
+				: edge.data,
+		};
+	});
+
+	return { nodes, edges };
+}
+
+export function toReactFlowGraph(
+	projection: WorldGraphProjection,
+	selectedId?: string | null,
+	positionOverrides?: Readonly<WorldLayout>,
+): WorldFlowGraph {
+	return applyWorldFlowSelection(
+		toReactFlowStructure(projection, positionOverrides),
+		selectedId,
+	);
 }
 
 export function rerouteWorldEdges(
