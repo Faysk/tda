@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-10
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -124,7 +124,7 @@ Uma role/view/endpoint tecnicamente read-only e de menor privilégio é desejáv
 
 ## `SECURITY DEFINER`
 
-A inspeção revalidada em 2026-09-08 confirmou **8 funções `SECURITY DEFINER` em `public`**:
+A inspeção revalidada em 2026-09-10 confirmou **8 funções `SECURITY DEFINER` em `public`**:
 
 - `access_directory(campaign_slug text)`;
 - `current_profile_id()`;
@@ -229,49 +229,41 @@ O SQL:
 - não revela a existência de segmento cross-campaign;
 - preserva `character_name` quando o speaker não muda e invalida essa identidade quando o speaker textual muda.
 
-## `SECURITY INVOKER` server-only do World layout — candidato
+## `SECURITY INVOKER` server-only do World layout — aplicado
 
-As migrations candidatas `20260908192500_world_layout_capability` e `20260908192600_world_layout_snapshot_atomic` preparam persistência editorial de layout sem misturar coordenadas com canon, entities ou relations.
+As migrations de persistência editorial do World layout e lease exclusivo estão aplicadas no Supabase canônico. O migration history remoto inclui `20260908203249 world_layout_capability`, `20260908203331 world_layout_snapshot_atomic`, `20260908203441 world_layout_service_role_privileges`, `20260908203642 world_layout_site_editor_grant` e `20260909205836 world_edit_lease`.
 
-**Estado:** não aplicadas no Supabase canônico. A inspeção read-only de 2026-09-08 não encontrou `save_world_layout_snapshot_atomic(...)`; a aplicação remota permanece bloqueada até reconciliar o drift de migration history já observado.
-
-Capability candidata:
+Capability:
 
 ```text
 campaign.world.layout.edit
 ```
 
 - plane `narrative`;
-- a migration apenas registra a action;
-- nenhum `role_permission`, `role_assignment` ou grant a operador é criado automaticamente.
+- o catálogo/role foi versionado sem criar assignment de usuário por inferência;
+- assignments ativos são avaliados por scope no boundary.
 
-Storage candidato `world_layout_snapshots`:
+Storage `world_layout_snapshots` e `world_edit_leases`:
 
-- um snapshot `overview` por campaign;
 - RLS habilitado;
 - nenhuma policy de browser;
 - `PUBLIC`, `anon` e `authenticated` sem acesso;
-- `service_role` recebe somente `SELECT`, `INSERT`, `UPDATE`;
-- `DELETE` não é concedido.
+- grants server-side mínimos conforme contrato de cada tabela.
 
-RPC candidata `save_world_layout_snapshot_atomic(...)`:
+RPCs do boundary:
 
-- `SECURITY INVOKER`;
-- `search_path = pg_catalog, public`;
-- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`;
-- `service_role` como único caller SQL pretendido;
-- revalida `auth_user_id -> profile_id`;
-- exige capability física + assignment ativo no scope da campaign ou `project/tda`;
-- limita snapshot a `overview`, até 1000 posições, IDs sintaticamente limitados e `{x,y}` numéricos em `±5000`;
-- usa `expected_revision` para optimistic concurrency;
-- writer stale retorna `conflict` e não altera dado/audit;
-- no-op retorna `unchanged` sem bump/audit;
-- alteração real incrementa revision `+1` e grava `world_layout.update` no `audit_log` na mesma transação;
-- falha do audit reverte a alteração do snapshot.
+- `save_world_layout_snapshot_atomic(...)`;
+- `acquire_world_edit_lease_atomic(...)`;
+- `renew_world_edit_lease_atomic(...)`;
+- `save_world_edit_layout_draft_atomic(...)`;
+- `publish_world_edit_layout_atomic(...)`;
+- `release_world_edit_lease_atomic(...)`.
+
+As funções observadas são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e revalidam identity/profile, capability, assignment ativo, campaign/scope, lease e revision conforme o caso.
 
 ### Audience na leitura
 
-A tabela não deve ganhar policy pública como atalho. O fluxo futuro é server-side:
+A tabela não ganhou policy pública como atalho. O fluxo server-side continua:
 
 ```text
 request + identidade/audience
@@ -284,43 +276,31 @@ request + identidade/audience
 
 Chaves presentes no JSONB jamais podem ser usadas para decidir quais nodes existem/ficam visíveis.
 
-### Validação candidata
+### Validação observada
 
-O CI usa PostgreSQL 16 descartável por Unix socket, sem TCP ou credenciais do ambiente, e prova:
+O PostgreSQL sintético prova RLS/grants, autorização/scope, payload, revision/conflict/no-op, recovery e rollback. No Supabase canônico, grants e signatures foram revalidados após aplicação; em 2026-09-10 havia `0` snapshots e `0` leases ativos durante o preflight da autoria factual.
 
-- capability sem grant automático;
-- RLS e grants server-only;
-- autorização/scope negativos e positivos;
-- payload inválido fail-closed;
-- save inicial, no-op, conflito stale e update `+1`;
-- audit old/new;
-- rollback total quando audit falha.
+## `SECURITY INVOKER` server-only do World graph — aplicado #119
 
-Somente depois de CI terminal, drift reconciliado e aplicação deliberada pelo database runbook os grants físicos poderão ser revalidados no Supabase real.
+A migration versionada localmente como `20260909215000_world_graph_authoring.sql` foi aplicada deliberadamente em 2026-09-10 e registrada no migration history remoto como `20260910002529 world_graph_authoring`. Não reexecutar o DDL para alinhar apenas o número local/remoto; o drift nominal precisa permanecer documentado até reconciliação deliberada.
 
-## `SECURITY INVOKER` server-only do World graph — candidato #119
-
-A PR #119 adiciona a migration candidata `20260909215000_world_graph_authoring` para autoria factual manual do World sem transformar React Flow em schema nem usar layout como fonte de verdade.
-
-**Estado:** candidata versionada; não aplicada no Supabase canônico na inspeção read-only de 2026-09-10.
-
-Objetos novos:
+Objetos físicos observados após a aplicação:
 
 - `relation_types` para semântica por campanha;
 - `world_relation_styles` para apresentação de tipos, separada da semântica;
 - `entity_relations` para vínculos first-class entre `entities`;
 - `entity_relation_sources` para provenance por `canon_entry`;
 - `world_graph_heads` e `world_graph_revisions` para optimistic concurrency + snapshots publicados;
-- extensão do `world_edit_leases` com `base_graph_revision`, `draft_graph` e estado de inicialização do draft factual.
+- `world_edit_leases` estendido com `base_graph_revision`, `draft_graph` e `graph_draft_initialized`;
+- trigger `world_edit_lease_graph_handoff` para impedir herança de draft factual por outro editor.
 
-Boundary proposto:
+Boundary físico revalidado:
 
-- RLS habilitado nas tabelas novas e nenhuma policy de browser;
+- RLS habilitado nas seis tabelas novas e nenhuma policy de browser;
 - `PUBLIC`, `anon` e `authenticated` sem acesso direto às tabelas/RPCs editoriais;
-- `service_role` como caller SQL pretendido, sem exposição do secret ao browser;
+- `service_role` recebe apenas os grants versionados: sem `DELETE` nas tabelas factuais, sem write em `entity_relation_sources` e sem `UPDATE` em `world_graph_revisions`;
+- `acquire_world_graph_draft_atomic`, `save_world_graph_draft_atomic` e `publish_world_edit_state_atomic` são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e são executáveis por `service_role`;
 - autoria factual exige `campaign.content.edit` e um lease vigente de `campaign.world.layout.edit` para a mesma identity/profile/campaign;
-- `acquire_world_graph_draft_atomic`, `save_world_graph_draft_atomic` e `publish_world_edit_state_atomic` usam `SECURITY INVOKER` e `search_path = pg_catalog, public`;
-- cada RPC revalida `auth_user_id -> profile_id`, scope/campaign, lease, limites de payload e revision antes de escrever;
 - publicação factual e layout compartilham a mesma transação SQL para evitar estado parcialmente publicado;
 - conflito preserva o rascunho; novo holder não herda draft factual privado do holder anterior.
 
@@ -334,29 +314,23 @@ A fatia #119 cria a tabela de provenance e **não** cria ainda o fluxo de anexar
 
 ### Ativação pública separada
 
-A existência das tabelas canônicas não ativa automaticamente o dataset real em `/mundo`. A projection pública canônica fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true`; sem essa ativação deliberada, o World público continua no dataset demonstrativo explicitamente não canônico. O objetivo é permitir autoria/curadoria sem trocar uma experiência funcional por um dataset ainda esparso ou não revisado.
+A existência das tabelas canônicas não ativa automaticamente o dataset real em `/mundo`. A projection pública canônica fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true`; sem essa ativação deliberada, o World público continua no dataset demonstrativo explicitamente não canônico.
 
-A ativação futura exige, no mínimo:
+A aplicação de schema preservou os dados existentes: `entities=3`, `canon_entries=0`, `world_layout_snapshots=0`, `world_edit_leases=0`; as seis tabelas factuais novas permaneceram vazias e nenhum `world_graph.publish` foi criado durante a validação. O helper de snapshot projetou `3` nodes, `0` edges e `0` relation types, e chamadas de acquire/publish com identidade inexistente falharam fechado com `forbidden`.
 
-- dados reais revisados e visibility compatível com web;
-- provenance das relações públicas;
-- inspeção visual/UX do dataset real;
-- smoke público sem vazamento de nodes/edges privados;
-- decisão deliberada de configuração/release.
+Ativar a projection pública canônica neste estado continua prematuro: há somente 1 entity `public_web` conhecida e nenhuma `canon_entry` para sustentar relações públicas.
 
-### Preflight read-only observado antes de DDL
+### Advisors pós-aplicação
 
-Na inspeção de 2026-09-10:
+O security advisor reexecutado em 2026-09-10 reportou:
 
-- `world_edit_leases`: 0 leases ativos;
-- `world_layout_snapshots`: 0 rows;
-- `entities`: 3 rows, somente 1 `active/public_web`;
-- `canon_entries`: 0 rows;
-- as seis tabelas novas do World graph ainda não existiam;
-- migration history terminava em `20260909205836 world_edit_lease`;
-- advisors existentes foram consultados e não justificam abrir policies amplas para silenciar `rls_enabled_no_policy`.
+- 46 ocorrências informativas de `rls_enabled_no_policy`; as seis tabelas novas entram deliberadamente nesse grupo deny-by-default;
+- as mesmas 8 funções `SECURITY DEFINER` legadas executáveis por `authenticated` já inventariadas;
+- Leaked Password Protection desabilitada.
 
-Portanto aplicar a infraestrutura pode ser compatível com o runtime atual, mas ativar a projection pública canônica neste estado seria prematuro.
+O performance advisor reportou 59 FKs sem covering index e 30 índices sem uso registrado. Parte do aumento decorre das novas FKs de autoria/audit. O item `entity_relation_sources(canon_entry_id)` foi registrado como candidato de otimização quando o fluxo de provenance passar a consultar por fonte; nenhum índice/policy foi criado automaticamente apenas para silenciar advisor. Os caminhos de exploração já possuem índices `(campaign_id, source_entity_id)` e `(campaign_id, target_entity_id)`.
+
+Nenhum advisor introduziu blocker de segurança para manter a infraestrutura aplicada com a projection pública canônica desativada.
 
 ## Secrets e service roles
 
@@ -395,7 +369,7 @@ Outtakes possuem níveis de sensibilidade/aprovação próprios. Conteúdo `priv
 
 ## Proteção de senha vazada
 
-O advisor revalidado em 2026-09-08 continua sinalizando **Leaked Password Protection desabilitada** no Auth. Como o fluxo vigente é orientado a OAuth, isso não bloqueia a etapa atual. Se login por senha for habilitado, tratar como requisito de hardening e revisar configuração Auth.
+O advisor revalidado em 2026-09-10 continua sinalizando **Leaked Password Protection desabilitada** no Auth. Como o fluxo vigente é orientado a OAuth, isso não bloqueia a etapa atual. Se login por senha for habilitado, tratar como requisito de hardening e revisar configuração Auth.
 
 ## Auditoria
 
@@ -408,7 +382,7 @@ O advisor revalidado em 2026-09-08 continua sinalizando **Leaked Password Protec
 
 Para transcript, a action é `transcript_segment.update`; old/new registram somente o estado editorial alterável e a revision.
 
-Para o World layout candidato, a action é `world_layout.update`; old/new registram `schemaVersion`, `view`, `revision` e o snapshot limitado de positions. A mutation e o audit são atômicos.
+Para o World layout aplicado, a action é `world_layout.update`; old/new registram `schemaVersion`, `view`, `revision` e o snapshot limitado de positions. Para publicação factual do World, a action versionada é `world_graph.publish`; nenhuma dessas actions foi criada artificialmente pela simples aplicação do schema.
 
 ## Testes mínimos para autorização
 
