@@ -52,9 +52,9 @@ Cenas preparadas:
 
 O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
 
-Os 18 derivados ficam versionados em um único bundle binário `ustar`, `.asset-bundles/pipipi-runtime-v4.tar`. `tools/bootstrap-pipipi-assets.mjs` valida o SHA-256 do bundle, o conjunto exato de nomes e o SHA-256 individual de cada asset antes de materializá-los em `public/lore/pipipi/`.
+Os 18 derivados finais ficam versionados **diretamente** em `public/lore/pipipi/`. Não existe reconstrução em `pnpm dev`/`pnpm build`, bundle de staging ou bootstrap de assets no caminho de produção.
 
-`pnpm dev` e `pnpm build` executam essa materialização antes de iniciar o Next.js. Assim, um checkout limpo do SHA testado produz exatamente os bytes registrados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-09.json`; bundle incompleto, alterado ou com arquivo inesperado falha o build em vez de publicar uma página parcial.
+O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, tamanho e SHA-256 fixados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Assim, o SHA da branch contém exatamente os bytes que o navegador usa e a integridade pode ser conferida sem depender de materialização temporária.
 
 ## Runtime e performance
 
