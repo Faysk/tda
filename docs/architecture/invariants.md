@@ -114,3 +114,5 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 71. O loader não intercepta `fetch` globalmente e não deve alterar semântica HTTP. Em especial, preservar status reais como `404` vale mais do que obter um boundary de streaming genérico no layout raiz.
 72. Esperas instantâneas não devem piscar overlay: a infraestrutura aplica uma pequena janela antes de exibir o loader, exceto quando um fallback de rota precisa existir antes da hidratação.
 73. O loader preserva a geometria oficial da marca; halos, partículas, órbitas e motion são camadas de apresentação separadas e respeitam `prefers-reduced-motion`.
+74. O loader segue o tema ativo do TDA: dark preserva a versão aprovada; light deriva sua paleta dos tokens semânticos do Design System. Não existe tema paralelo específico do loader.
+75. Trocar light/dark altera apenas a paleta de apresentação do loader; timing, hierarquia, significado, tamanho e sequência de movimento permanecem equivalentes entre os temas.
