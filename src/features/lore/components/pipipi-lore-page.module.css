@@ -13,7 +13,7 @@
 .hero {
 	position: relative;
 	isolation: isolate;
-	min-height: min(100svh, 980px);
+	min-height: calc(100svh - 82px);
 	display: grid;
 	align-items: end;
 	overflow: hidden;
@@ -111,8 +111,7 @@
 	filter:
 		drop-shadow(0 24px 34px rgba(0, 0, 0, 0.28))
 		drop-shadow(0 0 34px rgba(143, 255, 145, 0.18));
-	animation: heroGhostFloat 6.4s ease-in-out infinite;
-	will-change: transform;
+
 }
 
 .heroGhost img {
@@ -120,19 +119,6 @@
 	width: 100%;
 	height: 100%;
 	object-fit: contain;
-}
-
-@keyframes heroGhostFloat {
-	0%,
-	100% {
-		transform: translate(-50%, -50%) rotate(-1deg) scale(0.99);
-	}
-	35% {
-		transform: translate(-48.8%, -54%) rotate(0.8deg) scale(1.015);
-	}
-	70% {
-		transform: translate(-51.2%, -52%) rotate(-0.4deg) scale(1.006);
-	}
 }
 
 .heroScrollCue {
@@ -150,7 +136,7 @@
 	width: 100%;
 	height: 40%;
 	background: var(--pipipi-gold);
-	animation: scrollCue 1.8s ease-in-out infinite;
+	animation: scrollCue 1.8s ease-in-out 3;
 }
 
 @keyframes scrollCue {
@@ -367,8 +353,8 @@
 	--scene-subject-x: 0px;
 	--scene-subject-y: 0px;
 	--scene-subject-scale: 0.985;
-	--scene-copy-opacity: 0.25;
-	--scene-copy-y: 28px;
+	--scene-copy-opacity: 1;
+	--scene-copy-y: 0px;
 	position: relative;
 	width: 100vw;
 	height: 175svh;
@@ -560,12 +546,7 @@
 	width: 100%;
 	height: auto;
 	filter: drop-shadow(0 0 32px rgba(139, 240, 141, 0.24));
-	animation: afterlifeFloat 7s ease-in-out infinite;
-}
 
-@keyframes afterlifeFloat {
-	0%, 100% { transform: translateY(0) rotate(-1deg); }
-	50% { transform: translateY(-18px) rotate(1deg); }
 }
 
 .afterAct {
@@ -590,7 +571,7 @@
 	height: auto;
 	opacity: 0.88;
 	filter: drop-shadow(0 0 28px rgba(139, 240, 141, 0.18));
-	animation: afterlifeFloat 7.5s ease-in-out infinite;
+
 }
 
 .ghostInterludeRight img { right: 2%; }
@@ -646,7 +627,7 @@
 	.cinematicScene { height: 145svh; }
 	.cinematicScene[data-motion="breath"] { height: 128svh; }
 	.cinematicScene[data-motion="showcase"] { height: 165svh; }
-	.cinematicStage { height: 78svh; top: 11svh; }
+	.cinematicStage { height: 100svh; top: 0; }
 	.sceneCopy { left: 20px; right: 20px; bottom: 22px; width: auto; }
 	.sceneCopy h3 { font-size: clamp(2.2rem, 10vw, 4.2rem); max-width: 92%; }
 	.sceneShade { background: linear-gradient(0deg, rgba(3, 6, 5, 0.88), rgba(3, 6, 5, 0.1) 65%); }
@@ -670,7 +651,7 @@
 	.heroCopy blockquote { max-width: 88%; }
 	.partHeader,
 	.storySection { width: min(100% - 32px, 760px); }
-	.cinematicStage { height: 70svh; top: 15svh; }
+	.cinematicStage { height: 100svh; top: 0; }
 	.sceneBackground { object-position: center; }
 	.sceneCopy > p:last-child { font-size: 0.84rem; }
 	.sceneProgress { right: 8px; }

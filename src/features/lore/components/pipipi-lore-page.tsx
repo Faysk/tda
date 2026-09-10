@@ -264,7 +264,7 @@ export function PipipiLorePage() {
 				))}
 			</nav>
 
-			<main className={styles.story}>
+			<div className={styles.story}>
 				<PartHeader part={PIPIPI_STORY.parts[0]} />
 				<div className={styles.memoryAct}>
 					{PIPIPI_STORY.parts[0].sections.map((section) => (
@@ -324,7 +324,7 @@ export function PipipiLorePage() {
 						<strong>Quando você não consegue salvar alguém, ainda pode ficar.</strong>
 					</div>
 				</section>
-			</main>
+			</div>
 		</article>
 	);
 }
