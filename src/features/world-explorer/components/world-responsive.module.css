@@ -10,6 +10,29 @@
 	min-width: 0;
 }
 
+/* Closed chrome must not reserve a rail. The reopen control floats over the
+ * workspace instead of charging permanent canvas rent. */
+.layout:has(.panelToggle[aria-expanded="false"]) {
+	grid-template-columns: minmax(0, 1fr) 0;
+}
+
+.layout:has(.panelToggle[aria-expanded="false"]) .inspector {
+	padding: 0;
+	border-left: 0;
+	background: transparent;
+	box-shadow: none;
+	overflow: visible;
+}
+
+.layout:has(.panelToggle[aria-expanded="false"]) .resizer {
+	display: none;
+}
+
+.layout:has(.panelToggle[aria-expanded="false"]) .panelToggle {
+	left: auto;
+	right: 12px;
+}
+
 .layout :global([data-testid="world-canvas"]) {
 	position: relative;
 }
@@ -61,6 +84,10 @@
 		grid-template-columns: minmax(0, 1fr) min(var(--world-inspector-width), 330px);
 	}
 
+	.layout:has(.panelToggle[aria-expanded="false"]) {
+		grid-template-columns: minmax(0, 1fr) 0;
+	}
+
 	.toolbar {
 		grid-template-columns: minmax(0, 1fr) auto;
 	}
@@ -75,7 +102,8 @@
 }
 
 @media (max-width: 1120px) {
-	.layout {
+	.layout,
+	.layout:has(.panelToggle[aria-expanded="false"]) {
 		display: block;
 		min-height: auto;
 	}
@@ -85,17 +113,19 @@
 	}
 
 	.inspector {
-		position: sticky;
+		position: fixed;
+		right: 0;
 		bottom: 0;
+		left: 0;
 		z-index: 45;
 		isolation: isolate;
-		width: 100%;
+		width: auto;
 		min-height: 68px;
 		max-height: min(62dvh, 600px);
 		overflow: auto;
 		overscroll-behavior: contain;
 		scrollbar-gutter: stable;
-		padding: 34px var(--ds-page-gutter) 28px;
+		padding: 34px var(--ds-page-gutter) max(28px, env(safe-area-inset-bottom));
 		border-top: 1px solid var(--ds-control-border);
 		border-left: 0;
 		border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0;
@@ -120,6 +150,22 @@
 		transform: translateX(-50%);
 	}
 
+	.inspector:has(.panelToggle[aria-expanded="false"]) {
+		min-height: 0;
+		max-height: 0;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		backdrop-filter: none;
+		overflow: visible;
+		pointer-events: none;
+	}
+
+	.inspector:has(.panelToggle[aria-expanded="false"])::before {
+		display: none;
+	}
+
 	.resizer {
 		display: none;
 	}
@@ -134,6 +180,15 @@
 		background: color-mix(in srgb, var(--ds-surface-elevated) 96%, var(--ds-accent-muted));
 		box-shadow: 0 8px 24px var(--ds-ambient-cool);
 		font-size: 0;
+	}
+
+	.inspector:has(.panelToggle[aria-expanded="false"]) .panelToggle {
+		position: fixed;
+		top: auto;
+		right: max(14px, var(--ds-page-gutter));
+		bottom: max(14px, env(safe-area-inset-bottom));
+		left: auto;
+		pointer-events: auto;
 	}
 
 	.panelToggle::before {
@@ -187,8 +242,17 @@
 		padding-inline: max(16px, var(--ds-page-gutter));
 	}
 
+	.inspector:has(.panelToggle[aria-expanded="false"]) {
+		max-height: 0;
+		padding: 0;
+	}
+
 	.panelToggle {
 		left: max(14px, var(--ds-page-gutter));
+	}
+
+	.layout :global(.react-flow__minimap) {
+		display: none;
 	}
 }
 
