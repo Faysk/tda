@@ -106,6 +106,9 @@ export function WorldFloatingChrome({
 				<button
 					className={`${styles.resetButton} ${chrome.resetSurface}`}
 					type="button"
+					data-testid="world-layout-reset"
+					aria-label={resetLabel}
+					title={resetLabel}
 					disabled={resetDisabled}
 					onClick={onReset}
 				>
