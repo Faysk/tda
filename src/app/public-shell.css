@@ -192,7 +192,8 @@ footer {
 		font-size: 0.8125rem;
 	}
 
-	.site-header nav .world-nav-link {
+	.site-header nav .world-nav-link,
+	.site-header nav .lore-nav-link {
 		display: none;
 	}
 
