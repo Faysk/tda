@@ -65,8 +65,9 @@ test("global loader ignores explicitly background busy work", async ({ page }) =
 });
 
 test("global loader follows the active light and dark design-system theme", async ({ page }) => {
-	await page.addInitScript(() => localStorage.setItem("tda-theme", "light"));
 	await page.goto("/");
+	await page.evaluate(() => localStorage.setItem("tda-theme", "light"));
+	await page.reload();
 	await startBlockingLoad(page);
 
 	const light = await page.locator(overlay).evaluate((element) => {
