@@ -15,7 +15,7 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	},
 	"super-herois": {
 		focalPoint: { x: 50, y: 50 },
-		mobileFocalPoint: { x: 50, y: 50 },
+		mobileFocalPoint: { x: 45, y: 50 },
 		staticMedia: true,
 	},
 	corredores: {
@@ -31,16 +31,16 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	},
 	cadeira: {
 		focalPoint: { x: 50, y: 50 },
-		// The portrait crop intentionally favors the mother's chair; Pipipi is a
-		// separate foreground layer and remains visible on the left.
-		mobileFocalPoint: { x: 72, y: 50 },
+		// The unified 16:9 frame keeps Pipipi on the left and her mother on the
+		// right; this portrait crop preserves both without a second foreground.
+		mobileFocalPoint: { x: 55, y: 50 },
 		staticMedia: true,
 	},
 	"ultimo-dia": {
 		focalPoint: { x: 50, y: 50 },
-		// Current portrait composition is already strong; preserve it exactly
-		// while scrolling instead of spending crop room on decorative parallax.
-		mobileFocalPoint: { x: 50, y: 50 },
+		// Keep Pipipi and the central family cluster readable in portrait while
+		// retaining the lower blanket area as a safe text bed.
+		mobileFocalPoint: { x: 45, y: 50 },
 		staticMedia: true,
 	},
 	acordou: {
