@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { PIPIPI_CINEMATIC_ART_DIRECTION } from "../art-directions/pipipi";
 import { PIPIPI_STORY, type PipipiSceneId } from "../pipipi-story";
 import { PipipiCinematicScene } from "./pipipi-cinematic-scene";
 import styles from "./pipipi-lore-page.module.css";
@@ -182,7 +183,11 @@ function StorySection({
 			</section>
 
 			{section.sceneAfter ? (
-				<PipipiCinematicScene id={section.sceneAfter} {...sceneConfig[section.sceneAfter]} />
+				<PipipiCinematicScene
+					id={section.sceneAfter}
+					{...sceneConfig[section.sceneAfter]}
+					artDirection={PIPIPI_CINEMATIC_ART_DIRECTION[section.sceneAfter]}
+				/>
 			) : null}
 
 			{ghost ? (
