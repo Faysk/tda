@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Button } from "@/components/ui/action";
+import { Button } from "@/components/ui/button";
 import { ProcessingController } from "./controller";
 import { connectionHelp, jobLabels, stageLabels } from "./presentation";
 import styles from "./processing.module.css";
@@ -290,54 +290,56 @@ export function ProcessingPanel() {
 				<section className={styles.card} aria-labelledby="synthetic-test">
 					<h2 id="synthetic-test">Ensaio de integração</h2>
 					<p>
-						Cria um trabalho sintético no serviço conectado. Não usa áudio,
-						modelo de transcrição ou GPU. Os resultados de demonstração não são
-						conteúdo da campanha.
+						Cria um trabalho sintético pequeno para testar o caminho entre esta aba
+						e o serviço local. Não usa áudio, não sincroniza e não publica nada.
 					</p>
-					{state.uncertainSubmission ? (
-						<p role="alert">
-							A resposta do envio anterior não foi confirmada. Consulte a fila;
-							repetir o envio nesta aba reutiliza a mesma chave para evitar
-							duplicação.
-						</p>
-					) : null}
 					<Button
 						disabled={state.busy || state.health?.lifecycle !== "ready"}
 						onClick={() => void controller.synthetic()}
 					>
-						{state.uncertainSubmission
-							? "Consultar ou repetir envio sintético"
-							: "Executar ensaio sintético"}
+						Executar ensaio sintético
 					</Button>
+					{state.uncertainSubmission ? (
+						<p role="alert">
+							A resposta desta tentativa não chegou. Não sabemos se o serviço criou
+							o trabalho. Reconecte e tente novamente: a mesma chave desta aba será
+							reutilizada para evitar duplicação.
+						</p>
+					) : null}
 				</section>
 			) : null}
 			<dialog
 				ref={dialog}
 				className={styles.dialog}
-				aria-labelledby="confirm-title"
-				onCancel={() => setConfirmation(null)}
+				onCancel={(event) => {
+					event.preventDefault();
+					setConfirmation(null);
+				}}
 			>
-				<h2 id="confirm-title">
-					{confirmation?.action === "cancel"
-						? "Cancelar este trabalho?"
-						: confirmation?.action === "retry"
-							? "Repetir este trabalho?"
-							: "Retomar a fila?"}
-				</h2>
-				{confirmation && "id" in confirmation ? (
-					<p>Trabalho {confirmation.id}</p>
+				{confirmation ? (
+					<>
+						<h2>
+							{confirmation.action === "resume"
+								? "Retomar a fila local?"
+								: confirmation.action === "cancel"
+									? "Cancelar este trabalho?"
+									: "Repetir este trabalho?"}
+						</h2>
+						<p>
+							{confirmation.action === "resume"
+								? "O serviço poderá iniciar os trabalhos que aguardam na fila."
+								: confirmation.action === "cancel"
+									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
+									: `Uma nova tentativa será criada para ${confirmation.id}; repetir não promete retomar do ponto exato.`}
+						</p>
+						<div className={styles.controls}>
+							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
+							<Button variant="primary" onClick={() => void confirm()}>
+								Confirmar
+							</Button>
+						</div>
+					</>
 				) : null}
-				<p>
-					{confirmation?.action === "cancel"
-						? "O serviço receberá um pedido de cancelamento. Os arquivos de origem são preservados. Aguarde a confirmação do estado na fila."
-						: confirmation?.action === "retry"
-							? "Uma nova tentativa pode repetir etapas. Esta versão não promete retomar do ponto exato da interrupção."
-							: "O serviço voltará a iniciar os trabalhos que aguardam na fila deste computador."}
-				</p>
-				<div className={styles.controls}>
-					<Button onClick={() => setConfirmation(null)}>Voltar</Button>
-					<Button onClick={() => void confirm()}>Confirmar</Button>
-				</div>
 			</dialog>
 		</div>
 	);
