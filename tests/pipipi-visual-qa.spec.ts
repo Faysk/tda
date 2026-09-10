@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const captureEnabled = process.env.PIPIPI_CAPTURE_QA === "1";
 const outputDirectory = path.resolve(".qa-artifacts/pipipi");
 
-async function captureViewport(page: Parameters<Parameters<typeof test>[1]>[0]["page"], name: string) {
+async function captureViewport(page: Page, name: string) {
 	await mkdir(outputDirectory, { recursive: true });
 	await page.screenshot({
 		path: path.join(outputDirectory, name),
@@ -31,7 +31,13 @@ test("captures Pipipi hero and cinematic checkpoints", async ({ page }, testInfo
 		);
 	});
 	await expect
-		.poll(async () => Number.parseFloat(await corredores.evaluate((element) => element.style.getPropertyValue("--scene-progress") || "0")))
+		.poll(async () =>
+			Number.parseFloat(
+				(await corredores.evaluate((element) =>
+					element.style.getPropertyValue("--scene-progress"),
+				)) || "0",
+			),
+		)
 		.toBeGreaterThan(0.25);
 	await captureViewport(page, `${testInfo.project.name}-02-corredores.png`);
 
@@ -51,7 +57,11 @@ test("captures Pipipi hero and cinematic checkpoints", async ({ page }, testInfo
 		await page.emulateMedia({ reducedMotion: "reduce" });
 		await corredores.scrollIntoViewIfNeeded();
 		await expect
-			.poll(async () => corredores.evaluate((element) => element.style.getPropertyValue("--scene-progress")))
+			.poll(async () =>
+				corredores.evaluate((element) =>
+					element.style.getPropertyValue("--scene-progress"),
+				),
+			)
 			.toBe("0");
 		await captureViewport(page, `${testInfo.project.name}-05-reduced-motion.png`);
 	}
