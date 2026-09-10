@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PublicLink as Link } from "@/components/public-link";
 import { Button } from "@/components/ui";
 import { safeReturnPath } from "@/features/auth/config";
-import { discordAvailable } from "@/features/auth/provider";
 import { AuthErrorFragment } from "@/features/auth/error-fragment";
+import { discordAvailable } from "@/features/auth/provider";
 import styles from "@/features/auth/access.module.css";
 
 export const metadata: Metadata = {
