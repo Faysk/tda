@@ -19,21 +19,17 @@ import {
 } from "../adapters/react-flow";
 import type { WorldLayout } from "../constellation-layout";
 import { captureWorldLayoutCandidate } from "../editorial-layout";
-import { worldDatasetFromDraft } from "../graph-contract";
 import { useWorldEditSession } from "../hooks/use-world-edit-session";
+import {
+	projectionWithWorldDraft,
+	useWorldExplorerView,
+} from "../hooks/use-world-explorer-view";
 import type {
 	WorldFilter,
-	WorldGraphDraft,
 	WorldGraphProjection,
 	WorldLayoutProjection,
 	WorldRelationFilter,
 } from "../model";
-import {
-	buildWorldProjection,
-	filterWorldProjection,
-	filterWorldRelations,
-	searchWorldProjection,
-} from "../projection";
 import { WorldCanvas } from "./world-canvas";
 import { WorldContentEditor } from "./world-content-editor";
 import {
@@ -79,16 +75,6 @@ function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayout
 	};
 }
 
-function projectionWithDraft(
-	projection: WorldGraphProjection,
-	draft: WorldGraphDraft | null,
-): WorldGraphProjection {
-	if (!draft) return projection;
-	const next = buildWorldProjection(worldDatasetFromDraft(draft));
-	next.layout = projection.layout;
-	return next;
-}
-
 function layoutCandidateFor(
 	projection: WorldGraphProjection,
 	overrides: WorldLayout,
@@ -117,11 +103,6 @@ export function WorldExplorerClient({
 	canEditContent?: boolean;
 }) {
 	const router = useRouter();
-	const [filter, setFilter] = useState<WorldFilter>("all");
-	const [relationFilter, setRelationFilter] = useState<WorldRelationFilter>("all");
-	const [query, setQuery] = useState("");
-	const [selectedId, setSelectedId] = useState<string | null>(projection.focusId);
-	const [view, setView] = useState<"canvas" | "list">("canvas");
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
 	const [panelWidth, setPanelWidth] = useState(370);
@@ -135,7 +116,7 @@ export function WorldExplorerClient({
 		publishedPositions: projection.layout?.positions ?? {},
 		buildLayoutCandidate: (draft) =>
 			layoutCandidateFor(
-				canEditContent ? projectionWithDraft(projection, draft) : projection,
+				canEditContent ? projectionWithWorldDraft(projection, draft) : projection,
 				positionOverridesRef.current,
 			),
 		onApplyLayoutDraft: (positions) => {
@@ -150,16 +131,28 @@ export function WorldExplorerClient({
 		onPublished: () => router.refresh(),
 	});
 
-	const workingProjection = useMemo(() => {
-		if (!canEditContent || !edit.editing || !edit.graphDraft) return projection;
-		return projectionWithDraft(projection, edit.graphDraft);
-	}, [canEditContent, edit.editing, edit.graphDraft, projection]);
-
-	const visibleProjection = useMemo(() => {
-		const byType = filterWorldProjection(workingProjection, filter);
-		const byRelation = filterWorldRelations(byType, relationFilter);
-		return searchWorldProjection(byRelation, query);
-	}, [workingProjection, filter, relationFilter, query]);
+	const {
+		filter,
+		setFilter,
+		relationFilter,
+		setRelationFilter,
+		query,
+		setQuery,
+		selectedId,
+		setSelectedId,
+		view,
+		setView,
+		workingProjection,
+		visibleProjection,
+		selected,
+		focus,
+		activeRelationTypes,
+	} = useWorldExplorerView({
+		projection,
+		canEditContent,
+		editing: edit.editing,
+		graphDraft: edit.graphDraft,
+	});
 
 	const graph = useMemo(
 		() => toReactFlowGraph(visibleProjection, selectedId, positionOverrides),
@@ -176,20 +169,6 @@ export function WorldExplorerClient({
 		setNodes(graph.nodes);
 		setEdges(graph.edges);
 	}, [graph, setEdges, setNodes]);
-
-	useEffect(() => {
-		if (selectedId && !visibleProjection.nodes.some((node) => node.id === selectedId)) {
-			setSelectedId(null);
-		}
-	}, [selectedId, visibleProjection.nodes]);
-
-	const selected = selectedId
-		? visibleProjection.nodes.find((node) => node.id === selectedId)
-		: undefined;
-	const focus = workingProjection.focusId
-		? workingProjection.nodes.find((node) => node.id === workingProjection.focusId)
-		: undefined;
-	const activeRelationTypes = workingProjection.relationTypes.filter((type) => type.isActive);
 
 	function rememberNodePosition(node: WorldFlowNode) {
 		const nextOverrides: WorldLayout = {
