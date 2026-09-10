@@ -58,11 +58,18 @@ test("World Explorer stops relation motion when reduced motion is requested", as
 	expect(await motionPath.evaluate((element) => element.getAnimations().length)).toBe(0);
 });
 
-test("World Explorer relation legend uses DS chips instead of the native fieldset frame", async ({ page }) => {
+test("World Explorer relation legend uses DS chips and stays out of the mobile first viewport", async ({
+	page,
+}, testInfo) => {
 	await page.goto("/mundo");
 	const legend = page.locator("fieldset:has(> span[data-family])");
-	await expect(legend).toBeVisible();
 
+	if (testInfo.project.name === "mobile") {
+		await expect(legend).toBeHidden();
+		return;
+	}
+
+	await expect(legend).toBeVisible();
 	const frame = await legend.evaluate((element) => {
 		const style = getComputedStyle(element);
 		return {
