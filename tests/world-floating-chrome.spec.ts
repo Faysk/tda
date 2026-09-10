@@ -51,7 +51,7 @@ test("World floating chrome remains touch-safe and contained on mobile", async (
 	]) {
 		const box = await control.boundingBox();
 		expect(box).not.toBeNull();
-		expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
+		expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 	}
 
 	expect(
