@@ -18,24 +18,22 @@ test("World Explorer exposes the graph immediately and gives desktop space back 
 	expect(initialCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
 	const initialWidth = initialCanvas?.width ?? 0;
 
-	const collapse = page.getByRole("button", {
-		name: "Recolher navegação do mundo",
-	});
-	await expect(collapse).toBeVisible();
+	const collapse = page.getByTestId("world-navigation-trigger");
+	await expect(collapse).toHaveAccessibleName("Recolher navegação do mundo");
 	await collapse.click();
-	const exploreUniverse = page.getByRole("button", { name: "Explorar universo" });
-	await expect(exploreUniverse).toBeVisible();
+	await expect(collapse).toHaveAccessibleName("Explorar universo");
+	await expect(collapse).toBeVisible();
 
 	// The rail animates through the design-system motion token; assert the settled
 	// layout rather than sampling the first frame immediately after the click.
 	await expect
 		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(initialWidth);
-	const collapsedNavigationWidth = await exploreUniverse.evaluate(
-		(button) => button.closest("aside")?.getBoundingClientRect().width ?? Number.POSITIVE_INFINITY,
-	);
-	expect(collapsedNavigationWidth).toBeLessThanOrEqual(1);
-	const exploreUniverseBox = await exploreUniverse.boundingBox();
+	const sidebar = page.getByTestId("world-navigation-sidebar");
+	await expect
+		.poll(async () => (await sidebar.boundingBox())?.width ?? Number.POSITIVE_INFINITY)
+		.toBeLessThanOrEqual(1);
+	const exploreUniverseBox = await collapse.boundingBox();
 	expect(exploreUniverseBox?.width ?? 0).toBeGreaterThanOrEqual(44);
 	expect(exploreUniverseBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
@@ -66,18 +64,20 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/mundo");
 
-	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
+	await expect(page.getByTestId("world-mobile-navigation-trigger")).toBeVisible();
+	await expect(page.getByTestId("world-mobile-navigation-trigger")).toHaveAccessibleName(
+		"Explorar universo",
+	);
 	const canvas = page.getByTestId("world-canvas");
 	await expect(canvas).toBeVisible();
 	const mobileCanvas = await canvas.boundingBox();
 	expect(mobileCanvas?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(350);
 	expect(mobileCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
-	await expect(
-		page.getByRole("button", { name: "Recolher navegação do mundo" }),
-	).toHaveCount(0);
+	await expect(page.getByTestId("world-navigation-trigger")).toBeHidden();
 
-	const reset = page.getByRole("button", { name: "Reorganizar", exact: true });
+	const reset = page.getByTestId("world-layout-reset");
 	await expect(reset).toBeVisible();
+	await expect(reset).toHaveAccessibleName(/Reorganizar|Restaurar posições/u);
 	const resetBox = await reset.boundingBox();
 	expect(resetBox?.width ?? 0).toBeGreaterThanOrEqual(44);
 	expect(resetBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(46);
