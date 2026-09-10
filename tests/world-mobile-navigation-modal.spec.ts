@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("mobile navigation is modal and isolates the workspace while open", async ({
+test("mobile navigation is modal and restores focus when closed by its control", async ({
 	page,
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile modal semantics contract.");
@@ -23,6 +23,7 @@ test("mobile navigation is modal and isolates the workspace while open", async (
 	await expect(stage).not.toHaveAttribute("aria-hidden", "true");
 	await expect(stage).not.toHaveAttribute("inert", "");
 	await expect(trigger).toBeVisible();
+	await expect(trigger).toBeFocused();
 });
 
 test("desktop navigation remains non-modal", async ({ page }, testInfo) => {
