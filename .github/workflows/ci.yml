@@ -1,13 +1,17 @@
 name: CI
+
 on:
   push:
     branches: [main, Preview]
   pull_request:
+
 permissions:
   contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   transcript-import-postgres:
     runs-on: ubuntu-24.04
@@ -17,6 +21,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+          cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: sudo apt-get update && sudo apt-get install -y postgresql-16
@@ -24,16 +29,36 @@ jobs:
         env:
           TDA_SYNTHETIC_POSTGRES: "1"
       - run: python tools/world-layout-db.py
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+          cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+
+      - name: Migration safety policy
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            git fetch origin "$GITHUB_BASE_REF"
+            node tools/ci/check-migrations.mjs "origin/${GITHUB_BASE_REF}...HEAD"
+          elif [[ -n "${BEFORE_SHA:-}" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            node tools/ci/check-migrations.mjs "${BEFORE_SHA}...HEAD"
+          else
+            node tools/ci/check-migrations.mjs
+          fi
+
       - run: python -m unittest discover -s tools/media -p test_lore_svg.py
       - run: pnpm check
       - run: pnpm build
