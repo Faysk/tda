@@ -1,4 +1,3 @@
-import { beginInteractiveGlobalLoading } from "../../../components/global-loading/events";
 import { LocalBridge } from "./bridge";
 import {
 	BridgeError,
@@ -20,7 +19,6 @@ export type ProcessingState = Readonly<{
 	result: ResultSummary | null;
 	uncertainSubmission: boolean;
 }>;
-
 const initial: ProcessingState = {
 	connection: "disconnected",
 	busy: false,
@@ -39,24 +37,19 @@ export class ProcessingController {
 	#request = new AbortController();
 	#epoch = 0;
 	#submissionKey: string | null = null;
-
 	constructor(private readonly bridge = new LocalBridge()) {}
-
 	snapshot = () => this.#state;
 	serverSnapshot = () => initial;
-
 	subscribe = (listener: () => void) => {
 		this.#listeners.add(listener);
 		return () => {
 			this.#listeners.delete(listener);
 		};
 	};
-
 	private update(patch: Partial<ProcessingState>) {
 		this.#state = { ...this.#state, ...patch };
 		for (const listener of this.#listeners) listener();
 	}
-
 	disconnect = () => {
 		this.#epoch++;
 		this.#request.abort();
@@ -68,20 +61,11 @@ export class ProcessingController {
 			uncertainSubmission: this.#submissionKey !== null,
 		});
 	};
-
 	private async run(action: (signal: AbortSignal) => Promise<void>) {
 		if (this.#state.busy) return;
-
-		/*
-		 * Only a request started inside a real user activation raises the global
-		 * loader. The panel also refreshes itself in the background every few
-		 * seconds; those reads must stay silent instead of flashing the whole UI.
-		 */
-		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
 		this.update({ busy: true, error: null });
-
 		try {
 			await action(signal);
 		} catch (error) {
@@ -97,10 +81,8 @@ export class ProcessingController {
 			}
 		} finally {
 			if (epoch === this.#epoch) this.update({ busy: false });
-			stopGlobalLoading();
 		}
 	}
-
 	private async read(signal: AbortSignal) {
 		const health = await this.bridge.health(signal);
 		const capabilities = await this.bridge.capabilities(signal);
@@ -114,7 +96,6 @@ export class ProcessingController {
 				checkedAt: new Date().toISOString(),
 			});
 	}
-
 	connect = async (token: string) => {
 		this.disconnect();
 		this.update({ connection: "connecting" });
@@ -126,12 +107,10 @@ export class ProcessingController {
 			await this.read(signal);
 		});
 	};
-
 	refresh = async () => {
 		if (this.#state.connection === "connected")
 			await this.run((signal) => this.read(signal));
 	};
-
 	lifecycle = async (action: "pause" | "resume") => {
 		if (this.#state.connection !== "connected") return;
 		await this.run(async (signal) => {
@@ -139,7 +118,6 @@ export class ProcessingController {
 			await this.read(signal);
 		});
 	};
-
 	jobAction = async (id: string, action: "cancel" | "retry") => {
 		if (this.#state.connection !== "connected") return;
 		const job = this.#state.jobs.find((job) => job.id === id);
@@ -151,13 +129,11 @@ export class ProcessingController {
 					!job.error?.recoverable)
 		)
 			return;
-
 		await this.run(async (signal) => {
 			await this.bridge.jobAction(id, action, signal);
 			await this.read(signal);
 		});
 	};
-
 	synthetic = async () => {
 		if (
 			this.#state.connection !== "connected" ||
@@ -165,7 +141,6 @@ export class ProcessingController {
 			!this.#state.capabilities?.capabilities.includes("synthetic.fixture")
 		)
 			return;
-
 		await this.run(async (signal) => {
 			this.#submissionKey ??= crypto.randomUUID();
 			await this.bridge.synthetic(this.#submissionKey, signal);
@@ -175,19 +150,15 @@ export class ProcessingController {
 			await this.read(signal);
 		});
 	};
-
 	result = async (id: string) => {
 		if (
 			this.#state.connection !== "connected" ||
 			!this.#state.jobs.some(
 				(job) =>
-					job.id === id &&
-					job.result_available &&
-					job.status === "succeeded",
+					job.id === id && job.result_available && job.status === "succeeded",
 			)
 		)
 			return;
-
 		await this.run(async (signal) => {
 			const result = await this.bridge.result(id, signal);
 			if (!signal.aborted) this.update({ result });
