@@ -1,6 +1,6 @@
 # Pipipi — lore cinematográfica pioneira
 
-> Status: candidato completo em branch; aguardando gates finais de CI/QA e decisão de merge/publicação
+> Status: candidato em branch; não integrado e não publicado
 > Owner: narrative-memory / frontend
 > Última revisão: 2026-09-09
 > Branch candidata: `feat/pipipi-cinematic-lore`
@@ -52,9 +52,9 @@ Cenas preparadas:
 
 O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
 
-Por limitação do canal de integração usado para esta PR, os bytes AVIF são versionados de forma determinística em `.asset-staging/pipipi/` como 28 chunks base64 de um único arquivo `ustar`. `tools/bootstrap-pipipi-assets.mjs` valida a integridade do base64, do tar e de cada um dos 18 assets por SHA-256 antes de materializá-los em `public/lore/pipipi/`.
+Os 18 derivados ficam versionados em um único bundle binário `ustar`, `.asset-bundles/pipipi-runtime-v4.tar`. `tools/bootstrap-pipipi-assets.mjs` valida o SHA-256 do bundle, o conjunto exato de nomes e o SHA-256 individual de cada asset antes de materializá-los em `public/lore/pipipi/`.
 
-`pnpm dev` e `pnpm build` executam essa materialização antes de iniciar o Next.js. Assim, um checkout limpo do SHA testado produz exatamente os bytes registrados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-09.json`; bundle incompleto ou alterado falha o build em vez de publicar uma página parcial.
+`pnpm dev` e `pnpm build` executam essa materialização antes de iniciar o Next.js. Assim, um checkout limpo do SHA testado produz exatamente os bytes registrados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-09.json`; bundle incompleto, alterado ou com arquivo inesperado falha o build em vez de publicar uma página parcial.
 
 ## Runtime e performance
 

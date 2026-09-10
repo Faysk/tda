@@ -2,30 +2,28 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-const STAGING_DIR = ".asset-staging/pipipi";
+const BUNDLE_PATH = ".asset-bundles/pipipi-runtime-v4.tar";
 const OUTPUT_DIR = "public/lore/pipipi";
-const CHUNK_COUNT = 28;
-const TAR_SHA256 = "00ddfe8a39c93ba9ef22860e682f2ba5dd350b0ae08446b04ee404d0168e4900";
-const BASE64_SHA256 = "9f1e364a6855e1327bce0ca7e4927f31a88a63bedc92f2a6f0c70862d202fdd1";
+const TAR_SHA256 = "004856faeee6913abc82de080cec097d0065dc770c3017fca6d98f550495e0ec";
 const ASSET_SHA256 = {
-  "acordou-bg.avif": "d84758bdb7346d657bfc86743fd56a6c48eccf5f33672d192d34cca641a3f298",
-  "acordou-subject.avif": "a66fe6a195760c5a8a4c4cee48a8f4d17053665fa9235137fb34a61b0960f927",
-  "cadeira-bg.avif": "207c942dfed018dff17fc9aa4b8beb7a76927d43067ab88d49d80153c90e0a2f",
-  "cadeira-subject.avif": "c4c4d981c788a49001d05c2db938328c730a3eb318781eee6b68dc0ab2c882db",
-  "casa-bg.avif": "cbe176037452e2589a562fdde210716b8adbcbc0bc6396fcbd6a65aad8010ec7",
-  "casa-subject.avif": "40f2cc8ad204073451d2fd5ede3127669d02dcf5f6534cd9f41047d6d437103d",
-  "corredores-bg.avif": "335797f3e8843437d860b308618b5b2223b20f59dddac8993aa58c31cf7b15c6",
-  "corredores-subject.avif": "90983edad17841a6032b73a8787c5b601d1c0864ed834ad31aa6ab668fdab095",
-  "ghost-cry.avif": "da1281f73885795761f97140fd956e021aa4a22972ea8887bcab4ddfb579f4ac",
-  "ghost-flute.avif": "aebecc0f75b94c4ee4d29a4971cb97f39b3f71eb981c98dd1ce78e893d784f67",
-  "ghost-hearts.avif": "03590553887cea9673ac6a301035a787bff6bd46118d7ed3a77bf6dc4d55587a",
-  "ghost-soft.avif": "0e05ab0b8739683d8c27863c7fd78d02f5c4ff537a420030618650b97e5a20b7",
-  "ghost-surprise.avif": "253dfd63b8a4a7a622bcd806d7634658b716e139791ca922f03a4ffbe288c217",
-  "stage-bg.avif": "28db4c5af4b2ffeef66c4ede09ad370d49c24fe127e17cde9a0203f02670a188",
-  "super-bg.avif": "609ff28c82e76067feafcc957b3d1b47bbb408b205791f4dd1010ce72f874972",
-  "super-subject.avif": "4a5ea1e8616fece1f0f60587a95d7102ea01f4e5f6c34ad4d4c712952ff0f6f7",
-  "ultimo-dia-bg.avif": "1f714a6fabfacf7950ecfed53659ea7499d6efea477fec66d229380992448c47",
-  "ultimo-dia-subject.avif": "2d5155d4a4f2ce2816ad654d98d6a27268144fdf48e5603ff609e642fadbaac9"
+  "acordou-bg.avif": "39f409991b7ceb198637333153bd457ab9338a6405e54c79974db54bf24cf982",
+  "acordou-subject.avif": "3db06b2a8216576452e99cc5d485b9d4e5da4fee7f28ff64856b507ef4d1ec9d",
+  "cadeira-bg.avif": "5a5a0f4281b46824c4302a815fafff452734d4e1f2908fb4ac4734c88887a26a",
+  "cadeira-subject.avif": "1b9678741fa029ed6c76c84d91f9abdcdc94b91d7b7c44ab40886f9b367c0752",
+  "casa-bg.avif": "a2e400c56b9e18db51f06213d211e7ed81118a2675a89feaf460bb5bdb2a1959",
+  "casa-subject.avif": "a3ea5b4cad8cccbe90ed01ad7306436639995120c6bddee01638ca113f647820",
+  "corredores-bg.avif": "50b5c88cf596b7f8c6d434abc7065df7af9c458710fce82a6c1fecd4f080cd23",
+  "corredores-subject.avif": "2fb0164a92fd12008f53e42e9433212d4787d3d788dc05cd017c662693235b13",
+  "ghost-cry.avif": "381de7c9a2cd8163891c081ee04f2893f2caa82f5f2d9d88b70e350320d4ae92",
+  "ghost-flute.avif": "135c4fa5a20fd7447d1470944b2a8fc1ce7e8ea69944ae886d9c3bf3d0c23611",
+  "ghost-hearts.avif": "38ba8074b24a7cf0fc7448d5b13684eadecd785ec07935568654d15170dec84f",
+  "ghost-soft.avif": "cd04c7e3fbbc647fbf44d18f9b76778a1d31c3b6f56a447cce99aa0a6a437272",
+  "ghost-surprise.avif": "4b73eff366efc85b47fdaffcca30d99cf392f21e8c498549dc6a2cc7036ac5ce",
+  "stage-bg.avif": "a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816",
+  "super-bg.avif": "c372648d38ce17fe1dd3eb70fe4d7a038f13278930f8001efca875b57e889a7d",
+  "super-subject.avif": "0613f27dd4dc910835fe293198ba8a04aaa69f06566c05f034154b2d2aeb720b",
+  "ultimo-dia-bg.avif": "4f5fdf9203746e4a32592ba924a3ea4a4ec7c98ef8104050a5ec635ea929ae44",
+  "ultimo-dia-subject.avif": "b4be9868ca7af9e31caebe4dfe9939d32c784c8d69455af3fb940b0dfa8cd00a"
 };
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -69,30 +67,9 @@ function parseTar(tar) {
 }
 
 async function main() {
-  const chunkNames = (await readdir(STAGING_DIR))
-    .filter((name) => /^\d{3}\.txt$/.test(name))
-    .sort();
-
-  const expectedChunkNames = Array.from({ length: CHUNK_COUNT }, (_, index) => `${String(index).padStart(3, "0")}.txt`);
-  if (JSON.stringify(chunkNames) !== JSON.stringify(expectedChunkNames)) {
-    throw new Error(`Pipipi staging chunks invalid. Expected ${CHUNK_COUNT} sequential chunks, got ${chunkNames.length}.`);
-  }
-
-  const parts = [];
-  for (const name of chunkNames) {
-    parts.push((await readFile(join(STAGING_DIR, name), "utf8")).trim());
-  }
-  const base64 = parts.join("");
-  if (sha256(Buffer.from(base64, "utf8")) !== BASE64_SHA256) {
-    throw new Error("Pipipi base64 bundle SHA-256 mismatch.");
-  }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
-    throw new Error("Pipipi staging bundle is not valid base64.");
-  }
-
-  const tar = Buffer.from(base64, "base64");
+  const tar = await readFile(BUNDLE_PATH);
   if (sha256(tar) !== TAR_SHA256) {
-    throw new Error("Pipipi tar bundle SHA-256 mismatch.");
+    throw new Error("Pipipi runtime bundle SHA-256 mismatch.");
   }
 
   const entries = parseTar(tar);

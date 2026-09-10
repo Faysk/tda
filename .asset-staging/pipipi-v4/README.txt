@@ -1,1 +1,0 @@
-Temporary deterministic AVIF bundle staging. Runtime bytes are materialized and verified by tools/bootstrap-pipipi-assets.mjs during dev/build.
