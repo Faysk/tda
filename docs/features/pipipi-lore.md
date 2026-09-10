@@ -92,7 +92,7 @@ Checkpoint visual do produto: `be5110426cbf431c795fcbf9e5fcd7144e5dbe7a`.
 - animações decorativas infinitas foram removidas; o movimento narrativo principal continua dirigido por scroll;
 - captura de `ghost-arrival` espera a imagem lazy-loaded completar antes de registrar a evidência.
 
-As capturas de QA são evidência efêmera de CI e não fazem parte do runtime nem precisam permanecer versionadas no repositório.
+As capturas de QA são evidência efêmera de CI e não fazem parte do runtime nem precisam permanecer versionadas no repositório. Depois da inspeção, o spec de captura e os passos temporários de upload foram removidos, o workflow normal de CI foi restaurado e o catálogo documental foi regenerado. A cobertura E2E permanente de estrutura, assets, fallback, viewport, movimento finito e reduced motion permanece versionada em `tests/pipipi-cinematic.spec.ts`.
 
 ## Critérios de aceite do candidato
 
