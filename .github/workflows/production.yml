@@ -26,6 +26,7 @@ env:
   VERCEL_CLI_VERSION: 59.11.7
   SUPABASE_PROJECT_REF: dmrqnbdvbkfqzctcerbx
   SUPABASE_CLI_VERSION: 2.117.0
+  TDA_MIGRATION_BOUNDARY: 20260906210333
   PRODUCTION_ORIGIN: https://dnd.faysk.dev
 
 jobs:
@@ -125,23 +126,101 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Staged production deployment: $URL"
 
-      - name: Link exact Production database
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
+      - name: Prepare isolated Production migration overlay
+        id: db
+        shell: bash
+        run: |
+          set -euo pipefail
+          OVERLAY="$RUNNER_TEMP/tda-supabase-overlay"
+          REMOTE_LIST="$RUNNER_TEMP/remote-migrations.txt"
+          REPO_LIST="$RUNNER_TEMP/repo-migrations.txt"
+          REMOTE_TDA="$RUNNER_TEMP/remote-tda-migrations.txt"
+
+          rm -rf "$OVERLAY"
+          mkdir -p "$OVERLAY"
+
+          # The repository intentionally starts at the TDA reboot boundary and does not
+          # copy legacy dnd-scribe migrations. Build an ephemeral Supabase project that
+          # contains the real remote history plus the authoritative TDA migration files.
+          supabase init --workdir "$OVERLAY" --yes
+          supabase link --workdir "$OVERLAY" --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
+          supabase migration fetch --workdir "$OVERLAY" --linked --yes
+
+          find "$OVERLAY/supabase/migrations" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort > "$REMOTE_LIST"
+          find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort > "$REPO_LIST"
+
+          if INVALID_REPO="$(grep -Ev '^[0-9]{14}_.+\.sql$' "$REPO_LIST")" && [[ -n "$INVALID_REPO" ]]; then
+            echo "::error::Deployable migration filenames must use the 14-digit Supabase timestamp format."
+            printf '%s\n' "$INVALID_REPO"
+            exit 1
+          fi
+
+          PRE_BOUNDARY="$(awk -v boundary="$TDA_MIGRATION_BOUNDARY" 'substr($0, 1, 14) < boundary { print }' "$REPO_LIST")"
+          if [[ -n "$PRE_BOUNDARY" ]]; then
+            echo "::error::TDA deployable migrations must not predate boundary $TDA_MIGRATION_BOUNDARY."
+            printf '%s\n' "$PRE_BOUNDARY"
+            exit 1
+          fi
+
+          awk -v boundary="$TDA_MIGRATION_BOUNDARY" 'substr($0, 1, 14) >= boundary { print }' "$REMOTE_LIST" > "$REMOTE_TDA"
+          UNEXPECTED_REMOTE="$(comm -23 "$REMOTE_TDA" "$REPO_LIST")"
+          if [[ -n "$UNEXPECTED_REMOTE" ]]; then
+            echo "::error::Remote migration history contains TDA-era entries absent from this repository. Reconcile history before release."
+            printf '%s\n' "$UNEXPECTED_REMOTE"
+            exit 1
+          fi
+
+          cp -f supabase/migrations/*.sql "$OVERLAY/supabase/migrations/"
+
+          echo "workdir=$OVERLAY" >> "$GITHUB_OUTPUT"
+          echo "SUPABASE_OVERLAY=$OVERLAY" >> "$GITHUB_ENV"
+          echo "Remote migration history files: $(wc -l < "$REMOTE_LIST")"
+          echo "Authoritative TDA deployable files: $(wc -l < "$REPO_LIST")"
 
       - name: Show database migration state before release
-        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --workdir "$SUPABASE_OVERLAY" --linked --password "$SUPABASE_DB_PASSWORD"
 
       - name: Dry-run Production migrations
-        run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --dry-run --skip-vault --password "$SUPABASE_DB_PASSWORD"
 
       - name: Apply pending Production migrations
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+        run: supabase db push --workdir "$SUPABASE_OVERLAY" --linked --skip-vault --password "$SUPABASE_DB_PASSWORD" --yes
 
-      - name: Verify migration state after release
-        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
+      - name: Verify exact migration history after release
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE_LIST="$RUNNER_TEMP/remote-migrations-after.txt"
+          REPO_LIST="$RUNNER_TEMP/repo-migrations-after.txt"
+          REMOTE_TDA="$RUNNER_TEMP/remote-tda-migrations-after.txt"
+
+          rm -rf "$SUPABASE_OVERLAY/supabase/migrations"
+          mkdir -p "$SUPABASE_OVERLAY/supabase/migrations"
+          supabase migration fetch --workdir "$SUPABASE_OVERLAY" --linked --yes
+
+          find "$SUPABASE_OVERLAY/supabase/migrations" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort > "$REMOTE_LIST"
+          find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort > "$REPO_LIST"
+          awk -v boundary="$TDA_MIGRATION_BOUNDARY" 'substr($0, 1, 14) >= boundary { print }' "$REMOTE_LIST" > "$REMOTE_TDA"
+
+          MISSING_REMOTE="$(comm -23 "$REPO_LIST" "$REMOTE_TDA")"
+          UNEXPECTED_REMOTE="$(comm -13 "$REPO_LIST" "$REMOTE_TDA")"
+          if [[ -n "$MISSING_REMOTE" || -n "$UNEXPECTED_REMOTE" ]]; then
+            echo "::error::Production migration history does not exactly match the authoritative TDA migration set."
+            if [[ -n "$MISSING_REMOTE" ]]; then
+              echo "Missing remotely:"
+              printf '%s\n' "$MISSING_REMOTE"
+            fi
+            if [[ -n "$UNEXPECTED_REMOTE" ]]; then
+              echo "Unexpected remotely:"
+              printf '%s\n' "$UNEXPECTED_REMOTE"
+            fi
+            exit 1
+          fi
+
+          echo "Exact TDA migration history verified after apply."
 
       - name: Run database advisors
-        run: supabase db advisors --linked
+        run: supabase db advisors --workdir "$SUPABASE_OVERLAY" --linked
 
       - name: Smoke staged Production artifact
         shell: bash
@@ -226,8 +305,9 @@ jobs:
           - Staged/tested deployment: $DEPLOYMENT_URL
           - Canonical production: $PRODUCTION_ORIGIN
           - Supabase project: \`$SUPABASE_PROJECT_REF\`
+          - Migration overlay/history gate: PASS
           - Migration dry-run: PASS
-          - Migration apply/verification: PASS
+          - Migration apply/exact verification: PASS
           - Staged smoke: PASS
           - Canonical smoke: PASS
           EOF
