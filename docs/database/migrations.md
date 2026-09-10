@@ -98,6 +98,7 @@ A estratégia é:
 ### 2026-09-10 — autoria factual do World Explorer
 
 - `20260910002529 world_graph_authoring` — migration aplicada remotamente; arquivo local equivalente permanece `20260909215000_world_graph_authoring.sql`. Não reexecutar DDL para alinhar somente o número.
+- `20260910012546 world_graph_provenance_guard` — hardening aplicado remotamente; arquivo local equivalente `20260910005000_world_graph_provenance_guard.sql`. Não reexecutar DDL para alinhar somente o timestamp.
 
 ## Boundary do reboot aplicado
 
@@ -493,6 +494,39 @@ Rollback lógico:
 - se o consumidor precisar ser retirado, desligá-lo primeiro e deixar o schema aditivo inerte enquanto a correção é preparada;
 - uma eventual migration corretiva deve preservar facts/revisions/audit já existentes e remover objetos somente quando comprovadamente sem consumidor;
 - não apagar relações, snapshots ou audit para simular rollback.
+
+## Hardening do provenance no publish do World graph
+
+### `20260910005000_world_graph_provenance_guard`
+
+**Estado:** aplicada no Supabase canônico em 2026-09-10 sob o migration history remoto `20260910012546 world_graph_provenance_guard`.
+
+Objetivo:
+
+- fechar o bypass em que um caller interno com `service_role` podia chamar `publish_world_edit_state_atomic(...)` diretamente e contornar o precheck de provenance feito pelo server action;
+- exigir, dentro da própria RPC e antes de qualquer write de graph/layout/audit, que toda relation `active` com visibility `public_campaign` ou `public_web` possua `entity_relation_sources` apontando para `canon_entries` da mesma campaign com `status='active'`;
+- retornar `review_required` sem consumir o lease nem publicar qualquer estado quando o gate não estiver satisfeito;
+- preservar o boundary como `SECURITY INVOKER`, `search_path = pg_catalog, public`, sem `EXECUTE` para `anon/authenticated` e com `service_role` como caller SQL esperado.
+
+Estratégia forward-only:
+
+- a migration histórica `20260909215000_world_graph_authoring.sql` já havia sido aplicada remotamente e não foi reescrita;
+- a correção usa `pg_get_functiondef(...)` para localizar a definição física conhecida e injeta o guard imediatamente antes do primeiro write da RPC;
+- a migration falha fechada se o marcador esperado da função não existir, evitando aplicar uma transformação silenciosa sobre uma definição divergente;
+- a execução é idempotente para ambientes scratch em que o mesmo guard já esteja materializado.
+
+Validação observada:
+
+- PostgreSQL 16 descartável executou a migration corretiva e `supabase/tests/world_graph_authoring_atomic.sql` passou no job `transcript-import-postgres` da CI #551;
+- o teste chama a RPC diretamente com relation `active/public_web` sem source e exige `review_required`, com zero mutation em entities, relations, relation types, layout snapshots, graph revisions/head revision e audit;
+- o happy path factual permanece permitido com relation `review_only`;
+- pós-aplicação remota, `pg_get_functiondef` confirmou o guard na função física; `prosecdef=false`; `search_path=pg_catalog, public`; `anon/authenticated` sem `EXECUTE`; `service_role` com `EXECUTE`;
+- antes do hardening havia 0 leases ativos, 0 relations, 0 graph revisions e 0 `world_graph.publish`; a aplicação não criou fatos canônicos.
+
+Rollback lógico:
+
+- se houver necessidade real de desfazer o hardening, criar migration corretiva explícita que substitua a função por uma definição revisada; não editar migration history nem remover provenance para forçar publicação;
+- enquanto não houver fluxo de source/review, relações novas permanecem privadas/review e `TDA_WORLD_CANONICAL_ENABLED` continua desligado.
 
 ## Candidato de estabilização de aliases narrativos
 
