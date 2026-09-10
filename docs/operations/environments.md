@@ -4,179 +4,338 @@
 > Owner: operations
 > Última revisão: 2026-09-10
 
+Este documento define os ambientes do TDA, seus limites de dados/segredos e o relacionamento com a esteira. Procedimentos de entrega estão em [CI/CD — operação, promoção e recuperação](ci-cd.md); configuração administrativa está em [CI/CD — configuração administrativa](cicd-admin-setup.md).
+
 ## Ambientes conceituais
 
-### Local development
-
-Objetivo: desenvolver/testar app sem publicar.
-
-Características:
-
-- `.env.local` não versionado;
-- pode operar sem secrets mostrando estado de preparação;
-- não deve inventar sessions mock como se fossem produção;
-- build/test local deve ser reproduzível a partir do repo.
-
-Para acelerar o Edit antes de Auth/capabilities, `TDA_EDIT_UNSAFE=true` pode ser habilitado deliberadamente. Esse modo usa dados e writes reais; não é mock. O contrato transitório está em [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md).
-
-### Preview / homologação
-
-Objetivo: validar candidato isolado antes de production quando necessário.
-
-Regras:
-
-- não recebe acesso irrestrito à production por padrão;
-- R2 possui bucket `tda-media-preview` próprio;
-- dados de teste/autorizados devem ser separados quando a superfície autenticada exigir;
-- domínio/URL de Preview não implica feature pública;
-- `TDA_EDIT_UNSAFE` permanece `false` salvo decisão deliberada de liberar o bypass naquele ambiente.
-
-### Production
-
-Objetivo: servir conteúdo aprovado na infraestrutura correta.
-
-Recursos canônicos atuais/futuros:
-
-- Supabase existente `dmrqnbdvbkfqzctcerbx`;
-- R2 production (`tda-media-public`, `tda-media-private`);
-- Vercel correta `projeto-desenv-6905` / `projeto_desenv@outlook.com`;
-- campanha `yuhara-main`.
-
-Na produção anterior ao candidato de Auth, `TDA_EDIT_UNSAFE=true` expõe administração sem identidade. No candidato [Discord SSR](discord-auth.md), a flag não pula mais os guards de página/Server Action; ainda controla o adapter temporário. Não confundir implementação na branch com alteração já publicada.
-
-## Runtime
-
-A fundação atual fixa Node via `.node-version` e package manager via `package.json`. Antes de alterar versões, seguir política de versions e validar build/CI.
-
-## Variáveis de ambiente
-
-Categorias:
-
-### Public client config
-
-Somente valores seguros para bundle/browser. Prefixo `NEXT_PUBLIC_` deve ser tratado como **publicação deliberada**, não conveniência.
-
-### Server secrets
-
-Supabase secret/service credentials, R2 credentials, OAuth secrets e similares.
-
-### Feature/config
-
-Flags, allowlists e endpoints que não são secretos mas ainda precisam de consistência por ambiente.
-
-Flags de dados/Edit atuais:
-
-- `TDA_READ_PUBLISHED_DATA=true` — leitura pública server-side real;
-- `TDA_READ_EDIT_DATA=true` — habilita o client server-side do Edit para o caminho autorizado;
-- `TDA_EDIT_UNSAFE=true` — habilita temporariamente workbench + adapter de write sem Auth; também habilita `editDataClient()` apenas no servidor.
-
-## Regras de secret
-
-- não versionar `.env.local`;
-- não colar valores em docs;
-- não expor em client bundle;
-- não imprimir em logs;
-- rotacionar quando houver suspeita de exposição;
-- preferir escopo mínimo e credencial por finalidade;
-- remover/revogar bootstrap tokens temporários após configuração.
-
-## Configuração ausente
-
-O produto deve falhar de forma informativa:
-
-- mostrar estado sem dados quando a integração não está configurada;
-- não conectar silenciosamente a outro projeto/account;
-- não usar mock como produção;
-- logs server-side devem apontar categoria da configuração faltante sem revelar secret;
-- `/edit` permanece bloqueado se o bypass estiver desligado e a superfície autenticada ainda não estiver conectada à rota.
-
-## Supabase por ambiente
-
-Production usa a base existente. Preview não deve ganhar acesso total à produção apenas porque é mais fácil. Quando Edit/autenticação forem homologados, definir dataset/branch/role autorizado específico.
-
-Mesmo no bypass temporário, `SUPABASE_SECRET_KEY` permanece server-only. O browser chama Server Components/Actions; não recebe cliente privilegiado.
-
-Na esteira vigente, Preview não executa `db push` contra Production. Migrations entram no Git, passam pelos testes sintéticos e pela política `tools/ci/check-migrations.mjs`; somente o workflow de Production liga explicitamente ao projeto `dmrqnbdvbkfqzctcerbx`.
-
-O migration history canônico contém entradas legadas anteriores ao reboot TDA que deliberadamente não são copiadas para este repositório. O boundary do TDA é `20260906210333`. Antes de qualquer push, Production cria um workdir Supabase efêmero, busca nele o history remoto, recusa entradas remotas desconhecidas a partir desse boundary e sobrepõe o conjunto TDA com os arquivos autoritativos de `supabase/migrations`. O `db push --dry-run --skip-vault` e o apply rodam somente nesse overlay. Depois do apply, o history é buscado novamente e o conjunto remoto a partir do boundary deve ser exatamente igual ao conjunto deployável do repo antes que o workflow prossiga para smoke/promotion. O overlay não usa `migration repair` e é descartado com o runner.
-
-Alterações destrutivas novas exigem revisão explícita e devem preferir expand → migrate → contract para preservar compatibilidade com a versão ainda publicada.
-
-## R2 por ambiente
-
-- production public/private separados por audience;
-- preview bucket isolado;
-- local pode usar filesystem/mock explícito ou integração configurada, mas nunca confundir com estado publicado.
-
-## Vercel
-
-Antes de qualquer write/deploy, verificar conta correta. Uma ferramenta conectada a `DND/dndscribe` ou outro team não prova que estamos no contexto `projeto-desenv-6905`.
-
-A publicação automática da integração Git permanece desligada (`git.deploymentEnabled=false`). O GitHub Actions é o controlador da entrega: ele constrói artefatos com Vercel CLI pinada, publica Preview a partir de `Preview` e cria Production staged a partir de `main`. O domínio `dnd.faysk.dev` só troca de deployment após smoke positivo e `vercel promote` do mesmo artefato testado.
-
-A decisão arquitetural e o procedimento completo estão em [ADR-0012](../adr/0012-github-actions-controlled-delivery.md) e [CI/CD — operação, bootstrap e gates](ci-cd.md).
-
-## Esteira CI/CD
-
-Há três ambientes lógicos e dois targets cloud:
+Há três ambientes lógicos, mas apenas dois targets cloud de publicação.
 
 | Ambiente | Fonte | Publicação | Dados |
 | --- | --- | --- | --- |
 | Development | branches temporárias | nenhuma | local/sintético/configurado deliberadamente |
-| Preview | branch `Preview` | Vercel Preview após CI verde | sem migration automática em Production; R2 Preview |
-| Production | branch `main` | Vercel staged → DB overlay/gates → smoke → promote para `dnd.faysk.dev` | Supabase Production + R2 Production |
+| Preview / homologação | `Preview` | Vercel Preview automática após CI verde | sem migration automática em Production; R2 Preview |
+| Production | `main` proveniente de `Preview -> main` | Vercel staged → gates → promote para `dnd.faysk.dev` | Supabase Production + R2 Production |
 
-Fluxo obrigatório após o bootstrap: branch temporária → PR para `Preview` → CI → Preview CD → homologação → PR `Preview` para `main` → CI → Production CD. O check `promotion-source` pode ser ativado com a repository variable `TDA_ENFORCE_PROMOTION_SOURCE=true`; uma vez ativo, PRs para `main` que não venham de `Preview` falham.
+Não existe necessidade de um terceiro projeto Vercel apenas para Development.
 
-GitHub Environments esperados:
+## Development
 
-- `preview`: secret `VERCEL_TOKEN`;
-- `production`: secrets `VERCEL_TOKEN`, `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD`.
+Objetivo: desenvolver e testar sem publicar.
 
-Repository variables de ativação:
+Regras:
 
-- `TDA_CICD_BOOTSTRAP_READY=true` — trava mestra adicional exigida por **ambos** os CDs. Deve permanecer ausente/false durante o merge inicial e só ser ligada depois que os GitHub Environments/secrets estiverem configurados e a branch `Preview` alinhada;
-- `TDA_PREVIEW_CD_ENABLED=true` — permite que o workflow de Preview publique após CI verde, mas somente se a trava mestra também estiver ativa;
-- `TDA_PRODUCTION_CD_ENABLED=true` — permite staged deployment, migration gate e promoção de Production após CI verde, mas somente se a trava mestra também estiver ativa;
-- `TDA_ENFORCE_PROMOTION_SOURCE=true` — exige `Preview -> main` em PRs de produção.
+- `.env.local` não é versionado;
+- build/test local deve ser reproduzível a partir do repo;
+- integração externa só é usada quando configurada deliberadamente;
+- mock não deve ser confundido com Production;
+- branches `feat/*`, `fix/*`, `refactor/*`, `ops/*` são temporárias e normalmente seguem para PR em `Preview`.
 
-A trava mestra e os dois switches de CD devem permanecer ausentes/false durante o bootstrap. Isso garante que simplesmente integrar os workflows na `main` ou alinhar `Preview` não publique nada, inclusive se algum switch específico tiver sido criado anteriormente. Depois de configurar Environments/secrets, ativar a trava mestra e primeiro o Preview, comprovar um ciclo completo de homologação e somente então ativar Production.
+`TDA_EDIT_UNSAFE=true` continua sendo flag transitória de desenvolvimento quando aplicável. Ela não é mecanismo de CI/CD e nunca deve ser usada como atalho para guards de Production.
 
-Os IDs não secretos de team/projeto Vercel e project ref Supabase ficam pinados nos workflows para impedir publicação acidental em outro contexto. Secrets runtime da aplicação continuam na Vercel por ambiente; os GitHub secrets acima existem apenas para controlar deployment/migration.
+## Preview / homologação
 
-O bootstrap da política exige alinhar a branch `Preview` ao `main` atual antes de habilitar `TDA_ENFORCE_PROMOTION_SOURCE`. Depois disso, `main` representa somente releases promovidas pela linha de homologação.
+Objetivo: validar o candidato real antes de Production.
 
-### Estado observado do bootstrap em 2026-09-10
+Fonte canônica:
 
-A infraestrutura versionada foi integrada pela PR #129. O commit de integração passou CI e Companion na `main`; o primeiro `Production CD` criado pelo `workflow_run` terminou `skipped`, confirmando que os gates impediram publicação automática.
+```text
+Preview
+```
 
-Depois disso, `main` avançou com integrações normais até `bb57edd6d8ea837be04a8979cfd938ec306e7945`. A branch `Preview`, que ainda apontava para `7305109d84cb5ce70eee07deabbc0b821f50f218`, foi avançada por fast-forward com `force=false` para esse HEAD da `main`. A operação foi aceita pelo GitHub, portanto não houve reescrita de histórico divergente da Preview.
+Comportamento final:
 
-O alinhamento disparou CI/Companion em `Preview`. A ativação de Preview/Production continua separada do alinhamento: nenhum Environment, secret ou repository variable deve ser presumido configurado apenas porque a branch está sincronizada.
+- CI verde em `Preview` dispara Preview CD automaticamente;
+- o workflow fixa o HEAD exato e recusa SHA stale/arbitrário;
+- o deployment recebe `APP_ENV=preview`;
+- `APP_COMMIT_SHA` recebe o SHA real;
+- `TDA_RELEASE_ID=preview-<12-char-sha>`;
+- `/api/health` e `/api/version` precisam provar o SHA;
+- `/` e `/sessoes` precisam responder;
+- nenhuma migration é aplicada no Supabase Production;
+- `dnd.faysk.dev` nunca é alterado por Preview.
 
-Superfícies administrativas do GitHub que não forem legíveis pela conexão de automação devem ser registradas como **não verificadas**. Não inferir ausência nem presença de secret/variable/protection sem evidência da API/UI autorizada.
+### Credencial de Preview
 
-A sequência completa de ativação e validação está em [CI/CD — operação, bootstrap e gates](ci-cd.md).
+GitHub Environment esperado:
 
-## Local companion
+```text
+preview
+```
 
-Configuração deve ficar fora do código e separar:
+Secret mínimo:
 
-- endpoint do TDA;
-- credential técnica limitada;
-- paths locais;
-- provider/model;
-- cache/work dirs;
-- resource limits.
+```text
+VERCEL_TOKEN
+```
+
+O primeiro Preview CD real em 2026-09-10 provou que esse secret ainda não estava disponível ao job: o workflow falhou no gate de credential **antes de qualquer deploy**.
+
+### Dados de Preview
+
+Preview não deve receber credencial irrestrita de Production apenas por conveniência.
+
+- R2 Preview: `tda-media-preview`;
+- leitura de dados publicados de Production só deve ocorrer quando deliberadamente autorizada e segura;
+- escrita administrativa em Production a partir de Preview não é o padrão;
+- migrations são validadas em CI, mas aplicadas somente por Production CD;
+- quando houver necessidade real de dados isolados completos, usar projeto/branch Supabase dedicado conforme plano/custo disponível.
+
+## Production
+
+Objetivo: servir o TDA aprovado no domínio oficial.
+
+Fonte canônica:
+
+```text
+main
+```
+
+Porém `main` isoladamente não autoriza publicação. O SHA precisa ser comprovadamente resultado de:
+
+```text
+Preview -> main
+```
+
+O `production.yml` verifica pela API do GitHub que o SHA atual é o `merge_commit_sha` de uma PR mergeada com `head=Preview` e `base=main`.
+
+Push direto ou PR de outra branch para `main` não pode alcançar Vercel/Supabase no Production CD.
+
+### Recursos canônicos
+
+Supabase:
+
+```text
+dmrqnbdvbkfqzctcerbx
+```
+
+Vercel team:
+
+```text
+team_9wuTfarCQ3L63xtufPKUDzi0
+```
+
+Vercel project:
+
+```text
+prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+```
+
+Domínio:
+
+```text
+https://dnd.faysk.dev
+```
+
+R2 Production:
+
+```text
+tda-media-public
+tda-media-private
+```
+
+### Credenciais de Production
+
+GitHub Environment esperado:
+
+```text
+production
+```
+
+Secrets mínimos:
+
+```text
+VERCEL_TOKEN
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+```
+
+Esses secrets controlam deployment/migration. Runtime secrets da aplicação continuam configurados na Vercel por ambiente.
+
+## Runtime e versões
+
+Node é fixado pelo `.node-version`; package manager pelo `package.json`. CLIs usadas na entrega são pinadas nos workflows.
+
+Alteração de runtime/CLI deve passar por CI e revisão do runbook quando mudar comportamento de deployment/migration.
+
+## Variáveis de runtime
+
+### Public client config
+
+Somente valores seguros para browser. `NEXT_PUBLIC_*` significa publicação deliberada.
+
+### Server secrets
+
+Supabase secret/service credentials, R2 credentials, OAuth secrets e semelhantes. Nunca entram no bundle do browser.
+
+### Feature/config
+
+Flags e endpoints não secretos, mas ainda específicos de ambiente.
+
+Exemplos atuais:
+
+- `TDA_READ_PUBLISHED_DATA`;
+- `TDA_READ_EDIT_DATA`;
+- `TDA_EDIT_UNSAFE`;
+- `TDA_AUTH_ORIGIN`;
+- `APP_ENV`;
+- `APP_COMMIT_SHA`;
+- `TDA_RELEASE_ID`.
+
+## Variáveis antigas de bootstrap da esteira
+
+As seguintes flags foram úteis durante a montagem inicial, mas não fazem parte da autorização final:
+
+```text
+TDA_CICD_BOOTSTRAP_READY
+TDA_PREVIEW_CD_ENABLED
+TDA_PRODUCTION_CD_ENABLED
+TDA_ENFORCE_PROMOTION_SOURCE
+```
+
+O contrato final usa comportamento automático em Preview e provenance verificável para Production. Se essas repository variables ainda existirem, podem ser removidas depois da confirmação administrativa.
+
+## Supabase por ambiente
+
+### Production
+
+Usa o projeto existente. O migration history remoto contém legado anterior ao reboot TDA.
+
+Boundary do TDA:
+
+```text
+20260906210333
+```
+
+Semântica do Git:
+
+```text
+supabase/migrations/ = autorizado para Production
+supabase/candidates/ = candidato ainda não autorizado
+```
+
+Production cria overlay efêmero, faz `migration fetch`, recusa drift TDA-era, executa dry-run, aplica somente o necessário e busca o history novamente antes de qualquer promote.
+
+Não existe `migration repair` automático.
+
+### Preview
+
+Não executa `db push` no projeto Production. Testes de banco acontecem em PostgreSQL scratch/sintético no CI.
+
+## R2 por ambiente
+
+- Production public/private separados por audience;
+- Preview usa bucket próprio;
+- local pode usar filesystem/mock explícito ou integração configurada;
+- rollback do app não implica apagar/reverter objetos R2.
+
+## Vercel
+
+A integração Git automática permanece desligada. GitHub Actions é o controlador.
+
+### Preview
+
+```text
+vercel pull --environment=preview
+vercel build
+vercel deploy --prebuilt
+```
+
+### Production
+
+```text
+vercel pull --environment=production
+vercel build --prod
+vercel deploy --prebuilt --prod --skip-domain
+```
+
+O candidate staged só recebe tráfego depois de migration gates + smoke:
+
+```text
+vercel promote <deployment>
+```
+
+O mesmo artefato testado é o artefato promovido.
+
+## Health e provenance
+
+### Preview
+
+Obrigatório:
+
+```text
+health.ok = true
+health.environment = preview
+health.commit = source sha
+version.commit = source sha
+version.release = preview-<shortsha>
+```
+
+### Production
+
+Obrigatório antes e depois do promote:
+
+```text
+health.ok = true
+health.environment = production
+health.commit = source sha
+version.commit = source sha
+version.release = prod-<shortsha>
+```
+
+A Production observada antes da primeira release pela nova esteira ainda respondeu `commit=null`/`release=null`; isso identifica a necessidade de uma release rastreável, não autoriza inventar provenance retroativa.
+
+## Regras de secret
+
+- não versionar `.env.local`;
+- não colocar valores em docs/PR/issues;
+- não expor em client bundle;
+- não imprimir em logs;
+- preferir menor escopo possível;
+- rotacionar em caso de suspeita;
+- validar Preview após rotação antes de liberar Production.
+
+## Branches e proteção administrativa
+
+Fluxo esperado:
+
+```text
+branch temporária -> PR -> Preview -> PR -> main
+```
+
+Branch protection/rulesets recomendados:
+
+- PR obrigatório;
+- CI obrigatório;
+- `promotion-source` obrigatório em `main`;
+- bloquear force push/deletion.
+
+No snapshot observado em 2026-09-10, `main`/`Preview` ainda apareciam sem protection e não havia rulesets. A conexão usada nesta automação não possui permissão administrativa para alterar essa superfície.
+
+Production continua fail-closed pelo provenance gate mesmo sem essa proteção, mas a proteção deve ser configurada para governança completa.
+
+## Estado operacional observado em 2026-09-10
+
+- fundação CI/CD integrada pela PR #129;
+- ADR/runbooks integrados pela PR #136;
+- `Preview` alinhada por fast-forward sem force;
+- CI/Companion de `Preview` verdes;
+- PR #142 ativou Preview CD automático;
+- SHA de ativação: `652710bca720d8f07c54aa2d73fb204d9d160c7c`;
+- primeiro Preview CD real falhou somente por `VERCEL_TOKEN` ausente, antes de deploy;
+- Production não foi alterada;
+- runtime errors observados na Production: nenhum no intervalo consultado;
+- Production atual ainda não prova SHA/release via runtime metadata.
 
 ## Checklist de novo ambiente
 
 1. finalidade definida;
-2. Supabase/data boundary definido;
-3. storage boundary definido;
-4. secrets mínimos criados;
-5. logs/observability ativos;
-6. nenhum production secret desnecessário;
-7. smoke positivo e negativo;
-8. teardown/rotação definidos;
-9. documentação atualizada.
+2. branch/source definida;
+3. data boundary definido;
+4. storage boundary definido;
+5. secrets mínimos criados;
+6. nenhum Production secret desnecessário;
+7. runtime vars coerentes;
+8. smoke positivo e negativo;
+9. observability ativa;
+10. rollback/teardown definidos;
+11. documentação atualizada.
