@@ -1,46 +1,15 @@
-import type { ButtonHTMLAttributes, ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import { PublicLink as Link } from "../public-link";
-import { classNames } from "./class-names";
+import {
+	Button,
+	actionStyles,
+	type ActionSize,
+	type ActionStyleOptions,
+	type ActionVariant,
+} from "./button";
 
-export type ActionVariant = "primary" | "secondary" | "tertiary";
-export type ActionSize = "sm" | "md";
-
-type ActionStyleOptions = Readonly<{
-	variant?: ActionVariant;
-	size?: ActionSize;
-	className?: string;
-}>;
-
-export function actionStyles({
-	variant = "secondary",
-	size = "md",
-	className,
-}: ActionStyleOptions = {}): string {
-	return classNames(
-		"ds-action",
-		`ds-action--${variant}`,
-		`ds-action--${size}`,
-		className,
-	);
-}
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & ActionStyleOptions;
-
-export function Button({
-	className,
-	size = "md",
-	type = "button",
-	variant = "secondary",
-	...props
-}: ButtonProps) {
-	return (
-		<button
-			className={actionStyles({ className, size, variant })}
-			type={type}
-			{...props}
-		/>
-	);
-}
+export { Button, actionStyles } from "./button";
+export type { ActionSize, ActionVariant } from "./button";
 
 type ActionLinkProps = ComponentProps<typeof Link> & ActionStyleOptions;
 
