@@ -1,0 +1,36 @@
+name: Docs Closeout Refresh
+
+on:
+  push:
+    branches: [ops/cicd-bootstrap-closeout]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-closeout-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ops/cicd-bootstrap-closeout
+      - name: Regenerate catalog
+        run: node tools/documentation-catalog.mjs --write
+      - name: Commit generated catalog when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/documentation/catalog.md; then
+            echo "Documentation catalog already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/documentation/catalog.md
+          git commit -m "docs: regenerate documentation catalog"
+          git push origin HEAD:ops/cicd-bootstrap-closeout
