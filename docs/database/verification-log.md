@@ -10,6 +10,114 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-10 — aplicação da autoria canônica do World Explorer (#119)
+
+### Escopo
+
+Aplicação controlada da infraestrutura de autoria factual do World Explorer após autorização explícita de release, CI terminal do SHA candidato e preflight read-only do projeto canônico. A mudança instala schema/RPCs de autoria e **não ativa** por si só a projection canônica pública nem cria fatos narrativos.
+
+### Preflight imediatamente anterior
+
+Project ref confirmado: `dmrqnbdvbkfqzctcerbx`.
+
+Antes do DDL:
+
+- as seis tabelas novas (`relation_types`, `world_relation_styles`, `entity_relations`, `entity_relation_sources`, `world_graph_heads`, `world_graph_revisions`) não existiam;
+- `world_edit_leases`: `0` leases ativos;
+- `world_layout_snapshots`: `0` rows;
+- `entities`: `3` rows;
+- `canon_entries`: `0` rows;
+- somente `1` entity estava `active/public_web`;
+- migration history terminava em `20260909205836 world_edit_lease`;
+- os RPCs existentes de layout/lease permaneciam `SECURITY INVOKER`, sem `EXECUTE` de `anon/authenticated` e com `service_role` autorizado;
+- não havia evento `world_*` no `audit_log`.
+
+O security advisor antes da aplicação mantinha a baseline conhecida: `40` ocorrências informativas de `rls_enabled_no_policy`, `8` warnings das funções `SECURITY DEFINER` legadas executáveis por `authenticated` e Leaked Password Protection desabilitada. O performance advisor reportava `49` FKs sem covering index e `27` índices sem uso registrado.
+
+### Aplicação
+
+O SQL versionado localmente como:
+
+- `20260909215000_world_graph_authoring.sql`
+
+foi aplicado pelo mecanismo de migration do Supabase. O migration history remoto registrou:
+
+- `20260910002529 world_graph_authoring`.
+
+A divergência numérica local/remota é nominal. Não reexecutar DDL nem editar migration history para alinhar o número; a reconciliação documental preserva ambos os identificadores até decisão específica de versionamento.
+
+### Objetos e segurança pós-migration
+
+Confirmados fisicamente:
+
+- seis tabelas novas presentes;
+- `world_edit_leases` com `base_graph_revision bigint not null default 0`, `draft_graph jsonb not null default '{}'` e `graph_draft_initialized boolean not null default false`;
+- trigger `world_edit_lease_graph_handoff` ativo;
+- RLS habilitado nas seis tabelas novas;
+- `0` policies de browser nessas tabelas, mantendo deny-by-default;
+- `anon` e `authenticated` sem acesso direto às novas tabelas;
+- `service_role` com os grants mínimos versionados, incluindo ausência de `DELETE`, somente `SELECT` em `entity_relation_sources` e ausência de `UPDATE` em `world_graph_revisions`.
+
+As funções `world_graph_snapshot_json`, `acquire_world_graph_draft_atomic`, `save_world_graph_draft_atomic`, `publish_world_edit_state_atomic` e o helper do trigger foram revalidadas como:
+
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- sem `EXECUTE` para `anon`/`authenticated`;
+- com `EXECUTE` para `service_role`.
+
+### Invariantes de dados
+
+A aplicação de schema preservou o estado narrativo existente:
+
+- `entities=3`;
+- `canon_entries=0`;
+- `world_layout_snapshots=0`;
+- `world_edit_leases=0`;
+- `relation_types=0`;
+- `world_relation_styles=0`;
+- `entity_relations=0`;
+- `entity_relation_sources=0`;
+- `world_graph_heads=0`;
+- `world_graph_revisions=0`;
+- relations públicas criadas pela mudança: `0`;
+- eventos `world_*` no audit após a validação: `0`.
+
+`world_graph_snapshot_json` para a campanha principal projetou `3` nodes, `0` edges e `0` relation types. Chamadas negativas de acquire/publish com identity/profile inexistentes retornaram `forbidden` e não criaram lease, revision, relation ou audit.
+
+### Advisors pós-aplicação
+
+Security advisor em 2026-09-10:
+
+- `46` ocorrências informativas de `rls_enabled_no_policy`; as seis novas tabelas explicam o aumento e estão deliberadamente sem policy de browser;
+- as mesmas `8` funções `SECURITY DEFINER` legadas executáveis por `authenticated` já inventariadas;
+- Leaked Password Protection continua desabilitada.
+
+Performance advisor:
+
+- `59` FKs sem covering index;
+- `30` índices sem uso registrado.
+
+Os novos INFO incluem FKs de actor/audit e `entity_relation_sources(canon_entry_id)`. Os índices de traversal por campaign/source e campaign/target foram mantidos mesmo ainda sem uso porque correspondem aos query paths planejados. O índice de provenance por `canon_entry_id` fica candidato para a fatia em que esse lookup se tornar caminho real; nenhum índice/policy foi criado automaticamente apenas para silenciar advisor.
+
+### Gate de produto preservado
+
+A infrastructure aplicada **não** habilitou `TDA_WORLD_CANONICAL_ENABLED=true`. O World público continua demonstrativo por padrão. Com somente 1 entity `public_web` e 0 `canon_entries`, ativar o dataset real agora seria prematuro.
+
+A #119 também não cria mutation para anexar `canon_entry` em `entity_relation_sources`; relações novas precisam permanecer privadas/review até existir fluxo de provenance/review autorizado e auditável.
+
+### Estado ao fechar esta verificação
+
+- migration aplicada e fisicamente verificada;
+- nenhuma alteração factual/canônica publicada;
+- nenhuma policy pública adicionada;
+- nenhum grant legado alterado;
+- nenhum merge/deploy de aplicação fazia parte desta etapa do banco;
+- próximo gate: documentação/CI do SHA final da PR, integração deliberada do consumidor e release separada mantendo a projection pública canônica desativada.
+
+Rollback lógico, se necessário: primeiro desligar o consumidor; preservar `world_graph_revisions`/audit e conteúdo factual existente; usar migration corretiva compatível em vez de apagar dados ou reexecutar o candidato original.
+
+---
+
 ## 2026-09-08 — reconciliação do migration history do World Explorer
 
 ### Escopo
