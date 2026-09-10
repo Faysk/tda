@@ -15,6 +15,10 @@ import {
 	renewWorldLayoutSessionAction,
 	saveWorldLayoutSessionDraftAction,
 } from "../world-layout-session-actions";
+import {
+	worldEditFailureMessage,
+	worldLayoutPositionsEqual,
+} from "./world-edit-session-model";
 
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
 const WORLD_EDIT_HEARTBEAT_MS = 20_000;
@@ -24,40 +28,6 @@ const WORLD_BUSY_NOTICE_MS = 5_000;
 type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
 type LayoutDraftResult = Awaited<ReturnType<typeof saveWorldLayoutSessionDraftAction>>;
 type GraphDraftResult = Awaited<ReturnType<typeof saveWorldGraphDraftAction>>;
-
-export function worldEditFailureMessage(reason: string): string {
-	switch (reason) {
-		case "unauthenticated":
-			return "Sua sessão expirou. Entre novamente antes de editar o Mundo.";
-		case "profile_unresolved":
-			return "Sua conta ainda não está vinculada a um perfil que possa editar o Mundo.";
-		case "forbidden":
-			return "Sua conta não possui permissão para esta edição do Mundo.";
-		case "conflict":
-			return "O Mundo publicado mudou enquanto este rascunho estava aberto. O rascunho foi preservado; recarregue antes de publicar.";
-		case "lease_lost":
-			return "A sessão exclusiva de edição expirou. Seu rascunho foi preservado para recuperação, mas precisa de uma nova sessão antes de publicar.";
-		case "invalid_payload":
-			return "Há um campo inválido no rascunho. Corrija-o antes de publicar.";
-		case "duplicate":
-			return "Já existe um elemento, slug ou ligação incompatível com esta alteração. Ajuste o rascunho e tente novamente.";
-		default:
-			return "Não foi possível confirmar a edição agora. Nenhuma alteração foi publicada.";
-	}
-}
-
-export function worldLayoutPositionsEqual(
-	left: Readonly<Record<string, Readonly<{ x: number; y: number }>>>,
-	right: Readonly<Record<string, Readonly<{ x: number; y: number }>>>,
-): boolean {
-	const leftIds = Object.keys(left).sort();
-	const rightIds = Object.keys(right).sort();
-	if (leftIds.length !== rightIds.length) return false;
-	return leftIds.every((id, index) => {
-		if (id !== rightIds[index]) return false;
-		return left[id]?.x === right[id]?.x && left[id]?.y === right[id]?.y;
-	});
-}
 
 type UseWorldEditSessionOptions = Readonly<{
 	canEditLayout: boolean;
