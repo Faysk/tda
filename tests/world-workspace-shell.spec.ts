@@ -93,3 +93,28 @@ test("World Workspace navigation becomes a non-reserving overlay on mobile", asy
 	);
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 });
+
+test("collapsed mobile inspector leaves document flow and keeps only its reopen control", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile inspector flow contract.");
+
+	await page.goto("/mundo");
+	const inspector = page.locator('aside[aria-live="polite"]');
+	const collapse = page.getByRole("button", { name: "Recolher painel de detalhes" });
+
+	await expect(inspector).toBeVisible();
+	await expect(collapse).toBeVisible();
+	await collapse.click();
+
+	const reopen = page.getByRole("button", { name: "Abrir painel de detalhes" });
+	await expect(reopen).toBeVisible();
+	await expect
+		.poll(async () => inspector.evaluate((element) => getComputedStyle(element).position))
+		.toBe("fixed");
+	await expect
+		.poll(async () => (await inspector.boundingBox())?.height ?? 0)
+		.toBeLessThanOrEqual(68);
+	await reopen.click();
+	await expect(page.getByRole("button", { name: "Recolher painel de detalhes" })).toBeVisible();
+});
