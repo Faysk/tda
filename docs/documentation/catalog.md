@@ -154,7 +154,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-10 |
-| [CI/CD — operação, bootstrap e gates](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-10 |
+| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-10 |
+| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-10 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | Não declarado |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
@@ -166,4 +167,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-100 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+101 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

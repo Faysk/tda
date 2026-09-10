@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
-      ENFORCE: ${{ vars.TDA_ENFORCE_PROMOTION_SOURCE }}
       HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
       BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
     steps:
@@ -21,11 +20,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${ENFORCE:-false}" != "true" ]]; then
-            echo "Promotion-source enforcement is in bootstrap mode."
-            echo "Set repository variable TDA_ENFORCE_PROMOTION_SOURCE=true after Preview is aligned to main."
-            exit 0
-          fi
 
           if [[ "$BASE_BRANCH" != "main" || "$HEAD_BRANCH" != "Preview" ]]; then
             echo "::error::Production promotion must be Preview -> main. Received ${HEAD_BRANCH} -> ${BASE_BRANCH}."

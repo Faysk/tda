@@ -58,7 +58,7 @@ jobs:
         run: vercel inspect "$TARGET_DEPLOYMENT" --token="$VERCEL_TOKEN"
 
       - name: Read candidate version before changing traffic
-        run: vercel curl /api/version --deployment "$TARGET_DEPLOYMENT" --token="$VERCEL_TOKEN" > target-version.json
+        run: vercel curl /api/version --deployment "$TARGET_DEPLOYMENT" > target-version.json
 
       - name: Roll back Production traffic
         run: vercel rollback "$TARGET_DEPLOYMENT" --yes --token="$VERCEL_TOKEN"
