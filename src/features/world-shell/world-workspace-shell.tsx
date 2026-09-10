@@ -3,17 +3,20 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-workspace-shell.module.css";
 
 export function WorldWorkspaceShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
-	const [navigationOpen, setNavigationOpen] = useState(false);
+	const [navigationOpen, setNavigationOpen] = useState(true);
 
 	useEffect(() => {
-		if (window.matchMedia("(min-width: 821px)").matches) {
-			setNavigationOpen(true);
-		}
+		const desktop = window.matchMedia("(min-width: 821px)");
+		const syncNavigationToViewport = () => setNavigationOpen(desktop.matches);
+		syncNavigationToViewport();
+		desktop.addEventListener("change", syncNavigationToViewport);
+		return () => desktop.removeEventListener("change", syncNavigationToViewport);
 	}, []);
 
 	return (
@@ -71,6 +74,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
 					<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
 				</button>
+				<div className={styles.utilityControls}>
+					<ThemeToggle />
+				</div>
 				{children}
 			</section>
 		</div>
