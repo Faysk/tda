@@ -1,4 +1,4 @@
-import { beginInteractiveGlobalLoading } from "@/components/global-loading/events";
+import { beginInteractiveGlobalLoading } from "../../../components/global-loading/events";
 import { LocalBridge } from "./bridge";
 import {
 	BridgeError,
