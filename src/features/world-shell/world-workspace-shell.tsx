@@ -7,9 +7,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-workspace-shell.module.css";
 
+const MOBILE_NAVIGATION_FOCUSABLE =
+	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function WorldWorkspaceShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
+	const navigationPanelRef = useRef<HTMLElement>(null);
+	const navigationCloseRef = useRef<HTMLButtonElement>(null);
 	const navigationToggleRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
@@ -23,15 +28,38 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	useEffect(() => {
 		if (!navigationOpen || !window.matchMedia("(max-width: 820px)").matches) return;
 
-		const closeOnEscape = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
-			event.preventDefault();
-			setNavigationOpen(false);
-			window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+		window.requestAnimationFrame(() => navigationCloseRef.current?.focus());
+
+		const containNavigationFocus = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				setNavigationOpen(false);
+				window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
+				return;
+			}
+
+			if (event.key !== "Tab") return;
+			const panel = navigationPanelRef.current;
+			if (!panel) return;
+			const focusable = Array.from(
+				panel.querySelectorAll<HTMLElement>(MOBILE_NAVIGATION_FOCUSABLE),
+			).filter((element) => element.getAttribute("aria-hidden") !== "true");
+			if (focusable.length === 0) return;
+
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			const active = document.activeElement;
+			if (event.shiftKey && (active === first || !panel.contains(active))) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+				event.preventDefault();
+				first.focus();
+			}
 		};
 
-		document.addEventListener("keydown", closeOnEscape);
-		return () => document.removeEventListener("keydown", closeOnEscape);
+		document.addEventListener("keydown", containNavigationFocus);
+		return () => document.removeEventListener("keydown", containNavigationFocus);
 	}, [navigationOpen]);
 
 	return (
@@ -42,6 +70,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			data-testid="world-workspace"
 		>
 			<aside
+				ref={navigationPanelRef}
 				id="world-workspace-navigation"
 				className={styles.navigationPanel}
 				aria-hidden={!navigationOpen}
@@ -51,6 +80,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					<div className={styles.navigationHeader}>
 						<WorldNavigationIntro />
 						<button
+							ref={navigationCloseRef}
 							type="button"
 							className={styles.closeNavigation}
 							onClick={() => setNavigationOpen(false)}
