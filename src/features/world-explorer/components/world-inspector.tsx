@@ -188,7 +188,7 @@ export function WorldInspectorContent({
 										type="button"
 										data-family={edge.family}
 										onClick={() => onSelect(destination.id)}
-										aria-label={`Selecionar ${destination.label}; relação ${edge.label}`}
+										aria-label={`Explorar relação ${edge.label} com ${destination.label}`}
 										title={`${edge.label} · ${destination.label}`}
 									>
 										{edge.label}
