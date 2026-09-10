@@ -93,3 +93,109 @@ test("World Workspace navigation becomes a non-reserving overlay on mobile", asy
 	);
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 });
+
+test("mobile navigation closes with Escape and returns focus to its trigger", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile keyboard navigation contract.");
+
+	await page.goto("/mundo");
+	const trigger = page.getByRole("button", { name: "Explorar universo" });
+	await expect(trigger).toBeVisible();
+	await trigger.click();
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"open",
+	);
+
+	await page.keyboard.press("Escape");
+
+	await expect(page.getByTestId("world-workspace")).toHaveAttribute(
+		"data-world-navigation",
+		"closed",
+	);
+	await expect(trigger).toBeFocused();
+});
+
+test("mobile navigation contains keyboard focus while its overlay is open", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile focus containment contract.");
+
+	await page.goto("/mundo");
+	const navigation = page.getByTestId("world-workspace-navigation");
+	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByRole("button", { name: "Recolher navegação do mundo" }).first()).toBeFocused();
+
+	await page.keyboard.press("Shift+Tab");
+	await expect
+		.poll(() =>
+			navigation.evaluate((panel) =>
+				Boolean(document.activeElement && panel.contains(document.activeElement)),
+			),
+		)
+		.toBe(true);
+
+	for (let step = 0; step < 8; step += 1) {
+		await page.keyboard.press("Tab");
+		await expect
+			.poll(() =>
+				navigation.evaluate((panel) =>
+					Boolean(document.activeElement && panel.contains(document.activeElement)),
+				),
+			)
+			.toBe(true);
+	}
+});
+
+test("mobile focus containment stops when the viewport crosses to desktop", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Responsive focus lifecycle contract.");
+
+	await page.goto("/mundo");
+	const workspace = page.getByTestId("world-workspace");
+	const navigation = page.getByTestId("world-workspace-navigation");
+	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByRole("button", { name: "Recolher navegação do mundo" }).first()).toBeFocused();
+
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await expect(workspace).toHaveAttribute("data-world-navigation", "open");
+
+	const stageTrigger = page.getByTestId("world-workspace-stage").locator("button").first();
+	await stageTrigger.focus();
+	await page.keyboard.press("Tab");
+
+	await expect
+		.poll(() =>
+			navigation.evaluate((panel) =>
+				Boolean(document.activeElement && panel.contains(document.activeElement)),
+			),
+		)
+		.toBe(false);
+});
+
+test("collapsed mobile inspector leaves document flow and keeps only its reopen control", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "mobile", "Mobile inspector flow contract.");
+
+	await page.goto("/mundo");
+	const inspector = page.locator('aside[aria-live="polite"]');
+	const collapse = page.getByRole("button", { name: "Recolher painel de detalhes" });
+
+	await expect(inspector).toBeVisible();
+	await expect(collapse).toBeVisible();
+	await collapse.click();
+
+	const reopen = page.getByRole("button", { name: "Abrir painel de detalhes" });
+	await expect(reopen).toBeVisible();
+	await expect
+		.poll(async () => inspector.evaluate((element) => getComputedStyle(element).position))
+		.toBe("fixed");
+	await expect
+		.poll(async () => (await inspector.boundingBox())?.height ?? 0)
+		.toBeLessThanOrEqual(68);
+	await reopen.click();
+	await expect(page.getByRole("button", { name: "Recolher painel de detalhes" })).toBeVisible();
+});
