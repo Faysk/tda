@@ -246,6 +246,10 @@
 		grid-column: 3 / 4;
 	}
 
+	.root .viewSurface button {
+		min-height: 44px;
+	}
+
 	.root .filterChip {
 		min-height: 44px;
 	}
