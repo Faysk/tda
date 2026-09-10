@@ -67,10 +67,21 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	await page.goto("/mundo");
 
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
-	await expect(page.getByTestId("world-canvas")).toBeVisible();
+	const canvas = page.getByTestId("world-canvas");
+	await expect(canvas).toBeVisible();
+	const mobileCanvas = await canvas.boundingBox();
+	expect(mobileCanvas?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(350);
+	expect(mobileCanvas?.height ?? 0).toBeGreaterThanOrEqual(430);
 	await expect(
 		page.getByRole("button", { name: "Recolher navegação do mundo" }),
 	).toHaveCount(0);
+
+	const reset = page.getByRole("button", { name: "Reorganizar", exact: true });
+	await expect(reset).toBeVisible();
+	const resetBox = await reset.boundingBox();
+	expect(resetBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(resetBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(46);
+	expect(resetBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
 	const detailToggle = page.getByRole("button", { name: "Recolher painel de detalhes" });
 	await expect(detailToggle).toBeVisible();
