@@ -20,14 +20,21 @@ test("world surfaces share the desktop contextual universe navigation", async ({
 	);
 });
 
-test("universe navigation becomes a modal drawer at the 320px minimum", async ({ page }) => {
+test("universe navigation becomes a non-reserving overlay drawer at the 320px minimum", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/mundo");
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
+	const stage = page.getByTestId("world-workspace-stage");
+	const before = await stage.boundingBox();
+
 	await page.getByRole("button", { name: "Explorar universo" }).click();
+	await expect(page.getByTestId("world-workspace-navigation")).toBeVisible();
 	await expect(
-		page.getByRole("dialog", { name: "Navegação do universo da campanha" }),
+		page.getByRole("navigation", { name: "Explorar o universo da campanha" }),
 	).toBeVisible();
+	const open = await stage.boundingBox();
+	expect(Math.abs((open?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
+
 	await page.getByRole("link", { name: /Lugares/ }).last().click();
 	await expect(page).toHaveURL(/\/lugares$/);
 	await expect(page.getByRole("heading", { level: 1, name: "Lugares" })).toBeVisible();
