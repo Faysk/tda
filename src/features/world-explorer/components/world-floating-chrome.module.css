@@ -232,13 +232,14 @@
 		grid-column: 2 / 3;
 	}
 
-	.root .resetSurface {
-		grid-column: 1 / -1;
+	.root .viewSurface button,
+	.root .resetSurface,
+	.root .filterChip {
 		min-height: 44px;
 	}
 
-	.root .filterChip {
-		min-height: 44px;
+	.root .resetSurface {
+		grid-column: 1 / -1;
 	}
 
 	.root .legendItem {
