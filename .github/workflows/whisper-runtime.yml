@@ -7,6 +7,7 @@ on:
       - 'local-companion/runtime/**'
       - 'local-companion/packaging/build_whisper_runtime.py'
       - 'local-companion/packaging/whisper_runtime_entry.py'
+      - 'local-companion/tda_companion/asr_acceptance.py'
       - 'local-companion/tda_companion/asr_runtime.py'
       - 'local-companion/tda_companion/asr_whisper.py'
       - 'local-companion/tda_companion/asr_worker.py'
@@ -18,6 +19,7 @@ on:
       - 'local-companion/runtime/**'
       - 'local-companion/packaging/build_whisper_runtime.py'
       - 'local-companion/packaging/whisper_runtime_entry.py'
+      - 'local-companion/tda_companion/asr_acceptance.py'
       - 'local-companion/tda_companion/asr_runtime.py'
       - 'local-companion/tda_companion/asr_whisper.py'
       - 'local-companion/tda_companion/asr_worker.py'
@@ -96,6 +98,8 @@ jobs:
           - Faster-Whisper + CTranslate2 em processo separado do Agent.
           - CUDA/cuBLAS/cuDNN ficam contidos no runtime; nenhum PATH ou Python global é alterado.
           - Baseline CUDA 12.9 / cuDNN 9, validada por probe antes da publicação.
+          - NVML fica disponível somente para telemetria/recibo do gate físico de GPU.
+          - O worker inclui o comando de aceitação física; CI sem GPU não substitui o teste na RTX 4070.
           - Modelos Whisper não fazem parte deste arquivo e continuam gerenciados separadamente.
 
           SHA256: ${DIGEST}
