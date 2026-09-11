@@ -1,3 +1,39 @@
+.trigger {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	z-index: 44;
+	display: inline-flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 7px;
+	padding: 0 10px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 38%, var(--ds-control-border));
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	color: var(--ds-foreground);
+	box-shadow: var(--ds-shadow);
+	backdrop-filter: blur(14px) saturate(108%);
+	font: 700 0.66rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+	outline: 0;
+	border-color: var(--ds-accent);
+	box-shadow: var(--ds-control-focus-ring);
+}
+
+.trigger kbd {
+	padding: 3px 5px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 5px;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-muted);
+	font: 650 0.56rem/1 var(--ds-font-ui);
+}
+
 .backdrop {
 	position: fixed;
 	inset: 0;
@@ -184,6 +220,16 @@
 }
 
 @media (max-width: 700px) {
+	.trigger {
+		top: 10px;
+		right: 10px;
+		min-height: 44px;
+	}
+
+	.trigger kbd {
+		display: none;
+	}
+
 	.backdrop {
 		place-items: end center;
 		padding: 8px;
@@ -204,6 +250,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.trigger,
 	.backdrop {
 		backdrop-filter: none;
 	}
