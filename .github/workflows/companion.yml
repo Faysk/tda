@@ -83,7 +83,7 @@ jobs:
         id: changes
         shell: bash
         run: |
-          if git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- local-companion .github/workflows/companion.yml; then
+          if git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- local-companion; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
@@ -94,7 +94,7 @@ jobs:
         with:
           name: TDACompanion-windows-x64
           path: dist
-      - name: Publish immutable GitHub release
+      - name: Publish versioned GitHub release
         if: steps.changes.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
