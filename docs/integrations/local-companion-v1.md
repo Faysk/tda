@@ -40,7 +40,9 @@ O instalador oficial candidato é:
 TDACompanion-x64.msi
 ```
 
-Ele é instalado por usuário, sem Windows Service e sem Startup automático. Releases em `main` usam tag `companion-v<versão>` e asset fixo `TDACompanion-x64.msi`; o site pode usar `/releases/latest/download/TDACompanion-x64.msi` sem conhecer a versão corrente.
+Ele é instalado por usuário, sem Windows Service e sem Startup automático. Releases em `main` usam tag `companion-v<versão>` e asset fixo `TDACompanion-x64.msi`.
+
+Como o mesmo repositório também possui releases `prod-*`, o site resolve a versão mais recente pelo endpoint próprio `/api/downloads/companion/windows`, que filtra somente `companion-vX.Y.Z` e então redireciona ao asset oficial. O atalho genérico `/releases/latest` do repositório não é usado para decidir a versão do Companion.
 
 O MSI atual não possui assinatura Authenticode configurada.
 
