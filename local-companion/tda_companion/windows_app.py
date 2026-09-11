@@ -6,14 +6,13 @@ import re
 import subprocess
 import sys
 import time
-import webbrowser
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import VERSION
 from .agent import AgentController, wait_until_ready
 from .pairing import TOKEN_PATTERN, ensure_pairing_token
-from .paths import default_paths, migrate_v02_layout
+from .paths import CompanionPaths, default_paths, migrate_v02_layout
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .system_log import SystemLog
@@ -109,80 +108,25 @@ def ensure_agent_running(args: argparse.Namespace) -> subprocess.Popen | None:
     raise RuntimeError("LOCAL_AGENT_START_TIMEOUT")
 
 
-def run_gui(token: str, args: argparse.Namespace) -> None:
-    """Transitional UI. Product UI moves to WebView2; this window no longer owns the Agent."""
-    import tkinter as tk
-
-    root = tk.Tk()
-    root.title("TDA Companion")
-    root.geometry("620x370")
-    root.minsize(620, 370)
-    root.maxsize(620, 370)
-
-    frame = tk.Frame(root, padx=26, pady=24)
-    frame.pack(fill="both", expand=True)
-
-    tk.Label(frame, text="TDA Companion", font=("Segoe UI", 20, "bold")).pack(anchor="w")
-    tk.Label(frame, text=f"Agent local do TDA • v{VERSION}", font=("Segoe UI", 10)).pack(anchor="w", pady=(2, 18))
-
-    status = tk.StringVar(value=f"Agente ativo • 127.0.0.1:{args.port}")
-    tk.Label(frame, textvariable=status, font=("Segoe UI", 11, "bold")).pack(anchor="w")
-    tk.Label(
-        frame,
-        text="Fechar esta janela não interrompe o processamento. O Agent continua rodando em segundo plano.",
-        wraplength=550,
-        justify="left",
-        font=("Segoe UI", 9),
-    ).pack(anchor="w", pady=(2, 18))
-
-    tk.Label(frame, text="Token de pareamento", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-    token_row = tk.Frame(frame)
-    token_row.pack(fill="x", pady=(6, 4))
-    token_var = tk.StringVar(value=token)
-    tk.Entry(token_row, textvariable=token_var, state="readonly", font=("Consolas", 9)).pack(
-        side="left", fill="x", expand=True
+def _paths_for_args(args: argparse.Namespace) -> CompanionPaths:
+    defaults = default_paths()
+    if (
+        args.state_root.resolve() == defaults.state_root.resolve()
+        and args.data_root.resolve() == defaults.data_root.resolve()
+        and args.logs_root.resolve() == defaults.logs_root.resolve()
+    ):
+        return defaults
+    root = args.state_root.resolve().parent
+    return CompanionPaths(
+        root=root,
+        companion_root=root / "Companion",
+        state_root=args.state_root.resolve(),
+        data_root=args.data_root.resolve(),
+        logs_root=args.logs_root.resolve(),
+        cache_root=root / "Cache",
+        models_root=root / "Models",
+        runtime_root=root / "Runtime",
     )
-
-    def copy_token() -> None:
-        root.clipboard_clear()
-        root.clipboard_append(token)
-        status.set("Token copiado")
-        root.after(2200, lambda: status.set(f"Agente ativo • 127.0.0.1:{args.port}"))
-
-    tk.Button(token_row, text="Copiar", command=copy_token, width=10).pack(side="left", padx=(8, 0))
-    tk.Label(
-        frame,
-        text="Cole este token em Edit → Processamento. Ele permanece somente neste computador e na memória da aba.",
-        wraplength=550,
-        justify="left",
-        font=("Segoe UI", 8),
-    ).pack(anchor="w", pady=(0, 18))
-
-    actions = tk.Frame(frame)
-    actions.pack(fill="x")
-    tk.Button(
-        actions,
-        text="Abrir Processamento no TDA",
-        command=lambda: webbrowser.open(PROCESSING_URL),
-        width=28,
-    ).pack(side="left")
-    tk.Button(
-        actions,
-        text="Abrir pasta local",
-        command=lambda: os.startfile(args.state_root.parent) if os.name == "nt" else None,
-        width=18,
-    ).pack(side="left", padx=(8, 0))
-
-    tk.Label(
-        frame,
-        text="Esta é a interface de transição. A próxima etapa substitui esta janela pelo Desktop WebView2 do Design System TDA.",
-        wraplength=550,
-        justify="left",
-        font=("Segoe UI", 8),
-    ).pack(anchor="w", pady=(24, 0))
-
-    root.protocol("WM_DELETE_WINDOW", root.destroy)
-    root.mainloop()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -212,53 +156,74 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def _show_desktop_error(exc: BaseException) -> None:
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(
+            "TDA Companion",
+            "Não foi possível abrir a interface do TDA Companion.\n\n"
+            f"Código: {_safe_error_detail(exc)}\n\n"
+            "O Agent local pode continuar funcionando em segundo plano. "
+            "Use o diagnóstico ou reinicie o aplicativo.",
+        )
+        root.destroy()
+    except Exception:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     diagnostic_file: Path | None = args.diagnostic_file
     _write_diagnostic(diagnostic_file, "BOOTSTRAP")
     try:
+        paths = _paths_for_args(args)
         defaults = default_paths()
-        if args.state_root.resolve() == defaults.state_root.resolve() and args.data_root.resolve() == defaults.data_root.resolve():
+        if paths.root == defaults.root:
             migrate_v02_layout(defaults)
-        args.state_root.mkdir(parents=True, exist_ok=True)
-        args.data_root.mkdir(parents=True, exist_ok=True)
-        args.logs_root.mkdir(parents=True, exist_ok=True)
-        token = ensure_pairing_token(args.state_root / "pairing-token.txt")
+        paths.ensure_runtime_dirs()
+        token = ensure_pairing_token(paths.state_root / "pairing-token.txt")
         _write_diagnostic(diagnostic_file, "TOKEN_READY")
-        system_log = SystemLog(args.logs_root)
+        system_log = SystemLog(paths.logs_root)
 
         if args.agent:
-            system_log.write("info", "bootstrap", "AGENT_BOOTSTRAP", "TDA Companion Agent starting", {"version": VERSION})
-            controller = AgentController(args.data_root, token, args.origins, args.port, system_log)
+            system_log.write(
+                "info",
+                "bootstrap",
+                "AGENT_BOOTSTRAP",
+                "TDA Companion Agent starting",
+                {"version": VERSION},
+            )
+            controller = AgentController(paths.data_root, token, args.origins, args.port, system_log)
             controller.run_forever(on_ready=lambda: _write_diagnostic(diagnostic_file, "READY"))
             return 0
 
         ensure_agent_running(args)
-        settings = SettingsStore(args.state_root / "settings.json")
+        settings = SettingsStore(paths.state_root / "settings.json")
+        executable = Path(sys.executable).resolve()
         if os.name == "nt":
-            set_start_with_windows(bool(settings.snapshot()["start_with_windows"]), Path(sys.executable))
+            set_start_with_windows(bool(settings.snapshot()["start_with_windows"]), executable)
         _write_diagnostic(diagnostic_file, "READY")
-        run_gui(token, args)
+
+        from .desktop_runtime import run_desktop
+
+        run_desktop(
+            token=token,
+            port=args.port,
+            paths=paths,
+            settings=settings,
+            executable=executable,
+            start_agent=lambda: ensure_agent_running(args),
+        )
         return 0
     except BaseException as exc:
         _write_diagnostic(diagnostic_file, "FAILED", _safe_error_detail(exc))
         if args.agent:
             return 1
-        try:
-            import tkinter as tk
-            from tkinter import messagebox
-
-            root = tk.Tk()
-            root.withdraw()
-            messagebox.showerror(
-                "TDA Companion",
-                "Não foi possível iniciar o TDA Companion.\n\n"
-                f"Código: {_safe_error_detail(exc)}\n\n"
-                "Use Diagnóstico ou reinicie o aplicativo.",
-            )
-            root.destroy()
-        finally:
-            pass
+        _show_desktop_error(exc)
         return 1
 
 
