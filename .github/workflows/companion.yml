@@ -32,14 +32,14 @@ jobs:
   windows-app:
     name: windows-installer (TDACompanion-x64.msi)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
         with:
           version: '0.12.10'
       - run: uv venv --python 3.12.13
-      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging]
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging,desktop]
       - name: Install WiX Toolset 5
         shell: pwsh
         run: dotnet tool install --tool-path .wix wix --version 5.0.2
@@ -118,6 +118,7 @@ jobs:
           - Instalação por usuário, sem privilégios administrativos.
           - Aplicativo em %LOCALAPPDATA%\\TDA\\Companion.
           - Dados locais preservados em %LOCALAPPDATA%\\TDA\\Data.
+          - Desktop local via WebView2 e Agent independente em segundo plano.
           - O antigo DnDScribeCompanion.exe não é usado ou modificado.
 
           SHA256 do MSI: ${SHA256}
