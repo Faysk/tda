@@ -1,0 +1,19 @@
+{
+  "schema": "tda_whisper_runtime_build_v1",
+  "runtime_id": "whisper-ctranslate2",
+  "version": "1.0.0",
+  "python": "3.12.13",
+  "packages": {
+    "faster-whisper": "1.2.1",
+    "ctranslate2": "4.8.2",
+    "nvidia-cublas-cu12": "12.8.5.5",
+    "nvidia-cudnn-cu12": "9.24.1.1",
+    "nvidia-cuda-runtime-cu12": "12.8.90",
+    "pyinstaller": "6.16.0"
+  },
+  "gpu": {
+    "cuda_family": "12.8",
+    "cudnn_major": 9,
+    "minimum_windows_driver": "570.65"
+  }
+}
