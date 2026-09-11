@@ -1,4 +1,4 @@
-# R2 — variantes, crops e qualidade visual
+# R2 — variantes e crops
 
 > Status: vigente
 > Owner: integrations/media
