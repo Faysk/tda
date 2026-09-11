@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import re
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import BinaryIO, TextIO
 
+from .asr_models import ModelRegistryError, get_profile
+from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
+from .craig import CraigPackageError
+from .craig_runtime import load_craig_package
 from .worker_protocol import (
     MAX_LINE_BYTES,
     WorkerCancelCommand,
@@ -71,19 +78,122 @@ def _run_fixture(command: WorkerRunCommand, emitter: _Emitter, cancelled: thread
             return 0
 
         # Deterministic CPU work proves that the child, not FastAPI, executes the
-        # unit. Real ASR adapters will replace this with model inference.
+        # unit. Real ASR adapters run through the same process boundary.
         hashlib.sha256(f"{command.job_id}:{command.attempt}:{current}".encode("utf-8")).digest()
         emitter.emit(
             "progress",
             {"completed": current, "total": units, "unit": "items", "stage": "fixture"},
         )
         emitter.emit("heartbeat", {"completed": current})
-        # Keep the fixture fast but leave a real scheduling point so cooperative
-        # cancellation is exercised instead of being a theoretical protocol path.
         time.sleep(0.002)
 
     emitter.emit("result", {"kind": command.kind, "units": units})
     return 0
+
+
+def _worker_root(name: str) -> Path:
+    value = os.environ.get(name)
+    if not value or "\x00" in value:
+        raise WhisperRuntimeError("WORKER_ASR_ROOTS_MISSING")
+    return Path(value).resolve()
+
+
+def _stable_error_code(error: BaseException) -> str:
+    if isinstance(error, (WhisperRuntimeError, ModelRegistryError, CraigPackageError)):
+        code = str(error)
+        if re.fullmatch(r"[A-Z0-9_]{1,96}", code):
+            return code
+    return "WORKER_EXECUTION_FAILED"
+
+
+def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threading.Event) -> int:
+    emitter.emit(
+        "ready",
+        {"kind": command.kind, "profile_id": command.payload["profile_id"]},
+    )
+    heartbeat_stop = threading.Event()
+
+    def heartbeat() -> None:
+        while not heartbeat_stop.wait(5.0):
+            if cancelled.is_set():
+                return
+            try:
+                emitter.emit("heartbeat", {"stage": "asr"})
+            except (OSError, ValueError, WorkerProtocolError):
+                return
+
+    heartbeat_thread = threading.Thread(target=heartbeat, name="tda-worker-heartbeat", daemon=True)
+    heartbeat_thread.start()
+    try:
+        data_root = _worker_root("TDA_WORKER_DATA_ROOT")
+        models_root = _worker_root("TDA_WORKER_MODELS_ROOT")
+        source_id = str(command.payload["source_id"])
+        staging_root = (data_root / "staging").resolve()
+        package_root = (staging_root / source_id).resolve()
+        if package_root.parent != staging_root:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
+        package = load_craig_package(package_root)
+        profile = get_profile(str(command.payload["profile_id"]))
+        if profile.engine != "whisper":
+            raise WhisperRuntimeError("ASR_ENGINE_NOT_IMPLEMENTED")
+
+        def report(value: dict) -> None:
+            event_type = value.get("type")
+            payload = {key: item for key, item in value.items() if key != "type"}
+            if event_type == "stage":
+                emitter.emit("stage", payload)
+            elif event_type == "progress":
+                emitter.emit("progress", payload)
+            elif event_type == "event":
+                emitter.emit("event", payload)
+
+        document = transcribe_craig_package(
+            package,
+            package_root,
+            models_root,
+            profile_id=profile.id,
+            glossary=str(command.payload.get("glossary") or ""),
+            context=str(command.payload.get("context") or ""),
+            cpu=bool(command.payload.get("cpu", False)),
+            report=report,
+            is_cancelled=cancelled.is_set,
+        )
+        if cancelled.is_set():
+            emitter.emit("cancelled", {"stage": "result_prepare"})
+            return 0
+        target = package_root / "transcript.json"
+        document.write_atomic(target)
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit(
+            "result",
+            {
+                "kind": command.kind,
+                "schema_version": document.schema_version,
+                "source_id": source_id,
+                "profile_id": profile.id,
+                "artifact": "transcript.json",
+                "sha256": digest,
+            },
+        )
+        return 0
+    except WhisperRuntimeError as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        if exc.code == "ASR_CANCELLED" or cancelled.is_set():
+            emitter.emit("cancelled", {"stage": "transcription"})
+            return 0
+        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+        return 66
+    except (ModelRegistryError, CraigPackageError) as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+        return 66
+    finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
 
 
 def run_worker_stdio(
@@ -116,6 +226,8 @@ def run_worker_stdio(
     try:
         if command.kind == "synthetic.fixture":
             return _run_fixture(command, emitter, cancelled)
+        if command.kind == "transcription.craig":
+            return _run_craig(command, emitter, cancelled)
         emitter.emit("error", {"code": "WORKER_KIND_UNSUPPORTED", "recoverable": False})
         return 65
     except BaseException:
