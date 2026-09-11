@@ -17,7 +17,7 @@ from tda_companion.asr_models import (
 )
 
 
-def _write_whisper_fixture(root: Path, profile_id: str = "whisper-turbo") -> Path:
+def _write_model_fixture(root: Path, profile_id: str = "whisper-turbo") -> Path:
     profile = get_profile(profile_id)
     directory = model_path(root, profile)
     directory.mkdir(parents=True)
@@ -37,14 +37,18 @@ def test_registry_has_exact_four_v03_profiles():
     assert get_profile("whisper-turbo").model_id == "dropbox-dash/faster-whisper-large-v3-turbo"
     assert get_profile("whisper-turbo").revision == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
     assert get_profile("whisper-detailed").revision == "edaa852ec7e145841d8ffdb056a99866b5f0a478"
-    assert get_profile("qwen-fast").model_id == "Qwen/Qwen3-ASR-0.6B"
-    assert get_profile("qwen-quality").model_id == "Qwen/Qwen3-ASR-1.7B"
-    assert get_profile("qwen-fast").revision == "5eb144179a02acc5e5ba31e748d22b0cf3e303b0"
-    assert get_profile("qwen-quality").revision == "7278e1e70fe206f11671096ffdd38061171dd6e5"
+    assert get_profile("qwen-fast").model_id == "Qwen/Qwen3-ASR-0.6B-hf"
+    assert get_profile("qwen-quality").model_id == "Qwen/Qwen3-ASR-1.7B-hf"
+    assert get_profile("qwen-fast").revision == "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c"
+    assert get_profile("qwen-quality").revision == "bcd2b5b7f32b480ab5790554cfa8347f246a14f3"
+    assert QWEN_FORCED_ALIGNER_MODEL_ID == "Qwen/Qwen3-ForcedAligner-0.6B-hf"
+    assert QWEN_FORCED_ALIGNER_REVISION == "c07281df297b9905d24a508279258cccf987a064"
     assert get_profile("qwen-fast").alignment == QWEN_FORCED_ALIGNER_MODEL_ID
     assert get_profile("qwen-quality").alignment == QWEN_FORCED_ALIGNER_MODEL_ID
     assert get_profile("qwen-fast").alignment_revision == QWEN_FORCED_ALIGNER_REVISION
     assert get_profile("qwen-quality").alignment_revision == QWEN_FORCED_ALIGNER_REVISION
+    assert "model.safetensors" in get_profile("qwen-fast").required_files
+    assert "model.safetensors" in get_profile("qwen-quality").required_files
 
 
 def test_unknown_profile_is_rejected():
@@ -54,7 +58,7 @@ def test_unknown_profile_is_rejected():
 
 def test_tda_model_marker_records_identity_and_integrity(tmp_path: Path):
     profile = get_profile("whisper-turbo")
-    directory = _write_whisper_fixture(tmp_path)
+    directory = _write_model_fixture(tmp_path)
 
     marker = write_install_marker(directory, profile)
     state = inspect_model_install(tmp_path, profile, verify_hash=True)
@@ -71,9 +75,21 @@ def test_tda_model_marker_records_identity_and_integrity(tmp_path: Path):
     assert state["content_sha256"] == marker["content_sha256"]
 
 
+def test_qwen_native_checkpoint_marker_is_reproducible(tmp_path: Path):
+    profile = get_profile("qwen-fast")
+    directory = _write_model_fixture(tmp_path, profile.id)
+    marker = write_install_marker(directory, profile)
+    state = inspect_model_install(tmp_path, profile, verify_hash=True)
+
+    assert marker["model_id"].endswith("-hf")
+    assert marker["alignment"] == QWEN_FORCED_ALIGNER_MODEL_ID
+    assert marker["alignment_revision"] == QWEN_FORCED_ALIGNER_REVISION
+    assert state["status"] == "ready"
+
+
 def test_model_integrity_detects_tampering(tmp_path: Path):
     profile = get_profile("whisper-detailed")
-    directory = _write_whisper_fixture(tmp_path, profile.id)
+    directory = _write_model_fixture(tmp_path, profile.id)
     write_install_marker(directory, profile)
     assert inspect_model_install(tmp_path, profile, verify_hash=True)["status"] == "ready"
 
