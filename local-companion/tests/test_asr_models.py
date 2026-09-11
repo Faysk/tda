@@ -6,6 +6,8 @@ import pytest
 
 from tda_companion.asr_models import (
     MODEL_MARKER,
+    QWEN_FORCED_ALIGNER_MODEL_ID,
+    QWEN_FORCED_ALIGNER_REVISION,
     ModelRegistryError,
     get_profile,
     inspect_model_install,
@@ -33,12 +35,16 @@ def test_registry_has_exact_four_v03_profiles():
         "qwen-quality",
     ]
     assert get_profile("whisper-turbo").model_id == "dropbox-dash/faster-whisper-large-v3-turbo"
-    assert get_profile("whisper-turbo").revision == "a3a0f4ee91afb49a1e120893a5bc6284a53869fa"
+    assert get_profile("whisper-turbo").revision == "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
     assert get_profile("whisper-detailed").revision == "edaa852ec7e145841d8ffdb056a99866b5f0a478"
     assert get_profile("qwen-fast").model_id == "Qwen/Qwen3-ASR-0.6B"
     assert get_profile("qwen-quality").model_id == "Qwen/Qwen3-ASR-1.7B"
-    assert get_profile("qwen-fast").revision is None
-    assert get_profile("qwen-quality").revision is None
+    assert get_profile("qwen-fast").revision == "5eb144179a02acc5e5ba31e748d22b0cf3e303b0"
+    assert get_profile("qwen-quality").revision == "7278e1e70fe206f11671096ffdd38061171dd6e5"
+    assert get_profile("qwen-fast").alignment == QWEN_FORCED_ALIGNER_MODEL_ID
+    assert get_profile("qwen-quality").alignment == QWEN_FORCED_ALIGNER_MODEL_ID
+    assert get_profile("qwen-fast").alignment_revision == QWEN_FORCED_ALIGNER_REVISION
+    assert get_profile("qwen-quality").alignment_revision == QWEN_FORCED_ALIGNER_REVISION
 
 
 def test_unknown_profile_is_rejected():
@@ -58,6 +64,8 @@ def test_tda_model_marker_records_identity_and_integrity(tmp_path: Path):
     assert marker["profile_id"] == profile.id
     assert marker["model_id"] == profile.model_id
     assert marker["revision"] == profile.revision
+    assert marker["alignment"] == profile.alignment
+    assert marker["alignment_revision"] == profile.alignment_revision
     assert len(str(marker["content_sha256"])) == 64
     assert state["status"] == "ready"
     assert state["content_sha256"] == marker["content_sha256"]
