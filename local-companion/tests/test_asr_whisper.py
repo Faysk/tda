@@ -223,3 +223,90 @@ def test_craig_adapter_rejects_track_escape(tmp_path: Path):
             cuda_status={"available": True, "supported_compute_types": ["float16"]},
             model_loader=lambda path, plan: (object(), plan.compute_type, False),
         )
+
+
+def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
+    models_root = tmp_path / "Models"
+    _install_whisper_fixture(models_root)
+    package_root = tmp_path / "Data" / "staging" / "fixture-source"
+    track_root = package_root / "tracks"
+    track_root.mkdir(parents=True)
+    track_file = track_root / "1-Alice.flac"
+    track_file.write_bytes(b"fake-flac-for-checkpoint")
+
+    track = CraigTrack(
+        number=1,
+        speaker="Alice",
+        filename="1-Alice.flac",
+        path="tracks/1-Alice.flac",
+        size_bytes=track_file.stat().st_size,
+        sha256="b" * 64,
+        identity=None,
+    )
+    package = CraigPackage(
+        schema_version="tda_craig_package_v1",
+        source_zip="fixture.zip",
+        source_sha256="a" * 64,
+        recording_id="craig-checkpoint",
+        guild=None,
+        channel=None,
+        requester=None,
+        start_time=None,
+        tracks=(track,),
+        info_present=False,
+        raw_dat_present=False,
+    )
+    calls = {"transcribe": 0}
+
+    class FakeModel:
+        def transcribe(self, _path: str, **_options):
+            calls["transcribe"] += 1
+            words = [SimpleNamespace(word=" Olá", start=0.1, end=0.4, probability=0.9)]
+            segments = [
+                SimpleNamespace(id=0, start=0.1, end=0.4, text="Olá", words=words)
+            ]
+            return iter(segments), SimpleNamespace(duration=2.0)
+
+    def loader(_path, plan):
+        return FakeModel(), plan.compute_type, False
+
+    common = {
+        "profile_id": "whisper-turbo",
+        "glossary": "Yuhara",
+        "context": "campanha principal",
+        "cuda_status": {"available": True, "supported_compute_types": ["float16"]},
+        "model_loader": loader,
+    }
+    first_reports: list[dict] = []
+    first = transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        report=first_reports.append,
+        **common,
+    )
+    second_reports: list[dict] = []
+    second = transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        report=second_reports.append,
+        **common,
+    )
+
+    assert calls["transcribe"] == 1
+    assert second.as_dict()["tracks"] == first.as_dict()["tracks"]
+    assert any(item.get("code") == "ASR_CHECKPOINT_SAVED" for item in first_reports)
+    assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in second_reports)
+
+    transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        context="contexto alterado",
+        glossary="Yuhara",
+        profile_id="whisper-turbo",
+        cuda_status={"available": True, "supported_compute_types": ["float16"]},
+        model_loader=loader,
+    )
+    assert calls["transcribe"] == 2
