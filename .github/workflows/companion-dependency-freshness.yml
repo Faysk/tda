@@ -1,0 +1,43 @@
+name: Companion Dependency Freshness
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/companion.yml'
+      - '.github/workflows/companion-dependency-freshness.yml'
+      - 'local-companion/pyproject.toml'
+      - 'local-companion/requirements-test.lock'
+      - 'local-companion/runtime/**'
+      - 'tools/check-companion-dependency-freshness.py'
+      - 'docs/operations/companion-dependency-policy.md'
+  push:
+    branches: [main, Preview]
+    paths:
+      - '.github/workflows/companion.yml'
+      - '.github/workflows/companion-dependency-freshness.yml'
+      - 'local-companion/pyproject.toml'
+      - 'local-companion/requirements-test.lock'
+      - 'local-companion/runtime/**'
+      - 'tools/check-companion-dependency-freshness.py'
+      - 'docs/operations/companion-dependency-policy.md'
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: companion-dependency-freshness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require current stable Companion dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check-companion-dependency-freshness.py
