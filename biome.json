@@ -8,6 +8,7 @@
 			"!!.local",
 			"!!test-results",
 			"!!playwright-report",
+			"!!public/lore/d",
 			"!next-env.d.ts"
 		]
 	},
