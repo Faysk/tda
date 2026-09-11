@@ -170,17 +170,34 @@ def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Pat
     assert value["stats"]["track_count"] == 1
     assert value["stats"]["segment_count"] == 1
     assert value["stats"]["word_count"] == 2
+    assert value["stats"]["turn_count"] == 1
+    assert value["stats"]["deduplicated_segment_count"] == 0
+    assert value["turns"] == [
+        {
+            "id": "turn-000001",
+            "speaker": "Alice",
+            "start": 0.1,
+            "end": 0.9,
+            "text": "Olá Yuhara",
+            "segments": [{"track_number": 1, "segment_id": "1-0"}],
+            "overlaps_other_speaker": False,
+        }
+    ]
     assert captured["path"] == str(track_file.resolve())
     assert captured["options"]["language"] == "pt"
     assert captured["options"]["beam_size"] == 5
-    assert reports[-2] == {
-        "type": "progress",
-        "completed": 1,
-        "total": 1,
-        "unit": "tracks",
-        "stage": "transcription",
-    }
-    assert reports[-1]["stage"] == "result_prepare"
+    assert any(
+        item == {
+            "type": "progress",
+            "completed": 1,
+            "total": 1,
+            "unit": "tracks",
+            "stage": "transcription",
+        }
+        for item in reports
+    )
+    stages = [item.get("stage") for item in reports if item.get("type") == "stage"]
+    assert stages[-4:] == ["cross_track_dedup", "merge_timeline", "turn_building", "result_prepare"]
 
 
 def test_craig_adapter_rejects_track_escape(tmp_path: Path):
@@ -296,6 +313,7 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
 
     assert calls["transcribe"] == 1
     assert second.as_dict()["tracks"] == first.as_dict()["tracks"]
+    assert second.as_dict()["turns"] == first.as_dict()["turns"]
     assert any(item.get("code") == "ASR_CHECKPOINT_SAVED" for item in first_reports)
     assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in second_reports)
 
