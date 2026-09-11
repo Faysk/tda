@@ -7,6 +7,10 @@
 	margin: 0 0 9px;
 }
 
+.rootActive {
+	margin-bottom: 7px;
+}
+
 .surface {
 	display: flex;
 	align-items: center;
@@ -26,13 +30,15 @@
 }
 
 .surfaceActive {
+	min-height: 48px;
+	padding: 5px 6px 5px 10px;
 	border-color: color-mix(in srgb, var(--ds-accent) 58%, var(--ds-control-border));
 	background:
-		linear-gradient(90deg, color-mix(in srgb, var(--ds-accent-muted) 42%, transparent), transparent 44%),
+		linear-gradient(90deg, color-mix(in srgb, var(--ds-accent-muted) 34%, transparent), transparent 34%),
 		color-mix(in srgb, var(--ds-surface-elevated) 90%, transparent);
 	box-shadow:
 		inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 10%, transparent),
-		0 12px 34px color-mix(in srgb, var(--ds-canvas) 48%, transparent);
+		0 10px 28px color-mix(in srgb, var(--ds-canvas) 42%, transparent);
 }
 
 .status {
@@ -102,13 +108,13 @@
 }
 
 .primaryAction,
-.secondaryAction {
+.secondaryAction,
+.chromeAction,
+.focusExit {
 	display: inline-flex;
-	min-height: 40px;
 	align-items: center;
 	justify-content: center;
 	gap: 7px;
-	padding: 0 13px;
 	border-radius: var(--ds-radius-sm);
 	font: 720 0.68rem/1 var(--ds-font-ui);
 	white-space: nowrap;
@@ -120,26 +126,58 @@
 		transform var(--ds-motion-fast) var(--ds-ease-standard);
 }
 
+.primaryAction,
+.secondaryAction {
+	min-height: 40px;
+	padding: 0 13px;
+}
+
+.rootActive .primaryAction,
+.rootActive .secondaryAction,
+.chromeAction {
+	min-height: 36px;
+}
+
+.rootActive .primaryAction,
+.rootActive .secondaryAction {
+	padding-inline: 11px;
+}
+
 .primaryAction {
 	border: 1px solid var(--ds-action-primary-border);
 	background: var(--ds-action-primary-bg);
 	color: var(--ds-action-primary-foreground);
 }
 
-.secondaryAction {
+.secondaryAction,
+.chromeAction,
+.focusExit {
 	border: 1px solid var(--ds-control-border);
 	background: color-mix(in srgb, var(--ds-surface-elevated) 86%, transparent);
 	color: var(--ds-foreground-soft);
 }
 
+.chromeAction {
+	padding: 0 10px;
+}
+
+.chromeAction[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 70%, var(--ds-control-border));
+	background: var(--ds-accent-muted);
+	color: var(--ds-accent-strong);
+}
+
 .primaryAction:disabled,
-.secondaryAction:disabled {
+.secondaryAction:disabled,
+.chromeAction:disabled {
 	cursor: wait;
 	opacity: 0.62;
 }
 
 .primaryAction:focus-visible,
-.secondaryAction:focus-visible {
+.secondaryAction:focus-visible,
+.chromeAction:focus-visible,
+.focusExit:focus-visible {
 	outline: 2px solid var(--ds-accent);
 	outline-offset: 2px;
 	box-shadow: var(--ds-control-focus-ring);
@@ -172,72 +210,161 @@
 	color: var(--ds-accent-strong);
 }
 
+.focusRoot {
+	position: fixed;
+	top: max(12px, env(safe-area-inset-top));
+	right: 12px;
+	left: 12px;
+	z-index: 70;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin: 0;
+	pointer-events: none;
+}
+
+.focusExit,
+.focusStatus {
+	pointer-events: auto;
+	backdrop-filter: blur(16px);
+}
+
+.focusExit {
+	min-height: 44px;
+	padding: 0 13px;
+	box-shadow: 0 10px 28px color-mix(in srgb, var(--ds-canvas) 46%, transparent);
+}
+
+.focusStatus {
+	display: inline-flex;
+	min-height: 36px;
+	align-items: center;
+	gap: 7px;
+	padding: 0 11px;
+	border: 1px solid color-mix(in srgb, var(--ds-control-border) 82%, transparent);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 82%, transparent);
+	color: var(--ds-foreground-muted);
+	font: 680 0.6rem/1 var(--ds-font-ui);
+	box-shadow: 0 10px 28px color-mix(in srgb, var(--ds-canvas) 38%, transparent);
+}
+
+.focusStatus span {
+	color: var(--ds-accent-strong);
+}
+
 @media (hover: hover) and (pointer: fine) {
 	.primaryAction:not(:disabled):hover,
-	.secondaryAction:not(:disabled):hover {
+	.secondaryAction:not(:disabled):hover,
+	.chromeAction:not(:disabled):hover,
+	.focusExit:hover {
 		transform: translateY(-1px);
 	}
 
-	.secondaryAction:not(:disabled):hover {
+	.secondaryAction:not(:disabled):hover,
+	.chromeAction:not(:disabled):hover,
+	.focusExit:hover {
 		border-color: var(--ds-accent);
 		background: var(--ds-surface-hover);
 		color: var(--ds-accent-strong);
 	}
 }
 
+@media (max-width: 1180px) {
+	.rootActive .statusCopy {
+		display: none;
+	}
+}
+
 @media (max-width: 900px) {
-	.surface {
+	.surface:not(.surfaceActive) {
 		align-items: flex-start;
 		flex-direction: column;
 		gap: 9px;
 	}
 
-	.status {
+	.surface:not(.surfaceActive) .status {
 		width: 100%;
 	}
 
-	.statusCopy {
+	.surface:not(.surfaceActive) .statusCopy {
 		flex: 1 1 auto;
 	}
 
-	.actions {
+	.surface:not(.surfaceActive) .actions {
 		width: 100%;
 		justify-content: stretch;
 	}
 
-	.primaryAction,
-	.secondaryAction {
+	.surface:not(.surfaceActive) .primaryAction,
+	.surface:not(.surfaceActive) .secondaryAction {
 		flex: 1 1 auto;
 		min-height: 44px;
+	}
+
+	.rootActive .actions {
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.rootActive .actions::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+@media (max-width: 620px) {
+	.surfaceActive {
+		gap: 7px;
+		padding: 5px;
+	}
+
+	.rootActive .status {
+		display: none;
+	}
+
+	.rootActive .actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.rootActive .chromeAction,
+	.rootActive .primaryAction,
+	.rootActive .secondaryAction {
+		min-height: 44px;
+	}
+
+	.focusStatus {
+		display: none;
 	}
 }
 
 @media (max-width: 520px) {
-	.surface {
+	.surface:not(.surfaceActive) {
 		padding: 9px;
 		border-radius: var(--ds-radius-md);
 	}
 
-	.status {
+	.surface:not(.surfaceActive) .status {
 		align-items: flex-start;
 		flex-wrap: wrap;
 	}
 
-	.statusCopy small {
+	.surface:not(.surfaceActive) .statusCopy small {
 		overflow: visible;
 		white-space: normal;
 	}
 
-	.draftBadge {
+	.surface:not(.surfaceActive) .draftBadge {
 		margin-left: 19px;
 	}
 
-	.actions {
+	.surface:not(.surfaceActive) .actions {
 		flex-direction: column;
 	}
 
-	.primaryAction,
-	.secondaryAction {
+	.surface:not(.surfaceActive) .primaryAction,
+	.surface:not(.surfaceActive) .secondaryAction {
 		width: 100%;
 	}
 }
@@ -245,12 +372,16 @@
 @media (prefers-reduced-motion: reduce) {
 	.surface,
 	.primaryAction,
-	.secondaryAction {
+	.secondaryAction,
+	.chromeAction,
+	.focusExit {
 		transition: none;
 	}
 
 	.primaryAction:not(:disabled):hover,
-	.secondaryAction:not(:disabled):hover {
+	.secondaryAction:not(:disabled):hover,
+	.chromeAction:not(:disabled):hover,
+	.focusExit:hover {
 		transform: none;
 	}
 }
