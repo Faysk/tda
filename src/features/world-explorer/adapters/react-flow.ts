@@ -20,6 +20,7 @@ export type WorldFlowNodeData = {
 	isHero: boolean;
 	prominence: WorldNodeProminence;
 	isDimmed: boolean;
+	authoringConnectable: boolean;
 };
 
 export type WorldFlowEdgeData = {
@@ -94,6 +95,7 @@ export function toReactFlowStructure(
 				isHero,
 				prominence: prominenceFor(item, isHero),
 				isDimmed: false,
+				authoringConnectable: false,
 			},
 			draggable: true,
 			connectable: false,
