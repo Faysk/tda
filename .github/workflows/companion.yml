@@ -116,11 +116,11 @@ jobs:
           Instalador oficial do TDA Companion para Windows x64.
 
           - Instalação por usuário, sem privilégios administrativos.
-          - Aplicativo em `%LOCALAPPDATA%\\TDA\\Companion`.
-          - Dados locais preservados em `%LOCALAPPDATA%\\TDA\\Data`.
+          - Aplicativo em %LOCALAPPDATA%\\TDA\\Companion.
+          - Dados locais preservados em %LOCALAPPDATA%\\TDA\\Data.
           - O antigo DnDScribeCompanion.exe não é usado ou modificado.
 
-          SHA256 do MSI: `$SHA256`
+          SHA256 do MSI: ${SHA256}
           EOF
           gh release create "$TAG" \
             dist/TDACompanion-x64.msi \
