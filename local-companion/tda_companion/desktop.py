@@ -11,6 +11,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import Any, Callable
+from uuid import uuid4
 
 from . import VERSION
 from .agent import wait_until_ready
@@ -89,6 +90,10 @@ class DesktopBridge:
         self.executable = executable
         self.start_agent = start_agent
         self.client = LocalAgentClient(token, port)
+        self._close_desktop: Callable[[], None] | None = None
+
+    def bind_close_desktop(self, callback: Callable[[], None]) -> None:
+        self._close_desktop = callback
 
     @staticmethod
     def _job_counts(jobs: list[dict[str, Any]]) -> dict[str, int]:
@@ -99,11 +104,15 @@ class DesktopBridge:
             "attention": sum(1 for job in jobs if job.get("status") in {"failed", "interrupted"}),
         }
 
+    def _jobs(self) -> list[dict[str, Any]]:
+        value = self.client.get("/jobs")
+        jobs = value.get("jobs", []) if isinstance(value, dict) else []
+        return jobs if isinstance(jobs, list) else []
+
     def snapshot(self) -> dict[str, Any]:
         agent = self.client.get("/agent")
         system = self.client.get("/system")
-        jobs_value = self.client.get("/jobs")
-        jobs = jobs_value.get("jobs", []) if isinstance(jobs_value, dict) else []
+        jobs = self._jobs()
         try:
             usage = shutil.disk_usage(self.paths.data_root)
             storage = {"free_bytes": usage.free, "total_bytes": usage.total}
@@ -187,8 +196,82 @@ class DesktopBridge:
             "sha256": manifest.sha256,
         }
 
+    def _maintenance_helper(self) -> Path:
+        source = self.executable.parent / "TDACompanionMaintenance.exe"
+        if not source.is_file():
+            raise RuntimeError("MAINTENANCE_HELPER_MISSING")
+        staging = self.paths.cache_root / "maintenance"
+        staging.mkdir(parents=True, exist_ok=True)
+        target = staging / f"TDACompanionMaintenance-{uuid4().hex}.exe"
+        shutil.copy2(source, target)
+        return target
+
+    @staticmethod
+    def _maintenance_creationflags() -> int:
+        if os.name != "nt":
+            return 0
+        return subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+
+    def _launch_maintenance(self, arguments: list[str]) -> bool:
+        helper = self._maintenance_helper()
+        subprocess.Popen(
+            [str(helper), *arguments],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=self._maintenance_creationflags(),
+        )
+        return True
+
+    def install_update(self) -> dict[str, Any]:
+        if any(job.get("status") == "running" for job in self._jobs()):
+            raise RuntimeError("UPDATE_BLOCKED_BY_RUNNING_JOB")
+        manifest = fetch_manifest()
+        if not update_available(VERSION, manifest):
+            return {"accepted": False, "available": False, "version": manifest.version}
+        msi = download_update(manifest, self.paths.cache_root)
+        self._launch_maintenance(
+            [
+                "--install-update",
+                "--root",
+                str(self.paths.root),
+                "--msi",
+                str(msi),
+                "--sha256",
+                manifest.sha256,
+                "--version",
+                manifest.version,
+                "--parent-pid",
+                str(os.getpid()),
+                "--port",
+                str(self.port),
+            ]
+        )
+        return {"accepted": True, "available": True, "version": manifest.version}
+
+    def uninstall(self, purge: bool = False) -> dict[str, Any]:
+        arguments = [
+            "--uninstall",
+            "--root",
+            str(self.paths.root),
+            "--parent-pid",
+            str(os.getpid()),
+            "--port",
+            str(self.port),
+        ]
+        if purge:
+            arguments.append("--purge")
+        self._launch_maintenance(arguments)
+        return {"accepted": True, "purge": bool(purge)}
+
+    def close_desktop(self) -> bool:
+        if self._close_desktop is not None:
+            self._close_desktop()
+        return True
+
     def restart_agent(self) -> bool:
-        self.client.post("/agent/control", {"action": "shutdown"})
+        self.client.post("/agent/control", {"action": "shutdown", "force": False})
         deadline = time.monotonic() + 8
         while time.monotonic() < deadline and wait_until_ready(self.port, timeout=0.2):
             time.sleep(0.1)
