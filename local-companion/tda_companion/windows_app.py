@@ -48,6 +48,25 @@ def validate_origin(origin: str) -> str:
     return origin
 
 
+def _write_diagnostic(path: Path | None, status: str, detail: str | None = None) -> None:
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    safe_detail = "" if detail is None else re.sub(r"[^A-Za-z0-9_.:-]", "_", detail)[:160]
+    line = status if not safe_detail else f"{status}:{safe_detail}"
+    path.write_text(line + "\n", encoding="utf-8")
+
+
+def _safe_error_detail(exc: BaseException) -> str:
+    if isinstance(exc, ModuleNotFoundError):
+        return f"ModuleNotFoundError.{exc.name or 'unknown'}"
+    if isinstance(exc, RuntimeError):
+        text = str(exc)
+        if re.fullmatch(r"[A-Z0-9_.:-]{1,160}", text):
+            return text
+    return type(exc).__name__
+
+
 def _windows_identity() -> str:
     completed = subprocess.run(
         ["whoami"],
@@ -127,6 +146,14 @@ class ServerController:
         self.server: uvicorn.Server | None = None
         self.thread: threading.Thread | None = None
         self.lock: RootLock | None = None
+        self.server_error: BaseException | None = None
+
+    def _serve(self) -> None:
+        try:
+            assert self.server is not None
+            self.server.run()
+        except BaseException as exc:
+            self.server_error = exc
 
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
@@ -146,14 +173,20 @@ class ServerController:
                 log_level="critical",
             )
             self.server = uvicorn.Server(config)
+            self.server_error = None
             self.thread = threading.Thread(
-                target=self.server.run,
+                target=self._serve,
                 name="tda-companion-http",
                 daemon=True,
             )
             self.thread.start()
             if not wait_until_ready(self.port):
+                error = self.server_error
                 self.stop()
+                if isinstance(error, ModuleNotFoundError):
+                    raise RuntimeError(f"LOCAL_SERVICE_MISSING_MODULE:{error.name or 'unknown'}")
+                if error is not None:
+                    raise RuntimeError(f"LOCAL_SERVICE_RUNTIME_FAILED:{type(error).__name__}")
                 raise RuntimeError("LOCAL_SERVICE_START_FAILED")
         except Exception:
             if self.lock is not None:
@@ -173,24 +206,20 @@ class ServerController:
             self.lock = None
 
 
-def run_headless(data_root: Path, token: str, origins: frozenset[str], port: int) -> None:
-    data_root.mkdir(parents=True, exist_ok=True)
-    with RootLock(data_root):
-        app = create_app(data_root, token, origins, port)
-        uvicorn.run(
-            app,
-            host="127.0.0.1",
-            port=port,
-            access_log=False,
-            proxy_headers=False,
-            server_header=False,
-            log_level="critical",
-        )
+def run_headless(controller: ServerController, diagnostic_file: Path | None = None) -> None:
+    controller.start()
+    _write_diagnostic(diagnostic_file, "READY")
+    try:
+        while controller.thread is not None and controller.thread.is_alive():
+            time.sleep(0.25)
+        if controller.server_error is not None:
+            raise RuntimeError(f"LOCAL_SERVICE_RUNTIME_FAILED:{type(controller.server_error).__name__}")
+    finally:
+        controller.stop()
 
 
 def run_gui(controller: ServerController, token: str, state_root: Path) -> None:
     import tkinter as tk
-    from tkinter import messagebox
 
     root = tk.Tk()
     root.title("TDA Companion")
@@ -271,6 +300,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--origin", action="append")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--diagnostic-file", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error("INVALID_PORT")
@@ -284,19 +314,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    state_root: Path = args.state_root
-    data_root: Path = args.data_root
-    state_root.mkdir(parents=True, exist_ok=True)
-    token = ensure_pairing_token(state_root / "pairing-token.txt")
-
-    if args.headless:
-        run_headless(data_root, token, args.origins, args.port)
-        return 0
-
-    controller = ServerController(data_root, token, args.origins, args.port)
+    diagnostic_file: Path | None = args.diagnostic_file
+    _write_diagnostic(diagnostic_file, "BOOTSTRAP")
+    controller: ServerController | None = None
     try:
+        state_root: Path = args.state_root
+        data_root: Path = args.data_root
+        state_root.mkdir(parents=True, exist_ok=True)
+        token = ensure_pairing_token(state_root / "pairing-token.txt")
+        _write_diagnostic(diagnostic_file, "TOKEN_READY")
+
+        controller = ServerController(data_root, token, args.origins, args.port)
+        if args.headless:
+            run_headless(controller, diagnostic_file)
+            return 0
+
         controller.start()
-    except Exception as exc:
+        _write_diagnostic(diagnostic_file, "READY")
+        run_gui(controller, token, state_root)
+        return 0
+    except BaseException as exc:
+        _write_diagnostic(diagnostic_file, "FAILED", _safe_error_detail(exc))
+        if args.headless:
+            return 1
         try:
             import tkinter as tk
             from tkinter import messagebox
@@ -306,16 +346,14 @@ def main(argv: list[str] | None = None) -> int:
             messagebox.showerror(
                 "TDA Companion",
                 "Não foi possível iniciar o serviço local.\n\n"
-                f"Código: {exc}\n\n"
+                f"Código: {_safe_error_detail(exc)}\n\n"
                 "Feche outra instância do TDA Companion e tente novamente.",
             )
             root.destroy()
         finally:
-            controller.stop()
+            if controller is not None:
+                controller.stop()
         return 1
-
-    run_gui(controller, token, state_root)
-    return 0
 
 
 if __name__ == "__main__":
