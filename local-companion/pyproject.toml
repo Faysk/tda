@@ -1,6 +1,6 @@
 [project]
 name = "tda-companion"
-version = "0.1.0"
+version = "0.2.0"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -12,11 +12,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["httpx==0.28.1", "pytest==9.1.1"]
+packaging = ["pyinstaller==6.16.0"]
 # ASR is retained but deliberately not enabled by the HTTP fixture runner.
 asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.2"]
 
 [project.scripts]
 tda-companion = "tda_companion.__main__:main"
+tda-companion-windows = "tda_companion.windows_app:main"
 
 [build-system]
 requires = ["setuptools==84.0.0"]
