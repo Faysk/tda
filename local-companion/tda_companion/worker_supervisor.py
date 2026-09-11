@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
@@ -41,11 +42,15 @@ class WorkerSupervisor:
         startup_timeout: float = 10.0,
         heartbeat_timeout: float = 30.0,
         cancel_grace: float = 3.0,
+        data_root: Path | None = None,
+        models_root: Path | None = None,
     ):
         self.command_factory = command_factory
         self.startup_timeout = startup_timeout
         self.heartbeat_timeout = heartbeat_timeout
         self.cancel_grace = cancel_grace
+        self.data_root = data_root.resolve() if data_root is not None else None
+        self.models_root = models_root.resolve() if models_root is not None else None
 
     @staticmethod
     def _creationflags() -> int:
@@ -78,23 +83,22 @@ class WorkerSupervisor:
             except subprocess.TimeoutExpired:
                 pass
 
-    def run_fixture(
+    def _environment(self) -> dict[str, str]:
+        environment = os.environ.copy()
+        if self.data_root is not None:
+            environment["TDA_WORKER_DATA_ROOT"] = str(self.data_root)
+        if self.models_root is not None:
+            environment["TDA_WORKER_MODELS_ROOT"] = str(self.models_root)
+        return environment
+
+    def _run_command(
         self,
+        command: WorkerRunCommand,
         *,
-        job_id: str,
-        attempt: int,
-        units: int,
-        completed: int,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
-        command = WorkerRunCommand(
-            job_id=job_id,
-            attempt=attempt,
-            kind="synthetic.fixture",
-            payload={"units": units, "completed": completed},
-        )
         process = subprocess.Popen(
             self.command_factory(),
             stdin=subprocess.PIPE,
@@ -106,6 +110,7 @@ class WorkerSupervisor:
             bufsize=1,
             close_fds=True,
             creationflags=self._creationflags(),
+            env=self._environment(),
         )
         assert process.stdin is not None
         assert process.stdout is not None
@@ -147,7 +152,9 @@ class WorkerSupervisor:
             while terminal is None:
                 now = time.monotonic()
                 if is_cancelled is not None and is_cancelled() and not cancel_sent:
-                    process.stdin.write(WorkerCancelCommand(job_id=job_id, attempt=attempt).encode())
+                    process.stdin.write(
+                        WorkerCancelCommand(job_id=command.job_id, attempt=command.attempt).encode()
+                    )
                     process.stdin.flush()
                     cancel_sent = True
                     cancel_deadline = now + self.cancel_grace
@@ -173,8 +180,8 @@ class WorkerSupervisor:
                 try:
                     message = WorkerMessage.decode(
                         line,
-                        expected_job_id=job_id,
-                        expected_attempt=attempt,
+                        expected_job_id=command.job_id,
+                        expected_attempt=command.attempt,
                         previous_seq=previous_seq,
                     )
                 except WorkerProtocolError as exc:
@@ -222,3 +229,60 @@ class WorkerSupervisor:
                 process.stderr.close()
             except (OSError, ValueError):
                 pass
+
+    def run_fixture(
+        self,
+        *,
+        job_id: str,
+        attempt: int,
+        units: int,
+        completed: int,
+        on_progress: Callable[[WorkerMessage], object],
+        on_event: Callable[[WorkerMessage], object] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> WorkerOutcome:
+        return self._run_command(
+            WorkerRunCommand(
+                job_id=job_id,
+                attempt=attempt,
+                kind="synthetic.fixture",
+                payload={"units": units, "completed": completed},
+            ),
+            on_progress=on_progress,
+            on_event=on_event,
+            is_cancelled=is_cancelled,
+        )
+
+    def run_craig(
+        self,
+        *,
+        job_id: str,
+        attempt: int,
+        source_id: str,
+        profile_id: str,
+        glossary: str,
+        context: str,
+        cpu: bool,
+        on_progress: Callable[[WorkerMessage], object],
+        on_event: Callable[[WorkerMessage], object] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> WorkerOutcome:
+        if self.data_root is None or self.models_root is None:
+            raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
+        return self._run_command(
+            WorkerRunCommand(
+                job_id=job_id,
+                attempt=attempt,
+                kind="transcription.craig",
+                payload={
+                    "source_id": source_id,
+                    "profile_id": profile_id,
+                    "glossary": glossary,
+                    "context": context,
+                    "cpu": cpu,
+                },
+            ),
+            on_progress=on_progress,
+            on_event=on_event,
+            is_cancelled=is_cancelled,
+        )
