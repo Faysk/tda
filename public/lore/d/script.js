@@ -1,3 +1,11 @@
+const qualityGuardHref = "/lore/d/quality-guard.css";
+if (!document.querySelector(`link[href="${qualityGuardHref}"]`)) {
+  const qualityGuard = document.createElement("link");
+  qualityGuard.rel = "stylesheet";
+  qualityGuard.href = qualityGuardHref;
+  document.head.append(qualityGuard);
+}
+
 const ASSET_CHUNKS = {
   "d-completo": {
     mime: "image/png",

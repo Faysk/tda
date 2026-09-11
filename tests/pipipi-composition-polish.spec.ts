@@ -31,12 +31,7 @@ test("renders the three approved bed scenes as single static frames", async ({ p
 		const mediaImages = scene.locator('div[aria-hidden="true"] > img');
 		await expect(mediaImages).toHaveCount(1);
 		await expect(mediaImages.first()).toBeVisible();
-		await expect(mediaImages.first()).toHaveAttribute("src", /_next\/image\?url=/);
-
-		const source = await mediaImages.first().getAttribute("src");
-		expect(decodeURIComponent(source ?? ""), `${expected.id} final artwork`).toContain(
-			expected.artwork,
-		);
+		await expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);
 
 		const motionBefore = await scene.evaluate((element) => {
 			const style = getComputedStyle(element);
