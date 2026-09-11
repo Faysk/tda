@@ -21,10 +21,25 @@ O TDA Companion deve usar a versão **estável mais recente e compatível** das 
 
 Os pins continuam exatos para tornar cada release reproduzível. Antes de publicar uma nova release, os pins devem ser auditados contra os upstreams atuais.
 
+Dependências transitivas do lock não são comparadas cegamente com o maior número publicado no PyPI: a versão correta é a resolvida pela versão atual das dependências diretas. O gate de freshness exige que os **pins diretos/runtime** estejam atuais e que o lock continue compatível com esses pins.
+
+## Modelos ASR
+
+Modelos também fazem parte deste requisito.
+
+- cada modelo/aligner usado pelo Companion tem `revision` imutável de 40 caracteres;
+- nunca usamos `main` flutuante em job de produção;
+- o gate diário compara a revision pinada com a revision atual do upstream Hugging Face;
+- se o upstream mudar, a release fica pendente de auditoria mesmo quando a mudança for apenas README/metadata;
+- depois de revisar a mudança, atualizamos o pin e repetimos os gates aplicáveis;
+- o conteúdo instalado continua recebendo hash próprio no marker local.
+
+Isso permite simultaneamente saber qual upstream estamos acompanhando e reproduzir exatamente uma execução passada.
+
 ## Automação
 
 - Dependabot monitora diariamente Python/pip do `local-companion` e GitHub Actions.
-- O workflow de freshness verifica os pins Python/PyPI e o runtime Whisper contra os releases estáveis disponíveis.
+- O workflow de freshness verifica os pins diretos Python/PyPI, Python 3.12, runtime Whisper e revisions dos modelos/aligner contra os upstreams atuais.
 - Mudança detectada não é auto-publicada: primeiro atualizamos o pin e executamos os gates novamente.
 
 ## CUDA
@@ -53,7 +68,9 @@ A migração de WiX deve ser testada isoladamente e só entra quando o contrato/
 - Dependências Python do Companion: `local-companion/pyproject.toml`
 - Lock dos testes: `local-companion/requirements-test.lock`
 - Runtime Whisper Windows: `local-companion/runtime/whisper-windows-x64.json`
+- Perfis e revisions ASR: `local-companion/tda_companion/asr_models.py`
 - Workflow do Companion: `.github/workflows/companion.yml`
 - Workflow do runtime Whisper: `.github/workflows/whisper-runtime.yml`
+- Gate de versões: `.github/workflows/companion-dependency-freshness.yml`
 
 Uma release não deve ser promovida para produção se a auditoria de versões estiver pendente ou se uma exceção necessária não estiver documentada.
