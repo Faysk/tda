@@ -14,7 +14,14 @@ OUTPUT = ROOT / "local-companion" / "out" / "qwen-runtime"
 
 
 def run(*args: str, cwd: Path | None = None) -> str:
-    value = subprocess.run(args, cwd=cwd or ROOT, check=True, text=True, capture_output=True)
+    try:
+        value = subprocess.run(args, cwd=cwd or ROOT, check=True, text=True, capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        if exc.stdout:
+            print(exc.stdout.rstrip(), file=sys.stdout)
+        if exc.stderr:
+            print(exc.stderr.rstrip(), file=sys.stderr)
+        raise
     return value.stdout.strip()
 
 
@@ -55,7 +62,7 @@ def main() -> int:
         run("uv", "venv", str(venv), "--python", python_version)
         python = venv / "Scripts" / "python.exe"
 
-        # The explicit local-version pin guarantees the CUDA 13.2 wheel instead of a CPU wheel.
+        # The CUDA-specific index selects the cu132 build; the probe below enforces torch.version.cuda == 13.2.
         run(
             "uv",
             "pip",
@@ -66,7 +73,7 @@ def main() -> int:
             torch_index,
             "--extra-index-url",
             "https://pypi.org/simple",
-            f"torch=={torch_version}+cu132",
+            f"torch=={torch_version}",
         )
         pins = [f"{name}=={version}" for name, version in packages.items()]
         run("uv", "pip", "install", "--python", str(python), *pins)
