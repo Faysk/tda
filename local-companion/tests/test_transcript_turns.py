@@ -83,10 +83,10 @@ def test_canonical_turn_references_raw_segments_without_rewriting_track_timestam
     assert value["tracks"][0]["timeline_offset_seconds"] == 4.0
     assert value["turns"][0]["start"] == 5.0
     assert value["turns"][0]["end"] == 7.0
-    assert value["turns"][0]["segments"] == [
+    assert value["turns"][0]["segments"] == (
         {"track_number": 1, "segment_id": "1-a"},
         {"track_number": 1, "segment_id": "1-b"},
-    ]
+    )
 
 
 def test_canonical_turn_rejects_missing_segment_reference():
