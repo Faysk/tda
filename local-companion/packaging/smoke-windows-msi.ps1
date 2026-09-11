@@ -166,11 +166,9 @@ try {
     if (Test-Path $currentVersion) { throw "MSI_VERSION_MARKER_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $startMenuShortcut) { throw "MSI_SHORTCUT_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $productKey) { throw "MSI_PRODUCT_REGISTRY_LEFT_AFTER_UNINSTALL" }
-    try {
-        Get-ItemProperty -Path $runKey -Name "TDA Companion Agent" -ErrorAction Stop | Out-Null
-        throw "MSI_STARTUP_LEFT_AFTER_UNINSTALL"
-    } catch [System.Management.Automation.PSArgumentException] {
-        # Expected: exact value no longer exists.
+    if (Test-Path $runKey) {
+        $startupAfterUninstall = Get-ItemProperty -Path $runKey -Name "TDA Companion Agent" -ErrorAction SilentlyContinue
+        if ($null -ne $startupAfterUninstall) { throw "MSI_STARTUP_LEFT_AFTER_UNINSTALL" }
     }
     if (-not (Test-Path $keepMarker)) { throw "MSI_UNINSTALL_REMOVED_USER_DATA" }
     if ((Get-Content $keepMarker -Raw).Trim() -ne "preserve-me") { throw "MSI_USER_DATA_CHANGED" }
