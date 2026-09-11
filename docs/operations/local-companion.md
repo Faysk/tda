@@ -69,13 +69,17 @@ TDACompanion-x64.msi.sha256
 TDACompanion-<versão>-windows-x64.zip
 ```
 
-O nome estável do MSI permite que o site use sempre:
+O repositório também publica releases de produção do site (`prod-*`). Por isso a UI **não usa** o atalho genérico do GitHub `/releases/latest`, pois uma release do site poderia virar a release global mais recente sem conter o MSI.
+
+A tela usa o endpoint próprio:
 
 ```text
-https://github.com/Faysk/tda/releases/latest/download/TDACompanion-x64.msi
+/api/downloads/companion/windows
 ```
 
-Assim o frontend não precisa ser alterado a cada versão. Qualquer mudança de release do Companion exige incremento da versão em `local-companion/pyproject.toml`; uma tag já publicada não é sobrescrita.
+Esse endpoint consulta as releases públicas, aceita apenas tags `companion-vX.Y.Z`, ignora draft/prerelease, exige o asset exato `TDACompanion-x64.msi`, valida que o destino pertence ao repositório oficial e redireciona para a maior versão semântica encontrada. A resolução é cacheada por curto período.
+
+Assim o frontend não precisa ser alterado a cada versão e releases `prod-*` não interferem no download do Companion. Qualquer mudança de release do Companion exige incremento da versão em `local-companion/pyproject.toml`; uma tag já publicada não é sobrescrita.
 
 ## Pareamento
 
