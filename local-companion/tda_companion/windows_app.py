@@ -60,10 +60,11 @@ def _write_diagnostic(path: Path | None, status: str, detail: str | None = None)
 def _safe_error_detail(exc: BaseException) -> str:
     if isinstance(exc, ModuleNotFoundError):
         return f"ModuleNotFoundError.{exc.name or 'unknown'}"
-    if isinstance(exc, RuntimeError):
+    if isinstance(exc, (RuntimeError, ValueError)):
         text = str(exc)
-        if re.fullmatch(r"[A-Z0-9_.:-]{1,160}", text):
-            return text
+        safe = re.sub(r"[^A-Za-z0-9_.:-]", "_", text)[:120]
+        if safe:
+            return f"{type(exc).__name__}.{safe}"
     return type(exc).__name__
 
 
