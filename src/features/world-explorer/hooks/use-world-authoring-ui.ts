@@ -2,6 +2,7 @@
 
 import {
 	useCallback,
+	useEffect,
 	useReducer,
 	useRef,
 	type PointerEvent as ReactPointerEvent,
@@ -15,6 +16,8 @@ import {
 	type WorldAuthoringInspectorMode,
 	type WorldAuthoringTool,
 } from "../world-authoring-ui-state";
+import { nextWorldInspectorMode } from "../world-inspector-mode";
+import { syncWorldInspectorPresentation } from "../world-inspector-presentation";
 
 export function useWorldAuthoringUi() {
 	const [state, dispatch] = useReducer(
@@ -27,6 +30,13 @@ export function useWorldAuthoringUi() {
 	const inspectorCollapsed = state.inspectorMode === "closed";
 	const focusMode = state.chromeMode === "minimal";
 
+	useEffect(() => {
+		syncWorldInspectorPresentation(
+			state.inspectorMode === "docked" && state.chromeMode !== "minimal",
+		);
+		return () => syncWorldInspectorPresentation(false);
+	}, [state.inspectorMode, state.chromeMode]);
+
 	const authoringStarted = useCallback(() => {
 		dispatch({ type: "authoringStarted" });
 	}, []);
@@ -37,9 +47,16 @@ export function useWorldAuthoringUi() {
 
 	const toggleInspector = useCallback(
 		(openMode: Exclude<WorldAuthoringInspectorMode, "closed"> = "docked") => {
+			if (openMode === "overlay") {
+				dispatch({
+					type: "setInspectorMode",
+					mode: nextWorldInspectorMode(state.inspectorMode),
+				});
+				return;
+			}
 			dispatch({ type: "toggleInspector", openMode });
 		},
-		[],
+		[state.inspectorMode],
 	);
 
 	const toggleFocusMode = useCallback(() => {
