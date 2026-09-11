@@ -143,7 +143,7 @@
     try {
       const value = await api.snapshot();
       renderSnapshot(value);
-    } catch (_error) {
+    } catch {
       $("agent-pill").textContent = "● Agente indisponível";
       $("agent-pill").classList.add("warning");
     }
@@ -162,12 +162,19 @@
     }
   }
 
+  function renderUpdate(result) {
+    const available = Boolean(result?.available);
+    $("update-banner").classList.toggle("hidden", !available);
+    $("update-version").textContent = available ? `· v${result.version}` : "";
+    $("install-update").classList.toggle("hidden", !available);
+    if (available) $("install-update").textContent = `Atualizar para ${result.version}`;
+  }
+
   async function checkUpdate(announce = false) {
     if (!api) return;
     try {
       const result = await api.check_update();
-      $("update-banner").classList.toggle("hidden", !result.available);
-      $("update-version").textContent = result.available ? `· v${result.version}` : "";
+      renderUpdate(result);
       if (announce) toast(result.available ? `TDA Companion ${result.version} disponível.` : "Você já está na versão mais recente.");
     } catch (error) {
       if (announce) toast(`Não foi possível verificar atualização: ${error}`, true);
@@ -194,6 +201,44 @@
 
   async function updateSetting(key, value) {
     try { await api.update_settings({ [key]: value }); await refreshSnapshot(); } catch (error) { toast(`Não foi possível salvar: ${error}`, true); }
+  }
+
+  async function installUpdate() {
+    if (!window.confirm("Baixar, verificar e instalar a atualização agora? O Agent só será reiniciado se não houver trabalho em execução.")) return;
+    const button = $("install-update");
+    button.disabled = true;
+    button.textContent = "Preparando atualização…";
+    try {
+      const result = await api.install_update();
+      if (!result.accepted) {
+        renderUpdate(result);
+        toast("Você já está na versão mais recente.");
+        return;
+      }
+      toast(`Atualizando para ${result.version}…`);
+      await api.close_desktop();
+    } catch (error) {
+      toast(`A atualização não foi iniciada: ${error}`, true);
+      button.disabled = false;
+      await checkUpdate(false);
+    }
+  }
+
+  async function uninstall(purge) {
+    const message = purge
+      ? "Remover completamente o TDA Companion, fila, resultados, modelos, logs e configurações locais deste usuário? Esta ação não pode ser desfeita."
+      : "Desinstalar o TDA Companion e manter seus dados locais para uma futura reinstalação?";
+    if (!window.confirm(message)) return;
+    if (purge && !window.confirm("Confirma a remoção COMPLETA dos dados locais do TDA neste computador?")) return;
+    try {
+      const result = await api.uninstall(Boolean(purge));
+      if (result.accepted) {
+        toast(purge ? "Removendo completamente o TDA Companion…" : "Desinstalando o TDA Companion…");
+        await api.close_desktop();
+      }
+    } catch (error) {
+      toast(`A desinstalação não foi iniciada: ${error}`, true);
+    }
   }
 
   function bindEvents() {
@@ -235,7 +280,10 @@
       } catch (error) { toast(`Não foi possível copiar o token: ${error}`, true); }
     });
     $("check-update").addEventListener("click", () => checkUpdate(true));
+    $("install-update").addEventListener("click", installUpdate);
     $("update-banner").addEventListener("click", () => { showView("settings"); checkUpdate(true); });
+    $("uninstall-keep").addEventListener("click", () => uninstall(false));
+    $("uninstall-purge").addEventListener("click", () => uninstall(true));
   }
 
   async function boot() {
