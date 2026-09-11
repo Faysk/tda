@@ -172,6 +172,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-11 |
 | [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-10 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-11 |
+| [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-09-11 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-11 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
@@ -185,4 +186,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-114 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+115 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
