@@ -10,6 +10,8 @@ type GithubRef = {
 type ReleaseAsset = {
 	name?: unknown;
 	browser_download_url?: unknown;
+	digest?: unknown;
+	size?: unknown;
 };
 
 type GithubRelease = {
@@ -22,6 +24,14 @@ type GithubRelease = {
 type TagCandidate = {
 	tag: string;
 	version: readonly [number, number, number];
+};
+
+export type CompanionAssetInfo = {
+	tag: string;
+	version: string;
+	url: string;
+	sha256: string;
+	size: number;
 };
 
 function isNewer(
@@ -55,10 +65,7 @@ export function selectLatestCompanionTag(refs: unknown): string | null {
 	return latest?.tag ?? null;
 }
 
-export function selectCompanionAsset(
-	value: unknown,
-	expectedTag: string,
-): string | null {
+function releaseAsset(value: unknown, expectedTag: string): ReleaseAsset | null {
 	if (!TAG_PATTERN.test(expectedTag) || !value || typeof value !== "object") return null;
 	const release = value as GithubRelease;
 	if (
@@ -69,13 +76,43 @@ export function selectCompanionAsset(
 	) {
 		return null;
 	}
+	return (
+		(release.assets.find((entry) => {
+			if (!entry || typeof entry !== "object") return false;
+			return (entry as ReleaseAsset).name === ASSET_NAME;
+		}) as ReleaseAsset | undefined) ?? null
+	);
+}
 
-	const asset = release.assets.find((entry) => {
-		if (!entry || typeof entry !== "object") return false;
-		return (entry as ReleaseAsset).name === ASSET_NAME;
-	}) as ReleaseAsset | undefined;
+export function selectCompanionAsset(
+	value: unknown,
+	expectedTag: string,
+): string | null {
+	const asset = releaseAsset(value, expectedTag);
 	if (!asset || typeof asset.browser_download_url !== "string") return null;
-
 	const expectedUrl = `${DOWNLOAD_PREFIX}${expectedTag}/${ASSET_NAME}`;
 	return asset.browser_download_url === expectedUrl ? expectedUrl : null;
+}
+
+export function selectCompanionAssetInfo(
+	value: unknown,
+	expectedTag: string,
+): CompanionAssetInfo | null {
+	const url = selectCompanionAsset(value, expectedTag);
+	const asset = releaseAsset(value, expectedTag);
+	const tagMatch = TAG_PATTERN.exec(expectedTag);
+	if (!url || !asset || !tagMatch) return null;
+	if (typeof asset.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)) {
+		return null;
+	}
+	if (typeof asset.size !== "number" || !Number.isSafeInteger(asset.size) || asset.size <= 0) {
+		return null;
+	}
+	return {
+		tag: expectedTag,
+		version: `${tagMatch[1]}.${tagMatch[2]}.${tagMatch[3]}`,
+		url,
+		sha256: asset.digest.slice("sha256:".length),
+		size: asset.size,
+	};
 }
