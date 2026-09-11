@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	useCallback,
 	useReducer,
 	useRef,
 	type PointerEvent as ReactPointerEvent,
@@ -24,14 +25,26 @@ export function useWorldAuthoringUi() {
 	const resizeStart = useRef<{ x: number; width: number } | null>(null);
 
 	const inspectorCollapsed = state.inspectorMode === "closed";
+	const focusMode = state.chromeMode === "minimal";
 
-	function authoringStarted() {
+	const authoringStarted = useCallback(() => {
 		dispatch({ type: "authoringStarted" });
-	}
+	}, []);
 
-	function toggleInspector() {
-		dispatch({ type: "toggleInspector" });
-	}
+	const authoringStopped = useCallback(() => {
+		dispatch({ type: "authoringStopped" });
+	}, []);
+
+	const toggleInspector = useCallback(
+		(openMode: Exclude<WorldAuthoringInspectorMode, "closed"> = "docked") => {
+			dispatch({ type: "toggleInspector", openMode });
+		},
+		[],
+	);
+
+	const toggleFocusMode = useCallback(() => {
+		dispatch({ type: "toggleFocusMode" });
+	}, []);
 
 	function setInspectorMode(mode: WorldAuthoringInspectorMode) {
 		dispatch({ type: "setInspectorMode", mode });
@@ -79,8 +92,11 @@ export function useWorldAuthoringUi() {
 	return {
 		state,
 		inspectorCollapsed,
+		focusMode,
 		authoringStarted,
+		authoringStopped,
 		toggleInspector,
+		toggleFocusMode,
 		setInspectorMode,
 		setInspectorWidth,
 		adjustInspectorWidth,
