@@ -19,12 +19,14 @@
 }
 
 /*
- * These three hospital-bed moments use one finished frame each. The higher
- * specificity is intentional: it wins over the generic scroll-scene heights
- * without coupling the base cinematic component to individual story scenes.
+ * The three hospital-bed moments are deliberately static. Their foreground
+ * cutouts were produced from the same 1280x720 source frame as each background,
+ * so we register them back onto that source frame instead of letting generic
+ * parallax move the layers independently.
  */
 :global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
 	height: 100svh;
+	min-height: 0;
 }
 
 :global([data-static-media="true"][data-static-media="true"] > div) {
@@ -33,7 +35,8 @@
 	height: 100svh;
 }
 
-:global([data-static-media="true"] [aria-hidden="true"] > img:first-of-type) {
+:global([data-static-media="true"] [aria-hidden="true"] > img:first-of-type),
+:global([data-static-media="true"] [aria-hidden="true"] > img:nth-of-type(2)) {
 	transform: none;
 	will-change: auto;
 }
@@ -49,7 +52,49 @@
 }
 
 @media (min-width: 901px) {
-	/* Keep the girls unobstructed; the copy belongs on the empty right side. */
+	:global([data-static-media="true"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		bottom: auto;
+		max-width: none;
+		-webkit-mask-image: linear-gradient(
+			to bottom,
+			#000 0%,
+			#000 76%,
+			rgba(0, 0, 0, 0.92) 84%,
+			rgba(0, 0, 0, 0.52) 93%,
+			transparent 100%
+		);
+		mask-image: linear-gradient(
+			to bottom,
+			#000 0%,
+			#000 76%,
+			rgba(0, 0, 0, 0.92) 84%,
+			rgba(0, 0, 0, 0.52) 93%,
+			transparent 100%
+		);
+	}
+
+	/* Source placement: x=51, y=36, w=544 in a 1280x720 frame. */
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 3.984375vw;
+		top: calc(50vh - 25.3125vw);
+		width: 42.5vw;
+	}
+
+	/* Source placement: x=99, y=40, w=631 in a 1280x720 frame. */
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 7.734375vw;
+		top: calc(50vh - 25vw);
+		width: 49.296875vw;
+	}
+
+	/* Source placement: x=222, y=23, w=544 in a 1280x720 frame. */
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 17.34375vw;
+		top: calc(50vh - 26.328125vw);
+		width: 42.5vw;
+	}
+
+	/* Keep the girls unobstructed; the corridor copy belongs on the empty right side. */
 	:global([data-scene="corredores"] > div > div:nth-child(2)) {
 		left: auto;
 		right: max(48px, 5vw);
@@ -68,7 +113,6 @@
 			linear-gradient(0deg, rgba(3, 6, 5, 0.58) 0%, transparent 48%);
 	}
 
-	/* Open the left portrait area while retaining a safe text bed below. */
 	.ultimoDiaShade.ultimoDiaShade {
 		background:
 			linear-gradient(
@@ -87,12 +131,32 @@
 	}
 }
 
+/* Tall desktop windows switch cover scaling from width-driven to height-driven. */
+@media (min-width: 901px) and (max-aspect-ratio: 16/9) {
+	:global([data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 81.805556vh);
+		top: 5vh;
+		width: 75.555556vh;
+	}
+
+	:global([data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 75.138889vh);
+		top: 5.555556vh;
+		width: 87.638889vh;
+	}
+
+	:global([data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: calc(50vw - 58.055556vh);
+		top: 3.194444vh;
+		width: 75.555556vh;
+	}
+}
+
 @media (max-width: 900px) {
 	/*
-	 * A portrait cover crop cannot show both sides of these deliberately wide
-	 * hospital compositions. On compact screens the full 16:9 artwork is shown
-	 * once, intact, and the copy sits beneath it. No duplicated layer, no crop
-	 * roulette, no scroll effect.
+	 * Portrait screens cannot preserve both sides of a wide hospital frame with
+	 * cover. These static scenes therefore show the complete 16:9 source frame,
+	 * with the original cutout re-registered in percentages, and put copy below.
 	 */
 	:global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
 		height: auto;
@@ -117,11 +181,34 @@
 
 	:global([data-static-media="true"] [aria-hidden="true"] > img:first-of-type) {
 		object-fit: cover;
-		object-position: 50% 50%;
+	}
+
+	:global([data-static-media="true"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		bottom: auto;
+		max-width: none;
+		filter: none;
+	}
+
+	:global([data-static-media="true"][data-scene="super-herois"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 3.984375%;
+		top: 5%;
+		width: 42.5%;
+	}
+
+	:global([data-static-media="true"][data-scene="cadeira"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 7.734375%;
+		top: 5.555556%;
+		width: 49.296875%;
+	}
+
+	:global([data-static-media="true"][data-scene="ultimo-dia"] [aria-hidden="true"] > img:nth-of-type(2)) {
+		left: 17.34375%;
+		top: 3.194444%;
+		width: 42.5%;
 	}
 
 	:global([data-static-media="true"] > div > div:first-child > div:last-child) {
-		background: linear-gradient(0deg, rgba(3, 6, 5, 0.22), transparent 42%);
+		background: linear-gradient(0deg, rgba(3, 6, 5, 0.16), transparent 36%);
 	}
 
 	:global([data-static-media="true"] > div > div:nth-child(2)) {
@@ -132,6 +219,7 @@
 		width: 100%;
 		padding: 22px 20px 30px;
 		background: #050907;
+		text-shadow: none;
 	}
 
 	:global([data-static-media="true"] > div > div:nth-child(2) h3) {
@@ -150,6 +238,6 @@
 	}
 
 	:global([data-static-media="true"][data-static-media="true"][data-static-media="true"]) {
-		height: auto;
+		margin-block: 0;
 	}
 }
