@@ -48,6 +48,9 @@ New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataR
     --workpath $work `
     --specpath $work `
     --collect-submodules uvicorn `
+    --collect-data tda_companion `
+    --collect-all webview `
+    --collect-submodules pystray `
     (Join-Path $PSScriptRoot "windows_entry.py")
 if ($LASTEXITCODE -ne 0) { throw "PYINSTALLER_FAILED" }
 
@@ -66,14 +69,14 @@ Alternativa portátil/manual:
 1. Extraia este pacote para uma pasta local.
 2. Execute install.ps1 no PowerShell.
 3. Abra "TDA Companion" pelo Menu Iniciar.
-4. Copie o token exibido pelo aplicativo.
-5. Em https://dnd.faysk.dev/edit/processamento, cole o token e conecte.
+4. A interface Desktop usa WebView2 e mantém o Agent em segundo plano.
+5. Em https://dnd.faysk.dev/edit/processamento, conecte o Companion quando necessário.
 
 Instalação por usuário, sem privilégios administrativos.
 Diretório do aplicativo: %LOCALAPPDATA%\TDA\Companion\versions\$version
 Diretório de dados:      %LOCALAPPDATA%\TDA\Data
 
-O token e os dados locais não são removidos durante atualização do aplicativo.
+O token, a fila e os dados locais não são removidos durante atualização do aplicativo.
 Este aplicativo NÃO usa, inicia, modifica ou depende do antigo DnDScribeCompanion.exe.
 "@
 Set-Content -Path (Join-Path $packageRoot "README.txt") -Value $readme -Encoding utf8
