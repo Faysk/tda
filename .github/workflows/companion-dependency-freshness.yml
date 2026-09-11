@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/companion.yml'
       - '.github/workflows/companion-dependency-freshness.yml'
+      - '.github/workflows/whisper-runtime.yml'
+      - '.github/workflows/qwen-runtime.yml'
       - 'local-companion/pyproject.toml'
       - 'local-companion/requirements-test.lock'
       - 'local-companion/runtime/**'
@@ -17,6 +19,8 @@ on:
     paths:
       - '.github/workflows/companion.yml'
       - '.github/workflows/companion-dependency-freshness.yml'
+      - '.github/workflows/whisper-runtime.yml'
+      - '.github/workflows/qwen-runtime.yml'
       - 'local-companion/pyproject.toml'
       - 'local-companion/requirements-test.lock'
       - 'local-companion/runtime/**'
