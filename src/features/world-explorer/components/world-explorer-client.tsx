@@ -7,7 +7,6 @@ import {
 	useRef,
 	useState,
 	type CSSProperties,
-	type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
 import {
@@ -20,6 +19,7 @@ import {
 } from "../adapters/react-flow";
 import type { WorldLayout } from "../constellation-layout";
 import { captureWorldLayoutCandidate } from "../editorial-layout";
+import { useWorldAuthoringUi } from "../hooks/use-world-authoring-ui";
 import { useWorldEditSession } from "../hooks/use-world-edit-session";
 import {
 	projectionWithWorldDraft,
@@ -37,10 +37,6 @@ import {
 } from "./world-inspector";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
-
-function clampPanelWidth(value: number) {
-	return Math.min(520, Math.max(320, value));
-}
 
 function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayoutProjection {
 	return {
@@ -81,9 +77,7 @@ export function WorldExplorerClient({
 	const router = useRouter();
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
-	const [panelWidth, setPanelWidth] = useState(370);
-	const [panelCollapsed, setPanelCollapsed] = useState(false);
-	const resizeStart = useRef<{ x: number; width: number } | null>(null);
+	const authoringUi = useWorldAuthoringUi();
 
 	const edit = useWorldEditSession({
 		canEditLayout,
@@ -103,7 +97,7 @@ export function WorldExplorerClient({
 			positionOverridesRef.current = {};
 			setPositionOverrides({});
 		},
-		onEditingStarted: () => setPanelCollapsed(false),
+		onEditingStarted: authoringUi.authoringStarted,
 		onPublished: () => router.refresh(),
 	});
 
@@ -183,27 +177,6 @@ export function WorldExplorerClient({
 		}
 	}
 
-	function startResize(event: ReactPointerEvent<HTMLElement>) {
-		resizeStart.current = { x: event.clientX, width: panelWidth };
-		event.currentTarget.setPointerCapture(event.pointerId);
-	}
-
-	function resizePanel(event: ReactPointerEvent<HTMLElement>) {
-		if (!resizeStart.current) return;
-		setPanelWidth(
-			clampPanelWidth(
-				resizeStart.current.width + resizeStart.current.x - event.clientX,
-			),
-		);
-	}
-
-	function stopResize(event: ReactPointerEvent<HTMLElement>) {
-		resizeStart.current = null;
-		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
-		}
-	}
-
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
 	const commandContext: WorldCommandContext = {
@@ -218,8 +191,12 @@ export function WorldExplorerClient({
 
 	return (
 		<div
-			className={`${styles.explorer} ${responsive.layout} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
-			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
+			className={`${styles.explorer} ${responsive.layout} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
+			style={
+				{
+					"--world-inspector-width": `${authoringUi.state.inspectorWidth}px`,
+				} as CSSProperties
+			}
 			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
 			aria-busy={edit.busy}
@@ -300,34 +277,36 @@ export function WorldExplorerClient({
 					className={`${styles.panelResizer} ${responsive.resizer}`}
 					aria-label="Ajustar largura do painel"
 					aria-orientation="vertical"
-					aria-valuemin={320}
-					aria-valuemax={520}
-					aria-valuenow={panelWidth}
+					aria-valuemin={authoringUi.inspectorMinWidth}
+					aria-valuemax={authoringUi.inspectorMaxWidth}
+					aria-valuenow={authoringUi.state.inspectorWidth}
 					tabIndex={0}
-					onPointerDown={startResize}
-					onPointerMove={resizePanel}
-					onPointerUp={stopResize}
+					onPointerDown={authoringUi.startInspectorResize}
+					onPointerMove={authoringUi.resizeInspector}
+					onPointerUp={authoringUi.stopInspectorResize}
 					onKeyDown={(event) => {
 						if (event.key === "ArrowLeft") {
-							setPanelWidth((value) => clampPanelWidth(value + 24));
+							authoringUi.adjustInspectorWidth(24);
 						}
 						if (event.key === "ArrowRight") {
-							setPanelWidth((value) => clampPanelWidth(value - 24));
+							authoringUi.adjustInspectorWidth(-24);
 						}
 					}}
 				/>
 				<button
 					className={`${styles.panelToggle} ${responsive.panelToggle}`}
 					type="button"
-					onClick={() => setPanelCollapsed((value) => !value)}
-					aria-expanded={!panelCollapsed}
+					onClick={authoringUi.toggleInspector}
+					aria-expanded={!authoringUi.inspectorCollapsed}
 					aria-label={
-						panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"
+						authoringUi.inspectorCollapsed
+							? "Abrir painel de detalhes"
+							: "Recolher painel de detalhes"
 					}
 				>
-					{panelCollapsed ? "‹" : "›"}
+					{authoringUi.inspectorCollapsed ? "‹" : "›"}
 				</button>
-				{!panelCollapsed ? (
+				{!authoringUi.inspectorCollapsed ? (
 					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
 							draft={edit.graphDraft}
