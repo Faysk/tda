@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo, type CSSProperties } from "react";
 import type { WorldFlowNode } from "../adapters/react-flow";
 import {
@@ -10,8 +10,6 @@ import {
 	worldPortHandleId,
 } from "../edge-routing";
 import type { WorldNodeDTO } from "../model";
-import { WORLD_AUTHORING_OPEN_INSPECTOR_EVENT } from "../world-authoring-events";
-import authoringStyles from "./entity-node-authoring.module.css";
 import nodeStyles from "./entity-node-v2.module.css";
 
 const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
@@ -82,10 +80,6 @@ function stateLabel(isFocus: boolean, selected: boolean): string | null {
 	return null;
 }
 
-function openAuthoringInspector() {
-	window.dispatchEvent(new Event(WORLD_AUTHORING_OPEN_INSPECTOR_EVENT));
-}
-
 function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed } = data;
 	const kind = visualKind(item, isHero);
@@ -97,22 +91,6 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 			data-prominence={prominence}
 			data-node-kind={kind}
 		>
-			<NodeToolbar isVisible={selected} position={Position.Top} offset={18} align="center">
-				<div
-					className={authoringStyles.toolbar}
-					role="toolbar"
-					aria-label={`Ações de ${item.label}`}
-					data-world-node-toolbar
-				>
-					<button
-						className={`${authoringStyles.action} nodrag nopan`}
-						type="button"
-						onClick={openAuthoringInspector}
-					>
-						Editar
-					</button>
-				</div>
-			</NodeToolbar>
 			{SIDES.flatMap(({ side, position }) =>
 				WORLD_PORT_LANES.flatMap((lane) => {
 					const sourceId = worldPortHandleId("source", side, lane);
