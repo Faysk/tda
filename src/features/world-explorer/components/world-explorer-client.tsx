@@ -7,9 +7,9 @@ import {
 	useRef,
 	useState,
 	type CSSProperties,
-	type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
+import { useWorldWorkspaceControls } from "../../world-shell/world-workspace-context";
 import {
 	applyWorldFlowSelection,
 	rerouteWorldEdges,
@@ -20,6 +20,7 @@ import {
 } from "../adapters/react-flow";
 import type { WorldLayout } from "../constellation-layout";
 import { captureWorldLayoutCandidate } from "../editorial-layout";
+import { useWorldAuthoringUi } from "../hooks/use-world-authoring-ui";
 import { useWorldEditSession } from "../hooks/use-world-edit-session";
 import {
 	projectionWithWorldDraft,
@@ -27,6 +28,7 @@ import {
 } from "../hooks/use-world-explorer-view";
 import type { WorldGraphProjection, WorldLayoutProjection } from "../model";
 import type { WorldCommandContext } from "../world-commands";
+import authoring from "./world-authoring-shell.module.css";
 import { WorldCanvas } from "./world-canvas";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
@@ -37,10 +39,6 @@ import {
 } from "./world-inspector";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
-
-function clampPanelWidth(value: number) {
-	return Math.min(520, Math.max(320, value));
-}
 
 function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayoutProjection {
 	return {
@@ -79,11 +77,10 @@ export function WorldExplorerClient({
 	canEditContent?: boolean;
 }) {
 	const router = useRouter();
+	const workspace = useWorldWorkspaceControls();
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
-	const [panelWidth, setPanelWidth] = useState(370);
-	const [panelCollapsed, setPanelCollapsed] = useState(false);
-	const resizeStart = useRef<{ x: number; width: number } | null>(null);
+	const authoringUi = useWorldAuthoringUi();
 
 	const edit = useWorldEditSession({
 		canEditLayout,
@@ -103,7 +100,7 @@ export function WorldExplorerClient({
 			positionOverridesRef.current = {};
 			setPositionOverrides({});
 		},
-		onEditingStarted: () => setPanelCollapsed(false),
+		onEditingStarted: authoringUi.authoringStarted,
 		onPublished: () => router.refresh(),
 	});
 
@@ -150,6 +147,18 @@ export function WorldExplorerClient({
 		setEdges(graph.edges);
 	}, [graph, setEdges, setNodes]);
 
+	useEffect(() => {
+		workspace.setAuthoringActive(edit.editing);
+		if (!edit.editing) authoringUi.authoringStopped();
+	}, [edit.editing, workspace.setAuthoringActive, authoringUi.authoringStopped]);
+
+	useEffect(
+		() => () => {
+			workspace.setAuthoringActive(false);
+		},
+		[workspace.setAuthoringActive],
+	);
+
 	function rememberNodePosition(node: WorldFlowNode) {
 		const nextOverrides: WorldLayout = {
 			...positionOverridesRef.current,
@@ -183,27 +192,7 @@ export function WorldExplorerClient({
 		}
 	}
 
-	function startResize(event: ReactPointerEvent<HTMLElement>) {
-		resizeStart.current = { x: event.clientX, width: panelWidth };
-		event.currentTarget.setPointerCapture(event.pointerId);
-	}
-
-	function resizePanel(event: ReactPointerEvent<HTMLElement>) {
-		if (!resizeStart.current) return;
-		setPanelWidth(
-			clampPanelWidth(
-				resizeStart.current.width + resizeStart.current.x - event.clientX,
-			),
-		);
-	}
-
-	function stopResize(event: ReactPointerEvent<HTMLElement>) {
-		resizeStart.current = null;
-		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
-		}
-	}
-
+	const authoringActive = edit.editing;
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
 	const commandContext: WorldCommandContext = {
@@ -218,17 +207,24 @@ export function WorldExplorerClient({
 
 	return (
 		<div
-			className={`${styles.explorer} ${responsive.layout} ${panelCollapsed ? styles.explorerPanelCollapsed : ""}`}
-			style={{ "--world-inspector-width": `${panelWidth}px` } as CSSProperties}
+			className={`${styles.explorer} ${responsive.layout} ${authoringActive ? authoring.active : ""} ${authoringActive && authoringUi.focusMode ? authoring.focusMode : ""} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
+			style={
+				{
+					"--world-inspector-width": `${authoringUi.state.inspectorWidth}px`,
+				} as CSSProperties
+			}
 			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
+			data-world-authoring-active={authoringActive ? "true" : "false"}
+			data-world-focus-mode={authoringActive && authoringUi.focusMode ? "true" : "false"}
+			data-world-inspector-mode={authoringUi.state.inspectorMode}
 			aria-busy={edit.busy}
 		>
 			<section
-				className={`${styles.canvasColumn} ${responsive.canvasColumn}`}
+				className={`${styles.canvasColumn} ${responsive.canvasColumn} ${authoring.canvasColumn}`}
 				aria-labelledby="world-explorer-title"
 			>
-				<header className={styles.explorerHeader}>
+				<header className={`${styles.explorerHeader} ${authoring.editorialHeader}`}>
 					<div className={styles.titleCluster}>
 						<p className={styles.eyebrow}>Mapa da campanha</p>
 						<div className={styles.titleLine}>
@@ -252,28 +248,35 @@ export function WorldExplorerClient({
 						busy={edit.busy}
 						busyNotice={edit.busyNotice}
 						feedback={edit.feedback}
+						focusMode={authoringActive && authoringUi.focusMode}
+						inspectorOpen={!authoringUi.inspectorCollapsed}
 						onEnter={edit.start}
 						onPublish={edit.publish}
 						onFinish={edit.finish}
 						onDiscard={edit.discard}
+						onToggleFocusMode={authoringUi.toggleFocusMode}
+						onToggleInspector={() => authoringUi.toggleInspector("overlay")}
+						onOpenNavigation={workspace.openNavigation}
 					/>
 				) : null}
 
-				<WorldFloatingChrome
-					query={query}
-					onQueryChange={setQuery}
-					filter={filter}
-					onFilterChange={setFilter}
-					relationFilter={relationFilter}
-					onRelationFilterChange={setRelationFilter}
-					view={view}
-					onViewChange={setView}
-					onReset={resetLayout}
-					resetLabel={edit.editing ? "Restaurar posições" : "Reorganizar"}
-					resetDisabled={edit.busy}
-					demo={workingProjection.demo}
-					activeRelationTypes={activeRelationTypes}
-				/>
+				<div className={authoring.publicChrome}>
+					<WorldFloatingChrome
+						query={query}
+						onQueryChange={setQuery}
+						filter={filter}
+						onFilterChange={setFilter}
+						relationFilter={relationFilter}
+						onRelationFilterChange={setRelationFilter}
+						view={view}
+						onViewChange={setView}
+						onReset={resetLayout}
+						resetLabel={edit.editing ? "Restaurar posições" : "Reorganizar"}
+						resetDisabled={edit.busy}
+						demo={workingProjection.demo}
+						activeRelationTypes={activeRelationTypes}
+					/>
+				</div>
 
 				{view === "canvas" ? (
 					<WorldCanvas
@@ -295,39 +298,44 @@ export function WorldExplorerClient({
 				/>
 			</section>
 
-			<aside className={`${styles.inspector} ${responsive.inspector}`} aria-live="polite">
+			<aside
+				className={`${styles.inspector} ${responsive.inspector} ${authoring.inspector}`}
+				aria-live="polite"
+			>
 				<hr
 					className={`${styles.panelResizer} ${responsive.resizer}`}
 					aria-label="Ajustar largura do painel"
 					aria-orientation="vertical"
-					aria-valuemin={320}
-					aria-valuemax={520}
-					aria-valuenow={panelWidth}
+					aria-valuemin={authoringUi.inspectorMinWidth}
+					aria-valuemax={authoringUi.inspectorMaxWidth}
+					aria-valuenow={authoringUi.state.inspectorWidth}
 					tabIndex={0}
-					onPointerDown={startResize}
-					onPointerMove={resizePanel}
-					onPointerUp={stopResize}
+					onPointerDown={authoringUi.startInspectorResize}
+					onPointerMove={authoringUi.resizeInspector}
+					onPointerUp={authoringUi.stopInspectorResize}
 					onKeyDown={(event) => {
 						if (event.key === "ArrowLeft") {
-							setPanelWidth((value) => clampPanelWidth(value + 24));
+							authoringUi.adjustInspectorWidth(24);
 						}
 						if (event.key === "ArrowRight") {
-							setPanelWidth((value) => clampPanelWidth(value - 24));
+							authoringUi.adjustInspectorWidth(-24);
 						}
 					}}
 				/>
 				<button
 					className={`${styles.panelToggle} ${responsive.panelToggle}`}
 					type="button"
-					onClick={() => setPanelCollapsed((value) => !value)}
-					aria-expanded={!panelCollapsed}
+					onClick={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
+					aria-expanded={!authoringUi.inspectorCollapsed}
 					aria-label={
-						panelCollapsed ? "Abrir painel de detalhes" : "Recolher painel de detalhes"
+						authoringUi.inspectorCollapsed
+							? "Abrir painel de detalhes"
+							: "Recolher painel de detalhes"
 					}
 				>
-					{panelCollapsed ? "‹" : "›"}
+					{authoringUi.inspectorCollapsed ? "‹" : "›"}
 				</button>
-				{!panelCollapsed ? (
+				{!authoringUi.inspectorCollapsed ? (
 					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
 							draft={edit.graphDraft}
@@ -354,7 +362,7 @@ export function WorldExplorerClient({
 							<h2>Visão geral</h2>
 							<p>
 								{canEditContent && edit.editing
-									? "Use o painel de edição para criar ou alterar elementos e ligações."
+									? "Abra Detalhes quando precisar editar propriedades. O canvas continua como superfície principal de trabalho."
 									: "Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa."}
 							</p>
 							<dl className={styles.overviewStats}>

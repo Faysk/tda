@@ -1,9 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+	WorldWorkspaceControlsContext,
+	type WorldWorkspaceControls,
+} from "./world-workspace-context";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-workspace-shell.module.css";
 
@@ -14,6 +18,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
+	const [authoringActive, setAuthoringActiveState] = useState(false);
 	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
 	const navigationToggleRef = useRef<HTMLButtonElement>(null);
@@ -22,12 +27,12 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		const desktop = window.matchMedia("(min-width: 821px)");
 		const syncNavigationToViewport = () => {
 			setMobileNavigation(!desktop.matches);
-			setNavigationOpen(desktop.matches);
+			setNavigationOpen(authoringActive ? false : desktop.matches);
 		};
 		syncNavigationToViewport();
 		desktop.addEventListener("change", syncNavigationToViewport);
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
-	}, []);
+	}, [authoringActive]);
 
 	const closeNavigation = useCallback(() => {
 		const shouldRestoreFocus = window.matchMedia("(max-width: 820px)").matches;
@@ -36,6 +41,19 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
 		}
 	}, []);
+
+	const setAuthoringActive = useCallback((active: boolean) => {
+		setAuthoringActiveState(active);
+	}, []);
+
+	const openNavigation = useCallback(() => {
+		setNavigationOpen(true);
+	}, []);
+
+	const workspaceControls = useMemo<WorldWorkspaceControls>(
+		() => ({ authoringActive, setAuthoringActive, openNavigation }),
+		[authoringActive, openNavigation, setAuthoringActive],
+	);
 
 	useEffect(() => {
 		const mobile = window.matchMedia("(max-width: 820px)");
@@ -100,75 +118,78 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	);
 
 	return (
-		<div
-			className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
-			data-world-workspace-root
-			data-world-navigation={navigationOpen ? "open" : "closed"}
-			data-testid="world-workspace"
-		>
-			{navigationIsModal ? (
-				<div
-					ref={(element) => {
-						navigationPanelRef.current = element;
-					}}
-					id="world-workspace-navigation"
-					className={styles.navigationPanel}
-					role="dialog"
-					aria-modal="true"
-					aria-label="Navegação do mundo"
-					data-testid="world-workspace-navigation"
-				>
-					{navigationContent}
-				</div>
-			) : (
-				<aside
-					ref={(element) => {
-						navigationPanelRef.current = element;
-					}}
-					id="world-workspace-navigation"
-					className={styles.navigationPanel}
-					aria-label="Navegação do mundo"
-					aria-hidden={!navigationOpen}
-					data-testid="world-workspace-navigation"
-				>
-					{navigationContent}
-				</aside>
-			)}
-
-			<button
-				type="button"
-				className={styles.mobileBackdrop}
-				onClick={closeNavigation}
-				aria-label="Fechar navegação do mundo"
-				aria-hidden="true"
-				tabIndex={-1}
-			/>
-
-			<section
-				className={styles.stage}
-				data-testid="world-workspace-stage"
-				aria-hidden={navigationIsModal ? "true" : "false"}
-				inert={navigationIsModal}
+		<WorldWorkspaceControlsContext.Provider value={workspaceControls}>
+			<div
+				className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
+				data-world-workspace-root
+				data-world-navigation={navigationOpen ? "open" : "closed"}
+				data-world-authoring={authoringActive ? "active" : "inactive"}
+				data-testid="world-workspace"
 			>
+				{navigationIsModal ? (
+					<div
+						ref={(element) => {
+							navigationPanelRef.current = element;
+						}}
+						id="world-workspace-navigation"
+						className={styles.navigationPanel}
+						role="dialog"
+						aria-modal="true"
+						aria-label="Navegação do mundo"
+						data-testid="world-workspace-navigation"
+					>
+						{navigationContent}
+					</div>
+				) : (
+					<aside
+						ref={(element) => {
+							navigationPanelRef.current = element;
+						}}
+						id="world-workspace-navigation"
+						className={styles.navigationPanel}
+						aria-label="Navegação do mundo"
+						aria-hidden={!navigationOpen}
+						data-testid="world-workspace-navigation"
+					>
+						{navigationContent}
+					</aside>
+				)}
+
 				<button
-					ref={navigationToggleRef}
 					type="button"
-					className={styles.navigationToggle}
-					onClick={() => setNavigationOpen((value) => !value)}
-					aria-controls="world-workspace-navigation"
-					aria-expanded={navigationOpen}
-					aria-hidden={navigationOpen}
-					tabIndex={navigationOpen ? -1 : 0}
-					aria-label={navigationOpen ? "Recolher navegação do mundo" : "Explorar universo"}
+					className={styles.mobileBackdrop}
+					onClick={closeNavigation}
+					aria-label="Fechar navegação do mundo"
+					aria-hidden="true"
+					tabIndex={-1}
+				/>
+
+				<section
+					className={styles.stage}
+					data-testid="world-workspace-stage"
+					aria-hidden={navigationIsModal ? "true" : "false"}
+					inert={navigationIsModal}
 				>
-					<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
-					<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
-				</button>
-				<div className={styles.utilityControls}>
-					<ThemeToggle />
-				</div>
-				{children}
-			</section>
-		</div>
+					<button
+						ref={navigationToggleRef}
+						type="button"
+						className={styles.navigationToggle}
+						onClick={() => setNavigationOpen((value) => !value)}
+						aria-controls="world-workspace-navigation"
+						aria-expanded={navigationOpen}
+						aria-hidden={navigationOpen}
+						tabIndex={navigationOpen ? -1 : 0}
+						aria-label={navigationOpen ? "Recolher navegação do mundo" : "Explorar universo"}
+					>
+						<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
+						<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
+					</button>
+					<div className={styles.utilityControls} data-world-utility-controls>
+						<ThemeToggle />
+					</div>
+					{children}
+				</section>
+			</div>
+		</WorldWorkspaceControlsContext.Provider>
 	);
 }

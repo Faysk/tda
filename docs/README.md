@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-11
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -57,6 +57,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 ### Design System e marca
 
 - [Design System oficial](design-system/README.md) — TDA Design System v1.0.0, tokens, princípios e migração para o reboot.
+- [Diretriz geral de UX, design e hierarquia](design-system/ux-hierarchy.md) — princípios transversais de composição, densidade, hierarquia e prioridade do conteúdo.
 - [Plano de migração visual](design-system/migration-plan.md) — fases para introduzir tokens, primitives e assets sem big bang.
 - [Assets oficiais da marca](design-system/official-assets.md) — TDA Brand Pack, masters, logo, pato, favicon/PWA/social.
 - [World Explorer — composição e UX](design-system/world-explorer-ui.md) — tradução das referências visuais aprovadas para contrato de interface.
@@ -130,6 +131,10 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0006 — React Flow como engine do World Explorer](adr/0006-react-flow-world-explorer.md)
 - [ADR-0007 — Edit como workbench server-first orientado a capabilities](adr/0007-edit-workbench.md)
 - [ADR-0008 — autorização orientada a capabilities e scope](adr/0008-capability-authorization.md)
+- [ADR-0009 — World Explorer multi-hub e layout espacial reorganizável](adr/0009-world-explorer-multihub-layout.md)
+- [ADR-0010 — persistência editorial do layout separada do canon](adr/0010-world-explorer-editorial-layout-persistence.md)
+- [ADR-0011 — persistência física candidata do layout editorial](adr/0011-world-explorer-layout-physical-persistence.md)
+- [ADR-0012 — GitHub Actions controla a entrega](adr/0012-github-actions-controlled-delivery.md)
 
 ### Governança da própria documentação
 
@@ -185,4 +190,4 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Binários cloud: Cloudflare R2, separados por visibilidade/ambiente.
 - Vercel correta para futuras operações: conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 
-Última revisão estrutural: **2026-09-07**.
+Última revisão estrutural: **2026-09-11**.
