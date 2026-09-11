@@ -15,6 +15,7 @@ from . import VERSION
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
+from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 
 class JobRequest(BaseModel):
@@ -54,6 +55,7 @@ def create_app(
         raise ValueError("TOKEN_TOO_SHORT")
     store = Store(root)
     telemetry = SystemTelemetry()
+    worker_supervisor = WorkerSupervisor()
     worker_healthy = True
     worker_wake = asyncio.Event()
     started_at = time.time()
@@ -78,13 +80,86 @@ def create_app(
                 claimed = store.claim()
                 if claimed:
                     job_id, attempt = claimed
-                    log("info", "worker", "JOB_CLAIMED", "Job claimed", {"job_id": job_id, "attempt": attempt})
+                    state = store.get(job_id)
+                    log(
+                        "info",
+                        "worker",
+                        "JOB_CLAIMED",
+                        "Job claimed",
+                        {"job_id": job_id, "attempt": attempt},
+                    )
+
+                    def is_cancelled() -> bool:
+                        try:
+                            return store.get(job_id)["status"] == "cancelled"
+                        except KeyError:
+                            return True
+
+                    def commit_progress(message) -> None:
+                        current = store.get(job_id)
+                        if current["status"] == "cancelled":
+                            return
+                        if current["status"] != "running" or current["attempt"] != attempt:
+                            raise RuntimeError("WORKER_STALE_ATTEMPT")
+                        expected = int(message.payload["completed"])
+                        actual = int(current["progress"]["completed"])
+                        if expected != actual + 1:
+                            raise RuntimeError("WORKER_PROGRESS_GAP")
+                        store.step(job_id, attempt)
+
+                    def observe_event(message) -> None:
+                        if message.type == "stage":
+                            stage = str(message.payload.get("stage") or "worker")[:64]
+                            log(
+                                "info",
+                                "worker",
+                                "WORKER_STAGE",
+                                "Worker stage changed",
+                                {"job_id": job_id, "stage": stage},
+                            )
+
                     try:
-                        while store.step(job_id, attempt):
-                            await asyncio.sleep(0)
+                        outcome = await asyncio.to_thread(
+                            worker_supervisor.run_fixture,
+                            job_id=job_id,
+                            attempt=attempt,
+                            units=int(state["progress"]["total"]),
+                            completed=int(state["progress"]["completed"]),
+                            on_progress=commit_progress,
+                            on_event=observe_event,
+                            is_cancelled=is_cancelled,
+                        )
+                        final_state = store.get(job_id)
+                        if outcome.terminal == "result" and final_state["status"] not in {
+                            "succeeded",
+                            "cancelled",
+                        }:
+                            raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
+                        log(
+                            "info",
+                            "worker",
+                            "WORKER_FINISHED",
+                            "Worker process finished",
+                            {"job_id": job_id, "terminal": outcome.terminal},
+                        )
+                    except WorkerProcessError as exc:
+                        store.fail(job_id, attempt)
+                        log(
+                            "error",
+                            "worker",
+                            "WORKER_PROCESS_FAILED",
+                            "Worker process failed",
+                            {"job_id": job_id, "worker_code": exc.code},
+                        )
                     except Exception:
                         store.fail(job_id, attempt)
-                        log("error", "worker", "JOB_EXECUTION_FAILED", "Job execution failed", {"job_id": job_id})
+                        log(
+                            "error",
+                            "worker",
+                            "JOB_EXECUTION_FAILED",
+                            "Job execution failed",
+                            {"job_id": job_id},
+                        )
                     worker_healthy = True
                     continue
                 worker_healthy = True
@@ -219,7 +294,7 @@ def create_app(
 
     @app.get("/api/v1/capabilities")
     def capabilities():
-        features = ["synthetic.fixture", "job.events", "system.telemetry"]
+        features = ["synthetic.fixture", "job.events", "system.telemetry", "worker.subprocess"]
         if system_log is not None:
             features.extend(["agent.desktop", "agent.logs"])
         if shutdown_callback is not None:

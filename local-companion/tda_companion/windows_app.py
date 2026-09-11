@@ -135,6 +135,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--agent", action="store_true")
     mode.add_argument("--ui", action="store_true")
+    mode.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     mode.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--startup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--state-root", type=Path, default=paths.state_root)
@@ -177,6 +178,11 @@ def _show_desktop_error(exc: BaseException) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.worker:
+        from .asr_worker import run_worker_stdio
+
+        return run_worker_stdio()
+
     diagnostic_file: Path | None = args.diagnostic_file
     _write_diagnostic(diagnostic_file, "BOOTSTRAP")
     try:
