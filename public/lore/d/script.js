@@ -1,42 +1,57 @@
-const ASSET_CHUNKS = {
-  "d-completo": [
-    "/lore/d/assets/base64/d-completo.0.b64",
-    "/lore/d/assets/base64/d-completo.1.b64",
-    "/lore/d/assets/base64/d-completo.2.b64",
-  ],
-  "d-sem-sobretudo": [
-    "/lore/d/assets/base64/d-sem-sobretudo.0.b64",
-    "/lore/d/assets/base64/d-sem-sobretudo.1.b64",
-    "/lore/d/assets/base64/d-sem-sobretudo.2.b64",
-  ],
-  "d-sem-chapeu": [
-    "/lore/d/assets/base64/d-sem-chapeu.0.b64",
-    "/lore/d/assets/base64/d-sem-chapeu.1.b64",
-    "/lore/d/assets/base64/d-sem-chapeu.2.b64",
-  ],
+const DIRECT_ASSETS = {
+  "d-completo": "/lore/d/assets/d-completo.png",
 };
 
+const ASSET_CHUNKS = {
+  "d-sem-sobretudo": {
+    mime: "image/avif",
+    paths: [
+      "/lore/d/assets/base64/d-sem-sobretudo.0.b64",
+      "/lore/d/assets/base64/d-sem-sobretudo.1.b64",
+      "/lore/d/assets/base64/d-sem-sobretudo.2.b64",
+    ],
+  },
+  "d-sem-chapeu": {
+    mime: "image/png",
+    paths: [
+      "/lore/d/assets/base64/d-sem-chapeu.0.b64",
+      "/lore/d/assets/base64/d-sem-chapeu.1.b64",
+      "/lore/d/assets/base64/d-sem-chapeu.2.b64",
+    ],
+  },
+};
+
+function applyCharacterImage(name, url) {
+  document.querySelectorAll(`[data-d-image="${name}"]`).forEach((element) => {
+    if (element instanceof HTMLImageElement) element.src = url;
+    if (element instanceof HTMLButtonElement) element.dataset.image = url;
+  });
+}
+
 async function hydrateCharacterImage(name) {
-  const paths = ASSET_CHUNKS[name];
-  if (!paths) return;
+  const directAsset = DIRECT_ASSETS[name];
+  if (directAsset) {
+    applyCharacterImage(name, directAsset);
+    return;
+  }
+
+  const asset = ASSET_CHUNKS[name];
+  if (!asset) return;
 
   const parts = await Promise.all(
-    paths.map(async (path) => {
+    asset.paths.map(async (path) => {
       const response = await fetch(path, { cache: "force-cache" });
       if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
       return (await response.text()).trim();
     }),
   );
 
-  const dataUrl = `data:image/avif;base64,${parts.join("")}`;
-
-  document.querySelectorAll(`[data-d-image="${name}"]`).forEach((element) => {
-    if (element instanceof HTMLImageElement) element.src = dataUrl;
-    if (element instanceof HTMLButtonElement) element.dataset.image = dataUrl;
-  });
+  applyCharacterImage(name, `data:${asset.mime};base64,${parts.join("")}`);
 }
 
-Promise.all(Object.keys(ASSET_CHUNKS).map(hydrateCharacterImage)).catch((error) => {
+Promise.all(
+  [...Object.keys(DIRECT_ASSETS), ...Object.keys(ASSET_CHUNKS)].map(hydrateCharacterImage),
+).catch((error) => {
   console.error("Unable to hydrate D character artwork", error);
 });
 
