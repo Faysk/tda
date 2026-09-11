@@ -505,6 +505,9 @@ def transcribe_craig_package_qwen(
     started = time.monotonic()
     pending_text: dict[int, list[QwenWindowTranscript]] = {}
     warnings: list[str] = []
+    for track_number, cached in cached_tracks.items():
+        if any(segment.id.endswith("-fallback") for segment in cached.segments):
+            warnings.append(f"QWEN_ALIGNMENT_FALLBACK:track-{track_number}")
 
     if pending_tracks:
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
@@ -609,8 +612,6 @@ def transcribe_craig_package_qwen(
         cached_tracks.get(track.number) or new_tracks[track.number] for track in package.tracks
     )
 
-    # Recompute signal dominance for every track, including checkpoint reuse, so
-    # dedup decisions remain deterministic across fresh and resumed jobs.
     energy_by_segment: dict[tuple[int, str], float] = {}
     tracks_by_number = {track.number: track for track in transcript_tracks}
     for source_track in package.tracks:
