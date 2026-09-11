@@ -172,6 +172,7 @@ class ServerController:
                 proxy_headers=False,
                 server_header=False,
                 log_level="critical",
+                log_config=None,
             )
             self.server = uvicorn.Server(config)
             self.server_error = None
