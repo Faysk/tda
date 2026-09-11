@@ -39,8 +39,10 @@ class AgentController:
         origins: frozenset[str],
         port: int,
         system_log: SystemLog | None = None,
+        models_root: Path | None = None,
     ):
         self.data_root = data_root
+        self.models_root = models_root
         self.token = token
         self.origins = origins
         self.port = port
@@ -75,6 +77,7 @@ class AgentController:
                 self.port,
                 system_log=self.system_log,
                 shutdown_callback=self.request_shutdown,
+                models_root=self.models_root,
             )
             config = uvicorn.Config(
                 app,
