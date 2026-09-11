@@ -53,9 +53,9 @@ def _watch_cancel(stream: BinaryIO, command: WorkerRunCommand, cancelled: thread
             if value.job_id == command.job_id and value.attempt == command.attempt:
                 cancelled.set()
                 return
-    except (OSError, WorkerProtocolError):
-        # Parent owns lifecycle. Invalid control input cannot leak details or keep
-        # a heavy worker alive indefinitely; the supervisor will terminate it.
+    except (OSError, ValueError, WorkerProtocolError):
+        # Parent owns lifecycle. Invalid/closed control input cannot leak details
+        # or keep a heavy worker alive indefinitely.
         return
 
 
@@ -78,7 +78,9 @@ def _run_fixture(command: WorkerRunCommand, emitter: _Emitter, cancelled: thread
             {"completed": current, "total": units, "unit": "items", "stage": "fixture"},
         )
         emitter.emit("heartbeat", {"completed": current})
-        time.sleep(0)
+        # Keep the fixture fast but leave a real scheduling point so cooperative
+        # cancellation is exercised instead of being a theoretical protocol path.
+        time.sleep(0.002)
 
     emitter.emit("result", {"kind": command.kind, "units": units})
     return 0
@@ -124,6 +126,15 @@ def run_worker_stdio(
         except BaseException:
             pass
         return 70
+    finally:
+        # A daemon thread blocked in BufferedReader during interpreter shutdown can
+        # abort CPython. Close its local control stream and join before returning.
+        cancelled.set()
+        try:
+            input_stream.close()
+        except (OSError, ValueError):
+            pass
+        watcher.join(timeout=1.0)
 
 
 def main() -> int:
