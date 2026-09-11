@@ -9,6 +9,7 @@ import {
 	type CSSProperties,
 } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
+import { useWorldWorkspaceControls } from "../../world-shell/world-workspace-context";
 import {
 	applyWorldFlowSelection,
 	rerouteWorldEdges,
@@ -27,6 +28,7 @@ import {
 } from "../hooks/use-world-explorer-view";
 import type { WorldGraphProjection, WorldLayoutProjection } from "../model";
 import type { WorldCommandContext } from "../world-commands";
+import authoring from "./world-authoring-shell.module.css";
 import { WorldCanvas } from "./world-canvas";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
@@ -75,6 +77,7 @@ export function WorldExplorerClient({
 	canEditContent?: boolean;
 }) {
 	const router = useRouter();
+	const workspace = useWorldWorkspaceControls();
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
 	const authoringUi = useWorldAuthoringUi();
@@ -144,6 +147,18 @@ export function WorldExplorerClient({
 		setEdges(graph.edges);
 	}, [graph, setEdges, setNodes]);
 
+	useEffect(() => {
+		workspace.setAuthoringActive(edit.editing);
+		if (!edit.editing) authoringUi.authoringStopped();
+	}, [edit.editing, workspace.setAuthoringActive, authoringUi.authoringStopped]);
+
+	useEffect(
+		() => () => {
+			workspace.setAuthoringActive(false);
+		},
+		[workspace.setAuthoringActive],
+	);
+
 	function rememberNodePosition(node: WorldFlowNode) {
 		const nextOverrides: WorldLayout = {
 			...positionOverridesRef.current,
@@ -177,6 +192,7 @@ export function WorldExplorerClient({
 		}
 	}
 
+	const authoringActive = edit.editing;
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
 	const commandContext: WorldCommandContext = {
@@ -191,7 +207,7 @@ export function WorldExplorerClient({
 
 	return (
 		<div
-			className={`${styles.explorer} ${responsive.layout} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
+			className={`${styles.explorer} ${responsive.layout} ${authoringActive ? authoring.active : ""} ${authoringActive && authoringUi.focusMode ? authoring.focusMode : ""} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
 			style={
 				{
 					"--world-inspector-width": `${authoringUi.state.inspectorWidth}px`,
@@ -199,13 +215,16 @@ export function WorldExplorerClient({
 			}
 			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
+			data-world-authoring-active={authoringActive ? "true" : "false"}
+			data-world-focus-mode={authoringActive && authoringUi.focusMode ? "true" : "false"}
+			data-world-inspector-mode={authoringUi.state.inspectorMode}
 			aria-busy={edit.busy}
 		>
 			<section
-				className={`${styles.canvasColumn} ${responsive.canvasColumn}`}
+				className={`${styles.canvasColumn} ${responsive.canvasColumn} ${authoring.canvasColumn}`}
 				aria-labelledby="world-explorer-title"
 			>
-				<header className={styles.explorerHeader}>
+				<header className={`${styles.explorerHeader} ${authoring.editorialHeader}`}>
 					<div className={styles.titleCluster}>
 						<p className={styles.eyebrow}>Mapa da campanha</p>
 						<div className={styles.titleLine}>
@@ -229,28 +248,35 @@ export function WorldExplorerClient({
 						busy={edit.busy}
 						busyNotice={edit.busyNotice}
 						feedback={edit.feedback}
+						focusMode={authoringActive && authoringUi.focusMode}
+						inspectorOpen={!authoringUi.inspectorCollapsed}
 						onEnter={edit.start}
 						onPublish={edit.publish}
 						onFinish={edit.finish}
 						onDiscard={edit.discard}
+						onToggleFocusMode={authoringUi.toggleFocusMode}
+						onToggleInspector={() => authoringUi.toggleInspector("overlay")}
+						onOpenNavigation={workspace.openNavigation}
 					/>
 				) : null}
 
-				<WorldFloatingChrome
-					query={query}
-					onQueryChange={setQuery}
-					filter={filter}
-					onFilterChange={setFilter}
-					relationFilter={relationFilter}
-					onRelationFilterChange={setRelationFilter}
-					view={view}
-					onViewChange={setView}
-					onReset={resetLayout}
-					resetLabel={edit.editing ? "Restaurar posições" : "Reorganizar"}
-					resetDisabled={edit.busy}
-					demo={workingProjection.demo}
-					activeRelationTypes={activeRelationTypes}
-				/>
+				<div className={authoring.publicChrome}>
+					<WorldFloatingChrome
+						query={query}
+						onQueryChange={setQuery}
+						filter={filter}
+						onFilterChange={setFilter}
+						relationFilter={relationFilter}
+						onRelationFilterChange={setRelationFilter}
+						view={view}
+						onViewChange={setView}
+						onReset={resetLayout}
+						resetLabel={edit.editing ? "Restaurar posições" : "Reorganizar"}
+						resetDisabled={edit.busy}
+						demo={workingProjection.demo}
+						activeRelationTypes={activeRelationTypes}
+					/>
+				</div>
 
 				{view === "canvas" ? (
 					<WorldCanvas
@@ -272,7 +298,10 @@ export function WorldExplorerClient({
 				/>
 			</section>
 
-			<aside className={`${styles.inspector} ${responsive.inspector}`} aria-live="polite">
+			<aside
+				className={`${styles.inspector} ${responsive.inspector} ${authoring.inspector}`}
+				aria-live="polite"
+			>
 				<hr
 					className={`${styles.panelResizer} ${responsive.resizer}`}
 					aria-label="Ajustar largura do painel"
@@ -296,7 +325,7 @@ export function WorldExplorerClient({
 				<button
 					className={`${styles.panelToggle} ${responsive.panelToggle}`}
 					type="button"
-					onClick={authoringUi.toggleInspector}
+					onClick={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
 					aria-expanded={!authoringUi.inspectorCollapsed}
 					aria-label={
 						authoringUi.inspectorCollapsed
@@ -333,7 +362,7 @@ export function WorldExplorerClient({
 							<h2>Visão geral</h2>
 							<p>
 								{canEditContent && edit.editing
-									? "Use o painel de edição para criar ou alterar elementos e ligações."
+									? "Abra Detalhes quando precisar editar propriedades. O canvas continua como superfície principal de trabalho."
 									: "Selecione qualquer nó para inspecionar seus laços sem reorganizar o mapa."}
 							</p>
 							<dl className={styles.overviewStats}>
