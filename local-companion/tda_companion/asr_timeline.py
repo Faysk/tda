@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Iterable, Mapping
 
-from .transcript import TranscriptSegment, TranscriptTrack
+from .transcript import (
+    TranscriptSegment,
+    TranscriptSegmentRef,
+    TranscriptTrack,
+    TranscriptTurn,
+)
 
 _SEGMENT_KEY = tuple[int, str]
 _NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
@@ -43,18 +48,6 @@ class DedupDecision:
     token_similarity: float
     dominance_source: str
     dominance_margin: float
-
-
-@dataclass(frozen=True)
-class TranscriptTurn:
-    id: str
-    speaker: str
-    start: float
-    end: float
-    text: str
-    segment_ids: tuple[str, ...]
-    track_numbers: tuple[int, ...]
-    overlaps_other_speaker: bool
 
 
 @dataclass(frozen=True)
@@ -263,8 +256,10 @@ def build_turns(
                 start=round(min(item.start for item in current), 3),
                 end=round(max(item.end for item in current), 3),
                 text=text,
-                segment_ids=tuple(item.segment_id for item in current),
-                track_numbers=tuple(dict.fromkeys(item.track_number for item in current)),
+                segments=tuple(
+                    TranscriptSegmentRef(track_number=item.track_number, segment_id=item.segment_id)
+                    for item in current
+                ),
                 overlaps_other_speaker=any(
                     _overlaps_different_speaker(item, ordered) for item in current
                 ),
