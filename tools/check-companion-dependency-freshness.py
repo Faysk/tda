@@ -14,6 +14,8 @@ TEST_LOCK = ROOT / "local-companion" / "requirements-test.lock"
 WHISPER_RUNTIME = ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json"
 QWEN_RUNTIME = ROOT / "local-companion" / "runtime" / "qwen-windows-x64.json"
 COMPANION_WORKFLOW = ROOT / ".github" / "workflows" / "companion.yml"
+WHISPER_WORKFLOW = ROOT / ".github" / "workflows" / "whisper-runtime.yml"
+QWEN_WORKFLOW = ROOT / ".github" / "workflows" / "qwen-runtime.yml"
 
 EXACT = re.compile(r"^([A-Za-z0-9_.-]+)==([^;\s]+)$")
 PYTHON_312 = re.compile(r"^3\.12\.(\d+)$")
@@ -100,6 +102,13 @@ def _runtime_json(path: Path, expected_schema: str) -> dict:
     return value
 
 
+def _workflow_uv_pin(path: Path) -> str:
+    pins = set(UV_WORKFLOW_PIN.findall(path.read_text(encoding="utf-8")))
+    if len(pins) != 1:
+        raise RuntimeError(f"UV_WORKFLOW_PIN_INVALID:{path.name}:{sorted(pins)}")
+    return next(iter(pins))
+
+
 def collect() -> tuple[dict[str, str], dict[str, list[str]], str, dict[str, str]]:
     pins: dict[str, str] = {}
     sources: dict[str, list[str]] = {}
@@ -139,14 +148,20 @@ def collect() -> tuple[dict[str, str], dict[str, list[str]], str, dict[str, str]
         add_pin(pins, sources, str(name), str(version), "qwen-windows-x64.json")
 
     workflow = COMPANION_WORKFLOW.read_text(encoding="utf-8")
-    uv_pins = set(UV_WORKFLOW_PIN.findall(workflow))
-    if len(uv_pins) != 1:
-        raise RuntimeError(f"UV_WORKFLOW_PIN_INVALID:{sorted(uv_pins)}")
-    add_pin(pins, sources, "uv", next(iter(uv_pins)), "companion.yml")
-
     workflow_python = set(PYTHON_WORKFLOW_PIN.findall(workflow))
     if workflow_python != {python_pin}:
         raise RuntimeError(f"PYTHON_PIN_MISMATCH:{python_pin}:{sorted(workflow_python)}")
+
+    uv_sources = {
+        "companion.yml": _workflow_uv_pin(COMPANION_WORKFLOW),
+        "whisper-runtime.yml": _workflow_uv_pin(WHISPER_WORKFLOW),
+        "qwen-runtime.yml": _workflow_uv_pin(QWEN_WORKFLOW),
+    }
+    uv_versions = set(uv_sources.values())
+    if len(uv_versions) != 1:
+        raise RuntimeError(f"UV_WORKFLOW_PIN_CONFLICT:{uv_sources}")
+    for source, version in uv_sources.items():
+        add_pin(pins, sources, "uv", version, source)
 
     return pins, sources, python_pin, lock
 
