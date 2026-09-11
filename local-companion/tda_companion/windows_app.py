@@ -203,7 +203,14 @@ def main(argv: list[str] | None = None) -> int:
                 "TDA Companion Agent starting",
                 {"version": VERSION},
             )
-            controller = AgentController(paths.data_root, token, args.origins, args.port, system_log)
+            controller = AgentController(
+                paths.data_root,
+                token,
+                args.origins,
+                args.port,
+                system_log,
+                models_root=paths.models_root,
+            )
             controller.run_forever(on_ready=lambda: _write_diagnostic(diagnostic_file, "READY"))
             return 0
 
