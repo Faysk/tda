@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import tomllib
@@ -40,13 +39,8 @@ def parse_exact(spec: str) -> tuple[str, str] | None:
 
 
 def fetch_json(url: str) -> object:
-    headers = {"User-Agent": "TDA-Companion-dependency-audit/1"}
-    token = os.environ.get("GITHUB_TOKEN")
-    if token and "api.github.com" in url:
-        headers["Authorization"] = f"Bearer {token}"
-        headers["X-GitHub-Api-Version"] = "2022-11-28"
-    request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 - fixed trusted endpoints
+    request = urllib.request.Request(url, headers={"User-Agent": "TDA-Companion-dependency-audit/1"})
+    with urllib.request.urlopen(request, timeout=20) as response:
         return json.load(response)
 
 
@@ -82,7 +76,23 @@ def latest_python_312() -> str:
     return max(versions)[1]
 
 
-def collect() -> tuple[dict[str, str], dict[str, list[str]], str]:
+def read_lock() -> dict[str, str]:
+    lock: dict[str, str] = {}
+    for raw in TEST_LOCK.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parsed = parse_exact(line)
+        if not parsed:
+            raise RuntimeError(f"TEST_LOCK_PIN_INVALID:{line}")
+        key = canonical(parsed[0])
+        if key in lock and lock[key] != parsed[1]:
+            raise RuntimeError(f"TEST_LOCK_PIN_CONFLICT:{key}")
+        lock[key] = parsed[1]
+    return lock
+
+
+def collect() -> tuple[dict[str, str], dict[str, list[str]], str, dict[str, str]]:
     pins: dict[str, str] = {}
     sources: dict[str, list[str]] = {}
 
@@ -96,14 +106,11 @@ def collect() -> tuple[dict[str, str], dict[str, list[str]], str]:
         if parsed:
             add_pin(pins, sources, parsed[0], parsed[1], "pyproject.toml")
 
-    for raw in TEST_LOCK.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        parsed = parse_exact(line)
-        if not parsed:
-            raise RuntimeError(f"TEST_LOCK_PIN_INVALID:{line}")
-        add_pin(pins, sources, parsed[0], parsed[1], "requirements-test.lock")
+    lock = read_lock()
+    for name, version in pins.items():
+        locked = lock.get(name)
+        if locked is not None and locked != version:
+            raise RuntimeError(f"DIRECT_LOCK_MISMATCH:{name}:{version}:{locked}")
 
     runtime = json.loads(WHISPER_RUNTIME.read_text(encoding="utf-8"))
     python_pin = str(runtime["python"])
@@ -122,14 +129,14 @@ def collect() -> tuple[dict[str, str], dict[str, list[str]], str]:
     if workflow_python != {python_pin}:
         raise RuntimeError(f"PYTHON_PIN_MISMATCH:{python_pin}:{sorted(workflow_python)}")
 
-    return pins, sources, python_pin
+    return pins, sources, python_pin, lock
 
 
 def main() -> int:
-    pins, sources, python_pin = collect()
+    pins, sources, python_pin, lock = collect()
     stale: list[str] = []
 
-    print(f"Auditing {len(pins)} Python/PyPI pins...")
+    print(f"Auditing {len(pins)} direct/runtime Python pins...")
     for name in sorted(pins):
         pinned = pins[name]
         latest = latest_pypi(name)
@@ -144,18 +151,16 @@ def main() -> int:
     if python_pin != current_python:
         stale.append(f"python: pinned {python_pin}, latest 3.12 patch {current_python}")
 
+    print(f"Transitive test lock: {len(lock)} exact entries; compatibility is owned by the resolver.")
+
     if stale:
         print("\nCompanion dependency freshness requirement failed:", file=sys.stderr)
         for item in stale:
             print(f"- {item}", file=sys.stderr)
-        print(
-            "Update the pins and rerun all Companion/MSI/runtime gates. "
-            "If the newest stable release is incompatible, document an explicit exception first.",
-            file=sys.stderr,
-        )
+        print("Update pins and rerun Companion/MSI/runtime gates, or document an explicit compatibility exception.", file=sys.stderr)
         return 1
 
-    print("\nAll tracked Companion dependency pins are current.")
+    print("\nAll tracked direct/runtime Companion dependency pins are current.")
     return 0
 
 
