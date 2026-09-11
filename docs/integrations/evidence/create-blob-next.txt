@@ -1,0 +1,1 @@
+Binary media upload is the next mandatory release step.
