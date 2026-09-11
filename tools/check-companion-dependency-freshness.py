@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "local-companion" / "pyproject.toml"
 TEST_LOCK = ROOT / "local-companion" / "requirements-test.lock"
 WHISPER_RUNTIME = ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json"
+QWEN_RUNTIME = ROOT / "local-companion" / "runtime" / "qwen-windows-x64.json"
 COMPANION_WORKFLOW = ROOT / ".github" / "workflows" / "companion.yml"
 
 EXACT = re.compile(r"^([A-Za-z0-9_.-]+)==([^;\s]+)$")
@@ -40,7 +41,7 @@ def parse_exact(spec: str) -> tuple[str, str] | None:
 
 def fetch_json(url: str) -> object:
     request = urllib.request.Request(url, headers={"User-Agent": "TDA-Companion-dependency-audit/1"})
-    with urllib.request.urlopen(request, timeout=20) as response:
+    with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 - fixed public registries
         return json.load(response)
 
 
@@ -92,6 +93,13 @@ def read_lock() -> dict[str, str]:
     return lock
 
 
+def _runtime_json(path: Path, expected_schema: str) -> dict:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schema") != expected_schema:
+        raise RuntimeError(f"RUNTIME_MANIFEST_SCHEMA:{path.name}")
+    return value
+
+
 def collect() -> tuple[dict[str, str], dict[str, list[str]], str, dict[str, str]]:
     pins: dict[str, str] = {}
     sources: dict[str, list[str]] = {}
@@ -112,12 +120,23 @@ def collect() -> tuple[dict[str, str], dict[str, list[str]], str, dict[str, str]
         if locked is not None and locked != version:
             raise RuntimeError(f"DIRECT_LOCK_MISMATCH:{name}:{version}:{locked}")
 
-    runtime = json.loads(WHISPER_RUNTIME.read_text(encoding="utf-8"))
-    python_pin = str(runtime["python"])
+    whisper = _runtime_json(WHISPER_RUNTIME, "tda_whisper_runtime_build_v1")
+    python_pin = str(whisper["python"])
     if not PYTHON_312.fullmatch(python_pin):
         raise RuntimeError("WHISPER_RUNTIME_PYTHON_PIN_INVALID")
-    for name, version in runtime.get("packages", {}).items():
+    for name, version in whisper.get("packages", {}).items():
         add_pin(pins, sources, str(name), str(version), "whisper-windows-x64.json")
+
+    qwen = _runtime_json(QWEN_RUNTIME, "tda_qwen_runtime_build_v1")
+    qwen_python = str(qwen["python"])
+    if qwen_python != python_pin:
+        raise RuntimeError(f"QWEN_RUNTIME_PYTHON_PIN_MISMATCH:{qwen_python}:{python_pin}")
+    torch = qwen.get("torch")
+    if not isinstance(torch, dict) or not isinstance(torch.get("version"), str):
+        raise RuntimeError("QWEN_RUNTIME_TORCH_PIN_INVALID")
+    add_pin(pins, sources, "torch", str(torch["version"]), "qwen-windows-x64.json")
+    for name, version in qwen.get("packages", {}).items():
+        add_pin(pins, sources, str(name), str(version), "qwen-windows-x64.json")
 
     workflow = COMPANION_WORKFLOW.read_text(encoding="utf-8")
     uv_pins = set(UV_WORKFLOW_PIN.findall(workflow))
