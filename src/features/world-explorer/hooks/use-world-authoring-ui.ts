@@ -15,6 +15,7 @@ import {
 	type WorldAuthoringInspectorMode,
 	type WorldAuthoringTool,
 } from "../world-authoring-ui-state";
+import { nextInspectorMode } from "../world-inspector-mode";
 
 export function useWorldAuthoringUi() {
 	const [state, dispatch] = useReducer(
@@ -37,9 +38,13 @@ export function useWorldAuthoringUi() {
 
 	const toggleInspector = useCallback(
 		(openMode: Exclude<WorldAuthoringInspectorMode, "closed"> = "docked") => {
+			if (openMode === "overlay") {
+				dispatch({ type: "setInspectorMode", mode: nextInspectorMode(state.inspectorMode) });
+				return;
+			}
 			dispatch({ type: "toggleInspector", openMode });
 		},
-		[],
+		[state.inspectorMode],
 	);
 
 	const toggleFocusMode = useCallback(() => {
