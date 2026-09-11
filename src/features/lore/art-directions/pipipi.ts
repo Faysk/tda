@@ -4,6 +4,11 @@ import type { CinematicSceneArtDirection } from "./cinematic";
 /**
  * Versioned visual direction for Pipipi's cinematic scenes.
  * These coordinates describe framing only; they are not narrative assertions.
+ *
+ * Fullscreen scenes must not opt into staticMedia unless the flattened raster
+ * passes the media quality gate documented in docs/integrations/r2/variants-and-crops.md.
+ * Until high-resolution flattened masters exist, keep the higher-detail layered
+ * background + subject composition instead of stretching small static derivatives.
  */
 export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	PipipiSceneId,
@@ -16,7 +21,6 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	"super-herois": {
 		focalPoint: { x: 50, y: 50 },
 		mobileFocalPoint: { x: 50, y: 50 },
-		staticMedia: true,
 	},
 	corredores: {
 		focalPoint: { x: 50, y: 50 },
@@ -34,14 +38,10 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 		// The portrait crop intentionally favors the mother's chair; Pipipi is a
 		// separate foreground layer and remains visible on the left.
 		mobileFocalPoint: { x: 72, y: 50 },
-		staticMedia: true,
 	},
 	"ultimo-dia": {
 		focalPoint: { x: 50, y: 50 },
-		// Current portrait composition is already strong; preserve it exactly
-		// while scrolling instead of spending crop room on decorative parallax.
 		mobileFocalPoint: { x: 50, y: 50 },
-		staticMedia: true,
 	},
 	acordou: {
 		focalPoint: { x: 50, y: 50 },
