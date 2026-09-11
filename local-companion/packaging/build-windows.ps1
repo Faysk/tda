@@ -30,12 +30,13 @@ if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "VERSION_NOT_FOUND" }
 
 $work = Join-Path $output "work"
 $dist = Join-Path $output "dist"
+$maintenanceDist = Join-Path $output "maintenance-dist"
 $packageRoot = Join-Path $output "TDACompanion-$version"
 $appRoot = Join-Path $packageRoot "app"
 $metadataRoot = Join-Path $output "metadata"
 
 Remove-Item $output -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $work, $dist, $maintenanceDist, $packageRoot, $metadataRoot | Out-Null
 
 & $pythonPath -m PyInstaller `
     --noconfirm `
@@ -55,6 +56,22 @@ New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataR
 if ($LASTEXITCODE -ne 0) { throw "PYINSTALLER_FAILED" }
 
 Copy-Item (Join-Path $dist "TDACompanion") $appRoot -Recurse
+
+& $pythonPath -m PyInstaller `
+    --noconfirm `
+    --clean `
+    --onefile `
+    --windowed `
+    --name TDACompanionMaintenance `
+    --distpath $maintenanceDist `
+    --workpath (Join-Path $work "maintenance") `
+    --specpath (Join-Path $work "maintenance") `
+    (Join-Path $PSScriptRoot "maintenance_entry.py")
+if ($LASTEXITCODE -ne 0) { throw "MAINTENANCE_PYINSTALLER_FAILED" }
+$maintenanceExe = Join-Path $maintenanceDist "TDACompanionMaintenance.exe"
+if (-not (Test-Path $maintenanceExe)) { throw "MAINTENANCE_EXE_NOT_CREATED" }
+Copy-Item $maintenanceExe (Join-Path $appRoot "TDACompanionMaintenance.exe")
+
 Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
 Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
 Set-Content -Path (Join-Path $packageRoot "version.txt") -Value $version -Encoding ascii -NoNewline
