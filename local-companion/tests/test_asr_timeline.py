@@ -123,6 +123,31 @@ def test_dedup_never_removes_distinct_simultaneous_speech():
     assert all(turn.overlaps_other_speaker for turn in result.turns)
 
 
+def test_discarded_segment_cannot_suppress_a_third_segment():
+    weak_first = _track(
+        1,
+        "Alice",
+        _segment("1-a", 0.0, 1.0, "Abram a porta agora", confidence=0.74),
+    )
+    strong_middle = _track(
+        2,
+        "Bob",
+        _segment("2-a", 0.0, 0.80, "abram a porta agora", confidence=0.96),
+    )
+    later = _track(
+        3,
+        "Carol",
+        _segment("3-a", 0.21, 1.0, "Abram a porta agora", confidence=0.55),
+    )
+
+    kept, decisions = deduplicate_cross_track_segments(flatten_tracks((weak_first, strong_middle, later)))
+
+    assert (1, "1-a") not in {item.key for item in kept}
+    assert (2, "2-a") in {item.key for item in kept}
+    assert (3, "3-a") in {item.key for item in kept}
+    assert [(item.kept, item.suppressed) for item in decisions] == [((2, "2-a"), (1, "1-a"))]
+
+
 def test_turn_builder_groups_only_consecutive_same_speaker_segments():
     alice = _track(
         1,
