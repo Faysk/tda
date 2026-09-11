@@ -30,6 +30,31 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
+    sys.path.insert(0, str(ROOT / "local-companion"))
+    from tda_companion.asr_runtime import (  # noqa: PLC0415
+        inspect_whisper_runtime,
+        install_whisper_runtime_archive,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="tda-whisper-install-") as value:
+        runtime_root = Path(value) / "Runtime"
+        install_whisper_runtime_archive(
+            archive,
+            runtime_root,
+            version=version,
+            expected_sha256=digest,
+        )
+        state = inspect_whisper_runtime(runtime_root, verify_worker=True)
+        if state.get("status") != "ready" or state.get("version") != version:
+            raise RuntimeError("WHISPER_RUNTIME_INSTALL_SMOKE_FAILED")
+        worker = Path(str(state["worker"]))
+        probe = json.loads(run(str(worker), "--probe"))
+        if not probe.get("ready"):
+            raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
+        return probe
+
+
 def main() -> int:
     if os.name != "nt" or not sys.maxsize > 2**32:
         raise RuntimeError("WHISPER_RUNTIME_WINDOWS_X64_REQUIRED")
@@ -116,10 +141,20 @@ def main() -> int:
                 if path.is_file():
                     bundle.write(path, path.relative_to(package_root).as_posix())
         digest = sha256(archive)
-        (archive.with_suffix(archive.suffix + ".sha256")).write_text(
-            f"{digest}  {archive.name}", encoding="ascii"
+        sha_file = archive.with_suffix(archive.suffix + ".sha256")
+        sha_file.write_text(f"{digest}  {archive.name}", encoding="ascii")
+        installed_probe = _smoke_installer(archive, version, digest)
+        print(
+            json.dumps(
+                {
+                    "archive": str(archive),
+                    "sha256": digest,
+                    "probe": probe,
+                    "installed_probe": installed_probe,
+                },
+                sort_keys=True,
+            )
         )
-        print(json.dumps({"archive": str(archive), "sha256": digest, "probe": probe}, sort_keys=True))
     return 0
 
 
