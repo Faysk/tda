@@ -39,6 +39,7 @@ export function WorldCommandPalette({
 	open,
 	context,
 	entities,
+	commandIds,
 	onClose,
 	onCommand,
 	onSelectEntity,
@@ -46,6 +47,7 @@ export function WorldCommandPalette({
 	open: boolean;
 	context: WorldCommandContext;
 	entities: readonly WorldNodeDTO[];
+	commandIds: ReadonlySet<WorldCommandId>;
 	onClose: () => void;
 	onCommand: (id: WorldCommandId) => void;
 	onSelectEntity: (id: string) => void;
@@ -57,6 +59,7 @@ export function WorldCommandPalette({
 	const results = useMemo<PaletteResult[]>(() => {
 		const needle = normalizeSearch(query);
 		const commands = availableWorldCommands(context)
+			.filter((command) => commandIds.has(command.id))
 			.filter((command) => command.id !== "world.openCommandPalette")
 			.filter(
 				(command) =>
@@ -80,7 +83,7 @@ export function WorldCommandPalette({
 				entity,
 			}));
 		return [...commands, ...matchingEntities];
-	}, [context, entities, query]);
+	}, [commandIds, context, entities, query]);
 
 	useEffect(() => {
 		if (!open) return;
