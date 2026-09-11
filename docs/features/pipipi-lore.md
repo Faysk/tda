@@ -1,8 +1,8 @@
 # Pipipi — lore cinematográfica pioneira
 
-> Status: implementação integrada à `main`; Fases 1–3 e QA/polimento concluídos; publicação em production ainda pendente
+> Status: implementação, QA e publicação em production concluídos
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-10
+> Última revisão: 2026-09-11
 > Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
@@ -84,7 +84,9 @@ O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, taman
 
 `src/app/lore/pipipi/page.tsx` é uma rota dedicada e reutiliza `buildPublicMetadata`. Ela não consulta `findPublishedLoreProfile` enquanto a projection de Pipipi não existir, evitando que a lore aprovada retorne 404 apenas por ausência da entity no banco.
 
-A rota está integrada à `main` pelo merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`. Em 2026-09-10, antes do próximo deployment deliberado, `https://dnd.faysk.dev/lore/pipipi` ainda respondia 404; isso comprova que integração e publicação continuam estados separados.
+A rota está integrada à `main` pelo merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`. Em 2026-09-10, antes do deployment deliberado seguinte, `https://dnd.faysk.dev/lore/pipipi` ainda respondia 404; esse registro histórico comprova que integração e publicação são estados separados.
+
+Em 2026-09-11 a rota foi verificada no domínio oficial já publicada em production: HTTP `200`, título `Pipipi — A Casa Onde os Super-Heróis Visitavam · TDA`, descrição própria e canonical `https://dnd.faysk.dev/lore/pipipi`. A imagem Open Graph observada ainda usa o fallback genérico `/og/default`; uma arte social própria de Pipipi permanece melhoria separada e não é tratada como requisito retroativo para considerar a rota publicada.
 
 ## QA e evidência da Fase 3
 
@@ -113,7 +115,20 @@ O merge commit exato `28668fb169534d1de7cd8a47046a9fbd0d327dfe` foi validado nov
 - `Companion` run 363: `completed / success`;
 - ambos executados por `push` sobre o SHA exato do merge.
 
-Portanto, o recorte de implementação + QA + polimento está **100% concluído no código integrado**. O passo restante é operacional e separado: publicar deliberadamente esse SHA (ou um descendente validado que o contenha) e executar o smoke de production previsto no runbook.
+Portanto, o recorte de implementação + QA + polimento ficou **100% concluído no código integrado** antes da publicação, mantendo o gate operacional separado.
+
+## Publicação em production — 2026-09-11
+
+- `main` observada: `ad6d9334471c93a591660e9dc8089e102fc4638a`;
+- deployment Vercel: `dpl_FyLWMwVXm4rwGV23khpQkb5qHStU`;
+- target: `production`;
+- estado observado: `READY`;
+- metadata do deployment associa o artefato ao mesmo source SHA `ad6d9334471c93a591660e9dc8089e102fc4638a`;
+- `https://dnd.faysk.dev/lore/pipipi` respondeu HTTP `200` na verificação de 2026-09-11;
+- título, descrição e canonical próprios foram observados no HTML servido;
+- a imagem social ainda resolve para o fallback genérico `/og/default`, portanto OG específico continua melhoria posterior.
+
+Este recibo confirma a publicação da lore pioneira sem inferir migration, alteração de dados, grant, DNS ou qualquer outra operação que não tenha sido observada nessa verificação.
 
 ## Critérios de aceite técnico-editorial
 
