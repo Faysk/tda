@@ -99,6 +99,9 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
+        # Validate before creating a process so malformed user-derived identifiers
+        # can never be turned into worker lifecycle or filesystem activity.
+        encoded_command = command.encode()
         process = subprocess.Popen(
             self.command_factory(),
             stdin=subprocess.PIPE,
@@ -146,7 +149,7 @@ class WorkerSupervisor:
         terminal: WorkerMessage | None = None
 
         try:
-            process.stdin.write(command.encode())
+            process.stdin.write(encoded_command)
             process.stdin.flush()
 
             while terminal is None:
