@@ -98,7 +98,9 @@ try {
     if (-not (Test-Path $tokenPath)) { throw "MSI_PAIRING_TOKEN_NOT_CREATED" }
     $token = (Get-Content $tokenPath -Raw).Trim()
     if ($token.Length -lt 43) { throw "MSI_PAIRING_TOKEN_INVALID" }
-    $origin = "http://127.0.0.1:3000"
+    # Use the product's exact default allowed origin. The smoke must not weaken or
+    # bypass loopback CORS just to exercise the installed worker boundary.
+    $origin = "https://dnd.faysk.dev"
     $headers = @{
         Authorization = "Bearer $token"
         Origin = $origin
