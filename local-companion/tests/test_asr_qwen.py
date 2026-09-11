@@ -191,6 +191,53 @@ def test_qwen_alignment_failure_keeps_transcript_with_explicit_fallback(tmp_path
     assert value["warnings"] == ("QWEN_ALIGNMENT_FALLBACK:track-1",)
 
 
+def test_qwen_fallback_warning_survives_checkpoint_restart(tmp_path: Path):
+    package, package_root = _package(tmp_path, two_tracks=False)
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "Fallback persistente", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    common = dict(
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        window_reader=_window_reader,
+        energy_reader=lambda _window, _start, _end: -12.0,
+    )
+    first = transcribe_craig_package_qwen(
+        package,
+        package_root,
+        tmp_path / "Models",
+        asr_session_factory=lambda _root, _plan_value: Asr(),
+        aligner_session_factory=lambda _root, _plan_value: BrokenAligner(),
+        **common,
+    )
+    second = transcribe_craig_package_qwen(
+        package,
+        package_root,
+        tmp_path / "Models",
+        asr_session_factory=lambda _root, _plan_value: (_ for _ in ()).throw(AssertionError("ASR should be cached")),
+        aligner_session_factory=lambda _root, _plan_value: (_ for _ in ()).throw(AssertionError("aligner should be cached")),
+        **common,
+    )
+
+    assert first.as_dict()["tracks"] == second.as_dict()["tracks"]
+    assert first.as_dict()["warnings"] == second.as_dict()["warnings"]
+    assert first.as_dict()["engine"]["alignment"] == second.as_dict()["engine"]["alignment"]
+
+
 def test_qwen_exact_checkpoint_skips_both_heavy_sessions_on_restart(tmp_path: Path):
     package, package_root = _package(tmp_path, two_tracks=False)
     created = {"asr": 0, "aligner": 0}
