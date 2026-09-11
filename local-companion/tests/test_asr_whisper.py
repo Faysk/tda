@@ -172,17 +172,17 @@ def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Pat
     assert value["stats"]["word_count"] == 2
     assert value["stats"]["turn_count"] == 1
     assert value["stats"]["deduplicated_segment_count"] == 0
-    assert value["turns"] == [
+    assert value["turns"] == (
         {
             "id": "turn-000001",
             "speaker": "Alice",
             "start": 0.1,
             "end": 0.9,
             "text": "Olá Yuhara",
-            "segments": [{"track_number": 1, "segment_id": "1-0"}],
+            "segments": ({"track_number": 1, "segment_id": "1-0"},),
             "overlaps_other_speaker": False,
-        }
-    ]
+        },
+    )
     assert captured["path"] == str(track_file.resolve())
     assert captured["options"]["language"] == "pt"
     assert captured["options"]["beam_size"] == 5
