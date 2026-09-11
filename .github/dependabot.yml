@@ -10,7 +10,16 @@ updates:
         dependency-type: production
       development:
         dependency-type: development
+  - package-ecosystem: pip
+    directory: /local-companion
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    groups:
+      companion-runtime:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: daily
