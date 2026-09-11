@@ -124,7 +124,20 @@
           <section class="panel setting-group"><h2>Inicialização</h2><label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label><label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label><label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label></section>
           <section class="panel setting-group"><h2>Aparência e janela</h2><label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label><label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label></section>
           <section class="panel setting-group"><h2>Pareamento</h2><p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p><div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div></section>
-          <section class="panel setting-group danger-zone"><h2>Aplicativo</h2><p><span id="settings-version">TDA Companion —</span><br />API local v1</p><div class="action-row"><button type="button" id="check-update">Verificar atualização</button><button type="button" class="danger" id="uninstall-placeholder" disabled>Desinstalar</button></div><small>O fluxo de desinstalação completa será habilitado pelo MSI v0.3 após validação de purge no CI.</small></section>
+          <section class="panel setting-group danger-zone">
+            <h2>Aplicativo</h2>
+            <p><span id="settings-version">TDA Companion —</span><br />API local v1</p>
+            <div class="action-row app-update-actions">
+              <button type="button" id="check-update">Verificar atualização</button>
+              <button type="button" class="primary update-install hidden" id="install-update">Atualizar agora</button>
+            </div>
+            <div class="app-separator"></div>
+            <p><b>Desinstalação</b><br />Você pode remover só o aplicativo e manter os dados para uma futura reinstalação, ou apagar completamente o TDA local deste usuário.</p>
+            <div class="action-row">
+              <button type="button" id="uninstall-keep">Desinstalar e manter dados</button>
+              <button type="button" class="danger" id="uninstall-purge">Remover completamente</button>
+            </div>
+          </section>
         </div>
       </section>
     </main>
