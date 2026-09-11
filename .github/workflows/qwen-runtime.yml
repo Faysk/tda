@@ -1,0 +1,46 @@
+name: Qwen Runtime Candidate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/qwen-runtime.yml'
+      - 'local-companion/runtime/qwen-windows-x64.json'
+      - 'local-companion/packaging/build_qwen_runtime_plan.py'
+      - 'local-companion/packaging/qwen_runtime_probe.py'
+      - 'local-companion/tda_companion/asr_models.py'
+  push:
+    branches: [main, Preview]
+    paths:
+      - '.github/workflows/qwen-runtime.yml'
+      - 'local-companion/runtime/qwen-windows-x64.json'
+      - 'local-companion/packaging/build_qwen_runtime_plan.py'
+      - 'local-companion/packaging/qwen_runtime_probe.py'
+      - 'local-companion/tda_companion/asr_models.py'
+
+concurrency:
+  group: qwen-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-plan:
+    name: qwen-runtime-plan-windows-x64
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: '0.12.13'
+      - name: Resolve and probe isolated Qwen runtime candidate
+        shell: pwsh
+        run: python local-companion/packaging/build_qwen_runtime_plan.py
+      - name: Upload resolved runtime plan
+        uses: actions/upload-artifact@v5
+        with:
+          name: TDAQwenRuntimePlan-windows-x64
+          path: local-companion/out/qwen-runtime/TDAQwenRuntimePlan-*-windows-x64.json
+          if-no-files-found: error
+          retention-days: 7
