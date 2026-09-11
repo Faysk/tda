@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-11
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -21,7 +21,7 @@ Estados:
 | --- | --- | --- |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | arquitetura aprovada; candidato UI/adapters | [Contrato da tela e gates](features/local-processing.md); ensaio sintético não equivale a ASR real nem sincronização cloud |
-| Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; isso não declara login de produto integrado/publicado |
+| Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; maturidade do schema não implica que todo recorte de acesso administrativo esteja concluído |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |
 | Lugares | preparado | `entities(type=location)` |
@@ -30,6 +30,7 @@ Estados:
 | Facções | preparado | `entities(type=faction)` |
 | Arcos | preparado | `entities(type=arc)` |
 | Conceitos/lore | preparado | `entities(type=concept)` + canon revisado |
+| Lore editorial Pipipi | publicada em production | rota dedicada `/lore/pipipi`, texto editorial versionado, cinematic progressivo e QA concluído; publicação observada em 2026-09-11 sem criar entity/canon por conveniência |
 | Músicas/performances | preparado | `entities(type=song)`; performances específicas continuam em desenho |
 | Quests/ganchos | preparado | `entities(type=quest)`; estados narrativos precisam ser definidos quando a feature entrar |
 | Menções de entidades | implementado no schema | `entity_mentions` liga entity a sessão/segmento/evento; tabela ainda vazia |
@@ -38,26 +39,27 @@ Estados:
 | Citações/outtakes | implementado no schema | candidatos e review flow já existem |
 | Publicações | implementado no schema | `publications`; conteúdo publicado atual já existe |
 | Perfis editoriais de entities | scaffold integrado; projection pendente | shells compartilhados, scenes e narração opcional; conteúdo real depende de projection autorizada |
-| Relações entre entities | documentado, schema em desenho | relation first-class com direção/simetria, lifecycle, visibility e fonte; proposta em `features/relations-data-contract.md` |
-| World Explorer / Ecos da Jornada | slice visual integrado | React Flow e layout radial; fixtures demonstrativas, dados canônicos pendentes |
+| Relações entre entities | fundação física aplicada; provenance/review em evolução | `relation_types`, `entity_relations`, `entity_relation_sources` e `world_relation_styles` aplicados; relações reais revisadas/publicadas e fluxo completo de provenance continuam pendentes |
+| World Explorer / Ecos da Jornada | fundação multi-hub e roteamento implementados; dados reais pendentes | React Flow, layout editorial e roteamento existem; fixtures continuam demonstrativas até projections autorizadas |
 | Grafo visual | slice visual integrado | `@xyflow/react` integrado; não define schema nem autorização |
 | Timeline por entidade | preparado | sessions/participants/mentions/canon já dão a base; UI/query ainda futuras |
 | Conhecimento por audiência | documentado, precisa de desenho | distinguir jogador, personagem, público, rumor, mentira e segredo do mestre; não esconder em JSON genérico |
 | Busca semântica | documentado, precisa de desenho | embeddings futuros devem manter referência a fonte/entity e nunca alterar canon |
 | Mapas | documentado, precisa de desenho | lugares já cabem em `entities`; geografia/coords/map provider ainda não têm contrato canônico |
 | Wiki/memória da campanha | documentado e parcialmente preparado | `entities`, mentions e canon formam a base; perfis editoriais possuem contrato próprio |
-| Discord para consulta narrativa | histórico/documentado | comandos como NPC/item/canon foram ideias do legado; revisar UX/autorização antes de reimplementar; não confundir com login Discord candidato |
+| Discord para consulta narrativa | histórico/documentado | comandos como NPC/item/canon foram ideias do legado; revisar UX/autorização antes de reimplementar; não confundir com login Discord |
 | Retcon/supersession | preparado | `canon_entries.status` e histórico de revisão dão base; experiência visual ainda futura |
 | Intents / intenção | não encontrado | nenhuma tabela, coluna ou definição canônica localizada no schema ou documentação histórica revisada; não criar até o conceito ser definido |
 
 ## Fontes visuais oficiais
 
-O projeto possui duas fontes oficiais explicitamente aprovadas:
+O projeto possui fontes oficiais explicitamente aprovadas e complementares:
 
 - **TDA Design System v1.0.0** — tokens, temas, tipografia, acessibilidade, governança e composição visual;
-- **TDA Brand Pack (official)** — masters de marca, logo, pato, favicons, PWA e social cards.
+- **TDA Brand Pack (official)** — masters de marca, logo, pato, favicons, PWA e social cards;
+- **Diretriz geral de UX, design e hierarquia** — prioridade de conteúdo, densidade, proporção, composição e regra contra exagero para superfícies públicas e operacionais.
 
-A autoridade operacional está em [docs/design-system](design-system/README.md). Design/Brand são fundação transversal: não precisam ocupar uma posição artificial na fila de features para continuarem sendo obrigatórios.
+A autoridade operacional está em [docs/design-system](design-system/README.md), com a diretriz transversal em [design-system/ux-hierarchy.md](design-system/ux-hierarchy.md). Design/Brand são fundação transversal: não precisam ocupar uma posição artificial na fila de features para continuarem sendo obrigatórios.
 
 ## World Explorer
 
@@ -72,7 +74,7 @@ A decisão de visualização foi fechada em [ADR-0006](adr/0006-react-flow-world
 - sem edição de relations no modo público;
 - sem modelar o banco com conceitos da biblioteca.
 
-O relation schema **ainda não foi migrado**. Fixtures de candidato devem continuar explicitamente marcadas como demo até contrato, fonte/canon e autorização permitirem dados reais.
+A fundação física de relations foi aplicada no Supabase canônico em 2026-09-10, conforme [contrato de dados para relações](features/relations-data-contract.md). Isso não significa que relações reais estejam publicadas: fixtures continuam explicitamente demonstrativas até fonte/canon, provenance/review, visibility e autorização permitirem projections reais.
 
 ## Edit Workbench
 
@@ -105,11 +107,11 @@ Esses documentos são evidência histórica. A decisão vigente sempre é este c
 
 ## Ordem recomendada de evolução
 
-1. consolidar **Home/sessões públicas**: origem canônica, metadata comum, mídia pública verificável e release/smoke deliberados;
+1. consolidar **Home/sessões públicas** e superfícies narrativas já publicadas: origem canônica, metadata comum, mídia pública verificável e release/smoke deliberados;
 2. fechar **Auth/capabilities + Edit transcript**: identidade verificada, optimistic concurrency/audit atômicos, adapter canônico, UX de conflito e retirada posterior do bypass temporário;
 3. popular **memória estruturada** (`entities`, mentions, canon) somente a partir de fontes revisadas/autorizadas;
 4. integrar **perfis editoriais e World Explorer** sobre contratos compartilhados, fixtures não-canônicas isoladas e projections públicas autorizadas;
-5. aprovar/migrar **relations first-class** com sources/audience e então ligar o World Explorer a dados reais;
+5. completar **relations first-class** com sources/audience/provenance e então ligar o World Explorer a dados reais;
 6. expandir perfis com timeline/wiki e demais superfícies derivadas;
 7. fechar modelo de **knowledge/audience**;
 8. evoluir busca semântica, mapas, músicas/performances, quests e consultas narrativas.

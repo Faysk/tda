@@ -2,6 +2,7 @@
 
 > Status: vigente
 > Owner: operations
+> Última revisão: 2026-09-11
 > Registro: append-only; correções devem preservar o evento original e explicar a retificação.
 
 Este arquivo registra publicações deliberadas do TDA. Merge não implica deploy. Cada entrada fixa o SHA de origem, ambiente, evidências de build/health e situação de rollback.
@@ -181,3 +182,16 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Instabilidade conhecida: PR #110 teve um timeout isolado no teste de seleção do inspetor em desktop-2k. Dez repetições locais passaram; rerun do mesmo SHA e CI final da main passaram. A repetição não foi tratada como correção da causa.
 - Fora do escopo: Pipipi ainda não possui rota integrada; grafo continua demonstrativo; ASR real, MSI e sync não foram declarados concluídos. PR #111 permanece draft, sem aplicação de backfill.
 - Rollback: Production #008 `dpl_Cmw9hpaqunsCiba2K4CC5p2gz3WE`. Nenhum dado, grant, DNS ou áudio foi alterado nesta publicação.
+
+## 2026-09-11 — Production atual observada: reconciliação documental
+
+- Source SHA observado: `ad6d9334471c93a591660e9dc8089e102fc4638a`, `main` no momento da reconciliação.
+- Deployment Vercel: `dpl_FyLWMwVXm4rwGV23khpQkb5qHStU`, target `production`, estado `READY`.
+- A metadata do deployment associa explicitamente o artefato ao mesmo source SHA `ad6d9334471c93a591660e9dc8089e102fc4638a`.
+- O commit de `main` corresponde ao merge da PR #178: `release: promote D lore artwork fix to production`.
+- Smoke documental direto: `https://dnd.faysk.dev/lore/pipipi` respondeu HTTP `200` em 2026-09-11.
+- Metadata pública observada na rota: título `Pipipi — A Casa Onde os Super-Heróis Visitavam · TDA`, descrição própria e canonical da própria rota.
+- A imagem Open Graph observada ainda usa `https://dnd.faysk.dev/og/default`; OG específico de Pipipi permanece melhoria separada.
+- Esta reconciliação **não reconstitui nem renumera deployments intermediários ausentes deste arquivo** e não infere migration, DDL, grant, DNS, OAuth, R2 ou smoke adicional que não tenha sido observado aqui.
+- Entradas históricas anteriores permanecem intactas e devem ser interpretadas como fotografias do momento em que foram registradas.
+
