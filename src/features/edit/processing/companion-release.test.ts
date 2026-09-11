@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { selectLatestCompanionAsset } from "./companion-release";
+import {
+	selectCompanionAsset,
+	selectLatestCompanionTag,
+} from "./companion-release";
 
 function release(
 	tag: string,
@@ -20,49 +23,67 @@ function release(
 	};
 }
 
-describe("selectLatestCompanionAsset", () => {
-	it("selects the greatest companion semantic version", () => {
+describe("selectLatestCompanionTag", () => {
+	it("selects the greatest companion semantic version from matching refs", () => {
 		expect(
-			selectLatestCompanionAsset([
-				release("companion-v0.2.0"),
-				release("companion-v1.0.0"),
-				release("companion-v0.12.4"),
+			selectLatestCompanionTag([
+				{ ref: "refs/tags/companion-v0.2.0" },
+				{ ref: "refs/tags/companion-v1.0.0" },
+				{ ref: "refs/tags/companion-v0.12.4" },
+				{ ref: "refs/tags/prod-abcdef123456" },
 			]),
-		).toBe(
-			"https://github.com/Faysk/tda/releases/download/companion-v1.0.0/TDACompanion-x64.msi",
-		);
+		).toBe("companion-v1.0.0");
 	});
 
-	it("ignores production releases and prerelease/draft companions", () => {
+	it("ignores malformed tags", () => {
 		expect(
-			selectLatestCompanionAsset([
-				release("companion-v0.2.0"),
-				{
-					tag_name: "prod-abcdef123456",
-					draft: false,
-					prerelease: false,
-					assets: [],
-				},
-				release("companion-v9.0.0", { prerelease: true }),
-				release("companion-v8.0.0", { draft: true }),
+			selectLatestCompanionTag([
+				{ ref: "refs/tags/companion-v1.0" },
+				{ ref: "refs/tags/companion-v1.0.0-beta" },
+				{ ref: "refs/heads/companion-v9.0.0" },
 			]),
+		).toBeNull();
+	});
+});
+
+describe("selectCompanionAsset", () => {
+	it("accepts the official MSI asset for the selected release", () => {
+		expect(
+			selectCompanionAsset(
+				release("companion-v0.2.0"),
+				"companion-v0.2.0",
+			),
 		).toBe(
 			"https://github.com/Faysk/tda/releases/download/companion-v0.2.0/TDACompanion-x64.msi",
 		);
 	});
 
-	it("rejects assets outside the official release path", () => {
+	it("rejects a draft, prerelease or mismatched release", () => {
 		expect(
-			selectLatestCompanionAsset([
-				release("companion-v0.2.0", {
-					url: "https://example.com/TDACompanion-x64.msi",
-				}),
-			]),
+			selectCompanionAsset(
+				release("companion-v0.2.0", { draft: true }),
+				"companion-v0.2.0",
+			),
+		).toBeNull();
+		expect(
+			selectCompanionAsset(
+				release("companion-v0.2.0", { prerelease: true }),
+				"companion-v0.2.0",
+			),
+		).toBeNull();
+		expect(
+			selectCompanionAsset(release("companion-v0.2.0"), "companion-v0.3.0"),
 		).toBeNull();
 	});
 
-	it("returns null for malformed release responses", () => {
-		expect(selectLatestCompanionAsset({ releases: [] })).toBeNull();
-		expect(selectLatestCompanionAsset([])).toBeNull();
+	it("rejects assets outside the exact official release path", () => {
+		expect(
+			selectCompanionAsset(
+				release("companion-v0.2.0", {
+					url: "https://example.com/TDACompanion-x64.msi",
+				}),
+				"companion-v0.2.0",
+			),
+		).toBeNull();
 	});
 });
