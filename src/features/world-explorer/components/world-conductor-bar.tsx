@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import {
 	worldCommand,
 	worldCommandIsAvailable,
 	type WorldCommandContext,
 } from "../world-commands";
-import { WORLD_AUTHORING_OPEN_INSPECTOR_EVENT } from "../world-authoring-events";
 import styles from "./world-conductor-bar.module.css";
 
 type WorldConductorAction = () => void | Promise<void>;
@@ -92,20 +90,6 @@ export function WorldConductorBar({
 	const canFinish = worldCommandIsAvailable(finish.id, context);
 	const canDiscard = worldCommandIsAvailable(discard.id, context);
 	const active = context.editState === "editing" || context.editState === "publishing";
-
-	useEffect(() => {
-		if (!active) return;
-		function openInspectorFromSelection() {
-			if (!inspectorOpen) onToggleInspector();
-		}
-		window.addEventListener(WORLD_AUTHORING_OPEN_INSPECTOR_EVENT, openInspectorFromSelection);
-		return () => {
-			window.removeEventListener(
-				WORLD_AUTHORING_OPEN_INSPECTOR_EVENT,
-				openInspectorFromSelection,
-			);
-		};
-	}, [active, inspectorOpen, onToggleInspector]);
 
 	if (active && focusMode) {
 		return (
