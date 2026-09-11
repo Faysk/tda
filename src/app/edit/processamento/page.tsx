@@ -5,8 +5,7 @@ import { ProcessingPanel } from "@/features/edit/processing/panel";
 import styles from "@/features/edit/processing/processing.module.css";
 import pageStyles from "./page.module.css";
 
-const COMPANION_MSI_URL =
-	"https://github.com/Faysk/tda/releases/latest/download/TDACompanion-x64.msi";
+const COMPANION_MSI_URL = "/api/downloads/companion/windows";
 
 export const metadata: Metadata = {
 	title: "Processamento",
