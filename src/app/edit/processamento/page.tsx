@@ -3,6 +3,7 @@ import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
 import styles from "@/features/edit/processing/processing.module.css";
+import pageStyles from "./page.module.css";
 
 const COMPANION_MSI_URL =
 	"https://github.com/Faysk/tda/releases/latest/download/TDACompanion-x64.msi";
@@ -19,13 +20,13 @@ export default async function ProcessingPage() {
 	);
 	return (
 		<section className={styles.page}>
-			<header className={styles.pageHeader}>
+			<header className={`${styles.pageHeader} ${pageStyles.pageHeaderActions}`}>
 				<div>
 					<div className={styles.breadcrumb}>Edit / Processamento</div>
 					<h1>Processamento</h1>
 				</div>
 				<a
-					className={styles.companionDownload}
+					className={pageStyles.companionDownload}
 					href={COMPANION_MSI_URL}
 					title="Windows x64 · versão mais recente"
 				>
