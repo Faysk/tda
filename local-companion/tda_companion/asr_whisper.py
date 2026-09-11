@@ -5,10 +5,12 @@ import os
 import shutil
 import time
 from dataclasses import asdict, dataclass
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
+from .asr_checkpoints import build_checkpoint_signature, load_track_checkpoint, save_track_checkpoint
 from .asr_models import (
     AsrProfile,
     ModelRegistryError,
@@ -248,6 +250,23 @@ def _segment_from_engine(track_number: int, segment: Any) -> TranscriptSegment:
     )
 
 
+def _distribution_version(name: str) -> str:
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError:
+        return "unavailable"
+
+
+def _whisper_runtime_fingerprint() -> str:
+    return ";".join(
+        (
+            "checkpoint=whisper-track-v1",
+            f"faster-whisper={_distribution_version('faster-whisper')}",
+            f"ctranslate2={_distribution_version('ctranslate2')}",
+        )
+    )
+
+
 def transcribe_craig_package(
     package: CraigPackage,
     package_root: Path,
@@ -262,6 +281,7 @@ def transcribe_craig_package(
     downloader: Callable[..., Any] | None = None,
     report: ProgressCallback | None = None,
     is_cancelled: CancelCallback | None = None,
+    checkpoints: bool = True,
 ) -> TranscriptDocument:
     profile = get_profile(profile_id)
     if profile.engine != "whisper":
@@ -279,6 +299,20 @@ def transcribe_craig_package(
     report({"type": "stage", "stage": "model_load", "profile": profile.id})
     model, effective_compute_type, used_fallback = model_loader(prepared, plan)
     options = whisper_transcribe_options(glossary=glossary, context=context)
+    checkpoint_recipe = {
+        "transcribe_options": options,
+        "device": plan.device,
+        "compute_type": effective_compute_type,
+        "cpu_requested": plan.cpu_requested,
+    }
+    checkpoint_signature = build_checkpoint_signature(
+        package,
+        profile,
+        recipe=checkpoint_recipe,
+        context=_bounded_context(context, 2000),
+        glossary=_bounded_context(glossary, 2000),
+        runtime_fingerprint=_whisper_runtime_fingerprint(),
+    )
 
     started = time.monotonic()
     tracks: list[TranscriptTrack] = []
@@ -288,19 +322,30 @@ def transcribe_craig_package(
         if is_cancelled():
             raise WhisperRuntimeError("ASR_CANCELLED")
         source = _safe_track_path(package_root, track)
-        segments_iter, info = model.transcribe(str(source), **options)
-        segments: list[TranscriptSegment] = []
-        for segment in segments_iter:
-            if is_cancelled():
-                raise WhisperRuntimeError("ASR_CANCELLED")
-            value = _segment_from_engine(track.number, segment)
-            if value.text:
-                segments.append(value)
+        cached = load_track_checkpoint(package_root, checkpoint_signature, track) if checkpoints else None
+        if cached is not None:
+            tracks.append(cached)
+            report(
+                {
+                    "type": "event",
+                    "code": "ASR_CHECKPOINT_REUSED",
+                    "stage": "transcription",
+                    "track": track.number,
+                }
+            )
+        else:
+            segments_iter, info = model.transcribe(str(source), **options)
+            segments: list[TranscriptSegment] = []
+            for segment in segments_iter:
+                if is_cancelled():
+                    raise WhisperRuntimeError("ASR_CANCELLED")
+                value = _segment_from_engine(track.number, segment)
+                if value.text:
+                    segments.append(value)
 
-        identity = asdict(track.identity) if track.identity is not None else None
-        duration = round(float(getattr(info, "duration", 0.0) or 0.0), 3)
-        tracks.append(
-            TranscriptTrack(
+            identity = asdict(track.identity) if track.identity is not None else None
+            duration = round(float(getattr(info, "duration", 0.0) or 0.0), 3)
+            transcript_track = TranscriptTrack(
                 number=track.number,
                 speaker=track.speaker,
                 source_filename=track.filename,
@@ -310,7 +355,29 @@ def transcribe_craig_package(
                 timeline_offset_seconds=track.timeline_offset_seconds,
                 identity=identity,
             )
-        )
+            transcript_track.validate()
+            tracks.append(transcript_track)
+            if checkpoints:
+                try:
+                    save_track_checkpoint(package_root, checkpoint_signature, track, transcript_track)
+                    report(
+                        {
+                            "type": "event",
+                            "code": "ASR_CHECKPOINT_SAVED",
+                            "stage": "transcription",
+                            "track": track.number,
+                        }
+                    )
+                except (OSError, ValueError):
+                    report(
+                        {
+                            "type": "event",
+                            "code": "ASR_CHECKPOINT_WRITE_SKIPPED",
+                            "stage": "transcription",
+                            "track": track.number,
+                        }
+                    )
+
         report(
             {
                 "type": "progress",
