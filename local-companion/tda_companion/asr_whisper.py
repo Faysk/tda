@@ -19,6 +19,7 @@ from .asr_models import (
     model_path,
     write_install_marker,
 )
+from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
 from .craig import CraigPackage, CraigTrack
 from .transcript import (
     TranscriptDocument,
@@ -388,8 +389,30 @@ def transcribe_craig_package(
             }
         )
 
-    elapsed = max(time.monotonic() - started, 0.0)
     transcript_tracks = tuple(tracks)
+    if is_cancelled():
+        raise WhisperRuntimeError("ASR_CANCELLED")
+
+    report({"type": "stage", "stage": "cross_track_dedup", "profile": profile.id})
+    flattened = flatten_tracks(transcript_tracks)
+    deduplicated_segments, dedup_decisions = deduplicate_cross_track_segments(flattened)
+
+    if is_cancelled():
+        raise WhisperRuntimeError("ASR_CANCELLED")
+    report({"type": "stage", "stage": "merge_timeline", "profile": profile.id})
+    merged_segments = tuple(
+        sorted(
+            deduplicated_segments,
+            key=lambda item: (item.start, item.end, item.track_number, item.segment_id),
+        )
+    )
+
+    if is_cancelled():
+        raise WhisperRuntimeError("ASR_CANCELLED")
+    report({"type": "stage", "stage": "turn_building", "profile": profile.id})
+    turns = build_turns(merged_segments)
+
+    elapsed = max(time.monotonic() - started, 0.0)
     warnings = ("WHISPER_GPU_MEMORY_FALLBACK",) if used_fallback else ()
     document = TranscriptDocument(
         recording_id=package.recording_id,
@@ -405,7 +428,13 @@ def transcribe_craig_package(
             model_revision=profile.revision,
         ),
         tracks=transcript_tracks,
-        stats=stats_for_tracks(transcript_tracks, processing_seconds=elapsed),
+        turns=turns,
+        stats=stats_for_tracks(
+            transcript_tracks,
+            processing_seconds=elapsed,
+            turn_count=len(turns),
+            deduplicated_segment_count=len(dedup_decisions),
+        ),
         warnings=warnings,
     )
     document.validate()

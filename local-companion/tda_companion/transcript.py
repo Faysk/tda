@@ -119,8 +119,6 @@ class TranscriptSegment:
             segment_id = fallback_id
         confidence = value.get("confidence")
         if confidence is None and value.get("avg_logprob") is not None:
-            # avg_logprob is not a probability. Preserve no false confidence;
-            # engines can expose it later in engine metadata if needed.
             confidence = None
         result = cls(
             id=_text(str(segment_id) if segment_id is not None else "", "segment.id", maximum=256),
@@ -177,6 +175,43 @@ class TranscriptTrack:
 
 
 @dataclass(frozen=True)
+class TranscriptSegmentRef:
+    track_number: int
+    segment_id: str
+
+    def validate(self) -> None:
+        if isinstance(self.track_number, bool) or not isinstance(self.track_number, int) or self.track_number < 1:
+            raise TranscriptValidationError("turn.segment.track_number:INTEGER_INVALID")
+        _text(self.segment_id, "turn.segment.segment_id", maximum=256)
+
+
+@dataclass(frozen=True)
+class TranscriptTurn:
+    id: str
+    speaker: str
+    start: float
+    end: float
+    text: str
+    segments: tuple[TranscriptSegmentRef, ...]
+    overlaps_other_speaker: bool = False
+
+    def validate(self) -> None:
+        _text(self.id, "turn.id", maximum=256)
+        _text(self.speaker, "turn.speaker", maximum=160)
+        _text(self.text, "turn.text", maximum=200_000)
+        start = _number(self.start, "turn.start")
+        end = _number(self.end, "turn.end")
+        if end < start:
+            raise TranscriptValidationError("turn:END_BEFORE_START")
+        if not self.segments:
+            raise TranscriptValidationError("turn.segments:EMPTY")
+        for segment in self.segments:
+            segment.validate()
+        if not isinstance(self.overlaps_other_speaker, bool):
+            raise TranscriptValidationError("turn.overlaps_other_speaker:BOOLEAN_REQUIRED")
+
+
+@dataclass(frozen=True)
 class TranscriptEngine:
     engine: str
     model: str
@@ -207,6 +242,8 @@ class TranscriptStats:
     segment_count: int
     track_count: int
     rtf: float | None = None
+    turn_count: int = 0
+    deduplicated_segment_count: int = 0
 
     def validate(self) -> None:
         _number(self.audio_work_seconds, "stats.audio_work_seconds")
@@ -216,9 +253,13 @@ class TranscriptStats:
             ("word_count", self.word_count),
             ("segment_count", self.segment_count),
             ("track_count", self.track_count),
+            ("turn_count", self.turn_count),
+            ("deduplicated_segment_count", self.deduplicated_segment_count),
         ):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise TranscriptValidationError(f"stats.{name}:INTEGER_INVALID")
+        if self.deduplicated_segment_count > self.segment_count:
+            raise TranscriptValidationError("stats.deduplicated_segment_count:RANGE_INVALID")
         if self.rtf is not None:
             _number(self.rtf, "stats.rtf")
 
@@ -231,6 +272,7 @@ class TranscriptDocument:
     engine: TranscriptEngine
     tracks: tuple[TranscriptTrack, ...]
     stats: TranscriptStats
+    turns: tuple[TranscriptTurn, ...] = ()
     warnings: tuple[str, ...] = ()
     created_at: str = field(default_factory=utc_now)
     schema_version: str = SCHEMA_VERSION
@@ -247,12 +289,22 @@ class TranscriptDocument:
         _text(self.created_at, "transcript.created_at", maximum=128)
         self.engine.validate()
         self.stats.validate()
+
         seen_tracks: set[int] = set()
+        segment_index: dict[tuple[int, str], tuple[str, float, float]] = {}
         for track in self.tracks:
             track.validate()
             if track.number in seen_tracks:
                 raise TranscriptValidationError("transcript.track:DUPLICATE_NUMBER")
             seen_tracks.add(track.number)
+            for segment in track.segments:
+                key = (track.number, segment.id)
+                segment_index[key] = (
+                    track.speaker,
+                    float(segment.start) + float(track.timeline_offset_seconds),
+                    float(segment.end) + float(track.timeline_offset_seconds),
+                )
+
         if self.stats.track_count != len(self.tracks):
             raise TranscriptValidationError("transcript.stats:TRACK_COUNT_MISMATCH")
         segment_count = sum(len(track.segments) for track in self.tracks)
@@ -261,6 +313,43 @@ class TranscriptDocument:
             raise TranscriptValidationError("transcript.stats:SEGMENT_COUNT_MISMATCH")
         if self.stats.word_count != word_count:
             raise TranscriptValidationError("transcript.stats:WORD_COUNT_MISMATCH")
+        if self.stats.turn_count != len(self.turns):
+            raise TranscriptValidationError("transcript.stats:TURN_COUNT_MISMATCH")
+
+        seen_turn_ids: set[str] = set()
+        seen_turn_refs: set[tuple[int, str]] = set()
+        previous_turn_start = -1.0
+        for turn in self.turns:
+            turn.validate()
+            if turn.id in seen_turn_ids:
+                raise TranscriptValidationError("transcript.turn:DUPLICATE_ID")
+            seen_turn_ids.add(turn.id)
+            if turn.start + TIME_EPSILON < previous_turn_start:
+                raise TranscriptValidationError("transcript.turns:OUT_OF_ORDER")
+            previous_turn_start = turn.start
+
+            starts: list[float] = []
+            ends: list[float] = []
+            for reference in turn.segments:
+                key = (reference.track_number, reference.segment_id)
+                if key in seen_turn_refs:
+                    raise TranscriptValidationError("transcript.turn.segment:DUPLICATE_REFERENCE")
+                seen_turn_refs.add(key)
+                indexed = segment_index.get(key)
+                if indexed is None:
+                    raise TranscriptValidationError("transcript.turn.segment:REFERENCE_MISSING")
+                speaker, start, end = indexed
+                if speaker != turn.speaker:
+                    raise TranscriptValidationError("transcript.turn.segment:SPEAKER_MISMATCH")
+                starts.append(start)
+                ends.append(end)
+            expected_start = min(starts)
+            expected_end = max(ends)
+            if abs(float(turn.start) - expected_start) > TIME_EPSILON:
+                raise TranscriptValidationError("transcript.turn:START_MISMATCH")
+            if abs(float(turn.end) - expected_end) > TIME_EPSILON:
+                raise TranscriptValidationError("transcript.turn:END_MISMATCH")
+
         for warning in self.warnings:
             _text(warning, "transcript.warning", maximum=1024)
 
@@ -288,6 +377,8 @@ def stats_for_tracks(
     tracks: Iterable[TranscriptTrack],
     *,
     processing_seconds: float,
+    turn_count: int = 0,
+    deduplicated_segment_count: int = 0,
 ) -> TranscriptStats:
     values = tuple(tracks)
     durations = [float(track.duration_seconds or 0.0) for track in values]
@@ -303,4 +394,6 @@ def stats_for_tracks(
         segment_count=segment_count,
         track_count=len(values),
         rtf=round(elapsed / audio_work, 6) if audio_work > 0 else None,
+        turn_count=turn_count,
+        deduplicated_segment_count=deduplicated_segment_count,
     )

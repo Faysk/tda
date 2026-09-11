@@ -45,6 +45,10 @@ def _track(number: int, speaker: str, *segments: TranscriptSegment, offset: floa
     )
 
 
+def _refs(turn) -> tuple[tuple[int, str], ...]:
+    return tuple((item.track_number, item.segment_id) for item in turn.segments)
+
+
 def test_flatten_tracks_applies_common_timeline_offset():
     track = _track(1, "Alice", _segment("1-a", 1.0, 2.0, "Olá"), offset=3.5)
     result = flatten_tracks((track,))
@@ -166,11 +170,12 @@ def test_turn_builder_groups_only_consecutive_same_speaker_segments():
     assert len(result.turns) == 3
     first, second, third = result.turns
     assert first.speaker == "Alice"
-    assert first.segment_ids == ("1-a", "1-b")
+    assert _refs(first) == ((1, "1-a"), (1, "1-b"))
     assert first.text == "Eu entro. E olho em volta."
     assert second.speaker == "Bob"
+    assert _refs(second) == ((2, "2-a"),)
     assert third.speaker == "Alice"
-    assert third.segment_ids == ("1-c",)
+    assert _refs(third) == ((1, "1-c"),)
 
 
 def test_real_overlap_breaks_turn_order_even_for_same_speaker_afterward():
