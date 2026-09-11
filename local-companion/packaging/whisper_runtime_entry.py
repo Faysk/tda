@@ -11,6 +11,7 @@ def _probe() -> int:
         import av
         import ctranslate2
         import faster_whisper
+        import pynvml  # noqa: F401 - proves physical acceptance telemetry is packaged
     except Exception as exc:
         print(
             json.dumps(
@@ -43,6 +44,7 @@ def _probe() -> int:
                 "faster_whisper": getattr(faster_whisper, "__version__", "unknown"),
                 "ctranslate2": getattr(ctranslate2, "__version__", "unknown"),
                 "av": getattr(av, "__version__", "unknown"),
+                "nvml": True,
                 "cuda_device_count": device_count,
                 "cuda_compute_types": supported,
             },
