@@ -1,6 +1,4 @@
 (() => {
-  "use strict";
-
   const $ = (id) => document.getElementById(id);
   let api = null;
   let lastSnapshot = null;
@@ -43,8 +41,12 @@
   }
 
   function showView(name) {
-    document.querySelectorAll(".view").forEach((node) => node.classList.toggle("active", node.id === `view-${name}`));
-    document.querySelectorAll(".nav-item").forEach((node) => node.classList.toggle("active", node.dataset.view === name));
+    document.querySelectorAll(".view").forEach((node) => {
+      node.classList.toggle("active", node.id === `view-${name}`);
+    });
+    document.querySelectorAll(".nav-item").forEach((node) => {
+      node.classList.toggle("active", node.dataset.view === name);
+    });
     if (name === "logs") refreshLogs();
   }
 
@@ -141,7 +143,7 @@
     try {
       const value = await api.snapshot();
       renderSnapshot(value);
-    } catch (error) {
+    } catch (_error) {
       $("agent-pill").textContent = "● Agente indisponível";
       $("agent-pill").classList.add("warning");
     }
@@ -195,8 +197,12 @@
   }
 
   function bindEvents() {
-    document.querySelectorAll(".nav-item").forEach((node) => node.addEventListener("click", () => showView(node.dataset.view)));
-    document.querySelectorAll("[data-go]").forEach((node) => node.addEventListener("click", () => showView(node.dataset.go)));
+    document.querySelectorAll(".nav-item").forEach((node) => {
+      node.addEventListener("click", () => showView(node.dataset.view));
+    });
+    document.querySelectorAll("[data-go]").forEach((node) => {
+      node.addEventListener("click", () => showView(node.dataset.go));
+    });
     $("open-tda").addEventListener("click", () => api.open_tda());
     $("open-local").addEventListener("click", () => api.open_local_folder());
     $("open-logs").addEventListener("click", () => api.open_logs_folder());
