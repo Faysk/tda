@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $pythonPath = if ([IO.Path]::IsPathRooted($Python)) { $Python } else { Join-Path $repoRoot $Python }
 $output = if ([IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $repoRoot $OutputRoot }
+$packageSource = Join-Path $repoRoot "local-companion"
 
 if (-not (Test-Path $pythonPath)) {
     throw "PYTHON_NOT_FOUND: $pythonPath"
@@ -29,6 +30,7 @@ New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot | Out-Null
     --onedir `
     --windowed `
     --name TDACompanion `
+    --paths $packageSource `
     --distpath $dist `
     --workpath $work `
     --specpath $work `
