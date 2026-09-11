@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>TDA Companion</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail">
+      <div class="brand">
+        <img src="./tda-icon.svg" alt="" />
+        <div><strong>TDA</strong><span>Companion</span></div>
+      </div>
+      <nav aria-label="Navegação do Companion">
+        <button class="nav-item active" data-view="overview"><span>⌂</span>Visão geral</button>
+        <button class="nav-item" data-view="logs"><span>▤</span>Logs</button>
+        <button class="nav-item" data-view="diagnostics"><span>◌</span>Diagnóstico</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span>Configurações</button>
+      </nav>
+      <div class="rail-bottom">
+        <p>O Agent continua ativo mesmo quando esta janela é fechada.</p>
+        <span id="rail-version">v—</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="view active" id="view-overview">
+        <header class="page-head">
+          <div>
+            <h1>Tudo certo por aqui.</h1>
+            <p>Este é o painel de controle da máquina local. Sessões, resultados e revisão continuam no site do TDA.</p>
+          </div>
+          <div class="head-actions">
+            <span class="pill success" id="agent-pill">● Agente local</span>
+            <span class="version" id="head-version">v—</span>
+            <button class="update-banner hidden" id="update-banner">Atualização disponível <b id="update-version"></b></button>
+          </div>
+        </header>
+
+        <section class="machine-strip">
+          <div class="machine-identity">
+            <div class="machine-icon">▣</div>
+            <div>
+              <div class="title-row"><h2>Computador local</h2><span class="pill success" id="machine-state">Online</span></div>
+              <p id="machine-description">Carregando informações do computador…</p>
+              <small id="agent-detail">TDA local</small>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>GPU</span><strong id="gpu-value">—</strong><small id="vram-value">VRAM —</small></div>
+            <div class="metric"><span>CPU</span><strong id="cpu-value">—</strong><small id="cpu-name">—</small></div>
+            <div class="metric"><span>RAM</span><strong id="ram-value">—</strong><small id="ram-detail">—</small></div>
+            <div class="metric"><span>Armazenamento</span><strong id="storage-value">—</strong><small id="storage-detail">—</small></div>
+          </div>
+        </section>
+
+        <div class="overview-grid">
+          <section class="panel activity-panel">
+            <div class="section-head">
+              <div><h2>Atividade local</h2><p>Processamento, fila e estado do Agent nesta máquina.</p></div>
+              <small id="last-update">—</small>
+            </div>
+            <div class="count-grid">
+              <div class="count"><strong id="count-processing">0</strong><span>Processando</span></div>
+              <div class="count"><strong id="count-queued">0</strong><span>Na fila</span></div>
+              <div class="count"><strong id="count-completed">0</strong><span>Concluídos</span></div>
+              <div class="count"><strong id="count-attention">0</strong><span>Com atenção</span></div>
+            </div>
+            <div class="empty-work" id="work-summary">
+              <div class="empty-icon">▤</div>
+              <h3>Nenhum processamento em andamento.</h3>
+              <p>A fila está livre. Envie um novo trabalho pelo site do TDA quando quiser processar uma sessão.</p>
+            </div>
+            <div class="action-row">
+              <button class="primary" id="open-tda">Abrir TDA</button>
+              <button id="toggle-queue">Pausar fila</button>
+              <button id="restart-agent">Reiniciar Agent</button>
+            </div>
+          </section>
+
+          <div class="right-stack">
+            <section class="panel">
+              <div class="section-head inline">
+                <div><h2>Logs do sistema</h2><p>Eventos técnicos do Agent local.</p></div>
+                <button class="quiet" data-go="logs">Ver todos</button>
+              </div>
+              <div class="log-list compact" id="overview-logs" aria-live="polite"></div>
+              <div class="notice">Comentários divertidos sobre o processamento ficam no site. Aqui mostramos fatos técnicos.</div>
+            </section>
+            <section class="panel maintenance">
+              <div class="section-head"><div><h2>Diagnóstico e manutenção</h2><p>Ferramentas para manter o Agent funcionando bem.</p></div></div>
+              <div class="maintenance-actions">
+                <button id="quick-diagnostics">Executar diagnóstico</button>
+                <button id="open-local">Abrir pasta local</button>
+                <button data-go="settings">Configurações</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-logs">
+        <header class="sub-head"><div><h1>Logs</h1><p>Logs técnicos do Agent. Tokens, áudio e texto integral de transcrição não são registrados aqui.</p></div><button id="open-logs">Abrir pasta de logs</button></header>
+        <div class="toolbar">
+          <select id="log-level" aria-label="Nível dos logs"><option value="">Todos os níveis</option><option value="info">Info</option><option value="warning">Avisos</option><option value="error">Erros</option><option value="debug">Debug</option></select>
+          <input id="log-search" type="search" placeholder="Buscar nos logs…" />
+          <button id="refresh-logs">Atualizar</button>
+        </div>
+        <div class="panel log-console" id="full-logs" role="log" aria-label="Logs técnicos do TDA Companion"></div>
+      </section>
+
+      <section class="view" id="view-diagnostics">
+        <header class="sub-head"><div><h1>Diagnóstico</h1><p>Checks locais não destrutivos para identificar problemas no Agent, storage e GPU.</p></div><div class="action-row"><button id="export-diagnostics">Exportar diagnóstico</button><button class="primary" id="run-diagnostics">Executar diagnóstico</button></div></header>
+        <div class="panel diagnostic-summary"><div><span>Estado geral</span><strong id="diagnostic-overall">Ainda não executado</strong></div><small id="diagnostic-time">—</small></div>
+        <div class="diagnostic-list" id="diagnostic-list"></div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <header class="sub-head"><div><h1>Configurações</h1><p>Preferências deste computador. Configurações editoriais continuam no TDA Web.</p></div></header>
+        <div class="settings-grid">
+          <section class="panel setting-group"><h2>Inicialização</h2><label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label><label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label><label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label></section>
+          <section class="panel setting-group"><h2>Aparência e janela</h2><label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label><label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label></section>
+          <section class="panel setting-group"><h2>Pareamento</h2><p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p><div class="action-row"><button id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div></section>
+          <section class="panel setting-group danger-zone"><h2>Aplicativo</h2><p><span id="settings-version">TDA Companion —</span><br />API local v1</p><div class="action-row"><button id="check-update">Verificar atualização</button><button class="danger" id="uninstall-placeholder" disabled>Desinstalar</button></div><small>O fluxo de desinstalação completa será habilitado pelo MSI v0.3 após validação de purge no CI.</small></section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
