@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import zipfile
 from pathlib import Path
 
@@ -41,7 +42,7 @@ def test_supervisor_validates_opaque_source_before_spawn(tmp_path: Path):
         encoding="utf-8",
     )
     supervisor = WorkerSupervisor(
-        command_factory=lambda: ["python", str(script)],
+        command_factory=lambda: [sys.executable, str(script)],
         data_root=tmp_path / "Data",
         models_root=tmp_path / "Models",
     )
