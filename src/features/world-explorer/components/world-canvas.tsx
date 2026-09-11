@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, type ReactNode } from "react";
 import {
 	Controls,
 	MiniMap,
@@ -8,6 +9,8 @@ import {
 	type NodeTypes,
 	type OnEdgesChange,
 	type OnNodesChange,
+	type ReactFlowInstance,
+	type XYPosition,
 } from "@xyflow/react";
 import type { WorldFlowEdge, WorldFlowNode } from "../adapters/react-flow";
 import { WorldEntityNode } from "./entity-node";
@@ -26,7 +29,9 @@ type WorldCanvasProps = Readonly<{
 	onEdgesChange: OnEdgesChange<WorldFlowEdge>;
 	onNodeSelect: (node: WorldFlowNode) => void;
 	onNodeDragStop: (node: WorldFlowNode) => void;
-	onPaneClick: () => void;
+	onPaneClick: (position: XYPosition | null) => void;
+	placementActive?: boolean;
+	overlay?: ReactNode;
 }>;
 
 export function WorldCanvas({
@@ -37,9 +42,18 @@ export function WorldCanvas({
 	onNodeSelect,
 	onNodeDragStop,
 	onPaneClick,
+	placementActive = false,
+	overlay,
 }: WorldCanvasProps) {
+	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
+
 	return (
-		<div className={styles.canvas} data-testid="world-canvas">
+		<div
+			className={styles.canvas}
+			style={{ position: "relative" }}
+			data-testid="world-canvas"
+			data-world-placement-active={placementActive ? "true" : "false"}
+		>
 			<ReactFlow<WorldFlowNode, WorldFlowEdge>
 				nodes={nodes}
 				edges={edges}
@@ -57,15 +71,26 @@ export function WorldCanvas({
 				fitViewOptions={FIT_VIEW_OPTIONS}
 				minZoom={0.28}
 				maxZoom={1.8}
+				onInit={(instance) => {
+					flowInstance.current = instance;
+				}}
 				onNodesChange={onNodesChange}
 				onEdgesChange={onEdgesChange}
 				onNodeClick={(_, node) => onNodeSelect(node)}
 				onNodeDragStop={(_, node) => onNodeDragStop(node)}
-				onPaneClick={onPaneClick}
+				onPaneClick={(event) => {
+					const instance = flowInstance.current;
+					onPaneClick(
+						instance
+							? instance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+							: null,
+					);
+				}}
 			>
 				<Controls showInteractive={false} position="bottom-left" />
 				<MiniMap position="bottom-right" pannable zoomable />
 			</ReactFlow>
+			{overlay}
 		</div>
 	);
 }

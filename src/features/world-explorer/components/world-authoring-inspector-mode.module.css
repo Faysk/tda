@@ -1,0 +1,49 @@
+.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"]) {
+	grid-template-columns: minmax(0, 1fr) var(--world-inspector-width);
+}
+
+.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"]) {
+	position: relative;
+	z-index: 20;
+	width: var(--world-inspector-width);
+	min-width: var(--world-inspector-width);
+	max-width: var(--world-inspector-width);
+	padding: clamp(20px, 1.6vw, 28px);
+	border: 0;
+	border-left: 1px solid var(--ds-control-border);
+	border-radius: 0;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 97%, transparent);
+	box-shadow: -14px 0 48px color-mix(in srgb, var(--ds-canvas) 44%, transparent);
+	overflow: auto;
+}
+
+.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"] > hr[aria-label="Ajustar largura do painel"]) {
+	display: block;
+}
+
+@media (max-width: 1120px) {
+	.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"]) {
+		display: block;
+		min-height: 100dvh;
+	}
+
+	.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"]) {
+		position: fixed;
+		top: auto;
+		right: 10px;
+		bottom: 10px;
+		left: 10px;
+		z-index: 55;
+		width: auto;
+		min-width: 0;
+		max-width: none;
+		max-height: min(64dvh, 620px);
+		border: 1px solid var(--ds-control-border);
+		border-radius: var(--ds-radius-xl);
+		box-shadow: 0 -18px 60px var(--ds-ambient-cool);
+	}
+
+	.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"] > hr[aria-label="Ajustar largura do painel"]) {
+		display: none;
+	}
+}
