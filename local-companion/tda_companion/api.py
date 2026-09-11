@@ -34,6 +34,7 @@ class LifecycleRequest(BaseModel):
 class AgentControlRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: Literal["shutdown"]
+    force: bool = False
 
 
 def error(code, status, recoverable=False):
@@ -246,11 +247,16 @@ def create_app(
     async def agent_control(body: AgentControlRequest):
         if shutdown_callback is None:
             raise Conflict("AGENT_CONTROL_UNAVAILABLE")
-        if store.has_running_jobs():
+        if store.has_running_jobs() and not body.force:
             raise Conflict("AGENT_BUSY")
-        log("warning", "agent", "AGENT_SHUTDOWN_REQUESTED", "Agent shutdown requested")
+        log(
+            "warning",
+            "agent",
+            "AGENT_FORCE_SHUTDOWN_REQUESTED" if body.force else "AGENT_SHUTDOWN_REQUESTED",
+            "Agent forced shutdown requested" if body.force else "Agent shutdown requested",
+        )
         asyncio.get_running_loop().call_later(0.25, shutdown_callback)
-        return {"accepted": True, "action": body.action}
+        return {"accepted": True, "action": body.action, "force": body.force}
 
     @app.get("/api/v1/logs")
     def logs(
