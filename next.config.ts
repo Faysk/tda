@@ -35,6 +35,14 @@ const config: NextConfig = {
 			},
 		],
 	},
+	async rewrites() {
+		return [
+			{
+				source: "/lore/d",
+				destination: "/lore/d/index.html",
+			},
+		];
+	},
 	async headers() {
 		return [
 			{
@@ -52,6 +60,24 @@ const config: NextConfig = {
 			{
 				source: "/auth/:path*",
 				headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+			},
+			{
+				source: "/lore/d",
+				headers: [
+					{
+						key: "X-Robots-Tag",
+						value: "noindex, nofollow, noarchive, noimageindex",
+					},
+				],
+			},
+			{
+				source: "/lore/d/:path*",
+				headers: [
+					{
+						key: "X-Robots-Tag",
+						value: "noindex, nofollow, noarchive, noimageindex",
+					},
+				],
 			},
 		];
 	},
