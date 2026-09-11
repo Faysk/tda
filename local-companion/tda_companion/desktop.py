@@ -15,6 +15,12 @@ from uuid import uuid4
 
 from . import VERSION
 from .agent import wait_until_ready
+from .asr_runtime import inspect_whisper_runtime, install_whisper_runtime_archive
+from .asr_runtime_updates import (
+    download_whisper_runtime,
+    fetch_whisper_runtime_manifest,
+    whisper_runtime_update_available,
+)
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
 from .settings import SettingsStore
@@ -109,6 +115,9 @@ class DesktopBridge:
         jobs = value.get("jobs", []) if isinstance(value, dict) else []
         return jobs if isinstance(jobs, list) else []
 
+    def _has_running_job(self) -> bool:
+        return any(job.get("status") == "running" for job in self._jobs())
+
     def snapshot(self) -> dict[str, Any]:
         agent = self.client.get("/agent")
         system = self.client.get("/system")
@@ -118,6 +127,7 @@ class DesktopBridge:
             storage = {"free_bytes": usage.free, "total_bytes": usage.total}
         except OSError:
             storage = {"free_bytes": None, "total_bytes": None}
+        runtime = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=False)
         return {
             "version": VERSION,
             "agent": agent,
@@ -126,6 +136,10 @@ class DesktopBridge:
             "counts": self._job_counts(jobs),
             "jobs": jobs[:12],
             "settings": self.settings.snapshot(),
+            "whisper_runtime": {
+                "status": runtime.get("status"),
+                "version": runtime.get("version"),
+            },
         }
 
     def logs(self, level: str | None = None, component: str | None = None, limit: int = 200) -> dict[str, Any]:
@@ -196,6 +210,58 @@ class DesktopBridge:
             "sha256": manifest.sha256,
         }
 
+    def check_whisper_runtime(self) -> dict[str, Any]:
+        state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
+        manifest = fetch_whisper_runtime_manifest()
+        current_version = state.get("version") if state.get("status") == "ready" else None
+        return {
+            "status": state.get("status"),
+            "current_version": current_version,
+            "available": whisper_runtime_update_available(
+                current_version if isinstance(current_version, str) else None,
+                manifest,
+            ),
+            "version": manifest.version,
+            "tag": manifest.tag,
+            "size": manifest.size,
+        }
+
+    def install_whisper_runtime(self) -> dict[str, Any]:
+        if self._has_running_job():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
+        state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
+        manifest = fetch_whisper_runtime_manifest()
+        current_version = state.get("version") if state.get("status") == "ready" else None
+        if not whisper_runtime_update_available(
+            current_version if isinstance(current_version, str) else None,
+            manifest,
+        ):
+            return {
+                "accepted": False,
+                "available": False,
+                "status": state.get("status"),
+                "version": manifest.version,
+            }
+        if state.get("status") == "corrupt" and state.get("version") == manifest.version:
+            raise RuntimeError("WHISPER_RUNTIME_REPAIR_REQUIRED")
+        archive = download_whisper_runtime(manifest, self.paths.cache_root)
+        installed = install_whisper_runtime_archive(
+            archive,
+            self.paths.runtime_root,
+            version=manifest.version,
+            expected_sha256=manifest.sha256,
+        )
+        verified = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
+        if verified.get("status") != "ready" or verified.get("version") != manifest.version:
+            raise RuntimeError("WHISPER_RUNTIME_INSTALL_VERIFY_FAILED")
+        return {
+            "accepted": True,
+            "available": True,
+            "status": "ready",
+            "version": manifest.version,
+            "worker_sha256": installed["worker_sha256"],
+        }
+
     def _maintenance_helper(self) -> Path:
         source = self.executable.parent / "TDACompanionMaintenance.exe"
         if not source.is_file():
@@ -225,7 +291,7 @@ class DesktopBridge:
         return True
 
     def install_update(self) -> dict[str, Any]:
-        if any(job.get("status") == "running" for job in self._jobs()):
+        if self._has_running_job():
             raise RuntimeError("UPDATE_BLOCKED_BY_RUNNING_JOB")
         manifest = fetch_manifest()
         if not update_available(VERSION, manifest):
