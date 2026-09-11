@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,6 +9,8 @@ from typing import Any
 PROTOCOL_VERSION = "tda_worker_v1"
 MAX_LINE_BYTES = 64 * 1024
 JOB_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+SOURCE_ID_PATTERN = JOB_ID_PATTERN
+ASR_PROFILE_IDS = frozenset({"whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"})
 OUTPUT_TYPES = frozenset({"ready", "heartbeat", "stage", "progress", "event", "result", "cancelled", "error"})
 
 
@@ -63,6 +64,53 @@ def _encode(value: dict[str, Any]) -> str:
     return line + "\n"
 
 
+def _bounded_text(value: Any, code: str, maximum: int) -> str:
+    if not isinstance(value, str) or len(value) > maximum:
+        raise WorkerProtocolError(code)
+    return value
+
+
+def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, Any]]:
+    if not isinstance(kind, str):
+        raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
+    payload = _validate_payload(raw_payload)
+    if kind == "synthetic.fixture":
+        if not set(payload) <= {"units", "completed"}:
+            raise WorkerProtocolError("WORKER_PAYLOAD_FIELDS_INVALID")
+        units = payload.get("units")
+        completed = payload.get("completed", 0)
+        if isinstance(units, bool) or not isinstance(units, int) or not 1 <= units <= 100:
+            raise WorkerProtocolError("WORKER_UNITS_INVALID")
+        if isinstance(completed, bool) or not isinstance(completed, int) or not 0 <= completed <= units:
+            raise WorkerProtocolError("WORKER_COMPLETED_INVALID")
+        return kind, {"units": units, "completed": completed}
+
+    if kind == "transcription.craig":
+        allowed = {"source_id", "profile_id", "glossary", "context", "cpu"}
+        if not set(payload) <= allowed:
+            raise WorkerProtocolError("WORKER_PAYLOAD_FIELDS_INVALID")
+        source_id = payload.get("source_id")
+        if not isinstance(source_id, str) or not SOURCE_ID_PATTERN.fullmatch(source_id):
+            raise WorkerProtocolError("WORKER_SOURCE_ID_INVALID")
+        profile_id = payload.get("profile_id")
+        if profile_id not in ASR_PROFILE_IDS:
+            raise WorkerProtocolError("WORKER_PROFILE_INVALID")
+        glossary = _bounded_text(payload.get("glossary", ""), "WORKER_GLOSSARY_INVALID", 2000)
+        context = _bounded_text(payload.get("context", ""), "WORKER_CONTEXT_INVALID", 2000)
+        cpu = payload.get("cpu", False)
+        if not isinstance(cpu, bool):
+            raise WorkerProtocolError("WORKER_CPU_FLAG_INVALID")
+        return kind, {
+            "source_id": source_id,
+            "profile_id": profile_id,
+            "glossary": glossary,
+            "context": context,
+            "cpu": cpu,
+        }
+
+    raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
+
+
 @dataclass(frozen=True)
 class WorkerRunCommand:
     job_id: str
@@ -71,19 +119,17 @@ class WorkerRunCommand:
     payload: dict[str, Any]
 
     def encode(self) -> str:
-        _validate_job_id(self.job_id)
-        _validate_attempt(self.attempt)
-        if self.kind != "synthetic.fixture":
-            raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
-        _validate_payload(self.payload)
+        job_id = _validate_job_id(self.job_id)
+        attempt = _validate_attempt(self.attempt)
+        kind, payload = _normalize_run_payload(self.kind, self.payload)
         return _encode(
             {
                 "protocol": PROTOCOL_VERSION,
                 "type": "run",
-                "job_id": self.job_id,
-                "attempt": self.attempt,
-                "kind": self.kind,
-                "payload": self.payload,
+                "job_id": job_id,
+                "attempt": attempt,
+                "kind": kind,
+                "payload": payload,
             }
         )
 
@@ -92,21 +138,12 @@ class WorkerRunCommand:
         value = _decode_json_line(line)
         if value.get("protocol") != PROTOCOL_VERSION or value.get("type") != "run":
             raise WorkerProtocolError("WORKER_COMMAND_INVALID")
-        kind = value.get("kind")
-        if kind != "synthetic.fixture":
-            raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
-        payload = _validate_payload(value.get("payload"))
-        units = payload.get("units")
-        completed = payload.get("completed", 0)
-        if isinstance(units, bool) or not isinstance(units, int) or not 1 <= units <= 100:
-            raise WorkerProtocolError("WORKER_UNITS_INVALID")
-        if isinstance(completed, bool) or not isinstance(completed, int) or not 0 <= completed <= units:
-            raise WorkerProtocolError("WORKER_COMPLETED_INVALID")
+        kind, payload = _normalize_run_payload(value.get("kind"), value.get("payload"))
         return cls(
             job_id=_validate_job_id(value.get("job_id")),
             attempt=_validate_attempt(value.get("attempt")),
             kind=kind,
-            payload={"units": units, "completed": completed},
+            payload=payload,
         )
 
 
