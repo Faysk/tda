@@ -114,7 +114,7 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
             raise RuntimeError("WHISPER_RUNTIME_INSTALL_SMOKE_FAILED")
         worker = Path(str(state["worker"]))
         probe = json.loads(run(str(worker), "--probe"))
-        if not probe.get("ready"):
+        if not probe.get("ready") or not probe.get("nvml"):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
         return probe
 
@@ -148,6 +148,7 @@ def main() -> int:
             "--collect-all", "faster_whisper",
             "--collect-all", "ctranslate2",
             "--collect-all", "av",
+            "--hidden-import", "pynvml",
             str(ENTRY),
         )
         built = dist / "TDAWhisperWorker"
@@ -167,6 +168,8 @@ def main() -> int:
             raise RuntimeError("WHISPER_RUNTIME_FASTER_WHISPER_VERSION_MISMATCH")
         if probe.get("ctranslate2") != packages["ctranslate2"]:
             raise RuntimeError("WHISPER_RUNTIME_CTRANSLATE2_VERSION_MISMATCH")
+        if not probe.get("nvml"):
+            raise RuntimeError("WHISPER_RUNTIME_NVML_MISSING")
 
         package_root = OUTPUT / f"TDAWhisperRuntime-{version}-windows-x64"
         if package_root.exists():
