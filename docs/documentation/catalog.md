@@ -178,7 +178,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-11 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
-| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | implementação candidata validada em CI Windows/Linux | 2026-09-11 |
+| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | implementação candidata v0.3 em validação | 2026-09-11 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 e mídia — runbook operacional](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-11 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
