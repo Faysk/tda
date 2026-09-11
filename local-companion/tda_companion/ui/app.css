@@ -55,7 +55,7 @@ h1 { margin: 0 0 5px; font: 31px/1.08 var(--serif); font-weight: 500; }
 .pill.success { color: #9ce7aa; border-color: rgba(77,184,99,.34); background: rgba(48,153,69,.13); }
 .pill.warning { color: #f4c675; border-color: rgba(215,170,97,.35); background: rgba(215,170,97,.1); }
 .update-banner { border: 1px solid rgba(215,170,97,.55); background: rgba(215,170,97,.11); color: var(--accent-strong); border-radius: 9px; padding: 10px 13px; }
-.hidden { display: none !important; }
+.update-banner.hidden { display: none; }
 
 .machine-strip { border: 1px solid var(--border); background: linear-gradient(90deg, rgba(21,26,32,.96), rgba(16,20,25,.9)); border-radius: var(--radius); padding: 13px 14px; display: grid; grid-template-columns: minmax(310px, 1fr) minmax(570px, 1.25fr); gap: 18px; align-items: stretch; margin-bottom: 14px; }
 .machine-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
