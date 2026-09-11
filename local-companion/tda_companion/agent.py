@@ -57,6 +57,10 @@ class AgentController:
         except BaseException as exc:
             self.server_error = exc
 
+    def request_shutdown(self) -> None:
+        if self.server is not None:
+            self.server.should_exit = True
+
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
             return
@@ -70,6 +74,7 @@ class AgentController:
                 self.origins,
                 self.port,
                 system_log=self.system_log,
+                shutdown_callback=self.request_shutdown,
             )
             config = uvicorn.Config(
                 app,
@@ -100,8 +105,7 @@ class AgentController:
             raise
 
     def stop(self) -> None:
-        if self.server is not None:
-            self.server.should_exit = True
+        self.request_shutdown()
         if self.thread is not None and self.thread.is_alive():
             self.thread.join(timeout=8)
         self.server = None
