@@ -1,8 +1,12 @@
-const DIRECT_ASSETS = {
-  "d-completo": "/lore/d/assets/d-completo.png",
-};
-
 const ASSET_CHUNKS = {
+  "d-completo": {
+    mime: "image/png",
+    paths: [
+      "/lore/d/assets/base64/d-completo-fixed.0.b64",
+      "/lore/d/assets/base64/d-completo-fixed.1.b64",
+      "/lore/d/assets/base64/d-completo-fixed.2.b64",
+    ],
+  },
   "d-sem-sobretudo": {
     mime: "image/avif",
     paths: [
@@ -14,9 +18,9 @@ const ASSET_CHUNKS = {
   "d-sem-chapeu": {
     mime: "image/png",
     paths: [
-      "/lore/d/assets/base64/d-sem-chapeu.0.b64",
-      "/lore/d/assets/base64/d-sem-chapeu.1.b64",
-      "/lore/d/assets/base64/d-sem-chapeu.2.b64",
+      "/lore/d/assets/base64/d-sem-chapeu-fixed.0.b64",
+      "/lore/d/assets/base64/d-sem-chapeu-fixed.1.b64",
+      "/lore/d/assets/base64/d-sem-chapeu-fixed.2.b64",
     ],
   },
 };
@@ -29,12 +33,6 @@ function applyCharacterImage(name, url) {
 }
 
 async function hydrateCharacterImage(name) {
-  const directAsset = DIRECT_ASSETS[name];
-  if (directAsset) {
-    applyCharacterImage(name, directAsset);
-    return;
-  }
-
   const asset = ASSET_CHUNKS[name];
   if (!asset) return;
 
@@ -49,9 +47,7 @@ async function hydrateCharacterImage(name) {
   applyCharacterImage(name, `data:${asset.mime};base64,${parts.join("")}`);
 }
 
-Promise.all(
-  [...Object.keys(DIRECT_ASSETS), ...Object.keys(ASSET_CHUNKS)].map(hydrateCharacterImage),
-).catch((error) => {
+Promise.all(Object.keys(ASSET_CHUNKS).map(hydrateCharacterImage)).catch((error) => {
   console.error("Unable to hydrate D character artwork", error);
 });
 
