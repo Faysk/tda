@@ -12,8 +12,8 @@ MODEL_MARKER = ".tda-model.json"
 MODEL_MARKER_SCHEMA = "tda_model_install_v1"
 _COPY_CHUNK = 1024 * 1024
 
-QWEN_FORCED_ALIGNER_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
-QWEN_FORCED_ALIGNER_REVISION = "c7cbfc2048c462b0d63a45797104fc9db3ad62b7"
+QWEN_FORCED_ALIGNER_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B-hf"
+QWEN_FORCED_ALIGNER_REVISION = "c07281df297b9905d24a508279258cccf987a064"
 
 
 class ModelRegistryError(ValueError):
@@ -77,25 +77,27 @@ _PROFILES = (
         id="qwen-fast",
         engine="qwen3",
         label="Qwen Rápido",
-        description="Qwen3-ASR 0.6B para menor uso de VRAM e iteração rápida.",
-        model_id="Qwen/Qwen3-ASR-0.6B",
-        revision="5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
-        directory="qwen3-asr-0.6b",
+        description="Qwen3-ASR 0.6B nativo do Transformers para menor uso de VRAM e iteração rápida.",
+        model_id="Qwen/Qwen3-ASR-0.6B-hf",
+        revision="7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c",
+        directory="qwen3-asr-0.6b-hf",
         language="Portuguese",
         alignment=QWEN_FORCED_ALIGNER_MODEL_ID,
         alignment_revision=QWEN_FORCED_ALIGNER_REVISION,
+        required_files=("config.json", "model.safetensors", "processor_config.json", "tokenizer.json", "tokenizer_config.json"),
     ),
     AsrProfile(
         id="qwen-quality",
         engine="qwen3",
         label="Qwen Qualidade",
-        description="Qwen3-ASR 1.7B para priorizar qualidade textual.",
-        model_id="Qwen/Qwen3-ASR-1.7B",
-        revision="7278e1e70fe206f11671096ffdd38061171dd6e5",
-        directory="qwen3-asr-1.7b",
+        description="Qwen3-ASR 1.7B nativo do Transformers para priorizar qualidade textual.",
+        model_id="Qwen/Qwen3-ASR-1.7B-hf",
+        revision="bcd2b5b7f32b480ab5790554cfa8347f246a14f3",
+        directory="qwen3-asr-1.7b-hf",
         language="Portuguese",
         alignment=QWEN_FORCED_ALIGNER_MODEL_ID,
         alignment_revision=QWEN_FORCED_ALIGNER_REVISION,
+        required_files=("config.json", "model.safetensors", "processor_config.json", "tokenizer.json", "tokenizer_config.json"),
     ),
 )
 
@@ -238,6 +240,8 @@ def inspect_model_install(
         "status": "ready",
         "path": str(directory),
         "revision": value.revision,
+        "alignment": value.alignment,
+        "alignment_revision": value.alignment_revision,
         "content_sha256": marker["content_sha256"],
         "installed_at": marker.get("installed_at"),
     }
