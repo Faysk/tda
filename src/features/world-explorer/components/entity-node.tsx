@@ -124,7 +124,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 						Editar
 					</button>
 					<button
-						className={`${authoringStyles.action} nodrag nopan`}
+						className={`${authoringStyles.action} ${authoringStyles.connectAction} nodrag nopan`}
 						type="button"
 						onClick={() => beginAuthoringConnection(item.id)}
 						aria-pressed={authoringConnectable}
