@@ -17,6 +17,8 @@ $installedDir = Join-Path $tdaRoot "Companion\versions\$Version"
 $installedExe = Join-Path $installedDir "TDACompanion.exe"
 $maintenanceExe = Join-Path $installedDir "TDACompanionMaintenance.exe"
 $currentVersion = Join-Path $tdaRoot "Companion\current-version.txt"
+$stateRoot = Join-Path $tdaRoot "State"
+$tokenPath = Join-Path $stateRoot "pairing-token.txt"
 $dataRoot = Join-Path $tdaRoot "Data"
 $keepMarker = Join-Path $dataRoot "msi-preserve-marker.txt"
 $diagnostic = Join-Path $env:TEMP "tda-companion-msi-diagnostic.txt"
@@ -91,6 +93,59 @@ try {
         throw "MSI_INSTALLED_HEALTH_MISMATCH"
     }
 
+    # Prove the installed, windowed executable can spawn its hidden --worker mode
+    # through pipes. This catches packaging regressions before ASR models are wired.
+    if (-not (Test-Path $tokenPath)) { throw "MSI_PAIRING_TOKEN_NOT_CREATED" }
+    $token = (Get-Content $tokenPath -Raw).Trim()
+    if ($token.Length -lt 43) { throw "MSI_PAIRING_TOKEN_INVALID" }
+    $origin = "http://127.0.0.1:3000"
+    $headers = @{
+        Authorization = "Bearer $token"
+        Origin = $origin
+        "Idempotency-Key" = "msi-worker-smoke"
+    }
+    $body = @{
+        kind = "synthetic.fixture"
+        campaign_id = "msi"
+        session_id = "worker"
+        source_id = "packaged"
+        units = 3
+    } | ConvertTo-Json -Compress
+    $job = Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$port/api/v1/jobs" `
+        -Method Post `
+        -Headers $headers `
+        -ContentType "application/json" `
+        -Body $body `
+        -TimeoutSec 5
+    if (-not $job.id) { throw "MSI_WORKER_JOB_NOT_CREATED" }
+
+    $jobDeadline = [DateTime]::UtcNow.AddSeconds(15)
+    $jobState = $null
+    while ([DateTime]::UtcNow -lt $jobDeadline) {
+        $jobState = Invoke-RestMethod `
+            -Uri "http://127.0.0.1:$port/api/v1/jobs/$($job.id)" `
+            -Method Get `
+            -Headers @{ Authorization = "Bearer $token"; Origin = $origin } `
+            -TimeoutSec 3
+        if ($jobState.status -in @("succeeded", "failed", "cancelled", "interrupted")) { break }
+        Start-Sleep -Milliseconds 100
+    }
+    if (-not $jobState -or $jobState.status -ne "succeeded") {
+        throw "MSI_PACKAGED_WORKER_FAILED:$($jobState.status)"
+    }
+    if ($jobState.progress.completed -ne 3 -or $jobState.progress.total -ne 3) {
+        throw "MSI_PACKAGED_WORKER_PROGRESS_INVALID"
+    }
+    $capabilities = Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$port/api/v1/capabilities" `
+        -Method Get `
+        -Headers @{ Authorization = "Bearer $token"; Origin = $origin } `
+        -TimeoutSec 3
+    if ($capabilities.capabilities -notcontains "worker.subprocess") {
+        throw "MSI_WORKER_SUBPROCESS_CAPABILITY_MISSING"
+    }
+
     # Uninstall while the Agent is still running. The MSI maintenance action must
     # stop the installed runtime itself before RemoveFiles.
     Invoke-Msi @("/x", "`"$msi`"", "/qn", "/norestart", "/L*v", "`"$uninstallLog`"") $uninstallLog
@@ -118,7 +173,7 @@ try {
     if (-not (Test-Path $keepMarker)) { throw "MSI_UNINSTALL_REMOVED_USER_DATA" }
     if ((Get-Content $keepMarker -Raw).Trim() -ne "preserve-me") { throw "MSI_USER_DATA_CHANGED" }
 
-    Write-Host "Installed TDA Companion MSI + active-Agent uninstall smoke: PASS ($Version)"
+    Write-Host "Installed TDA Companion MSI + subprocess worker + active-Agent uninstall smoke: PASS ($Version)"
 }
 finally {
     if ($process -and -not $process.HasExited) {
