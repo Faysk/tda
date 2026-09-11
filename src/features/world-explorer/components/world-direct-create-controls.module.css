@@ -1,0 +1,213 @@
+.root {
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	z-index: 45;
+	display: grid;
+	gap: 8px;
+	width: min(380px, calc(100% - 24px));
+	pointer-events: none;
+}
+
+.root > * {
+	pointer-events: auto;
+}
+
+.trigger {
+	justify-self: start;
+	display: inline-flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 7px;
+	padding: 0 11px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 52%, var(--ds-control-border));
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	color: var(--ds-foreground);
+	box-shadow: var(--ds-shadow);
+	backdrop-filter: blur(14px) saturate(108%);
+	font: 720 0.69rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.trigger:hover,
+.trigger:focus-visible,
+.typeGrid button:hover,
+.typeGrid button:focus-visible,
+.placement button:hover,
+.placement button:focus-visible,
+.composer button:hover,
+.composer button:focus-visible,
+.cancelLink:hover,
+.cancelLink:focus-visible {
+	outline: 0;
+	border-color: var(--ds-accent);
+	box-shadow: var(--ds-control-focus-ring);
+}
+
+.trigger kbd {
+	padding: 3px 5px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 5px;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-muted);
+	font: 650 0.58rem/1 var(--ds-font-ui);
+}
+
+.panel,
+.placement,
+.composer {
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-lg);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 97%, transparent);
+	box-shadow: 0 18px 54px color-mix(in srgb, var(--ds-canvas) 54%, transparent);
+	backdrop-filter: blur(18px) saturate(108%);
+}
+
+.panel {
+	display: grid;
+	gap: 11px;
+	padding: 14px;
+}
+
+.panel header,
+.placement div {
+	display: grid;
+	gap: 3px;
+}
+
+.panel strong,
+.placement strong,
+.composer label > span {
+	color: var(--ds-foreground);
+	font: 750 0.73rem/1.2 var(--ds-font-ui);
+}
+
+.panel small,
+.placement small {
+	color: var(--ds-foreground-muted);
+	font: 560 0.65rem/1.35 var(--ds-font-ui);
+}
+
+.typeGrid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.typeGrid button,
+.placement button,
+.composer button,
+.cancelLink {
+	min-height: 36px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 999px;
+	padding: 0 10px;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-soft);
+	font: 680 0.65rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.typeGrid button {
+	background: var(--ds-accent-muted);
+	color: var(--ds-foreground);
+}
+
+.cancelLink {
+	justify-self: start;
+	border-color: transparent;
+	background: transparent;
+}
+
+.placement {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+}
+
+.placement > span {
+	color: var(--ds-accent-strong);
+	font-size: 1rem;
+}
+
+.composer {
+	display: grid;
+	gap: 10px;
+	padding: 12px;
+}
+
+.composer label {
+	display: grid;
+	gap: 6px;
+}
+
+.composer input {
+	width: 100%;
+	min-height: 42px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	padding: 0 11px;
+	outline: 0;
+	background: var(--ds-surface);
+	color: var(--ds-foreground);
+	font: 600 0.75rem/1 var(--ds-font-ui);
+}
+
+.composer input:focus {
+	border-color: var(--ds-accent);
+	box-shadow: var(--ds-control-focus-ring);
+}
+
+.composerActions {
+	display: flex;
+	gap: 7px;
+	justify-content: flex-end;
+}
+
+.composerActions button[type="submit"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 62%, var(--ds-control-border));
+	background: var(--ds-accent-muted);
+	color: var(--ds-foreground);
+}
+
+.composerActions button:disabled {
+	opacity: 0.48;
+	cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+	.root {
+		top: 9px;
+		left: 9px;
+		width: calc(100% - 18px);
+	}
+
+	.trigger,
+	.typeGrid button,
+	.placement button,
+	.composer button,
+	.cancelLink,
+	.composer input {
+		min-height: 44px;
+	}
+
+	.placement {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.placement button {
+		grid-column: 1 / -1;
+		justify-self: start;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.panel,
+	.placement,
+	.composer {
+		scroll-behavior: auto;
+	}
+}
