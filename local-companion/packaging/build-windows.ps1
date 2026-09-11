@@ -1,0 +1,102 @@
+param(
+    [string]$Python = ".venv/Scripts/python.exe",
+    [string]$Wix = ".wix/wix.exe",
+    [string]$OutputRoot = "local-companion/out/windows"
+)
+
+$ErrorActionPreference = "Stop"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+$pythonPath = if ([IO.Path]::IsPathRooted($Python)) { $Python } else { Join-Path $repoRoot $Python }
+$output = if ([IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $repoRoot $OutputRoot }
+$packageSource = Join-Path $repoRoot "local-companion"
+
+if (-not (Test-Path $pythonPath)) {
+    throw "PYTHON_NOT_FOUND: $pythonPath"
+}
+
+$wixPath = if ([IO.Path]::IsPathRooted($Wix)) {
+    $Wix
+} elseif (Test-Path (Join-Path $repoRoot $Wix)) {
+    Join-Path $repoRoot $Wix
+} else {
+    (Get-Command $Wix -ErrorAction Stop).Source
+}
+if (-not (Test-Path $wixPath)) {
+    throw "WIX_NOT_FOUND: $wixPath"
+}
+
+$version = (& $pythonPath -c "import tda_companion; print(tda_companion.VERSION)").Trim()
+if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "VERSION_NOT_FOUND" }
+
+$work = Join-Path $output "work"
+$dist = Join-Path $output "dist"
+$packageRoot = Join-Path $output "TDACompanion-$version"
+$appRoot = Join-Path $packageRoot "app"
+$metadataRoot = Join-Path $output "metadata"
+
+Remove-Item $output -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataRoot | Out-Null
+
+& $pythonPath -m PyInstaller `
+    --noconfirm `
+    --clean `
+    --onedir `
+    --windowed `
+    --name TDACompanion `
+    --paths $packageSource `
+    --distpath $dist `
+    --workpath $work `
+    --specpath $work `
+    --collect-submodules uvicorn `
+    (Join-Path $PSScriptRoot "windows_entry.py")
+if ($LASTEXITCODE -ne 0) { throw "PYINSTALLER_FAILED" }
+
+Copy-Item (Join-Path $dist "TDACompanion") $appRoot -Recurse
+Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
+Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
+Set-Content -Path (Join-Path $packageRoot "version.txt") -Value $version -Encoding ascii -NoNewline
+Set-Content -Path (Join-Path $metadataRoot "current-version.txt") -Value $version -Encoding ascii -NoNewline
+
+$readme = @"
+TDA Companion $version
+
+Instalação recomendada: execute TDACompanion-x64.msi.
+
+Alternativa portátil/manual:
+1. Extraia este pacote para uma pasta local.
+2. Execute install.ps1 no PowerShell.
+3. Abra "TDA Companion" pelo Menu Iniciar.
+4. Copie o token exibido pelo aplicativo.
+5. Em https://dnd.faysk.dev/edit/processamento, cole o token e conecte.
+
+Instalação por usuário, sem privilégios administrativos.
+Diretório do aplicativo: %LOCALAPPDATA%\TDA\Companion\versions\$version
+Diretório de dados:      %LOCALAPPDATA%\TDA\Data
+
+O token e os dados locais não são removidos durante atualização do aplicativo.
+Este aplicativo NÃO usa, inicia, modifica ou depende do antigo DnDScribeCompanion.exe.
+"@
+Set-Content -Path (Join-Path $packageRoot "README.txt") -Value $readme -Encoding utf8
+
+$zip = Join-Path $output "TDACompanion-$version-windows-x64.zip"
+Compress-Archive -Path (Join-Path $packageRoot "*") -DestinationPath $zip -CompressionLevel Optimal
+
+$msi = Join-Path $output "TDACompanion-x64.msi"
+& $wixPath build `
+    (Join-Path $PSScriptRoot "TDACompanion.wxs") `
+    -arch x64 `
+    -d "Version=$version" `
+    -bindpath "App=$appRoot" `
+    -bindpath "Metadata=$metadataRoot" `
+    -pdbtype none `
+    -o $msi
+if ($LASTEXITCODE -ne 0) { throw "WIX_BUILD_FAILED" }
+if (-not (Test-Path $msi)) { throw "MSI_NOT_CREATED" }
+
+$msiHash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
+Set-Content -Path (Join-Path $output "TDACompanion-x64.msi.sha256") -Value "$msiHash  TDACompanion-x64.msi" -Encoding ascii -NoNewline
+
+Write-Host "TDA Companion package: $packageRoot"
+Write-Host "ZIP: $zip"
+Write-Host "MSI: $msi"
+Write-Host "MSI SHA256: $msiHash"
