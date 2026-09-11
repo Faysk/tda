@@ -37,9 +37,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
-          version: '0.12.10'
+          version: '0.12.12'
       - name: Build and smoke isolated Whisper runtime
         shell: pwsh
         run: python local-companion/packaging/build_whisper_runtime.py
@@ -95,7 +95,7 @@ jobs:
 
           - Faster-Whisper + CTranslate2 em processo separado do Agent.
           - CUDA/cuBLAS/cuDNN ficam contidos no runtime; nenhum PATH ou Python global é alterado.
-          - Baseline CUDA 12.8 / cuDNN 9, validada por probe antes da publicação.
+          - Baseline CUDA 12.9 / cuDNN 9, validada por probe antes da publicação.
           - Modelos Whisper não fazem parte deste arquivo e continuam gerenciados separadamente.
 
           SHA256: ${DIGEST}
