@@ -2,204 +2,81 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-10
+> Última revisão: 2026-09-11
 
-Este runbook cobre as superfícies administrativas e de lifecycle que não podem depender apenas do código da aplicação: GitHub Environments, secrets, branch/ruleset protection, persistência da branch `Preview` e evidências do primeiro bootstrap da esteira.
+Este runbook cobre as superfícies administrativas da esteira TDA: GitHub Environments, secrets, branch protection, persistência da branch `Preview`, rotação de credenciais e evidências de ativação.
 
 O comportamento técnico da entrega está em [CI/CD — operação, promoção e recuperação](ci-cd.md), e a decisão arquitetural está no [ADR-0012](../adr/0012-github-actions-controlled-delivery.md).
 
 ## Regra de segurança
 
-Nunca registrar valores de secrets neste arquivo, em issues, PRs, comentários, inputs de workflow ou logs. A documentação guarda apenas **nomes, escopo, finalidade, estado observado e procedimento**.
+Nunca registrar valores de secrets neste arquivo, em issues, PRs, comentários, workflow inputs ou logs. A documentação guarda apenas **nomes, escopo, finalidade, estado observado e procedimento**.
 
-## Estado observado em 2026-09-10
+## Estado administrativo confirmado — 2026-09-11
 
-### GitHub
+### GitHub branches
 
-- `main` existe e está operacional;
-- `Preview` é uma branch canônica persistente da topologia TDA;
-- a leitura das branches mostrou `protected=false`;
-- repository rulesets observados: nenhum;
-- a conexão de automação usada na implementação não possui APIs administrativas de branch protection/rulesets/secrets;
-- portanto, ausência/presença de secrets é provada por execução controlada dos workflows, nunca inferida;
-- após a primeira promoção canônica `Preview -> main` (#149), o GitHub apagou automaticamente a branch `Preview`; ela foi recriada no mesmo SHA da `main` e foi adicionado o workflow `Preview Branch Guard` como fallback automático.
+`Preview` e `main` estão protegidas administrativamente.
 
-### Preview CD — evidência real
-
-O Preview CD automático executou contra SHA validado de `Preview` e chegou corretamente ao gate de credencial.
-
-Estado comprovado:
+`Preview` exige os checks:
 
 ```text
-VERCEL_TOKEN ausente para o job de Preview
+validate
+transcript-import-postgres
+synthetic (ubuntu-latest, .venv/bin/python)
+synthetic (windows-latest, .venv/Scripts/python.exe)
 ```
 
-A falha ocorreu antes da instalação da Vercel CLI, build, deploy ou smoke. Nenhum deployment foi criado por esses runs.
-
-O último SHA de Preview validado antes da promoção #149 foi:
+`main` exige os mesmos checks mais:
 
 ```text
-430f3f9bec05a3ff55a29690163ea8bd3b1bd186
+promotion-source
 ```
 
-Nesse SHA:
+Nas duas branches canônicas:
 
 ```text
-CI                         PASS
-Companion                  PASS
-PostgreSQL scratch         PASS
-Playwright / E2E           PASS
-Processing                 PASS
-Preview credential gate    FAIL (VERCEL_TOKEN ausente)
-Vercel deploy              SKIPPED
+require pull request before merging = enabled
+status checks                         = required
+enforce admins                        = enabled
+force push                            = blocked
+deletion                              = blocked
 ```
 
-### Production CD — evidência real
+A proteção administrativa não substitui o provenance gate de `production.yml`; ela é uma camada adicional.
 
-A primeira promoção canônica foi a PR #149:
+### Persistência de `Preview`
+
+`Preview` é branch canônica persistente, não uma feature branch descartável.
+
+Durante o bootstrap a opção de excluir head branches após merge removeu `Preview` depois da PR #149. A configuração foi corrigida para não excluir automaticamente branches após merge e a própria `Preview` agora está protegida contra deletion.
+
+O workflow:
 
 ```text
-Preview -> main
-merge SHA: 5c67db0130e3b24efe2db9c71f2ece02c096a2f8
+.github/workflows/preview-branch-guard.yml
 ```
 
-No Production CD desse SHA:
+permanece como fallback. Se `Preview` desaparecer, o guard tenta recriá-la a partir do HEAD corrente de `main` sem force push.
 
-```text
-Resolve and pin production source     PASS
-Verify Production source provenance   PASS
-Validate release credentials          FAIL
-```
+### GitHub Environments
 
-O log confirmou explicitamente:
-
-```text
-PRODUCTION_SOURCE_OK PR #149 Preview -> main 5c67db0130e3b24efe2db9c71f2ece02c096a2f8
-```
-
-Secrets ausentes comprovados:
-
-```text
-VERCEL_TOKEN
-SUPABASE_ACCESS_TOKEN
-SUPABASE_DB_PASSWORD
-```
-
-Como o credential gate falhou, ficaram `SKIPPED`:
-
-- migration policy de release;
-- instalação das CLIs externas;
-- `vercel pull`;
-- Production build;
-- staged deployment;
-- Supabase overlay;
-- migration dry-run/apply/history verification;
-- advisors;
-- staged smoke;
-- `vercel promote`;
-- canonical smoke;
-- release receipt.
-
-Logo, a primeira execução governada provou que **provenance é validada antes de qualquer operação cloud/database** e que ausência de credenciais mantém Production intacta.
-
-### Production Vercel ainda não rastreável pela nova esteira
-
-Foi observado um deployment Production criado fora da nova esteira durante o bootstrap. O domínio permaneceu saudável, mas:
-
-```text
-/api/health.commit = null
-/api/version.commit = null
-/api/version.release = null
-```
-
-Isso significa que a Production atual ainda não é a primeira release rastreável da nova esteira. O objetivo da primeira execução completa é substituir esse estado por SHA e release explícitos.
-
-## GitHub Environment `preview`
-
-### Criar/abrir
-
-No repositório GitHub:
-
-```text
-Settings
-  -> Environments
-  -> New environment (se necessário)
-  -> preview
-```
-
-O nome deve ser exatamente:
+Existem dois environments de entrega:
 
 ```text
 preview
+production
 ```
 
-### Secret obrigatório
+Secrets esperados:
 
-Adicionar em `Environment secrets`:
+#### `preview`
 
 ```text
 VERCEL_TOKEN
 ```
 
-Finalidade: autenticar `vercel pull`, `vercel build`, `vercel deploy` e `vercel curl` no CI externo.
-
-O token precisa ter acesso ao team/projeto canônicos:
-
-```text
-team_9wuTfarCQ3L63xtufPKUDzi0
-prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-```
-
-Não colocar o valor em repository variable, arquivo `.env` versionado, PR, issue ou input de workflow.
-
-### Reexecutar Preview depois do secret
-
-Depois de cadastrar `VERCEL_TOKEN`, reexecutar o Preview CD falho ou provocar um novo CI verde na `Preview`.
-
-Critério de sucesso:
-
-```text
-Resolve and pin Preview source        PASS
-Require Vercel deployment credential  PASS
-Pull Preview configuration            PASS
-Build Preview artifact                PASS
-Deploy immutable Preview artifact     PASS
-Smoke Preview deployment              PASS
-Preview summary                       PASS
-```
-
-O smoke precisa provar:
-
-```text
-/api/health.ok = true
-/api/health.environment = preview
-/api/health.commit = SHA de Preview
-/api/version.commit = SHA de Preview
-/api/version.release = preview-<12-char-sha>
-/ responde
-/sessoes responde
-```
-
-## GitHub Environment `production`
-
-### Criar/abrir
-
-```text
-Settings
-  -> Environments
-  -> New environment (se necessário)
-  -> production
-```
-
-Nome exato:
-
-```text
-production
-```
-
-### Secrets obrigatórios
-
-Adicionar:
+#### `production`
 
 ```text
 VERCEL_TOKEN
@@ -209,236 +86,255 @@ SUPABASE_DB_PASSWORD
 
 Finalidades:
 
-- `VERCEL_TOKEN`: build/deploy/promote/rollback na Vercel;
-- `SUPABASE_ACCESS_TOKEN`: autenticação da Supabase CLI;
-- `SUPABASE_DB_PASSWORD`: conexão/link e migration operations no projeto Supabase canônico.
+- `VERCEL_TOKEN`: autentica Vercel CLI para pull/build/deploy/curl/promote/rollback;
+- `SUPABASE_ACCESS_TOKEN`: Personal Access Token Supabase `sbp_...` para Supabase CLI/Management API;
+- `SUPABASE_DB_PASSWORD`: senha Postgres do projeto canônico usada por link/migration operations.
 
-Projeto Supabase pinado:
-
-```text
-dmrqnbdvbkfqzctcerbx
-```
-
-### Proteção adicional do Environment
-
-Se o plano/repositório permitir reviewers/deployment protection, Production pode exigir aprovação administrativa antes do job usar secrets.
-
-Isso é defesa adicional e não substitui:
-
-- `Preview -> main`;
-- Promotion Policy;
-- provenance gate do `production.yml`;
-- staged deployment;
-- migration gates;
-- smoke antes de `vercel promote`.
-
-## Branch `Preview` é persistente
-
-`Preview` não é feature branch descartável. Ela é um ambiente lógico e a origem canônica de promoção para `main`.
-
-### Incidente de bootstrap
-
-Após o merge da PR #149 (`Preview -> main`), a branch `Preview` desapareceu automaticamente. Isso é compatível com a opção de repositório que remove head branches depois do merge.
-
-A branch foi recriada a partir do HEAD de `main`:
+Não confundir:
 
 ```text
-5c67db0130e3b24efe2db9c71f2ece02c096a2f8
+SUPABASE_ACCESS_TOKEN  != SUPABASE_SECRET_KEY
+SUPABASE_ACCESS_TOKEN  != SUPABASE_SERVICE_ROLE_KEY
 ```
 
-Nenhum force push foi necessário.
+O primeiro é credencial da conta/CLI; as demais são credenciais do projeto/runtime.
 
-### Defesa versionada — `Preview Branch Guard`
+## Recursos canônicos
 
-O workflow:
+Vercel:
 
 ```text
-.github/workflows/preview-branch-guard.yml
+Team:    team_9wuTfarCQ3L63xtufPKUDzi0
+Project: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+Domain:  https://dnd.faysk.dev
 ```
 
-escuta eventos `delete` e só reage quando:
+Supabase:
 
 ```text
-ref_type = branch
-ref = Preview
+Project ref: dmrqnbdvbkfqzctcerbx
+TDA migration boundary: 20260906210333
 ```
 
-Se `Preview` estiver realmente ausente, lê o HEAD atual de `main` e recria:
+Esses IDs são não secretos e ficam pinados nos workflows para evitar execução contra contexto ambíguo.
+
+## Evidência da ativação completa
+
+Primeira release completa pela esteira final:
 
 ```text
-refs/heads/Preview -> current main SHA
+PR de promoção: #159
+Source SHA:      bc131b120fa6d3286da13e6781e0197b5b367ebd
+Release:         prod-bc131b120fa6
+Production:      https://dnd.faysk.dev
 ```
 
-Se a branch já tiver reaparecido, o workflow termina sem alteração.
-
-O guard existe como **fallback de recuperação**, não como substituto da configuração administrativa correta.
-
-### Configuração administrativa recomendada
-
-Preferir uma das duas soluções, idealmente ambas quando suportadas:
-
-1. desabilitar a exclusão automática de head branches para o fluxo que usa `Preview` como branch persistente;
-2. proteger `Preview` contra deletion via branch protection/ruleset.
-
-Depois disso, o `Preview Branch Guard` permanece como defesa adicional contra remoção acidental.
-
-## Branch protection / rulesets
-
-### Objetivo
-
-Impedir alteração acidental das branches canônicas e exigir os checks já versionados.
-
-### `Preview`
-
-Configuração recomendada:
-
-- require pull request before merging;
-- require status checks to pass;
-- exigir `CI`;
-- exigir Companion quando o GitHub disponibilizar o check estável correspondente;
-- block force pushes;
-- **block deletions**;
-- não permitir bypass casual.
-
-Fluxo esperado:
+O Production CD da release acima passou:
 
 ```text
-feature/fix/refactor/ops -> PR -> Preview
+Resolve and pin production source      PASS
+Verify Production source provenance    PASS
+Validate release credentials           PASS
+Validate migration policy              PASS
+Supabase database authentication       PASS
+Pull Production configuration          PASS
+Build Production artifact              PASS
+Stage Production --skip-domain         PASS
+Prepare migration overlay              PASS
+Show migration state                   PASS
+Dry-run Production migrations          PASS
+Apply pending Production migrations    PASS
+Verify exact migration history         PASS
+Database advisors                      PASS
+Smoke staged Production                PASS
+Vercel promote                         PASS
+Canonical Production smoke             PASS
+Post-deploy error scan                 PASS
+GitHub Release receipt                 PASS
 ```
 
-### `main`
-
-Configuração recomendada:
-
-- require pull request before merging;
-- require status checks to pass;
-- exigir `promotion-source`;
-- exigir `CI`;
-- block force pushes;
-- block deletions;
-- não permitir push direto no fluxo normal.
-
-Fluxo esperado:
+Runtime canônico confirmado:
 
 ```text
-Preview -> PR -> main
+/api/health.ok          = true
+/api/health.environment = production
+/api/health.commit      = bc131b120fa6d3286da13e6781e0197b5b367ebd
+/api/version.commit     = bc131b120fa6d3286da13e6781e0197b5b367ebd
+/api/version.release    = prod-bc131b120fa6
 ```
 
-Mesmo se a proteção administrativa estiver ausente, `production.yml` não publica um SHA sem provenance de `Preview -> main`.
+Nenhum runtime error foi observado na janela pós-release consultada na Vercel.
 
-## Primeira homologação real
+## Rollback conhecido
 
-Depois de configurar `preview/VERCEL_TOKEN`:
+O workflow `Production Rollback` exige target explícito e confirmação `ROLLBACK_TDA`.
 
-1. garantir que `Preview` existe;
-2. reexecutar Preview CD;
-3. confirmar deployment Vercel `READY`;
-4. confirmar SHA e release em `/api/health` e `/api/version`;
-5. abrir Home e `/sessoes`;
-6. verificar runtime errors de Preview;
-7. registrar deployment/evidência;
-8. somente então considerar a homologação cloud concluída.
+A release `prod-bc131b120fa6` possui deployment conhecido e rastreável. A Vercel também mantém deployments `READY` anteriores que podem servir como candidatos de rollback se forem compatíveis com o schema atual.
 
-## Primeira Production completa pela nova esteira
+Antes de rollback:
 
-Pré-condições:
+1. identificar deployment explicitamente;
+2. validar `/api/version` do candidato;
+3. confirmar compatibilidade com schema/migrations atuais;
+4. executar o workflow manual com `ROLLBACK_TDA`;
+5. validar `/api/health` e `/api/version` canônicos após mover tráfego.
 
-- Preview real homologada;
-- `production` contém os três secrets;
-- promoção `Preview -> main` válida;
-- SHA de merge é o HEAD atual da `main`.
+Banco **não sofre rollback automático**.
 
-A #149 já provou o provenance gate, mas não executou cloud/database porque os três secrets estavam ausentes.
+## Como configurar/rotacionar credenciais
 
-Uma execução completa deve executar nesta ordem:
+### Vercel
 
-1. pin do SHA;
-2. provenance `Preview -> main`;
-3. validação de credentials;
-4. migration policy;
-5. build Production;
-6. deploy staged com `--skip-domain`;
-7. Supabase migration overlay;
-8. dry-run;
-9. apply apenas se necessário;
-10. history verification;
-11. advisors;
-12. staged smoke;
-13. `vercel promote`;
-14. canonical smoke;
-15. error scan;
-16. GitHub Release receipt.
+Criar um access token da conta/team que possui acesso ao projeto TDA. Usar um token dedicado de CI, com o menor escopo disponível que ainda permita operar o team/projeto canônicos.
 
-Antes do passo 13, `dnd.faysk.dev` deve continuar apontando para a release anterior.
+Após criar/rotacionar:
 
-## Como obter `VERCEL_TOKEN`
+1. atualizar `preview/VERCEL_TOKEN`;
+2. executar Preview CD e exigir smoke verde;
+3. atualizar `production/VERCEL_TOKEN`;
+4. só depois permitir nova promoção Production.
 
-Criar um access token na conta Vercel que possui acesso ao team do TDA. O token deve ser tratado como credencial de CI e armazenado diretamente no GitHub Environment; nunca copiar seu valor para este repositório.
+Nunca reutilizar automaticamente valor de `.env.legado` como verdade atual: um token legado pode estar revogado ou ter escopo incompatível.
 
-Para CI externo, a Vercel CLI usa access token via `--token`/`VERCEL_TOKEN`. OIDC do GitHub pode ser usado para trusted access a deployments protegidos, mas não substitui a autenticação necessária para `vercel deploy` neste fluxo.
+### Supabase PAT
 
-## Rotação
+Criar um Personal Access Token Supabase válido (`sbp_...`) para automação.
 
-Rotacionar secrets quando:
+Atualizar:
 
-- houver suspeita de exposição;
-- uma conta/colaborador perder acesso;
-- o token for criado com escopo maior que o necessário e existir alternativa menor;
-- política periódica exigir.
+```text
+production/SUPABASE_ACCESS_TOKEN
+```
 
-Após rotação, validar Preview primeiro. Production só deve ser testada depois de Preview voltar a ficar verde.
+`SUPABASE_SECRET_KEY`/`SERVICE_ROLE_KEY` não substituem esse PAT.
+
+### Supabase database password
+
+Atualizar:
+
+```text
+production/SUPABASE_DB_PASSWORD
+```
+
+Não resetar a senha do banco apenas para “descobrir” seu valor. Rotação deve considerar clientes externos que possam usar conexão Postgres direta.
+
+## Verificação administrativa com GitHub CLI
+
+Consultar branches:
+
+```powershell
+gh api repos/Faysk/tda/branches/Preview --jq '{branch:.name, protected:.protected}'
+gh api repos/Faysk/tda/branches/main --jq '{branch:.name, protected:.protected}'
+```
+
+Estado esperado:
+
+```text
+Preview protected=true
+main    protected=true
+```
+
+Listar apenas nomes de secrets:
+
+```powershell
+gh secret list --env preview -R Faysk/tda
+gh secret list --env production -R Faysk/tda
+```
+
+Nunca tentar imprimir valores para “verificar”. O teste real é o workflow autenticando e passando seus gates.
+
+## Fluxo administrativo normal
+
+### Nova mudança de aplicação/documentação
+
+```text
+branch temporária
+  -> PR para Preview
+  -> required checks
+  -> merge em Preview
+  -> Preview CD automático
+  -> homologação verde
+  -> PR Preview -> main
+  -> promotion-source + required checks
+  -> merge commit
+  -> Production CD automático
+```
+
+### Por que `merge commit` em `Preview -> main`
+
+`production.yml` exige que o SHA candidato seja exatamente o `merge_commit_sha` de uma PR mergeada com:
+
+```text
+head = Preview
+base = main
+```
+
+Não usar squash/rebase na promoção canônica sem alterar deliberadamente o contrato de provenance e seu ADR.
 
 ## Troubleshooting
 
-### `Missing GitHub Environment secret VERCEL_TOKEN`
+### `Missing production secret ...`
 
-O job não recebeu o secret. Verificar nome do Environment, nome exato do secret e escopo.
+Cadastrar o secret indicado no Environment `production`; não passar credencial por workflow input.
 
-### `vercel pull` sem acesso ao projeto
+### `SUPABASE_ACCESS_TOKEN must be ... sbp_`
 
-Token existe, mas não consegue operar o team/projeto pinados. Corrigir acesso do token/conta; não alterar IDs do workflow para contornar.
+O valor não é um PAT Supabase. Criar/usar Personal Access Token da conta; não usar `sb_secret_...`, anon key ou service role key.
+
+### `vercel pull` não encontra Project Settings
+
+Confirmar primeiro se o token Vercel atual possui acesso ao team/projeto pinados. Não trocar IDs do workflow para contornar problema de token.
+
+### `Preview` desaparece
+
+1. verificar `Preview Branch Guard`;
+2. confirmar protection/deletion block;
+3. confirmar que exclusão automática de head branches continua desativada;
+4. nunca recriar via force push quando um fast-forward/base_ref normal resolver.
 
 ### Production falha em provenance
 
-A `main` não veio de `Preview -> main`. Criar a promoção correta; não remover o gate.
+A `main` não nasceu de uma promoção válida `Preview -> main`. Não remover o gate; refazer o fluxo correto.
 
-### Production falha em `Validate release credentials`
+### Migration dry-run/history falha
 
-Cadastrar os secrets indicados no Environment `production`. O workflow informa os nomes ausentes, nunca valores.
+Não aplicar SQL manualmente para “destravar”. Investigar drift, migration authoring e boundary antes de nova promoção.
 
-### `Preview` desaparece após `Preview -> main`
+## Histórico de bootstrap resumido
 
-1. verificar se `Preview Branch Guard` recriou a branch;
-2. confirmar que o SHA restaurado corresponde ao HEAD de `main`;
-3. revisar `Settings` para exclusão automática de head branches;
-4. aplicar proteção contra deletion em `Preview`;
-5. não recriar a branch via force push.
+As falhas observadas durante a implantação foram mantidas como evidência em PRs/runs e resultaram em endurecimento da esteira:
 
-### Branch ainda mostra `protected=false`
+- ausência inicial de `VERCEL_TOKEN` em Preview falhou antes de deploy;
+- `.vercelignore` excluía `.env.example` do prebuilt e foi corrigido;
+- sintaxe de autenticação do `vercel curl` foi corrigida em Preview/Production/Rollback;
+- tentativa passwordless de Supabase foi rejeitada e substituída pelo contrato suportado PAT + DB password;
+- token Vercel legado com acesso inadequado foi substituído por token dedicado funcional;
+- `Preview` apagada automaticamente foi restaurada, auto-delete desativado e branch guard adicionado;
+- branch protection foi ativada em `Preview` e `main` após a primeira release completa.
 
-A proteção administrativa não foi configurada ou não entrou em vigor. Revisar Rules/Rulesets/Branches no GitHub. O provenance gate de Production continua obrigatório independentemente desse status.
+Esses eventos são históricos; não representam pendências atuais.
 
-## Critério de 100% operacional
-
-A esteira só pode ser marcada como 100% quando todos forem verdadeiros:
+## Critério de 100% operacional — concluído em 2026-09-11
 
 - [x] CI/Companion verdes em Preview e main;
-- [x] fluxo canônico `Preview -> main` exercitado pela PR #149;
-- [x] Production CD provou provenance da PR #149;
-- [x] ausência de secrets bloqueia antes de qualquer operação Vercel/Supabase;
-- [x] documentação operacional, ADR e runbook administrativo integrados;
-- [x] `Preview` possui fallback de autorrecuperação versionado;
-- [ ] `preview/VERCEL_TOKEN` configurado;
-- [ ] Preview CD cria deployment real e passa smoke com SHA/release corretos;
-- [ ] `production/VERCEL_TOKEN` configurado;
-- [ ] `production/SUPABASE_ACCESS_TOKEN` configurado;
-- [ ] `production/SUPABASE_DB_PASSWORD` configurado;
-- [ ] Production overlay/dry-run/history gate passam numa execução real;
-- [ ] staged Production smoke passa;
-- [ ] o mesmo artefato staged é promovido;
-- [ ] `dnd.faysk.dev/api/health` e `/api/version` mostram o SHA/release promovidos;
-- [ ] rollback possui candidate conhecido e validado;
-- [ ] branch protection/rulesets estão configurados administrativamente ou a exceção é explicitamente aceita/documentada;
-- [ ] exclusão automática de `Preview` foi desativada ou bloqueada por protection; o guard fica como fallback.
+- [x] Preview real cria deployment e passa smoke com SHA/release corretos;
+- [x] `preview/VERCEL_TOKEN` configurado;
+- [x] fluxo canônico `Preview -> main` exercitado;
+- [x] Promotion Policy exige `head=Preview` / `base=main`;
+- [x] Production provenance validada antes de cloud/database;
+- [x] `production/VERCEL_TOKEN` configurado;
+- [x] `production/SUPABASE_ACCESS_TOKEN` configurado como PAT `sbp_...`;
+- [x] `production/SUPABASE_DB_PASSWORD` configurado;
+- [x] Supabase authentication preflight passa;
+- [x] overlay/dry-run/apply/history verification passam em execução real;
+- [x] staged Production smoke passa;
+- [x] o mesmo artefato staged é promovido;
+- [x] `dnd.faysk.dev/api/health` e `/api/version` mostram SHA/release promovidos;
+- [x] GitHub Release receipt é criado;
+- [x] rollback possui candidates conhecidos e workflow deliberado;
+- [x] `Preview` e `main` estão protegidas;
+- [x] force push e deletion estão bloqueados nas branches canônicas;
+- [x] exclusão automática de `Preview` foi desativada e o guard permanece como fallback;
+- [x] documentação operacional e ADR estão integrados.
 
-Não declarar 100% antes disso.
+**Estado: TDA CI/CD operacional de ponta a ponta.**
