@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WorldEntityType, WorldPositionHint } from "../model";
 import {
 	WORLD_DIRECT_CREATE_TYPES,
@@ -32,6 +32,7 @@ export function WorldDirectCreateControls({
 }>) {
 	const [paletteOpen, setPaletteOpen] = useState(false);
 	const [name, setName] = useState("");
+	const nameInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (!enabled) {
@@ -41,14 +42,23 @@ export function WorldDirectCreateControls({
 	}, [enabled]);
 
 	useEffect(() => {
-		if (!placementPoint) setName("");
+		if (!placementPoint) {
+			setName("");
+			return;
+		}
+		nameInputRef.current?.focus();
 	}, [placementPoint]);
 
 	useEffect(() => {
 		if (!enabled) return;
 		function onKeyDown(event: KeyboardEvent) {
 			if (isTypingTarget(event.target)) return;
-			if ((event.key.toLocaleLowerCase("pt-BR") === "n" || event.key === "+") && !event.metaKey && !event.ctrlKey && !event.altKey) {
+			if (
+				(event.key.toLocaleLowerCase("pt-BR") === "n" || event.key === "+") &&
+				!event.metaKey &&
+				!event.ctrlKey &&
+				!event.altKey
+			) {
 				event.preventDefault();
 				setPaletteOpen(true);
 				return;
@@ -137,12 +147,12 @@ export function WorldDirectCreateControls({
 					<label htmlFor="world-direct-create-name">
 						<span>{worldEntityTypeLabel(placementType)} no rascunho</span>
 						<input
+							ref={nameInputRef}
 							id="world-direct-create-name"
 							value={name}
 							onChange={(event) => setName(event.target.value)}
 							placeholder="Nome do elemento"
 							autoComplete="off"
-							autoFocus
 							required
 						/>
 					</label>
