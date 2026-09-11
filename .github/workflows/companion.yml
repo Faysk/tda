@@ -83,7 +83,7 @@ jobs:
         id: changes
         shell: bash
         run: |
-          if git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- local-companion .github/workflows/companion.yml; then
+          if git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- local-companion; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
