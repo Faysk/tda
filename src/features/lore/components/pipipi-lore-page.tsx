@@ -31,7 +31,10 @@ const sceneConfig: Record<
 		motion: "cinematic",
 	},
 	"super-herois": {
-		background: "/lore/pipipi/super-static.avif",
+		background: "/lore/pipipi/super-bg.avif",
+		subject: "/lore/pipipi/super-subject.avif",
+		subjectWidth: 544,
+		subjectHeight: 680,
 		title: "Os super-heróis não vieram salvá-la",
 		eyebrow: "A mesma memória, outro significado",
 		caption:
@@ -50,7 +53,10 @@ const sceneConfig: Record<
 		motion: "showcase",
 	},
 	cadeira: {
-		background: "/lore/pipipi/cadeira-static.avif",
+		background: "/lore/pipipi/cadeira-bg.avif",
+		subject: "/lore/pipipi/cadeira-subject.avif",
+		subjectWidth: 631,
+		subjectHeight: 680,
 		title: "A cadeira",
 		eyebrow: "Ficar também era cuidar",
 		caption:
@@ -58,7 +64,10 @@ const sceneConfig: Record<
 		motion: "breath",
 	},
 	"ultimo-dia": {
-		background: "/lore/pipipi/ultimo-dia-static.avif",
+		background: "/lore/pipipi/ultimo-dia-bg.avif",
+		subject: "/lore/pipipi/ultimo-dia-subject.avif",
+		subjectWidth: 544,
+		subjectHeight: 680,
 		title: "O último dia",
 		eyebrow: "Todo mundo ficou",
 		caption:
