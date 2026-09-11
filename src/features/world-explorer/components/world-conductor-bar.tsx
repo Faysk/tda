@@ -7,6 +7,7 @@ import {
 	type WorldCommandContext,
 } from "../world-commands";
 import { WORLD_AUTHORING_OPEN_INSPECTOR_EVENT } from "../world-authoring-events";
+import { WorldCommandPaletteTrigger } from "./world-command-palette-trigger";
 import styles from "./world-conductor-bar.module.css";
 
 type WorldConductorAction = () => void | Promise<void>;
@@ -26,6 +27,7 @@ type WorldConductorBarProps = Readonly<{
 	onToggleFocusMode: () => void;
 	onToggleInspector: () => void;
 	onOpenNavigation: () => void;
+	onOpenCommandPalette: () => void;
 }>;
 
 function run(action: WorldConductorAction) {
@@ -81,6 +83,7 @@ export function WorldConductorBar({
 	onToggleFocusMode,
 	onToggleInspector,
 	onOpenNavigation,
+	onOpenCommandPalette,
 }: WorldConductorBarProps) {
 	const status = conductorStatus(context, canEditContent);
 	const enter = worldCommand("world.enterConductor");
@@ -185,6 +188,10 @@ export function WorldConductorBar({
 								<span aria-hidden="true">▤</span>
 								Detalhes
 							</button>
+							<WorldCommandPaletteTrigger
+								enabled={worldCommandIsAvailable("world.openCommandPalette", context)}
+								onOpen={onOpenCommandPalette}
+							/>
 							<button type="button" className={styles.chromeAction} onClick={onToggleFocusMode}>
 								<span aria-hidden="true">⌗</span>
 								Foco
