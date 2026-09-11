@@ -30,8 +30,17 @@ import type {
 	WorldEntityType,
 	WorldGraphProjection,
 	WorldLayoutProjection,
+	WorldVisibility,
 } from "../model";
+import {
+	WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
+	type WorldAuthoringConnectFromNodeDetail,
+} from "../world-authoring-events";
 import { appendWorldDraftNode } from "../world-direct-create";
+import {
+	appendWorldDraftRelation,
+	reconnectWorldDraftRelation,
+} from "../world-relation-draft";
 import type { WorldCommandContext } from "../world-commands";
 import authoring from "./world-authoring-shell.module.css";
 import { WorldCanvas } from "./world-canvas";
@@ -43,6 +52,10 @@ import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
 } from "./world-inspector";
+import {
+	WorldRelationAuthoringControls,
+	type WorldRelationCandidate,
+} from "./world-relation-authoring-controls";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
 
@@ -88,6 +101,7 @@ export function WorldExplorerClient({
 	const positionOverridesRef = useRef<WorldLayout>({});
 	const [createType, setCreateType] = useState<WorldEntityType | null>(null);
 	const [createPoint, setCreatePoint] = useState<XYPosition | null>(null);
+	const [relationCandidate, setRelationCandidate] = useState<WorldRelationCandidate | null>(null);
 	const authoringUi = useWorldAuthoringUi();
 
 	const edit = useWorldEditSession({
@@ -135,14 +149,32 @@ export function WorldExplorerClient({
 		graphDraft: edit.graphDraft,
 	});
 
+	const authoringActive = edit.editing;
+	const authoringPanelVisible =
+		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
+	const directCreateEnabled =
+		authoringPanelVisible && view === "canvas" && !authoringUi.focusMode;
+	const relationAuthoringAvailable =
+		authoringPanelVisible && view === "canvas" && !authoringUi.focusMode;
+	const connectionActive =
+		relationAuthoringAvailable && authoringUi.state.tool === "connect";
+
 	const graphStructure = useMemo(
 		() => toReactFlowStructure(visibleProjection, positionOverrides),
 		[visibleProjection, positionOverrides],
 	);
-	const graph = useMemo(
-		() => applyWorldFlowSelection(graphStructure, selectedId),
-		[graphStructure, selectedId],
-	);
+	const graph = useMemo(() => {
+		const selectedGraph = applyWorldFlowSelection(graphStructure, selectedId);
+		if (!connectionActive) return selectedGraph;
+		return {
+			nodes: selectedGraph.nodes.map((node) => ({
+				...node,
+				connectable: true,
+				data: { ...node.data, authoringConnectable: true },
+			})),
+			edges: selectedGraph.edges.map((edge) => ({ ...edge, reconnectable: true })),
+		};
+	}, [connectionActive, graphStructure, selectedId]);
 	const [nodes, setNodes, onNodesChange] = useNodesState<WorldFlowNode>(graph.nodes);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<WorldFlowEdge>(graph.edges);
 
@@ -164,7 +196,27 @@ export function WorldExplorerClient({
 		if (edit.editing) return;
 		setCreateType(null);
 		setCreatePoint(null);
+		setRelationCandidate(null);
 	}, [edit.editing]);
+
+	useEffect(() => {
+		if (!relationAuthoringAvailable) return;
+		function beginConnectionFromNode(event: Event) {
+			const detail = (event as CustomEvent<WorldAuthoringConnectFromNodeDetail>).detail;
+			if (!detail?.nodeId) return;
+			setCreateType(null);
+			setCreatePoint(null);
+			setRelationCandidate(null);
+			setSelectedId(detail.nodeId);
+			authoringUi.setTool("connect");
+		}
+		window.addEventListener(WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT, beginConnectionFromNode);
+		return () =>
+			window.removeEventListener(
+				WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
+				beginConnectionFromNode,
+			);
+	}, [relationAuthoringAvailable, setSelectedId, authoringUi]);
 
 	useEffect(
 		() => () => {
@@ -206,11 +258,6 @@ export function WorldExplorerClient({
 		}
 	}
 
-	const authoringActive = edit.editing;
-	const authoringPanelVisible =
-		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
-	const directCreateEnabled =
-		authoringPanelVisible && view === "canvas" && !authoringUi.focusMode;
 	const commandContext: WorldCommandContext = {
 		mode: workingProjection.mode,
 		canEditLayout,
@@ -229,10 +276,75 @@ export function WorldExplorerClient({
 
 	function beginDirectCreate(type: WorldEntityType) {
 		if (!directCreateEnabled) return;
+		setRelationCandidate(null);
 		setSelectedId(null);
 		setCreateType(type);
 		setCreatePoint(null);
 		authoringUi.setTool("create");
+	}
+
+	function cancelRelationAuthoring() {
+		setRelationCandidate(null);
+		authoringUi.setTool("select");
+	}
+
+	function relationConnectionIsValid(sourceId: string, targetId: string): boolean {
+		if (!connectionActive || !edit.graphDraft || sourceId === targetId) return false;
+		const activeNodeIds = new Set(
+			edit.graphDraft.nodes
+				.filter((node) => node.status !== "archived")
+				.map((node) => node.id),
+		);
+		return activeNodeIds.has(sourceId) && activeNodeIds.has(targetId);
+	}
+
+	function captureRelationCandidate(sourceId: string, targetId: string) {
+		if (!relationConnectionIsValid(sourceId, targetId)) return;
+		setRelationCandidate({ sourceId, targetId });
+	}
+
+	function confirmRelation(relationType: string, visibility: WorldVisibility) {
+		if (edit.state !== "editing" || !edit.graphDraft || !relationCandidate) return;
+		const nextDraft = appendWorldDraftRelation(edit.graphDraft, {
+			id: crypto.randomUUID(),
+			sourceId: relationCandidate.sourceId,
+			targetId: relationCandidate.targetId,
+			relationType,
+			visibility,
+		});
+		if (!nextDraft) {
+			edit.reportFailure("duplicate");
+			return;
+		}
+		const sourceName = edit.graphDraft.nodes.find(
+			(node) => node.id === relationCandidate.sourceId,
+		)?.name;
+		const targetName = edit.graphDraft.nodes.find(
+			(node) => node.id === relationCandidate.targetId,
+		)?.name;
+		edit.updateGraphDraft(
+			nextDraft,
+			`Ligação ${sourceName ?? "origem"} → ${targetName ?? "destino"} criada no rascunho.`,
+		);
+		setFilter("all");
+		setRelationFilter("all");
+		setQuery("");
+		setSelectedId(relationCandidate.sourceId);
+		setRelationCandidate(null);
+		authoringUi.setTool("select");
+	}
+
+	function reconnectRelation(edgeId: string, sourceId: string, targetId: string) {
+		if (edit.state !== "editing" || !edit.graphDraft || !connectionActive) return;
+		const nextDraft = reconnectWorldDraftRelation(edit.graphDraft, edgeId, sourceId, targetId);
+		if (!nextDraft) {
+			edit.reportFailure("duplicate");
+			return;
+		}
+		edit.updateGraphDraft(nextDraft, "Ligação corrigida no rascunho.");
+		setRelationCandidate(null);
+		setSelectedId(sourceId);
+		authoringUi.setTool("select");
 	}
 
 	function handleCanvasPaneClick(position: XYPosition | null) {
@@ -383,15 +495,28 @@ export function WorldExplorerClient({
 							authoringUi.state.tool === "create" &&
 							Boolean(createType)
 						}
+						connectionActive={connectionActive}
+						onConnectNodes={captureRelationCandidate}
+						onReconnectEdge={reconnectRelation}
+						isConnectionValid={relationConnectionIsValid}
 						overlay={
-							<WorldDirectCreateControls
-								enabled={directCreateEnabled}
-								placementType={createType}
-								placementPoint={createPoint}
-								onSelectType={beginDirectCreate}
-								onCancel={cancelDirectCreate}
-								onCreate={createDirectNode}
-							/>
+							<>
+								<WorldDirectCreateControls
+									enabled={directCreateEnabled && !connectionActive}
+									placementType={createType}
+									placementPoint={createPoint}
+									onSelectType={beginDirectCreate}
+									onCancel={cancelDirectCreate}
+									onCreate={createDirectNode}
+								/>
+								<WorldRelationAuthoringControls
+									enabled={connectionActive}
+									draft={edit.graphDraft}
+									candidate={relationCandidate}
+									onCancel={cancelRelationAuthoring}
+									onConfirm={confirmRelation}
+								/>
+							</>
 						}
 					/>
 				) : null}
