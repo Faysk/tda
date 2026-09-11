@@ -2,7 +2,7 @@
 
 > Status: canônico; fundação runtime e superfícies públicas implementadas
 > Owner: design-system / frontend
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-11
 
 Este diretório registra a autoridade visual do **TDA — Tem Dado Aqui** no reboot `Faysk/tda`.
 
@@ -13,6 +13,7 @@ O fato de o Design System ter sido extraído do legado **não transforma a arqui
 ## Índice do módulo
 
 - [Assets oficiais e Brand Pack](official-assets.md)
+- [Diretriz geral de UX, design e hierarquia](ux-hierarchy.md)
 - [Plano de migração para o reboot](migration-plan.md)
 - [Superfícies públicas — ownership visual](public-surfaces.md)
 - [World Explorer — composição e UX](world-explorer-ui.md)

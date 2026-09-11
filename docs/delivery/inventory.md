@@ -2,30 +2,31 @@
 
 > Status: vigente
 > Owner: Prancheta - Organização de entregas
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-11
 > Fonte de verdade: GitHub para PR/SHA/checks; documentos donos para contrato; evidência operacional específica para integração/publicação
 
 Este é o **único registro operacional de status das entregas**. Roadmap define prioridade e direção de produto; documentos donos definem contrato; Lupa mantém auditoria independente; deployments registra publicação. Não copiar esta tabela para roadmap, índices ou relatórios paralelos.
 
 ## Estado operacional observado
 
-- `main` verificada nesta revisão: `80eab3a8c267e3e3900cd7c9399f23bf914d994d`.
-- O histórico de [deployments](../operations/deployments.md) preserva Production #006, source `7dd4b06d1a246ad924230530c2a0424e830aa46d` e deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a` como **evidência histórica daquela publicação**. Esse registro, sozinho, não confirma o SHA servido agora.
-- A observação de health mais recente informada para a produção retornou `commit=null`; portanto este inventário **não declara um source SHA atualmente ativo** sem recibo runtime adicional que faça essa associação.
-- AUTH, STATS, consulta de PERMISSOES e LOCAL possuem evidências operacionais históricas já registradas; isso não autoriza inferir que qualquer mudança posterior na `main` foi publicada automaticamente.
+- `main` verificada nesta revisão: `ad6d9334471c93a591660e9dc8089e102fc4638a`.
+- O deployment Vercel `dpl_FyLWMwVXm4rwGV23khpQkb5qHStU` foi observado `READY`, target `production`, com metadata apontando para o mesmo source SHA `ad6d9334471c93a591660e9dc8089e102fc4638a`.
+- `https://dnd.faysk.dev/lore/pipipi` respondeu HTTP `200` em 2026-09-11, com título, descrição e canonical próprios. A imagem social observada ainda usa o fallback `/og/default`.
+- A ambiguidade histórica de `/api/health` com `commit=null` permanece registrada nos cortes anteriores, mas não é usada para negar a proveniência deste deployment: a associação atual vem da metadata direta do deployment Vercel. Esta revisão não infere o valor atual do campo `commit` do health.
+- AUTH, STATS, consulta de PERMISSOES e LOCAL mantêm as evidências operacionais já registradas; a publicação atual não autoriza inferir novos grants, migrations ou mudanças de configuração fora do que foi observado.
 - IMPORT #61 está integrada no repositório; ativação externa, migrations e grants continuam gates separados. Merge de migration nunca é prova de aplicação no Supabase.
-- MIDIA #54 permanece preparação integrada; upload, promoção de referências e deployment continuam operações deliberadas e separadas.
-- A prioridade de produto da rodada #99 é **P1 Pipipi oficial -> P2 dados reais revisados -> P3 edição autorizada do grafo**. Frentes de Edit, operação local, sync, mídia e Auth continuam paralelas e mantêm seus próprios gates/evidências.
+- MIDIA #54 permanece preparação integrada; upload, promoção de referências e operações R2 continuam deliberados e separados.
+- Na rodada #99, **P1 Pipipi oficial está publicada**. **P2 dados reais revisados** passa a ser o próximo gate narrativo ativo; **P3 edição autorizada do grafo** continua dependente de projections revisadas e permitidas.
 
 ## Rodada coordenada #99 — lore, curadoria e grafo
 
 A issue [#99](https://github.com/Faysk/tda/issues/99) coordena três resultados relacionados, mas **não muda sozinha o estágio de entrega de nenhum deles**. Cada frente continua no documento dono e só avança neste inventário com PR/SHA/evidência próprios.
 
-- **P1 — PIPIPI / Pipoca:** tornar Pipipi a lore pioneira oficial em `/lore/pipipi`, reutilizando o Presentation Engine de [perfis editoriais](../features/entity-profiles.md), [Design System](../design-system/README.md), componentes/tokens vigentes e metadata pública central. Estrutura cinematic é referência opcional; parallax deve ser adaptado como enhancement e nunca bloquear leitura estática, mobile, reduced motion ou acessibilidade. O trabalho local e as sete imagens preparadas são dependências conhecidas; não há nesta linha evidência suficiente para declarar rota integrada, CI final ou publicação.
+- **P1 — PIPIPI / Pipoca — publicada:** `/lore/pipipi` está integrada e foi observada em production em 2026-09-11 no deployment `dpl_FyLWMwVXm4rwGV23khpQkb5qHStU`, source `ad6d9334471c93a591660e9dc8089e102fc4638a`, com HTTP `200` no domínio oficial. A implementação preserva leitura estática, mobile, reduced motion e acessibilidade; a imagem social específica ainda usa o fallback genérico e permanece melhoria separada.
 - **P2 — CURADORIA / Fabuloso:** responsável confirmado pela curadoria de resumos/transcrições e demais fontes reais sem copiar material privado para docs/issues. O resultado precisa preservar provenance, distinguir fato explícito/inferência/conflito, registrar estado de revisão e visibility antes de qualquer promoção. Owners: [evidence](../domains/evidence.md) + [canon/review](../domains/canon-review.md). Candidato revisável não é canon nem publicação.
 - **P3 — GRAFO / Espaguete:** consumir somente projections de dados reais revisados/permitidos e preparar edição autorizada. Mover node altera layout editorial; editar relação/fato é operação narrativa separada, com fonte, revisão, visibility, capability/scope server-side, concorrência e recuperação de erro. Owners: [World Explorer](../features/world-explorer.md) e [relations](../features/relations-data-contract.md). O drift operacional de layout permanece acompanhado pela #95 e não deve ser mascarado por esta rodada.
 - **ACESSO / Crachá + Chaveiro:** mapear capabilities existentes para layout, conteúdo e publicação; login não cria grant implícito. Qualquer mutation precisa de validação server-side no boundary dono.
-- **PUBLICAÇÃO / Foguete + Marreta + Balde:** publicação de Pipipi é deliberada e posterior a revisão, CI, desktop/mobile, mídia/OG e leitura pública verificadas. Merge ou URL planejada não equivalem a publicação.
+- **PUBLICAÇÃO / Foguete + Marreta + Balde:** o gate de publicação de Pipipi foi cumprido e possui recibo operacional. Publicações posteriores continuam deliberadas e exigem revisão, CI, desktop/mobile, mídia/metadata e leitura pública verificadas; merge ou URL planejada continuam não equivalendo a publicação.
 
 Dependência documental: Prancheta mantém **somente o estágio/evidência** aqui; [roadmap](../roadmap.md) registra prioridade P1/P2/P3 e os documentos donos preservam os contratos. Não criar spec paralela da #99 nem copiar transcrição, relação secreta ou IDs privados para fixtures/documentação pública.
 

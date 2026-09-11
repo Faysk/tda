@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-11
 > Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos, `delivery/inventory.md` e `operations/deployments.md`
 
 Este roadmap coordena **ordem, dependências e prioridade de produto**. Ele não substitui as specs nem os runbooks donos de cada área. O [inventário de entregas](delivery/inventory.md) é o registro operacional único de estágio/evidência; aqui ficam somente prioridade, direção e dependências entre frentes.
@@ -11,7 +11,7 @@ Estágio de entrega segue [Documentação viva](documentation/README.md): branch
 
 ## Base observável e prioridade atual
 
-A `main` consultada nesta revisão está em `80eab3a8c267e3e3900cd7c9399f23bf914d994d`. O histórico em [deployments](operations/deployments.md) preserva evidências de publicações anteriores, inclusive Production #006, mas **não é usado aqui para deduzir o SHA atualmente servido**: a observação mais recente de health informou `commit=null`. Sem um recibo runtime que associe a resposta a um source, o roadmap não declara qual commit está ativo em produção.
+A `main` consultada nesta revisão está em `ad6d9334471c93a591660e9dc8089e102fc4638a`. Para este corte existe evidência direta de publicação: o deployment Vercel `dpl_FyLWMwVXm4rwGV23khpQkb5qHStU` está `READY`, target `production`, e registra esse mesmo source SHA em metadata. A rota oficial `https://dnd.faysk.dev/lore/pipipi` respondeu HTTP `200` em 2026-09-11. Isso resolve a proveniência do artefato observado neste corte sem inferir o conteúdo atual do campo `commit` de `/api/health`, que continua um contrato separado.
 
 A importação permanece integrada no repositório mas sua ativação/aplicação externa continua um gate separado. Da mesma forma, migration integrada não é tratada como migration aplicada. Estados concretos e evidências ficam no [inventário](delivery/inventory.md) e nos documentos operacionais donos.
 
@@ -21,11 +21,13 @@ A rodada [#102](https://github.com/Faysk/tda/issues/102) é um gate de **estabil
 
 ### Prioridade de produto — rodada #99
 
-1. **P1 — Pipipi oficial / Pipoca.** Pipipi é a lore pioneira e a prioridade de publicação da rodada [#99](https://github.com/Faysk/tda/issues/99). A implementação deve reutilizar [Perfis editoriais](features/entity-profiles.md), [Design System](design-system/README.md), [superfícies públicas](design-system/public-surfaces.md), metadata pública central e mídia elegível. Estrutura visual/cinematic existente é **referência**, não um novo contrato visual: tokens, Brand Pack e componentes vigentes continuam canônicos. Parallax deve ser adaptado como progressive enhancement, respeitar reduced motion/pointer coarse e **nunca bloquear a leitura estática**, mobile, acessibilidade ou publicação quando o conteúdo/mídia elegíveis estiverem prontos. Cinematic opcional não bloqueia P1.
+1. **P1 — Pipipi oficial / Pipoca — publicada.** Pipipi é a lore pioneira e o gate de publicação da rodada [#99](https://github.com/Faysk/tda/issues/99) foi cumprido em production em 2026-09-11. A implementação reutiliza [Perfis editoriais](features/entity-profiles.md), [Design System](design-system/README.md), [superfícies públicas](design-system/public-surfaces.md), metadata pública central e mídia elegível. Estrutura visual/cinematic existente continua sendo **referência**, não um novo contrato visual: tokens, Brand Pack e componentes vigentes permanecem canônicos. Parallax foi tratado como progressive enhancement, respeitando reduced motion/pointer coarse e sem bloquear leitura estática, mobile ou acessibilidade. A imagem social específica ainda pode evoluir; o HTML servido usa atualmente o fallback `/og/default`.
 2. **P2 — dados reais revisados / Fabuloso.** Curar resumos, transcrições e demais fontes existentes para produzir dados narrativos reais com **provenance, natureza da claim, revisão e visibility** antes de alimentar lore/grafo. Fato explícito, inferência e conflito permanecem distinguíveis; inferência não vira canon automaticamente. Owners: [Evidências](domains/evidence.md) e [Canon/review](domains/canon-review.md). Conteúdo privado não entra em issues, fixtures públicas ou payloads sem audience autorizada.
 3. **P3 — edição autorizada do grafo / Espaguete.** Conectar somente projections revisadas/permitidas ao World Explorer e então habilitar edição compreensível com autorização server-side. Arrastar node continua sendo edição de layout; editar fato/relação é mutation narrativa distinta, com fonte/revisão/visibility, capability/scope, concorrência e recuperação de conflito. Owners: [World Explorer](features/world-explorer.md) e [Relations](features/relations-data-contract.md). React Flow é renderer, não schema nem fonte de verdade.
 
-Prancheta mantém estágio, PR/SHA, evidência e próximo gate no [inventário](delivery/inventory.md). A #99 coordena a rodada, mas não declara P1, P2 ou P3 implementados, integrados ou publicados sem evidência própria.
+Com P1 publicada, **P2 passa a ser o próximo gate narrativo ativo** da sequência #99. P3 continua dependente de projections reais revisadas e autorizadas; publicação de Pipipi, por si só, não promove dados demonstrativos do grafo a canon.
+
+Prancheta mantém estágio, PR/SHA, evidência e próximo gate no [inventário](delivery/inventory.md). A #99 coordena a rodada, mas não declara P2 ou P3 implementados, integrados ou publicados sem evidência própria.
 
 ### Frentes operacionais paralelas
 
@@ -51,7 +53,7 @@ Repositório, CI sem auto-deploy, Supabase existente, Vercel controlada, R2 prep
 
 **Estado:** publicado e em evolução incremental.
 
-Home/sessões e metadata social possuem evidência histórica de publicação. A correção de metadata individual também possui registro operacional, mas o roadmap não usa um deployment histórico para inferir o SHA ativo quando o health observado não informa commit. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado.
+Home/sessões, metadata social e a lore pioneira Pipipi possuem evidência de publicação. Evoluções de mídia e novas superfícies públicas continuam sujeitas aos mesmos critérios de metadata, audience, acessibilidade e release deliberado. A imagem social específica de Pipipi ainda usa fallback genérico no corte de 2026-09-11 e permanece melhoria separada.
 
 ### R3 — Auth e Edit
 
@@ -67,9 +69,9 @@ Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito 
 
 ### R5 — Memória estruturada e perfis
 
-**Estado:** schema/base parcialmente preparados; conteúdo/projection reais em evolução.
+**Estado:** schema/base parcialmente preparados; Pipipi pioneira publicada; conteúdo/projection reais em evolução.
 
-`entities`, mentions, canon e profiles editoriais formam a base. A rodada #99 torna Pipipi o **P1 de publicação** para provar o caminho completo com conteúdo aprovado, leitura estática, mídia e metadata próprias. Isso não generaliza uma nova rota para todas as entities nem antecipa publicação.
+`entities`, mentions, canon e profiles editoriais formam a base. Pipipi provou o caminho público de uma lore editorial dedicada com leitura estática, mídia e metadata próprias, sem criar entity/canon por conveniência. A generalização para projections reais continua dependente de dados revisados, provenance, visibility e contrato autorizado; a publicação de uma exceção editorial não antecipa esse fechamento.
 
 ### R6 — Relations e World Explorer
 
