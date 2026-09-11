@@ -15,6 +15,11 @@ CONFIG = ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json"
 ENTRY = ROOT / "local-companion" / "packaging" / "whisper_runtime_entry.py"
 OUTPUT = ROOT / "local-companion" / "out" / "whisper-runtime"
 REQUIRED_DLLS = ("cublas64_12.dll", "cublasLt64_12.dll", "cudnn64_9.dll", "cudart64_12.dll")
+NVIDIA_DISTRIBUTIONS = (
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12",
+    "nvidia-cuda-runtime-cu12",
+)
 
 
 def run(*args: str, cwd: Path | None = None) -> str:
@@ -28,6 +33,65 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def distribution_files(python: Path, name: str, suffix: str) -> list[Path]:
+    script = (
+        "import importlib.metadata as m,json,sys;"
+        "d=m.distribution(sys.argv[1]);"
+        "suffix=sys.argv[2].lower();"
+        "print(json.dumps([str(d.locate_file(f)) for f in (d.files or []) "
+        "if str(f).lower().endswith(suffix)]))"
+    )
+    values = json.loads(run(str(python), "-c", script, name, suffix))
+    return [Path(value) for value in values if isinstance(value, str)]
+
+
+def distribution_license_files(python: Path, name: str) -> list[Path]:
+    script = (
+        "import importlib.metadata as m,json,sys,pathlib;"
+        "d=m.distribution(sys.argv[1]);"
+        "items=[];"
+        "[(items.append(str(d.locate_file(f)))) for f in (d.files or []) "
+        "if pathlib.PurePosixPath(str(f).replace('\\\\','/')).name.lower() "
+        "in {'license','license.txt','license.rst','copying','copying.txt'}];"
+        "print(json.dumps(items))"
+    )
+    values = json.loads(run(str(python), "-c", script, name))
+    return [Path(value) for value in values if isinstance(value, str)]
+
+
+def copy_runtime_dlls(python: Path, built: Path) -> dict[str, int]:
+    copied: dict[str, int] = {}
+    license_root = built / "licenses"
+    for distribution in NVIDIA_DISTRIBUTIONS:
+        dlls = [path for path in distribution_files(python, distribution, ".dll") if path.is_file()]
+        if not dlls:
+            raise RuntimeError(f"WHISPER_RUNTIME_NVIDIA_DLLS_MISSING:{distribution}")
+        copied[distribution] = len(dlls)
+        for source in dlls:
+            target = built / source.name
+            if target.exists() and sha256(target) != sha256(source):
+                raise RuntimeError(f"WHISPER_RUNTIME_DLL_COLLISION:{source.name}")
+            if not target.exists():
+                shutil.copy2(source, target)
+
+        notices = [path for path in distribution_license_files(python, distribution) if path.is_file()]
+        if not notices:
+            raise RuntimeError(f"WHISPER_RUNTIME_LICENSE_MISSING:{distribution}")
+        target_dir = license_root / distribution
+        target_dir.mkdir(parents=True, exist_ok=True)
+        seen: set[str] = set()
+        for source in notices:
+            name = source.name
+            candidate = name
+            index = 2
+            while candidate.casefold() in seen:
+                candidate = f"{source.stem}-{index}{source.suffix}"
+                index += 1
+            seen.add(candidate.casefold())
+            shutil.copy2(source, target_dir / candidate)
+    return copied
 
 
 def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
@@ -91,17 +155,7 @@ def main() -> int:
         if not worker.is_file():
             raise RuntimeError("WHISPER_RUNTIME_WORKER_NOT_CREATED")
 
-        site_packages = Path(run(str(python), "-c", "import site; print(site.getsitepackages()[0])"))
-        nvidia = site_packages / "nvidia"
-        dlls = sorted(nvidia.rglob("*.dll"))
-        if not dlls:
-            raise RuntimeError("WHISPER_RUNTIME_NVIDIA_DLLS_MISSING")
-        for source in dlls:
-            target = built / source.name
-            if target.exists() and sha256(target) != sha256(source):
-                raise RuntimeError(f"WHISPER_RUNTIME_DLL_COLLISION:{source.name}")
-            if not target.exists():
-                shutil.copy2(source, target)
+        copied_dlls = copy_runtime_dlls(python, built)
         for name in REQUIRED_DLLS:
             if not (built / name).is_file():
                 raise RuntimeError(f"WHISPER_RUNTIME_REQUIRED_DLL_MISSING:{name}")
@@ -127,6 +181,7 @@ def main() -> int:
             "gpu": config["gpu"],
             "probe": probe,
             "required_dlls": list(REQUIRED_DLLS),
+            "nvidia_dll_counts": copied_dlls,
         }
         (package_root / "runtime-build.json").write_text(
             json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -151,6 +206,7 @@ def main() -> int:
                     "sha256": digest,
                     "probe": probe,
                     "installed_probe": installed_probe,
+                    "nvidia_dll_counts": copied_dlls,
                 },
                 sort_keys=True,
             )
