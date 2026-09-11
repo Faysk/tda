@@ -4,21 +4,25 @@ const bedScenes = [
 	{
 		id: "super-herois",
 		title: "Os super-heróis não vieram salvá-la",
-		artwork: "/lore/pipipi/super-static.avif",
+		artwork: "/lore/pipipi/super-static.webp",
 	},
 	{
 		id: "cadeira",
 		title: "A cadeira",
-		artwork: "/lore/pipipi/cadeira-static.avif",
+		artwork: "/lore/pipipi/cadeira-static.webp",
 	},
 	{
 		id: "ultimo-dia",
 		title: "O último dia",
-		artwork: "/lore/pipipi/ultimo-dia-static.avif",
+		artwork: "/lore/pipipi/ultimo-dia-static.webp",
 	},
 ] as const;
 
-test("renders the three approved bed scenes as single static frames", async ({ page }) => {
+const sourceResolution = { width: 1672, height: 941 } as const;
+
+test("renders the three approved bed scenes as source-resolution single static frames", async ({
+	page,
+}) => {
 	await page.goto("/lore/pipipi");
 
 	for (const expected of bedScenes) {
@@ -32,6 +36,14 @@ test("renders the three approved bed scenes as single static frames", async ({ p
 		await expect(mediaImages).toHaveCount(1);
 		await expect(mediaImages.first()).toBeVisible();
 		await expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);
+		await expect
+			.poll(() =>
+				mediaImages.first().evaluate((element) => {
+					const image = element as HTMLImageElement;
+					return { width: image.naturalWidth, height: image.naturalHeight };
+				}),
+			)
+			.toEqual(sourceResolution);
 
 		const motionBefore = await scene.evaluate((element) => {
 			const style = getComputedStyle(element);
