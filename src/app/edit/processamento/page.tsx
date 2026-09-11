@@ -4,6 +4,9 @@ import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
 import styles from "@/features/edit/processing/processing.module.css";
 
+const COMPANION_MSI_URL =
+	"https://github.com/Faysk/tda/releases/latest/download/TDACompanion-x64.msi";
+
 export const metadata: Metadata = {
 	title: "Processamento",
 	description: "Fila e conexão com o serviço local de processamento.",
@@ -17,8 +20,18 @@ export default async function ProcessingPage() {
 	return (
 		<section className={styles.page}>
 			<header className={styles.pageHeader}>
-				<div className={styles.breadcrumb}>Edit / Processamento</div>
-				<h1>Processamento</h1>
+				<div>
+					<div className={styles.breadcrumb}>Edit / Processamento</div>
+					<h1>Processamento</h1>
+				</div>
+				<a
+					className={styles.companionDownload}
+					href={COMPANION_MSI_URL}
+					title="Windows x64 · versão mais recente"
+				>
+					<span>Baixar TDA Companion</span>
+					<small>Windows x64 · .msi</small>
+				</a>
 			</header>
 			<ProcessingPanel />
 		</section>
