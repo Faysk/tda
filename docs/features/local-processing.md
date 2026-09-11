@@ -18,19 +18,21 @@ O recorte atual entrega:
 - telemetria best-effort de CPU, RAM, GPU e VRAM;
 - novo aplicativo Windows `TDACompanion.exe`;
 - instalador `TDACompanion-x64.msi` por usuário;
-- link estável no próprio Processamento para baixar a release mais recente.
+- link estável no próprio Processamento para baixar a release mais recente do Companion.
 
 Ainda **não é ASR real ponta a ponta**. O job HTTP executável continua sendo `synthetic.fixture`; o transcriber preservado será conectado ao supervisor em etapa própria. Sincronização/publicação cloud também permanece não configurada.
 
 ## Download e instalação
 
-A tela de Processamento oferece uma ação compacta **Baixar TDA Companion** para Windows x64. Ela aponta para o asset estável da última GitHub Release:
+A tela de Processamento oferece uma ação compacta **Baixar TDA Companion** para Windows x64. O href fica sob controle do próprio TDA:
 
 ```text
-https://github.com/Faysk/tda/releases/latest/download/TDACompanion-x64.msi
+/api/downloads/companion/windows
 ```
 
-O frontend não precisa conhecer a versão atual. Quando uma nova versão validada é publicada como latest, o mesmo link passa a entregar o MSI novo.
+O resolver consulta as releases públicas do repositório, filtra apenas tags `companion-vX.Y.Z`, exige o asset `TDACompanion-x64.msi` e redireciona para a maior versão válida. Releases `prod-*` do site não entram nessa seleção.
+
+Assim o frontend não precisa conhecer a versão atual nem depender de `/releases/latest` global do repositório.
 
 O MSI instala em `%LOCALAPPDATA%\TDA\Companion`, mantém dados em `%LOCALAPPDATA%\TDA\Data` e cria atalho no Menu Iniciar. O antigo `DnDScribeCompanion.exe` não é usado, consultado ou modificado.
 
