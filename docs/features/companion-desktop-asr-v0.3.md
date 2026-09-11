@@ -44,10 +44,11 @@ Layout alvo:
 ├── Data\
 ├── Logs\
 ├── Cache\updates\
-└── Models\
+├── Models\
+└── Runtime\
 ```
 
-Upgrade substitui binários, mas preserva State/Data/Models. A migração 0.2→0.3 preserva token de pareamento, device id e `jobs.sqlite3`. Nenhum diretório DnDScribe é consultado ou modificado.
+Upgrade substitui binários, mas preserva State/Data/Models. A migração 0.2→0.3 preserva token de pareamento e `jobs.sqlite3`. Nenhum diretório DnDScribe é consultado ou modificado.
 
 ## Desktop
 
@@ -138,7 +139,7 @@ Export gera ZIP sanitizado com manifest/system/health/model state/logs recentes,
 
 ## Update
 
-Novo endpoint cloud alvo:
+Endpoint cloud:
 
 ```text
 GET /api/downloads/companion/windows/manifest
@@ -154,8 +155,8 @@ WiX/MSI continua per-user.
 
 Dois fluxos:
 
-1. **Remover aplicativo e manter dados** — remove binários, startup, atalhos e integrações; preserva State/Data/Models.
-2. **Remover completamente** — também remove State/Data/Logs/Cache/Models e `%LOCALAPPDATA%\TDA` se vazio.
+1. **Remover aplicativo e manter dados** — remove binários, startup, atalhos e integrações; preserva dados destinados a futura reinstalação.
+2. **Remover completamente** — também remove State/Data/Logs/Cache/Models/Runtime e `%LOCALAPPDATA%\TDA` se vazio.
 
 CI deve validar fresh install, upgrade N-1→N, uninstall mantendo dados e purge completo, incluindo processo encerrado e porta loopback fechada.
 
@@ -175,7 +176,7 @@ transcription.whisper
 alignment.qwen3
 ```
 
-A UI Desktop não justifica enfraquecer CORS/Origin do browser. Ações sensíveis continuam privadas.
+Capability só aparece quando o caminho real correspondente estiver implementado e validado. A UI Desktop não justifica enfraquecer CORS/Origin do browser.
 
 ## ASR — quatro perfis
 
@@ -183,16 +184,18 @@ Idioma padrão: português explícito.
 
 | ID | Modelo |
 | --- | --- |
-| `qwen-fast` | `Qwen/Qwen3-ASR-0.6B` |
-| `qwen-quality` | `Qwen/Qwen3-ASR-1.7B` |
+| `qwen-fast` | `Qwen/Qwen3-ASR-0.6B-hf` |
+| `qwen-quality` | `Qwen/Qwen3-ASR-1.7B-hf` |
 | `whisper-turbo` | `dropbox-dash/faster-whisper-large-v3-turbo` |
 | `whisper-detailed` | `Systran/faster-whisper-large-v3` |
 
 Alinhador preferencial:
 
 ```text
-Qwen/Qwen3-ForcedAligner-0.6B
+Qwen/Qwen3-ForcedAligner-0.6B-hf
 ```
+
+Todos os modelos e o alinhador usam revision imutável no registry. `main` flutuante não é aceito em job de produção.
 
 ### Receita Whisper preservada
 
@@ -210,33 +213,76 @@ condition_on_previous_text=false
 hotwords=glossary
 initial_prompt com contexto de RPG/campanha
 GPU-first float16
-fallback int8_float16 quando suportado
+fallback int8_float16 somente em OOM e quando suportado
 CPU somente quando solicitado
 ```
 
 ### Receita Qwen inicial
 
+A implementação Qwen usa o suporte nativo do Transformers 5.x, não o pacote legado `qwen-asr` como runtime principal.
+
 ```text
+AutoProcessor
+AutoModelForMultimodalLM
 language=Portuguese
-dtype=bfloat16
-device_map=cuda:0
-context limitado da campanha
-batch adaptativo para 8 GB de VRAM
+prompt limitado com contexto/glossário
+torch.inference_mode()
+dtype=bfloat16 na RTX quando suportado
+CUDA GPU-first
+batch/janelas adaptados a 8 GB de VRAM
 ```
 
-Transformers é a baseline Windows inicial; vLLM fica para benchmark posterior. FlashAttention só entra após validação de empacotamento/compatibilidade no runtime isolado.
+`apply_transcription_request` é o entry point preferido. O texto é extraído via decode estruturado do processor. O Forced Aligner usa `AutoModelForTokenClassification`, `prepare_forced_aligner_inputs` e `decode_forced_alignment`.
+
+`torch.compile` é candidato de otimização depois da correção funcional; não entra como pré-requisito da primeira inferência real.
+
+## Runtimes ASR isolados
+
+Whisper e Qwen não precisam compartilhar a mesma família CUDA. Eles são runtimes separados justamente para evitar que uma limitação do CTranslate2 impeça uma stack PyTorch mais atual.
+
+### Whisper
+
+Baseline atual candidata:
+
+```text
+Python 3.12.14
+Faster-Whisper 1.2.1
+CTranslate2 4.8.2
+CUDA Runtime 12.9
+cuDNN 9
+```
+
+O runtime é empacotado e publicado separadamente do MSI.
+
+### Qwen
+
+Baseline candidata, ainda não declarada suportada:
+
+```text
+Python 3.12.14
+PyTorch 2.14.0 + cu132
+Transformers 5.17.0
+Accelerate 1.15.0
+CUDA runtime fornecido pelo wheel PyTorch cu132
+```
+
+O CI comum pode resolver/importar essa stack e verificar que o wheel contém CUDA 13.2, mas não possui GPU física. O runtime Qwen só será declarado suportado após materialização isolada, probe na máquina real e inferência dos dois perfis na RTX 4070 8 GB.
+
+CUDA 13.x exige driver compatível da família 580 ou superior. O Companion não instala nem altera driver NVIDIA automaticamente.
+
+A distribuição final do runtime Qwen deve permanecer separada do MSI e dos modelos. Antes de decidir entre archive pré-construído e materialização local gerenciada, o CI mede o tamanho real do ambiente PyTorch/Transformers para evitar um pacote desnecessariamente gigantesco.
 
 ## CUDA e modelos
 
 O Companion não altera CUDA Toolkit, Python ou PATH global do usuário. Runtime de ASR é isolado e versionado.
 
-Modelos não entram no MSI; são downloads gerenciados em `%LOCALAPPDATA%\TDA\Models`. Cada instalação registra ID, revision e hash.
+Modelos não entram no MSI; são downloads gerenciados em `%LOCALAPPDATA%\TDA\Models`. Cada instalação registra ID, revision, alignment revision e hash do conteúdo.
 
-A baseline CUDA/PyTorch/CTranslate2 é pinada por release e validada em RTX 4070 8 GB. Versão mais nova de CUDA só substitui a baseline quando demonstrar compatibilidade e zero regressão.
+A política `docs/operations/companion-dependency-policy.md` é gate de release: usamos a versão estável mais recente e compatível, com exceções documentadas. GPU/ASR só vira baseline suportada depois de teste físico.
 
 ## Craig ZIP
 
-Novo job: `transcription.craig`.
+Job: `transcription.craig`.
 
 Entrada esperada: ZIP com 1..N tracks de áudio, `info.txt` opcional e `raw.dat` opcional. O ingest rejeita path traversal, paths absolutos, links inesperados, quantidade/tamanho descompactado fora do limite e archives aninhados não suportados.
 
@@ -269,7 +315,9 @@ O scheduler trabalha por janelas/regiões, não exige completar uma track inteir
 
 O Forced Aligner Qwen suporta português e é o refinamento temporal preferido. Qwen usa o aligner diretamente; Whisper mantém timestamps nativos como fallback e pode ter o texto refinado pelo mesmo aligner.
 
-Falha de alignment não descarta transcrição já concluída. O resultado informa `alignment_source`.
+Na RTX 4070 8 GB, o perfil de qualidade não deve manter ASR 1.7B e aligner carregados simultaneamente. O lifecycle preferido é transcrever a janela/track, liberar VRAM e então carregar/alimentar o aligner. Falha de alignment não descarta transcrição concluída; o resultado informa `alignment_source`.
+
+Janelas destinadas ao aligner permanecem abaixo do limite prático documentado, com baseline alvo de aproximadamente 3–4 minutos, preservando offsets absolutos da timeline Craig.
 
 ## Cross-track dedup e diálogo
 
@@ -287,7 +335,7 @@ Contexto ajuda reconhecimento; nunca deve funcionar como autorização para inve
 
 ## Checkpoints
 
-Checkpoint inclui assinatura do request, source hash, engine/profile, model revision, hash de contexto/glossário e versões de VAD/alignment. Só é reutilizado quando compatível.
+Checkpoint inclui assinatura do request, source hash, engine/profile, model revision, alignment revision, hash de contexto/glossário e versões de VAD/alignment. Só é reutilizado quando compatível.
 
 O comportamento validado do legado — reaproveitar tracks concluídas após interrupção — deve permanecer.
 
@@ -307,9 +355,9 @@ Medir qualidade textual, nomes, erro temporal em pontos anotados, elapsed, RTF, 
 2. Desktop WebView2, tray, diagnóstico e configurações.
 3. update, repair, upgrade e uninstall/purge.
 4. ingest Craig + worker subprocess + schema canônico.
-5. Whisper Turbo + Detailed reais.
-6. Qwen 0.6B + 1.7B + Forced Aligner.
-7. dedup multitrack, merge, turn building e benchmark.
+5. Whisper Turbo + Detailed reais e gate físico.
+6. runtime Qwen isolado + Qwen 0.6B/1.7B + Forced Aligner.
+7. checkpoint/restart, dedup multitrack, merge, turn building e benchmark.
 8. Web: selector de perfil, ingest e visual operacional usando apenas dados reais.
 
 ## Definition of Done v0.3
@@ -328,9 +376,12 @@ Só chamar v0.3 de concluído quando:
 
 ## Referências
 
-- https://github.com/QwenLM/Qwen3-ASR
-- https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B
+- https://huggingface.co/docs/transformers/model_doc/qwen3_asr
+- https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf
+- https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf
+- https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf
 - https://github.com/SYSTRAN/faster-whisper
+- https://pytorch.org/
 - https://learn.microsoft.com/en-us/microsoft-edge/webview2/
 - https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution
 - https://learn.microsoft.com/windows/win32/setupapi/run-and-runonce-registry-keys
