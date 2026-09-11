@@ -50,6 +50,7 @@ def run_desktop(
         text_select=True,
         zoomable=False,
     )
+    bridge.bind_close_desktop(window.destroy)
 
     tray: TrayController | None = None
     if settings.snapshot().get("show_tray"):
