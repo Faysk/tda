@@ -8,7 +8,7 @@ import {
 	useState,
 	type CSSProperties,
 } from "react";
-import { useEdgesState, useNodesState } from "@xyflow/react";
+import { useEdgesState, useNodesState, type XYPosition } from "@xyflow/react";
 import { useWorldWorkspaceControls } from "../../world-shell/world-workspace-context";
 import {
 	applyWorldFlowSelection,
@@ -26,12 +26,18 @@ import {
 	projectionWithWorldDraft,
 	useWorldExplorerView,
 } from "../hooks/use-world-explorer-view";
-import type { WorldGraphProjection, WorldLayoutProjection } from "../model";
+import type {
+	WorldEntityType,
+	WorldGraphProjection,
+	WorldLayoutProjection,
+} from "../model";
+import { appendWorldDraftNode } from "../world-direct-create";
 import type { WorldCommandContext } from "../world-commands";
 import authoring from "./world-authoring-shell.module.css";
 import { WorldCanvas } from "./world-canvas";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
+import { WorldDirectCreateControls } from "./world-direct-create-controls";
 import { WorldFloatingChrome } from "./world-floating-chrome";
 import {
 	WorldAccessibleRelations,
@@ -80,6 +86,8 @@ export function WorldExplorerClient({
 	const workspace = useWorldWorkspaceControls();
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
+	const [createType, setCreateType] = useState<WorldEntityType | null>(null);
+	const [createPoint, setCreatePoint] = useState<XYPosition | null>(null);
 	const authoringUi = useWorldAuthoringUi();
 
 	const edit = useWorldEditSession({
@@ -152,6 +160,12 @@ export function WorldExplorerClient({
 		if (!edit.editing) authoringUi.authoringStopped();
 	}, [edit.editing, workspace.setAuthoringActive, authoringUi.authoringStopped]);
 
+	useEffect(() => {
+		if (edit.editing) return;
+		setCreateType(null);
+		setCreatePoint(null);
+	}, [edit.editing]);
+
 	useEffect(
 		() => () => {
 			workspace.setAuthoringActive(false);
@@ -195,6 +209,8 @@ export function WorldExplorerClient({
 	const authoringActive = edit.editing;
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
+	const directCreateEnabled =
+		authoringPanelVisible && view === "canvas" && !authoringUi.focusMode;
 	const commandContext: WorldCommandContext = {
 		mode: workingProjection.mode,
 		canEditLayout,
@@ -204,6 +220,77 @@ export function WorldExplorerClient({
 		selectionIsFocus: Boolean(selected && selected.id === workingProjection.focusId),
 		hasProfileRoute: Boolean(selected?.route),
 	};
+
+	function cancelDirectCreate() {
+		setCreateType(null);
+		setCreatePoint(null);
+		authoringUi.setTool("select");
+	}
+
+	function beginDirectCreate(type: WorldEntityType) {
+		if (!directCreateEnabled) return;
+		setSelectedId(null);
+		setCreateType(type);
+		setCreatePoint(null);
+		authoringUi.setTool("create");
+	}
+
+	function handleCanvasPaneClick(position: XYPosition | null) {
+		if (
+			directCreateEnabled &&
+			authoringUi.state.tool === "create" &&
+			createType &&
+			position
+		) {
+			setCreatePoint(position);
+			return;
+		}
+		setSelectedId(null);
+	}
+
+	function createDirectNode(name: string) {
+		if (
+			edit.state !== "editing" ||
+			!edit.graphDraft ||
+			!createType ||
+			!createPoint
+		) {
+			return;
+		}
+		const result = appendWorldDraftNode(edit.graphDraft, {
+			id: crypto.randomUUID(),
+			name,
+			entityType: createType,
+		});
+		if (!result) return;
+
+		const nextOverrides: WorldLayout = {
+			...positionOverridesRef.current,
+			[result.node.id]: { x: createPoint.x, y: createPoint.y },
+		};
+		const candidate = layoutCandidateFor(
+			projectionWithWorldDraft(projection, result.draft),
+			nextOverrides,
+		);
+		if (!candidate) {
+			edit.reportFailure("invalid_payload");
+			return;
+		}
+
+		positionOverridesRef.current = nextOverrides;
+		setPositionOverrides(nextOverrides);
+		setFilter("all");
+		setQuery("");
+		edit.updateGraphDraft(result.draft, `${result.node.name} foi criado no rascunho.`);
+		edit.updateLayoutDraft(candidate, {
+			pendingMessage: "Salvando posição do novo elemento no rascunho…",
+		});
+		setSelectedId(result.node.id);
+		setCreateType(null);
+		setCreatePoint(null);
+		authoringUi.setTool("select");
+		authoringUi.setInspectorMode("overlay");
+	}
 
 	return (
 		<div
@@ -216,6 +303,7 @@ export function WorldExplorerClient({
 			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
 			data-world-authoring-active={authoringActive ? "true" : "false"}
+			data-world-authoring-tool={authoringUi.state.tool}
 			data-world-focus-mode={authoringActive && authoringUi.focusMode ? "true" : "false"}
 			data-world-inspector-mode={authoringUi.state.inspectorMode}
 			aria-busy={edit.busy}
@@ -284,9 +372,27 @@ export function WorldExplorerClient({
 						edges={edges}
 						onNodesChange={onNodesChange}
 						onEdgesChange={onEdgesChange}
-						onNodeSelect={(node) => setSelectedId(node.id)}
+						onNodeSelect={(node) => {
+							if (authoringUi.state.tool === "create") cancelDirectCreate();
+							setSelectedId(node.id);
+						}}
 						onNodeDragStop={rememberNodePosition}
-						onPaneClick={() => setSelectedId(null)}
+						onPaneClick={handleCanvasPaneClick}
+						placementActive={
+							directCreateEnabled &&
+							authoringUi.state.tool === "create" &&
+							Boolean(createType)
+						}
+						overlay={
+							<WorldDirectCreateControls
+								enabled={directCreateEnabled}
+								placementType={createType}
+								placementPoint={createPoint}
+								onSelectType={beginDirectCreate}
+								onCancel={cancelDirectCreate}
+								onCreate={createDirectNode}
+							/>
+						}
 					/>
 				) : null}
 
