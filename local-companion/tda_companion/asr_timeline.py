@@ -223,6 +223,8 @@ def deduplicate_cross_track_segments(
                     dominance_margin=round(margin, 6),
                 )
             )
+            if weaker.key == left.key:
+                break
 
     kept_segments = tuple(item for item in ordered if item.key not in suppressed)
     return kept_segments, tuple(decisions)
