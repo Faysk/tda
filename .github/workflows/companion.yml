@@ -30,9 +30,9 @@ jobs:
         run: ./local-companion/packaging/plan.ps1 -InstallRoot '${{ runner.temp }}/tda-app' -DataRoot '${{ runner.temp }}/tda-data'
 
   windows-app:
-    name: windows-app (TDACompanion.exe)
+    name: windows-installer (TDACompanion-x64.msi)
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
@@ -40,7 +40,10 @@ jobs:
           version: '0.12.10'
       - run: uv venv --python 3.12.13
       - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging]
-      - name: Build Windows bundle
+      - name: Install WiX Toolset 5
+        shell: pwsh
+        run: dotnet tool install --tool-path .wix wix --version 5.0.2
+      - name: Build Windows bundle and MSI
         shell: pwsh
         run: ./local-companion/packaging/build-windows.ps1
       - name: Smoke packaged executable
@@ -48,10 +51,81 @@ jobs:
         run: |
           $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
           ./local-companion/packaging/smoke-windows-bundle.ps1 -PackageRoot "local-companion/out/windows/TDACompanion-$version"
+      - name: Smoke MSI install and uninstall
+        shell: pwsh
+        run: |
+          $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
+          ./local-companion/packaging/smoke-windows-msi.ps1 -MsiPath "local-companion/out/windows/TDACompanion-x64.msi" -Version $version
       - name: Upload Windows package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: TDACompanion-windows-x64
-          path: local-companion/out/windows/TDACompanion-*-windows-x64.zip
+          path: |
+            local-companion/out/windows/TDACompanion-x64.msi
+            local-companion/out/windows/TDACompanion-x64.msi.sha256
+            local-companion/out/windows/TDACompanion-*-windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: publish-companion-release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [synthetic, windows-app]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: Detect companion changes
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- local-companion .github/workflows/companion.yml; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download validated Windows package
+        if: steps.changes.outputs.publish == 'true'
+        uses: actions/download-artifact@v5
+        with:
+          name: TDACompanion-windows-x64
+          path: dist
+      - name: Publish immutable GitHub release
+        if: steps.changes.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION=$(python - <<'PY'
+          import pathlib, tomllib
+          data = tomllib.loads(pathlib.Path('local-companion/pyproject.toml').read_text(encoding='utf-8'))
+          print(data['project']['version'])
+          PY
+          )
+          TAG="companion-v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Bump local-companion version before changing/releasing the companion."
+            exit 1
+          fi
+          SHA256=$(awk '{print $1}' dist/TDACompanion-x64.msi.sha256)
+          cat > release-notes.md <<EOF
+          Instalador oficial do TDA Companion para Windows x64.
+
+          - Instalação por usuário, sem privilégios administrativos.
+          - Aplicativo em `%LOCALAPPDATA%\\TDA\\Companion`.
+          - Dados locais preservados em `%LOCALAPPDATA%\\TDA\\Data`.
+          - O antigo DnDScribeCompanion.exe não é usado ou modificado.
+
+          SHA256 do MSI: `$SHA256`
+          EOF
+          gh release create "$TAG" \
+            dist/TDACompanion-x64.msi \
+            dist/TDACompanion-x64.msi.sha256 \
+            dist/TDACompanion-${VERSION}-windows-x64.zip \
+            --target "$GITHUB_SHA" \
+            --title "TDA Companion v${VERSION}" \
+            --notes-file release-notes.md
