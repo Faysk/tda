@@ -62,7 +62,9 @@ def main() -> int:
         run("uv", "venv", str(venv), "--python", python_version)
         python = venv / "Scripts" / "python.exe"
 
-        # The CUDA-specific index selects the cu132 build; the probe below enforces torch.version.cuda == 13.2.
+        # Keep Torch resolution isolated to the official CUDA index. Mixing PyPI as
+        # an extra index can select the CPU wheel with the same public version.
+        # The probe below still enforces torch.version.cuda == the manifest family.
         run(
             "uv",
             "pip",
@@ -71,8 +73,6 @@ def main() -> int:
             str(python),
             "--index-url",
             torch_index,
-            "--extra-index-url",
-            "https://pypi.org/simple",
             f"torch=={torch_version}",
         )
         pins = [f"{name}=={version}" for name, version in packages.items()]
