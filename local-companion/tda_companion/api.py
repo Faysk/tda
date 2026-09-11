@@ -1,10 +1,12 @@
 import asyncio
+import hashlib
 import hmac
 import os
 import re
 import time
 from contextlib import asynccontextmanager
-from typing import Callable, Literal
+from pathlib import Path
+from typing import Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,19 +14,42 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
+from .craig import CraigPackageError
+from .craig_runtime import load_craig_package
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
+_ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
-class JobRequest(BaseModel):
+
+class SyntheticJobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["synthetic.fixture"]
-    campaign_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
-    session_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
-    source_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    campaign_id: str = Field(pattern=_ID_PATTERN)
+    session_id: str = Field(pattern=_ID_PATTERN)
+    source_id: str = Field(pattern=_ID_PATTERN)
     units: int = Field(ge=1, le=100)
+
+
+class CraigTranscriptionJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["transcription.craig"]
+    campaign_id: str = Field(pattern=_ID_PATTERN)
+    session_id: str = Field(pattern=_ID_PATTERN)
+    source_id: str = Field(pattern=_ID_PATTERN)
+    profile_id: Literal["whisper-turbo", "whisper-detailed"]
+    glossary: str = Field(default="", max_length=1200)
+    context: str = Field(default="", max_length=1200)
+    cpu: bool = False
+
+
+JobRequest = Annotated[
+    SyntheticJobRequest | CraigTranscriptionJobRequest,
+    Field(discriminator="kind"),
+]
 
 
 class LifecycleRequest(BaseModel):
@@ -42,6 +67,14 @@ def error(code, status, recoverable=False):
     return JSONResponse({"error": {"code": code, "recoverable": recoverable}}, status_code=status)
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def create_app(
     root,
     token,
@@ -50,12 +83,17 @@ def create_app(
     run_worker=True,
     system_log: SystemLog | None = None,
     shutdown_callback: Callable[[], None] | None = None,
+    models_root: Path | None = None,
 ):
     if not re.fullmatch(r"[A-Za-z0-9_-]{43,256}", token):
         raise ValueError("TOKEN_TOO_SHORT")
-    store = Store(root)
+    data_root = Path(root).resolve()
+    resolved_models_root = (
+        models_root.resolve() if models_root is not None else data_root.parent / "Models"
+    )
+    store = Store(data_root)
     telemetry = SystemTelemetry()
-    worker_supervisor = WorkerSupervisor()
+    worker_supervisor = WorkerSupervisor(data_root=data_root, models_root=resolved_models_root)
     worker_healthy = True
     worker_wake = asyncio.Event()
     started_at = time.time()
@@ -63,6 +101,46 @@ def create_app(
     def log(level: str, component: str, code: str, message: str, context=None) -> None:
         if system_log is not None:
             system_log.write(level, component, code, message, context)
+
+    def staged_package(source_id: str, *, verify_tracks: bool = False):
+        staging = (data_root / "staging").resolve()
+        package_root = (staging / source_id).resolve()
+        if package_root.parent != staging:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
+        return package_root, load_craig_package(package_root, verify_tracks=verify_tracks)
+
+    def finalize_transcription_result(job_id: str, body: dict, worker_payload: dict) -> dict:
+        if (
+            worker_payload.get("kind") != "transcription.craig"
+            or worker_payload.get("source_id") != body["source_id"]
+            or worker_payload.get("profile_id") != body["profile_id"]
+            or worker_payload.get("schema_version") != "tda_transcript_v1"
+            or worker_payload.get("artifact") != "transcript.json"
+        ):
+            raise WorkerProcessError("WORKER_RESULT_INVALID")
+        digest = worker_payload.get("sha256")
+        if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
+            raise WorkerProcessError("WORKER_RESULT_HASH_INVALID")
+        package_root, _ = staged_package(body["source_id"], verify_tracks=False)
+        artifact = (package_root / "transcript.json").resolve()
+        if artifact.parent != package_root or not artifact.is_file():
+            raise WorkerProcessError("WORKER_RESULT_ARTIFACT_MISSING")
+        if _sha256_file(artifact) != digest:
+            raise WorkerProcessError("WORKER_RESULT_HASH_MISMATCH")
+        return {
+            "schema_version": "tda_local_result_v1",
+            "campaign_id": body["campaign_id"],
+            "session_id": body["session_id"],
+            "source_id": body["source_id"],
+            "job_id": job_id,
+            "transcription": {
+                "schema_version": "tda_transcript_v1",
+                "profile_id": body["profile_id"],
+                "artifact": "transcript.json",
+                "sha256": digest,
+            },
+            "sync": {"status": "not_configured"},
+        }
 
     async def wait_for_work() -> None:
         try:
@@ -81,12 +159,13 @@ def create_app(
                 if claimed:
                     job_id, attempt = claimed
                     state = store.get(job_id)
+                    body = store.body(job_id)
                     log(
                         "info",
                         "worker",
                         "JOB_CLAIMED",
                         "Job claimed",
-                        {"job_id": job_id, "attempt": attempt},
+                        {"job_id": job_id, "attempt": attempt, "kind": body["kind"]},
                     )
 
                     def is_cancelled() -> bool:
@@ -105,11 +184,21 @@ def create_app(
                         actual = int(current["progress"]["completed"])
                         if expected != actual + 1:
                             raise RuntimeError("WORKER_PROGRESS_GAP")
-                        store.step(job_id, attempt)
+                        if body["kind"] == "synthetic.fixture":
+                            store.step(job_id, attempt)
+                        else:
+                            store.progress(
+                                job_id,
+                                attempt,
+                                completed=expected,
+                                total=int(message.payload["total"]),
+                                stage=str(message.payload.get("stage") or "transcription"),
+                            )
 
                     def observe_event(message) -> None:
                         if message.type == "stage":
                             stage = str(message.payload.get("stage") or "worker")[:64]
+                            store.set_stage(job_id, attempt, stage)
                             log(
                                 "info",
                                 "worker",
@@ -119,17 +208,42 @@ def create_app(
                             )
 
                     try:
-                        outcome = await asyncio.to_thread(
-                            worker_supervisor.run_fixture,
-                            job_id=job_id,
-                            attempt=attempt,
-                            units=int(state["progress"]["total"]),
-                            completed=int(state["progress"]["completed"]),
-                            on_progress=commit_progress,
-                            on_event=observe_event,
-                            is_cancelled=is_cancelled,
-                        )
+                        if body["kind"] == "synthetic.fixture":
+                            outcome = await asyncio.to_thread(
+                                worker_supervisor.run_fixture,
+                                job_id=job_id,
+                                attempt=attempt,
+                                units=int(state["progress"]["total"]),
+                                completed=int(state["progress"]["completed"]),
+                                on_progress=commit_progress,
+                                on_event=observe_event,
+                                is_cancelled=is_cancelled,
+                            )
+                        elif body["kind"] == "transcription.craig":
+                            outcome = await asyncio.to_thread(
+                                worker_supervisor.run_craig,
+                                job_id=job_id,
+                                attempt=attempt,
+                                source_id=body["source_id"],
+                                profile_id=body["profile_id"],
+                                glossary=body.get("glossary", ""),
+                                context=body.get("context", ""),
+                                cpu=bool(body.get("cpu", False)),
+                                on_progress=commit_progress,
+                                on_event=observe_event,
+                                is_cancelled=is_cancelled,
+                            )
+                        else:
+                            raise WorkerProcessError("WORKER_KIND_UNSUPPORTED")
+
                         final_state = store.get(job_id)
+                        if outcome.terminal == "result" and body["kind"] == "transcription.craig":
+                            result = finalize_transcription_result(job_id, body, outcome.payload)
+                            if not store.complete(job_id, attempt, result):
+                                raise WorkerProcessError("WORKER_STALE_ATTEMPT")
+                            final_state = store.get(job_id)
+                        if outcome.terminal == "cancelled" and final_state["status"] == "running":
+                            final_state = store.action(job_id, "cancel")
                         if outcome.terminal == "result" and final_state["status"] not in {
                             "succeeded",
                             "cancelled",
@@ -143,7 +257,8 @@ def create_app(
                             {"job_id": job_id, "terminal": outcome.terminal},
                         )
                     except WorkerProcessError as exc:
-                        store.fail(job_id, attempt)
+                        code = exc.code if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
+                        store.fail(job_id, attempt, code)
                         log(
                             "error",
                             "worker",
@@ -152,7 +267,8 @@ def create_app(
                             {"job_id": job_id, "worker_code": exc.code},
                         )
                     except Exception:
-                        store.fail(job_id, attempt)
+                        code = "WORKER_EXECUTION_FAILED" if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
+                        store.fail(job_id, attempt, code)
                         log(
                             "error",
                             "worker",
@@ -198,6 +314,8 @@ def create_app(
     app.state.telemetry = telemetry
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
+    app.state.data_root = data_root
+    app.state.models_root = resolved_models_root
     app.router.redirect_slashes = False
 
     @app.middleware("http")
@@ -244,14 +362,14 @@ def create_app(
             elif request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
                 response = error("JSON_REQUIRED", 415)
             else:
-                body = bytearray()
+                body_bytes = bytearray()
                 async for chunk in request.stream():
-                    body.extend(chunk)
-                    if len(body) > 4096:
+                    body_bytes.extend(chunk)
+                    if len(body_bytes) > 4096:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
-                    request._body = bytes(body)
+                    request._body = bytes(body_bytes)
         if response is None:
             try:
                 response = await call_next(request)
@@ -294,6 +412,7 @@ def create_app(
 
     @app.get("/api/v1/capabilities")
     def capabilities():
+        # Do not advertise real ASR until the isolated runtime is actually shipped.
         features = ["synthetic.fixture", "job.events", "system.telemetry", "worker.subprocess"]
         if system_log is not None:
             features.extend(["agent.desktop", "agent.logs"])
@@ -365,8 +484,15 @@ def create_app(
         return {"jobs": store.jobs()}
 
     @app.post("/api/v1/jobs")
-    async def submit(body: JobRequest, idempotency_key: str = Header(pattern=r"^[A-Za-z0-9_-]{1,128}$")):
-        value = store.submit(idempotency_key, body.model_dump())
+    async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
+        payload = body.model_dump()
+        if body.kind == "transcription.craig":
+            try:
+                _, package = staged_package(body.source_id, verify_tracks=False)
+            except CraigPackageError as exc:
+                raise Conflict(str(exc)) from None
+            payload["units"] = len(package.tracks)
+        value = store.submit(idempotency_key, payload)
         worker_wake.set()
         return value
 
