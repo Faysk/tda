@@ -32,7 +32,7 @@ try {
     while ((Get-Date) -lt $deadline) {
         if ($process.HasExited) {
             $stateText = if (Test-Path $diagnostic) { (Get-Content $diagnostic -Raw).Trim() } else { "NO_DIAGNOSTIC" }
-            throw "PACKAGED_COMPANION_EXITED_EARLY:$($process.ExitCode):$stateText"
+            throw "PACKAGED_COMPANION_EXITED_EARLY:$($process.ExitCode):${stateText}"
         }
         try {
             $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/v1/health" -Method Get -TimeoutSec 1 -SkipHttpErrorCheck
@@ -48,7 +48,7 @@ try {
     if (-not $health) {
         $stateText = if (Test-Path $diagnostic) { (Get-Content $diagnostic -Raw).Trim() } else { "NO_DIAGNOSTIC" }
         $httpText = if ($null -eq $lastHttp) { "NO_HTTP" } else { "HTTP_$lastHttp" }
-        throw "PACKAGED_COMPANION_HEALTH_TIMEOUT:$stateText:$httpText"
+        throw "PACKAGED_COMPANION_HEALTH_TIMEOUT:${stateText}:${httpText}"
     }
 
     $tokenFile = Join-Path $state "pairing-token.txt"
