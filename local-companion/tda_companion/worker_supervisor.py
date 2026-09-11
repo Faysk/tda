@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .asr_runtime import current_whisper_worker
 from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
 
 
@@ -44,6 +45,7 @@ class WorkerSupervisor:
         cancel_grace: float = 3.0,
         data_root: Path | None = None,
         models_root: Path | None = None,
+        runtime_root: Path | None = None,
     ):
         self.command_factory = command_factory
         self.startup_timeout = startup_timeout
@@ -51,6 +53,7 @@ class WorkerSupervisor:
         self.cancel_grace = cancel_grace
         self.data_root = data_root.resolve() if data_root is not None else None
         self.models_root = models_root.resolve() if models_root is not None else None
+        self.runtime_root = runtime_root.resolve() if runtime_root is not None else None
 
     @staticmethod
     def _creationflags() -> int:
@@ -98,12 +101,16 @@ class WorkerSupervisor:
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        process_command: list[str] | None = None,
     ) -> WorkerOutcome:
         # Validate before creating a process so malformed user-derived identifiers
         # can never be turned into worker lifecycle or filesystem activity.
         encoded_command = command.encode()
+        executable_command = process_command or self.command_factory()
+        if not executable_command or not all(isinstance(item, str) and item for item in executable_command):
+            raise WorkerProcessError("WORKER_COMMAND_INVALID")
         process = subprocess.Popen(
-            self.command_factory(),
+            executable_command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -272,6 +279,11 @@ class WorkerSupervisor:
     ) -> WorkerOutcome:
         if self.data_root is None or self.models_root is None:
             raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
+        runtime_command = None
+        if profile_id.startswith("whisper-") and self.runtime_root is not None:
+            worker = current_whisper_worker(self.runtime_root)
+            if worker is not None:
+                runtime_command = [str(worker)]
         return self._run_command(
             WorkerRunCommand(
                 job_id=job_id,
@@ -288,4 +300,5 @@ class WorkerSupervisor:
             on_progress=on_progress,
             on_event=on_event,
             is_cancelled=is_cancelled,
+            process_command=runtime_command,
         )
