@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -12,6 +13,7 @@ from typing import Any
 
 from . import VERSION
 from .agent import wait_until_ready
+from .asr_runtime import inspect_whisper_runtime
 from .paths import CompanionPaths
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -85,17 +87,62 @@ def _webview2_check() -> dict[str, Any]:
         return _check("webview2", "warning", "Não foi possível consultar WebView2", type(exc).__name__)
 
 
+def _whisper_runtime_check(paths: CompanionPaths) -> dict[str, Any]:
+    state = inspect_whisper_runtime(paths.runtime_root, verify_worker=True)
+    status = state.get("status")
+    version = state.get("version")
+    if status == "missing":
+        return _check("whisper_runtime", "unavailable", "Runtime Whisper ainda não está instalado")
+    if status != "ready":
+        return _check(
+            "whisper_runtime",
+            "fail",
+            "Runtime Whisper falhou na verificação de integridade",
+            f"versão {version}" if version else None,
+        )
+    worker = state.get("worker")
+    if not isinstance(worker, str):
+        return _check("whisper_runtime", "fail", "Executável do runtime Whisper não foi localizado")
+    try:
+        process = subprocess.run(
+            [worker, "--probe"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            timeout=12,
+            check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        if process.returncode != 0 or len(process.stdout.encode("utf-8")) > 16 * 1024:
+            return _check("whisper_runtime", "fail", "Probe do runtime Whisper falhou")
+        value = json.loads(process.stdout)
+        if not isinstance(value, dict) or value.get("schema") != "tda_whisper_runtime_probe_v1" or value.get("ready") is not True:
+            return _check("whisper_runtime", "fail", "Probe do runtime Whisper retornou estado inválido")
+        cuda_devices = value.get("cuda_device_count")
+        detail = (
+            f"v{version} · faster-whisper {value.get('faster_whisper', '—')} · "
+            f"CTranslate2 {value.get('ctranslate2', '—')} · CUDA devices {cuda_devices}"
+        )
+        return _check("whisper_runtime", "pass", "Runtime Whisper íntegro e executável", detail)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError, json.JSONDecodeError) as exc:
+        return _check("whisper_runtime", "fail", "Não foi possível executar o probe do runtime Whisper", type(exc).__name__)
+
+
 def run_diagnostics(paths: CompanionPaths, port: int) -> dict[str, Any]:
+    agent_ready = wait_until_ready(port, timeout=0.5)
     checks = [
         _check(
             "agent",
-            "pass" if wait_until_ready(port, timeout=0.5) else "fail",
-            "Agent local respondendo" if wait_until_ready(port, timeout=0.2) else "Agent local não respondeu",
+            "pass" if agent_ready else "fail",
+            "Agent local respondendo" if agent_ready else "Agent local não respondeu",
         ),
         _writable_check(paths.state_root, "state"),
         _writable_check(paths.data_root, "data"),
         _sqlite_check(paths.data_root / "jobs.sqlite3"),
         _webview2_check(),
+        _whisper_runtime_check(paths),
     ]
 
     try:
