@@ -4,7 +4,7 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,11 +31,24 @@ class LifecycleRequest(BaseModel):
     action: Literal["pause", "resume"]
 
 
+class AgentControlRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["shutdown"]
+
+
 def error(code, status, recoverable=False):
     return JSONResponse({"error": {"code": code, "recoverable": recoverable}}, status_code=status)
 
 
-def create_app(root, token, origins, port=8765, run_worker=True, system_log: SystemLog | None = None):
+def create_app(
+    root,
+    token,
+    origins,
+    port=8765,
+    run_worker=True,
+    system_log: SystemLog | None = None,
+    shutdown_callback: Callable[[], None] | None = None,
+):
     if not re.fullmatch(r"[A-Za-z0-9_-]{43,256}", token):
         raise ValueError("TOKEN_TOO_SHORT")
     store = Store(root)
@@ -208,6 +221,8 @@ def create_app(root, token, origins, port=8765, run_worker=True, system_log: Sys
         features = ["synthetic.fixture", "job.events", "system.telemetry"]
         if system_log is not None:
             features.extend(["agent.desktop", "agent.logs"])
+        if shutdown_callback is not None:
+            features.append("agent.control")
         return dict(
             capabilities=features,
             sync=False,
@@ -227,6 +242,16 @@ def create_app(root, token, origins, port=8765, run_worker=True, system_log: Sys
             "uptime_seconds": max(0, round(time.time() - started_at, 1)),
         }
 
+    @app.post("/api/v1/agent/control")
+    async def agent_control(body: AgentControlRequest):
+        if shutdown_callback is None:
+            raise Conflict("AGENT_CONTROL_UNAVAILABLE")
+        if store.has_running_jobs():
+            raise Conflict("AGENT_BUSY")
+        log("warning", "agent", "AGENT_SHUTDOWN_REQUESTED", "Agent shutdown requested")
+        asyncio.get_running_loop().call_later(0.25, shutdown_callback)
+        return {"accepted": True, "action": body.action}
+
     @app.get("/api/v1/logs")
     def logs(
         limit: int = Query(default=200, ge=1, le=500),
@@ -244,7 +269,12 @@ def create_app(root, token, origins, port=8765, run_worker=True, system_log: Sys
     @app.post("/api/v1/lifecycle")
     async def change_lifecycle(body: LifecycleRequest):
         store.pause(body.action == "pause")
-        log("info", "queue", "QUEUE_PAUSED" if body.action == "pause" else "QUEUE_RESUMED", f"Queue {body.action}d")
+        log(
+            "info",
+            "queue",
+            "QUEUE_PAUSED" if body.action == "pause" else "QUEUE_RESUMED",
+            f"Queue {body.action}d",
+        )
         if body.action == "resume":
             worker_wake.set()
         return health_value()
