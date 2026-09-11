@@ -10,7 +10,11 @@ import {
 	worldPortHandleId,
 } from "../edge-routing";
 import type { WorldNodeDTO } from "../model";
-import { WORLD_AUTHORING_OPEN_INSPECTOR_EVENT } from "../world-authoring-events";
+import {
+	WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
+	WORLD_AUTHORING_OPEN_INSPECTOR_EVENT,
+	type WorldAuthoringConnectFromNodeDetail,
+} from "../world-authoring-events";
 import authoringStyles from "./entity-node-authoring.module.css";
 import nodeStyles from "./entity-node-v2.module.css";
 
@@ -86,8 +90,16 @@ function openAuthoringInspector() {
 	window.dispatchEvent(new Event(WORLD_AUTHORING_OPEN_INSPECTOR_EVENT));
 }
 
+function beginAuthoringConnection(nodeId: string) {
+	window.dispatchEvent(
+		new CustomEvent<WorldAuthoringConnectFromNodeDetail>(WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT, {
+			detail: { nodeId },
+		}),
+	);
+}
+
 function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
-	const { item, isFocus, isHero, prominence, isDimmed } = data;
+	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
 	const kind = visualKind(item, isHero);
 	const state = stateLabel(isFocus, selected);
 	return (
@@ -111,6 +123,14 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 					>
 						Editar
 					</button>
+					<button
+						className={`${authoringStyles.action} nodrag nopan`}
+						type="button"
+						onClick={() => beginAuthoringConnection(item.id)}
+						aria-pressed={authoringConnectable}
+					>
+						Conectar
+					</button>
 				</div>
 			</NodeToolbar>
 			{SIDES.flatMap(({ side, position }) =>
@@ -118,6 +138,8 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 					const sourceId = worldPortHandleId("source", side, lane);
 					const targetId = worldPortHandleId("target", side, lane);
 					const style = laneStyle(side, lane);
+					const sourceConnectable = authoringConnectable && lane === -1;
+					const targetConnectable = authoringConnectable && lane === 1;
 					return [
 						<Handle
 							key={sourceId}
@@ -125,8 +147,8 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 							type="source"
 							position={position}
 							style={style}
-							className={nodeStyles.hiddenHandle}
-							isConnectable={false}
+							className={`${nodeStyles.hiddenHandle} ${sourceConnectable ? authoringStyles.sourceHandle : ""}`}
+							isConnectable={sourceConnectable}
 						/>,
 						<Handle
 							key={targetId}
@@ -134,8 +156,8 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 							type="target"
 							position={position}
 							style={style}
-							className={nodeStyles.hiddenHandle}
-							isConnectable={false}
+							className={`${nodeStyles.hiddenHandle} ${targetConnectable ? authoringStyles.targetHandle : ""}`}
+							isConnectable={targetConnectable}
 						/>,
 					];
 				}),
