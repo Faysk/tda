@@ -94,7 +94,7 @@ jobs:
         with:
           name: TDACompanion-windows-x64
           path: dist
-      - name: Publish immutable GitHub release
+      - name: Publish versioned GitHub release
         if: steps.changes.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
