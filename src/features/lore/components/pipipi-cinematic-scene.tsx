@@ -29,6 +29,12 @@ const motionAmount = {
 	showcase: { x: 26, y: 18, subjectY: 48, scale: 0.046 },
 } as const;
 
+const finalStaticArtwork: Partial<Record<PipipiCinematicSceneProps["id"], string>> = {
+	"super-herois": "/lore/pipipi/super-static.avif",
+	cadeira: "/lore/pipipi/cadeira-static.avif",
+	"ultimo-dia": "/lore/pipipi/ultimo-dia-static.avif",
+};
+
 type SceneCssVariables = CSSProperties & {
 	"--scene-focus-x": string;
 	"--scene-focus-y": string;
@@ -56,6 +62,8 @@ export function PipipiCinematicScene({
 	const desktopFocus = artDirection?.focalPoint ?? { x: 50, y: 50 };
 	const mobileFocus = artDirection?.mobileFocalPoint ?? desktopFocus;
 	const staticMedia = artDirection?.staticMedia === true;
+	const renderedBackground = staticMedia ? (finalStaticArtwork[id] ?? background) : background;
+	const renderedSubject = staticMedia ? undefined : subject;
 	const sceneStyle: SceneCssVariables = {
 		"--scene-focus-x": `${desktopFocus.x}%`,
 		"--scene-focus-y": `${desktopFocus.y}%`,
@@ -203,7 +211,7 @@ export function PipipiCinematicScene({
 			data-scene={id}
 			data-motion={motion}
 			data-static-media={staticMedia ? "true" : undefined}
-			data-static-artwork={staticMedia ? background : undefined}
+			data-static-artwork={staticMedia ? renderedBackground : undefined}
 			ref={rootRef}
 			style={sceneStyle}
 			aria-label={title}
@@ -212,16 +220,16 @@ export function PipipiCinematicScene({
 				<div className={styles.cinematicMedia} aria-hidden="true">
 					<Image
 						className={styles.sceneBackground}
-						src={background}
+						src={renderedBackground}
 						alt=""
 						fill
 						sizes="100vw"
 						quality={88}
 					/>
-					{subject ? (
+					{renderedSubject ? (
 						<Image
 							className={`${styles.sceneSubject} ${id === "corredores" ? polishStyles.corridorSubject : ""}`}
-							src={subject}
+							src={renderedSubject}
 							alt=""
 							width={subjectWidth}
 							height={subjectHeight}
