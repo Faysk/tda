@@ -2,11 +2,10 @@ from pathlib import Path
 
 import pytest
 
+from tda_companion.pairing import TOKEN_PATTERN, ensure_pairing_token
 from tda_companion.windows_app import (
     PRODUCTION_ORIGIN,
-    TOKEN_PATTERN,
     default_roots,
-    ensure_pairing_token,
     parse_args,
     validate_origin,
 )
@@ -15,7 +14,7 @@ from tda_companion.windows_app import (
 def test_default_roots_are_isolated_from_legacy(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     state, data = default_roots()
-    assert state == tmp_path / "TDA" / "Companion"
+    assert state == tmp_path / "TDA" / "State"
     assert data == tmp_path / "TDA" / "Data"
     assert "DnDScribe" not in str(state)
     assert "DnDScribe" not in str(data)
@@ -64,10 +63,18 @@ def test_disallowed_origin_shapes(origin: str):
         validate_origin(origin)
 
 
-def test_default_cli_origin_and_port(monkeypatch, tmp_path: Path):
+def test_default_cli_origin_port_and_roots(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     args = parse_args([])
     assert args.port == 8765
     assert args.origins == frozenset({PRODUCTION_ORIGIN})
-    assert args.state_root == tmp_path / "TDA" / "Companion"
+    assert args.state_root == tmp_path / "TDA" / "State"
     assert args.data_root == tmp_path / "TDA" / "Data"
+    assert args.logs_root == tmp_path / "TDA" / "Logs"
+    assert args.agent is False
+
+
+def test_headless_remains_compatibility_alias_for_agent(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    args = parse_args(["--headless"])
+    assert args.agent is True
