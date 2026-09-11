@@ -12,6 +12,9 @@ MODEL_MARKER = ".tda-model.json"
 MODEL_MARKER_SCHEMA = "tda_model_install_v1"
 _COPY_CHUNK = 1024 * 1024
 
+QWEN_FORCED_ALIGNER_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
+QWEN_FORCED_ALIGNER_REVISION = "c7cbfc2048c462b0d63a45797104fc9db3ad62b7"
+
 
 class ModelRegistryError(ValueError):
     pass
@@ -28,6 +31,7 @@ class AsrProfile:
     directory: str
     language: str
     alignment: str
+    alignment_revision: str | None = None
     required_files: tuple[str, ...] = ()
 
     def public_dict(self) -> dict[str, str | None]:
@@ -37,8 +41,10 @@ class AsrProfile:
             "label": self.label,
             "description": self.description,
             "model": self.model_id,
+            "revision": self.revision,
             "language": self.language,
             "alignment": self.alignment,
+            "alignment_revision": self.alignment_revision,
         }
 
 
@@ -49,7 +55,7 @@ _PROFILES = (
         label="Whisper Turbo",
         description="Whisper large-v3-turbo para processamento mais veloz.",
         model_id="dropbox-dash/faster-whisper-large-v3-turbo",
-        revision="a3a0f4ee91afb49a1e120893a5bc6284a53869fa",
+        revision="0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
         directory="whisper-large-v3-turbo",
         language="pt",
         alignment="native",
@@ -73,10 +79,11 @@ _PROFILES = (
         label="Qwen Rápido",
         description="Qwen3-ASR 0.6B para menor uso de VRAM e iteração rápida.",
         model_id="Qwen/Qwen3-ASR-0.6B",
-        revision=None,
+        revision="5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
         directory="qwen3-asr-0.6b",
         language="Portuguese",
-        alignment="Qwen/Qwen3-ForcedAligner-0.6B",
+        alignment=QWEN_FORCED_ALIGNER_MODEL_ID,
+        alignment_revision=QWEN_FORCED_ALIGNER_REVISION,
     ),
     AsrProfile(
         id="qwen-quality",
@@ -84,10 +91,11 @@ _PROFILES = (
         label="Qwen Qualidade",
         description="Qwen3-ASR 1.7B para priorizar qualidade textual.",
         model_id="Qwen/Qwen3-ASR-1.7B",
-        revision=None,
+        revision="7278e1e70fe206f11671096ffdd38061171dd6e5",
         directory="qwen3-asr-1.7b",
         language="Portuguese",
-        alignment="Qwen/Qwen3-ForcedAligner-0.6B",
+        alignment=QWEN_FORCED_ALIGNER_MODEL_ID,
+        alignment_revision=QWEN_FORCED_ALIGNER_REVISION,
     ),
 )
 
@@ -160,6 +168,8 @@ def write_install_marker(directory: Path, profile: AsrProfile) -> dict[str, obje
         "engine": profile.engine,
         "model_id": profile.model_id,
         "revision": profile.revision,
+        "alignment": profile.alignment,
+        "alignment_revision": profile.alignment_revision,
         "content_sha256": compute_model_content_sha256(root),
         "installed_at": _utc_now(),
     }
@@ -207,6 +217,8 @@ def inspect_model_install(
         and marker.get("engine") == value.engine
         and marker.get("model_id") == value.model_id
         and marker.get("revision") == value.revision
+        and marker.get("alignment") == value.alignment
+        and marker.get("alignment_revision") == value.alignment_revision
         and isinstance(marker.get("content_sha256"), str)
         and len(str(marker.get("content_sha256"))) == 64
     )
