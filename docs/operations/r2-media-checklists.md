@@ -10,13 +10,31 @@
 - audience e role aprovados;
 - fonte/provenance registrada;
 - SHA-256, MIME, bytes e dimensões conferidos;
+- master/fonte de maior fidelidade identificado;
+- derivado gerado diretamente do master, sem recompressão lossy em cadeia;
 - bucket/key corretos;
 - nenhuma dependência em conteúdo privado para superfície pública.
+
+## Gate de qualidade antes de aceitar o derivado
+
+- tamanho natural comparado ao maior tamanho real de exibição;
+- `upscaleRatio` no eixo limitante calculado;
+- até 1.15×: permitido após inspeção visual;
+- entre 1.15× e 1.50×: exceção registrada e aprovada visualmente;
+- acima de 1.50×: não promover; obter master melhor ou limitar a renderização;
+- fullscreen/hero usa fonte adequada ao viewport, normalmente >=1600 px de largura e preferencialmente >=1920 px quando o master permite;
+- personagem/portrait grande não é alimentado por thumbnail;
+- crop/focal point não reduz o detalhe útil abaixo do necessário;
+- alpha revisado em fundo claro e escuro;
+- gradientes, rosto, cabelo, texto e textura fina sem banding/halo/blocos visíveis;
+- comparação lado a lado com o master em 100% de zoom;
+- tamanho do arquivo é o menor aprovado visualmente, não simplesmente o menor obtido.
 
 ## Depois do upload
 
 - objeto lido de volta;
 - bytes/hash/MIME idênticos;
+- dimensões do objeto publicado iguais às registradas;
 - colisão inexistente;
 - evidência salva sem secrets.
 
@@ -25,18 +43,31 @@
 - GET HTTPS anônimo real;
 - status/MIME esperados;
 - decode concluído;
-- hash/bytes conferidos;
+- hash/bytes/dimensões conferidos;
 - consumer/runtime aceita o host/path;
+- consumer não amplia a mídia além do gate aprovado;
 - fallback definido;
 - rollback conhecido.
 
 ## Consumidores
 
-- desktop e mobile revisados;
+- desktop e mobile revisados nos viewports-alvo;
+- imagem conferida em 100% de zoom, não apenas em screenshot reduzido;
 - crop/focal point não perde conteúdo importante;
+- `object-fit`/transform/zoom não introduzem upscale destrutivo;
+- layers transparentes respeitam a resolução natural de cada subject;
 - loading/erro não escondem informação principal;
+- `next/image`/CDN não fazem segunda compressão desnecessária de um derivado final já otimizado;
 - compartilhamento emite imagem da própria página quando elegível;
 - nenhum consumidor reconstrói object key em paralelo.
+
+## Cenas fullscreen/cinematográficas
+
+- flattened/static artwork só é usado se passar o gate de resolução do fullscreen;
+- uma variante 960×540 não pode ser usada como equivalente de 1920×1080 apenas por existir no bundle;
+- se o static falhar e as layers tiverem melhor detalhe útil, preferir background + subject até existir master achatado adequado;
+- motion/scale não excede o orçamento de upscale da layer;
+- cenas desktop e mobile são inspecionadas separadamente.
 
 ## Retirada
 

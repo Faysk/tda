@@ -31,6 +31,10 @@ type WorldCanvasProps = Readonly<{
 	onNodeDragStop: (node: WorldFlowNode) => void;
 	onPaneClick: (position: XYPosition | null) => void;
 	placementActive?: boolean;
+	connectionActive?: boolean;
+	onConnectNodes?: (sourceId: string, targetId: string) => void;
+	onReconnectEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
+	isConnectionValid?: (sourceId: string, targetId: string, edgeId?: string) => boolean;
 	overlay?: ReactNode;
 }>;
 
@@ -43,6 +47,10 @@ export function WorldCanvas({
 	onNodeDragStop,
 	onPaneClick,
 	placementActive = false,
+	connectionActive = false,
+	onConnectNodes,
+	onReconnectEdge,
+	isConnectionValid,
 	overlay,
 }: WorldCanvasProps) {
 	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
@@ -53,6 +61,7 @@ export function WorldCanvas({
 			style={{ position: "relative" }}
 			data-testid="world-canvas"
 			data-world-placement-active={placementActive ? "true" : "false"}
+			data-world-connection-active={connectionActive ? "true" : "false"}
 		>
 			<ReactFlow<WorldFlowNode, WorldFlowEdge>
 				nodes={nodes}
@@ -60,7 +69,10 @@ export function WorldCanvas({
 				nodeTypes={NODE_TYPES}
 				edgeTypes={EDGE_TYPES}
 				nodeOrigin={NODE_ORIGIN}
-				nodesConnectable={false}
+				nodesConnectable={connectionActive}
+				edgesReconnectable={connectionActive}
+				connectionRadius={28}
+				reconnectRadius={28}
 				nodesDraggable
 				elementsSelectable
 				selectionOnDrag
@@ -78,6 +90,18 @@ export function WorldCanvas({
 				onEdgesChange={onEdgesChange}
 				onNodeClick={(_, node) => onNodeSelect(node)}
 				onNodeDragStop={(_, node) => onNodeDragStop(node)}
+				onConnect={(connection) => {
+					if (!connection.source || !connection.target) return;
+					onConnectNodes?.(connection.source, connection.target);
+				}}
+				onReconnect={(oldEdge, connection) => {
+					if (!connection.source || !connection.target) return;
+					onReconnectEdge?.(oldEdge.id, connection.source, connection.target);
+				}}
+				isValidConnection={(connection) => {
+					if (!connection.source || !connection.target) return false;
+					return isConnectionValid?.(connection.source, connection.target) ?? true;
+				}}
 				onPaneClick={(event) => {
 					const instance = flowInstance.current;
 					onPaneClick(

@@ -224,7 +224,7 @@ export function PipipiCinematicScene({
 						alt=""
 						fill
 						sizes="100vw"
-						quality={88}
+						unoptimized
 					/>
 					{renderedSubject ? (
 						<Image
@@ -234,6 +234,8 @@ export function PipipiCinematicScene({
 							width={subjectWidth}
 							height={subjectHeight}
 							sizes="(max-width: 760px) 78vw, 58vw"
+							style={{ maxWidth: `${subjectWidth}px` }}
+							unoptimized
 						/>
 					) : null}
 					<div
