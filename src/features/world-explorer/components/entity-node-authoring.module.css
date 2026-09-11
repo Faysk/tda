@@ -34,6 +34,11 @@
 	box-shadow: var(--ds-control-focus-ring);
 }
 
+:global([data-world-content-edit="disabled"]) .connectAction,
+:global([data-world-focus-mode="true"]) .connectAction {
+	display: none;
+}
+
 .sourceHandle,
 .targetHandle {
 	width: 10px !important;
