@@ -246,9 +246,8 @@
     $("session-track-count").textContent = `${session.track_count || 0} faixa(s)`;
 
     (Array.isArray(session.tracks) ? session.tracks : []).forEach((track) => {
-      const row = document.createElement("div");
+      const row = document.createElement("li");
       row.className = "track-row";
-      row.setAttribute("role", "listitem");
       const number = document.createElement("span");
       number.className = "track-number";
       number.textContent = `#${track.number ?? "—"}`;
@@ -295,7 +294,9 @@
       input.checked = profile.id === selectedProfileId;
       input.addEventListener("change", () => {
         selectedProfileId = profile.id;
-        document.querySelectorAll(".profile-option").forEach((node) => node.classList.remove("selected"));
+        document.querySelectorAll(".profile-option").forEach((node) => {
+          node.classList.remove("selected");
+        });
         label.classList.add("selected");
         submittedJobId = null;
         updateProcessControls();
