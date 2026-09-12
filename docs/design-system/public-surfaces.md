@@ -2,7 +2,7 @@
 
 > Status: implementado; atualizado após Home V2 e shell responsiva
 > Owner: design-system / frontend público
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-12
 
 ## Objetivo
 
@@ -18,6 +18,8 @@ Este documento existe para impedir dois problemas recorrentes:
 **Global define contrato; módulo define composição.**
 
 Tokens e primitives são compartilhados. Layout específico de uma superfície pertence à superfície.
+
+Exceção de 2026-09-12: [lores individuais](../features/independent-lores.md) podem definir identidade visual própria e não precisam reutilizar tokens/primitives/shell TDA. Manter seus estilos isolados; essa liberdade não se estende automaticamente ao catálogo `/lore`, ao Mundo ou ao Edit.
 
 ## Camadas
 

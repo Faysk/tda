@@ -1,0 +1,169 @@
+.active {
+	grid-template-columns: minmax(0, 1fr) 0;
+	min-height: 100dvh;
+	border-block: 0;
+	background:
+		radial-gradient(circle at 50% 28%, var(--ds-ambient-cool), transparent 42%),
+		var(--ds-canvas);
+}
+
+.active .canvasColumn {
+	min-height: 100dvh;
+	padding: clamp(8px, 0.7vw, 12px);
+}
+
+.active .editorialHeader {
+	display: none;
+}
+
+.active .publicChrome {
+	min-width: 0;
+}
+
+.active :global([data-testid="world-canvas"]) {
+	height: calc(100dvh - 164px);
+	min-height: 520px;
+	border-radius: var(--ds-radius-md);
+}
+
+.active .inspector {
+	width: 0;
+	min-width: 0;
+	max-width: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	overflow: visible;
+}
+
+.active[data-world-inspector-mode="overlay"] .inspector {
+	position: fixed;
+	top: 72px;
+	right: 12px;
+	bottom: 12px;
+	left: auto;
+	z-index: 55;
+	width: min(var(--world-inspector-width), calc(100vw - 24px));
+	min-width: min(320px, calc(100vw - 24px));
+	max-width: min(520px, calc(100vw - 24px));
+	padding: clamp(20px, 1.6vw, 28px);
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-lg);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	box-shadow: -16px 18px 60px color-mix(in srgb, var(--ds-canvas) 56%, transparent);
+	backdrop-filter: blur(20px) saturate(108%);
+	overflow: auto;
+}
+
+.active[data-world-inspector-mode="overlay"] .inspector > :global(hr) {
+	display: none;
+}
+
+.active[data-world-inspector-mode="overlay"] .inspector button[aria-label="Recolher painel de detalhes"] {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	left: auto;
+}
+
+.focusMode .publicChrome {
+	display: none;
+}
+
+.focusMode .canvasColumn {
+	padding: 0;
+}
+
+.focusMode :global([data-testid="world-canvas"]) {
+	height: 100dvh;
+	min-height: 100dvh;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.focusMode .inspector {
+	display: none;
+}
+
+:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [aria-controls="world-workspace-navigation"],
+:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [data-world-utility-controls] {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+@media (min-width: 1920px) {
+	.active .canvasColumn {
+		padding: 10px 14px 14px;
+	}
+
+	.active :global([data-testid="world-canvas"]) {
+		height: calc(100dvh - 168px);
+	}
+}
+
+@media (min-width: 2560px) {
+	.active .canvasColumn {
+		padding-inline: 16px;
+	}
+
+	.active[data-world-inspector-mode="overlay"] .inspector {
+		right: 16px;
+		bottom: 16px;
+	}
+}
+
+@media (max-width: 1120px) {
+	.active,
+	.active[data-world-inspector-mode="overlay"] {
+		display: block;
+		min-height: 100dvh;
+	}
+
+	.active :global([data-testid="world-canvas"]) {
+		height: calc(100dvh - 176px);
+		min-height: 480px;
+	}
+
+	.active[data-world-inspector-mode="overlay"] .inspector {
+		top: auto;
+		right: 10px;
+		bottom: 10px;
+		left: 10px;
+		width: auto;
+		min-width: 0;
+		max-width: none;
+		max-height: min(64dvh, 620px);
+		border-radius: var(--ds-radius-xl);
+	}
+}
+
+@media (max-width: 700px) {
+	.active .canvasColumn {
+		padding: 7px;
+	}
+
+	.active :global([data-testid="world-canvas"]) {
+		height: calc(100dvh - 190px);
+		min-height: 430px;
+	}
+
+	.focusMode .canvasColumn {
+		padding: 0;
+	}
+
+	.focusMode :global([data-testid="world-canvas"]) {
+		height: 100dvh;
+		min-height: 100dvh;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.active .inspector,
+	:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [aria-controls="world-workspace-navigation"],
+	:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [data-world-utility-controls] {
+		transition: none;
+	}
+}

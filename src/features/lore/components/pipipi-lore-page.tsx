@@ -203,6 +203,8 @@ function StorySection({
 						width={ghost.width}
 						height={ghost.height}
 						sizes="(max-width: 760px) 52vw, 30vw"
+						style={{ maxWidth: `${ghost.width}px` }}
+						unoptimized
 					/>
 				</aside>
 			) : null}
@@ -234,7 +236,7 @@ export function PipipiLorePage() {
 					fill
 					priority
 					sizes="100vw"
-					quality={88}
+					unoptimized
 				/>
 				<div className={styles.heroShade} />
 				<div className={styles.heroCopy}>
@@ -260,6 +262,8 @@ export function PipipiLorePage() {
 						height={600}
 						priority
 						sizes="(max-width: 760px) 62vw, 34vw"
+						style={{ maxWidth: "589px" }}
+						unoptimized
 					/>
 				</div>
 				<div className={styles.heroScrollCue} aria-hidden="true">
@@ -313,6 +317,8 @@ export function PipipiLorePage() {
 						width={551}
 						height={680}
 						sizes="(max-width: 760px) 66vw, 38vw"
+						style={{ maxWidth: "551px" }}
+						unoptimized
 					/>
 				</section>
 
@@ -329,6 +335,8 @@ export function PipipiLorePage() {
 						alt=""
 						width={600}
 						height={597}
+						style={{ maxWidth: "600px" }}
+						unoptimized
 						aria-hidden="true"
 					/>
 					<div className={styles.finaleCopy}>

@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import {
 	worldCommand,
 	worldCommandIsAvailable,
 	type WorldCommandContext,
 } from "../world-commands";
+import { WORLD_AUTHORING_OPEN_INSPECTOR_EVENT } from "../world-authoring-events";
+import { WorldCommandPaletteTrigger } from "./world-command-palette-trigger";
 import styles from "./world-conductor-bar.module.css";
 
 type WorldConductorAction = () => void | Promise<void>;
@@ -15,10 +18,16 @@ type WorldConductorBarProps = Readonly<{
 	busy: boolean;
 	busyNotice: string | null;
 	feedback: string | null;
+	focusMode: boolean;
+	inspectorOpen: boolean;
 	onEnter: WorldConductorAction;
 	onPublish: WorldConductorAction;
 	onFinish: WorldConductorAction;
 	onDiscard: WorldConductorAction;
+	onToggleFocusMode: () => void;
+	onToggleInspector: () => void;
+	onOpenNavigation: () => void;
+	onOpenCommandPalette: () => void;
 }>;
 
 function run(action: WorldConductorAction) {
@@ -65,10 +74,16 @@ export function WorldConductorBar({
 	busy,
 	busyNotice,
 	feedback,
+	focusMode,
+	inspectorOpen,
 	onEnter,
 	onPublish,
 	onFinish,
 	onDiscard,
+	onToggleFocusMode,
+	onToggleInspector,
+	onOpenNavigation,
+	onOpenCommandPalette,
 }: WorldConductorBarProps) {
 	const status = conductorStatus(context, canEditContent);
 	const enter = worldCommand("world.enterConductor");
@@ -81,9 +96,48 @@ export function WorldConductorBar({
 	const canDiscard = worldCommandIsAvailable(discard.id, context);
 	const active = context.editState === "editing" || context.editState === "publishing";
 
+	useEffect(() => {
+		if (!active) return;
+		function openInspectorFromSelection() {
+			if (!inspectorOpen) onToggleInspector();
+		}
+		window.addEventListener(WORLD_AUTHORING_OPEN_INSPECTOR_EVENT, openInspectorFromSelection);
+		return () => {
+			window.removeEventListener(
+				WORLD_AUTHORING_OPEN_INSPECTOR_EVENT,
+				openInspectorFromSelection,
+			);
+		};
+	}, [active, inspectorOpen, onToggleInspector]);
+
+	if (active && focusMode) {
+		return (
+			<section
+				className={`${styles.root} ${styles.focusRoot}`}
+				data-testid="world-conductor"
+				data-world-conductor-state={context.editState}
+				aria-label="Condução do Mundo"
+			>
+				<button
+					type="button"
+					className={styles.focusExit}
+					onClick={onToggleFocusMode}
+					aria-label="Mostrar interface de condução"
+				>
+					<span aria-hidden="true">⌘</span>
+					Mostrar interface
+				</button>
+				<span className={styles.focusStatus} role="status">
+					<span aria-hidden="true">●</span>
+					{context.hasChanges ? "Rascunho alterado" : "Rascunho salvo"}
+				</span>
+			</section>
+		);
+	}
+
 	return (
 		<section
-			className={styles.root}
+			className={`${styles.root} ${active ? styles.rootActive : ""}`}
 			data-testid="world-conductor"
 			data-world-conductor-state={context.editState}
 			aria-label="Condução do Mundo"
@@ -93,11 +147,11 @@ export function WorldConductorBar({
 					<span className={styles.statusDot} aria-hidden="true" />
 					<span className={styles.statusCopy}>
 						<strong>{status.title}</strong>
-						<small>{status.detail}</small>
+						{!active ? <small>{status.detail}</small> : null}
 					</span>
 					{context.editState === "editing" ? (
 						<span className={styles.draftBadge} data-dirty={context.hasChanges ? "true" : "false"}>
-							{context.hasChanges ? "Rascunho alterado" : "Rascunho limpo"}
+							{context.hasChanges ? "Rascunho alterado" : "Rascunho salvo"}
 						</span>
 					) : null}
 				</div>
@@ -121,6 +175,27 @@ export function WorldConductorBar({
 						</button>
 					) : (
 						<>
+							<button type="button" className={styles.chromeAction} onClick={onOpenNavigation}>
+								<span aria-hidden="true">☰</span>
+								Menu
+							</button>
+							<button
+								type="button"
+								className={styles.chromeAction}
+								onClick={onToggleInspector}
+								aria-pressed={inspectorOpen}
+							>
+								<span aria-hidden="true">▤</span>
+								Detalhes
+							</button>
+							<WorldCommandPaletteTrigger
+								enabled={worldCommandIsAvailable("world.openCommandPalette", context)}
+								onOpen={onOpenCommandPalette}
+							/>
+							<button type="button" className={styles.chromeAction} onClick={onToggleFocusMode}>
+								<span aria-hidden="true">⌗</span>
+								Foco
+							</button>
 							<button
 								type="button"
 								className={styles.primaryAction}
@@ -155,7 +230,7 @@ export function WorldConductorBar({
 					{busyNotice}
 				</p>
 			) : null}
-			{feedback ? (
+			{feedback && !active ? (
 				<p className={styles.feedback} role="status" aria-live="polite">
 					<span aria-hidden="true">{active ? "●" : "·"}</span>
 					{feedback}

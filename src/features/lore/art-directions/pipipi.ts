@@ -4,6 +4,12 @@ import type { CinematicSceneArtDirection } from "./cinematic";
 /**
  * Versioned visual direction for Pipipi's cinematic scenes.
  * These coordinates describe framing only; they are not narrative assertions.
+ *
+ * The three hospital-bed compositions are deliberately single-frame scenes.
+ * Keep staticMedia enabled so scroll/motion never changes the approved framing.
+ * Their flattened rasters are media masters for that presentation and must be
+ * replaced by higher-resolution equivalents when the source master is available;
+ * never switch to a different composition merely to hide a resolution problem.
  */
 export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	PipipiSceneId,
@@ -31,15 +37,11 @@ export const PIPIPI_CINEMATIC_ART_DIRECTION: Record<
 	},
 	cadeira: {
 		focalPoint: { x: 50, y: 50 },
-		// The portrait crop intentionally favors the mother's chair; Pipipi is a
-		// separate foreground layer and remains visible on the left.
 		mobileFocalPoint: { x: 72, y: 50 },
 		staticMedia: true,
 	},
 	"ultimo-dia": {
 		focalPoint: { x: 50, y: 50 },
-		// Current portrait composition is already strong; preserve it exactly
-		// while scrolling instead of spending crop room on decorative parallax.
 		mobileFocalPoint: { x: 50, y: 50 },
 		staticMedia: true,
 	},

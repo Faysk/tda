@@ -29,6 +29,12 @@ const motionAmount = {
 	showcase: { x: 26, y: 18, subjectY: 48, scale: 0.046 },
 } as const;
 
+const finalStaticArtwork: Partial<Record<PipipiCinematicSceneProps["id"], string>> = {
+	"super-herois": "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
+	cadeira: "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
+	"ultimo-dia": "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
+};
+
 type SceneCssVariables = CSSProperties & {
 	"--scene-focus-x": string;
 	"--scene-focus-y": string;
@@ -56,6 +62,8 @@ export function PipipiCinematicScene({
 	const desktopFocus = artDirection?.focalPoint ?? { x: 50, y: 50 };
 	const mobileFocus = artDirection?.mobileFocalPoint ?? desktopFocus;
 	const staticMedia = artDirection?.staticMedia === true;
+	const renderedBackground = staticMedia ? (finalStaticArtwork[id] ?? background) : background;
+	const renderedSubject = staticMedia ? undefined : subject;
 	const sceneStyle: SceneCssVariables = {
 		"--scene-focus-x": `${desktopFocus.x}%`,
 		"--scene-focus-y": `${desktopFocus.y}%`,
@@ -203,7 +211,7 @@ export function PipipiCinematicScene({
 			data-scene={id}
 			data-motion={motion}
 			data-static-media={staticMedia ? "true" : undefined}
-			data-static-artwork={staticMedia ? background : undefined}
+			data-static-artwork={staticMedia ? renderedBackground : undefined}
 			ref={rootRef}
 			style={sceneStyle}
 			aria-label={title}
@@ -212,20 +220,22 @@ export function PipipiCinematicScene({
 				<div className={styles.cinematicMedia} aria-hidden="true">
 					<Image
 						className={styles.sceneBackground}
-						src={background}
+						src={renderedBackground}
 						alt=""
 						fill
 						sizes="100vw"
-						quality={88}
+						unoptimized
 					/>
-					{subject ? (
+					{renderedSubject ? (
 						<Image
 							className={`${styles.sceneSubject} ${id === "corredores" ? polishStyles.corridorSubject : ""}`}
-							src={subject}
+							src={renderedSubject}
 							alt=""
 							width={subjectWidth}
 							height={subjectHeight}
 							sizes="(max-width: 760px) 78vw, 58vw"
+							style={{ maxWidth: `${subjectWidth}px` }}
+							unoptimized
 						/>
 					) : null}
 					<div

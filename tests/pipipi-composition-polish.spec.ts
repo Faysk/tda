@@ -4,67 +4,65 @@ const bedScenes = [
 	{
 		id: "super-herois",
 		title: "Os super-heróis não vieram salvá-la",
-		leftRatio: 0.03984375,
-		widthRatio: 0.425,
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
 	},
 	{
 		id: "cadeira",
 		title: "A cadeira",
-		leftRatio: 0.07734375,
-		widthRatio: 0.49296875,
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
 	},
 	{
 		id: "ultimo-dia",
 		title: "O último dia",
-		leftRatio: 0.1734375,
-		widthRatio: 0.425,
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
 	},
 ] as const;
 
-test("registers the three bed cutouts back onto their source frame", async ({
-	page,
-}, testInfo) => {
-	test.skip(testInfo.project.name === "mobile", "desktop source-frame registration");
-
+test("renders the three approved bed scenes as single static frames", async ({ page }) => {
 	await page.goto("/lore/pipipi");
-	const viewport = page.viewportSize();
-	expect(viewport).not.toBeNull();
-	if (!viewport) return;
 
 	for (const expected of bedScenes) {
 		const scene = page.locator(`[data-scene="${expected.id}"]`);
 		await scene.scrollIntoViewIfNeeded();
 
+		await expect(scene).toHaveAttribute("data-static-media", "true");
+		await expect(scene).toHaveAttribute("data-static-artwork", expected.artwork);
+
 		const mediaImages = scene.locator('div[aria-hidden="true"] > img');
-		const background = mediaImages.nth(0);
-		const subject = mediaImages.nth(1);
+		await expect(mediaImages).toHaveCount(1);
+		await expect(mediaImages.first()).toBeVisible();
+		await expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);
+		await expect.poll(() => mediaImages.first().evaluate((element) => {
+			const image = element as HTMLImageElement;
+			return { loaded: image.complete, width: image.naturalWidth, height: image.naturalHeight };
+		}), { timeout: 15000 }).toEqual({ loaded: true, width: 1672, height: 941 });
 
-		await expect(background).toBeVisible();
-		await expect(subject).toBeVisible();
-
-		const backgroundTransform = await background.evaluate(
-			(element) => getComputedStyle(element).transform,
-		);
-		expect(backgroundTransform, `${expected.id} background`).toBe("none");
-
-		const subjectBox = await subject.boundingBox();
-		expect(subjectBox, `${expected.id} subject box`).not.toBeNull();
-		if (!subjectBox) continue;
-
-		expect(
-			Math.abs(subjectBox.width / viewport.width - expected.widthRatio),
-			`${expected.id} source width`,
-		).toBeLessThan(0.012);
-		expect(
-			Math.abs(subjectBox.x / viewport.width - expected.leftRatio),
-			`${expected.id} source x`,
-		).toBeLessThan(0.012);
-
-		const maskImage = await subject.evaluate((element) => {
+		const motionBefore = await scene.evaluate((element) => {
 			const style = getComputedStyle(element);
-			return style.maskImage || style.webkitMaskImage;
+			return {
+				x: style.getPropertyValue("--scene-bg-x").trim(),
+				y: style.getPropertyValue("--scene-bg-y").trim(),
+				scale: style.getPropertyValue("--scene-bg-scale").trim(),
+			};
 		});
-		expect(maskImage, `${expected.id} bed-edge blend`).not.toBe("none");
+		expect(motionBefore, `${expected.id} static motion`).toEqual({
+			x: "0px",
+			y: "0px",
+			scale: "1",
+		});
+
+		await page.mouse.wheel(0, 240);
+		await page.waitForTimeout(80);
+
+		const motionAfter = await scene.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				x: style.getPropertyValue("--scene-bg-x").trim(),
+				y: style.getPropertyValue("--scene-bg-y").trim(),
+				scale: style.getPropertyValue("--scene-bg-scale").trim(),
+			};
+		});
+		expect(motionAfter, `${expected.id} stays static`).toEqual(motionBefore);
 	}
 });
 
