@@ -78,8 +78,16 @@ async function objectBytes(
 	}
 	const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }));
 	if (!result.Body) failure("R2_EMPTY_BODY");
+	if (
+		typeof result.ContentLength !== "number" ||
+		result.ContentLength < 24 ||
+		result.ContentLength > WORLD_ENTITY_MEDIA_MAX_BYTES ||
+		result.ContentLength !== head.ContentLength
+	) {
+		failure("R2_LENGTH_MISMATCH");
+	}
 	const bytes = Uint8Array.from(await result.Body.transformToByteArray());
-	if (bytes.length !== head.ContentLength) failure("R2_LENGTH_MISMATCH");
+	if (bytes.length !== result.ContentLength) failure("R2_LENGTH_MISMATCH");
 	return bytes;
 }
 
