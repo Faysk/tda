@@ -72,6 +72,7 @@ $maintenanceExe = Join-Path $maintenanceDist "TDACompanionMaintenance.exe"
 if (-not (Test-Path $maintenanceExe)) { throw "MAINTENANCE_EXE_NOT_CREATED" }
 Copy-Item $maintenanceExe (Join-Path $appRoot "TDACompanionMaintenance.exe")
 Copy-Item (Join-Path $PSScriptRoot "run-physical-acceptance.ps1") (Join-Path $appRoot "run-physical-acceptance.ps1")
+Copy-Item (Join-Path $PSScriptRoot "install-rc-runtimes.ps1") (Join-Path $appRoot "install-rc-runtimes.ps1")
 
 Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
 Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
@@ -94,7 +95,9 @@ Instalação por usuário, sem privilégios administrativos.
 Diretório do aplicativo: %LOCALAPPDATA%\TDA\Companion\versions\$version
 Diretório de dados:      %LOCALAPPDATA%\TDA\Data
 
-O arquivo app\run-physical-acceptance.ps1 executa o gate físico local dos perfis ASR sem enviar áudio ao cloud.
+O arquivo app\install-rc-runtimes.ps1 prepara, a partir dos artifacts validados do GitHub Actions,
+os runtimes RC exatos de Whisper e Qwen sem depender de release stable, Python ou CUDA global.
+O arquivo app\run-physical-acceptance.ps1 executa depois o gate físico local dos perfis ASR sem enviar áudio ao cloud.
 Por padrão ele grava somente receipts sanitizados; transcrições exigem -WriteTranscripts explícito.
 
 O token, a fila e os dados locais não são removidos durante atualização do aplicativo.
