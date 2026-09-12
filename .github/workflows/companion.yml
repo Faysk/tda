@@ -40,6 +40,20 @@ jobs:
           version: '0.12.13'
       - run: uv venv --python 3.12.14
       - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging,desktop]
+      - name: Validate physical acceptance harness syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "local-companion/packaging/run-physical-acceptance.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "PHYSICAL_ACCEPTANCE_SCRIPT_INVALID"
+          }
       - name: Install WiX Toolset 5
         shell: pwsh
         run: dotnet tool install --tool-path .wix wix --version 5.0.2
