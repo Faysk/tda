@@ -14,6 +14,7 @@ import type {
 	WorldRelationTypeDTO,
 	WorldVisibility,
 } from "./model";
+import { loadWorldEntityPortraitUrls } from "./world-entity-media-repository";
 
 type WorldAudience = "public" | "editor";
 
@@ -165,7 +166,7 @@ export async function loadWorldDataset(
 	const { data: entityData, error: entityError } = await entityQuery.order("name");
 	if (entityError) throw new Error(`World entity lookup failed: ${entityError.message}`);
 
-	const nodes = ((entityData ?? []) as EntityRow[]).flatMap((row) => {
+	let nodes = ((entityData ?? []) as EntityRow[]).flatMap((row) => {
 		if (!ENTITY_TYPES.has(row.entity_type as WorldEntityType)) return [];
 		const visibility = VISIBILITIES.has(row.visibility as WorldVisibility)
 			? (row.visibility as WorldVisibility)
@@ -184,6 +185,14 @@ export async function loadWorldDataset(
 			},
 		];
 	});
+	const portraitUrls = await loadWorldEntityPortraitUrls(
+		client,
+		campaign.id,
+		nodes.map((node) => node.id),
+	);
+	if (portraitUrls.size) {
+		nodes = nodes.map((node) => ({ ...node, imageUrl: portraitUrls.get(node.id) }));
+	}
 	const visibleIds = new Set(
 		nodes.filter((node) => node.status !== "archived").map((node) => node.id),
 	);
