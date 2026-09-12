@@ -5,6 +5,7 @@ import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import type { WorldGraphDraft } from "./model";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+	worldEntityMediaCanBecomePublic,
 	worldEntityPortraitObjectKey,
 	worldEntityPublicMediaUrl,
 } from "./world-entity-media";
@@ -46,6 +47,7 @@ function safeAssetForEntity(asset: AssetRow, entityId: string): boolean {
 	return Boolean(
 		expected &&
 		asset.object_key === expected &&
+		asset.status !== "retired" &&
 		asset.read_back_verified === true &&
 		Number.isSafeInteger(Number(asset.byte_size)) &&
 		Number(asset.byte_size) > 0 &&
@@ -56,8 +58,8 @@ function safeAssetForEntity(asset: AssetRow, entityId: string): boolean {
 
 /**
  * Graph publication remains authoritative even if media delivery fails afterwards.
- * Bindings are changed only after every requested portrait is verified publicly,
- * so a failed media promotion leaves the previously published portraits intact.
+ * Private/review portraits stay in staging storage and are never copied to the
+ * public bucket. Only public_web entities require public-delivery verification.
  */
 export async function publishWorldEntityMediaDraft({
 	client,
@@ -73,7 +75,11 @@ export async function publishWorldEntityMediaDraft({
 	if (!worldEntityMediaEnabled()) return "unchanged";
 	const bindings = draft.nodes
 		.filter((node) => node.primaryMediaAssetId !== undefined)
-		.map((node) => ({ entityId: node.id, assetId: node.primaryMediaAssetId ?? null }));
+		.map((node) => ({
+			entityId: node.id,
+			assetId: node.primaryMediaAssetId ?? null,
+			visibility: node.visibility,
+		}));
 	if (!bindings.length) return "unchanged";
 
 	const { data: campaign, error: campaignError } = await client
@@ -111,6 +117,14 @@ export async function publishWorldEntityMediaDraft({
 		if (!binding.assetId) continue;
 		const asset = assetById.get(binding.assetId);
 		if (!asset || !safeAssetForEntity(asset, binding.entityId)) return "pending";
+
+		if (!worldEntityMediaCanBecomePublic(binding.visibility)) {
+			// A private/review/campaign-only portrait is intentionally left in its
+			// staged/private bucket. The binding RPC accepts it, while public projection
+			// never resolves it into a delivery URL.
+			continue;
+		}
+
 		if (
 			asset.status === "verified_public" &&
 			worldEntityPublicMediaUrl(
@@ -172,7 +186,7 @@ export async function publishWorldEntityMediaDraft({
 		p_auth_user_id: authUserId,
 		p_actor_profile_id: profileId,
 		p_campaign_slug: CAMPAIGN_SLUG,
-		p_bindings: bindings,
+		p_bindings: bindings.map(({ entityId, assetId }) => ({ entityId, assetId })),
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		console.error("World entity media binding publication failed", error?.message);
