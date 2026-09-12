@@ -94,3 +94,4 @@ def test_qwen_runtime_requires_expected_worker_and_detects_tamper(tmp_path: Path
     worker = runtime_root / "qwen" / "1.0.1" / "TDAQwenWorker.exe"
     worker.write_bytes(b"tampered")
     assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "corrupt"
+    assert current_qwen_worker(runtime_root) is None
