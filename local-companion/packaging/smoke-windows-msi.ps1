@@ -17,12 +17,15 @@ $installedDir = Join-Path $tdaRoot "Companion\versions\$Version"
 $installedExe = Join-Path $installedDir "TDACompanion.exe"
 $maintenanceExe = Join-Path $installedDir "TDACompanionMaintenance.exe"
 $acceptanceScript = Join-Path $installedDir "run-physical-acceptance.ps1"
+$runtimeSetupScript = Join-Path $installedDir "install-rc-runtimes.ps1"
 $currentVersion = Join-Path $tdaRoot "Companion\current-version.txt"
 $stateRoot = Join-Path $tdaRoot "State"
 $tokenPath = Join-Path $stateRoot "pairing-token.txt"
 $dataRoot = Join-Path $tdaRoot "Data"
 $keepMarker = Join-Path $dataRoot "msi-preserve-marker.txt"
 $diagnostic = Join-Path $env:TEMP "tda-companion-msi-diagnostic.txt"
+$invalidRcArtifact = Join-Path $env:TEMP "tda-invalid-rc-runtime.zip"
+$invalidRcResult = Join-Path $env:TEMP "tda-invalid-rc-runtime-result.json"
 $startMenuShortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\TDA\TDA Companion.lnk"
 $productKey = "HKCU:\Software\Faysk\TDA Companion"
 $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -31,7 +34,7 @@ $process = $null
 $installed = $false
 $uninstalled = $false
 
-Remove-Item $diagnostic -Force -ErrorAction SilentlyContinue
+Remove-Item $diagnostic, $invalidRcArtifact, $invalidRcResult, "$invalidRcResult.partial" -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
 Set-Content -Path $keepMarker -Value "preserve-me" -Encoding ascii -NoNewline
 
@@ -59,6 +62,7 @@ try {
     if (-not (Test-Path $installedExe)) { throw "MSI_EXECUTABLE_NOT_INSTALLED" }
     if (-not (Test-Path $maintenanceExe)) { throw "MSI_MAINTENANCE_NOT_INSTALLED" }
     if (-not (Test-Path $acceptanceScript)) { throw "MSI_PHYSICAL_ACCEPTANCE_HARNESS_NOT_INSTALLED" }
+    if (-not (Test-Path $runtimeSetupScript)) { throw "MSI_RC_RUNTIME_SETUP_NOT_INSTALLED" }
     if (-not (Test-Path $currentVersion)) { throw "MSI_VERSION_MARKER_NOT_INSTALLED" }
     if ((Get-Content $currentVersion -Raw).Trim() -ne $Version) { throw "MSI_VERSION_MARKER_MISMATCH" }
     if (-not (Test-Path $startMenuShortcut)) { throw "MSI_START_MENU_SHORTCUT_NOT_INSTALLED" }
@@ -68,6 +72,20 @@ try {
     if (-not $metadata.ProductCode) { throw "MSI_PRODUCT_CODE_NOT_REGISTERED" }
     $startup = (Get-ItemProperty -Path $runKey -Name "TDA Companion Agent" -ErrorAction Stop)."TDA Companion Agent"
     if ($startup -notlike "*$Version*TDACompanion.exe*--agent*--startup*") { throw "MSI_STARTUP_REGISTRATION_INVALID" }
+
+    Set-Content -Path $invalidRcArtifact -Value "not-a-zip" -Encoding ascii -NoNewline
+    $rcArguments = "--install-rc-runtime whisper --rc-artifact `"$invalidRcArtifact`" --rc-result-file `"$invalidRcResult`""
+    $rcProcess = Start-Process -FilePath $installedExe -ArgumentList $rcArguments -Wait -PassThru
+    if ($rcProcess.ExitCode -ne 66) { throw "MSI_RC_RUNTIME_INVALID_ARTIFACT_EXIT_MISMATCH:$($rcProcess.ExitCode)" }
+    if (-not (Test-Path $invalidRcResult)) { throw "MSI_RC_RUNTIME_RESULT_NOT_WRITTEN" }
+    $rcResult = Get-Content $invalidRcResult -Raw | ConvertFrom-Json
+    if (
+        $rcResult.schema -ne "tda_rc_runtime_install_v1" -or
+        $rcResult.ok -ne $false -or
+        $rcResult.error -ne "RC_RUNTIME_ARTIFACT_INVALID"
+    ) {
+        throw "MSI_RC_RUNTIME_RESULT_INVALID"
+    }
 
     $process = Start-Process -FilePath $installedExe -ArgumentList @(
         "--agent",
@@ -95,13 +113,9 @@ try {
         throw "MSI_INSTALLED_HEALTH_MISMATCH"
     }
 
-    # Prove the installed, windowed executable can spawn its hidden --worker mode
-    # through pipes. This catches packaging regressions before ASR models are wired.
     if (-not (Test-Path $tokenPath)) { throw "MSI_PAIRING_TOKEN_NOT_CREATED" }
     $token = (Get-Content $tokenPath -Raw).Trim()
     if ($token.Length -lt 43) { throw "MSI_PAIRING_TOKEN_INVALID" }
-    # Use the product's exact default allowed origin. The smoke must not weaken or
-    # bypass loopback CORS just to exercise the installed worker boundary.
     $origin = "https://dnd.faysk.dev"
     $headers = @{
         Authorization = "Bearer $token"
@@ -150,8 +164,6 @@ try {
         throw "MSI_WORKER_SUBPROCESS_CAPABILITY_MISSING"
     }
 
-    # Uninstall while the Agent is still running. The MSI maintenance action must
-    # stop the installed runtime itself before RemoveFiles.
     Invoke-Msi @("/x", "`"$msi`"", "/qn", "/norestart", "/L*v", "`"$uninstallLog`"") $uninstallLog
     $uninstalled = $true
 
@@ -166,6 +178,7 @@ try {
     if (Test-Path $installedExe) { throw "MSI_EXECUTABLE_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $maintenanceExe) { throw "MSI_MAINTENANCE_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $acceptanceScript) { throw "MSI_PHYSICAL_ACCEPTANCE_HARNESS_LEFT_AFTER_UNINSTALL" }
+    if (Test-Path $runtimeSetupScript) { throw "MSI_RC_RUNTIME_SETUP_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $currentVersion) { throw "MSI_VERSION_MARKER_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $startMenuShortcut) { throw "MSI_SHORTCUT_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $productKey) { throw "MSI_PRODUCT_REGISTRY_LEFT_AFTER_UNINSTALL" }
@@ -176,7 +189,7 @@ try {
     if (-not (Test-Path $keepMarker)) { throw "MSI_UNINSTALL_REMOVED_USER_DATA" }
     if ((Get-Content $keepMarker -Raw).Trim() -ne "preserve-me") { throw "MSI_USER_DATA_CHANGED" }
 
-    Write-Host "Installed TDA Companion MSI + subprocess worker + acceptance harness + active-Agent uninstall smoke: PASS ($Version)"
+    Write-Host "Installed TDA Companion MSI + subprocess worker + RC setup + acceptance harness + active-Agent uninstall smoke: PASS ($Version)"
 }
 finally {
     if ($process -and -not $process.HasExited) {
@@ -186,8 +199,7 @@ finally {
     if ($installed -and -not $uninstalled -and (Test-Path $installedExe)) {
         try { Invoke-Msi @("/x", "`"$msi`"", "/qn", "/norestart", "/L*v", "`"$uninstallLog`"") $uninstallLog } catch { }
     }
-    Remove-Item $keepMarker -Force -ErrorAction SilentlyContinue
-    Remove-Item $diagnostic -Force -ErrorAction SilentlyContinue
+    Remove-Item $keepMarker, $diagnostic, $invalidRcArtifact, $invalidRcResult, "$invalidRcResult.partial" -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "TDA Companion MSI uninstall smoke: PASS"
