@@ -159,18 +159,17 @@ test("World Explorer relation select follows the real theme toggle and never fal
 	expect(firstPaint.borderWidth).not.toBe("0px");
 	expect(firstPaint.borderRadius).not.toBe("0px");
 	await page.keyboard.press("Escape");
+	await expect(listbox).toBeHidden();
 
-	const openNavigation = page.getByRole("button", { name: "Explorar universo" });
-	const openedNavigationForTheme = await openNavigation.isVisible();
-	if (openedNavigationForTheme) await openNavigation.click();
+	await page.getByRole("button", { name: "Mostrar menu principal" }).click();
 	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
+	await expect(themeToggle).toBeVisible();
 	const wasDark = await themeToggle.getAttribute("aria-checked");
 	await themeToggle.click();
 	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
 	await page.waitForTimeout(800);
-	if (openedNavigationForTheme) {
-		await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
-	}
+	await page.getByRole("button", { name: "Ocultar menu principal" }).click();
+	await expect(page.locator(".site-header")).toBeHidden();
 
 	await relationTrigger.click();
 	await expect(listbox).toBeVisible();
