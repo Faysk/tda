@@ -8,23 +8,89 @@ if (!document.querySelector(`link[href="${qualityGuardHref}"]`)) {
 
 const ASSETS = {
   "d-completo": {
-    mime: "image/avif",
-    path: "/lore/d/assets/d-completo-hq.avif.b64",
+    primary: {
+      mime: "image/avif",
+      path: "/lore/d/assets/d-completo-hq.avif.b64",
+    },
+    fallback: {
+      mime: "image/png",
+      paths: [
+        "/lore/d/assets/base64/d-completo-fixed.0.b64",
+        "/lore/d/assets/base64/d-completo-fixed.1.b64",
+        "/lore/d/assets/base64/d-completo-fixed.2.b64",
+      ],
+    },
   },
   "d-sem-sobretudo": {
-    mime: "image/avif",
-    path: "/lore/d/assets/d-sem-sobretudo-hq.avif.b64",
+    primary: {
+      mime: "image/avif",
+      path: "/lore/d/assets/d-sem-sobretudo-hq.avif.b64",
+    },
+    fallback: {
+      mime: "image/avif",
+      paths: [
+        "/lore/d/assets/base64/d-sem-sobretudo.0.b64",
+        "/lore/d/assets/base64/d-sem-sobretudo.1.b64",
+        "/lore/d/assets/base64/d-sem-sobretudo.2.b64",
+      ],
+    },
   },
   "d-sem-chapeu": {
-    mime: "image/avif",
-    path: "/lore/d/assets/d-sem-chapeu-hq.avif.b64",
+    primary: {
+      mime: "image/avif",
+      path: "/lore/d/assets/d-sem-chapeu-hq.avif.b64",
+    },
+    fallback: {
+      mime: "image/png",
+      paths: [
+        "/lore/d/assets/base64/d-sem-chapeu-fixed.0.b64",
+        "/lore/d/assets/base64/d-sem-chapeu-fixed.1.b64",
+        "/lore/d/assets/base64/d-sem-chapeu-fixed.2.b64",
+      ],
+    },
   },
 };
 
-function applyCharacterImage(name, url) {
+function applyCharacterImage(name, url, quality) {
   document.querySelectorAll(`[data-d-image="${name}"]`).forEach((element) => {
+    element.dataset.artworkQuality = quality;
     if (element instanceof HTMLImageElement) element.src = url;
     if (element instanceof HTMLButtonElement) element.dataset.image = url;
+  });
+}
+
+async function fetchText(path) {
+  const response = await fetch(path, { cache: "force-cache" });
+  if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
+  return (await response.text()).replace(/\s+/g, "");
+}
+
+async function buildAssetUrl(asset) {
+  if (asset.path) {
+    const base64 = await fetchText(asset.path);
+    if (!base64) throw new Error(`Empty artwork payload: ${asset.path}`);
+    return `data:${asset.mime};base64,${base64}`;
+  }
+
+  if (asset.paths) {
+    const parts = await Promise.all(asset.paths.map(fetchText));
+    const base64 = parts.join("");
+    if (!base64) throw new Error("Empty artwork payload");
+    return `data:${asset.mime};base64,${base64}`;
+  }
+
+  throw new Error("Invalid artwork asset definition");
+}
+
+function assertRenderable(url) {
+  return new Promise((resolve, reject) => {
+    const probe = new Image();
+    probe.onload = () => {
+      if (probe.naturalWidth > 0 && probe.naturalHeight > 0) resolve(url);
+      else reject(new Error("Artwork decoded with zero dimensions"));
+    };
+    probe.onerror = () => reject(new Error("Browser could not decode artwork"));
+    probe.src = url;
   });
 }
 
@@ -32,13 +98,18 @@ async function hydrateCharacterImage(name) {
   const asset = ASSETS[name];
   if (!asset) return;
 
-  const response = await fetch(asset.path, { cache: "force-cache" });
-  if (!response.ok) throw new Error(`Failed to load ${asset.path}: ${response.status}`);
+  try {
+    const primaryUrl = await buildAssetUrl(asset.primary);
+    await assertRenderable(primaryUrl);
+    applyCharacterImage(name, primaryUrl, "hq");
+    return;
+  } catch (error) {
+    console.warn(`HQ artwork failed for ${name}; using stable fallback`, error);
+  }
 
-  const base64 = (await response.text()).replace(/\s+/g, "");
-  if (!base64) throw new Error(`Empty artwork payload: ${asset.path}`);
-
-  applyCharacterImage(name, `data:${asset.mime};base64,${base64}`);
+  const fallbackUrl = await buildAssetUrl(asset.fallback);
+  await assertRenderable(fallbackUrl);
+  applyCharacterImage(name, fallbackUrl, "fallback");
 }
 
 Object.keys(ASSETS).forEach((name) => {
