@@ -123,6 +123,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
 	const kind = visualKind(item, isHero);
 	const state = stateLabel(isFocus, selected);
+	const focal = item.imageFocalPoint ?? { x: 0.5, y: 0.5 };
 	return (
 		<div
 			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
@@ -199,6 +200,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 						alt=""
 						fill
 						sizes={isHero ? "116px" : "90px"}
+						style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
 					/>
 				) : (
 					<span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>
