@@ -210,11 +210,8 @@ export function WorldEntityMediaEditor({
 			/>
 			{previewUrl ? (
 				<>
-					<div
-						className={styles.focalControls}
-						role="group"
-						aria-label="Enquadramento do retrato"
-					>
+					<fieldset className={styles.focalControls}>
+						<legend className={styles.input}>Enquadramento do retrato</legend>
 						<div className={styles.focalHeading}>
 							<strong>Enquadramento</strong>
 							<span>
@@ -256,7 +253,7 @@ export function WorldEntityMediaEditor({
 						>
 							Centralizar
 						</button>
-					</div>
+					</fieldset>
 					<div className={styles.actions}>
 						<button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
 							Escolher outra
