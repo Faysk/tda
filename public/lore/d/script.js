@@ -27,3 +27,35 @@ lightbox.addEventListener('click', (event) => {
   const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
   if (!inside) lightbox.close();
 });
+
+// Fragment-only links resolve against <base href="/lore/d/">. When the public
+// route is /lore/d (without the trailing slash), the browser treats that as a
+// navigation to /lore/d/#... and reloads the document, which resets the page
+// back to Cinemático. Keep reading navigation entirely in-page instead.
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('#reading-view a[href^="#read-"]');
+  if (!link || document.body.dataset.loreMode !== 'reading') return;
+
+  const hash = link.getAttribute('href');
+  const target = hash ? document.querySelector(hash) : null;
+  if (!target) return;
+
+  event.preventDefault();
+
+  const mobileIndex = link.closest('details');
+  if (mobileIndex) mobileIndex.open = false;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({
+    block: 'start',
+    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+  });
+
+  // Preserve the canonical path exactly as loaded while exposing the chapter
+  // in the URL for back/forward/history without triggering a navigation.
+  history.replaceState(
+    history.state,
+    '',
+    `${window.location.pathname}${window.location.search}${hash}`,
+  );
+});
