@@ -72,7 +72,12 @@ revoke all on public.entity_media_bindings from public, anon, authenticated, ser
 grant select, insert, update on public.media_assets to service_role;
 grant select, insert, update, delete on public.entity_media_bindings to service_role;
 
-create function public.publish_world_entity_media_atomic(
+-- Combined publication wrapper. Public media promotion/read-back happens before
+-- this RPC. The wrapper validates desired media against the same live lease and
+-- draft that the factual/layout publish will consume, then calls the existing
+-- atomic publisher and applies bindings in the SAME PostgreSQL transaction.
+-- If any later media DML raises, graph/layout publication is rolled back too.
+create function public.publish_world_edit_state_with_media_atomic(
   p_auth_user_id uuid,
   p_actor_profile_id uuid,
   p_campaign_slug text,
@@ -87,12 +92,16 @@ as $$
 declare
   v_campaign_id uuid;
   v_now timestamptz := clock_timestamp();
+  v_draft jsonb;
   v_binding jsonb;
+  v_draft_node jsonb;
   v_entity_id uuid;
   v_entity_visibility text;
   v_asset_id uuid;
   v_focal_x numeric(5,4);
   v_focal_y numeric(5,4);
+  v_expected_key text;
+  v_result jsonb;
   v_count integer := 0;
 begin
   if p_auth_user_id is null
@@ -128,17 +137,21 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
   end if;
 
-  -- Media publication is part of the same exclusive World editing session.
-  -- A content editor without the live lease cannot mutate entity media bindings.
-  if not exists (
-    select 1
-    from public.world_edit_leases lease
-    where lease.campaign_id = v_campaign_id
-      and lease.holder_profile_id = p_actor_profile_id
-      and lease.lease_token = p_lease_token
-      and lease.expires_at > v_now
-  ) then
+  select lease.draft_graph into v_draft
+  from public.world_edit_leases lease
+  where lease.campaign_id = v_campaign_id
+    and lease.holder_profile_id = p_actor_profile_id
+    and lease.lease_token = p_lease_token
+    and lease.expires_at > v_now
+    and lease.graph_draft_initialized
+  for update;
+  if not found then
     return jsonb_build_object('ok', false, 'reason', 'lease_lost');
+  end if;
+
+  if jsonb_typeof(v_draft) <> 'object'
+     or jsonb_typeof(v_draft->'nodes') <> 'array' then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
   end if;
 
   if exists (
@@ -153,6 +166,9 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'duplicate');
   end if;
 
+  -- Validate ALL media intent before the existing publisher mutates or deletes
+  -- the lease. Visibility is read from the draft, not the old entity row, so a
+  -- private -> public_web transition cannot bind a merely staged asset.
   for v_binding in select value from jsonb_array_elements(p_bindings)
   loop
     if jsonb_typeof(v_binding) <> 'object' then
@@ -175,28 +191,42 @@ begin
       return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
     end if;
 
-    select e.visibility into v_entity_visibility
-    from public.entities e
-    where e.id = v_entity_id and e.campaign_id = v_campaign_id;
+    select n.value into v_draft_node
+    from jsonb_array_elements(v_draft->'nodes') n(value)
+    where n.value->>'id' = v_entity_id::text
+    limit 1;
     if not found then
       return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
     end if;
+    v_entity_visibility := v_draft_node->>'visibility';
+    if v_entity_visibility not in (
+      'private_master','private_players','review_only','public_campaign','public_web'
+    ) then
+      return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+    end if;
 
-    if v_asset_id is null then
-      delete from public.entity_media_bindings b
-      where b.campaign_id = v_campaign_id
-        and b.entity_id = v_entity_id
-        and b.role = 'portrait';
-    else
+    if v_asset_id is not null then
+      select 'campaigns/' || p_campaign_slug || '/entities/' || v_entity_id::text ||
+             '/portrait/' || a.sha256 ||
+             case when a.mime_type = 'image/png' then '.png' else '.webp' end
+      into v_expected_key
+      from public.media_assets a
+      where a.id = v_asset_id
+        and a.campaign_id = v_campaign_id
+        and a.role_hint = 'portrait'
+        and a.status <> 'retired'
+        and a.read_back_verified
+        and a.mime_type in ('image/png','image/webp');
+      if not found then
+        return jsonb_build_object('ok', false, 'reason', 'media_invalid');
+      end if;
+
       if not exists (
         select 1
         from public.media_assets a
         where a.id = v_asset_id
           and a.campaign_id = v_campaign_id
-          and a.role_hint = 'portrait'
-          and a.status <> 'retired'
-          and a.read_back_verified
-          and a.object_key like ('campaigns/' || p_campaign_slug || '/entities/' || v_entity_id::text || '/portrait/%')
+          and a.object_key = v_expected_key
           and (
             v_entity_visibility <> 'public_web'
             or (
@@ -209,14 +239,45 @@ begin
           )
       ) then
         return jsonb_build_object(
-          'ok', false, 'reason',
-          case when v_entity_visibility = 'public_web'
+          'ok', false,
+          'reason', case when v_entity_visibility = 'public_web'
             then 'media_not_verified'
             else 'media_invalid'
           end
         );
       end if;
+    end if;
+  end loop;
 
+  -- Existing graph/layout/canon/revision guard remains the authority for the
+  -- factual publish. It deletes the lease only on success, still inside this
+  -- transaction. We deliberately apply bindings only after that success.
+  v_result := public.publish_world_edit_state_atomic(
+    p_auth_user_id,
+    p_actor_profile_id,
+    p_campaign_slug,
+    p_lease_token
+  );
+  if coalesce((v_result->>'ok')::boolean, false) is not true then
+    return v_result;
+  end if;
+
+  for v_binding in select value from jsonb_array_elements(p_bindings)
+  loop
+    v_entity_id := (v_binding->>'entityId')::uuid;
+    v_asset_id := case
+      when v_binding->>'assetId' is null or v_binding->>'assetId' = '' then null
+      else (v_binding->>'assetId')::uuid
+    end;
+    v_focal_x := coalesce((v_binding->>'focalX')::numeric, 0.5);
+    v_focal_y := coalesce((v_binding->>'focalY')::numeric, 0.5);
+
+    if v_asset_id is null then
+      delete from public.entity_media_bindings b
+      where b.campaign_id = v_campaign_id
+        and b.entity_id = v_entity_id
+        and b.role = 'portrait';
+    else
       insert into public.entity_media_bindings(
         campaign_id, entity_id, role, asset_id, focal_x, focal_y, updated_by, updated_at
       ) values (
@@ -245,7 +306,10 @@ begin
     );
   end if;
 
-  return jsonb_build_object('ok', true, 'status', 'saved', 'bindingCount', v_count);
+  return v_result || jsonb_build_object(
+    'mediaStatus', case when v_count > 0 then 'saved' else 'unchanged' end,
+    'mediaBindingCount', v_count
+  );
 end;
 $$;
 
@@ -254,7 +318,7 @@ comment on table public.media_assets is
 comment on table public.entity_media_bindings is
   'First-class entity-to-media relation. Private entity portraits may remain staged; public_web portraits require verified public delivery.';
 
-revoke all on function public.publish_world_entity_media_atomic(uuid,uuid,text,uuid,jsonb)
+revoke all on function public.publish_world_edit_state_with_media_atomic(uuid,uuid,text,uuid,jsonb)
   from public, anon, authenticated;
-grant execute on function public.publish_world_entity_media_atomic(uuid,uuid,text,uuid,jsonb)
+grant execute on function public.publish_world_edit_state_with_media_atomic(uuid,uuid,text,uuid,jsonb)
   to service_role;
