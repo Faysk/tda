@@ -14,7 +14,17 @@ import {
 	worldEntityMediaEnabled,
 } from "./world-entity-media-server";
 
-export type WorldEntityMediaPublicationStatus = "unchanged" | "saved" | "pending";
+export type WorldEntityMediaPublishBinding = Readonly<{
+	entityId: string;
+	assetId: string | null;
+	focalX: number;
+	focalY: number;
+}>;
+
+export type PreparedWorldEntityMedia =
+	| Readonly<{ status: "unchanged"; bindings: readonly WorldEntityMediaPublishBinding[] }>
+	| Readonly<{ status: "ready"; bindings: readonly WorldEntityMediaPublishBinding[] }>
+	| Readonly<{ status: "pending"; bindings: readonly WorldEntityMediaPublishBinding[] }>;
 
 type AssetRow = Readonly<{
 	id: string;
@@ -62,24 +72,23 @@ function safeAssetForEntity(
 }
 
 /**
- * Graph/layout publication stays authoritative if media delivery fails after it.
- * Media then reports `pending` and keeps the previous public portrait intact.
+ * Prepares external media BEFORE the atomic graph publication consumes the
+ * lease. Public bytes may be copied to their immutable public key here, but no
+ * entity binding changes until the combined PostgreSQL RPC succeeds.
+ *
+ * If public promotion/read-back fails, publication stays fail-closed and the
+ * World lease/draft remains available for retry instead of losing media intent.
  */
-export async function publishWorldEntityMediaDraft({
+export async function prepareWorldEntityMediaForPublish({
 	client,
-	authUserId,
-	profileId,
-	leaseToken,
 	draft,
 }: {
 	client: SupabaseClient;
-	authUserId: string;
-	profileId: string;
-	leaseToken: string;
 	draft: WorldGraphDraft;
-}): Promise<WorldEntityMediaPublicationStatus> {
-	if (!worldEntityMediaEnabled()) return "unchanged";
-	const bindings = draft.nodes
+}): Promise<PreparedWorldEntityMedia> {
+	if (!worldEntityMediaEnabled()) return { status: "unchanged", bindings: [] };
+
+	const requested = draft.nodes
 		.filter((node) => node.primaryMediaAssetId !== undefined)
 		.map((node) => ({
 			entityId: node.id,
@@ -88,7 +97,13 @@ export async function publishWorldEntityMediaDraft({
 			focalX: node.primaryMediaFocalPoint?.x ?? 0.5,
 			focalY: node.primaryMediaFocalPoint?.y ?? 0.5,
 		}));
-	if (!bindings.length) return "unchanged";
+	const bindings = requested.map(({ entityId, assetId, focalX, focalY }) => ({
+		entityId,
+		assetId,
+		focalX,
+		focalY,
+	}));
+	if (!requested.length) return { status: "ready", bindings };
 
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
@@ -100,11 +115,11 @@ export async function publishWorldEntityMediaDraft({
 			"World entity media publication campaign lookup failed",
 			campaignError?.message,
 		);
-		return "pending";
+		return { status: "pending", bindings };
 	}
 
 	const requestedAssetIds = [
-		...new Set(bindings.flatMap((binding) => (binding.assetId ? [binding.assetId] : []))),
+		...new Set(requested.flatMap((binding) => (binding.assetId ? [binding.assetId] : []))),
 	];
 	let assetRows: AssetRow[] = [];
 	if (requestedAssetIds.length) {
@@ -117,45 +132,41 @@ export async function publishWorldEntityMediaDraft({
 			.in("id", requestedAssetIds);
 		if (error) {
 			console.error("World entity media publication asset lookup failed", error.message);
-			return "pending";
+			return { status: "pending", bindings };
 		}
 		assetRows = (data ?? []) as AssetRow[];
-		if (assetRows.length !== requestedAssetIds.length) return "pending";
+		if (assetRows.length !== requestedAssetIds.length) {
+			return { status: "pending", bindings };
+		}
 	}
 
 	const assetById = new Map(assetRows.map((asset) => [asset.id, asset]));
-	for (const binding of bindings) {
+	for (const binding of requested) {
 		if (!binding.assetId) continue;
 		const asset = assetById.get(binding.assetId);
 		if (!asset || !safeAssetForEntity(asset, CAMPAIGN_SLUG, binding.entityId)) {
-			return "pending";
+			return { status: "pending", bindings };
 		}
+		if (!worldEntityMediaCanBecomePublic(binding.visibility)) continue;
 
-		if (!worldEntityMediaCanBecomePublic(binding.visibility)) {
-			continue;
-		}
-
-		if (
+		const alreadyVerified =
 			asset.status === "verified_public" &&
-			worldEntityPublicMediaUrl(
-				{
-					status: asset.status,
-					publicBucket: asset.public_bucket,
-					publicObjectKey: asset.public_object_key,
-					sha256: asset.sha256,
-					readBackVerified: asset.read_back_verified,
-					publicDeliveryVerified: asset.public_delivery_verified,
-					publicVerifiedAt: asset.public_verified_at,
-				},
-				{
-					campaignSlug: CAMPAIGN_SLUG,
-					entityId: binding.entityId,
-				},
-			)
-		) {
-			continue;
-		}
-		if (asset.status !== "staged") return "pending";
+			Boolean(
+				worldEntityPublicMediaUrl(
+					{
+						status: asset.status,
+						publicBucket: asset.public_bucket,
+						publicObjectKey: asset.public_object_key,
+						sha256: asset.sha256,
+						readBackVerified: asset.read_back_verified,
+						publicDeliveryVerified: asset.public_delivery_verified,
+						publicVerifiedAt: asset.public_verified_at,
+					},
+					{ campaignSlug: CAMPAIGN_SLUG, entityId: binding.entityId },
+				),
+			);
+		if (alreadyVerified) continue;
+		if (asset.status !== "staged") return { status: "pending", bindings };
 
 		try {
 			const promoted = await promoteWorldEntityPortrait({
@@ -190,33 +201,16 @@ export async function publishWorldEntityMediaDraft({
 					"World entity media verification persistence failed",
 					updateError.message,
 				);
-				return "pending";
+				return { status: "pending", bindings };
 			}
 		} catch (error) {
 			console.error(
 				"World entity media promotion failed",
 				error instanceof Error ? error.message : "unknown_error",
 			);
-			return "pending";
+			return { status: "pending", bindings };
 		}
 	}
 
-	const { data, error } = await client.rpc("publish_world_entity_media_atomic", {
-		p_auth_user_id: authUserId,
-		p_actor_profile_id: profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
-		p_lease_token: leaseToken,
-		p_bindings: bindings.map(({ entityId, assetId, focalX, focalY }) => ({
-			entityId,
-			assetId,
-			focalX,
-			focalY,
-		})),
-	});
-	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
-		console.error("World entity media binding publication failed", error?.message);
-		return "pending";
-	}
-	const payload = data as Readonly<Record<string, unknown>>;
-	return payload.ok === true ? "saved" : "pending";
+	return { status: "ready", bindings };
 }
