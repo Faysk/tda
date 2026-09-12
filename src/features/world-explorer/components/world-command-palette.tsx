@@ -111,7 +111,7 @@ export function WorldCommandPalette({
 	}
 
 	return (
-		<div className={styles.backdrop} data-world-command-palette>
+		<div className={styles.backdrop} data-world-command-palette-dialog>
 			<section
 				className={styles.palette}
 				role="dialog"
