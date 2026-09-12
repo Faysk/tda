@@ -52,6 +52,21 @@ def run_desktop(
     )
     bridge.bind_close_desktop(window.destroy)
 
+    def select_craig_zip() -> str | None:
+        selected = window.create_file_dialog(
+            webview.FileDialog.OPEN,
+            allow_multiple=False,
+            file_types=("Craig ZIP (*.zip)",),
+        )
+        if not selected:
+            return None
+        if isinstance(selected, str):
+            return selected
+        first = selected[0] if isinstance(selected, (list, tuple)) and selected else None
+        return str(first) if first else None
+
+    bridge.bind_select_craig_zip(select_craig_zip)
+
     tray: TrayController | None = None
     if settings.snapshot().get("show_tray"):
         tray = TrayController(bridge, window)
