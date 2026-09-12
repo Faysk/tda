@@ -1,0 +1,211 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import tempfile
+import zipfile
+from pathlib import Path, PurePosixPath
+
+from .asr_runtime import inspect_whisper_runtime, install_whisper_runtime_archive
+from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
+from .qwen_runtime_bundle import assemble_qwen_runtime_bundle, parse_qwen_runtime_bundle_manifest
+
+_ACTIONS_ARTIFACT_MAX_ENTRIES = 128
+_ACTIONS_ARTIFACT_MAX_UNCOMPRESSED_BYTES = 8 * 1024**3
+_COPY_CHUNK = 1024 * 1024
+_WHISPER_ARCHIVE = re.compile(r"^TDAWhisperRuntime-(\d+\.\d+\.\d+)-windows-x64\.zip$")
+_QWEN_BUNDLE = re.compile(r"^TDAQwenRuntimeBundle-(\d+\.\d+\.\d+)-windows-x64\.json$")
+_SHA256 = re.compile(r"^[a-f0-9]{64}$")
+
+
+class RcRuntimeArtifactError(RuntimeError):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _safe_member(info: zipfile.ZipInfo) -> PurePosixPath:
+    value = info.filename.replace("\\", "/")
+    path = PurePosixPath(value)
+    if (
+        not value
+        or value.startswith("/")
+        or path.is_absolute()
+        or any(part in ("", ".", "..") for part in path.parts)
+    ):
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_PATH_INVALID")
+    mode = (info.external_attr >> 16) & 0xFFFF
+    if mode and stat.S_ISLNK(mode):
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_SYMLINK")
+    return path
+
+
+def _extract_actions_artifact(artifact: Path, target: Path) -> Path:
+    source = artifact.resolve()
+    if not source.is_file():
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_NOT_FOUND")
+    try:
+        package = zipfile.ZipFile(source, "r")
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_INVALID") from exc
+    with package:
+        infos = [item for item in package.infolist() if not item.is_dir()]
+        if not infos or len(infos) > _ACTIONS_ARTIFACT_MAX_ENTRIES:
+            raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_ENTRY_LIMIT")
+        seen: set[str] = set()
+        total = 0
+        for info in infos:
+            relative = _safe_member(info)
+            key = relative.as_posix().casefold()
+            if key in seen:
+                raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_DUPLICATE")
+            seen.add(key)
+            if info.file_size < 0:
+                raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_SIZE_INVALID")
+            total += info.file_size
+            if total > _ACTIONS_ARTIFACT_MAX_UNCOMPRESSED_BYTES:
+                raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_SIZE_LIMIT")
+            destination = target.joinpath(*relative.parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            written = 0
+            with package.open(info, "r") as input_handle, destination.open("xb") as output_handle:
+                while True:
+                    chunk = input_handle.read(_COPY_CHUNK)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > info.file_size:
+                        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_SIZE_MISMATCH")
+                    output_handle.write(chunk)
+                output_handle.flush()
+                os.fsync(output_handle.fileno())
+            if written != info.file_size:
+                raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_SIZE_MISMATCH")
+    return target
+
+
+def _one(root: Path, pattern: str, code: str) -> Path:
+    matches = sorted(path for path in root.rglob(pattern) if path.is_file())
+    if len(matches) != 1:
+        raise RcRuntimeArtifactError(code)
+    return matches[0]
+
+
+def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
+    archive = _one(root, "TDAWhisperRuntime-*-windows-x64.zip", "RC_WHISPER_ARCHIVE_AMBIGUOUS")
+    match = _WHISPER_ARCHIVE.fullmatch(archive.name)
+    if not match:
+        raise RcRuntimeArtifactError("RC_WHISPER_ARCHIVE_NAME_INVALID")
+    version = match.group(1)
+    digest_file = archive.with_name(archive.name + ".sha256")
+    try:
+        digest_line = digest_file.read_text(encoding="ascii").strip()
+    except OSError as exc:
+        raise RcRuntimeArtifactError("RC_WHISPER_DIGEST_MISSING") from exc
+    parts = digest_line.split()
+    if len(parts) != 2 or parts[1] != archive.name or not _SHA256.fullmatch(parts[0]):
+        raise RcRuntimeArtifactError("RC_WHISPER_DIGEST_INVALID")
+    digest = parts[0]
+    if _sha256_file(archive) != digest:
+        raise RcRuntimeArtifactError("RC_WHISPER_DIGEST_MISMATCH")
+
+    state = inspect_whisper_runtime(runtime_root, verify_worker=True)
+    if state.get("status") == "ready" and state.get("version") == version:
+        return {"runtime": "whisper", "version": version, "status": "ready", "reused": True}
+    try:
+        marker = install_whisper_runtime_archive(
+            archive,
+            runtime_root,
+            version=version,
+            expected_sha256=digest,
+        )
+    except RuntimeError as exc:
+        raise RcRuntimeArtifactError(str(exc) or "RC_WHISPER_INSTALL_FAILED") from exc
+    verified = inspect_whisper_runtime(runtime_root, verify_worker=True)
+    if verified.get("status") != "ready" or verified.get("version") != version:
+        raise RcRuntimeArtifactError("RC_WHISPER_INSTALL_VERIFY_FAILED")
+    return {
+        "runtime": "whisper",
+        "version": version,
+        "status": "ready",
+        "reused": False,
+        "worker_sha256": marker["worker_sha256"],
+    }
+
+
+def _install_qwen(root: Path, runtime_root: Path, cache_root: Path) -> dict[str, object]:
+    manifest_path = _one(root, "TDAQwenRuntimeBundle-*-windows-x64.json", "RC_QWEN_BUNDLE_AMBIGUOUS")
+    match = _QWEN_BUNDLE.fullmatch(manifest_path.name)
+    if not match:
+        raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_NAME_INVALID")
+    try:
+        value = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = parse_qwen_runtime_bundle_manifest(value)
+    except Exception as exc:
+        raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_INVALID") from exc
+    version = match.group(1)
+    if manifest.version != version or manifest.runtime_id != "qwen3-transformers":
+        raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_IDENTITY_MISMATCH")
+
+    state = inspect_qwen_runtime(runtime_root, verify_worker=True)
+    if state.get("status") == "ready" and state.get("version") == version:
+        return {"runtime": "qwen", "version": version, "status": "ready", "reused": True}
+
+    assembly = cache_root.resolve() / "physical-setup" / "qwen" / version
+    shutil.rmtree(assembly, ignore_errors=True)
+    assembly.mkdir(parents=True, exist_ok=False)
+    try:
+        archive = assemble_qwen_runtime_bundle(manifest, manifest_path.parent, assembly)
+        replacing_corrupt = state.get("status") == "corrupt" and state.get("version") == version
+        marker = install_qwen_runtime_archive(
+            archive,
+            runtime_root,
+            version=version,
+            expected_sha256=manifest.archive_sha256,
+            replace_corrupt=replacing_corrupt,
+        )
+    except RuntimeError as exc:
+        raise RcRuntimeArtifactError(str(exc) or "RC_QWEN_INSTALL_FAILED") from exc
+    finally:
+        shutil.rmtree(assembly, ignore_errors=True)
+    verified = inspect_qwen_runtime(runtime_root, verify_worker=True)
+    if verified.get("status") != "ready" or verified.get("version") != version:
+        raise RcRuntimeArtifactError("RC_QWEN_INSTALL_VERIFY_FAILED")
+    return {
+        "runtime": "qwen",
+        "version": version,
+        "status": "ready",
+        "reused": False,
+        "worker_sha256": marker["worker_sha256"],
+        "part_count": len(manifest.parts),
+    }
+
+
+def install_rc_runtime_artifact(
+    family: str,
+    artifact: Path,
+    *,
+    runtime_root: Path,
+    cache_root: Path,
+) -> dict[str, object]:
+    if family not in {"whisper", "qwen"}:
+        raise RcRuntimeArtifactError("RC_RUNTIME_FAMILY_INVALID")
+    runtime_root.resolve().mkdir(parents=True, exist_ok=True)
+    cache_root.resolve().mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"tda-{family}-artifact-", dir=cache_root.resolve()) as value:
+        extracted = _extract_actions_artifact(artifact, Path(value))
+        if family == "whisper":
+            return _install_whisper(extracted, runtime_root.resolve())
+        return _install_qwen(extracted, runtime_root.resolve(), cache_root.resolve())
