@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PublicLink as Link } from "@/components/public-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
 	WorldWorkspaceControlsContext,
@@ -99,21 +98,20 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		<div className={styles.navigationInner}>
 			<div className={styles.navigationHeader}>
 				<WorldNavigationIntro />
-				<button
-					ref={navigationCloseRef}
-					type="button"
-					className={styles.closeNavigation}
-					onClick={closeNavigation}
-					aria-label="Recolher navegação do mundo"
-				>
-					×
-				</button>
+				<div className={styles.navigationHeaderActions}>
+					<ThemeToggle />
+					<button
+						ref={navigationCloseRef}
+						type="button"
+						className={styles.closeNavigation}
+						onClick={closeNavigation}
+						aria-label="Recolher navegação do mundo"
+					>
+						×
+					</button>
+				</div>
 			</div>
 			<WorldNavigation pathname={pathname} />
-			<Link className={styles.homeLink} href="/">
-				<span aria-hidden="true">←</span>
-				Voltar ao início
-			</Link>
 		</div>
 	);
 
@@ -184,9 +182,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 						<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
 						<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
 					</button>
-					<div className={styles.utilityControls} data-world-utility-controls>
-						<ThemeToggle />
-					</div>
 					{children}
 				</section>
 			</div>
