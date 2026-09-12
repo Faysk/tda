@@ -39,7 +39,7 @@ const config: NextConfig = {
 		return [
 			{
 				source: "/lore/d",
-				destination: "/lore/d/index.html",
+				destination: "/lore/d/generated/index.html",
 			},
 		];
 	},
