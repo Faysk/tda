@@ -6,6 +6,9 @@ const DOWNLOAD_PREFIX = "https://github.com/Faysk/tda/releases/download/";
 const WHISPER_TAG_PATTERN = /^companion-whisper-runtime-v(\d+)\.(\d+)\.(\d+)$/;
 const WHISPER_REF_PATTERN =
 	/^refs\/tags\/(companion-whisper-runtime-v(\d+)\.(\d+)\.(\d+))$/;
+const QWEN_TAG_PATTERN = /^companion-qwen-runtime-v(\d+)\.(\d+)\.(\d+)$/;
+const QWEN_REF_PATTERN =
+	/^refs\/tags\/(companion-qwen-runtime-v(\d+)\.(\d+)\.(\d+))$/;
 
 type GithubRef = {
 	ref?: unknown;
@@ -39,6 +42,7 @@ export type CompanionAssetInfo = {
 };
 
 export type WhisperRuntimeAssetInfo = CompanionAssetInfo;
+export type QwenRuntimeAssetInfo = CompanionAssetInfo;
 
 function isNewer(
 	left: readonly [number, number, number],
@@ -77,6 +81,10 @@ export function selectLatestCompanionTag(refs: unknown): string | null {
 
 export function selectLatestWhisperRuntimeTag(refs: unknown): string | null {
 	return selectLatestTag(refs, WHISPER_REF_PATTERN);
+}
+
+export function selectLatestQwenRuntimeTag(refs: unknown): string | null {
+	return selectLatestTag(refs, QWEN_REF_PATTERN);
 }
 
 function releaseAsset(
@@ -178,4 +186,38 @@ export function selectWhisperRuntimeAssetInfo(
 	return assetName
 		? selectAssetInfo(value, expectedTag, WHISPER_TAG_PATTERN, assetName)
 		: null;
+}
+
+function qwenVersion(tag: string): string | null {
+	const match = QWEN_TAG_PATTERN.exec(tag);
+	return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
+}
+
+export function qwenRuntimeBundleManifestName(tag: string): string | null {
+	const version = qwenVersion(tag);
+	return version ? `TDAQwenRuntimeBundle-${version}-windows-x64.json` : null;
+}
+
+export function selectQwenRuntimeBundleManifestAssetInfo(
+	value: unknown,
+	expectedTag: string,
+): QwenRuntimeAssetInfo | null {
+	const name = qwenRuntimeBundleManifestName(expectedTag);
+	return name ? selectAssetInfo(value, expectedTag, QWEN_TAG_PATTERN, name) : null;
+}
+
+export function selectQwenRuntimePartAssetInfo(
+	value: unknown,
+	expectedTag: string,
+	assetName: string,
+): QwenRuntimeAssetInfo | null {
+	const version = qwenVersion(expectedTag);
+	if (!version) return null;
+	const match = /^TDAQwenRuntime-(\d+\.\d+\.\d+)-windows-x64\.zip\.part(\d{3})$/.exec(
+		assetName,
+	);
+	if (!match || match[1] !== version || Number(match[2]) < 1 || Number(match[2]) > 16) {
+		return null;
+	}
+	return selectAssetInfo(value, expectedTag, QWEN_TAG_PATTERN, assetName);
 }

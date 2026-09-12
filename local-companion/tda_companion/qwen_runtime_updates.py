@@ -14,6 +14,7 @@ from .qwen_runtime_bundle import (
     assemble_qwen_runtime_bundle,
     parse_qwen_runtime_bundle_manifest,
 )
+from .release_download import ReleaseRedirectError, open_verified_release
 
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
 MANIFEST_URL = f"{PRODUCTION_ORIGIN}/api/downloads/companion/windows/qwen-runtime/manifest"
@@ -136,9 +137,15 @@ def _download_part(
     digest = hashlib.sha256()
     total = 0
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed validated TDA endpoint
-            if response.geturl() != _release_asset_url(manifest, part):
-                raise RuntimeError("QWEN_RUNTIME_REDIRECT_REJECTED")
+        try:
+            response_context = open_verified_release(
+                request,
+                expected_github_url=_release_asset_url(manifest, part),
+                timeout=timeout,
+            )
+        except ReleaseRedirectError as exc:
+            raise RuntimeError("QWEN_RUNTIME_REDIRECT_REJECTED") from exc
+        with response_context as response:
             with temporary.open("xb") as handle:
                 while True:
                     chunk = response.read(_COPY_CHUNK)
