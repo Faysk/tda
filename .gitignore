@@ -10,3 +10,4 @@ test-results/
 next-env.d.ts
 __pycache__/
 public/lore/d/assets/generated/
+public/lore/d/generated/
