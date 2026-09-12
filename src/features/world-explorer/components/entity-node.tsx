@@ -2,9 +2,17 @@
 
 import Image from "next/image";
 import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
-import { memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+	memo,
+	type CSSProperties,
+	type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import type { WorldFlowNode } from "../adapters/react-flow";
-import { WORLD_PORT_LANES, type WorldPortSide, worldPortHandleId } from "../edge-routing";
+import {
+	WORLD_PORT_LANES,
+	type WorldPortSide,
+	worldPortHandleId,
+} from "../edge-routing";
 import type { WorldNodeDTO } from "../model";
 import {
 	WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
@@ -22,11 +30,20 @@ const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
 	{ side: "left", position: Position.Left },
 ];
 
-type VisualKind = "hero" | "character" | "location" | "faction" | "song" | "moment" | "context";
+type VisualKind =
+	| "hero"
+	| "character"
+	| "location"
+	| "faction"
+	| "song"
+	| "moment"
+	| "context";
 
 function laneStyle(side: WorldPortSide, lane: number): CSSProperties {
 	const placement = `${50 + lane * 14}%`;
-	return side === "top" || side === "bottom" ? { left: placement } : { top: placement };
+	return side === "top" || side === "bottom"
+		? { left: placement }
+		: { top: placement };
 }
 
 function initials(label: string): string {
@@ -50,13 +67,20 @@ function visualKind(item: WorldNodeDTO, isHero: boolean): VisualKind {
 
 function visualMark(kind: VisualKind): string {
 	switch (kind) {
-		case "hero": return "✦";
-		case "character": return "N";
-		case "location": return "⌖";
-		case "faction": return "◇";
-		case "song": return "♪";
-		case "moment": return "◆";
-		default: return "·";
+		case "hero":
+			return "✦";
+		case "character":
+			return "N";
+		case "location":
+			return "⌖";
+		case "faction":
+			return "◇";
+		case "song":
+			return "♪";
+		case "moment":
+			return "◆";
+		default:
+			return "·";
 	}
 }
 
@@ -109,9 +133,30 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 			data-node-kind={kind}
 		>
 			<NodeToolbar isVisible={selected} position={Position.Top} offset={18} align="center">
-				<div className={authoringStyles.toolbar} role="toolbar" aria-label={`Ações de ${item.label}`} data-world-node-toolbar onKeyDown={moveToolbarFocus}>
-					<button className={`${authoringStyles.action} nodrag nopan`} type="button" tabIndex={0} onClick={openAuthoringInspector}>Editar</button>
-					<button className={`${authoringStyles.action} ${authoringStyles.connectAction} nodrag nopan`} type="button" tabIndex={-1} onClick={() => beginAuthoringConnection(item.id)} aria-pressed={authoringConnectable}>Conectar</button>
+				<div
+					className={authoringStyles.toolbar}
+					role="toolbar"
+					aria-label={`Ações de ${item.label}`}
+					data-world-node-toolbar
+					onKeyDown={moveToolbarFocus}
+				>
+					<button
+						className={`${authoringStyles.action} nodrag nopan`}
+						type="button"
+						tabIndex={0}
+						onClick={openAuthoringInspector}
+					>
+						Editar
+					</button>
+					<button
+						className={`${authoringStyles.action} ${authoringStyles.connectAction} nodrag nopan`}
+						type="button"
+						tabIndex={-1}
+						onClick={() => beginAuthoringConnection(item.id)}
+						aria-pressed={authoringConnectable}
+					>
+						Conectar
+					</button>
 				</div>
 			</NodeToolbar>
 			{SIDES.flatMap(({ side, position }) =>
@@ -122,12 +167,32 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 					const sourceConnectable = authoringConnectable && lane === -1;
 					const targetConnectable = authoringConnectable && lane === 1;
 					return [
-						<Handle key={sourceId} id={sourceId} type="source" position={position} style={style} className={`${nodeStyles.hiddenHandle} ${sourceConnectable ? authoringStyles.sourceHandle : ""}`} isConnectable={sourceConnectable} />,
-						<Handle key={targetId} id={targetId} type="target" position={position} style={style} className={`${nodeStyles.hiddenHandle} ${targetConnectable ? authoringStyles.targetHandle : ""}`} isConnectable={targetConnectable} />,
+						<Handle
+							key={sourceId}
+							id={sourceId}
+							type="source"
+							position={position}
+							style={style}
+							className={`${nodeStyles.hiddenHandle} ${sourceConnectable ? authoringStyles.sourceHandle : ""}`}
+							isConnectable={sourceConnectable}
+						/>,
+						<Handle
+							key={targetId}
+							id={targetId}
+							type="target"
+							position={position}
+							style={style}
+							className={`${nodeStyles.hiddenHandle} ${targetConnectable ? authoringStyles.targetHandle : ""}`}
+							isConnectable={targetConnectable}
+						/>,
 					];
 				}),
 			)}
-			{state ? <span className={nodeStyles.nodeState} data-node-state aria-hidden="true">{state}</span> : null}
+			{state ? (
+				<span className={nodeStyles.nodeState} data-node-state aria-hidden="true">
+					{state}
+				</span>
+			) : null}
 			<div className={nodeStyles.nodePortrait} aria-hidden="true">
 				{item.imageUrl ? (
 					<Image
@@ -139,11 +204,15 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 						unoptimized={worldEntityMediaShouldBypassImageOptimization(item.imageUrl)}
 						style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
 					/>
-				) : <span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>}
+				) : (
+					<span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>
+				)}
 				<span className={nodeStyles.nodeKindMark}>{visualMark(kind)}</span>
 				{isHero ? <i className={nodeStyles.heroOrbit} /> : null}
 			</div>
-			<div className={nodeStyles.nodeLabel} data-node-label>{item.label}</div>
+			<div className={nodeStyles.nodeLabel} data-node-label>
+				{item.label}
+			</div>
 			{item.subtitle ? <div className={nodeStyles.nodeSubtitle}>{item.subtitle}</div> : null}
 		</div>
 	);
