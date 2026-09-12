@@ -179,3 +179,26 @@ def test_bundle_rejects_wrong_final_archive_hash_and_cleans_partial(tmp_path: Pa
         assemble_qwen_runtime_bundle(manifest, parts_root, destination)
     assert not (destination / "TDAQwenRuntime-1.0.0-windows-x64.zip").exists()
     assert not list(destination.glob("*.partial"))
+
+
+def test_failed_bundle_never_replaces_previous_verified_archive(tmp_path: Path):
+    version = "1.0.0"
+    payload = b"new-candidate"
+    part = _part(version, 1, payload)
+    parts_root = tmp_path / "parts"
+    parts_root.mkdir()
+    (parts_root / part.name).write_bytes(payload)
+    manifest = build_qwen_runtime_bundle_manifest(
+        version=version,
+        archive_sha256="f" * 64,
+        parts=(part,),
+    )
+    destination = tmp_path / "assembled"
+    destination.mkdir()
+    existing = destination / "TDAQwenRuntime-1.0.0-windows-x64.zip"
+    existing.write_bytes(b"previous-verified-archive")
+
+    with pytest.raises(QwenRuntimeBundleError, match="ARCHIVE_HASH_MISMATCH"):
+        assemble_qwen_runtime_bundle(manifest, parts_root, destination)
+    assert existing.read_bytes() == b"previous-verified-archive"
+    assert not list(destination.glob("*.partial"))
