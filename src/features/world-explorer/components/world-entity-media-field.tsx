@@ -9,6 +9,8 @@ import {
 import { uploadWorldEntityPortraitAction } from "../world-entity-media-actions";
 import styles from "./world-entity-media-field.module.css";
 
+const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
+
 function failureMessage(reason: string): string {
 	switch (reason) {
 		case "invalid_payload":
@@ -29,13 +31,11 @@ function failureMessage(reason: string): string {
 export function WorldEntityMediaField({
 	entityId,
 	assetId,
-	leaseToken,
 	disabled = false,
 	onAssetChange,
 }: {
 	entityId: string;
 	assetId?: string | null;
-	leaseToken: string | null;
 	disabled?: boolean;
 	onAssetChange: (assetId: string | null) => void;
 }) {
@@ -45,7 +45,12 @@ export function WorldEntityMediaField({
 	const previewUrl = assetId ? worldEntityMediaPreviewUrl(assetId) : undefined;
 
 	async function upload(file: File | undefined) {
-		if (!file || busy || disabled || !leaseToken) return;
+		if (!file || busy || disabled) return;
+		const leaseToken = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		if (!leaseToken) {
+			setFeedback("A sessão de edição não está disponível. Reabra Conduzir antes de enviar a imagem.");
+			return;
+		}
 		if (file.size < 1 || file.size > WORLD_ENTITY_MEDIA_MAX_BYTES) {
 			setFeedback("Use uma imagem PNG ou WebP válida de até 8 MB.");
 			return;
@@ -108,7 +113,7 @@ export function WorldEntityMediaField({
 						type="file"
 						accept="image/png,image/webp,.png,.webp"
 						onChange={onInputChange}
-						disabled={disabled || busy || !leaseToken}
+						disabled={disabled || busy}
 						style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
 					/>
 				</label>
@@ -117,7 +122,7 @@ export function WorldEntityMediaField({
 				<button
 					type="button"
 					onClick={() => inputRef.current?.click()}
-					disabled={disabled || busy || !leaseToken}
+					disabled={disabled || busy}
 				>
 					{busy ? "Preparando…" : assetId ? "Substituir" : "Escolher arquivo"}
 				</button>
