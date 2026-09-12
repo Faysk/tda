@@ -103,7 +103,14 @@ function buildReadingView(markdown) {
 async function ensureReadingView() {
   if (readingView) return readingView;
   if (!readingPromise) {
-    readingPromise = fetch('/lore/d/historia.md').then((response) => { if (!response.ok) throw new Error(`Falha ao carregar história completa: ${response.status}`); return response.text(); }).then((markdown) => { readingView=buildReadingView(markdown); return readingView; });
+    const storyParts = ['/lore/d/historia-1.md','/lore/d/historia-2.md','/lore/d/historia-3.md','/lore/d/historia-4.md'];
+    readingPromise = Promise.all(storyParts.map((url) => fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`Falha ao carregar história completa: ${response.status}`);
+      return response.text();
+    }))).then((parts) => parts.join('\n')).then((markdown) => {
+      readingView=buildReadingView(markdown);
+      return readingView;
+    });
   }
   return readingPromise;
 }
