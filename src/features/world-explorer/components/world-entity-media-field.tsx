@@ -1,12 +1,21 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import {
+	useEffect,
+	useRef,
+	useState,
+	type ChangeEvent,
+	type DragEvent,
+} from "react";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
 	worldEntityMediaPreviewUrl,
 } from "../world-entity-media";
-import { uploadWorldEntityPortraitAction } from "../world-entity-media-actions";
+import {
+	uploadWorldEntityPortraitAction,
+	worldEntityMediaFeatureEnabledAction,
+} from "../world-entity-media-actions";
 import styles from "./world-entity-media-field.module.css";
 
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
@@ -40,12 +49,23 @@ export function WorldEntityMediaField({
 	onAssetChange: (assetId: string | null) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const [enabled, setEnabled] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const previewUrl = assetId ? worldEntityMediaPreviewUrl(assetId) : undefined;
 
+	useEffect(() => {
+		let active = true;
+		void worldEntityMediaFeatureEnabledAction().then((available) => {
+			if (active) setEnabled(available);
+		});
+		return () => {
+			active = false;
+		};
+	}, []);
+
 	async function upload(file: File | undefined) {
-		if (!file || busy || disabled) return;
+		if (!file || busy || disabled || !enabled) return;
 		const leaseToken = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		if (!leaseToken) {
 			setFeedback("A sessão de edição não está disponível. Reabra Conduzir antes de enviar a imagem.");
@@ -85,6 +105,8 @@ export function WorldEntityMediaField({
 		event.preventDefault();
 		void upload(event.dataTransfer.files?.[0]);
 	}
+
+	if (!enabled) return null;
 
 	return (
 		<section className={styles.field} aria-label="Imagem do elemento">
