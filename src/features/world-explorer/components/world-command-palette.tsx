@@ -10,6 +10,9 @@ import {
 } from "../world-commands";
 import styles from "./world-command-palette.module.css";
 
+const PALETTE_FOCUSABLE =
+	'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
 type PaletteResult =
 	| Readonly<{ kind: "command"; key: string; command: WorldCommandDefinition }>
 	| Readonly<{ kind: "entity"; key: string; entity: WorldNodeDTO }>;
@@ -55,6 +58,13 @@ export function WorldCommandPalette({
 	const [query, setQuery] = useState("");
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const paletteRef = useRef<HTMLElement>(null);
+	const returnFocusRef = useRef<HTMLElement | null>(null);
+	const onCloseRef = useRef(onClose);
+
+	useEffect(() => {
+		onCloseRef.current = onClose;
+	}, [onClose]);
 
 	const results = useMemo<PaletteResult[]>(() => {
 		const needle = normalizeSearch(query);
@@ -87,10 +97,26 @@ export function WorldCommandPalette({
 
 	useEffect(() => {
 		if (!open) return;
+		returnFocusRef.current =
+			document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		setQuery("");
 		setActiveIndex(0);
 		const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-		return () => window.cancelAnimationFrame(frame);
+		const closeOnEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopPropagation();
+			onCloseRef.current();
+		};
+		window.addEventListener("keydown", closeOnEscape, true);
+		return () => {
+			window.cancelAnimationFrame(frame);
+			window.removeEventListener("keydown", closeOnEscape, true);
+			const returnTarget = returnFocusRef.current;
+			window.requestAnimationFrame(() => {
+				if (returnTarget?.isConnected) returnTarget.focus();
+			});
+		};
 	}, [open]);
 
 	useEffect(() => {
@@ -111,17 +137,36 @@ export function WorldCommandPalette({
 	}
 
 	return (
-		<div className={styles.backdrop} data-world-command-palette-dialog>
+		<div
+			className={styles.backdrop}
+			data-world-command-palette-dialog
+			onPointerDown={(event) => {
+				if (event.target === event.currentTarget) onClose();
+			}}
+		>
 			<section
+				ref={paletteRef}
 				className={styles.palette}
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="world-command-palette-title"
 				onKeyDown={(event) => {
-					if (event.key === "Escape") {
-						event.preventDefault();
-						event.stopPropagation();
-						onClose();
+					if (event.key === "Tab") {
+						const focusable = Array.from(
+							paletteRef.current?.querySelectorAll<HTMLElement>(PALETTE_FOCUSABLE) ?? [],
+						).filter((element) => element.offsetParent !== null);
+						if (focusable.length) {
+							const first = focusable[0];
+							const last = focusable[focusable.length - 1];
+							const active = document.activeElement;
+							if (event.shiftKey && (active === first || !paletteRef.current?.contains(active))) {
+								event.preventDefault();
+								last.focus();
+							} else if (!event.shiftKey && active === last) {
+								event.preventDefault();
+								first.focus();
+							}
+						}
 						return;
 					}
 					if (event.key === "ArrowDown") {
@@ -149,7 +194,17 @@ export function WorldCommandPalette({
 						<span>World Authoring</span>
 						<h2 id="world-command-palette-title">Comandos do Mundo</h2>
 					</div>
-					<kbd>Esc</kbd>
+					<div className={styles.headerActions}>
+						<kbd aria-hidden="true">Esc</kbd>
+						<button
+							type="button"
+							className={styles.closeButton}
+							onClick={onClose}
+							aria-label="Fechar comandos do Mundo"
+						>
+							×
+						</button>
+					</div>
 				</header>
 
 				<label className={styles.search}>
