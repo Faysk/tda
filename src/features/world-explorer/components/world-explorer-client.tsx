@@ -129,6 +129,7 @@ export function WorldExplorerClient({
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
 	const searchInputRef = useRef<HTMLInputElement>(null);
+	const executeWorldCommandRef = useRef<(id: WorldCommandId) => void>(() => undefined);
 	const [createType, setCreateType] = useState<WorldEntityType | null>(null);
 	const [createPoint, setCreatePoint] = useState<XYPosition | null>(null);
 	const [relationCandidate, setRelationCandidate] = useState<WorldRelationCandidate | null>(null);
@@ -509,6 +510,7 @@ export function WorldExplorerClient({
 				return;
 		}
 	}
+	executeWorldCommandRef.current = executeWorldCommand;
 
 	function selectEntityFromPalette(id: string) {
 		setFilter("all");
@@ -523,7 +525,8 @@ export function WorldExplorerClient({
 		function handleShortcut(event: KeyboardEvent) {
 			if (event.key === "Escape" && connectionActive && !isTypingTarget(event.target)) {
 				event.preventDefault();
-				cancelRelationAuthoring();
+				setRelationCandidate(null);
+				authoringUi.setTool("select");
 				return;
 			}
 			const shortcut = worldShortcutFromKeyboardInput(event);
@@ -536,7 +539,7 @@ export function WorldExplorerClient({
 				authoringUi.setCommandPaletteOpen(!authoringUi.state.commandPaletteOpen);
 				return;
 			}
-			executeWorldCommand(command.id);
+			executeWorldCommandRef.current(command.id);
 		}
 		window.addEventListener("keydown", handleShortcut);
 		return () => window.removeEventListener("keydown", handleShortcut);
@@ -546,8 +549,7 @@ export function WorldExplorerClient({
 		commandContext,
 		authoringUi.state.commandPaletteOpen,
 		authoringUi.setCommandPaletteOpen,
-		cancelRelationAuthoring,
-		executeWorldCommand,
+		authoringUi.setTool,
 	]);
 
 	return (
