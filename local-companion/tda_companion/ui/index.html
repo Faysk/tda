@@ -117,7 +117,10 @@
           <section class="panel process-workspace">
             <div class="workflow-step">
               <div class="step-head">
-                <div class="step-title"><span class="step-number">1</span><div><h2>Sessão do Craig</h2><p>Escolha o arquivo <code>.zip</code> original. Não é preciso extrair nem mover para uma pasta especial.</p></div></div>
+                <div class="step-title">
+                  <span class="step-number">1</span>
+                  <div><h2>Sessão do Craig</h2><p>Escolha o arquivo <code>.zip</code> original. Não é preciso extrair nem mover para uma pasta especial.</p></div>
+                </div>
                 <button type="button" class="primary" id="select-craig">Selecionar ZIP</button>
               </div>
               <div class="source-empty" id="source-empty">Nenhuma sessão selecionada.</div>
@@ -126,13 +129,16 @@
                   <div><strong id="session-name">—</strong><span id="session-meta">—</span></div>
                   <span class="pill success" id="session-track-count">— faixas</span>
                 </div>
-                <div class="track-list" id="track-list" aria-label="Participantes encontrados"></div>
+                <div class="track-list" id="track-list" role="list" aria-label="Participantes encontrados"></div>
               </div>
             </div>
 
             <div class="workflow-step">
               <div class="step-head">
-                <div class="step-title"><span class="step-number">2</span><div><h2>Qualidade da transcrição</h2><p>Para sessões importantes, priorize precisão. O primeiro uso pode baixar runtime e modelos verificados.</p></div></div>
+                <div class="step-title">
+                  <span class="step-number">2</span>
+                  <div><h2>Qualidade da transcrição</h2><p>Para sessões importantes, priorize precisão. O primeiro uso pode baixar runtime e modelos verificados.</p></div>
+                </div>
               </div>
               <div class="profile-list" id="profile-list" role="radiogroup" aria-label="Qualidade da transcrição">
                 <div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>
@@ -175,7 +181,10 @@
       </section>
 
       <section class="view" id="view-logs">
-        <header class="sub-head"><div><h1>Logs</h1><p>Logs técnicos do Agent. Tokens, áudio e texto integral de transcrição não são registrados aqui.</p></div><button type="button" id="open-logs">Abrir pasta de logs</button></header>
+        <header class="sub-head">
+          <div><h1>Logs</h1><p>Logs técnicos do Agent. Tokens, áudio e texto integral de transcrição não são registrados aqui.</p></div>
+          <button type="button" id="open-logs">Abrir pasta de logs</button>
+        </header>
         <div class="toolbar">
           <select id="log-level" aria-label="Nível dos logs"><option value="">Todos os níveis</option><option value="info">Info</option><option value="warning">Avisos</option><option value="error">Erros</option><option value="debug">Debug</option></select>
           <input id="log-search" type="search" placeholder="Buscar nos logs…" />
@@ -185,7 +194,10 @@
       </section>
 
       <section class="view" id="view-diagnostics">
-        <header class="sub-head"><div><h1>Diagnóstico</h1><p>Checks locais não destrutivos para identificar problemas no Agent, storage e GPU.</p></div><div class="action-row"><button type="button" id="export-diagnostics">Exportar diagnóstico</button><button type="button" class="primary" id="run-diagnostics">Executar diagnóstico</button></div></header>
+        <header class="sub-head">
+          <div><h1>Diagnóstico</h1><p>Checks locais não destrutivos para identificar problemas no Agent, storage e GPU.</p></div>
+          <div class="action-row"><button type="button" id="export-diagnostics">Exportar diagnóstico</button><button type="button" class="primary" id="run-diagnostics">Executar diagnóstico</button></div>
+        </header>
         <div class="panel diagnostic-summary"><div><span>Estado geral</span><strong id="diagnostic-overall">Ainda não executado</strong></div><small id="diagnostic-time">—</small></div>
         <div class="diagnostic-list" id="diagnostic-list"></div>
       </section>
@@ -193,9 +205,22 @@
       <section class="view" id="view-settings">
         <header class="sub-head"><div><h1>Configurações</h1><p>Preferências deste computador. Configurações editoriais continuam no TDA Web.</p></div></header>
         <div class="settings-grid">
-          <section class="panel setting-group"><h2>Inicialização</h2><label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label><label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label><label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label></section>
-          <section class="panel setting-group"><h2>Aparência e janela</h2><label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label><label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label></section>
-          <section class="panel setting-group"><h2>Pareamento</h2><p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p><div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div></section>
+          <section class="panel setting-group">
+            <h2>Inicialização</h2>
+            <label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label>
+            <label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label>
+            <label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label>
+          </section>
+          <section class="panel setting-group">
+            <h2>Aparência e janela</h2>
+            <label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label>
+            <label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label>
+          </section>
+          <section class="panel setting-group">
+            <h2>Pareamento</h2>
+            <p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p>
+            <div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div>
+          </section>
           <section class="panel setting-group runtime-settings">
             <h2>Runtimes de transcrição</h2>
             <p>Normalmente o Companion prepara o runtime necessário quando você processa uma sessão.</p>
@@ -211,16 +236,10 @@
           <section class="panel setting-group danger-zone">
             <h2>Aplicativo</h2>
             <p><span id="settings-version">TDA Companion —</span><br />API local v1</p>
-            <div class="action-row app-update-actions">
-              <button type="button" id="check-update">Verificar atualização</button>
-              <button type="button" class="primary update-install hidden" id="install-update">Atualizar agora</button>
-            </div>
+            <div class="action-row app-update-actions"><button type="button" id="check-update">Verificar atualização</button><button type="button" class="primary update-install hidden" id="install-update">Atualizar agora</button></div>
             <div class="app-separator"></div>
             <p><b>Desinstalação</b><br />Você pode remover só o aplicativo e manter os dados para uma futura reinstalação, ou apagar completamente o TDA local deste usuário.</p>
-            <div class="action-row">
-              <button type="button" id="uninstall-keep">Desinstalar e manter dados</button>
-              <button type="button" class="danger" id="uninstall-purge">Remover completamente</button>
-            </div>
+            <div class="action-row"><button type="button" id="uninstall-keep">Desinstalar e manter dados</button><button type="button" class="danger" id="uninstall-purge">Remover completamente</button></div>
           </section>
         </div>
       </section>
