@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import zipfile
 from pathlib import Path
 
@@ -155,6 +156,21 @@ def test_gate_rejects_audio_shorter_than_production_window(tmp_path: Path):
 
     gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
     assert not gate_path.exists()
+    assert ready_qwen_profiles(state, runtime, models) == []
+
+
+def test_reader_invalidates_legacy_short_gate(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    persisted = json.loads(gate_path.read_text(encoding="utf-8"))
+    persisted["metrics"]["audio_seconds"] = 30.0
+    gate_path.write_text(json.dumps(persisted, separators=(",", ":")), encoding="utf-8")
+
+    inspected = inspect_qwen_physical_gate(state, runtime, models, profile_id="qwen-fast")
+    assert inspected["ready"] is False
+    assert inspected["status"] == "invalid"
+    assert inspected["reason"] == "QWEN_GATE_AUDIO_TOO_SHORT"
     assert ready_qwen_profiles(state, runtime, models) == []
 
 
