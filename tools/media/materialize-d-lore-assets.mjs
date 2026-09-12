@@ -71,14 +71,27 @@ const FALLBACK = [
 ];
 
 function decodeBase64(text, label) {
-  const normalized = text.replace(/\s+/g, "");
-  if (!normalized || normalized.length % 4 !== 0) {
-    throw new Error(`${label}: invalid base64 length`);
-  }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+  const stripped = text.replace(/\s+/g, "");
+  if (!stripped) throw new Error(`${label}: empty base64 payload`);
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(stripped)) {
     throw new Error(`${label}: invalid base64 characters`);
   }
-  return Buffer.from(normalized, "base64");
+
+  const raw = stripped.replace(/=+$/, "");
+  const remainder = raw.length % 4;
+  if (remainder === 1) {
+    throw new Error(`${label}: impossible base64 length`);
+  }
+
+  // Historical transport files may omit terminal '=' padding. Normalize that
+  // representation here, before build, then prove the decoded bytes round-trip.
+  const normalized = raw + "=".repeat((4 - remainder) % 4);
+  const buffer = Buffer.from(normalized, "base64");
+  if (!buffer.length) throw new Error(`${label}: decoded to zero bytes`);
+  if (buffer.toString("base64").replace(/=+$/, "") !== raw) {
+    throw new Error(`${label}: base64 round-trip mismatch`);
+  }
+  return buffer;
 }
 
 function avifDimensions(buffer, label) {
