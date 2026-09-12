@@ -6,7 +6,7 @@ import styles from "./world-edge-tab.module.css";
 type WorldEdgeTabProps = Readonly<{
 	edge: "top" | "left" | "right";
 	expanded: boolean;
-	controls: string;
+	controls?: string;
 	label: string;
 	onToggle: () => void;
 	icon: ReactNode;
