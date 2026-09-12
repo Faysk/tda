@@ -65,8 +65,9 @@ O SQL correspondente vive em `supabase/candidates/` até autorização explícit
 4. O browser envia os bytes diretamente ao R2 com o `Content-Type` assinado.
 5. `finalizeWorldEntityPortraitUploadAction(...)` repete autorização, lease e scope, lê exatamente aquela pending key, inspeciona os bytes e compara SHA-256/MIME/tamanho com o intent.
 6. Somente após essa verificação o servidor grava/reutiliza a chave canônica via `If-None-Match: *`, faz read-back/hash e registra `media_assets` como `staged` + `read_back_verified`.
-7. O asset UUID retornado entra no draft como `primaryMediaAssetId`; upload/finalização por si só não altera `entity_media_bindings` nem publica audiência.
-8. Corrida de finalização reaproveita a identidade existente por `(campaign_id, staged_bucket, object_key)` sem sobrescrever asset verificado ou reativar asset `retired`.
+7. Se dois finalizadores materializarem o mesmo hash simultaneamente, `412 Precondition Failed` no PUT condicional não autoriza overwrite: o segundo fluxo continua somente para o read-back obrigatório e aceita o objeto apenas se hash/tamanho permanecerem idênticos.
+8. O asset UUID retornado entra no draft como `primaryMediaAssetId`; upload/finalização por si só não altera `entity_media_bindings` nem publica audiência.
+9. Corrida de finalização reaproveita a identidade existente por `(campaign_id, staged_bucket, object_key)` sem sobrescrever asset verificado ou reativar asset `retired`.
 
 Pending uploads não são apagados de forma síncrona pela finalização porque a própria presigned URL ainda pode ser reutilizada até expirar e recriar o objeto. A limpeza deve ser feita por lifecycle explícito e curto aplicado somente ao prefixo `uploads/pending/`, nunca aos objetos canônicos.
 
@@ -76,7 +77,7 @@ Pending uploads não são apagados de forma síncrona pela finalização porque 
 
 Antes de responder, a rota resolve campaign + asset por UUID, rejeita asset `retired`/não verificado, reconstrói a chave canônica esperada e relê os bytes do R2. Magic bytes, SHA-256, MIME, tamanho e dimensões precisam continuar iguais ao registro. A resposta usa `Cache-Control: private, no-store` e `X-Content-Type-Options: nosniff`; falha de auth/integridade não faz fallback para bucket público.
 
-O draft hidratado e alterações locais podem usar essa rota como `imageUrl`; a projeção pública continua independente e só usa URL pública verificada.
+O draft hidratado e alterações locais podem usar essa rota como `imageUrl`; a projeção pública continua independente e só usa URL pública verificada. No node, essa URL autenticada é renderizada com `next/image` em modo `unoptimized`, porque o otimizador do Next não deve ser a ponte de autenticação para uma origem privada. Depois de publicado, o URL imutável em `media.dnd.faysk.dev/campaigns/{campaign}/entities/...` volta ao pipeline normal de otimização do Next e está explicitamente coberto por `remotePatterns`.
 
 ## Publicação
 
