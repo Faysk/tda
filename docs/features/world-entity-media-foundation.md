@@ -18,7 +18,7 @@ Dar a cada entidade do World Explorer uma identidade de mídia estável sem tran
 - A projeção pública só resolve URL quando o asset e a entrega pública estiverem verificados.
 - Upload para preview/private não implica publicação.
 - Publicação de entidade `public_web` exige promoção para `tda-media-public` e verificação de entrega antes de trocar o vínculo público.
-- Falha de promoção não deve destruir o retrato público anterior.
+- Falha de promoção não deve destruir o retrato público anterior nem consumir o draft/lease que o editor precisa para retry.
 
 ## Buckets e chave
 
@@ -49,14 +49,17 @@ O SQL correspondente vive em `supabase/candidates/` até autorização explícit
 - Um upload deve ser validado por magic bytes, MIME permitido, tamanho, dimensões, hash e read-back antes de virar asset utilizável.
 - Presigned upload, quando habilitado, é bearer capability curta e deve restringir object key e Content-Type; CORS do bucket deve aceitar somente as origins necessárias.
 - Assets de outra campaign ou outro entity não podem ser associados por troca de UUID.
+- A visibility usada para decidir se o asset precisa estar público vem do `draft_graph` que será publicado, não do estado antigo de `entities`.
 
 ## Publicação
 
 1. O editor escolhe um asset no draft (`primaryMediaAssetId`).
 2. O draft continua privado e recuperável enquanto a lease existir.
-3. Ao publicar, bindings privados podem permanecer no bucket privado.
-4. Para entidade `public_web`, o servidor copia/promove o objeto imutável para o bucket público, faz read-back/delivery verification e só então troca o binding público.
-5. Se promoção/verificação falhar, a publicação factual pode terminar sem trocar o retrato; o estado de mídia fica `pending` para retry explícito.
+3. Antes de consumir a lease, o servidor valida todos os assets pedidos pelo draft. Para entidade `public_web`, promove o objeto imutável para `tda-media-public` e confirma read-back + entrega pública.
+4. Se promoção/verificação falhar, a publicação é bloqueada como `media_pending`; graph/layout e bindings não são publicados e a lease/draft permanece disponível para retry.
+5. Com a mídia pronta, o wrapper SQL candidato `publish_world_edit_state_with_media_atomic(...)` valida o mesmo draft/lease, chama a publicação factual/layout existente e aplica `entity_media_bindings` dentro da mesma transação PostgreSQL.
+6. Qualquer falha SQL depois da chamada factual reverte também graph/layout, evitando estado factual publicado com binding de mídia parcialmente aplicado.
+7. Bindings de entidades não públicas podem continuar apontando para assets verificados em staging privado; URL pública só é projetada para assets explicitamente `verified_public`.
 
 ## Primeira UX
 
