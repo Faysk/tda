@@ -52,7 +52,7 @@ function webpDimensions(bytes: Uint8Array): { width: number; height: number } | 
 		const chunk = Buffer.from(bytes.subarray(offset, offset + 4)).toString("ascii");
 		const size = Buffer.from(bytes.subarray(offset + 4, offset + 8)).readUInt32LE(0);
 		const data = offset + 8;
-		if (size < 0 || data + size > bytes.length) return null;
+		if (data + size > bytes.length) return null;
 		if (chunk === "VP8X" && size >= 10) {
 			return {
 				width: readUint24LE(bytes, data + 4) + 1,
@@ -245,7 +245,7 @@ export async function readWorldEntityMediaObject({
 	bucket: string;
 	objectKey: string;
 }): Promise<Uint8Array> {
-	const allowed = new Set([
+	const allowed = new Set<string>([
 		WORLD_ENTITY_MEDIA_PREVIEW_BUCKET,
 		WORLD_ENTITY_MEDIA_PRIVATE_BUCKET,
 		WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
@@ -263,7 +263,10 @@ export async function promoteWorldEntityPortrait({
 	objectKey: string;
 	info: WorldEntityImageInfo;
 }): Promise<{ publicBucket: string; publicObjectKey: string; verifiedAt: string }> {
-	if (![WORLD_ENTITY_MEDIA_PREVIEW_BUCKET, WORLD_ENTITY_MEDIA_PRIVATE_BUCKET].includes(stagedBucket as never)) {
+	if (
+		stagedBucket !== WORLD_ENTITY_MEDIA_PREVIEW_BUCKET &&
+		stagedBucket !== WORLD_ENTITY_MEDIA_PRIVATE_BUCKET
+	) {
 		failure("STAGING_BUCKET_NOT_ALLOWED");
 	}
 	const client = mediaClient();
