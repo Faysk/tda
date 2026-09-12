@@ -97,9 +97,10 @@ export function worldEntityPublicMediaUrl(
 		return undefined;
 	}
 
-	const escapedCampaign = options.campaignSlug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+	// Campaign slugs are restricted to [a-z0-9-], so they are safe to interpolate
+	// into this anchored expression without generic regex escaping.
 	const pattern = new RegExp(
-		`^campaigns/${escapedCampaign}/entities/([0-9a-f-]{36})/portrait/([a-f0-9]{64})\\.(png|webp)$`,
+		`^campaigns/${options.campaignSlug}/entities/([0-9a-f-]{36})/portrait/([a-f0-9]{64})\\.(png|webp)$`,
 		"u",
 	);
 	const match = pattern.exec(asset.publicObjectKey);
