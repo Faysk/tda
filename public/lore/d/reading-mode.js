@@ -8,6 +8,7 @@ const modeStatus = document.querySelector('#lore-mode-status');
 const modeHint = document.querySelector('#mode-hint');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 let readingView = null;
+let readingMarkdownPromise = null;
 let readingPromise = null;
 let currentMode = 'cinematic';
 let chapterObserver = null;
@@ -36,7 +37,7 @@ function escapeHtml(value) { return value.replace(/[&<>"']/g, (char) => ({'&':'&
 function inlineMarkdown(value) {
   let text = escapeHtml(value);
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+  text = text.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
   return text;
 }
 function splitChapterTitle(title) {
@@ -44,7 +45,7 @@ function splitChapterTitle(title) {
   return parts.length > 1 ? [parts.shift(), parts.join(' — ')] : ['', title];
 }
 function parseLongform(markdown) {
-  const clean = markdown.replace(/<!--[\s\S]*?-->/g, '').split('## Frases centrais para a apresentação editorial')[0];
+  const clean = markdown.replace(/<!--[^]*?-->/g, '').split('## Frases centrais para a apresentação editorial')[0];
   const lines = clean.split(/\r?\n/);
   const chapters = [];
   let current = null;
@@ -100,14 +101,22 @@ function buildReadingView(markdown) {
   main.innerHTML=`<div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div><header class="reading-hero" id="reading-top"><div class="reading-hero-copy"><p class="eyebrow">HISTÓRIA COMPLETA · ≈ ${readingMinutes} MIN DE LEITURA</p><h1 class="reading-title shared-lore-title">D<span>.</span></h1><p class="reading-subtitle">Antes que seja <em>tarde demais.</em></p><p class="reading-deck">A história completa do homem que aprendeu a procurar o instante anterior ao irreversível.</p><a class="reading-start" href="#read-prologue">Começar a leitura <span aria-hidden="true">↓</span></a></div><div class="reading-hero-art"><div class="reading-halo" aria-hidden="true"></div><img class="shared-lore-art" src="https://media.dnd.faysk.dev/lore/d/30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052/d-completo.png" alt="D usando sobretudo e chapéu, segurando um cachimbo"></div></header><div class="reading-layout"><aside class="reading-toc" aria-label="Capítulos da história completa"><p>Capítulos</p><nav>${nav}</nav></aside><article class="reading-document" aria-label="História completa de D"><details class="reading-mobile-toc"><summary>Capítulos <span aria-hidden="true">＋</span></summary><nav>${nav}</nav></details>${sections}</article></div>`;
   document.querySelector('footer').before(main); setupReadingNavigation(main); return main;
 }
+const storyParts = ['/lore/d/historia-1.md','/lore/d/historia-2.md','/lore/d/historia-3.md','/lore/d/historia-4.md'];
+
+async function loadReadingMarkdown() {
+  if (!readingMarkdownPromise) {
+    readingMarkdownPromise = Promise.all(storyParts.map((url) => fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`Falha ao carregar história completa: ${response.status}`);
+      return response.text();
+    }))).then((parts) => parts.join('\n'));
+  }
+  return readingMarkdownPromise;
+}
+
 async function ensureReadingView() {
   if (readingView) return readingView;
   if (!readingPromise) {
-    const storyParts = ['/lore/d/historia-1.md','/lore/d/historia-2.md','/lore/d/historia-3.md','/lore/d/historia-4.md'];
-    readingPromise = Promise.all(storyParts.map((url) => fetch(url).then((response) => {
-      if (!response.ok) throw new Error(`Falha ao carregar história completa: ${response.status}`);
-      return response.text();
-    }))).then((parts) => parts.join('\n')).then((markdown) => {
+    readingPromise = loadReadingMarkdown().then((markdown) => {
       readingView=buildReadingView(markdown);
       return readingView;
     });
@@ -164,6 +173,7 @@ document.addEventListener('click', (event) => {
   if (!readingLightbox.open) readingLightbox.showModal();
 });
 
-// Preload the long-form source during idle time so the first switch feels immediate.
-const preloadReading=()=>ensureReadingView().catch((error)=>console.error(error));
+// Preload only the Markdown bytes during idle time. The reading DOM is created
+// only after the user chooses Leitura, keeping the initial document semantic-clean.
+const preloadReading=()=>loadReadingMarkdown().catch((error)=>console.error(error));
 if('requestIdleCallback' in window) requestIdleCallback(preloadReading,{timeout:1800}); else window.setTimeout(preloadReading,900);
