@@ -196,7 +196,7 @@ export function WorldCommandPalette({
 						<h2 id="world-command-palette-title">Comandos do Mundo</h2>
 					</div>
 					<div className={styles.headerActions}>
-						<kbd aria-hidden="true">Esc</kbd>
+						<kbd>Esc</kbd>
 						<button
 							type="button"
 							className={styles.closeButton}
