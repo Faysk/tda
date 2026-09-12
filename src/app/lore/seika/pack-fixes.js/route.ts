@@ -43,7 +43,7 @@ const BODY = `(() => {
     history.replaceState(
       history.state,
       '',
-      `\${window.location.pathname}\${window.location.search}\${hash}`,
+      window.location.pathname + window.location.search + hash,
     );
   });
 })();
