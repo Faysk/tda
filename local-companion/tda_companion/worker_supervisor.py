@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import current_whisper_worker
+from .qwen_runtime import current_qwen_worker
 from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
 
 
@@ -284,6 +285,13 @@ class WorkerSupervisor:
             worker = current_whisper_worker(self.runtime_root)
             if worker is not None:
                 runtime_command = [str(worker)]
+        elif profile_id.startswith("qwen-"):
+            if self.runtime_root is None:
+                raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
+            worker = current_qwen_worker(self.runtime_root)
+            if worker is None:
+                raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
+            runtime_command = [str(worker)]
         return self._run_command(
             WorkerRunCommand(
                 job_id=job_id,
