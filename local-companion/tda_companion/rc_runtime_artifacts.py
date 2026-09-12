@@ -38,6 +38,21 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _verify_actions_artifact(artifact: Path, expected_sha256: str) -> Path:
+    source = artifact.resolve()
+    if not source.is_file():
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_NOT_FOUND")
+    if not _SHA256.fullmatch(expected_sha256):
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_HASH_INVALID")
+    try:
+        actual = _sha256_file(source)
+    except OSError as exc:
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_READ_FAILED") from exc
+    if actual != expected_sha256:
+        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_HASH_MISMATCH")
+    return source
+
+
 def _safe_member(info: zipfile.ZipInfo) -> PurePosixPath:
     value = info.filename.replace("\\", "/")
     path = PurePosixPath(value)
@@ -55,11 +70,8 @@ def _safe_member(info: zipfile.ZipInfo) -> PurePosixPath:
 
 
 def _extract_actions_artifact(artifact: Path, target: Path) -> Path:
-    source = artifact.resolve()
-    if not source.is_file():
-        raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_NOT_FOUND")
     try:
-        package = zipfile.ZipFile(source, "r")
+        package = zipfile.ZipFile(artifact, "r")
     except (OSError, zipfile.BadZipFile) as exc:
         raise RcRuntimeArtifactError("RC_RUNTIME_ARTIFACT_INVALID") from exc
     with package:
@@ -205,15 +217,17 @@ def install_rc_runtime_artifact(
     family: str,
     artifact: Path,
     *,
+    expected_artifact_sha256: str,
     runtime_root: Path,
     cache_root: Path,
 ) -> dict[str, object]:
     if family not in {"whisper", "qwen"}:
         raise RcRuntimeArtifactError("RC_RUNTIME_FAMILY_INVALID")
+    source = _verify_actions_artifact(artifact, expected_artifact_sha256)
     runtime_root.resolve().mkdir(parents=True, exist_ok=True)
     cache_root.resolve().mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"tda-{family}-artifact-", dir=cache_root.resolve()) as value:
-        extracted = _extract_actions_artifact(artifact, Path(value))
+        extracted = _extract_actions_artifact(source, Path(value))
         if family == "whisper":
             return _install_whisper(extracted, runtime_root.resolve())
         return _install_qwen(extracted, runtime_root.resolve(), cache_root.resolve())
