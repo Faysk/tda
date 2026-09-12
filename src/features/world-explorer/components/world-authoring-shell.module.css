@@ -1,15 +1,26 @@
 .active {
 	grid-template-columns: minmax(0, 1fr) 0;
-	min-height: 100dvh;
+	height: 100dvh;
+	min-height: 0;
 	border-block: 0;
 	background:
 		radial-gradient(circle at 50% 28%, var(--ds-ambient-cool), transparent 42%),
 		var(--ds-canvas);
+	overflow: hidden;
 }
 
 .active .canvasColumn {
-	min-height: 100dvh;
+	display: flex;
+	height: 100dvh;
+	min-height: 0;
+	min-width: 0;
+	flex-direction: column;
 	padding: clamp(8px, 0.7vw, 12px);
+	overflow: hidden;
+}
+
+.active .canvasColumn:not(:has(> :global([data-testid="world-canvas"]))) {
+	overflow: auto;
 }
 
 .active .editorialHeader {
@@ -17,13 +28,19 @@
 }
 
 .active .publicChrome {
+	flex: 0 0 auto;
 	min-width: 0;
 }
 
 .active :global([data-testid="world-canvas"]) {
-	height: calc(100dvh - 164px);
-	min-height: 520px;
+	flex: 1 1 0;
+	height: auto;
+	min-height: 0;
 	border-radius: var(--ds-radius-md);
+}
+
+.active .canvasColumn:has(> :global([data-testid="world-canvas"])) > section[aria-labelledby="world-relations-title"] {
+	display: none;
 }
 
 .active .inspector {
@@ -35,6 +52,22 @@
 	background: transparent;
 	box-shadow: none;
 	overflow: visible;
+}
+
+.active[data-world-inspector-mode="closed"] .inspector button[aria-label="Abrir painel de detalhes"] {
+	position: fixed;
+	top: 50%;
+	right: 0;
+	left: auto;
+	z-index: 60;
+	width: 42px;
+	height: 76px;
+	border-right: 0;
+	border-radius: var(--ds-radius-md) 0 0 var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
+	box-shadow: -8px 10px 32px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
+	backdrop-filter: blur(14px) saturate(108%);
+	transform: translateY(-50%);
 }
 
 .active[data-world-inspector-mode="overlay"] .inspector {
@@ -76,8 +109,9 @@
 }
 
 .focusMode :global([data-testid="world-canvas"]) {
-	height: 100dvh;
-	min-height: 100dvh;
+	flex: 1 1 0;
+	height: auto;
+	min-height: 0;
 	border: 0;
 	border-radius: 0;
 	box-shadow: none;
@@ -94,13 +128,18 @@
 	pointer-events: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
+	.active[data-world-inspector-mode="closed"] .inspector button[aria-label="Abrir painel de detalhes"]:hover {
+		border-color: var(--ds-accent);
+		background: var(--ds-surface-hover);
+		color: var(--ds-accent-strong);
+		transform: translateY(-50%) translateX(-2px);
+	}
+}
+
 @media (min-width: 1920px) {
 	.active .canvasColumn {
 		padding: 10px 14px 14px;
-	}
-
-	.active :global([data-testid="world-canvas"]) {
-		height: calc(100dvh - 168px);
 	}
 }
 
@@ -119,12 +158,13 @@
 	.active,
 	.active[data-world-inspector-mode="overlay"] {
 		display: block;
-		min-height: 100dvh;
+		height: 100dvh;
+		min-height: 0;
 	}
 
-	.active :global([data-testid="world-canvas"]) {
-		height: calc(100dvh - 176px);
-		min-height: 480px;
+	.active .canvasColumn {
+		height: 100dvh;
+		min-height: 0;
 	}
 
 	.active[data-world-inspector-mode="overlay"] .inspector {
@@ -145,23 +185,19 @@
 		padding: 7px;
 	}
 
-	.active :global([data-testid="world-canvas"]) {
-		height: calc(100dvh - 190px);
-		min-height: 430px;
-	}
-
 	.focusMode .canvasColumn {
 		padding: 0;
 	}
 
-	.focusMode :global([data-testid="world-canvas"]) {
-		height: 100dvh;
-		min-height: 100dvh;
+	.active[data-world-inspector-mode="closed"] .inspector button[aria-label="Abrir painel de detalhes"] {
+		width: 40px;
+		height: 64px;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.active .inspector,
+	.active[data-world-inspector-mode="closed"] .inspector button[aria-label="Abrir painel de detalhes"],
 	:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [aria-controls="world-workspace-navigation"],
 	:global([data-world-workspace-root]:has([data-world-focus-mode="true"])) [data-world-utility-controls] {
 		transition: none;

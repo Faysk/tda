@@ -2,8 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PublicLink as Link } from "@/components/public-link";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
 	WorldWorkspaceControlsContext,
 	type WorldWorkspaceControls,
@@ -18,6 +16,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
+	const [siteHeaderOpen, setSiteHeaderOpen] = useState(false);
 	const [authoringActive, setAuthoringActiveState] = useState(false);
 	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
@@ -32,6 +31,10 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		syncNavigationToViewport();
 		desktop.addEventListener("change", syncNavigationToViewport);
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
+	}, [authoringActive]);
+
+	useEffect(() => {
+		if (authoringActive) setSiteHeaderOpen(false);
 	}, [authoringActive]);
 
 	const closeNavigation = useCallback(() => {
@@ -99,21 +102,19 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		<div className={styles.navigationInner}>
 			<div className={styles.navigationHeader}>
 				<WorldNavigationIntro />
-				<button
-					ref={navigationCloseRef}
-					type="button"
-					className={styles.closeNavigation}
-					onClick={closeNavigation}
-					aria-label="Recolher navegação do mundo"
-				>
-					×
-				</button>
+				<div className={styles.navigationHeaderActions}>
+					<button
+						ref={navigationCloseRef}
+						type="button"
+						className={styles.closeNavigation}
+						onClick={closeNavigation}
+						aria-label="Recolher navegação do mundo"
+					>
+						×
+					</button>
+				</div>
 			</div>
 			<WorldNavigation pathname={pathname} />
-			<Link className={styles.homeLink} href="/">
-				<span aria-hidden="true">←</span>
-				Voltar ao início
-			</Link>
 		</div>
 	);
 
@@ -123,6 +124,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
 				data-world-workspace-root
 				data-world-navigation={navigationOpen ? "open" : "closed"}
+				data-world-site-header={siteHeaderOpen ? "open" : "closed"}
 				data-world-authoring={authoringActive ? "active" : "inactive"}
 				data-testid="world-workspace"
 			>
@@ -164,6 +166,19 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					tabIndex={-1}
 				/>
 
+				{!authoringActive ? (
+					<button
+						type="button"
+						className={styles.topNavigationToggle}
+						onClick={() => setSiteHeaderOpen((value) => !value)}
+						aria-expanded={siteHeaderOpen}
+						aria-label={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
+						title={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
+					>
+						<span aria-hidden="true">{siteHeaderOpen ? "⌃" : "⌄"}</span>
+					</button>
+				) : null}
+
 				<section
 					className={styles.stage}
 					data-testid="world-workspace-stage"
@@ -184,9 +199,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 						<span aria-hidden="true">{navigationOpen ? "‹" : "☰"}</span>
 						<span>{navigationOpen ? "Recolher" : "Explorar universo"}</span>
 					</button>
-					<div className={styles.utilityControls} data-world-utility-controls>
-						<ThemeToggle />
-					</div>
 					{children}
 				</section>
 			</div>

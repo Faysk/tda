@@ -128,7 +128,7 @@ test("World Explorer explains an empty search and recovers when the query is cle
 	const canvas = page.getByTestId("world-canvas");
 
 	await search.fill("memoria-que-nao-existe");
-	await expect(page.getByText("Nenhuma relação visível para os filtros atuais.")).toBeVisible();
+	await expect(page.getByText("Nenhuma relação visível para os filtros atuais.")).toBeHidden();
 	await expect.poll(() =>
 		canvas.evaluate((element) => getComputedStyle(element, "::after").content),
 	).toContain("Nenhum resultado visível");
@@ -143,7 +143,6 @@ test("World Explorer explains an empty search and recovers when the query is cle
 test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
 	await page.goto("/mundo");
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
-	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
 	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
 
 	await relationTrigger.click();
@@ -160,11 +159,17 @@ test("World Explorer relation select follows the real theme toggle and never fal
 	expect(firstPaint.borderWidth).not.toBe("0px");
 	expect(firstPaint.borderRadius).not.toBe("0px");
 	await page.keyboard.press("Escape");
+	await expect(listbox).toBeHidden();
 
+	await page.getByRole("button", { name: "Mostrar menu principal" }).click();
+	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
+	await expect(themeToggle).toBeVisible();
 	const wasDark = await themeToggle.getAttribute("aria-checked");
 	await themeToggle.click();
 	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
 	await page.waitForTimeout(800);
+	await page.getByRole("button", { name: "Ocultar menu principal" }).click();
+	await expect(page.locator(".site-header")).toBeHidden();
 
 	await relationTrigger.click();
 	await expect(listbox).toBeVisible();
