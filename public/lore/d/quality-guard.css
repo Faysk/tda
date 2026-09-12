@@ -1,6 +1,5 @@
-/* High-resolution display guard for D artwork.
-   HQ masters may use the larger presentation below. Stable fallback assets are
-   deliberately capped to their 320x480 native detail budget to avoid blur. */
+/* D canonical artwork is 1024x1536. Keep every presentation inside that
+   natural pixel budget so CSS never invents detail that is not in the master. */
 
 @media (min-width: 981px) {
   .hero-art {
@@ -18,22 +17,24 @@
   .image-frame img {
     width: auto;
     height: auto;
-    max-width: 100%;
-    max-height: 760px;
+    max-width: min(100%, 760px);
+    max-height: 1140px;
     margin-inline: auto;
   }
 
   .purpose-art img {
     width: auto;
     height: auto;
-    max-width: 100%;
-    max-height: 900px;
+    max-width: min(100%, 760px);
+    max-height: 1140px;
     margin-inline: auto;
   }
 
   .image-button img {
     width: 100%;
     height: 100%;
+    max-width: 1024px;
+    max-height: 1536px;
     object-fit: contain;
   }
 
@@ -68,39 +69,22 @@
     width: auto;
     height: auto;
     max-width: min(100%, 640px);
-    max-height: min(70vh, 760px);
+    max-height: min(70vh, 960px);
     margin-inline: auto;
   }
 
   .image-button img {
     width: 100%;
     height: 100%;
+    max-width: 1024px;
+    max-height: 1536px;
     object-fit: contain;
   }
 
   .lightbox img {
     width: auto;
     height: auto;
-    max-width: 92vw;
-    max-height: 88vh;
+    max-width: min(92vw, 1024px);
+    max-height: min(88vh, 1536px);
   }
-}
-
-/* If the browser rejects the HQ AVIF payload, the JS switches to the known-good
-   legacy artwork. Never enlarge those fallback rasters beyond 320x480. */
-.hero-art img[data-artwork-quality="fallback"],
-.image-frame img[data-artwork-quality="fallback"],
-.purpose-art img[data-artwork-quality="fallback"],
-.image-button img[data-artwork-quality="fallback"] {
-  width: auto !important;
-  height: auto !important;
-  max-width: min(100%, 320px) !important;
-  max-height: 480px !important;
-  object-fit: contain;
-  margin-inline: auto;
-}
-
-.image-button[data-artwork-quality="fallback"] {
-  display: grid;
-  place-items: center;
 }
