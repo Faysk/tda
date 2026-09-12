@@ -4,6 +4,39 @@
   let lastSnapshot = null;
   let allLogs = [];
   let refreshTimer = null;
+  let selectedSession = null;
+  let profileState = [];
+  let selectedProfileId = null;
+  let processBusy = false;
+  let submittedJobId = null;
+
+  const FRIENDLY_ERRORS = {
+    CRAIG_FILE_PICKER_UNAVAILABLE: "O seletor de arquivos do Windows não está disponível.",
+    CRAIG_ZIP_REQUIRED: "Selecione o ZIP original do Craig.",
+    CRAIG_ARCHIVE_INVALID: "O arquivo selecionado não é um ZIP Craig válido.",
+    CRAIG_ARCHIVE_NO_TRACKS: "O ZIP não contém faixas FLAC do Craig.",
+    CRAIG_SOURCE_CHANGED: "O arquivo mudou enquanto era lido. Selecione-o novamente.",
+    CRAIG_UPLOAD_SIZE_LIMIT: "A sessão excede o limite local de tamanho.",
+    TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB: "Espere o trabalho atual terminar antes de preparar outro perfil.",
+    RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB: "O runtime não pode ser alterado enquanto há um trabalho em execução.",
+    QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen ainda não está disponível.",
+    QWEN_RUNTIME_LONG_GATE_REQUIRED: "O runtime Qwen instalado é antigo e precisa ser atualizado.",
+    QWEN_CUDA_UNAVAILABLE: "O Qwen não encontrou CUDA disponível nesta máquina.",
+    QWEN_ACCEPTANCE_AUDIO_TOO_SHORT: "Nenhuma faixa possui 180 segundos úteis para validar o Qwen.",
+    QWEN_ACCEPTANCE_NO_SPEECH_RECOGNIZED: "A amostra escolhida não teve fala suficiente. Tente outra sessão.",
+    QWEN_MODEL_DOWNLOAD_FAILED: "Não foi possível baixar o modelo Qwen.",
+    QWEN_MODEL_REPAIR_REQUIRED: "O modelo Qwen local precisa de reparo.",
+    QWEN_ALIGNER_REPAIR_REQUIRED: "O alinhador Qwen local precisa de reparo.",
+    QWEN_MODEL_NOT_GPU_RESIDENT: "O modelo Qwen não coube integralmente na GPU.",
+    QWEN_ALIGNER_NOT_GPU_RESIDENT: "O alinhador Qwen não coube integralmente na GPU.",
+    QWEN_ACCEPTANCE_GPU_NAME_MISMATCH: "O gate físico não foi executado na RTX 4070 esperada.",
+  };
+
+  function errorText(error) {
+    const raw = String(error || "Erro desconhecido");
+    const code = raw.replace(/^Error:\s*/, "").trim();
+    return FRIENDLY_ERRORS[code] || code;
+  }
 
   function toast(message, error = false) {
     const node = $("toast");
@@ -11,7 +44,7 @@
     node.classList.toggle("error", error);
     node.classList.add("show");
     window.clearTimeout(node._timer);
-    node._timer = window.setTimeout(() => node.classList.remove("show"), 3200);
+    node._timer = window.setTimeout(() => node.classList.remove("show"), 3600);
   }
 
   function formatBytes(value) {
@@ -19,7 +52,10 @@
     const units = ["B", "KB", "MB", "GB", "TB"];
     let amount = value;
     let unit = 0;
-    while (amount >= 1024 && unit < units.length - 1) { amount /= 1024; unit += 1; }
+    while (amount >= 1024 && unit < units.length - 1) {
+      amount /= 1024;
+      unit += 1;
+    }
     const digits = unit >= 3 ? 1 : 0;
     return `${amount.toFixed(digits)} ${units[unit]}`;
   }
@@ -50,13 +86,27 @@
     if (name === "logs") refreshLogs();
   }
 
+  function setProcessStatus(title, detail, state = "waiting") {
+    $("process-status-title").textContent = title;
+    $("process-status-detail").textContent = detail;
+    const pill = $("process-state-pill");
+    pill.classList.remove("success", "warning");
+    if (state === "success") pill.classList.add("success");
+    if (state === "warning" || state === "busy") pill.classList.add("warning");
+    pill.textContent = state === "success" ? "Pronto" : state === "busy" ? "Processando" : state === "warning" ? "Atenção" : "Aguardando sessão";
+  }
+
   function renderLogRows(target, rows, compact = false) {
     target.replaceChildren();
     const query = ($("log-search")?.value || "").trim().toLocaleLowerCase("pt-BR");
-    const visible = compact ? rows.slice(-8) : rows.filter((row) => {
-      if (!query) return true;
-      return `${row.code || ""} ${row.component || ""} ${row.message || ""}`.toLocaleLowerCase("pt-BR").includes(query);
-    });
+    const visible = compact
+      ? rows.slice(-8)
+      : rows.filter((row) => {
+          if (!query) return true;
+          return `${row.code || ""} ${row.component || ""} ${row.message || ""}`
+            .toLocaleLowerCase("pt-BR")
+            .includes(query);
+        });
     if (!visible.length) {
       const empty = document.createElement("div");
       empty.className = "log-row";
@@ -70,10 +120,18 @@
     visible.forEach((row) => {
       const line = document.createElement("div");
       line.className = "log-row";
-      const stamp = document.createElement("span"); stamp.className = "log-time"; stamp.textContent = timeOnly(row.at);
-      const level = document.createElement("span"); level.className = `log-level ${row.level || "info"}`; level.textContent = row.level || "info";
-      const component = document.createElement("span"); component.className = "log-component"; component.textContent = row.component || "agent";
-      const message = document.createElement("span"); message.className = "log-message"; message.textContent = row.message || row.code || "Evento";
+      const stamp = document.createElement("span");
+      stamp.className = "log-time";
+      stamp.textContent = timeOnly(row.at);
+      const level = document.createElement("span");
+      level.className = `log-level ${row.level || "info"}`;
+      level.textContent = row.level || "info";
+      const component = document.createElement("span");
+      component.className = "log-component";
+      component.textContent = row.component || "agent";
+      const message = document.createElement("span");
+      message.className = "log-message";
+      message.textContent = row.message || row.code || "Evento";
       line.append(stamp, level, component, message);
       target.append(line);
     });
@@ -87,33 +145,281 @@
     const feedback = $("whisper-runtime-feedback");
     const install = $("install-whisper-runtime");
 
-    if (status === "ready") {
-      detail.textContent = `Whisper runtime${current ? ` v${current}` : ""} instalado e íntegro.`;
-    } else if (status === "corrupt") {
-      detail.textContent = `Runtime Whisper${current ? ` v${current}` : ""} precisa de reparo.`;
-    } else {
-      detail.textContent = "Runtime Whisper ainda não instalado.";
-    }
+    if (status === "ready") detail.textContent = `Whisper runtime${current ? ` v${current}` : ""} instalado e íntegro.`;
+    else if (status === "corrupt") detail.textContent = `Runtime Whisper${current ? ` v${current}` : ""} precisa de reparo.`;
+    else detail.textContent = "Runtime Whisper ainda não instalado.";
 
     if (!checkedRemote) {
       install.classList.add("hidden");
-      feedback.textContent = "CUDA, cuBLAS e cuDNN ficam contidos no runtime local; o Companion não altera o PATH global.";
-      return;
-    }
-
-    if (result?.repair_required) {
-      install.classList.add("hidden");
-      feedback.textContent = "A versão atual falhou na verificação de integridade. Use o diagnóstico antes de reinstalar.";
+      feedback.textContent = "Runtime isolado; não altera o PATH global.";
       return;
     }
 
     const available = Boolean(result?.available);
     install.classList.toggle("hidden", !available);
     if (available) {
-      install.textContent = status === "ready" ? `Atualizar runtime para ${result.version}` : `Instalar runtime ${result.version}`;
-      feedback.textContent = `Pacote verificado disponível · ${formatBytes(result.size)} · v${result.version}`;
+      install.textContent = status === "ready" ? `Atualizar para ${result.version}` : `Instalar ${result.version}`;
+      feedback.textContent = `Pacote verificado · ${formatBytes(result.size)} · v${result.version}`;
     } else {
-      feedback.textContent = status === "ready" ? "Runtime Whisper já está na versão estável mais recente." : "Nenhum runtime estável disponível neste momento.";
+      feedback.textContent = status === "ready" ? "Whisper já está na versão estável mais recente." : "Nenhum runtime Whisper estável disponível.";
+    }
+  }
+
+  function renderQwenRuntime(result, checkedRemote = false) {
+    const status = result?.status || "missing";
+    const current = result?.current_version || result?.installed_version || result?.version || null;
+    const detail = $("qwen-runtime-detail");
+    const feedback = $("qwen-runtime-feedback");
+    const install = $("install-qwen-runtime");
+
+    if (status === "ready") detail.textContent = `Qwen runtime${current ? ` v${current}` : ""} instalado e íntegro.`;
+    else if (status === "corrupt") detail.textContent = `Runtime Qwen${current ? ` v${current}` : ""} precisa de reparo.`;
+    else detail.textContent = "Runtime Qwen ainda não instalado.";
+
+    if (!checkedRemote) {
+      install.classList.add("hidden");
+      feedback.textContent = "O gate físico e os modelos são preparados quando você escolher um perfil Qwen.";
+      return;
+    }
+
+    const available = Boolean(result?.available);
+    install.classList.toggle("hidden", !available);
+    if (available) {
+      install.textContent = status === "ready" ? `Atualizar para ${result.version}` : `Instalar ${result.version}`;
+      const parts = typeof result.part_count === "number" ? ` · ${result.part_count} parte(s)` : "";
+      feedback.textContent = `Pacote verificado · ${formatBytes(result.size)}${parts} · v${result.version}`;
+    } else {
+      feedback.textContent = status === "ready" ? "Qwen já está na versão estável mais recente." : "Nenhum runtime Qwen estável disponível.";
+    }
+  }
+
+  function profileById(profileId) {
+    return profileState.find((profile) => profile.id === profileId) || null;
+  }
+
+  function updateProcessControls() {
+    const button = $("start-processing");
+    if (!selectedSession) {
+      button.disabled = true;
+      button.textContent = "Preparar e processar";
+      if (!processBusy) setProcessStatus("Selecione uma sessão para começar.", "O arquivo é processado localmente neste computador.");
+      return;
+    }
+    const profile = profileById(selectedProfileId);
+    if (!profile) {
+      button.disabled = true;
+      button.textContent = "Escolha a qualidade";
+      if (!processBusy) setProcessStatus("Escolha a qualidade da transcrição.", "O perfil recomendado prioriza precisão para sessões importantes.");
+      return;
+    }
+    button.disabled = processBusy;
+    button.textContent = profile.ready ? "Processar sessão" : "Preparar e processar";
+    if (!processBusy && !submittedJobId) {
+      if (profile.ready) setProcessStatus("Tudo pronto para processar.", `${profile.label} está disponível nesta máquina.`, "success");
+      else setProcessStatus("O perfil será preparado no primeiro uso.", "Runtime, modelo e validações necessárias serão executados antes do job.", "warning");
+    }
+  }
+
+  function renderSession(session) {
+    selectedSession = session;
+    submittedJobId = null;
+    const empty = $("source-empty");
+    const summary = $("session-summary");
+    const tracks = $("track-list");
+    tracks.replaceChildren();
+
+    if (!session) {
+      empty.classList.remove("hidden");
+      summary.classList.add("hidden");
+      profileState = [];
+      selectedProfileId = null;
+      $("profile-list").innerHTML = '<div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>';
+      updateProcessControls();
+      return;
+    }
+
+    empty.classList.add("hidden");
+    summary.classList.remove("hidden");
+    $("session-name").textContent = session.source_name || "Sessão Craig";
+    const metadata = [formatBytes(session.size_bytes), session.guild, session.channel, session.recording_id ? `gravação ${session.recording_id}` : null].filter(Boolean);
+    $("session-meta").textContent = metadata.join(" · ") || "ZIP Craig validado";
+    $("session-track-count").textContent = `${session.track_count || 0} faixa(s)`;
+
+    (Array.isArray(session.tracks) ? session.tracks : []).forEach((track) => {
+      const row = document.createElement("div");
+      row.className = "track-row";
+      row.setAttribute("role", "listitem");
+      const number = document.createElement("span");
+      number.className = "track-number";
+      number.textContent = `#${track.number ?? "—"}`;
+      const speaker = document.createElement("span");
+      speaker.className = "track-speaker";
+      speaker.textContent = track.speaker || "Participante";
+      const size = document.createElement("span");
+      size.className = "track-size";
+      size.textContent = formatBytes(track.size_bytes);
+      row.append(number, speaker, size);
+      tracks.append(row);
+    });
+    setProcessStatus("Sessão validada.", `${session.track_count || 0} faixa(s) encontradas. Verificando perfis disponíveis…`, "busy");
+  }
+
+  function renderProfiles(result) {
+    profileState = Array.isArray(result?.profiles) ? result.profiles : [];
+    const target = $("profile-list");
+    target.replaceChildren();
+    if (!profileState.length) {
+      const empty = document.createElement("div");
+      empty.className = "profile-loading";
+      empty.textContent = "Nenhum perfil de transcrição disponível.";
+      target.append(empty);
+      selectedProfileId = null;
+      updateProcessControls();
+      return;
+    }
+
+    const preferred = profileState.some((profile) => profile.id === selectedProfileId)
+      ? selectedProfileId
+      : result?.recommended || profileState[0].id;
+    selectedProfileId = preferred;
+
+    profileState.forEach((profile) => {
+      const label = document.createElement("label");
+      label.className = "profile-option";
+      label.classList.toggle("selected", profile.id === selectedProfileId);
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "transcription-profile";
+      input.value = profile.id;
+      input.checked = profile.id === selectedProfileId;
+      input.addEventListener("change", () => {
+        selectedProfileId = profile.id;
+        document.querySelectorAll(".profile-option").forEach((node) => node.classList.remove("selected"));
+        label.classList.add("selected");
+        submittedJobId = null;
+        updateProcessControls();
+      });
+
+      const copy = document.createElement("div");
+      copy.className = "profile-copy";
+      const title = document.createElement("strong");
+      title.textContent = profile.label || profile.id;
+      if (profile.recommended) {
+        const tag = document.createElement("em");
+        tag.className = "recommended-tag";
+        tag.textContent = "Recomendado";
+        title.append(tag);
+      }
+      const description = document.createElement("span");
+      description.textContent = profile.description || "Perfil local de transcrição.";
+      copy.append(title, description);
+
+      const readiness = document.createElement("span");
+      readiness.className = `profile-readiness${profile.ready ? "" : " prepare"}`;
+      readiness.textContent = profile.ready ? "Pronto" : "Preparar no primeiro uso";
+      label.append(input, copy, readiness);
+      target.append(label);
+    });
+    updateProcessControls();
+  }
+
+  async function refreshProfiles() {
+    if (!api || !selectedSession) return;
+    const result = await api.transcription_profiles();
+    renderProfiles(result);
+  }
+
+  async function selectCraigSession() {
+    if (!api || processBusy) return;
+    const button = $("select-craig");
+    button.disabled = true;
+    button.textContent = "Validando…";
+    setProcessStatus("Validando sessão…", "O Companion está conferindo o ZIP e as faixas localmente.", "busy");
+    try {
+      const result = await api.select_craig_session();
+      if (!result?.selected) {
+        if (!selectedSession) setProcessStatus("Nenhuma sessão selecionada.", "Escolha o ZIP multitrack original do Craig.");
+        return;
+      }
+      renderSession(result);
+      await refreshProfiles();
+      toast(`${result.source_name || "Sessão"} pronta para configurar.`);
+    } catch (error) {
+      setProcessStatus("Não foi possível usar esse ZIP.", errorText(error), "warning");
+      toast(`Sessão rejeitada: ${errorText(error)}`, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = selectedSession ? "Trocar ZIP" : "Selecionar ZIP";
+    }
+  }
+
+  async function startProcessing() {
+    if (!api || processBusy || !selectedSession || !selectedProfileId) return;
+    processBusy = true;
+    submittedJobId = null;
+    updateProcessControls();
+    const profileId = selectedProfileId;
+    let profile = profileById(profileId);
+    try {
+      if (!profile?.ready) {
+        setProcessStatus(`Preparando ${profile?.label || profileId}…`, profile?.engine === "qwen3" ? "O primeiro uso pode baixar vários GB e executará um gate real de 180 s na GPU." : "O runtime será baixado e verificado antes de criar o job.", "busy");
+        const prepared = await api.prepare_transcription_profile(selectedSession.source_id, profileId);
+        const gpuDetail = prepared?.gpu_name ? ` Gate aprovado em ${prepared.gpu_name}.` : "";
+        setProcessStatus("Preparação concluída.", `Perfil validado.${gpuDetail}`, "success");
+        await refreshProfiles();
+        profile = profileById(profileId);
+        if (!profile?.ready) throw new Error("TRANSCRIPTION_PROFILE_NOT_READY");
+      }
+
+      setProcessStatus("Enviando para a fila local…", "Criando o job canônico do Agent.", "busy");
+      const result = await api.start_craig_transcription(
+        selectedSession.source_id,
+        profileId,
+        $("session-glossary").value || "",
+        $("session-context").value || "",
+      );
+      submittedJobId = result?.id || null;
+      const status = result?.status || "queued";
+      setProcessStatus(
+        status === "running" ? "Transcrição iniciada." : "Sessão adicionada à fila.",
+        submittedJobId ? `Job ${submittedJobId} · ${profile?.label || profileId}` : `${profile?.label || profileId} · aguardando o Agent`,
+        "busy",
+      );
+      toast("Sessão entregue ao processamento local.");
+      await refreshSnapshot();
+    } catch (error) {
+      submittedJobId = null;
+      setProcessStatus("Não foi possível iniciar o processamento.", errorText(error), "warning");
+      toast(`Processamento não iniciado: ${errorText(error)}`, true);
+    } finally {
+      processBusy = false;
+      updateProcessControls();
+    }
+  }
+
+  function renderSubmittedJob(snapshot) {
+    if (!submittedJobId || processBusy) return;
+    const job = (snapshot.jobs || []).find((item) => item.id === submittedJobId);
+    if (!job) return;
+    const progress = job.progress || {};
+    if (job.status === "queued") {
+      setProcessStatus("Sessão na fila local.", "O Agent iniciará assim que o slot de processamento estiver livre.", "busy");
+      return;
+    }
+    if (job.status === "running") {
+      const detail = typeof progress.completed === "number"
+        ? `${progress.completed} de ${progress.total ?? "—"} ${progress.unit || "itens"}`
+        : "O worker está processando as faixas da sessão.";
+      setProcessStatus("Transcrição em andamento.", detail, "busy");
+      return;
+    }
+    if (job.status === "succeeded") {
+      setProcessStatus("Transcrição concluída.", "O resultado local está pronto para o fluxo seguinte do TDA.", "success");
+      return;
+    }
+    if (job.status === "failed" || job.status === "interrupted") {
+      setProcessStatus("O processamento precisa de atenção.", job.error?.code || "Consulte os logs técnicos para detalhes.", "warning");
     }
   }
 
@@ -164,7 +470,7 @@
       summary.querySelector("p").textContent = `${active.kind || "Trabalho local"} · ${progress.completed ?? 0} de ${progress.total ?? "—"} ${progress.unit || "itens"}`;
     } else {
       summary.querySelector("h3").textContent = "Nenhum processamento em andamento.";
-      summary.querySelector("p").textContent = counts.queued ? `${counts.queued} trabalho(s) aguardando na fila.` : "A fila está livre. Envie um novo trabalho pelo site do TDA quando quiser processar uma sessão.";
+      summary.querySelector("p").textContent = counts.queued ? `${counts.queued} trabalho(s) aguardando na fila.` : "A fila está livre. Selecione um ZIP do Craig para iniciar uma transcrição local.";
     }
 
     const settings = value.settings || {};
@@ -174,13 +480,14 @@
     $("setting-theme").value = settings.theme || "system";
     $("setting-close").value = settings.close_behavior || "hide";
     renderWhisperRuntime(value.whisper_runtime || { status: "missing" }, false);
+    renderQwenRuntime(value.qwen_runtime || { status: "missing" }, false);
+    renderSubmittedJob(value);
   }
 
   async function refreshSnapshot() {
     if (!api) return;
     try {
-      const value = await api.snapshot();
-      renderSnapshot(value);
+      renderSnapshot(await api.snapshot());
     } catch {
       $("agent-pill").textContent = "● Agente indisponível";
       $("agent-pill").classList.add("warning");
@@ -196,7 +503,7 @@
       renderLogRows($("full-logs"), allLogs, false);
       renderLogRows($("overview-logs"), allLogs, true);
     } catch (error) {
-      toast(`Não foi possível ler os logs: ${error}`, true);
+      toast(`Não foi possível ler os logs: ${errorText(error)}`, true);
     }
   }
 
@@ -215,49 +522,68 @@
       renderUpdate(result);
       if (announce) toast(result.available ? `TDA Companion ${result.version} disponível.` : "Você já está na versão mais recente.");
     } catch (error) {
-      if (announce) toast(`Não foi possível verificar atualização: ${error}`, true);
+      if (announce) toast(`Não foi possível verificar atualização: ${errorText(error)}`, true);
     }
   }
 
   async function checkWhisperRuntime(announce = false) {
-    if (!api) return;
     const button = $("check-whisper-runtime");
     button.disabled = true;
     try {
       const result = await api.check_whisper_runtime();
       renderWhisperRuntime(result, true);
-      if (announce) {
-        const message = result.repair_required
-          ? "O runtime Whisper precisa de reparo."
-          : result.available
-            ? `Whisper runtime ${result.version} disponível.`
-            : "Runtime Whisper já está atualizado.";
-        toast(message, Boolean(result.repair_required));
-      }
+      if (announce) toast(result.available ? `Whisper runtime ${result.version} disponível.` : "Runtime Whisper já está atualizado.");
     } catch (error) {
-      if (announce) toast(`Não foi possível verificar o runtime: ${error}`, true);
+      if (announce) toast(`Não foi possível verificar o Whisper: ${errorText(error)}`, true);
     } finally {
       button.disabled = false;
     }
   }
 
   async function installWhisperRuntime() {
-    if (!window.confirm("Baixar e instalar o runtime Whisper isolado? O pacote é grande e a instalação é bloqueada enquanto houver trabalho em execução.")) return;
+    if (!window.confirm("Baixar e instalar o runtime Whisper isolado?")) return;
     const button = $("install-whisper-runtime");
     button.disabled = true;
     button.textContent = "Baixando e verificando…";
     try {
       const result = await api.install_whisper_runtime();
-      if (!result.accepted) {
-        toast("Runtime Whisper já está atualizado.");
-      } else {
-        toast(`Whisper runtime ${result.version} instalado e verificado.`);
-      }
+      toast(result.accepted ? `Whisper runtime ${result.version} instalado e verificado.` : "Runtime Whisper já está atualizado.");
       await refreshSnapshot();
       await checkWhisperRuntime(false);
     } catch (error) {
-      toast(`O runtime não foi instalado: ${error}`, true);
-      await checkWhisperRuntime(false);
+      toast(`O runtime Whisper não foi instalado: ${errorText(error)}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function checkQwenRuntime(announce = false) {
+    const button = $("check-qwen-runtime");
+    button.disabled = true;
+    try {
+      const result = await api.check_qwen_runtime();
+      renderQwenRuntime(result, true);
+      if (announce) toast(result.available ? `Qwen runtime ${result.version} disponível.` : "Runtime Qwen já está atualizado.");
+    } catch (error) {
+      if (announce) toast(`Não foi possível verificar o Qwen: ${errorText(error)}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function installQwenRuntime() {
+    if (!window.confirm("Baixar e instalar o runtime Qwen isolado? Os modelos e o gate físico serão preparados somente ao processar uma sessão.")) return;
+    const button = $("install-qwen-runtime");
+    button.disabled = true;
+    button.textContent = "Baixando e verificando…";
+    try {
+      const result = await api.install_qwen_runtime();
+      toast(result.accepted ? `Qwen runtime ${result.version} instalado e verificado.` : "Runtime Qwen já está atualizado.");
+      await refreshSnapshot();
+      await checkQwenRuntime(false);
+      if (selectedSession) await refreshProfiles();
+    } catch (error) {
+      toast(`O runtime Qwen não foi instalado: ${errorText(error)}`, true);
     } finally {
       button.disabled = false;
     }
@@ -266,23 +592,39 @@
   function renderDiagnostics(result) {
     $("diagnostic-overall").textContent = result.overall === "pass" ? "Tudo certo" : result.overall === "warning" ? "Atenção recomendada" : "Problema encontrado";
     $("diagnostic-time").textContent = result.generated_at ? new Date(result.generated_at).toLocaleString("pt-BR") : "—";
-    const target = $("diagnostic-list"); target.replaceChildren();
+    const target = $("diagnostic-list");
+    target.replaceChildren();
     (result.checks || []).forEach((check) => {
-      const row = document.createElement("div"); row.className = "diagnostic-row";
-      const dot = document.createElement("i"); dot.className = `diagnostic-status ${check.status || ""}`;
-      const code = document.createElement("b"); code.textContent = check.code || "check";
-      const message = document.createElement("span"); message.textContent = check.message || "—";
-      const detail = document.createElement("small"); detail.textContent = check.detail || check.status || "—";
-      row.append(dot, code, message, detail); target.append(row);
+      const row = document.createElement("div");
+      row.className = "diagnostic-row";
+      const dot = document.createElement("i");
+      dot.className = `diagnostic-status ${check.status || ""}`;
+      const code = document.createElement("b");
+      code.textContent = check.code || "check";
+      const message = document.createElement("span");
+      message.textContent = check.message || "—";
+      const detail = document.createElement("small");
+      detail.textContent = check.detail || check.status || "—";
+      row.append(dot, code, message, detail);
+      target.append(row);
     });
   }
 
   async function runDiagnostics() {
-    try { renderDiagnostics(await api.diagnostics()); } catch (error) { toast(`Diagnóstico falhou: ${error}`, true); }
+    try {
+      renderDiagnostics(await api.diagnostics());
+    } catch (error) {
+      toast(`Diagnóstico falhou: ${errorText(error)}`, true);
+    }
   }
 
   async function updateSetting(key, value) {
-    try { await api.update_settings({ [key]: value }); await refreshSnapshot(); } catch (error) { toast(`Não foi possível salvar: ${error}`, true); }
+    try {
+      await api.update_settings({ [key]: value });
+      await refreshSnapshot();
+    } catch (error) {
+      toast(`Não foi possível salvar: ${errorText(error)}`, true);
+    }
   }
 
   async function installUpdate() {
@@ -300,7 +642,7 @@
       toast(`Atualizando para ${result.version}…`);
       await api.close_desktop();
     } catch (error) {
-      toast(`A atualização não foi iniciada: ${error}`, true);
+      toast(`A atualização não foi iniciada: ${errorText(error)}`, true);
       button.disabled = false;
       await checkUpdate(false);
     }
@@ -319,7 +661,7 @@
         await api.close_desktop();
       }
     } catch (error) {
-      toast(`A desinstalação não foi iniciada: ${error}`, true);
+      toast(`A desinstalação não foi iniciada: ${errorText(error)}`, true);
     }
   }
 
@@ -330,20 +672,42 @@
     document.querySelectorAll("[data-go]").forEach((node) => {
       node.addEventListener("click", () => showView(node.dataset.go));
     });
+    $("new-session").addEventListener("click", () => showView("process"));
+    $("select-craig").addEventListener("click", selectCraigSession);
+    $("start-processing").addEventListener("click", startProcessing);
     $("open-tda").addEventListener("click", () => api.open_tda());
     $("open-local").addEventListener("click", () => api.open_local_folder());
     $("open-logs").addEventListener("click", () => api.open_logs_folder());
     $("toggle-queue").addEventListener("click", async () => {
-      try { await api.set_queue_paused(lastSnapshot?.agent?.lifecycle !== "paused"); await refreshSnapshot(); } catch (error) { toast(`Não foi possível alterar a fila: ${error}`, true); }
+      try {
+        await api.set_queue_paused(lastSnapshot?.agent?.lifecycle !== "paused");
+        await refreshSnapshot();
+      } catch (error) {
+        toast(`Não foi possível alterar a fila: ${errorText(error)}`, true);
+      }
     });
     $("restart-agent").addEventListener("click", async () => {
       if (!window.confirm("Reiniciar o Agent local? A ação é bloqueada se houver trabalho em execução.")) return;
-      try { await api.restart_agent(); toast("Agent reiniciado."); await refreshSnapshot(); } catch (error) { toast(`Não foi possível reiniciar: ${error}`, true); }
+      try {
+        await api.restart_agent();
+        toast("Agent reiniciado.");
+        await refreshSnapshot();
+      } catch (error) {
+        toast(`Não foi possível reiniciar: ${errorText(error)}`, true);
+      }
     });
-    $("quick-diagnostics").addEventListener("click", () => { showView("diagnostics"); runDiagnostics(); });
+    $("quick-diagnostics").addEventListener("click", () => {
+      showView("diagnostics");
+      runDiagnostics();
+    });
     $("run-diagnostics").addEventListener("click", runDiagnostics);
     $("export-diagnostics").addEventListener("click", async () => {
-      try { const path = await api.export_diagnostics(); toast(`Diagnóstico exportado: ${path}`); } catch (error) { toast(`Export falhou: ${error}`, true); }
+      try {
+        const path = await api.export_diagnostics();
+        toast(`Diagnóstico exportado: ${path}`);
+      } catch (error) {
+        toast(`Export falhou: ${errorText(error)}`, true);
+      }
     });
     $("refresh-logs").addEventListener("click", refreshLogs);
     $("log-level").addEventListener("change", refreshLogs);
@@ -358,14 +722,23 @@
         const token = await api.pairing_token();
         await navigator.clipboard.writeText(token);
         $("token-feedback").textContent = "Token copiado";
-        window.setTimeout(() => $("token-feedback").textContent = "", 2200);
-      } catch (error) { toast(`Não foi possível copiar o token: ${error}`, true); }
+        window.setTimeout(() => {
+          $("token-feedback").textContent = "";
+        }, 2200);
+      } catch (error) {
+        toast(`Não foi possível copiar o token: ${errorText(error)}`, true);
+      }
     });
     $("check-whisper-runtime").addEventListener("click", () => checkWhisperRuntime(true));
     $("install-whisper-runtime").addEventListener("click", installWhisperRuntime);
+    $("check-qwen-runtime").addEventListener("click", () => checkQwenRuntime(true));
+    $("install-qwen-runtime").addEventListener("click", installQwenRuntime);
     $("check-update").addEventListener("click", () => checkUpdate(true));
     $("install-update").addEventListener("click", installUpdate);
-    $("update-banner").addEventListener("click", () => { showView("settings"); checkUpdate(true); });
+    $("update-banner").addEventListener("click", () => {
+      showView("settings");
+      checkUpdate(true);
+    });
     $("uninstall-keep").addEventListener("click", () => uninstall(false));
     $("uninstall-purge").addEventListener("click", () => uninstall(true));
   }
@@ -374,11 +747,13 @@
     api = window.pywebview?.api;
     if (!api) return;
     bindEvents();
+    renderSession(null);
     await refreshSnapshot();
     await refreshLogs();
     if (lastSnapshot?.settings?.check_updates) {
       checkUpdate(false);
       checkWhisperRuntime(false);
+      checkQwenRuntime(false);
     }
     refreshTimer = window.setInterval(async () => {
       await refreshSnapshot();
@@ -387,5 +762,7 @@
   }
 
   window.addEventListener("pywebviewready", boot, { once: true });
-  window.addEventListener("beforeunload", () => { if (refreshTimer) window.clearInterval(refreshTimer); });
+  window.addEventListener("beforeunload", () => {
+    if (refreshTimer) window.clearInterval(refreshTimer);
+  });
 })();
