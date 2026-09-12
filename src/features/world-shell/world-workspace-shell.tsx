@@ -60,23 +60,23 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	);
 
 	useEffect(() => {
+		if (!navigationOpen) return;
 		const mobile = window.matchMedia("(max-width: 820px)");
-		if (!navigationOpen || !mobile.matches) return;
+		if (mobile.matches) {
+			window.requestAnimationFrame(() => navigationCloseRef.current?.focus());
+		}
 
-		window.requestAnimationFrame(() => navigationCloseRef.current?.focus());
-
-		const containNavigationFocus = (event: KeyboardEvent) => {
-			if (!mobile.matches) return;
-
+		const manageNavigationFocus = (event: KeyboardEvent) => {
+			const panel = navigationPanelRef.current;
 			if (event.key === "Escape") {
+				if (!mobile.matches && (!panel || !panel.contains(document.activeElement))) return;
 				event.preventDefault();
-				closeNavigation();
+				setNavigationOpen(false);
+				window.requestAnimationFrame(() => navigationToggleRef.current?.focus());
 				return;
 			}
 
-			if (event.key !== "Tab") return;
-			const panel = navigationPanelRef.current;
-			if (!panel) return;
+			if (!mobile.matches || event.key !== "Tab" || !panel) return;
 			const focusable = Array.from(
 				panel.querySelectorAll<HTMLElement>(MOBILE_NAVIGATION_FOCUSABLE),
 			).filter((element) => element.getAttribute("aria-hidden") !== "true");
@@ -94,9 +94,9 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			}
 		};
 
-		document.addEventListener("keydown", containNavigationFocus);
-		return () => document.removeEventListener("keydown", containNavigationFocus);
-	}, [navigationOpen, closeNavigation]);
+		document.addEventListener("keydown", manageNavigationFocus);
+		return () => document.removeEventListener("keydown", manageNavigationFocus);
+	}, [navigationOpen]);
 
 	const navigationIsModal = navigationOpen && mobileNavigation;
 	const navigationContent = (
@@ -172,7 +172,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					<WorldEdgeTab
 						edge="top"
 						expanded={siteHeaderOpen}
-						controls="site-header"
 						label={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
 						onToggle={() => setSiteHeaderOpen((value) => !value)}
 						icon={siteHeaderOpen ? "⌃" : "⌄"}
@@ -186,7 +185,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					controls="world-workspace-navigation"
 					label={navigationOpen ? "Recolher navegação do mundo" : "Explorar universo"}
 					onToggle={() => setNavigationOpen((value) => !value)}
-					icon={navigationOpen ? "‹" : "☰"}
+					icon={navigationOpen ? "‹" : "›"}
 					className={styles.navigationToggle}
 					buttonRef={navigationToggleRef}
 				/>
