@@ -10,29 +10,31 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     environment:
       name: production
     env:
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
-      R2_PRIVATE_BUCKET: ${{ secrets.R2_PRIVATE_BUCKET }}
+      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Verify direct production R2 secret injection without values
+      - name: Link project and verify sensitive production vars through env run
         shell: bash
         run: |
           set -euo pipefail
-          missing=0
-          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
-            value="${!name:-}"
-            if [[ -z "$value" ]]; then
-              echo "DIRECT_SECRET $name missing"
-              missing=1
-            else
-              echo "DIRECT_SECRET $name present length=${#value}"
-            fi
-          done
-          echo "DIRECT_BUCKET public_present=$([[ -n "${R2_PUBLIC_BUCKET:-}" ]] && echo yes || echo no) private_present=$([[ -n "${R2_PRIVATE_BUCKET:-}" ]] && echo yes || echo no)"
-          [[ "$missing" -eq 0 ]] || exit 1
+          npm install --global vercel@59.11.7 >/dev/null 2>&1
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
+          vercel env run -e production --token="$VERCEL_TOKEN" -- bash -c '
+            set -euo pipefail
+            missing=0
+            for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET R2_PRIVATE_BUCKET; do
+              value="${!name:-}"
+              if [[ -z "$value" || "$value" == "[SENSITIVE]" ]]; then
+                echo "ENV_RUN $name unavailable"
+                missing=1
+              else
+                echo "ENV_RUN $name available length=${#value}"
+              fi
+            done
+            [[ "$missing" -eq 0 ]] || exit 1
+          '
