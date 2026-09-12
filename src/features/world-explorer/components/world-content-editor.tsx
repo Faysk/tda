@@ -406,6 +406,12 @@ function EntityEditor({
 							: "Imagem removida do rascunho.",
 					)
 				}
+				onFocalPointChange={(focalPoint) =>
+					onChange(
+						updateNode(draft, entity.id, { primaryMediaFocalPoint: focalPoint }),
+						"Enquadramento da imagem atualizado no rascunho.",
+					)
+				}
 			/>
 			<label>
 				Nome
