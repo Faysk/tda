@@ -28,11 +28,15 @@ Buckets previstos:
 - `tda-media-private` — staging privado em Production;
 - `tda-media-public` — objetos explicitamente promovidos para entrega pública.
 
-Retrato:
+Retrato canônico:
 
 `campaigns/{campaign-slug}/entities/{entity-uuid}/portrait/{sha256}.{ext}`
 
-O `sha256` torna o objeto imutável e permite read-back/integrity checks. O banco guarda a object key e o asset UUID; consumidores públicos não persistem a URL como identidade.
+Upload direto temporário:
+
+`uploads/pending/world-entity/{campaign-slug}/{entity-uuid}/{upload-uuid}/{sha256}.{ext}`
+
+O `sha256` da chave canônica torna o objeto imutável e permite read-back/integrity checks. O banco guarda a object key e o asset UUID; consumidores públicos não persistem a URL como identidade. O namespace `uploads/pending/` não é identidade de asset e deve possuir retenção curta separada dos namespaces canônicos.
 
 ## Modelo candidato
 
@@ -47,9 +51,24 @@ O SQL correspondente vive em `supabase/candidates/` até autorização explícit
 - Browser roles não recebem grants diretos nas tabelas de mídia.
 - Mutação passa por boundary de servidor com autenticação, `campaign.content.edit` e lease válido do World.
 - Um upload deve ser validado por magic bytes, MIME permitido, tamanho, dimensões, hash e read-back antes de virar asset utilizável.
-- Presigned upload, quando habilitado, é bearer capability curta e deve restringir object key e Content-Type; CORS do bucket deve aceitar somente as origins necessárias.
+- Presigned PUT é bearer capability curta, vinculada a uma única pending key e a um `Content-Type`; CORS do bucket deve aceitar somente as origins e headers necessários.
+- O browser nunca recebe presign para a chave canônica do portrait. Mesmo que reutilize a URL enquanto ela estiver válida, consegue sobrescrever somente a pending key descartável; a finalização revalida os bytes antes de criar/reusar o objeto canônico imutável.
+- `Content-Length` e hash declarados pelo cliente não são tratados como prova. A finalização lê o objeto do R2 e confirma magic bytes, MIME real, tamanho e SHA-256.
 - Assets de outra campaign ou outro entity não podem ser associados por troca de UUID.
 - A visibility usada para decidir se o asset precisa estar público vem do `draft_graph` que será publicado, não do estado antigo de `entities`.
+
+## Upload direto para R2
+
+1. O browser calcula SHA-256, MIME esperado e bytes do arquivo local.
+2. `requestWorldEntityPortraitUploadAction(...)` reautoriza `campaign.content.edit` + `campaign.world.layout.edit`, valida lease ativa e confirma que o `entityId` pertence ao draft atual.
+3. O servidor gera `uploadId` aleatório e URL SigV4 `PUT` de 5 minutos para uma pending key única. A assinatura inclui `Content-Type`; nenhuma credencial R2 é enviada ao browser.
+4. O browser envia os bytes diretamente ao R2 com o `Content-Type` assinado.
+5. `finalizeWorldEntityPortraitUploadAction(...)` repete autorização, lease e scope, lê exatamente aquela pending key, inspeciona os bytes e compara SHA-256/MIME/tamanho com o intent.
+6. Somente após essa verificação o servidor grava/reutiliza a chave canônica via `If-None-Match: *`, faz read-back/hash e registra `media_assets` como `staged` + `read_back_verified`.
+7. O asset UUID retornado entra no draft como `primaryMediaAssetId`; upload/finalização por si só não altera `entity_media_bindings` nem publica audiência.
+8. Corrida de finalização reaproveita a identidade existente por `(campaign_id, staged_bucket, object_key)` sem sobrescrever asset verificado ou reativar asset `retired`.
+
+Pending uploads não são apagados de forma síncrona pela finalização porque a própria presigned URL ainda pode ser reutilizada até expirar e recriar o objeto. A limpeza deve ser feita por lifecycle explícito e curto aplicado somente ao prefixo `uploads/pending/`, nunca aos objetos canônicos.
 
 ## Publicação
 
@@ -67,7 +86,7 @@ O inspector de Conduzir terá uma seção `Imagem do elemento` com preview, adic
 
 ## Limites iniciais
 
-PNG e WebP; até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. O pipeline deve favorecer derivados pequenos para node/avatar e não servir o original de vários megabytes como thumbnail.
+PNG e WebP; até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. Presigned PUT expira em 5 minutos. O pipeline deve favorecer derivados pequenos para node/avatar e não servir o original de vários megabytes como thumbnail.
 
 ## Não objetivos desta fase
 
@@ -76,4 +95,5 @@ PNG e WebP; até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. O pipeline d
 - edição destrutiva do original;
 - URLs externas arbitrárias;
 - alteração do modelo de auth/canon/audience;
-- aplicação automática do SQL candidato em Production.
+- aplicação automática do SQL candidato em Production;
+- configurar lifecycle/CORS remoto como efeito colateral de build ou deploy.
