@@ -3,32 +3,43 @@ type SeikaMedia = {
   mime: "image/webp";
 };
 
-const MEDIA: Record<string, SeikaMedia> = {
-  "wide-adult-seika-full.avif": {
+const CANONICAL_MEDIA: Record<string, SeikaMedia> = {
+  "wide-adult-seika-full.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289/wide-adult-seika-full.webp",
     mime: "image/webp",
   },
-  "wide-ami-ritual-full.avif": {
+  "wide-ami-ritual-full.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16/wide-ami-ritual-full.webp",
     mime: "image/webp",
   },
-  "wide-departure-full.avif": {
+  "wide-departure-full.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5/wide-departure-full.webp",
     mime: "image/webp",
   },
-  "wide-first-exorcism-full.avif": {
+  "wide-first-exorcism-full.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9/wide-first-exorcism-full.webp",
     mime: "image/webp",
   },
-  "wide-ink-moon.avif": {
+  "wide-ink-moon.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6/wide-ink-moon.webp",
     mime: "image/webp",
   },
-  "wide-lucky-full.avif": {
+  "wide-lucky-full.webp": {
     url: "https://media.dnd.faysk.dev/lore/seika/a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad/wide-lucky-full.webp",
     mime: "image/webp",
   },
 };
+
+// Keep old .avif aliases only so cached HTML from the previous release does not break.
+// They deliver WebP bytes with the truthful HTTP MIME and should disappear after the
+// compatibility window; all newly rendered Seika markup uses .webp aliases.
+const MEDIA: Record<string, SeikaMedia> = Object.fromEntries([
+  ...Object.entries(CANONICAL_MEDIA),
+  ...Object.entries(CANONICAL_MEDIA).map(([file, media]) => [
+    file.replace(/\.webp$/, ".avif"),
+    media,
+  ]),
+]);
 
 export const revalidate = 86400;
 
@@ -71,7 +82,11 @@ export async function GET(
     return failure(`Media upstream returned ${upstream.status}`);
   }
 
-  const upstreamMime = upstream.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  const upstreamMime = upstream.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
   if (upstreamMime !== media.mime) {
     console.error("Seika media MIME mismatch", {
       file,
@@ -83,11 +98,18 @@ export async function GET(
 
   const headers = new Headers({
     "Content-Type": media.mime,
-    "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    "Cache-Control":
+      "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
     "X-Content-Type-Options": "nosniff",
   });
 
-  for (const name of ["content-length", "content-range", "accept-ranges", "etag", "last-modified"]) {
+  for (const name of [
+    "content-length",
+    "content-range",
+    "accept-ranges",
+    "etag",
+    "last-modified",
+  ]) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
   }
