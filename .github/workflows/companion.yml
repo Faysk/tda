@@ -76,7 +76,7 @@ jobs:
           $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
           ./local-companion/packaging/smoke-windows-lifecycle.ps1 -CurrentMsiPath "local-companion/out/windows/TDACompanion-x64.msi" -CurrentVersion $version
       - name: Upload Windows package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: TDACompanion-windows-x64
           path: |
@@ -109,7 +109,7 @@ jobs:
           fi
       - name: Download validated Windows package
         if: steps.changes.outputs.publish == 'true'
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: TDACompanion-windows-x64
           path: dist
