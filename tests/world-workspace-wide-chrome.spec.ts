@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("wide World workspace keeps its heading semantic while filters float over the canvas", async ({ page }, testInfo) => {
+test("wide World workspace uses one control row and floats filters over the canvas", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Wide workspace contract.");
 	await page.goto("/mundo");
 	const viewport = page.viewportSize();
@@ -8,6 +8,29 @@ test("wide World workspace keeps its heading semantic while filters float over t
 
 	const heading = page.getByRole("heading", { level: 1, name: "Ecos da Jornada" });
 	await expect(heading).toHaveCount(1);
+
+	const search = page.locator("[data-world-search]");
+	const relation = page.locator("[data-world-relation-filter]");
+	const reset = page.locator("[data-world-layout-action]");
+	const viewToggle = page.locator("[data-world-view-toggle]");
+	const rowBoxes = await Promise.all([
+		search.boundingBox(),
+		relation.boundingBox(),
+		reset.boundingBox(),
+		viewToggle.boundingBox(),
+	]);
+	for (const box of rowBoxes) expect(box).not.toBeNull();
+	const rowY = rowBoxes[0]?.y ?? 0;
+	for (const box of rowBoxes.slice(1)) {
+		expect(Math.abs((box?.y ?? rowY) - rowY)).toBeLessThan(3);
+	}
+
+	const conductor = page.getByTestId("world-conductor");
+	if (await conductor.count()) {
+		const conductorBox = await conductor.boundingBox();
+		expect(conductorBox).not.toBeNull();
+		expect(Math.abs((conductorBox?.y ?? rowY) - rowY)).toBeLessThan(3);
+	}
 
 	const canvas = page.getByTestId("world-canvas");
 	const filters = page.getByRole("group", { name: "Filtrar o grafo" });
