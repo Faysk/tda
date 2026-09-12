@@ -366,9 +366,11 @@ export function useWorldEditSession({
 				return;
 			}
 			completePublishedEdit(
-				publishResult.status === "unchanged"
-					? "Nenhuma alteração precisava ser publicada."
-					: "Mundo publicado. Cada pessoa vê somente o que sua visibilidade permite.",
+				publishResult.mediaStatus === "pending"
+					? "Mundo publicado, mas uma imagem ainda não passou pela promoção segura. O retrato publicado anteriormente foi preservado."
+					: publishResult.status === "unchanged"
+						? "Nenhuma alteração precisava ser publicada."
+						: "Mundo publicado. Cada pessoa vê somente o que sua visibilidade permite.",
 			);
 			return;
 		}
