@@ -137,13 +137,14 @@ export function WorldCommandPalette({
 	}
 
 	return (
-		<div
-			className={styles.backdrop}
-			data-world-command-palette-dialog
-			onPointerDown={(event) => {
-				if (event.target === event.currentTarget) onClose();
-			}}
-		>
+		<div className={styles.backdrop} data-world-command-palette-dialog>
+			<button
+				type="button"
+				className={styles.backdropDismiss}
+				tabIndex={-1}
+				onClick={onClose}
+				aria-label="Fechar comandos do Mundo"
+			/>
 			<section
 				ref={paletteRef}
 				className={styles.palette}
