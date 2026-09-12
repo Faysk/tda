@@ -137,10 +137,21 @@ export async function publishWorldEntityMediaDraft({
 
 		if (
 			asset.status === "verified_public" &&
-			worldEntityPublicMediaUrl(asset, {
-				campaignSlug: CAMPAIGN_SLUG,
-				entityId: binding.entityId,
-			})
+			worldEntityPublicMediaUrl(
+				{
+					status: asset.status,
+					publicBucket: asset.public_bucket,
+					publicObjectKey: asset.public_object_key,
+					sha256: asset.sha256,
+					readBackVerified: asset.read_back_verified,
+					publicDeliveryVerified: asset.public_delivery_verified,
+					publicVerifiedAt: asset.public_verified_at,
+				},
+				{
+					campaignSlug: CAMPAIGN_SLUG,
+					entityId: binding.entityId,
+				},
+			)
 		) {
 			continue;
 		}
