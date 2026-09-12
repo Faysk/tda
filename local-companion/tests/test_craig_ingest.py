@@ -13,6 +13,11 @@ from tda_companion.craig_ingest import CraigUploadError, ingest_craig_request
 from tda_companion.craig_runtime import load_craig_package
 
 
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
 def _zip_bytes() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
