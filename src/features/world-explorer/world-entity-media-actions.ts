@@ -45,6 +45,12 @@ async function contentEditor() {
 	});
 }
 
+export async function worldEntityMediaFeatureEnabledAction(): Promise<boolean> {
+	if (!worldEntityMediaEnabled()) return false;
+	const access = await contentEditor();
+	return access.ok;
+}
+
 function uploadFailure(error: unknown): WorldEntityPortraitUploadResult {
 	if (error instanceof Error) {
 		console.error("World entity portrait upload failed", error.message);
