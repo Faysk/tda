@@ -20,6 +20,20 @@ const config: NextConfig = {
 			},
 			{
 				protocol: "https",
+				hostname: "media.dnd.faysk.dev",
+				port: "",
+				pathname: "/lore/d/**",
+				search: "",
+			},
+			{
+				protocol: "https",
+				hostname: "media.dnd.faysk.dev",
+				port: "",
+				pathname: "/lore/seika/**",
+				search: "",
+			},
+			{
+				protocol: "https",
 				hostname: "dmrqnbdvbkfqzctcerbx.supabase.co",
 				pathname: "/storage/v1/object/public/session-images/**",
 			},
@@ -39,7 +53,7 @@ const config: NextConfig = {
 		return [
 			{
 				source: "/lore/d",
-				destination: "/lore/d/index.html",
+				destination: "/lore/d/generated/index.html",
 			},
 		];
 	},
