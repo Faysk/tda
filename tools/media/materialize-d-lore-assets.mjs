@@ -4,8 +4,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = process.cwd();
-const SOURCE_DIR = path.join(ROOT, "public", "lore", "d", "assets");
+const D_ROOT = path.join(ROOT, "public", "lore", "d");
+const SOURCE_DIR = path.join(D_ROOT, "assets");
 const GENERATED_DIR = path.join(SOURCE_DIR, "generated");
+const GENERATED_PAGE_DIR = path.join(D_ROOT, "generated");
+const TEMPLATE_PATH = path.join(D_ROOT, "index.html");
 
 const PRIMARY = [
   {
@@ -152,8 +155,53 @@ async function writeAsset(spec, buffer, kind) {
   };
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function materializePage(manifest) {
+  const primaryById = new Map(
+    manifest.filter((asset) => asset.kind === "primary").map((asset) => [asset.id, asset]),
+  );
+  const fallbackById = new Map(
+    manifest.filter((asset) => asset.kind === "fallback").map((asset) => [asset.id, asset]),
+  );
+
+  let html = await readFile(TEMPLATE_PATH, "utf8");
+
+  for (const [id, primary] of primaryById) {
+    const fallback = fallbackById.get(id);
+    if (!fallback) throw new Error(`Missing fallback for ${id}`);
+
+    const primaryUrl = `/lore/d/assets/generated/${primary.file}`;
+    const fallbackUrl = `/lore/d/assets/generated/${fallback.file}`;
+    const imagePattern = new RegExp(
+      `<img\\s+src="[^"]*"\\s+data-d-image="${escapeRegExp(id)}"`,
+      "g",
+    );
+    const buttonPattern = new RegExp(
+      `(data-d-image="${escapeRegExp(id)}"\\s+data-image=")[^"]*(")`,
+      "g",
+    );
+
+    html = html.replace(
+      imagePattern,
+      `<img src="${primaryUrl}" data-primary-image="${primaryUrl}" data-fallback-image="${fallbackUrl}" data-artwork-quality="hq" data-d-image="${id}"`,
+    );
+    html = html.replace(buttonPattern, `$1${primaryUrl}$2`);
+  }
+
+  if (html.includes("data:image/gif;base64")) {
+    throw new Error("D generated page still contains placeholder data image URLs");
+  }
+
+  await mkdir(GENERATED_PAGE_DIR, { recursive: true });
+  await writeFile(path.join(GENERATED_PAGE_DIR, "index.html"), html, "utf8");
+}
+
 export async function materializeDLoreAssets() {
   await rm(GENERATED_DIR, { recursive: true, force: true });
+  await rm(GENERATED_PAGE_DIR, { recursive: true, force: true });
   await mkdir(GENERATED_DIR, { recursive: true });
 
   const manifest = [];
@@ -164,6 +212,7 @@ export async function materializeDLoreAssets() {
     manifest.push(await writeAsset(spec, await readParts(spec.parts), "fallback"));
   }
 
+  await materializePage(manifest);
   await writeFile(
     path.join(GENERATED_DIR, "manifest.json"),
     `${JSON.stringify({ generatedAtBuild: true, assets: manifest }, null, 2)}\n`,
