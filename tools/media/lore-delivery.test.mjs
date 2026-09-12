@@ -17,16 +17,25 @@ test("D delivery assets are materialized as real 1024x1536 images", async () => 
   }
 });
 
-test("D browser runtime never fetches base64 payloads or creates data image URLs", async () => {
+test("D generated HTML contains direct binary image URLs before Next builds", async () => {
+  await materializeDLoreAssets();
+  const html = await readFile(
+    new URL("../../public/lore/d/generated/index.html", import.meta.url),
+    "utf8",
+  );
   const script = await readFile(
     new URL("../../public/lore/d/script.js", import.meta.url),
     "utf8",
   );
 
+  assert.doesNotMatch(html, /data:image\//);
+  assert.match(html, /src="\/lore\/d\/assets\/generated\/d-completo\.avif"/);
+  assert.match(html, /data-artwork-quality="hq"/);
+  assert.match(html, /data-fallback-image="\/lore\/d\/assets\/generated\//);
+
   assert.doesNotMatch(script, /\.b64/);
   assert.doesNotMatch(script, /data:image\//);
   assert.doesNotMatch(script, /buildAssetUrl|fetchText|hydrateCharacterImage/);
-  assert.match(script, /\/lore\/d\/assets\/generated\/d-completo\.avif/);
 });
 
 test("Seika media route returns verified image bytes instead of redirect aliases", async () => {
