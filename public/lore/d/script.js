@@ -6,52 +6,28 @@ if (!document.querySelector(`link[href="${qualityGuardHref}"]`)) {
   document.head.append(qualityGuard);
 }
 
-// Browser delivery is intentionally simple: the build materializes the repository's
-// transport-only base64 payloads into real image files before Next starts. The browser
-// never downloads .b64 files and never constructs large data: URLs at runtime.
-const ASSETS = {
-  "d-completo": {
-    primary: "/lore/d/assets/generated/d-completo.avif",
-    fallback: "/lore/d/assets/generated/d-completo-fallback.png",
-  },
-  "d-sem-sobretudo": {
-    primary: "/lore/d/assets/generated/d-sem-sobretudo.avif",
-    fallback: "/lore/d/assets/generated/d-sem-sobretudo-fallback.avif",
-  },
-  "d-sem-chapeu": {
-    primary: "/lore/d/assets/generated/d-sem-chapeu.avif",
-    fallback: "/lore/d/assets/generated/d-sem-chapeu-fallback.png",
-  },
-};
+// Primary artwork is already present as a normal binary URL in the generated HTML.
+// JavaScript is only a resilience layer: if a primary image cannot decode, swap every
+// occurrence of the same artwork to the build-materialized fallback file.
+function useFallback(image) {
+  const name = image.dataset.dImage;
+  const fallback = image.dataset.fallbackImage;
+  if (!name || !fallback || image.dataset.artworkQuality === "fallback") return;
 
-function applyCharacterImage(name, url, quality) {
   document.querySelectorAll(`[data-d-image="${name}"]`).forEach((element) => {
-    element.dataset.artworkQuality = quality;
-    if (element instanceof HTMLImageElement) element.src = url;
-    if (element instanceof HTMLButtonElement) element.dataset.image = url;
+    element.dataset.artworkQuality = "fallback";
+    if (element instanceof HTMLImageElement) {
+      element.src = fallback;
+    }
+    if (element instanceof HTMLButtonElement) {
+      element.dataset.image = fallback;
+    }
   });
 }
 
-function bindCharacterImage(name) {
-  const asset = ASSETS[name];
-  if (!asset) return;
-
-  document.querySelectorAll(`img[data-d-image="${name}"]`).forEach((image) => {
-    image.addEventListener(
-      "error",
-      () => {
-        if (image.dataset.artworkQuality === "fallback") return;
-        console.warn(`Primary artwork failed for ${name}; using stable fallback`);
-        applyCharacterImage(name, asset.fallback, "fallback");
-      },
-      { once: true },
-    );
-  });
-
-  applyCharacterImage(name, asset.primary, "hq");
-}
-
-Object.keys(ASSETS).forEach(bindCharacterImage);
+document.querySelectorAll("img[data-d-image]").forEach((image) => {
+  image.addEventListener("error", () => useFallback(image), { once: true });
+});
 
 const revealElements = document.querySelectorAll(".reveal");
 
