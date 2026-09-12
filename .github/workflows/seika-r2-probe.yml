@@ -11,30 +11,54 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    environment:
-      name: production
-    env:
-      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
-      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Link project and verify sensitive production vars through env run
+      - name: Revalidate canonical Seika public media
         shell: bash
         run: |
-          set -euo pipefail
-          npm install --global vercel@59.11.7 >/dev/null 2>&1
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
-          vercel env run -e production --token="$VERCEL_TOKEN" -- bash -c '
-            set -euo pipefail
-            missing=0
-            for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET R2_PRIVATE_BUCKET; do
-              value="${!name:-}"
-              if [[ -z "$value" || "$value" == "[SENSITIVE]" ]]; then
-                echo "ENV_RUN $name unavailable"
-                missing=1
-              else
-                echo "ENV_RUN $name available length=${#value}"
-              fi
-            done
-            [[ "$missing" -eq 0 ]] || exit 1
-          '
+          set -u
+          names=(
+            wide-adult-seika-full.webp
+            wide-ami-ritual-full.webp
+            wide-departure-full.webp
+            wide-first-exorcism-full.webp
+            wide-ink-moon.webp
+            wide-lucky-full.webp
+          )
+          hashes=(
+            f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289
+            8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16
+            74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5
+            386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9
+            2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6
+            a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad
+          )
+          expected_bytes=(490698 450982 688670 396950 160730 549872)
+          expected_dims=('1916x821' '2172x724' '2365x665' '1916x821' '2172x724' '2365x665')
+          mkdir -p /tmp/seika
+          failures=0
+          for i in 0 1 2 3 4 5; do
+            url="https://media.dnd.faysk.dev/lore/seika/${hashes[$i]}/${names[$i]}"
+            out="/tmp/seika/${names[$i]}"
+            hdr="$out.headers"
+            status="$(curl -sS -L -D "$hdr" -o "$out" -w '%{http_code}' "$url" || true)"
+            bytes="$(wc -c < "$out" 2>/dev/null || echo 0)"
+            type="$(grep -i '^content-type:' "$hdr" | tail -n1 | tr -d '\r' | cut -d' ' -f2- || true)"
+            sha="$(sha256sum "$out" 2>/dev/null | cut -d' ' -f1 || true)"
+            dims='n/a'
+            if command -v identify >/dev/null 2>&1; then dims="$(identify -format '%wx%h' "$out" 2>/dev/null || echo decode-failed)"; fi
+            echo "SEIKA_PUBLIC name=${names[$i]} status=$status bytes=$bytes type=${type:-none} sha256=${sha:-none} dims=$dims expected_bytes=${expected_bytes[$i]} expected_sha=${hashes[$i]} expected_dims=${expected_dims[$i]}"
+            if [[ "$status" != 200 || "$bytes" != "${expected_bytes[$i]}" || "$sha" != "${hashes[$i]}" || "$dims" != "${expected_dims[$i]}" ]]; then failures=$((failures+1)); fi
+          done
+          echo "SEIKA_PUBLIC_FAILURES=$failures"
+          [[ "$failures" -eq 0 ]]
+      - name: Revalidate production Seika route
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          url='https://dnd.faysk.dev/lore/seika'
+          out=/tmp/seika-page.html
+          status="$(curl -sS -L -D /tmp/seika-page.headers -o "$out" -w '%{http_code}' "$url" || true)"
+          bytes="$(wc -c < "$out" 2>/dev/null || echo 0)"
+          title="$(grep -o '<title>[^<]*' "$out" | head -n1 | sed 's/<title>//' || true)"
+          echo "SEIKA_PAGE status=$status bytes=$bytes title=${title:-none}"
