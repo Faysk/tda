@@ -1,0 +1,121 @@
+.field {
+	display: grid;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 82%, transparent);
+}
+
+.heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.heading strong {
+	font: 720 0.8rem/1.2 var(--ds-font-ui);
+}
+
+.heading span {
+	color: var(--ds-foreground-muted);
+	font: 560 0.67rem/1.2 var(--ds-font-ui);
+}
+
+.content {
+	display: grid;
+	grid-template-columns: 88px minmax(0, 1fr);
+	gap: 12px;
+	align-items: center;
+}
+
+.preview {
+	position: relative;
+	width: 88px;
+	height: 88px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 50%;
+	background: var(--ds-canvas-subtle);
+	overflow: hidden;
+}
+
+.preview img {
+	object-fit: cover;
+}
+
+.empty {
+	display: grid;
+	width: 100%;
+	height: 100%;
+	place-items: center;
+	color: var(--ds-foreground-muted);
+	font: 760 1.25rem/1 var(--ds-font-ui);
+}
+
+.dropZone {
+	display: grid;
+	min-height: 88px;
+	place-items: center;
+	gap: 5px;
+	padding: 12px;
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 78%, transparent);
+	text-align: center;
+	cursor: pointer;
+}
+
+.dropZone[data-busy="true"] {
+	cursor: wait;
+	opacity: 0.7;
+}
+
+.dropZone strong {
+	font: 680 0.74rem/1.25 var(--ds-font-ui);
+}
+
+.dropZone span,
+.feedback {
+	color: var(--ds-foreground-muted);
+	font: 540 0.66rem/1.35 var(--ds-font-ui);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.actions button {
+	min-height: 36px;
+	padding: 0 11px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground);
+	font: 650 0.7rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.actions button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.dropZone:focus-within,
+.actions button:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+	.content {
+		grid-template-columns: 72px minmax(0, 1fr);
+	}
+
+	.preview {
+		width: 72px;
+		height: 72px;
+	}
+}
