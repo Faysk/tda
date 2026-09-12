@@ -1,10 +1,41 @@
-:global(body:has([data-world-workspace-root]) > .site-header),
 :global(body:has([data-world-workspace-root]) > footer) {
 	display: none;
 }
 
 :global(body:has([data-world-workspace-root])) {
 	overflow: hidden;
+}
+
+:global(body:has([data-world-workspace-root]) > .site-header) {
+	position: fixed;
+	top: 0;
+	left: 50%;
+	z-index: 80;
+	display: flex;
+	width: min(100%, var(--ds-layout-max, 2160px));
+	margin: 0;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	box-shadow: 0 14px 42px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
+	backdrop-filter: blur(16px) saturate(110%);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transform: translate(-50%, -102%);
+	transition:
+		transform var(--ds-motion-base) var(--ds-ease-soft),
+		opacity var(--ds-motion-fast) var(--ds-ease-standard),
+		visibility 0s linear var(--ds-motion-base);
+}
+
+:global(body:has([data-world-workspace-root][data-world-site-header="open"]) > .site-header) {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	transform: translate(-50%, 0);
+	transition:
+		transform var(--ds-motion-base) var(--ds-ease-soft),
+		opacity var(--ds-motion-fast) var(--ds-ease-standard),
+		visibility 0s linear 0s;
 }
 
 :global(body:has([data-world-workspace-root]) > main#conteudo) {
@@ -15,6 +46,7 @@
 
 .workspace {
 	--world-workspace-navigation-width: clamp(224px, 15.5vw, 270px);
+	--world-workspace-top-offset: 0px;
 	position: relative;
 	display: grid;
 	grid-template-columns: 0 minmax(0, 1fr);
@@ -22,9 +54,16 @@
 	height: 100dvh;
 	min-width: 0;
 	min-height: 0;
+	padding-top: var(--world-workspace-top-offset);
 	background: var(--ds-canvas);
 	overflow: hidden;
-	transition: grid-template-columns var(--ds-motion-base) var(--ds-ease-soft);
+	transition:
+		grid-template-columns var(--ds-motion-base) var(--ds-ease-soft),
+		padding-top var(--ds-motion-base) var(--ds-ease-soft);
+}
+
+.workspace[data-world-site-header="open"] {
+	--world-workspace-top-offset: 82px;
 }
 
 .navigationOpen {
@@ -36,7 +75,7 @@
 	z-index: 30;
 	min-width: 0;
 	width: 100%;
-	height: 100dvh;
+	height: 100%;
 	border-right: 1px solid var(--ds-border-subtle);
 	background:
 		radial-gradient(circle at 18% 10%, var(--ds-ambient-accent), transparent 32%),
@@ -63,7 +102,7 @@
 
 .navigationHeader {
 	position: relative;
-	padding-right: 92px;
+	padding-right: 50px;
 }
 
 .navigationHeaderActions {
@@ -92,10 +131,41 @@
 .stage {
 	position: relative;
 	z-index: 1;
-	height: 100dvh;
+	height: 100%;
 	min-width: 0;
 	min-height: 0;
 	overflow: hidden;
+}
+
+.topNavigationToggle {
+	position: fixed;
+	top: 0;
+	left: 50%;
+	z-index: 90;
+	display: grid;
+	width: 54px;
+	height: 28px;
+	place-items: center;
+	padding: 0;
+	border: 1px solid var(--ds-control-border);
+	border-top: 0;
+	border-radius: 0 0 var(--ds-radius-md) var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	color: var(--ds-foreground-soft);
+	box-shadow: 0 8px 24px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
+	backdrop-filter: blur(14px) saturate(108%);
+	font: 760 1rem/1 var(--ds-font-ui);
+	cursor: pointer;
+	transform: translateX(-50%);
+	transition:
+		top var(--ds-motion-base) var(--ds-ease-soft),
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background-color var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.workspace[data-world-site-header="open"] .topNavigationToggle {
+	top: 82px;
 }
 
 .navigationToggle {
@@ -143,6 +213,7 @@
 	display: none;
 }
 
+.topNavigationToggle:focus-visible,
 .navigationToggle:focus-visible,
 .closeNavigation:focus-visible {
 	outline: 2px solid var(--ds-accent);
@@ -181,6 +252,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+	.topNavigationToggle:hover,
 	.navigationToggle:hover,
 	.closeNavigation:hover {
 		border-color: var(--ds-accent);
@@ -201,17 +273,27 @@
 		min-height: 0;
 	}
 
+	.workspace[data-world-site-header="open"] {
+		--world-workspace-top-offset: 72px;
+	}
+
+	.workspace[data-world-site-header="open"] .topNavigationToggle {
+		top: 72px;
+	}
+
 	.navigationPanel {
 		position: fixed;
-		top: 0;
+		top: var(--world-workspace-top-offset);
 		bottom: 0;
 		left: 0;
 		width: min(88vw, 342px);
-		height: 100dvh;
+		height: auto;
 		border-right-color: var(--ds-control-border);
 		box-shadow: 22px 0 70px rgba(0, 0, 0, 0.28);
 		transform: translateX(-102%);
-		transition: transform var(--ds-motion-base) var(--ds-ease-soft);
+		transition:
+			top var(--ds-motion-base) var(--ds-ease-soft),
+			transform var(--ds-motion-base) var(--ds-ease-soft);
 	}
 
 	.navigationOpen .navigationPanel {
@@ -224,7 +306,7 @@
 	}
 
 	.navigationHeader {
-		padding-right: 92px;
+		padding-right: 50px;
 	}
 
 	.navigationToggle {
@@ -278,9 +360,26 @@
 	}
 }
 
+@media (max-width: 360px) {
+	.workspace[data-world-site-header="open"] {
+		--world-workspace-top-offset: 82px;
+	}
+
+	.workspace[data-world-site-header="open"] .topNavigationToggle {
+		top: 82px;
+	}
+
+	:global(body:has([data-world-workspace-root][data-world-site-header="open"]) > .site-header) {
+		min-height: 82px;
+		flex-wrap: nowrap;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
+	:global(body:has([data-world-workspace-root]) > .site-header),
 	.workspace,
 	.navigationPanel,
+	.topNavigationToggle,
 	.navigationToggle,
 	.mobileBackdrop {
 		transition: none;
