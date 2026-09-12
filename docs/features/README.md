@@ -11,6 +11,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
+[Fidelidade dos pacotes de D e Seika](lore-pack-fidelity.md) — contrato visual e aceite da restauração das páginas independentes.
+
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
 
 Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
