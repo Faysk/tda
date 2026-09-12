@@ -30,9 +30,9 @@ const motionAmount = {
 } as const;
 
 const finalStaticArtwork: Partial<Record<PipipiCinematicSceneProps["id"], string>> = {
-	"super-herois": "/lore/pipipi/super-static.avif",
-	cadeira: "/lore/pipipi/cadeira-static.avif",
-	"ultimo-dia": "/lore/pipipi/ultimo-dia-static.avif",
+	"super-herois": "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
+	cadeira: "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
+	"ultimo-dia": "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
 };
 
 type SceneCssVariables = CSSProperties & {

@@ -1,0 +1,44 @@
+{
+  "verifiedAt": "2026-09-12T13:43:59.037Z",
+  "assets": [
+    {
+      "name": "cadeira.webp",
+      "url": "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
+      "sha256": "6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524",
+      "bytes": 1445054,
+      "width": 1672,
+      "height": 941,
+      "publicVerified": true,
+      "readbackVerified": true,
+      "pixelsEqual": true,
+      "previousWidth": 960,
+      "previousHeight": 540
+    },
+    {
+      "name": "super.webp",
+      "url": "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
+      "sha256": "bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed",
+      "bytes": 1652966,
+      "width": 1672,
+      "height": 941,
+      "publicVerified": true,
+      "readbackVerified": true,
+      "pixelsEqual": true,
+      "previousWidth": 1280,
+      "previousHeight": 720
+    },
+    {
+      "name": "ultimo-dia.webp",
+      "url": "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
+      "sha256": "391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda",
+      "bytes": 1765802,
+      "width": 1672,
+      "height": 941,
+      "publicVerified": true,
+      "readbackVerified": true,
+      "pixelsEqual": true,
+      "previousWidth": 480,
+      "previousHeight": 270
+    }
+  ]
+}
