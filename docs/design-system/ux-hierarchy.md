@@ -2,10 +2,12 @@
 
 > Status: canônico
 > Owner: design-system / frontend
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 > Fonte: diretriz geral fornecida pelo usuário e incorporada ao reboot em 2026-09-11
 
 Esta diretriz vale para **todo o projeto TDA — Tem Dado Aqui**: Home, Sessões, Mundo, Personagens, Lores, Cinematics, Grafo, autenticação, conta, Edit, processamento, ferramentas administrativas e futuras superfícies.
+
+**Escopo atualizado em 2026-09-12:** lores individuais são experiências visuais independentes, conforme [contrato próprio](../features/independent-lores.md). Esta diretriz não lhes impõe a paleta, tipografia, shell, composição ou densidade do site/administrador. Preservam-se leitura, acessibilidade e qualidade da mídia; o catálogo `/lore` segue o DS do site.
 
 O objetivo visual do TDA não é impressionar pelo tamanho dos elementos. O objetivo é criar uma experiência **bonita, madura, narrativa, clara e eficiente**, em que arte, tipografia e composição valorizem o conteúdo sem atrapalhar seu uso.
 

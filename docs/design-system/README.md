@@ -2,9 +2,11 @@
 
 > Status: canônico; fundação runtime e superfícies públicas implementadas
 > Owner: design-system / frontend
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 Este diretório registra a autoridade visual do **TDA — Tem Dado Aqui** no reboot `Faysk/tda`.
+
+Exceção editorial aprovada em 2026-09-12: páginas individuais de lore têm identidade visual livre e não precisam seguir este DS ou o shell do site. O catálogo `/lore` continua parte do site. Ver [contrato de lores independentes](../features/independent-lores.md); integridade de mídia e acessibilidade permanecem obrigatórias.
 
 A fonte oficial recebida para esta revisão é o pacote **TDA Design System v1.0.0**, criado em `2026-09-06`, junto do **TDA Brand Pack (official)**. Os pacotes foram produzidos a partir de um snapshot histórico do `Faysk/dnd-scribe`, porém foram explicitamente aprovados como arquivos oficiais para o projeto atual.
 
