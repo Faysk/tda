@@ -38,8 +38,31 @@ export type PresignedWorldEntityUpload = R2PresignedPut &
 		pendingObjectKey: string;
 	}>;
 
+type S3ResponseError = Readonly<{
+	name?: string;
+	$metadata?: Readonly<{ httpStatusCode?: number }>;
+}>;
+
 function failure(code: string): never {
 	throw new Error(`WORLD_ENTITY_MEDIA_${code}`);
+}
+
+function s3ResponseError(error: unknown): S3ResponseError {
+	return error as S3ResponseError;
+}
+
+function isNotFound(error: unknown): boolean {
+	const response = s3ResponseError(error);
+	return (
+		response.$metadata?.httpStatusCode === 404 ||
+		response.name === "NotFound" ||
+		response.name === "NoSuchKey"
+	);
+}
+
+function isPreconditionFailed(error: unknown): boolean {
+	const response = s3ResponseError(error);
+	return response.$metadata?.httpStatusCode === 412 || response.name === "PreconditionFailed";
 }
 
 export function worldEntityMediaEnabled(): boolean {
@@ -118,29 +141,29 @@ async function putImmutableObject({
 			failure("R2_COLLISION");
 		}
 	} catch (error) {
-		const response = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-		if (
-			response.$metadata?.httpStatusCode !== 404 &&
-			response.name !== "NotFound" &&
-			response.name !== "NoSuchKey"
-		) {
-			throw error;
-		}
+		if (!isNotFound(error)) throw error;
 	}
 
 	if (!exists) {
-		await client.send(
-			new PutObjectCommand({
-				Bucket: bucket,
-				Key: objectKey,
-				Body: bytes,
-				ContentType: info.mimeType,
-				ContentLength: info.bytes,
-				Metadata: { sha256: info.sha256 },
-				CacheControl: cacheControl,
-				IfNoneMatch: "*",
-			}),
-		);
+		try {
+			await client.send(
+				new PutObjectCommand({
+					Bucket: bucket,
+					Key: objectKey,
+					Body: bytes,
+					ContentType: info.mimeType,
+					ContentLength: info.bytes,
+					Metadata: { sha256: info.sha256 },
+					CacheControl: cacheControl,
+					IfNoneMatch: "*",
+				}),
+			);
+		} catch (error) {
+			// Another finalizer can materialize the same content-addressed key
+			// after our HEAD and before this conditional PUT. A 412 is therefore
+			// resolved by the mandatory read-back below, never by overwriting it.
+			if (!isPreconditionFailed(error)) throw error;
+		}
 	}
 
 	const readBack = await objectBytes(client, bucket, objectKey);
