@@ -11,6 +11,8 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    environment:
+      name: production
     env:
       VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
       VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
