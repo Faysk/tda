@@ -12,7 +12,7 @@
 		"build": "next build",
 		"start": "next start",
 		"typecheck": "next typegen && tsc --noEmit",
-		"lint": "biome lint . --max-diagnostics=100",
+		"lint": "biome lint .",
 		"test": "vitest run && node --test tools/media/recovery.test.mjs tools/media/publication-contract.test.mjs tools/media/lore-assets.test.mjs",
 		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm design:check && pnpm docs:check && pnpm db:docs:check",
 		"design:check": "node tools/check-design-system.mjs",
