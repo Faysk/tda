@@ -24,6 +24,7 @@ def _probe() -> int:
         import safetensors  # noqa: F401
         import torch
         import transformers
+        from tda_companion.qwen_physical_gate import MIN_GATE_AUDIO_SECONDS
         from transformers import (
             AutoModelForMultimodalLM,
             AutoModelForTokenClassification,
@@ -85,6 +86,8 @@ def _probe() -> int:
                 "bf16_supported": bool(torch.cuda.is_bf16_supported()) if available else False,
                 "qwen3_asr_native": True,
                 "forced_aligner_native": True,
+                "physical_gate_available": True,
+                "min_gate_audio_seconds": float(MIN_GATE_AUDIO_SECONDS),
                 "devices": devices,
             },
             ensure_ascii=False,

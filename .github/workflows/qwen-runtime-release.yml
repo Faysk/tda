@@ -2,8 +2,21 @@ name: Qwen Runtime Release
 
 on:
   push:
+    branches: [main]
     tags:
       - 'companion-qwen-runtime-v*.*.*'
+    paths:
+      - '.github/workflows/qwen-runtime-release.yml'
+      - 'local-companion/runtime/qwen-windows-x64.json'
+      - 'local-companion/packaging/build_qwen_runtime.py'
+      - 'local-companion/packaging/qwen_runtime_entry.py'
+      - 'local-companion/tda_companion/asr_qwen.py'
+      - 'local-companion/tda_companion/qwen_acceptance.py'
+      - 'local-companion/tda_companion/qwen_physical_gate.py'
+      - 'local-companion/tda_companion/qwen_runtime.py'
+      - 'local-companion/tda_companion/qwen_runtime_bundle.py'
+      - 'local-companion/tda_companion/asr_worker.py'
+      - 'local-companion/tda_companion/worker_protocol.py'
 
 concurrency:
   group: qwen-runtime-release-${{ github.ref }}
@@ -22,13 +35,17 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: '0.12.13'
-      - name: Verify tag matches pinned runtime version
+      - name: Verify release source and pinned runtime version
         shell: pwsh
         run: |
           $version = (Get-Content local-companion/runtime/qwen-windows-x64.json | ConvertFrom-Json).version
           $expected = "companion-qwen-runtime-v$version"
-          if ("${{ github.ref_name }}" -ne $expected) {
-            throw "Tag ${{ github.ref_name }} does not match pinned runtime version $expected"
+          if ("${{ github.ref_type }}" -eq "tag") {
+            if ("${{ github.ref_name }}" -ne $expected) {
+              throw "Tag ${{ github.ref_name }} does not match pinned runtime version $expected"
+            }
+          } elseif ("${{ github.ref }}" -ne "refs/heads/main") {
+            throw "Qwen runtime release branch source must be main"
           }
       - name: Build, probe and install-smoke Qwen runtime
         shell: pwsh
@@ -71,7 +88,14 @@ jobs:
           PY
           )
           TAG="companion-qwen-runtime-v${VERSION}"
-          test "$GITHUB_REF_NAME" = "$TAG"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "$TAG" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pinned runtime version $TAG"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" != "tag" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Qwen runtime branch release source must be main"
+            exit 1
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::Release $TAG already exists. Bump the Qwen runtime version before publishing another artifact."
             exit 1
