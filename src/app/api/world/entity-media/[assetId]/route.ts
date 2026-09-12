@@ -114,7 +114,8 @@ export async function GET(
 			return unavailable();
 		}
 
-		return new Response(bytes, {
+		const body = Uint8Array.from(bytes).buffer;
+		return new Response(body, {
 			status: 200,
 			headers: {
 				...PRIVATE_MEDIA_HEADERS,
