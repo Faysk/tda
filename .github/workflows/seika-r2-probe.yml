@@ -1,0 +1,50 @@
+name: Seika R2 Probe
+
+on:
+  push:
+    branches: [ops/seika-r2-probe-20260912]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Validate Vercel access
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing VERCEL_TOKEN"; exit 1; }
+      - name: Pull production environment safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global vercel@59.11.7 >/dev/null 2>&1
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
+      - name: Check R2 variables without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV_FILE=.vercel/.env.production.local
+          [[ -f "$ENV_FILE" ]] || { echo "::error::Production env file was not created"; exit 1; }
+          missing=0
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET; do
+            if ! grep -q "^${name}=" "$ENV_FILE"; then
+              echo "::error::Production environment is missing ${name}"
+              missing=1
+            else
+              value="$(grep "^${name}=" "$ENV_FILE" | head -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
+              if [[ -z "$value" ]]; then
+                echo "::error::Production environment has empty ${name}"
+                missing=1
+              fi
+            fi
+          done
+          [[ "$missing" -eq 0 ]] || exit 1
+          echo "SEIKA_R2_VERCEL_ENV_AVAILABLE"
