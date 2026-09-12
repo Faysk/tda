@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 ## Antes do upload
 
@@ -12,7 +12,7 @@
 - SHA-256, MIME, bytes e dimensões conferidos;
 - master/fonte de maior fidelidade identificado;
 - derivado gerado diretamente do master, sem recompressão lossy em cadeia;
-- bucket/key corretos;
+- placement/bucket/key corretos;
 - nenhuma dependência em conteúdo privado para superfície pública.
 
 ## Gate de qualidade antes de aceitar o derivado
@@ -30,6 +30,18 @@
 - comparação lado a lado com o master em 100% de zoom;
 - tamanho do arquivo é o menor aprovado visualmente, não simplesmente o menor obtido.
 
+## Contrato de entrega
+
+- browser recebe um arquivo/objeto binário real;
+- artwork principal não depende de `data:` URI;
+- browser não baixa `.b64` nem concatena Base64;
+- se Base64 foi necessário para transporte, ele foi materializado e validado antes de `next build`;
+- imagem principal existe no HTML/React como URL real; placeholder não é dependência funcional;
+- extensão, MIME, preload e bytes representam o mesmo formato;
+- fallback aponta para outro recurso binário real;
+- alias/compatibilidade tem propósito, MIME real e plano de remoção;
+- objetos grandes/reutilizáveis usam placement R2; assets pequenos/code-coupled podem usar Git/runtime conforme política.
+
 ## Depois do upload
 
 - objeto lido de volta;
@@ -41,23 +53,28 @@
 ## Antes de promover mídia pública
 
 - GET HTTPS anônimo real;
-- status/MIME esperados;
+- status 200/206 e MIME esperados;
 - decode concluído;
 - hash/bytes/dimensões conferidos;
 - consumer/runtime aceita o host/path;
 - consumer não amplia a mídia além do gate aprovado;
+- URL pública é final/canônica ou compatibilidade explicitamente justificada;
+- nenhum redirect mascara erro do objeto final;
 - fallback definido;
 - rollback conhecido.
 
 ## Consumidores
 
-- desktop e mobile revisados nos viewports-alvo;
+- desktop 1080p, desktop 2K e mobile revisados quando suportados;
+- `naturalWidth`/`naturalHeight` registrados no browser;
+- `clientWidth`/`clientHeight` comparados à dimensão natural;
 - imagem conferida em 100% de zoom, não apenas em screenshot reduzido;
 - crop/focal point não perde conteúdo importante;
 - `object-fit`/transform/zoom não introduzem upscale destrutivo;
 - layers transparentes respeitam a resolução natural de cada subject;
 - loading/erro não escondem informação principal;
 - `next/image`/CDN não fazem segunda compressão desnecessária de um derivado final já otimizado;
+- nenhum `requestfailed` em mídia crítica durante E2E;
 - compartilhamento emite imagem da própria página quando elegível;
 - nenhum consumidor reconstrói object key em paralelo.
 
@@ -65,9 +82,23 @@
 
 - flattened/static artwork só é usado se passar o gate de resolução do fullscreen;
 - uma variante 960×540 não pode ser usada como equivalente de 1920×1080 apenas por existir no bundle;
-- se o static falhar e as layers tiverem melhor detalhe útil, preferir background + subject até existir master achatado adequado;
+- se o static falhar e as layers tiverem melhor detalhe útil **sem alterar a direção visual aprovada**, podem ser usadas temporariamente;
+- se a composição estática for obrigatória, produzir flattened master hi-res com o mesmo enquadramento;
 - motion/scale não excede o orçamento de upscale da layer;
 - cenas desktop e mobile são inspecionadas separadamente.
+
+## Gate de release
+
+- `pnpm check` verde;
+- build verde;
+- E2E abre a página real;
+- imagens críticas terminam `complete` e decodificam com dimensões > 0;
+- E2E reprova Base64/data URI onde o contrato exige URL binária;
+- E2E reprova upscale acima do orçamento;
+- Preview smoke testa as rotas de lore/media alteradas;
+- Production staged smoke testa as mesmas rotas antes de promover domínio;
+- canonical smoke repete os recursos críticos após promoção;
+- HTTP 200 da homepage sozinho nunca é aceito como prova de mídia.
 
 ## Retirada
 
