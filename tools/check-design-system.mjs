@@ -152,6 +152,9 @@ const legacyTokens = [
 	"--line",
 ];
 for (const filePath of sourceFiles("src")) {
+	// Independent lore documents do not inherit the application shell or tokens.
+	// Keep this exception limited to the approved Seika pack's isolated stylesheet.
+	if (filePath.replaceAll("\\", "/") === "src/app/lore/seika/styles.css/route.ts") continue;
 	const source = fs.readFileSync(filePath, "utf8");
 	for (const token of legacyTokens) {
 		if (source.includes(`var(${token})`) || source.includes(`${token}:`)) {
