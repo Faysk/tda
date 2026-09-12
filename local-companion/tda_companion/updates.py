@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin
 
+from .release_download import ReleaseRedirectError, open_verified_release
+
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
 MANIFEST_URL = f"{PRODUCTION_ORIGIN}/api/downloads/companion/windows/manifest"
 _VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
@@ -94,13 +96,17 @@ def download_update(manifest: UpdateManifest, cache_root: Path, timeout: float =
         manifest.url,
         headers={"Accept": "application/x-msi,application/octet-stream", "Cache-Control": "no-cache", "User-Agent": "TDACompanion"},
     )
+    expected_github_url = f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/TDACompanion-x64.msi"
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - validated fixed TDA endpoint
-            expected_final = (
-                f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/TDACompanion-x64.msi"
+        try:
+            response_context = open_verified_release(
+                request,
+                expected_github_url=expected_github_url,
+                timeout=timeout,
             )
-            if response.geturl() != expected_final:
-                raise RuntimeError("UPDATE_REDIRECT_REJECTED")
+        except ReleaseRedirectError as exc:
+            raise RuntimeError("UPDATE_REDIRECT_REJECTED") from exc
+        with response_context as response:
             with temporary.open("wb") as handle:
                 while True:
                     chunk = response.read(1024 * 1024)
