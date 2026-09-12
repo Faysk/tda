@@ -7,6 +7,7 @@ import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
 import type { WorldGraphDraft } from "./model";
+import { hydrateWorldGraphDraftMedia } from "./world-entity-media-repository";
 
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -82,7 +83,16 @@ export async function acquireWorldGraphDraftAction(
 	if (payload.ok === true) {
 		const draft = sanitizeWorldGraphDraft(payload.draftGraph);
 		if (!draft) return { ok: false, reason: "dependency_unavailable" };
-		return { ok: true, draft, expiresAt: safeString(payload.expiresAt) };
+		try {
+			const hydratedDraft = await hydrateWorldGraphDraftMedia(client, CAMPAIGN_SLUG, draft);
+			return { ok: true, draft: hydratedDraft, expiresAt: safeString(payload.expiresAt) };
+		} catch (mediaError) {
+			console.error(
+				"World graph media hydration failed",
+				mediaError instanceof Error ? mediaError.message : "unknown_error",
+			);
+			return { ok: false, reason: "dependency_unavailable" };
+		}
 	}
 	if (payload.reason === "forbidden" || payload.reason === "lease_lost") {
 		return { ok: false, reason: payload.reason };
