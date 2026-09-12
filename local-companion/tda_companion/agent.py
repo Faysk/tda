@@ -9,6 +9,7 @@ import uvicorn
 
 from .__main__ import RootLock
 from .api import create_app
+from .craig_ingest_http import CraigIngestBoundary
 from .system_log import SystemLog
 
 
@@ -70,7 +71,7 @@ class AgentController:
         self.lock = RootLock(self.data_root)
         self.lock.__enter__()
         try:
-            app = create_app(
+            api = create_app(
                 self.data_root,
                 self.token,
                 self.origins,
@@ -78,6 +79,14 @@ class AgentController:
                 system_log=self.system_log,
                 shutdown_callback=self.request_shutdown,
                 models_root=self.models_root,
+            )
+            app = CraigIngestBoundary(
+                api,
+                data_root=self.data_root,
+                token=self.token,
+                origins=self.origins,
+                port=self.port,
+                system_log=self.system_log,
             )
             config = uvicorn.Config(
                 app,
