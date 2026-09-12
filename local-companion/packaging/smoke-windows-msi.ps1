@@ -16,6 +16,7 @@ $tdaRoot = Join-Path $env:LOCALAPPDATA "TDA"
 $installedDir = Join-Path $tdaRoot "Companion\versions\$Version"
 $installedExe = Join-Path $installedDir "TDACompanion.exe"
 $maintenanceExe = Join-Path $installedDir "TDACompanionMaintenance.exe"
+$acceptanceScript = Join-Path $installedDir "run-physical-acceptance.ps1"
 $currentVersion = Join-Path $tdaRoot "Companion\current-version.txt"
 $stateRoot = Join-Path $tdaRoot "State"
 $tokenPath = Join-Path $stateRoot "pairing-token.txt"
@@ -57,6 +58,7 @@ try {
 
     if (-not (Test-Path $installedExe)) { throw "MSI_EXECUTABLE_NOT_INSTALLED" }
     if (-not (Test-Path $maintenanceExe)) { throw "MSI_MAINTENANCE_NOT_INSTALLED" }
+    if (-not (Test-Path $acceptanceScript)) { throw "MSI_PHYSICAL_ACCEPTANCE_HARNESS_NOT_INSTALLED" }
     if (-not (Test-Path $currentVersion)) { throw "MSI_VERSION_MARKER_NOT_INSTALLED" }
     if ((Get-Content $currentVersion -Raw).Trim() -ne $Version) { throw "MSI_VERSION_MARKER_MISMATCH" }
     if (-not (Test-Path $startMenuShortcut)) { throw "MSI_START_MENU_SHORTCUT_NOT_INSTALLED" }
@@ -163,6 +165,7 @@ try {
     if (-not (Test-HealthDown)) { throw "MSI_PORT_LEFT_OPEN_AFTER_UNINSTALL" }
     if (Test-Path $installedExe) { throw "MSI_EXECUTABLE_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $maintenanceExe) { throw "MSI_MAINTENANCE_LEFT_AFTER_UNINSTALL" }
+    if (Test-Path $acceptanceScript) { throw "MSI_PHYSICAL_ACCEPTANCE_HARNESS_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $currentVersion) { throw "MSI_VERSION_MARKER_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $startMenuShortcut) { throw "MSI_SHORTCUT_LEFT_AFTER_UNINSTALL" }
     if (Test-Path $productKey) { throw "MSI_PRODUCT_REGISTRY_LEFT_AFTER_UNINSTALL" }
@@ -173,7 +176,7 @@ try {
     if (-not (Test-Path $keepMarker)) { throw "MSI_UNINSTALL_REMOVED_USER_DATA" }
     if ((Get-Content $keepMarker -Raw).Trim() -ne "preserve-me") { throw "MSI_USER_DATA_CHANGED" }
 
-    Write-Host "Installed TDA Companion MSI + subprocess worker + active-Agent uninstall smoke: PASS ($Version)"
+    Write-Host "Installed TDA Companion MSI + subprocess worker + acceptance harness + active-Agent uninstall smoke: PASS ($Version)"
 }
 finally {
     if ($process -and -not $process.HasExited) {
