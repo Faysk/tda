@@ -12,6 +12,10 @@ import {
 	type WorldRelationFamily,
 	type WorldVisibility,
 } from "./model";
+import {
+	isWorldEntityMediaAssetId,
+	worldEntityMediaPreviewUrl,
+} from "./world-entity-media";
 
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -74,6 +78,16 @@ function parseNode(value: unknown): WorldGraphDraftNode | null {
 		(alias): alias is string => typeof alias === "string" && alias.length >= 1 && alias.length <= 160,
 	);
 	if (aliases.length !== row.aliases.length) return null;
+	let primaryMediaAssetId: string | null | undefined;
+	if (row.primaryMediaAssetId === undefined) {
+		primaryMediaAssetId = undefined;
+	} else if (row.primaryMediaAssetId === null || row.primaryMediaAssetId === "") {
+		primaryMediaAssetId = null;
+	} else if (isWorldEntityMediaAssetId(row.primaryMediaAssetId)) {
+		primaryMediaAssetId = row.primaryMediaAssetId.toLowerCase();
+	} else {
+		return null;
+	}
 	return {
 		id: row.id.toLowerCase(),
 		name: row.name.trim(),
@@ -85,6 +99,7 @@ function parseNode(value: unknown): WorldGraphDraftNode | null {
 		aliases: [...new Set(aliases.map((alias) => alias.trim()).filter(Boolean))].sort((a, b) =>
 			a.localeCompare(b, "pt-BR"),
 		),
+		...(primaryMediaAssetId === undefined ? {} : { primaryMediaAssetId }),
 	};
 }
 
@@ -218,6 +233,9 @@ export function worldDatasetFromDraft(draft: WorldGraphDraft): WorldDemoDataset 
 			kind: "entity" as const,
 			entityType: node.entityType,
 			label: node.name,
+			imageUrl: node.primaryMediaAssetId
+				? worldEntityMediaPreviewUrl(node.primaryMediaAssetId)
+				: undefined,
 			status: node.status,
 			visibility: node.visibility,
 			summary: node.summary,
