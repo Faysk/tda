@@ -1,3 +1,13 @@
+// Keep D's tab identity scoped to this lore. The SVG stays crisp at favicon
+// sizes and resolves against <base href="/lore/d/"> as /lore/d/favicon.svg.
+if (!document.querySelector('link[rel~="icon"][href$="favicon.svg"]')) {
+  const favicon = document.createElement('link');
+  favicon.rel = 'icon';
+  favicon.type = 'image/svg+xml';
+  favicon.href = 'favicon.svg';
+  document.head.append(favicon);
+}
+
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (entry.isIntersecting) {

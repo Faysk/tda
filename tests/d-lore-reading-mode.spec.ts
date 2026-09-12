@@ -13,6 +13,14 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 
 	await page.goto("/lore/d");
 	const initialPath = new URL(page.url()).pathname;
+	const favicon = page.locator('link[rel~="icon"][href$="favicon.svg"]');
+	await expect(favicon).toHaveCount(1);
+	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
+	expect(await favicon.evaluate((element: HTMLLinkElement) => new URL(element.href).pathname)).toBe("/lore/d/favicon.svg");
+	const faviconResponse = await request.get("/lore/d/favicon.svg");
+	expect(faviconResponse.ok()).toBe(true);
+	expect(await faviconResponse.text()).toContain('aria-label="D."');
+
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();
 	await expect(toggle).toHaveAttribute("aria-checked", "false");
