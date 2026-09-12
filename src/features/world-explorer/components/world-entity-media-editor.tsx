@@ -14,6 +14,8 @@ import {
 import type { WorldGraphDraftNode } from "../model";
 import styles from "./world-entity-media-editor.module.css";
 
+const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
+
 function initials(name: string): string {
 	return name
 		.trim()
@@ -53,11 +55,9 @@ function failureMessage(reason: string): string {
 
 export function WorldEntityMediaEditor({
 	entity,
-	leaseToken,
 	onChange,
 }: {
 	entity: WorldGraphDraftNode;
-	leaseToken: string;
 	onChange: (assetId: string | null) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -73,6 +73,11 @@ export function WorldEntityMediaEditor({
 	async function upload(file: File) {
 		setError(null);
 		setStatus(null);
+		const leaseToken = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		if (!leaseToken) {
+			setError("A sessão de edição não está ativa. Reabra Conduzir antes de enviar a imagem.");
+			return;
+		}
 		const mimeType = mediaMime(file);
 		if (!mimeType) {
 			setError("Use uma imagem PNG ou WebP.");
@@ -155,72 +160,72 @@ export function WorldEntityMediaEditor({
 
 	return (
 		<section className={styles.mediaEditor} aria-label="Imagem do elemento">
-		<div className={styles.heading}>
-			<strong>Imagem do elemento</strong>
-			<span>PNG ou WebP · até 8 MiB</span>
-		</div>
-		<div className={styles.previewRow}>
-			<div className={styles.preview}>
-				{previewUrl ? (
-					<img
-						src={previewUrl}
-						alt={`Retrato de ${entity.name}`}
-						style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
-						draggable={false}
-					/>
-				) : (
-					<span aria-hidden="true">{initials(entity.name)}</span>
-				)}
+			<div className={styles.heading}>
+				<strong>Imagem do elemento</strong>
+				<span>PNG ou WebP · até 8 MiB</span>
 			</div>
-			<button
-				className={styles.dropZone}
-				type="button"
-				disabled={busy}
-				data-dragging={dragging ? "true" : "false"}
-				onClick={() => inputRef.current?.click()}
-				onDragEnter={(event) => {
-					event.preventDefault();
-					if (!busy) setDragging(true);
-				}}
-				onDragOver={(event) => event.preventDefault()}
-				onDragLeave={() => setDragging(false)}
-				onDrop={handleDrop}
-			>
-				<strong>{busy ? "Processando imagem…" : previewUrl ? "Trocar imagem" : "Adicionar imagem"}</strong>
-				<span>Arraste aqui ou clique para escolher.</span>
-			</button>
-		</div>
-		<input
-			ref={inputRef}
-			className={styles.input}
-			type="file"
-			accept="image/png,image/webp,.png,.webp"
-			disabled={busy}
-			onChange={(event) => {
-				const file = event.target.files?.item(0);
-				if (file) void upload(file);
-			}}
-		/>
-		{previewUrl ? (
-			<div className={styles.actions}>
-				<button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
-					Escolher outra
-				</button>
+			<div className={styles.previewRow}>
+				<div className={styles.preview}>
+					{previewUrl ? (
+						<img
+							src={previewUrl}
+							alt={`Retrato de ${entity.name}`}
+							style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
+							draggable={false}
+						/>
+					) : (
+						<span aria-hidden="true">{initials(entity.name)}</span>
+					)}
+				</div>
 				<button
+					className={styles.dropZone}
 					type="button"
 					disabled={busy}
-					onClick={() => {
-						setError(null);
-						setStatus("Imagem removida do rascunho. A publicação atual permanece intacta até publicar.");
-						onChange(null);
+					data-dragging={dragging ? "true" : "false"}
+					onClick={() => inputRef.current?.click()}
+					onDragEnter={(event) => {
+						event.preventDefault();
+						if (!busy) setDragging(true);
 					}}
+					onDragOver={(event) => event.preventDefault()}
+					onDragLeave={() => setDragging(false)}
+					onDrop={handleDrop}
 				>
-					Remover do rascunho
+					<strong>{busy ? "Processando imagem…" : previewUrl ? "Trocar imagem" : "Adicionar imagem"}</strong>
+					<span>Arraste aqui ou clique para escolher.</span>
 				</button>
 			</div>
-		) : null}
-		{status ? <p className={styles.status}>{status}</p> : null}
-		{error ? <p className={styles.error}>{error}</p> : null}
-	</section>
+			<input
+				ref={inputRef}
+				className={styles.input}
+				type="file"
+				accept="image/png,image/webp,.png,.webp"
+				disabled={busy}
+				onChange={(event) => {
+					const file = event.target.files?.item(0);
+					if (file) void upload(file);
+				}}
+			/>
+			{previewUrl ? (
+				<div className={styles.actions}>
+					<button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
+						Escolher outra
+					</button>
+					<button
+						type="button"
+						disabled={busy}
+						onClick={() => {
+							setError(null);
+							setStatus("Imagem removida do rascunho. A publicação atual permanece intacta até publicar.");
+							onChange(null);
+						}}
+					>
+						Remover do rascunho
+					</button>
+				</div>
+			) : null}
+			{status ? <p className={styles.status}>{status}</p> : null}
+			{error ? <p className={styles.error}>{error}</p> : null}
+		</section>
 	);
 }
