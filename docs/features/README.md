@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-12
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -17,6 +17,8 @@ Candidato em revisão: [Estatísticas privadas de transcrições](transcript-sta
 
 Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
 
+Candidato em revisão: [World entity media foundation](world-entity-media-foundation.md) — identidade de asset, R2, vínculo entidade → portrait e publicação verificada; SQL permanece em `supabase/candidates/`.
+
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
@@ -27,6 +29,7 @@ Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.m
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
+| World / mídia de entidades | candidato em branch; sem schema aplicado | [Entity media foundation](world-entity-media-foundation.md) |
 | Pipipi / lore cinematográfica | candidato em branch; não publicado | [Pipipi](pipipi-lore.md) |
 | relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
 | contrato de dados de relations | proposta para revisão; nenhuma DDL aplicada | [Relations data contract](relations-data-contract.md) |
