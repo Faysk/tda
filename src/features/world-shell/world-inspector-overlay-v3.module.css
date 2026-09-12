@@ -1,10 +1,10 @@
 @media (min-width: 1121px) {
-	:global([data-world-authoring-active][data-world-inspector-mode][data-world-edit-state]) {
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state]) {
 		display: block;
 		grid-template-columns: none;
 	}
 
-	:global([data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
 		position: fixed;
 		right: 0;
 		bottom: 12px;
@@ -26,16 +26,16 @@
 		pointer-events: auto;
 	}
 
-	:global([data-world-authoring-active="false"][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active="false"][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
 		top: 12px;
 	}
 
-	:global([data-world-authoring-active="true"][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active="true"][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
 		top: 72px;
 		max-height: calc(100dvh - 84px);
 	}
 
-	:global([data-world-authoring-active][data-world-inspector-mode="closed"][data-world-edit-state] > aside[aria-live="polite"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode="closed"][data-world-edit-state] > aside[aria-live="polite"]) {
 		width: 0;
 		min-width: 0;
 		max-width: 0;
@@ -48,8 +48,8 @@
 		pointer-events: none;
 	}
 
-	:global([data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Abrir painel de detalhes"]),
-	:global([data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Abrir painel de detalhes"]),
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]) {
 		position: absolute;
 		top: 50%;
 		right: auto;
@@ -75,8 +75,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) and (min-width: 1121px) {
-	:global([data-world-authoring-active] > aside[aria-live="polite"] > button[aria-label="Abrir painel de detalhes"]:hover),
-	:global([data-world-authoring-active] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]:hover) {
+	:global([data-world-workspace-root] [data-world-authoring-active] > aside[aria-live="polite"] > button[aria-label="Abrir painel de detalhes"]:hover),
+	:global([data-world-workspace-root] [data-world-authoring-active] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]:hover) {
 		border-color: var(--ds-accent);
 		background: var(--ds-surface-hover);
 		color: var(--ds-accent-strong);
@@ -85,7 +85,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	:global([data-world-authoring-active] > aside[aria-live="polite"]) {
+	:global([data-world-workspace-root] [data-world-authoring-active] > aside[aria-live="polite"]) {
 		transition: none;
 	}
 }
