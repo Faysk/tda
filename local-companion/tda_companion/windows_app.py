@@ -158,12 +158,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--diagnostic-file", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--rc-artifact", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--rc-artifact-sha256", help=argparse.SUPPRESS)
     parser.add_argument("--rc-result-file", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error("INVALID_PORT")
-    if args.install_rc_runtime and (args.rc_artifact is None or args.rc_result_file is None):
-        parser.error("RC_RUNTIME_ARTIFACT_AND_RESULT_REQUIRED")
+    if args.install_rc_runtime and (
+        args.rc_artifact is None
+        or args.rc_artifact_sha256 is None
+        or args.rc_result_file is None
+    ):
+        parser.error("RC_RUNTIME_ARTIFACT_HASH_AND_RESULT_REQUIRED")
     origins = args.origin or [PRODUCTION_ORIGIN]
     try:
         args.origins = frozenset(validate_origin(origin) for origin in origins)
@@ -184,6 +189,7 @@ def _install_rc_runtime(args: argparse.Namespace) -> int:
         result = install_rc_runtime_artifact(
             args.install_rc_runtime,
             args.rc_artifact,
+            expected_artifact_sha256=args.rc_artifact_sha256,
             runtime_root=paths.runtime_root,
             cache_root=paths.cache_root,
         )
