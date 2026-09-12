@@ -12,7 +12,7 @@ async function expectWorkspaceChromeAvailable(page: import("@playwright/test").P
 	await expect(page.getByRole("button", { name: "Reorganizar", exact: true })).toBeVisible();
 }
 
-test("World Workspace keeps primary chrome usable while navigation gives space back to the canvas", async ({
+test("World Workspace keeps primary chrome usable while navigation overlays a stable canvas", async ({
 	page,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
@@ -22,14 +22,18 @@ test("World Workspace keeps primary chrome usable while navigation gives space b
 	await expect(canvas).toBeVisible();
 	await expectWorkspaceChromeAvailable(page);
 
-	const initialCanvasWidth = (await canvas.boundingBox())?.width ?? 0;
+	const initialCanvas = await canvas.boundingBox();
+	const initialTransform = await page.locator(".react-flow__viewport").getAttribute("style");
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 	await expectWorkspaceChromeAvailable(page);
 
-	await expect
-		.poll(async () => (await canvas.boundingBox())?.width ?? 0)
-		.toBeGreaterThan(initialCanvasWidth);
+	const closedCanvas = await canvas.boundingBox();
+	expect(initialCanvas).not.toBeNull();
+	expect(closedCanvas).not.toBeNull();
+	expect(Math.abs((closedCanvas?.width ?? 0) - (initialCanvas?.width ?? 0))).toBeLessThan(2);
+	expect(Math.abs((closedCanvas?.x ?? 0) - (initialCanvas?.x ?? 0))).toBeLessThan(2);
+	expect(await page.locator(".react-flow__viewport").getAttribute("style")).toBe(initialTransform);
 });
 
 test("World Workspace chrome preserves transient view/filter state without creating explicit focus", async ({
