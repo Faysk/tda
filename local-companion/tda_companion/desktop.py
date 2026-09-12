@@ -23,6 +23,12 @@ from .asr_runtime_updates import (
 )
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
+from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
+from .qwen_runtime_updates import (
+    download_qwen_runtime,
+    fetch_qwen_runtime_manifest,
+    qwen_runtime_update_available,
+)
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .updates import download_update, fetch_manifest, update_available
@@ -127,7 +133,8 @@ class DesktopBridge:
             storage = {"free_bytes": usage.free, "total_bytes": usage.total}
         except OSError:
             storage = {"free_bytes": None, "total_bytes": None}
-        runtime = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=False)
+        whisper_runtime = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=False)
+        qwen_runtime = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=False)
         return {
             "version": VERSION,
             "agent": agent,
@@ -137,8 +144,12 @@ class DesktopBridge:
             "jobs": jobs[:12],
             "settings": self.settings.snapshot(),
             "whisper_runtime": {
-                "status": runtime.get("status"),
-                "version": runtime.get("version"),
+                "status": whisper_runtime.get("status"),
+                "version": whisper_runtime.get("version"),
+            },
+            "qwen_runtime": {
+                "status": qwen_runtime.get("status"),
+                "version": qwen_runtime.get("version"),
             },
         }
 
@@ -260,6 +271,62 @@ class DesktopBridge:
             "status": "ready",
             "version": manifest.version,
             "worker_sha256": installed["worker_sha256"],
+        }
+
+    def check_qwen_runtime(self) -> dict[str, Any]:
+        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
+        manifest = fetch_qwen_runtime_manifest()
+        current_version = state.get("version") if state.get("status") == "ready" else None
+        return {
+            "status": state.get("status"),
+            "current_version": current_version,
+            "installed_version": state.get("version"),
+            "available": qwen_runtime_update_available(
+                current_version if isinstance(current_version, str) else None,
+                manifest,
+            ),
+            "version": manifest.version,
+            "tag": manifest.tag,
+            "size": manifest.bundle.archive_size,
+            "part_count": len(manifest.bundle.parts),
+        }
+
+    def install_qwen_runtime(self) -> dict[str, Any]:
+        if self._has_running_job():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
+        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
+        manifest = fetch_qwen_runtime_manifest()
+        current_version = state.get("version") if state.get("status") == "ready" else None
+        if not qwen_runtime_update_available(
+            current_version if isinstance(current_version, str) else None,
+            manifest,
+        ):
+            return {
+                "accepted": False,
+                "available": False,
+                "status": state.get("status"),
+                "version": manifest.version,
+            }
+        repairing = state.get("status") == "corrupt" and state.get("version") == manifest.version
+        archive = download_qwen_runtime(manifest, self.paths.cache_root)
+        installed = install_qwen_runtime_archive(
+            archive,
+            self.paths.runtime_root,
+            version=manifest.version,
+            expected_sha256=manifest.bundle.archive_sha256,
+            replace_corrupt=repairing,
+        )
+        verified = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
+        if verified.get("status") != "ready" or verified.get("version") != manifest.version:
+            raise RuntimeError("QWEN_RUNTIME_INSTALL_VERIFY_FAILED")
+        return {
+            "accepted": True,
+            "available": True,
+            "status": "ready",
+            "version": manifest.version,
+            "worker_sha256": installed["worker_sha256"],
+            "repaired": repairing,
+            "part_count": len(manifest.bundle.parts),
         }
 
     def _maintenance_helper(self) -> Path:

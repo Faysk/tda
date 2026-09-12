@@ -13,6 +13,7 @@ from tda_companion.qwen_runtime_updates import (
     parse_qwen_runtime_download_manifest,
     qwen_runtime_update_available,
 )
+from tda_companion.release_download import ReleaseRedirectError
 
 
 def _sha(value: bytes) -> str:
@@ -82,9 +83,8 @@ def test_qwen_runtime_update_comparison_handles_missing_and_semver():
 
 
 class FakeResponse:
-    def __init__(self, payload: bytes, final_url: str):
+    def __init__(self, payload: bytes):
         self.payload = payload
-        self.final_url = final_url
         self.offset = 0
         self.status = 200
 
@@ -93,9 +93,6 @@ class FakeResponse:
 
     def __exit__(self, *_args):
         return False
-
-    def geturl(self) -> str:
-        return self.final_url
 
     def read(self, size: int = -1) -> bytes:
         if self.offset >= len(self.payload):
@@ -107,35 +104,35 @@ class FakeResponse:
         return chunk
 
 
-def test_qwen_runtime_download_requires_exact_release_redirect_and_assembles_parts(tmp_path: Path, monkeypatch):
+def test_qwen_runtime_download_uses_verified_release_chain_and_assembles_parts(tmp_path: Path, monkeypatch):
     payloads = (b"first-runtime-part", b"second-runtime-part")
     manifest = _manifest(payloads=payloads)
-    responses = []
-    for part, payload in zip(manifest.bundle.parts, payloads, strict=True):
-        responses.append(
-            FakeResponse(
-                payload,
-                f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/{part.name}",
-            )
-        )
+    responses = [FakeResponse(payload) for payload in payloads]
+    expected_urls: list[str] = []
 
-    monkeypatch.setattr(
-        "tda_companion.qwen_runtime_updates.urllib.request.urlopen",
-        lambda *_args, **_kwargs: responses.pop(0),
-    )
+    def verified(_request, *, expected_github_url, timeout):
+        expected_urls.append(expected_github_url)
+        assert timeout == 300.0
+        return responses.pop(0)
+
+    monkeypatch.setattr("tda_companion.qwen_runtime_updates.open_verified_release", verified)
     target = download_qwen_runtime(manifest, tmp_path / "Cache")
 
     assert target.name == "TDAQwenRuntime-1.2.3-windows-x64.zip"
     assert target.read_bytes() == b"".join(payloads)
+    assert expected_urls == [
+        f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/{part.name}"
+        for part in manifest.bundle.parts
+    ]
     assert not list((tmp_path / "Cache").rglob("*.partial"))
 
 
-def test_qwen_runtime_download_rejects_unexpected_redirect_and_cleans_partial(tmp_path: Path, monkeypatch):
+def test_qwen_runtime_download_rejects_bad_release_chain_and_cleans_partial(tmp_path: Path, monkeypatch):
     payload = b"runtime-part"
     manifest = _manifest(payloads=(payload,))
     monkeypatch.setattr(
-        "tda_companion.qwen_runtime_updates.urllib.request.urlopen",
-        lambda *_args, **_kwargs: FakeResponse(payload, "https://example.com/runtime.part001"),
+        "tda_companion.qwen_runtime_updates.open_verified_release",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ReleaseRedirectError("RELEASE_REDIRECT_REJECTED")),
     )
 
     with pytest.raises(RuntimeError, match="QWEN_RUNTIME_REDIRECT_REJECTED"):
@@ -154,7 +151,7 @@ def test_qwen_runtime_reuses_only_verified_cached_parts(tmp_path: Path, monkeypa
     cached.write_bytes(payload)
 
     monkeypatch.setattr(
-        "tda_companion.qwen_runtime_updates.urllib.request.urlopen",
+        "tda_companion.qwen_runtime_updates.open_verified_release",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network should not run")),
     )
     target = download_qwen_runtime(manifest, tmp_path / "Cache")
@@ -169,10 +166,9 @@ def test_qwen_runtime_replaces_tampered_cache_only_after_verified_download(tmp_p
     parts_root.mkdir(parents=True)
     cached = parts_root / part.name
     cached.write_bytes(b"tampered-cache")
-    expected_url = f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/{part.name}"
     monkeypatch.setattr(
-        "tda_companion.qwen_runtime_updates.urllib.request.urlopen",
-        lambda *_args, **_kwargs: FakeResponse(payload, expected_url),
+        "tda_companion.qwen_runtime_updates.open_verified_release",
+        lambda *_args, **_kwargs: FakeResponse(payload),
     )
 
     target = download_qwen_runtime(manifest, tmp_path / "Cache")
@@ -186,10 +182,9 @@ def test_qwen_runtime_bad_download_never_materializes_part(tmp_path: Path, monke
     part = manifest.bundle.parts[0]
     bad = b"corrupt-runtime-part!"
     assert len(bad) == part.size
-    expected_url = f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/{part.name}"
     monkeypatch.setattr(
-        "tda_companion.qwen_runtime_updates.urllib.request.urlopen",
-        lambda *_args, **_kwargs: FakeResponse(bad, expected_url),
+        "tda_companion.qwen_runtime_updates.open_verified_release",
+        lambda *_args, **_kwargs: FakeResponse(bad),
     )
 
     with pytest.raises(RuntimeError, match="QWEN_RUNTIME_PART_DIGEST_MISMATCH"):
