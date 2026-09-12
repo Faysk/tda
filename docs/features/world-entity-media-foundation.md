@@ -70,6 +70,14 @@ O SQL correspondente vive em `supabase/candidates/` até autorização explícit
 
 Pending uploads não são apagados de forma síncrona pela finalização porque a própria presigned URL ainda pode ser reutilizada até expirar e recriar o objeto. A limpeza deve ser feita por lifecycle explícito e curto aplicado somente ao prefixo `uploads/pending/`, nunca aos objetos canônicos.
 
+## Preview privado do rascunho
+
+`/api/world/entity-media/{assetId}` é a superfície de leitura do portrait ainda privado. A rota fica atrás do mesmo feature flag e exige `campaign.content.edit`; o browser nunca recebe `staged_bucket` nem `object_key` como identidade.
+
+Antes de responder, a rota resolve campaign + asset por UUID, rejeita asset `retired`/não verificado, reconstrói a chave canônica esperada e relê os bytes do R2. Magic bytes, SHA-256, MIME, tamanho e dimensões precisam continuar iguais ao registro. A resposta usa `Cache-Control: private, no-store` e `X-Content-Type-Options: nosniff`; falha de auth/integridade não faz fallback para bucket público.
+
+O draft hidratado e alterações locais podem usar essa rota como `imageUrl`; a projeção pública continua independente e só usa URL pública verificada.
+
 ## Publicação
 
 1. O editor escolhe um asset no draft (`primaryMediaAssetId`).
@@ -82,7 +90,9 @@ Pending uploads não são apagados de forma síncrona pela finalização porque 
 
 ## Primeira UX
 
-O inspector de Conduzir terá uma seção `Imagem do elemento` com preview, adicionar/trocar/remover e drag-and-drop. Nós continuam circulares; a imagem usa crop `cover` e fallback para iniciais. Focal point começa em `(0.5, 0.5)` e poderá ganhar ajuste visual na fase de polimento.
+O componente candidato do inspector já possui preview circular, adicionar/trocar/remover, file picker e drag-and-drop, com cálculo SHA-256 no browser e estados de preparação/upload/finalização. A integração final ao painel de Conduzir permanece atrás do feature flag até o schema e a configuração R2/CORS serem autorizados no ambiente de homologação.
+
+Nós continuam circulares; a imagem usa crop `cover` e fallback para iniciais. Focal point começa em `(0.5, 0.5)` e poderá ganhar ajuste visual na fase de polimento.
 
 ## Limites iniciais
 
