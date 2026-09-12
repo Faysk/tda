@@ -159,7 +159,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-12 |
 | [R2 — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-12 |
 | [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-11 |
+| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-12 |
 | [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-12 |
 
 ## docs/legacy
