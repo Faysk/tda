@@ -1,6 +1,6 @@
 # Fidelidade dos pacotes de D e Seika
 
-> Status: candidato em validação
+> Status: publicado e verificado em 2026-09-12
 > Owner: lores e mídia
 > Última revisão: 2026-09-12
 
@@ -25,7 +25,9 @@ Seika utiliza as 25 imagens WebP originais, incluindo fundos, sujeitos transpare
 
 - [x] Restaurar composições e mapear todas as referências de mídia.
 - [x] Validar build, testes específicos (9 casos) e comparação visual em desktop e celular.
-- [ ] Integrar via Preview e main com verificações concluídas.
-- [ ] Confirmar páginas e arquivos na publicação de produção.
+- [x] Integrar via Preview e main com verificações concluídas.
+- [x] Confirmar páginas e arquivos na publicação de produção.
 
 Rollback: reverter o commit de integração e republicar pelo fluxo normal. Os objetos originais no R2 permanecem disponíveis; não apagar mídia para reverter consumidores.
+
+Recibo: PRs #223/#224, commit `ed9201c9911a600918ef742c9c212aa1d18315c8`, Production CD 34696663629 concluído com sucesso. Procedimento reutilizável: [ZIP à produção](../operations/zip-to-production.md).

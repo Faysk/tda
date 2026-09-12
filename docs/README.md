@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -84,6 +84,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 
 ### Features e expansão
 
+- [Lores independentes — liberdade visual e catálogo](features/independent-lores.md)
 - [Especificações de features — índice](features/README.md)
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
@@ -107,6 +108,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Integrações — índice](integrations/README.md)
 - [Supabase](integrations/supabase.md)
 - [Cloudflare R2](integrations/r2.md)
+- [Fluxo obrigatório de imagens](integrations/r2/media-pipeline.md) — preparação, upload, verificação, responsabilidades e aceite.
 - [Vercel](integrations/vercel.md)
 - [Craig, Discord e Roll20](integrations/table-sources.md)
 - [Companion local](integrations/local-companion.md)
@@ -191,3 +193,5 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Vercel correta para futuras operações: conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 
 Última revisão estrutural: **2026-09-11**.
+
+- [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.

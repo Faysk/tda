@@ -2,10 +2,12 @@
 
 > Status: implementação, QA e publicação em production concluídos
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 > Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
+
+Escopo editorial atualizado em 2026-09-12: o contrato de [lores independentes](independent-lores.md) permite identidade própria por página. A composição de Pipipi descrita abaixo documenta esta entrega; não obriga outras lores a reutilizá-la nem a seguir o DS do site.
 
 Implementar `/lore/pipipi` como a primeira lore editorial longa do TDA, preservando o texto aprovado como leitura HTML completa e usando cinematic apenas como enhancement visual.
 
