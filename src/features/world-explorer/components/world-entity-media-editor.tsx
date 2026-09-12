@@ -210,7 +210,11 @@ export function WorldEntityMediaEditor({
 			/>
 			{previewUrl ? (
 				<>
-					<div className={styles.focalControls} aria-label="Enquadramento do retrato">
+					<div
+						className={styles.focalControls}
+						role="group"
+						aria-label="Enquadramento do retrato"
+					>
 						<div className={styles.focalHeading}>
 							<strong>Enquadramento</strong>
 							<span>
