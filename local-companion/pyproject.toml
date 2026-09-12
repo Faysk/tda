@@ -12,7 +12,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["httpx==0.28.1", "pytest==9.1.1"]
-packaging = ["pyinstaller==6.22.2"]
+packaging = ["pyinstaller==6.22.3"]
 desktop = [
     "pywebview==6.2.1",
     "pystray==0.19.5",
