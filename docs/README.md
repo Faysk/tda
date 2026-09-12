@@ -119,6 +119,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Operação — índice](operations/README.md)
 - [Ambientes e configuração](operations/environments.md)
 - [Login Discord — configuração e verificação](operations/discord-auth.md)
+- [Companion — política de versões e dependências](operations/companion-dependency-policy.md) — pins compatíveis, freshness e gate de release do Companion.
 - [Release, deploy e rollback](operations/release-runbook.md)
 - [Publicação controlada](releases.md) — política resumida.
 - [Segurança operacional](operations/security-checklist.md)
@@ -136,7 +137,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0008 — autorização orientada a capabilities e scope](adr/0008-capability-authorization.md)
 - [ADR-0009 — World Explorer multi-hub e layout espacial reorganizável](adr/0009-world-explorer-multihub-layout.md)
 - [ADR-0010 — persistência editorial do layout separada do canon](adr/0010-world-explorer-editorial-layout-persistence.md)
-- [ADR-0011 — persistência física candidata do layout editorial do World Explorer](adr/0011-world-explorer-layout-physical-persistence.md)
+- [ADR-0011 — persistência física candidata do layout editorial](adr/0011-world-explorer-layout-physical-persistence.md)
 - [ADR-0012 — GitHub Actions controla a entrega](adr/0012-github-actions-controlled-delivery.md)
 - [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](adr/0013-companion-agent-desktop-asr.md)
 
