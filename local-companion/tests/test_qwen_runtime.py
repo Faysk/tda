@@ -95,3 +95,57 @@ def test_qwen_runtime_requires_expected_worker_and_detects_tamper(tmp_path: Path
     worker.write_bytes(b"tampered")
     assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "corrupt"
     assert current_qwen_worker(runtime_root) is None
+
+
+def test_qwen_runtime_can_atomically_repair_corrupt_current_version(tmp_path: Path):
+    runtime_root = tmp_path / "Runtime"
+    first = tmp_path / "first.zip"
+    first_digest = _runtime_zip(first, payload=b"worker-v1-corrupt-me")
+    install_qwen_runtime_archive(
+        first,
+        runtime_root,
+        version="1.0.0",
+        expected_sha256=first_digest,
+    )
+    worker = runtime_root / "qwen" / "1.0.0" / "TDAQwenWorker.exe"
+    worker.write_bytes(b"tampered")
+    assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "corrupt"
+
+    replacement = tmp_path / "replacement.zip"
+    replacement_digest = _runtime_zip(replacement, payload=b"worker-v1-repaired")
+    marker = install_qwen_runtime_archive(
+        replacement,
+        runtime_root,
+        version="1.0.0",
+        expected_sha256=replacement_digest,
+        replace_corrupt=True,
+    )
+
+    assert worker.read_bytes() == b"worker-v1-repaired"
+    assert marker["archive_sha256"] == replacement_digest
+    state = inspect_qwen_runtime(runtime_root, verify_worker=True)
+    assert state["status"] == "ready"
+    assert state["version"] == "1.0.0"
+    assert not list((runtime_root / "qwen").glob("*.backup"))
+    assert not list((runtime_root / "qwen").glob("*.partial"))
+
+
+def test_qwen_runtime_refuses_repair_of_healthy_current_version(tmp_path: Path):
+    runtime_root = tmp_path / "Runtime"
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive)
+    install_qwen_runtime_archive(
+        archive,
+        runtime_root,
+        version="1.0.0",
+        expected_sha256=digest,
+    )
+
+    with pytest.raises(QwenRuntimeInstallError, match="QWEN_RUNTIME_REPAIR_NOT_ALLOWED"):
+        install_qwen_runtime_archive(
+            archive,
+            runtime_root,
+            version="1.0.0",
+            expected_sha256=digest,
+            replace_corrupt=True,
+        )
