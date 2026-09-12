@@ -94,7 +94,7 @@ O inspector de **Conduzir** já integra `WorldEntityMediaEditor`: preview circul
 
 Remover o portrait grava `primaryMediaAssetId = null` no draft e restaura o fallback de iniciais no canvas. O feature flag continua fail-closed e desligado por default enquanto schema/R2/CORS não forem autorizados no ambiente; integrar a superfície visual não ativa infraestrutura remota por efeito colateral.
 
-Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e agora respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e o ajuste visual interativo permanece para o polimento seguinte.
+Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e já pode ser ajustado horizontal e verticalmente no inspector, com ação para recentralizar; derivados pequenos para avatar/node continuam pendentes.
 
 ## Limites iniciais
 
