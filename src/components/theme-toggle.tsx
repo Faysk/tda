@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	oppositeTheme,
 	parseThemePreference,
@@ -24,6 +24,7 @@ function applyTheme(theme: ResolvedTheme) {
 
 export function ThemeToggle() {
 	const [effective, setEffective] = useState<ResolvedTheme>("dark");
+	const interactedRef = useRef(false);
 
 	useEffect(() => {
 		let stored: string | null = null;
@@ -38,7 +39,9 @@ export function ThemeToggle() {
 			delete document.documentElement.dataset.theme;
 			document.documentElement.style.colorScheme = "light dark";
 		}
-		setEffective(resolveTheme(preference));
+		if (!interactedRef.current) {
+			setEffective(resolveTheme(preference));
+		}
 
 		const media = window.matchMedia("(prefers-color-scheme: dark)");
 		const onSystemChange = () => {
@@ -51,6 +54,7 @@ export function ThemeToggle() {
 	}, []);
 
 	const changeTheme = () => {
+		interactedRef.current = true;
 		const next = oppositeTheme(effective);
 		try {
 			window.localStorage.setItem(THEME_STORAGE_KEY, next);
