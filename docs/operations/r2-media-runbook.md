@@ -18,6 +18,8 @@ O [fluxo único de mídia](../integrations/r2/media-pipeline.md) é o contrato d
 
 ## Diagnóstico por sintoma
 
+Evidência datada de recuperação: [manifesto de D, Seika e Pipipi em 2026-09-12](../integrations/evidence/lore-media-recovery-2026-09-12.json). Registra disponibilidade dos objetos, não aceite integral das páginas. Seika tem 25 WebPs do pacote, enquanto o consumidor então publicado referenciava apenas seis panoramas: restaurar camadas exige corrigir o consumidor. D tem três PNGs 1024×1536; a retirada da reconstrução Base64 ainda depende da integração do candidato. Pipipi tem três derivados WebP lossless 1672×941 dos PNGs fornecidos: `cadeira`, `super` e `ultimo-dia`; igualdade de pixels decodificados foi verificada, mas a troca das referências runtime e o aceite visual permanecem pendentes. Masters/pacotes foram preservados no R2 privado; não fazer novo upload por inferir ausência a partir do estado antigo da página.
+
 | Sintoma | Como distinguir a causa | Próxima ação |
 | --- | --- | --- |
 | Credencial rejeitada | Validar configuração do ambiente e tipo de credencial, sem imprimir o segredo | Corrigir o par S3 e escopo; não repetir uploads às cegas |
