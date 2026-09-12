@@ -11,7 +11,7 @@ import {
 	type WorldEntityMediaMime,
 	worldEntityMediaPreviewUrl,
 } from "../world-entity-media";
-import type { WorldGraphDraftNode } from "../model";
+import type { WorldGraphDraftNode, WorldMediaFocalPoint } from "../model";
 import styles from "./world-entity-media-editor.module.css";
 
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
@@ -56,9 +56,11 @@ function failureMessage(reason: string): string {
 export function WorldEntityMediaEditor({
 	entity,
 	onChange,
+	onFocalPointChange,
 }: {
 	entity: WorldGraphDraftNode;
 	onChange: (assetId: string | null) => void;
+	onFocalPointChange: (focalPoint: WorldMediaFocalPoint) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [busy, setBusy] = useState(false);
@@ -207,22 +209,67 @@ export function WorldEntityMediaEditor({
 				}}
 			/>
 			{previewUrl ? (
-				<div className={styles.actions}>
-					<button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
-						Escolher outra
-					</button>
-					<button
-						type="button"
-						disabled={busy}
-						onClick={() => {
-							setError(null);
-							setStatus("Imagem removida do rascunho. A publicação atual permanece intacta até publicar.");
-							onChange(null);
-						}}
-					>
-						Remover do rascunho
-					</button>
-				</div>
+				<>
+					<div className={styles.focalControls} aria-label="Enquadramento do retrato">
+						<div className={styles.focalHeading}>
+							<strong>Enquadramento</strong>
+							<span>
+								{Math.round(focal.x * 100)}% · {Math.round(focal.y * 100)}%
+							</span>
+						</div>
+						<label>
+							Horizontal
+							<input
+								type="range"
+								min={0}
+								max={100}
+								step={1}
+								value={Math.round(focal.x * 100)}
+								disabled={busy}
+								onChange={(event) =>
+									onFocalPointChange({ x: Number(event.target.value) / 100, y: focal.y })
+								}
+							/>
+						</label>
+						<label>
+							Vertical
+							<input
+								type="range"
+								min={0}
+								max={100}
+								step={1}
+								value={Math.round(focal.y * 100)}
+								disabled={busy}
+								onChange={(event) =>
+									onFocalPointChange({ x: focal.x, y: Number(event.target.value) / 100 })
+								}
+							/>
+						</label>
+						<button
+							type="button"
+							disabled={busy || (focal.x === 0.5 && focal.y === 0.5)}
+							onClick={() => onFocalPointChange({ x: 0.5, y: 0.5 })}
+						>
+							Centralizar
+						</button>
+					</div>
+					<div className={styles.actions}>
+						<button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
+							Escolher outra
+						</button>
+						<button
+							type="button"
+							disabled={busy}
+							onClick={() => {
+								setError(null);
+								setStatus("Imagem removida do rascunho. A publicação atual permanece intacta até publicar.");
+								onChange(null);
+							}}
+						>
+							Remover do rascunho
+						</button>
+					</div>
+				</>
 			) : null}
 			{status ? <p className={styles.status}>{status}</p> : null}
 			{error ? <p className={styles.error}>{error}</p> : null}
