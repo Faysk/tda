@@ -16,7 +16,7 @@
     "av": "18.1.0",
     "numpy": "2.5.3",
     "nvidia-ml-py": "13.610.43",
-    "pyinstaller": "6.22.2"
+    "pyinstaller": "6.22.3"
   },
   "gpu": {
     "minimum_compute_capability": "8.0",
