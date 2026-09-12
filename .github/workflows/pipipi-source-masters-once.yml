@@ -16,10 +16,10 @@ jobs:
     environment:
       name: production
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
-      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-      VERCEL_CLI_VERSION: 59.11.7
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,30 +45,14 @@ jobs:
 
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
-      - name: Pull production environment without logging secrets
+      - name: Require authenticated production R2 credentials
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-            echo "::error::VERCEL_TOKEN unavailable"
-            exit 1
-          fi
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
-          test -f .vercel/.env.production.local
-
-      - name: Fetch exact canonical Pipipi masters from authenticated R2
-        shell: bash
-        run: |
-          set -euo pipefail
-          set -a
-          source .vercel/.env.production.local
-          set +a
-
           for key in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET; do
             if [[ -z "${!key:-}" ]]; then
-              echo "::error::Production environment is missing required R2 credential: ${key}"
+              echo "::error::GitHub production environment is missing ${key}"
               exit 1
             fi
           done
@@ -77,6 +61,10 @@ jobs:
             exit 1
           fi
 
+      - name: Fetch exact canonical Pipipi masters from authenticated R2
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p .tmp/pipipi-source
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
@@ -133,6 +121,7 @@ jobs:
             keys.push(...(page.Contents ?? []).map((item) => item.Key).filter(Boolean));
             token = page.IsTruncated ? page.NextContinuationToken : undefined;
           } while (token);
+          console.log(`R2_PIPIPI_OBJECTS ${keys.length}`);
 
           for (const item of expected) {
             const candidates = [
@@ -182,11 +171,12 @@ jobs:
           import fs from "node:fs";
           import sharp from "sharp";
           for (const file of ["super-static.webp", "cadeira-static.webp", "ultimo-dia-static.webp"]) {
-            const metadata = await sharp(fs.readFileSync(file)).metadata();
+            const bytes = fs.readFileSync(file);
+            const metadata = await sharp(bytes).metadata();
             if (metadata.width !== 1672 || metadata.height !== 941 || metadata.format !== "webp") {
               throw new Error(`${file}: expected WebP 1672x941, got ${metadata.format} ${metadata.width}x${metadata.height}`);
             }
-            await sharp(fs.readFileSync(file), { failOn: "warning" }).stats();
+            await sharp(bytes, { failOn: "warning" }).stats();
             console.log(`SOURCE_DIMENSIONS_OK ${file} 1672x941`);
           }
           NODE
