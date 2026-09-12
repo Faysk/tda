@@ -18,6 +18,7 @@ from tda_companion.qwen_runtime import install_qwen_runtime_archive
 
 
 def _install_runtime(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
     archive = root / "qwen-runtime.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:
         bundle.writestr("TDAQwenWorker.exe", b"worker-v1")
