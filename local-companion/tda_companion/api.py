@@ -14,8 +14,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
+from .asr_runtime import inspect_whisper_runtime
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .qwen_physical_gate import inspect_qwen_physical_gate, ready_qwen_profiles
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -40,7 +42,12 @@ class CraigTranscriptionJobRequest(BaseModel):
     campaign_id: str = Field(pattern=_ID_PATTERN)
     session_id: str = Field(pattern=_ID_PATTERN)
     source_id: str = Field(pattern=_ID_PATTERN)
-    profile_id: Literal["whisper-turbo", "whisper-detailed"]
+    profile_id: Literal[
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ]
     glossary: str = Field(default="", max_length=1200)
     context: str = Field(default="", max_length=1200)
     cpu: bool = False
@@ -91,9 +98,15 @@ def create_app(
     resolved_models_root = (
         models_root.resolve() if models_root is not None else data_root.parent / "Models"
     )
+    resolved_state_root = data_root.parent / "State"
+    resolved_runtime_root = data_root.parent / "Runtime"
     store = Store(data_root)
     telemetry = SystemTelemetry()
-    worker_supervisor = WorkerSupervisor(data_root=data_root, models_root=resolved_models_root)
+    worker_supervisor = WorkerSupervisor(
+        data_root=data_root,
+        models_root=resolved_models_root,
+        runtime_root=resolved_runtime_root,
+    )
     worker_healthy = True
     worker_wake = asyncio.Event()
     started_at = time.time()
@@ -316,6 +329,8 @@ def create_app(
     app.state.worker_wake = worker_wake
     app.state.data_root = data_root
     app.state.models_root = resolved_models_root
+    app.state.state_root = resolved_state_root
+    app.state.runtime_root = resolved_runtime_root
     app.router.redirect_slashes = False
 
     @app.middleware("http")
@@ -412,8 +427,19 @@ def create_app(
 
     @app.get("/api/v1/capabilities")
     def capabilities():
-        # Do not advertise real ASR until the isolated runtime is actually shipped.
         features = ["synthetic.fixture", "job.events", "system.telemetry", "worker.subprocess"]
+        profiles: list[str] = []
+        whisper = inspect_whisper_runtime(resolved_runtime_root, verify_worker=True)
+        if whisper.get("status") == "ready":
+            profiles.extend(["whisper-turbo", "whisper-detailed"])
+        qwen_profiles = ready_qwen_profiles(
+            resolved_state_root,
+            resolved_runtime_root,
+            resolved_models_root,
+        )
+        profiles.extend(qwen_profiles)
+        if profiles:
+            features.append("transcription.craig")
         if system_log is not None:
             features.extend(["agent.desktop", "agent.logs"])
         if shutdown_callback is not None:
@@ -422,6 +448,18 @@ def create_app(
             capabilities=features,
             sync=False,
             device=dict(id=store.setting("device"), label="TDA local"),
+            transcription={
+                "profiles": profiles,
+                "qwen_physical_gate": {
+                    profile_id: inspect_qwen_physical_gate(
+                        resolved_state_root,
+                        resolved_runtime_root,
+                        resolved_models_root,
+                        profile_id=profile_id,
+                    )
+                    for profile_id in ("qwen-fast", "qwen-quality")
+                },
+            },
         )
 
     @app.get("/api/v1/system")
@@ -487,6 +525,17 @@ def create_app(
     async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
         payload = body.model_dump()
         if body.kind == "transcription.craig":
+            if body.profile_id.startswith("qwen-"):
+                if body.cpu:
+                    raise Conflict("QWEN_CPU_UNSUPPORTED")
+                gate = inspect_qwen_physical_gate(
+                    resolved_state_root,
+                    resolved_runtime_root,
+                    resolved_models_root,
+                    profile_id=body.profile_id,
+                )
+                if gate.get("ready") is not True:
+                    raise Conflict("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
             try:
                 _, package = staged_package(body.source_id, verify_tracks=False)
             except CraigPackageError as exc:
