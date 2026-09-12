@@ -20,6 +20,7 @@ from .qwen_runtime import QWEN_RUNTIME_ID, inspect_qwen_runtime, qwen_version_ro
 GATE_SCHEMA = "tda_qwen_physical_gate_v1"
 GATE_DIRECTORY = "qwen-physical-gates"
 QWEN_PROFILES = ("qwen-fast", "qwen-quality")
+MIN_GATE_AUDIO_SECONDS = 180.0
 MAX_GATE_BYTES = 128 * 1024
 _SHA256 = set("0123456789abcdef")
 _FORBIDDEN_KEYS = {"text", "words", "transcript", "segments", "audio"}
@@ -52,8 +53,6 @@ def _canonical_sha256(value: object) -> str:
 def _atomic_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + f".{uuid4().hex}.partial")
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ","))
-    # Keep the persisted contract deterministic, but fix separators below before write.
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     with temporary.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(encoded)
@@ -190,9 +189,14 @@ def _validate_acceptance(
 
     inference = receipt.get("inference") if isinstance(receipt.get("inference"), dict) else {}
     alignment = receipt.get("alignment") if isinstance(receipt.get("alignment"), dict) else {}
+    try:
+        audio_seconds = float(inference.get("audio_seconds") or 0.0)
+    except (TypeError, ValueError) as exc:
+        raise QwenPhysicalGateError("QWEN_GATE_ACCEPTANCE_METRICS_INVALID") from exc
+    if audio_seconds < MIN_GATE_AUDIO_SECONDS:
+        raise QwenPhysicalGateError("QWEN_GATE_AUDIO_TOO_SHORT")
     if (
         inference.get("device") != "cuda"
-        or float(inference.get("audio_seconds") or 0.0) <= 0
         or float(inference.get("rtf") or 0.0) < 0
         or int(alignment.get("word_count") or 0) < 1
     ):
@@ -226,7 +230,6 @@ def record_qwen_physical_gate(
 ) -> dict[str, Any]:
     accepted = _validate_acceptance(receipt, profile_id, required_gpu_name)
     runtime = _runtime_identity(runtime_root)
-    # Full content verification is intentionally paid once at physical acceptance.
     model = _model_identity(models_root, profile_id, verify_hash=True)
     aligner = _aligner_identity(models_root, verify_hash=True)
     binding = _binding_payload(profile_id, runtime, model, aligner)
