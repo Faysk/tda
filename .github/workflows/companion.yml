@@ -32,7 +32,7 @@ jobs:
   windows-app:
     name: windows-installer (TDACompanion-x64.msi)
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
@@ -56,6 +56,11 @@ jobs:
         run: |
           $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
           ./local-companion/packaging/smoke-windows-msi.ps1 -MsiPath "local-companion/out/windows/TDACompanion-x64.msi" -Version $version
+      - name: Smoke real previous-release upgrade, preserve uninstall and purge
+        shell: pwsh
+        run: |
+          $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
+          ./local-companion/packaging/smoke-windows-lifecycle.ps1 -CurrentMsiPath "local-companion/out/windows/TDACompanion-x64.msi" -CurrentVersion $version
       - name: Upload Windows package
         uses: actions/upload-artifact@v5
         with:
