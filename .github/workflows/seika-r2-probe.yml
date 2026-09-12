@@ -10,7 +10,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     environment:
       name: production
     env:
@@ -18,35 +18,79 @@ jobs:
       VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Validate Vercel access
+      - uses: actions/checkout@v7
+      - name: Pull production environment without printing secrets
         shell: bash
         run: |
           set -euo pipefail
           [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing VERCEL_TOKEN"; exit 1; }
-      - name: Pull production environment safely
-        shell: bash
-        run: |
-          set -euo pipefail
           npm install --global vercel@59.11.7 >/dev/null 2>&1
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
-      - name: Check R2 variables without printing values
+          ENV_FILE=.vercel/.env.production.local
+          [[ -f "$ENV_FILE" ]] || { echo "::error::Production env file was not created"; exit 1; }
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET R2_PRIVATE_BUCKET; do
+            grep -q "^${name}=" "$ENV_FILE" || { echo "::error::Missing ${name} in production env"; exit 1; }
+          done
+          echo "SEIKA_R2_ENV_READY"
+      - name: Install isolated R2 probe dependency
+        shell: bash
+        run: npm install --no-save --ignore-scripts @aws-sdk/client-s3@3.1127.0 >/dev/null 2>&1
+      - name: Diagnose Seika object state
         shell: bash
         run: |
           set -euo pipefail
-          ENV_FILE=.vercel/.env.production.local
-          [[ -f "$ENV_FILE" ]] || { echo "::error::Production env file was not created"; exit 1; }
-          missing=0
-          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET; do
-            if ! grep -q "^${name}=" "$ENV_FILE"; then
-              echo "::error::Production environment is missing ${name}"
-              missing=1
-            else
-              value="$(grep "^${name}=" "$ENV_FILE" | head -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
-              if [[ -z "$value" ]]; then
-                echo "::error::Production environment has empty ${name}"
-                missing=1
-              fi
-            fi
+          set -a
+          source .vercel/.env.production.local
+          set +a
+          node --input-type=module <<'NODE'
+          import { S3Client, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+          const endpoint = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+          const client = new S3Client({
+            region: 'auto', endpoint,
+            credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+          });
+          const objects = [
+            ['wide-adult-seika-full.webp','f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289'],
+            ['wide-ami-ritual-full.webp','8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16'],
+            ['wide-departure-full.webp','74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5'],
+            ['wide-first-exorcism-full.webp','386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9'],
+            ['wide-ink-moon.webp','2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6'],
+            ['wide-lucky-full.webp','a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad'],
+          ];
+          for (const [bucketLabel,bucket] of [['public',process.env.R2_PUBLIC_BUCKET],['private',process.env.R2_PRIVATE_BUCKET]]) {
+            const listed = await client.send(new ListObjectsV2Command({Bucket:bucket, Prefix:'lore/seika/', MaxKeys:1000}));
+            console.log(`LIST ${bucketLabel} count=${listed.KeyCount ?? 0}`);
+            for (const item of listed.Contents ?? []) console.log(`OBJECT ${bucketLabel} key=${item.Key} bytes=${item.Size}`);
+          }
+          for (const [name,hash] of objects) {
+            const key=`lore/seika/${hash}/${name}`;
+            try {
+              const h=await client.send(new HeadObjectCommand({Bucket:process.env.R2_PUBLIC_BUCKET,Key:key}));
+              console.log(`HEAD public OK key=${key} bytes=${h.ContentLength} type=${h.ContentType ?? ''} etag=${h.ETag ?? ''}`);
+            } catch (e) {
+              console.log(`HEAD public MISSING key=${key} status=${e?.$metadata?.httpStatusCode ?? 'unknown'} code=${e?.name ?? 'unknown'}`);
+            }
+          }
+          NODE
+      - name: Revalidate canonical public URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            'https://media.dnd.faysk.dev/lore/seika/f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289/wide-adult-seika-full.webp'
+            'https://media.dnd.faysk.dev/lore/seika/8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16/wide-ami-ritual-full.webp'
+            'https://media.dnd.faysk.dev/lore/seika/74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5/wide-departure-full.webp'
+            'https://media.dnd.faysk.dev/lore/seika/386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9/wide-first-exorcism-full.webp'
+            'https://media.dnd.faysk.dev/lore/seika/2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6/wide-ink-moon.webp'
+            'https://media.dnd.faysk.dev/lore/seika/a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad/wide-lucky-full.webp'
+          )
+          mkdir -p /tmp/seika-public
+          i=0
+          for url in "${urls[@]}"; do
+            i=$((i+1)); out="/tmp/seika-public/$i.bin"; hdr="/tmp/seika-public/$i.headers"
+            status="$(curl -sS -L -D "$hdr" -o "$out" -w '%{http_code}' "$url" || true)"
+            bytes="$(wc -c < "$out" 2>/dev/null || echo 0)"
+            type="$(grep -i '^content-type:' "$hdr" | tail -n1 | tr -d '\r' | cut -d' ' -f2- || true)"
+            sha="$(sha256sum "$out" 2>/dev/null | cut -d' ' -f1 || true)"
+            echo "PUBLIC status=$status bytes=$bytes type=${type:-none} sha256=${sha:-none} url=$url"
           done
-          [[ "$missing" -eq 0 ]] || exit 1
-          echo "SEIKA_R2_VERCEL_ENV_AVAILABLE"
