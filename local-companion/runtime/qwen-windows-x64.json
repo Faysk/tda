@@ -1,0 +1,27 @@
+{
+  "schema": "tda_qwen_runtime_build_v1",
+  "runtime_id": "qwen3-transformers",
+  "version": "1.0.0",
+  "python": "3.12.14",
+  "torch": {
+    "version": "2.14.0",
+    "index_url": "https://download.pytorch.org/whl/cu132",
+    "cuda_family": "13.2"
+  },
+  "packages": {
+    "transformers": "5.17.0",
+    "accelerate": "1.15.0",
+    "huggingface-hub": "1.31.0",
+    "safetensors": "0.8.0",
+    "av": "18.1.0",
+    "numpy": "2.5.3",
+    "nvidia-ml-py": "13.610.43",
+    "pyinstaller": "6.22.2"
+  },
+  "gpu": {
+    "minimum_compute_capability": "8.0",
+    "preferred_dtype": "bfloat16",
+    "minimum_driver_family": "580",
+    "physical_gate": "RTX 4070 8 GB"
+  }
+}

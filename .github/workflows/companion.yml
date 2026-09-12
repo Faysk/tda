@@ -18,10 +18,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
-          version: '0.12.10'
-      - run: uv venv --python 3.12.13
+          version: '0.12.13'
+      - run: uv venv --python 3.12.14
       - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
       - run: ${{ matrix.python }} -m pytest local-companion/tests -q
       - run: uv build local-companion --wheel --out-dir wheelhouse
@@ -32,14 +32,14 @@ jobs:
   windows-app:
     name: windows-installer (TDACompanion-x64.msi)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
-          version: '0.12.10'
-      - run: uv venv --python 3.12.13
-      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging]
+          version: '0.12.13'
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging,desktop]
       - name: Install WiX Toolset 5
         shell: pwsh
         run: dotnet tool install --tool-path .wix wix --version 5.0.2
@@ -56,6 +56,11 @@ jobs:
         run: |
           $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
           ./local-companion/packaging/smoke-windows-msi.ps1 -MsiPath "local-companion/out/windows/TDACompanion-x64.msi" -Version $version
+      - name: Smoke real previous-release upgrade, preserve uninstall and purge
+        shell: pwsh
+        run: |
+          $version = (& .venv/Scripts/python.exe -c "import tda_companion; print(tda_companion.VERSION)").Trim()
+          ./local-companion/packaging/smoke-windows-lifecycle.ps1 -CurrentMsiPath "local-companion/out/windows/TDACompanion-x64.msi" -CurrentVersion $version
       - name: Upload Windows package
         uses: actions/upload-artifact@v5
         with:
@@ -118,6 +123,7 @@ jobs:
           - Instalação por usuário, sem privilégios administrativos.
           - Aplicativo em %LOCALAPPDATA%\\TDA\\Companion.
           - Dados locais preservados em %LOCALAPPDATA%\\TDA\\Data.
+          - Desktop local via WebView2 e Agent independente em segundo plano.
           - O antigo DnDScribeCompanion.exe não é usado ou modificado.
 
           SHA256 do MSI: ${SHA256}

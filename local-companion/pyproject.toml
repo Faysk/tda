@@ -1,6 +1,6 @@
 [project]
 name = "tda-companion"
-version = "0.2.0"
+version = "0.3.0"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -12,8 +12,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["httpx==0.28.1", "pytest==9.1.1"]
-packaging = ["pyinstaller==6.16.0"]
-# ASR is retained but deliberately not enabled by the HTTP fixture runner.
+packaging = ["pyinstaller==6.22.2"]
+desktop = [
+    "pywebview==6.2.1",
+    "pystray==0.19.5",
+    "pillow==12.3.0",
+]
+# ASR remains isolated from the HTTP Agent; engine runtimes are packaged separately.
 asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.2"]
 
 [project.scripts]
@@ -26,6 +31,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["tda_companion*"]
+
+[tool.setuptools.package-data]
+tda_companion = ["ui/*.html", "ui/*.css", "ui/*.js", "ui/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
