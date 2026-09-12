@@ -60,7 +60,7 @@ def test_supervisor_validates_opaque_source_before_spawn(tmp_path: Path):
     assert not sentinel.exists()
 
 
-def test_supervisor_does_not_run_qwen_inside_companion_python(tmp_path: Path):
+def test_supervisor_does_not_run_qwen_inside_companion_python_without_physical_gate(tmp_path: Path):
     data_root = tmp_path / "Data"
     models_root = tmp_path / "Models"
     _stage_craig(data_root)
@@ -70,7 +70,7 @@ def test_supervisor_does_not_run_qwen_inside_companion_python(tmp_path: Path):
         startup_timeout=5,
         heartbeat_timeout=5,
     )
-    with pytest.raises(WorkerProcessError, match="QWEN_RUNTIME_UNCONFIGURED"):
+    with pytest.raises(WorkerProcessError, match="QWEN_PHYSICAL_ACCEPTANCE_REQUIRED"):
         supervisor.run_craig(
             job_id="asr-qwen-boundary",
             attempt=1,
