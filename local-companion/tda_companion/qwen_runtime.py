@@ -69,14 +69,55 @@ def _atomic_json(path: Path, value: dict) -> None:
     os.replace(temporary, path)
 
 
+def inspect_qwen_runtime(runtime_root: Path, *, verify_worker: bool = False) -> dict[str, str | None]:
+    parent = qwen_root(runtime_root)
+    current = parent / "current.json"
+    try:
+        selector = json.loads(current.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"status": "missing", "version": None, "worker": None}
+    except (OSError, json.JSONDecodeError):
+        return {"status": "corrupt", "version": None, "worker": None}
+    if not isinstance(selector, dict) or selector.get("schema") != RUNTIME_SCHEMA:
+        return {"status": "corrupt", "version": None, "worker": None}
+    if selector.get("runtime_id") != QWEN_RUNTIME_ID:
+        return {"status": "corrupt", "version": None, "worker": None}
+    version = selector.get("version")
+    if not isinstance(version, str) or not _VERSION.fullmatch(version):
+        return {"status": "corrupt", "version": None, "worker": None}
+    version_root = parent / version
+    marker_path = version_root / ".tda-runtime.json"
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"status": "corrupt", "version": version, "worker": None}
+    if (
+        not isinstance(marker, dict)
+        or marker.get("schema") != RUNTIME_SCHEMA
+        or marker.get("runtime_id") != QWEN_RUNTIME_ID
+        or marker.get("version") != version
+        or marker.get("worker") != QWEN_WORKER_EXE
+        or not isinstance(marker.get("worker_sha256"), str)
+        or not _SHA256.fullmatch(marker["worker_sha256"])
+    ):
+        return {"status": "corrupt", "version": version, "worker": None}
+    worker = version_root / QWEN_WORKER_EXE
+    if not worker.is_file():
+        return {"status": "corrupt", "version": version, "worker": None}
+    if verify_worker and _sha256_file(worker) != marker["worker_sha256"]:
+        return {"status": "corrupt", "version": version, "worker": None}
+    return {"status": "ready", "version": version, "worker": str(worker.resolve())}
+
+
 def install_qwen_runtime_archive(
     archive_path: Path,
     runtime_root: Path,
     *,
     version: str,
     expected_sha256: str,
+    replace_corrupt: bool = False,
 ) -> dict[str, str]:
-    """Install a prebuilt isolated Qwen worker without touching global Python/CUDA/PATH."""
+    """Install or atomically repair a prebuilt Qwen worker without global machine changes."""
     archive = archive_path.resolve()
     if not archive.is_file():
         raise QwenRuntimeInstallError("QWEN_RUNTIME_ARCHIVE_NOT_FOUND")
@@ -89,12 +130,20 @@ def install_qwen_runtime_archive(
         raise QwenRuntimeInstallError("QWEN_RUNTIME_HASH_MISMATCH")
 
     target = qwen_version_root(runtime_root, version)
-    if target.exists():
-        raise QwenRuntimeInstallError("QWEN_RUNTIME_VERSION_EXISTS")
+    replacing = target.exists()
+    if replacing:
+        if not replace_corrupt:
+            raise QwenRuntimeInstallError("QWEN_RUNTIME_VERSION_EXISTS")
+        current = inspect_qwen_runtime(runtime_root, verify_worker=True)
+        if current.get("status") != "corrupt" or current.get("version") != version:
+            raise QwenRuntimeInstallError("QWEN_RUNTIME_REPAIR_NOT_ALLOWED")
+
     parent = target.parent
     parent.mkdir(parents=True, exist_ok=True)
     staging = parent / f".{version}-{uuid4().hex}.partial"
     staging.mkdir(parents=False, exist_ok=False)
+    backup: Path | None = None
+    promoted = False
 
     try:
         try:
@@ -148,59 +197,33 @@ def install_qwen_runtime_archive(
             "archive_sha256": actual_archive_sha,
         }
         _atomic_json(staging / ".tda-runtime.json", marker)
-        os.replace(staging, target)
-        _atomic_json(
-            parent / "current.json",
-            {
-                "schema": RUNTIME_SCHEMA,
-                "runtime_id": QWEN_RUNTIME_ID,
-                "version": version,
-            },
-        )
+
+        if replacing:
+            backup = parent / f".{version}-{uuid4().hex}.backup"
+            os.replace(target, backup)
+        try:
+            os.replace(staging, target)
+            promoted = True
+            _atomic_json(
+                parent / "current.json",
+                {
+                    "schema": RUNTIME_SCHEMA,
+                    "runtime_id": QWEN_RUNTIME_ID,
+                    "version": version,
+                },
+            )
+        except BaseException:
+            if promoted:
+                shutil.rmtree(target, ignore_errors=True)
+            if backup is not None and backup.exists():
+                os.replace(backup, target)
+            raise
+        if backup is not None:
+            shutil.rmtree(backup, ignore_errors=True)
         return marker
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-
-
-def inspect_qwen_runtime(runtime_root: Path, *, verify_worker: bool = False) -> dict[str, str | None]:
-    parent = qwen_root(runtime_root)
-    current = parent / "current.json"
-    try:
-        selector = json.loads(current.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {"status": "missing", "version": None, "worker": None}
-    except (OSError, json.JSONDecodeError):
-        return {"status": "corrupt", "version": None, "worker": None}
-    if not isinstance(selector, dict) or selector.get("schema") != RUNTIME_SCHEMA:
-        return {"status": "corrupt", "version": None, "worker": None}
-    if selector.get("runtime_id") != QWEN_RUNTIME_ID:
-        return {"status": "corrupt", "version": None, "worker": None}
-    version = selector.get("version")
-    if not isinstance(version, str) or not _VERSION.fullmatch(version):
-        return {"status": "corrupt", "version": None, "worker": None}
-    version_root = parent / version
-    marker_path = version_root / ".tda-runtime.json"
-    try:
-        marker = json.loads(marker_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {"status": "corrupt", "version": version, "worker": None}
-    if (
-        not isinstance(marker, dict)
-        or marker.get("schema") != RUNTIME_SCHEMA
-        or marker.get("runtime_id") != QWEN_RUNTIME_ID
-        or marker.get("version") != version
-        or marker.get("worker") != QWEN_WORKER_EXE
-        or not isinstance(marker.get("worker_sha256"), str)
-        or not _SHA256.fullmatch(marker["worker_sha256"])
-    ):
-        return {"status": "corrupt", "version": version, "worker": None}
-    worker = version_root / QWEN_WORKER_EXE
-    if not worker.is_file():
-        return {"status": "corrupt", "version": version, "worker": None}
-    if verify_worker and _sha256_file(worker) != marker["worker_sha256"]:
-        return {"status": "corrupt", "version": version, "worker": None}
-    return {"status": "ready", "version": version, "worker": str(worker.resolve())}
 
 
 def current_qwen_worker(runtime_root: Path) -> Path | None:
