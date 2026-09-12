@@ -16,22 +16,22 @@ const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
 const EXPECTED = {
   completo: {
     filename: "d-completo.png",
-    sha256: "9d751c8d81fed971540e35a249c9804c434467004c9c21d858f24900adab77de",
-    bytes: 3968158,
+    sha256: "30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052",
+    bytes: 1356191,
     width: 1024,
     height: 1536,
   },
   "sem-sobretudo": {
     filename: "d-sem-sobretudo.png",
-    sha256: "69f12023e3e3deaa489ffab303bad555dde46218588e83697044a4c18753c2d5",
-    bytes: 2533930,
+    sha256: "726b86485d7488163545701a338c5b228273cbfc400bb7c7b72d96ae092d65c9",
+    bytes: 1011093,
     width: 1024,
     height: 1536,
   },
   "sem-chapeu": {
     filename: "d-sem-chapeu.png",
-    sha256: "28504455959c820eef86c93b260cdfb45ed1e75e37db40309477dc69acdba3e7",
-    bytes: 2510711,
+    sha256: "bdeeafe50820939245bf39fcd5c79e685fc6bffa4593d18c3d15f0ade6c7042d",
+    bytes: 1060275,
     width: 1024,
     height: 1536,
   },
