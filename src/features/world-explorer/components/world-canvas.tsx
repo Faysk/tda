@@ -5,6 +5,7 @@ import {
 	Controls,
 	MiniMap,
 	ReactFlow,
+	type AriaLabelConfig,
 	type EdgeTypes,
 	type NodeTypes,
 	type OnEdgesChange,
@@ -21,6 +22,23 @@ const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
 const NODE_ORIGIN: [number, number] = [0.5, 0.5];
 const FIT_VIEW_OPTIONS = { padding: 0.18, maxZoom: 1.05 } as const;
+const WORLD_ARIA_LABELS: Partial<AriaLabelConfig> = {
+	"node.a11yDescription.default":
+		"Pressione Enter ou Espaço para selecionar este elemento. Pressione Escape para limpar a seleção.",
+	"node.a11yDescription.keyboardDisabled":
+		"Pressione Enter ou Espaço para selecionar este elemento. Use as setas quando o movimento por teclado estiver disponível.",
+	"node.a11yDescription.ariaLiveMessage": ({ direction, x, y }) =>
+		`Elemento movido para ${direction}. Nova posição: x ${Math.round(x)}, y ${Math.round(y)}.`,
+	"edge.a11yDescription.default":
+		"Pressione Enter ou Espaço para selecionar esta ligação. Pressione Escape para limpar a seleção.",
+	"controls.ariaLabel": "Controles do mapa",
+	"controls.zoomIn.ariaLabel": "Aumentar zoom",
+	"controls.zoomOut.ariaLabel": "Diminuir zoom",
+	"controls.fitView.ariaLabel": "Enquadrar o Mundo",
+	"controls.interactive.ariaLabel": "Alternar interação do mapa",
+	"minimap.ariaLabel": "Minimapa do Mundo",
+	"handle.ariaLabel": "Ponto de conexão",
+};
 
 type WorldCanvasProps = Readonly<{
 	nodes: WorldFlowNode[];
@@ -69,6 +87,9 @@ export function WorldCanvas({
 				nodeTypes={NODE_TYPES}
 				edgeTypes={EDGE_TYPES}
 				nodeOrigin={NODE_ORIGIN}
+				ariaLabelConfig={WORLD_ARIA_LABELS}
+				nodesFocusable
+				edgesFocusable
 				nodesConnectable={connectionActive}
 				edgesReconnectable={connectionActive}
 				connectionRadius={28}

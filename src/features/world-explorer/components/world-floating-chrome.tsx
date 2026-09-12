@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, Ref } from "react";
 import { Select } from "@/components/ui";
 import type {
 	WorldFilter,
@@ -49,6 +49,7 @@ type WorldFloatingChromeProps = Readonly<{
 	resetDisabled?: boolean;
 	demo: boolean;
 	activeRelationTypes: WorldRelationTypeDTO[];
+	searchInputRef?: Ref<HTMLInputElement>;
 }>;
 
 function filterClass(active: boolean) {
@@ -75,6 +76,7 @@ export function WorldFloatingChrome({
 	resetDisabled = false,
 	demo,
 	activeRelationTypes,
+	searchInputRef,
 }: WorldFloatingChromeProps) {
 	return (
 		<div className={chrome.root} data-testid="world-floating-chrome">
@@ -85,6 +87,7 @@ export function WorldFloatingChrome({
 						⌕
 					</span>
 					<input
+						ref={searchInputRef}
 						type="search"
 						value={query}
 						onChange={(event) => onQueryChange(event.target.value)}

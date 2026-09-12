@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
-import { memo, type CSSProperties } from "react";
+import {
+	memo,
+	type CSSProperties,
+	type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import type { WorldFlowNode } from "../adapters/react-flow";
 import {
 	WORLD_PORT_LANES,
@@ -98,6 +102,23 @@ function beginAuthoringConnection(nodeId: string) {
 	);
 }
 
+function moveToolbarFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
+	if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+	const buttons = Array.from(
+		event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+	).filter((button) => button.offsetParent !== null);
+	if (!buttons.length) return;
+	const current = Math.max(buttons.indexOf(document.activeElement as HTMLButtonElement), 0);
+	let next = current;
+	if (event.key === "ArrowRight") next = (current + 1) % buttons.length;
+	if (event.key === "ArrowLeft") next = (current - 1 + buttons.length) % buttons.length;
+	if (event.key === "Home") next = 0;
+	if (event.key === "End") next = buttons.length - 1;
+	event.preventDefault();
+	event.stopPropagation();
+	buttons[next]?.focus();
+}
+
 function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
 	const kind = visualKind(item, isHero);
@@ -115,10 +136,12 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 					role="toolbar"
 					aria-label={`Ações de ${item.label}`}
 					data-world-node-toolbar
+					onKeyDown={moveToolbarFocus}
 				>
 					<button
 						className={`${authoringStyles.action} nodrag nopan`}
 						type="button"
+						tabIndex={0}
 						onClick={openAuthoringInspector}
 					>
 						Editar
@@ -126,6 +149,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 					<button
 						className={`${authoringStyles.action} ${authoringStyles.connectAction} nodrag nopan`}
 						type="button"
+						tabIndex={-1}
 						onClick={() => beginAuthoringConnection(item.id)}
 						aria-pressed={authoringConnectable}
 					>
