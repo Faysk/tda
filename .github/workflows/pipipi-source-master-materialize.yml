@@ -1,0 +1,167 @@
+name: Pipipi source master materialize
+
+on:
+  push:
+    branches: [fix/media-delivery-final-v10]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, '[pipipi-source]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    env:
+      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+
+      - name: Pull production R2 credentials from Vercel
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing VERCEL_TOKEN"; exit 1; }
+          npm install --global vercel@59.11.7 >/dev/null 2>&1
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
+          test -f .vercel/.env.production.local
+
+      - name: Fetch and verify exact Pipipi source masters
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source .vercel/.env.production.local
+          set +a
+          for key in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_BUCKET; do
+            [[ -n "${!key:-}" ]] || { echo "::error::Missing ${key}"; exit 1; }
+          done
+          mkdir -p .tmp/pipipi-source
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { writeFile } from "node:fs/promises";
+          import { S3Client, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+
+          const expected = [
+            ["super-static.webp", "super_herois.webp", "365d544c0d2d45341551d81697d8063f9502215aab2cdd2d28851d12614bbe68", 289362],
+            ["cadeira-static.webp", "cadeira.webp", "c00cac253196df6dd068ae261c99cdff00a83165d5bba1addf8011c9f2aeb428", 164130],
+            ["ultimo-dia-static.webp", "ultimo_dia.webp", "010dc872e51f9f380ebb260a44bd749e898713c66e849ea1b3f2b21b1731333a", 315228],
+          ];
+          const client = new S3Client({
+            region: "auto",
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+              accessKeyId: process.env.R2_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
+            requestChecksumCalculation: "WHEN_REQUIRED",
+          });
+          const Bucket = process.env.R2_PUBLIC_BUCKET;
+          const keys = [];
+          let token;
+          do {
+            const page = await client.send(new ListObjectsV2Command({ Bucket, Prefix: "lore/pipipi/", ContinuationToken: token }));
+            keys.push(...(page.Contents ?? []).map((x) => x.Key).filter(Boolean));
+            token = page.IsTruncated ? page.NextContinuationToken : undefined;
+          } while (token);
+
+          for (const [target, sourceName, sha256, expectedBytes] of expected) {
+            const canonical = `lore/pipipi/${sha256}/${sourceName}`;
+            const candidates = [canonical, ...keys.filter((key) => key.includes(sha256) || key.endsWith(`/${sourceName}`))];
+            let found;
+            for (const Key of [...new Set(candidates)]) {
+              try {
+                const object = await client.send(new GetObjectCommand({ Bucket, Key }));
+                const bytes = Buffer.from(await object.Body.transformToByteArray());
+                const hash = createHash("sha256").update(bytes).digest("hex");
+                if (hash === sha256 && bytes.length === expectedBytes) {
+                  found = bytes;
+                  console.log(`PIPIPI_MASTER_OK ${sourceName} ${bytes.length} ${hash}`);
+                  break;
+                }
+              } catch (error) {
+                if (error?.$metadata?.httpStatusCode === 404 || error?.name === "NoSuchKey") continue;
+                throw error;
+              }
+            }
+            if (!found) throw new Error(`Exact Pipipi source master not found in authenticated R2: ${sourceName}`);
+            await writeFile(`.tmp/pipipi-source/${target}`, found);
+          }
+          NODE
+
+          cd .tmp/pipipi-source
+          printf '%s  %s\n' \
+            '365d544c0d2d45341551d81697d8063f9502215aab2cdd2d28851d12614bbe68' 'super-static.webp' \
+            'c00cac253196df6dd068ae261c99cdff00a83165d5bba1addf8011c9f2aeb428' 'cadeira-static.webp' \
+            '010dc872e51f9f380ebb260a44bd749e898713c66e849ea1b3f2b21b1731333a' 'ultimo-dia-static.webp' | sha256sum --check --strict
+
+      - name: Install source-resolution static artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .tmp/pipipi-source/super-static.webp public/lore/pipipi/super-static.webp
+          cp .tmp/pipipi-source/cadeira-static.webp public/lore/pipipi/cadeira-static.webp
+          cp .tmp/pipipi-source/ultimo-dia-static.webp public/lore/pipipi/ultimo-dia-static.webp
+          rm -f public/lore/pipipi/super-static.avif public/lore/pipipi/cadeira-static.avif public/lore/pipipi/ultimo-dia-static.avif
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/features/lore/components/pipipi-cinematic-scene.tsx')
+          s = p.read_text()
+          s = s.replace('/lore/pipipi/super-static.avif','/lore/pipipi/super-static.webp')
+          s = s.replace('/lore/pipipi/cadeira-static.avif','/lore/pipipi/cadeira-static.webp')
+          s = s.replace('/lore/pipipi/ultimo-dia-static.avif','/lore/pipipi/ultimo-dia-static.webp')
+          p.write_text(s)
+          PY
+
+      - name: Add source-resolution browser gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >> tests/lore-media-delivery.spec.ts <<'EOF'
+
+          test("Pipipi approved static scenes use exact 1672x941 source masters", async ({ page }) => {
+            await page.goto("/lore/pipipi", { waitUntil: "networkidle" });
+            for (const id of ["super-herois", "cadeira", "ultimo-dia"]) {
+              const scene = page.locator(`[data-scene="${id}"]`);
+              await expect(scene).toHaveAttribute("data-static-media", "true");
+              const image = scene.locator("img").first();
+              await expect.poll(() => image.evaluate((node) => ({
+                width: (node as HTMLImageElement).naturalWidth,
+                height: (node as HTMLImageElement).naturalHeight,
+                src: (node as HTMLImageElement).currentSrc,
+              }))).toMatchObject({ width: 1672, height: 941 });
+              await expect(image).toHaveAttribute("src", /-static\.webp$/);
+            }
+          });
+          EOF
+
+      - name: Validate and commit exact masters
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm check
+          pnpm build
+          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright test tests/pipipi-composition-polish.spec.ts tests/lore-media-delivery.spec.ts --project=desktop-1080p
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m '[pipipi-source] fix(media): ship exact Pipipi source masters'
+          git push origin HEAD:fix/media-delivery-final-v10
