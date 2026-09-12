@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -49,6 +50,17 @@ def _write_diagnostic(path: Path | None, status: str, detail: str | None = None)
     safe_detail = "" if detail is None else re.sub(r"[^A-Za-z0-9_.:-]", "_", detail)[:160]
     line = status if not safe_detail else f"{status}:{safe_detail}"
     path.write_text(line + "\n", encoding="utf-8")
+
+
+def _atomic_json(path: Path, value: object) -> None:
+    target = path.resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".partial")
+    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(value, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, target)
 
 
 def _safe_error_detail(exc: BaseException) -> str:
@@ -137,6 +149,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--ui", action="store_true")
     mode.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     mode.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
+    mode.add_argument("--install-rc-runtime", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
     parser.add_argument("--startup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--state-root", type=Path, default=paths.state_root)
     parser.add_argument("--data-root", type=Path, default=paths.data_root)
@@ -144,9 +157,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--origin", action="append")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--diagnostic-file", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--rc-artifact", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--rc-artifact-sha256", help=argparse.SUPPRESS)
+    parser.add_argument("--rc-result-file", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error("INVALID_PORT")
+    if args.install_rc_runtime and (
+        args.rc_artifact is None
+        or args.rc_artifact_sha256 is None
+        or args.rc_result_file is None
+    ):
+        parser.error("RC_RUNTIME_ARTIFACT_HASH_AND_RESULT_REQUIRED")
     origins = args.origin or [PRODUCTION_ORIGIN]
     try:
         args.origins = frozenset(validate_origin(origin) for origin in origins)
@@ -155,6 +177,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.headless:
         args.agent = True
     return args
+
+
+def _install_rc_runtime(args: argparse.Namespace) -> int:
+    from .rc_runtime_artifacts import RcRuntimeArtifactError, install_rc_runtime_artifact
+
+    result_path: Path = args.rc_result_file
+    try:
+        paths = default_paths()
+        paths.ensure_runtime_dirs()
+        result = install_rc_runtime_artifact(
+            args.install_rc_runtime,
+            args.rc_artifact,
+            expected_artifact_sha256=args.rc_artifact_sha256,
+            runtime_root=paths.runtime_root,
+            cache_root=paths.cache_root,
+        )
+        _atomic_json(
+            result_path,
+            {"schema": "tda_rc_runtime_install_v1", "ok": True, **result},
+        )
+        return 0
+    except RcRuntimeArtifactError as exc:
+        _atomic_json(
+            result_path,
+            {"schema": "tda_rc_runtime_install_v1", "ok": False, "error": exc.code},
+        )
+        return 66
+    except BaseException:
+        _atomic_json(
+            result_path,
+            {"schema": "tda_rc_runtime_install_v1", "ok": False, "error": "RC_RUNTIME_INSTALL_FAILED"},
+        )
+        return 70
 
 
 def _show_desktop_error(exc: BaseException) -> None:
@@ -182,6 +237,8 @@ def main(argv: list[str] | None = None) -> int:
         from .asr_worker import run_worker_stdio
 
         return run_worker_stdio()
+    if args.install_rc_runtime:
+        return _install_rc_runtime(args)
 
     diagnostic_file: Path | None = args.diagnostic_file
     _write_diagnostic(diagnostic_file, "BOOTSTRAP")

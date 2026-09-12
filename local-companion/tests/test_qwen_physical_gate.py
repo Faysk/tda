@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import zipfile
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 from tda_companion.asr_models import get_profile, model_path, write_install_marker
 from tda_companion.qwen_acceptance import ALIGNER_PROFILE
 from tda_companion.qwen_physical_gate import (
+    MIN_GATE_AUDIO_SECONDS,
     QwenPhysicalGateError,
     inspect_qwen_physical_gate,
     ready_qwen_profiles,
@@ -102,7 +104,7 @@ def _receipt(profile_id: str = "qwen-fast") -> dict:
         "inference": {
             "device": "cuda",
             "compute_type": "bfloat16",
-            "audio_seconds": 30.0,
+            "audio_seconds": MIN_GATE_AUDIO_SECONDS,
             "rtf": 0.42,
             "transcript_sha256": "b" * 64,
             "transcript_written": False,
@@ -112,7 +114,7 @@ def _receipt(profile_id: str = "qwen-fast") -> dict:
             "rtf": 0.18,
             "word_count": 87,
         },
-        "total_seconds": 18.0,
+        "total_seconds": 108.0,
     }
 
 
@@ -136,11 +138,40 @@ def test_physical_gate_binds_runtime_model_aligner_and_contains_no_private_text(
 
     assert gate["ready"] is True
     assert gate["runtime_version"] == "1.0.0"
+    assert gate["metrics"]["audio_seconds"] == MIN_GATE_AUDIO_SECONDS
     persisted = (state / "qwen-physical-gates" / "qwen-fast.json").read_text(encoding="utf-8")
     assert "transcript_sha256" not in persisted
     assert "audio_sha256" not in persisted
     assert "contains_transcript\":false" in persisted
     assert ready_qwen_profiles(state, runtime, models) == ["qwen-fast"]
+
+
+def test_gate_rejects_audio_shorter_than_production_window(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    short = _receipt()
+    short["inference"]["audio_seconds"] = MIN_GATE_AUDIO_SECONDS - 0.001
+
+    with pytest.raises(QwenPhysicalGateError, match="QWEN_GATE_AUDIO_TOO_SHORT"):
+        record_qwen_physical_gate(state, runtime, models, short, profile_id="qwen-fast")
+
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    assert not gate_path.exists()
+    assert ready_qwen_profiles(state, runtime, models) == []
+
+
+def test_reader_invalidates_legacy_short_gate(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    persisted = json.loads(gate_path.read_text(encoding="utf-8"))
+    persisted["metrics"]["audio_seconds"] = 30.0
+    gate_path.write_text(json.dumps(persisted, separators=(",", ":")), encoding="utf-8")
+
+    inspected = inspect_qwen_physical_gate(state, runtime, models, profile_id="qwen-fast")
+    assert inspected["ready"] is False
+    assert inspected["status"] == "invalid"
+    assert inspected["reason"] == "QWEN_GATE_AUDIO_TOO_SHORT"
+    assert ready_qwen_profiles(state, runtime, models) == []
 
 
 def test_gate_is_invalidated_when_worker_or_model_content_changes(tmp_path: Path):
@@ -153,7 +184,6 @@ def test_gate_is_invalidated_when_worker_or_model_content_changes(tmp_path: Path
     assert stale["ready"] is False
     assert stale["status"] == "stale"
 
-    # Restore a fresh environment and prove the execution-time full model hash catches tampering.
     other = tmp_path / "other"
     state2, runtime2, models2 = _prepared(other)
     record_qwen_physical_gate(state2, runtime2, models2, _receipt(), profile_id="qwen-fast")
