@@ -1,6 +1,8 @@
 "use client";
 
 import {
+	useCallback,
+	useEffect,
 	useReducer,
 	useRef,
 	type PointerEvent as ReactPointerEvent,
@@ -14,6 +16,8 @@ import {
 	type WorldAuthoringInspectorMode,
 	type WorldAuthoringTool,
 } from "../world-authoring-ui-state";
+import { nextWorldInspectorMode } from "../world-inspector-mode";
+import { syncWorldInspectorPresentation } from "../world-inspector-presentation";
 
 export function useWorldAuthoringUi() {
 	const [state, dispatch] = useReducer(
@@ -24,14 +28,40 @@ export function useWorldAuthoringUi() {
 	const resizeStart = useRef<{ x: number; width: number } | null>(null);
 
 	const inspectorCollapsed = state.inspectorMode === "closed";
+	const focusMode = state.chromeMode === "minimal";
 
-	function authoringStarted() {
+	useEffect(() => {
+		syncWorldInspectorPresentation(
+			state.inspectorMode === "docked" && state.chromeMode !== "minimal",
+		);
+		return () => syncWorldInspectorPresentation(false);
+	}, [state.inspectorMode, state.chromeMode]);
+
+	const authoringStarted = useCallback(() => {
 		dispatch({ type: "authoringStarted" });
-	}
+	}, []);
 
-	function toggleInspector() {
-		dispatch({ type: "toggleInspector" });
-	}
+	const authoringStopped = useCallback(() => {
+		dispatch({ type: "authoringStopped" });
+	}, []);
+
+	const toggleInspector = useCallback(
+		(openMode: Exclude<WorldAuthoringInspectorMode, "closed"> = "docked") => {
+			if (openMode === "overlay") {
+				dispatch({
+					type: "setInspectorMode",
+					mode: nextWorldInspectorMode(state.inspectorMode),
+				});
+				return;
+			}
+			dispatch({ type: "toggleInspector", openMode });
+		},
+		[state.inspectorMode],
+	);
+
+	const toggleFocusMode = useCallback(() => {
+		dispatch({ type: "toggleFocusMode" });
+	}, []);
 
 	function setInspectorMode(mode: WorldAuthoringInspectorMode) {
 		dispatch({ type: "setInspectorMode", mode });
@@ -79,8 +109,11 @@ export function useWorldAuthoringUi() {
 	return {
 		state,
 		inspectorCollapsed,
+		focusMode,
 		authoringStarted,
+		authoringStopped,
 		toggleInspector,
+		toggleFocusMode,
 		setInspectorMode,
 		setInspectorWidth,
 		adjustInspectorWidth,

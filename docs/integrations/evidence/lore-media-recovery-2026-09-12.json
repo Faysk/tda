@@ -1,0 +1,361 @@
+{
+  "d": {
+    "assets": [
+      {
+        "name": "d-completo.png",
+        "url": "https://media.dnd.faysk.dev/lore/d/30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052/d-completo.png",
+        "sha256": "30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052",
+        "bytes": 1356191,
+        "width": 1024,
+        "height": 1536,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "d-sem-sobretudo.png",
+        "url": "https://media.dnd.faysk.dev/lore/d/726b86485d7488163545701a338c5b228273cbfc400bb7c7b72d96ae092d65c9/d-sem-sobretudo.png",
+        "sha256": "726b86485d7488163545701a338c5b228273cbfc400bb7c7b72d96ae092d65c9",
+        "bytes": 1011093,
+        "width": 1024,
+        "height": 1536,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "d-sem-chapeu.png",
+        "url": "https://media.dnd.faysk.dev/lore/d/bdeeafe50820939245bf39fcd5c79e685fc6bffa4593d18c3d15f0ade6c7042d/d-sem-chapeu.png",
+        "sha256": "bdeeafe50820939245bf39fcd5c79e685fc6bffa4593d18c3d15f0ade6c7042d",
+        "bytes": 1060275,
+        "width": 1024,
+        "height": 1536,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      }
+    ],
+    "stage": "objects available; consumer integration and complete visual acceptance pending",
+    "verifiedAt": "2026-09-12T12:14:16.78Z"
+  },
+  "pipipi": {
+    "assets": [
+      {
+        "name": "cadeira.webp",
+        "url": "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
+        "sha256": "6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524",
+        "bytes": 1445054,
+        "width": 1672,
+        "height": 941,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": true
+      },
+      {
+        "name": "super.webp",
+        "url": "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
+        "sha256": "bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed",
+        "bytes": 1652966,
+        "width": 1672,
+        "height": 941,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": true
+      },
+      {
+        "name": "ultimo-dia.webp",
+        "url": "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
+        "sha256": "391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda",
+        "bytes": 1765802,
+        "width": 1672,
+        "height": 941,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": true
+      }
+    ],
+    "stage": "objects available; consumer integration and complete visual acceptance pending",
+    "verifiedAt": "2026-09-12T12:17:38.671Z"
+  },
+  "seika": {
+    "assets": [
+      {
+        "name": "departure-subject-seika-ami.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/5e4ee295cdb7165cd11535ed73bdd1bec50e66b66e653c98737f852c99ddc339/departure-subject-seika-ami.webp",
+        "sha256": "5e4ee295cdb7165cd11535ed73bdd1bec50e66b66e653c98737f852c99ddc339",
+        "bytes": 400736,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "ritual-background-ami-ren.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/943f29f9b616f14630514d784d9d46b29a4a65cf2925dfdcb06e8201a1db7181/ritual-background-ami-ren.webp",
+        "sha256": "943f29f9b616f14630514d784d9d46b29a4a65cf2925dfdcb06e8201a1db7181",
+        "bytes": 290484,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-ami-ritual-full.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16/wide-ami-ritual-full.webp",
+        "sha256": "8ef2730e025f01bb6ae59dffdcfad1994a4835cd4e43d574cd35e1c02fda0b16",
+        "bytes": 450982,
+        "width": 2172,
+        "height": 724,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-ruins.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/ed730ca6777d0458469a014328fc3945c3611afa8907f0fb01da2d0ebfa1fe45/wide-ruins.webp",
+        "sha256": "ed730ca6777d0458469a014328fc3945c3611afa8907f0fb01da2d0ebfa1fe45",
+        "bytes": 544794,
+        "width": 2172,
+        "height": 724,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "lucky-background.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/54afc25a18ee299a3249baa9d2dc403076ec2961bbf8f96eb5cfc36a063335d4/lucky-background.webp",
+        "sha256": "54afc25a18ee299a3249baa9d2dc403076ec2961bbf8f96eb5cfc36a063335d4",
+        "bytes": 385616,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "adult-seika-subject-spirit.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/ae5e52eaba48fdb16364289a6e5b9e1d9c952142a0b2a67d56b7303f9af01a9d/adult-seika-subject-spirit.webp",
+        "sha256": "ae5e52eaba48fdb16364289a6e5b9e1d9c952142a0b2a67d56b7303f9af01a9d",
+        "bytes": 518748,
+        "width": 1145,
+        "height": 1374,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-departure-full.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5/wide-departure-full.webp",
+        "sha256": "74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5",
+        "bytes": 688670,
+        "width": 2365,
+        "height": 665,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "04-departure-reference.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/b485ee9d8d3671f28d0aad72f814281443a28f832f182a8f6f264ec066ad635f/04-departure-reference.webp",
+        "sha256": "b485ee9d8d3671f28d0aad72f814281443a28f832f182a8f6f264ec066ad635f",
+        "bytes": 546294,
+        "width": 1536,
+        "height": 1024,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-ink-moon.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6/wide-ink-moon.webp",
+        "sha256": "2e223c08e8b273dec7a27e114a37e89f3039f108f64787ab1a17d3df4acdccc6",
+        "bytes": 160730,
+        "width": 2172,
+        "height": 724,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-village.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/d072348c904509d2a20563f021a06d3c3d82cdbd99db86560e760587e14ece3b/wide-village.webp",
+        "sha256": "d072348c904509d2a20563f021a06d3c3d82cdbd99db86560e760587e14ece3b",
+        "bytes": 683248,
+        "width": 2172,
+        "height": 724,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "departure-background-village.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/03634e0ca91fc754d829d30c1d266814217c36d7f196a95fde077f990071923c/departure-background-village.webp",
+        "sha256": "03634e0ca91fc754d829d30c1d266814217c36d7f196a95fde077f990071923c",
+        "bytes": 551818,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "02-ami-ritual-reference.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/93e74440f5882a83fd394385055fedd223e69d1dc8d2629b0d13a2b409153169/02-ami-ritual-reference.webp",
+        "sha256": "93e74440f5882a83fd394385055fedd223e69d1dc8d2629b0d13a2b409153169",
+        "bytes": 329308,
+        "width": 1402,
+        "height": 1122,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "seika-reference.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/40f6c8d86f16c5556d4d467e86fd805a109385f3416b445af8bda8611242ceef/seika-reference.webp",
+        "sha256": "40f6c8d86f16c5556d4d467e86fd805a109385f3416b445af8bda8611242ceef",
+        "bytes": 316540,
+        "width": 1122,
+        "height": 1402,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "03-first-exorcism-reference.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/c099ad29f9d5141d280303c0da999b534805222b73a08a9069388011d438b055/03-first-exorcism-reference.webp",
+        "sha256": "c099ad29f9d5141d280303c0da999b534805222b73a08a9069388011d438b055",
+        "bytes": 302156,
+        "width": 1402,
+        "height": 1122,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "exorcism-background-tavern.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/f77ab8a083f1b1ad130a3970359d4cf4672a0f3ce682dabfbeca8a8e66055f34/exorcism-background-tavern.webp",
+        "sha256": "f77ab8a083f1b1ad130a3970359d4cf4672a0f3ce682dabfbeca8a8e66055f34",
+        "bytes": 266494,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-first-exorcism-full.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9/wide-first-exorcism-full.webp",
+        "sha256": "386ead888a202639588f00b1f07bceebbe83f60f2423963d87f74d9956e530d9",
+        "bytes": 396950,
+        "width": 1916,
+        "height": 821,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "adult-seika-ink-background.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/34fe1d5097985f7cd56982401d1f3ef8522de79a6184a1798d26f0558e541a15/adult-seika-ink-background.webp",
+        "sha256": "34fe1d5097985f7cd56982401d1f3ef8522de79a6184a1798d26f0558e541a15",
+        "bytes": 132540,
+        "width": 1145,
+        "height": 1374,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-lucky-full.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad/wide-lucky-full.webp",
+        "sha256": "a02d6f1ccc772a78f130113b2a7edda88bd0dfbb422be651a75390f8cbcfc7ad",
+        "bytes": 549872,
+        "width": 2365,
+        "height": 665,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "lucky-subject.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/5768c8b4c277ae7bb056799b75d2f21e0de020152a1fc0b83630e6b81bdedeba/lucky-subject.webp",
+        "sha256": "5768c8b4c277ae7bb056799b75d2f21e0de020152a1fc0b83630e6b81bdedeba",
+        "bytes": 328556,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "exorcism-subject-spirit-table.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/2e66d3095ad542eb45cc0b6a7317c857a9a7e203d4e99ff854b822ec240b4588/exorcism-subject-spirit-table.webp",
+        "sha256": "2e66d3095ad542eb45cc0b6a7317c857a9a7e203d4e99ff854b822ec240b4588",
+        "bytes": 484444,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-ritual-room.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/e6d926a5beaf08642146249432460182fef1a88d69199b32f0195e206399170e/wide-ritual-room.webp",
+        "sha256": "e6d926a5beaf08642146249432460182fef1a88d69199b32f0195e206399170e",
+        "bytes": 413856,
+        "width": 2172,
+        "height": 724,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-tavern.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/872179cb0089635bf5d8600d3433e745fccd0924df7f7c8ce55c5c8714665980/wide-tavern.webp",
+        "sha256": "872179cb0089635bf5d8600d3433e745fccd0924df7f7c8ce55c5c8714665980",
+        "bytes": 393230,
+        "width": 2043,
+        "height": 770,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "ritual-subject-spirit.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/dc62be5a52882cac6cbe01f91bfa024da7246e8f39551412372a0e36a069e4b7/ritual-subject-spirit.webp",
+        "sha256": "dc62be5a52882cac6cbe01f91bfa024da7246e8f39551412372a0e36a069e4b7",
+        "bytes": 684852,
+        "width": 1448,
+        "height": 1086,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "wide-adult-seika-full.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289/wide-adult-seika-full.webp",
+        "sha256": "f438b2f149ad7b187220861530234eb998853dc64d9869b3b84c1c3fb2f5f289",
+        "bytes": 490698,
+        "width": 1916,
+        "height": 821,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      },
+      {
+        "name": "01-lucky-reference.webp",
+        "url": "https://media.dnd.faysk.dev/lore/seika/f84b50b92543b8bf05001202f9bb6b5e13ebc48b8094442f272cd17c9e1d504e/01-lucky-reference.webp",
+        "sha256": "f84b50b92543b8bf05001202f9bb6b5e13ebc48b8094442f272cd17c9e1d504e",
+        "bytes": 431686,
+        "width": 1536,
+        "height": 1024,
+        "publicVerified": true,
+        "readbackVerified": true,
+        "pixelsEqual": null
+      }
+    ],
+    "stage": "objects available; consumer integration and complete visual acceptance pending",
+    "verifiedAt": "2026-09-12T12:15:04.562Z"
+  }
+}

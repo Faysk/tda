@@ -23,7 +23,9 @@ export type WorldAuthoringUiState = Readonly<{
 
 export type WorldAuthoringUiAction =
 	| Readonly<{ type: "authoringStarted" }>
-	| Readonly<{ type: "toggleInspector" }>
+	| Readonly<{ type: "authoringStopped" }>
+	| Readonly<{ type: "toggleInspector"; openMode?: Exclude<WorldAuthoringInspectorMode, "closed"> }>
+	| Readonly<{ type: "toggleFocusMode" }>
 	| Readonly<{ type: "setInspectorMode"; mode: WorldAuthoringInspectorMode }>
 	| Readonly<{ type: "setInspectorWidth"; width: number }>
 	| Readonly<{ type: "setTool"; tool: WorldAuthoringTool }>
@@ -50,9 +52,14 @@ export function worldAuthoringUiReducer(
 ): WorldAuthoringUiState {
 	switch (action.type) {
 		case "authoringStarted":
-			// Phase 1 preserves the current visual behavior: entering Conduzir opens
-			// the existing inspector. Later phases can deliberately change this UX
-			// without coupling the choice back into the lease/draft state machine.
+			return {
+				...state,
+				tool: "select",
+				chromeMode: "full",
+				inspectorMode: "closed",
+				commandPaletteOpen: false,
+			};
+		case "authoringStopped":
 			return {
 				...state,
 				tool: "select",
@@ -63,8 +70,18 @@ export function worldAuthoringUiReducer(
 		case "toggleInspector":
 			return {
 				...state,
-				inspectorMode: state.inspectorMode === "closed" ? "docked" : "closed",
+				inspectorMode:
+					state.inspectorMode === "closed" ? (action.openMode ?? "docked") : "closed",
 			};
+		case "toggleFocusMode":
+			return state.chromeMode === "minimal"
+				? { ...state, chromeMode: "full", inspectorMode: "closed" }
+				: {
+						...state,
+						chromeMode: "minimal",
+						inspectorMode: "closed",
+						commandPaletteOpen: false,
+					};
 		case "setInspectorMode":
 			return { ...state, inspectorMode: action.mode };
 		case "setInspectorWidth":

@@ -2,10 +2,12 @@
 
 > Status: implementação, QA e publicação em production concluídos
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 > Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
+
+Escopo editorial atualizado em 2026-09-12: o contrato de [lores independentes](independent-lores.md) permite identidade própria por página. A composição de Pipipi descrita abaixo documenta esta entrega; não obriga outras lores a reutilizá-la nem a seguir o DS do site.
 
 Implementar `/lore/pipipi` como a primeira lore editorial longa do TDA, preservando o texto aprovado como leitura HTML completa e usando cinematic apenas como enhancement visual.
 
@@ -131,6 +133,16 @@ Portanto, o recorte de implementação + QA + polimento ficou **100% concluído 
 Este recibo confirma a publicação da lore pioneira sem inferir migration, alteração de dados, grant, DNS ou qualquer outra operação que não tenha sido observada nessa verificação.
 
 ## Critérios de aceite técnico-editorial
+
+### Correção de qualidade dos três quadros — 2026-09-12
+
+`super-herois`, `cadeira` e `ultimo-dia` passam a consumir WebP lossless no R2 em 1672×941, derivados dos três PNGs fornecidos pelo autor. [Evidência de integridade e resolução](../integrations/evidence/pipipi-original-quality-2026-09-12.json): bytes públicos verificados por SHA-256 e pixels RGBA idênticos aos PNGs. Os arquivos anteriores tinham, respectivamente, 1280×720, 960×540 e 480×270.
+
+O consumidor mantém `unoptimized`, evitando outra recompressão. Enquadramento, proporção, texto, sombra e frame estático permanecem iguais. Os arquivos antigos ficam disponíveis apenas para referências em cache; não são mais selecionados pelo consumidor atualizado. O E2E exige a resolução original, imagem única e ausência de movimento nas três cenas em desktop e celular. A publicação deve ser confirmada pelo recibo da PR de promoção e `/api/version`, separadamente da existência dos objetos no R2.
+
+Rollback: reverter as três URLs do consumidor pelo fluxo Preview → main; preservar os objetos publicados no R2. Não há migration ou alteração de permissões.
+
+### Checklist geral
 
 - texto aprovado preservado e coberto por teste estrutural;
 - ordem dos três atos preservada;

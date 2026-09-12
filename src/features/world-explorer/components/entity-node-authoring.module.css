@@ -1,0 +1,89 @@
+.toolbar {
+	display: none;
+	align-items: center;
+	gap: 4px;
+	padding: 4px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 42%, var(--ds-control-border));
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 97%, transparent);
+	box-shadow: 0 12px 36px color-mix(in srgb, var(--ds-canvas) 58%, transparent);
+	backdrop-filter: blur(14px) saturate(108%);
+}
+
+:global([data-world-authoring-active="true"]) .toolbar {
+	display: flex;
+}
+
+.action {
+	min-height: 34px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--ds-accent-muted);
+	color: var(--ds-accent-strong);
+	font: 720 0.66rem/1 var(--ds-font-ui);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.action:hover,
+.action:focus-visible {
+	outline: 0;
+	background: color-mix(in srgb, var(--ds-accent-muted) 76%, var(--ds-surface-hover));
+	color: var(--ds-foreground);
+	box-shadow: var(--ds-control-focus-ring);
+}
+
+:global([data-world-content-edit="disabled"]) .connectAction,
+:global([data-world-focus-mode="true"]) .connectAction {
+	display: none;
+}
+
+.sourceHandle,
+.targetHandle {
+	width: 10px !important;
+	height: 10px !important;
+	border: 2px solid var(--ds-surface-elevated) !important;
+	opacity: 1 !important;
+	pointer-events: auto !important;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 30%, transparent);
+	transition: transform 120ms var(--ds-ease-standard), box-shadow 120ms var(--ds-ease-standard);
+}
+
+.sourceHandle {
+	background: var(--ds-accent-strong) !important;
+}
+
+.targetHandle {
+	background: color-mix(in srgb, var(--world-edge-affinity) 80%, var(--ds-accent)) !important;
+}
+
+.sourceHandle:hover,
+.targetHandle:hover {
+	transform: scale(1.35);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--ds-accent) 24%, transparent);
+}
+
+@media (max-width: 700px) {
+	.toolbar {
+		padding: 3px;
+	}
+
+	.action {
+		min-height: 40px;
+		padding-inline: 12px;
+	}
+
+	.sourceHandle,
+	.targetHandle {
+		width: 14px !important;
+		height: 14px !important;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sourceHandle,
+	.targetHandle {
+		transition: none;
+	}
+}

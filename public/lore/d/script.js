@@ -1,83 +1,61 @@
-const ASSET_CHUNKS = {
-  "d-completo": {
-    mime: "image/png",
-    paths: [
-      "/lore/d/assets/base64/d-completo-fixed.0.b64",
-      "/lore/d/assets/base64/d-completo-fixed.1.b64",
-      "/lore/d/assets/base64/d-completo-fixed.2.b64",
-    ],
-  },
-  "d-sem-sobretudo": {
-    mime: "image/avif",
-    paths: [
-      "/lore/d/assets/base64/d-sem-sobretudo.0.b64",
-      "/lore/d/assets/base64/d-sem-sobretudo.1.b64",
-      "/lore/d/assets/base64/d-sem-sobretudo.2.b64",
-    ],
-  },
-  "d-sem-chapeu": {
-    mime: "image/png",
-    paths: [
-      "/lore/d/assets/base64/d-sem-chapeu-fixed.0.b64",
-      "/lore/d/assets/base64/d-sem-chapeu-fixed.1.b64",
-      "/lore/d/assets/base64/d-sem-chapeu-fixed.2.b64",
-    ],
-  },
-};
-
-function applyCharacterImage(name, url) {
-  document.querySelectorAll(`[data-d-image="${name}"]`).forEach((element) => {
-    if (element instanceof HTMLImageElement) element.src = url;
-    if (element instanceof HTMLButtonElement) element.dataset.image = url;
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
   });
-}
+}, { threshold: 0.12 });
 
-async function hydrateCharacterImage(name) {
-  const asset = ASSET_CHUNKS[name];
-  if (!asset) return;
+document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
 
-  const parts = await Promise.all(
-    asset.paths.map(async (path) => {
-      const response = await fetch(path, { cache: "force-cache" });
-      if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
-      return (await response.text()).trim();
-    }),
-  );
+const lightbox = document.querySelector('#lightbox');
+const lightboxImg = lightbox.querySelector('img');
+const closeBtn = lightbox.querySelector('.close');
 
-  applyCharacterImage(name, `data:${asset.mime};base64,${parts.join("")}`);
-}
-
-Promise.all(Object.keys(ASSET_CHUNKS).map(hydrateCharacterImage)).catch((error) => {
-  console.error("Unable to hydrate D character artwork", error);
-});
-
-const observer = new IntersectionObserver(
-  (entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("visible");
-        observer.unobserve(entry.target);
-      }
-    });
-  },
-  { threshold: 0.12 },
-);
-
-document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
-
-const lightbox = document.querySelector("#lightbox");
-const lightboxImage = lightbox?.querySelector("img");
-const closeButton = lightbox?.querySelector(".close");
-
-document.querySelectorAll(".image-button").forEach((button) => {
-  button.addEventListener("click", () => {
-    if (!lightbox || !lightboxImage || !button.dataset.image) return;
-    lightboxImage.src = button.dataset.image;
+document.querySelectorAll('.image-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    lightboxImg.src = button.dataset.image;
+    lightboxImg.alt = button.querySelector('img')?.alt || '';
     lightbox.showModal();
   });
 });
 
-closeButton?.addEventListener("click", () => lightbox?.close());
-lightbox?.addEventListener("click", (event) => {
-  if (event.target === lightbox) lightbox.close();
+closeBtn.addEventListener('click', () => lightbox.close());
+lightbox.addEventListener('click', (event) => {
+  const rect = lightbox.getBoundingClientRect();
+  const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if (!inside) lightbox.close();
+});
+
+// Fragment-only links resolve against <base href="/lore/d/">. When the public
+// route is /lore/d (without the trailing slash), the browser treats that as a
+// navigation to /lore/d/#... and reloads the document, which resets the page
+// back to Cinemático. Keep reading navigation entirely in-page instead.
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('#reading-view a[href^="#read-"]');
+  if (!link || document.body.dataset.loreMode !== 'reading') return;
+
+  const hash = link.getAttribute('href');
+  const target = hash ? document.querySelector(hash) : null;
+  if (!target) return;
+
+  event.preventDefault();
+
+  const mobileIndex = link.closest('details');
+  if (mobileIndex) mobileIndex.open = false;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({
+    block: 'start',
+    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+  });
+
+  // Preserve the canonical path exactly as loaded while exposing the chapter
+  // in the URL for back/forward/history without triggering a navigation.
+  history.replaceState(
+    history.state,
+    '',
+    `${window.location.pathname}${window.location.search}${hash}`,
+  );
 });
