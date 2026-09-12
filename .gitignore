@@ -9,3 +9,4 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 __pycache__/
+public/lore/d/assets/generated/
