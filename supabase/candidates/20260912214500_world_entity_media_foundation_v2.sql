@@ -76,6 +76,7 @@ create function public.publish_world_entity_media_atomic(
   p_auth_user_id uuid,
   p_actor_profile_id uuid,
   p_campaign_slug text,
+  p_lease_token uuid,
   p_bindings jsonb
 )
 returns jsonb
@@ -97,6 +98,7 @@ begin
   if p_auth_user_id is null
      or p_actor_profile_id is null
      or p_campaign_slug is null
+     or p_lease_token is null
      or p_bindings is null
      or jsonb_typeof(p_bindings) <> 'array'
      or jsonb_array_length(p_bindings) > 1000
@@ -124,6 +126,19 @@ begin
     );
   if not found then
     return jsonb_build_object('ok', false, 'reason', 'forbidden');
+  end if;
+
+  -- Media publication is part of the same exclusive World editing session.
+  -- A content editor without the live lease cannot mutate entity media bindings.
+  if not exists (
+    select 1
+    from public.world_edit_leases lease
+    where lease.campaign_id = v_campaign_id
+      and lease.holder_profile_id = p_actor_profile_id
+      and lease.lease_token = p_lease_token
+      and lease.expires_at > v_now
+  ) then
+    return jsonb_build_object('ok', false, 'reason', 'lease_lost');
   end if;
 
   if exists (
@@ -239,7 +254,7 @@ comment on table public.media_assets is
 comment on table public.entity_media_bindings is
   'First-class entity-to-media relation. Private entity portraits may remain staged; public_web portraits require verified public delivery.';
 
-revoke all on function public.publish_world_entity_media_atomic(uuid,uuid,text,jsonb)
+revoke all on function public.publish_world_entity_media_atomic(uuid,uuid,text,uuid,jsonb)
   from public, anon, authenticated;
-grant execute on function public.publish_world_entity_media_atomic(uuid,uuid,text,jsonb)
+grant execute on function public.publish_world_entity_media_atomic(uuid,uuid,text,uuid,jsonb)
   to service_role;
