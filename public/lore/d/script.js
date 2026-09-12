@@ -6,48 +6,21 @@ if (!document.querySelector(`link[href="${qualityGuardHref}"]`)) {
   document.head.append(qualityGuard);
 }
 
+// Browser delivery is intentionally simple: the build materializes the repository's
+// transport-only base64 payloads into real image files before Next starts. The browser
+// never downloads .b64 files and never constructs large data: URLs at runtime.
 const ASSETS = {
   "d-completo": {
-    primary: {
-      mime: "image/avif",
-      path: "/lore/d/assets/d-completo-hq.avif.b64",
-    },
-    fallback: {
-      mime: "image/png",
-      paths: [
-        "/lore/d/assets/base64/d-completo-fixed.0.b64",
-        "/lore/d/assets/base64/d-completo-fixed.1.b64",
-        "/lore/d/assets/base64/d-completo-fixed.2.b64",
-      ],
-    },
+    primary: "/lore/d/assets/generated/d-completo.avif",
+    fallback: "/lore/d/assets/generated/d-completo-fallback.png",
   },
   "d-sem-sobretudo": {
-    primary: {
-      mime: "image/avif",
-      path: "/lore/d/assets/d-sem-sobretudo-hq.avif.b64",
-    },
-    fallback: {
-      mime: "image/avif",
-      paths: [
-        "/lore/d/assets/base64/d-sem-sobretudo.0.b64",
-        "/lore/d/assets/base64/d-sem-sobretudo.1.b64",
-        "/lore/d/assets/base64/d-sem-sobretudo.2.b64",
-      ],
-    },
+    primary: "/lore/d/assets/generated/d-sem-sobretudo.avif",
+    fallback: "/lore/d/assets/generated/d-sem-sobretudo-fallback.avif",
   },
   "d-sem-chapeu": {
-    primary: {
-      mime: "image/avif",
-      path: "/lore/d/assets/d-sem-chapeu-hq.avif.b64",
-    },
-    fallback: {
-      mime: "image/png",
-      paths: [
-        "/lore/d/assets/base64/d-sem-chapeu-fixed.0.b64",
-        "/lore/d/assets/base64/d-sem-chapeu-fixed.1.b64",
-        "/lore/d/assets/base64/d-sem-chapeu-fixed.2.b64",
-      ],
-    },
+    primary: "/lore/d/assets/generated/d-sem-chapeu.avif",
+    fallback: "/lore/d/assets/generated/d-sem-chapeu-fallback.png",
   },
 };
 
@@ -59,64 +32,26 @@ function applyCharacterImage(name, url, quality) {
   });
 }
 
-async function fetchText(path) {
-  const response = await fetch(path, { cache: "force-cache" });
-  if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
-  return (await response.text()).replace(/\s+/g, "");
-}
-
-async function buildAssetUrl(asset) {
-  if (asset.path) {
-    const base64 = await fetchText(asset.path);
-    if (!base64) throw new Error(`Empty artwork payload: ${asset.path}`);
-    return `data:${asset.mime};base64,${base64}`;
-  }
-
-  if (asset.paths) {
-    const parts = await Promise.all(asset.paths.map(fetchText));
-    const base64 = parts.join("");
-    if (!base64) throw new Error("Empty artwork payload");
-    return `data:${asset.mime};base64,${base64}`;
-  }
-
-  throw new Error("Invalid artwork asset definition");
-}
-
-function assertRenderable(url) {
-  return new Promise((resolve, reject) => {
-    const probe = new Image();
-    probe.onload = () => {
-      if (probe.naturalWidth > 0 && probe.naturalHeight > 0) resolve(url);
-      else reject(new Error("Artwork decoded with zero dimensions"));
-    };
-    probe.onerror = () => reject(new Error("Browser could not decode artwork"));
-    probe.src = url;
-  });
-}
-
-async function hydrateCharacterImage(name) {
+function bindCharacterImage(name) {
   const asset = ASSETS[name];
   if (!asset) return;
 
-  try {
-    const primaryUrl = await buildAssetUrl(asset.primary);
-    await assertRenderable(primaryUrl);
-    applyCharacterImage(name, primaryUrl, "hq");
-    return;
-  } catch (error) {
-    console.warn(`HQ artwork failed for ${name}; using stable fallback`, error);
-  }
+  document.querySelectorAll(`img[data-d-image="${name}"]`).forEach((image) => {
+    image.addEventListener(
+      "error",
+      () => {
+        if (image.dataset.artworkQuality === "fallback") return;
+        console.warn(`Primary artwork failed for ${name}; using stable fallback`);
+        applyCharacterImage(name, asset.fallback, "fallback");
+      },
+      { once: true },
+    );
+  });
 
-  const fallbackUrl = await buildAssetUrl(asset.fallback);
-  await assertRenderable(fallbackUrl);
-  applyCharacterImage(name, fallbackUrl, "fallback");
+  applyCharacterImage(name, asset.primary, "hq");
 }
 
-Object.keys(ASSETS).forEach((name) => {
-  hydrateCharacterImage(name).catch((error) => {
-    console.error(`Unable to hydrate D character artwork: ${name}`, error);
-  });
-});
+Object.keys(ASSETS).forEach(bindCharacterImage);
 
 const revealElements = document.querySelectorAll(".reveal");
 
