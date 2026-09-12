@@ -90,9 +90,11 @@ O draft hidratado e alterações locais podem usar essa rota como `imageUrl`; a 
 
 ## Primeira UX
 
-O componente candidato do inspector já possui preview circular, adicionar/trocar/remover, file picker e drag-and-drop, com cálculo SHA-256 no browser e estados de preparação/upload/finalização. A integração final ao painel de Conduzir permanece atrás do feature flag até o schema e a configuração R2/CORS serem autorizados no ambiente de homologação.
+O inspector de **Conduzir** já integra `WorldEntityMediaEditor`: preview circular, adicionar/trocar/remover, file picker e drag-and-drop, cálculo SHA-256 no browser e estados de preparação/upload/finalização. Quando a finalização retorna o asset UUID, o editor grava `primaryMediaAssetId` no draft e preserva/inicializa o focal point; a projeção de draft troca o retrato do node imediatamente pela rota privada, sem alterar o Mundo publicado.
 
-Nós continuam circulares; a imagem usa crop `cover` e fallback para iniciais. Focal point começa em `(0.5, 0.5)` e poderá ganhar ajuste visual na fase de polimento.
+Remover o portrait grava `primaryMediaAssetId = null` no draft e restaura o fallback de iniciais no canvas. O feature flag continua fail-closed e desligado por default enquanto schema/R2/CORS não forem autorizados no ambiente; integrar a superfície visual não ativa infraestrutura remota por efeito colateral.
+
+Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e agora respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e o ajuste visual interativo permanece para o polimento seguinte.
 
 ## Limites iniciais
 
