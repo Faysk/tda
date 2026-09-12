@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import current_whisper_worker
+from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import current_qwen_worker
 from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
 
@@ -47,6 +48,7 @@ class WorkerSupervisor:
         data_root: Path | None = None,
         models_root: Path | None = None,
         runtime_root: Path | None = None,
+        state_root: Path | None = None,
     ):
         self.command_factory = command_factory
         self.startup_timeout = startup_timeout
@@ -54,7 +56,20 @@ class WorkerSupervisor:
         self.cancel_grace = cancel_grace
         self.data_root = data_root.resolve() if data_root is not None else None
         self.models_root = models_root.resolve() if models_root is not None else None
-        self.runtime_root = runtime_root.resolve() if runtime_root is not None else None
+        self.runtime_root = (
+            runtime_root.resolve()
+            if runtime_root is not None
+            else self.data_root.parent / "Runtime"
+            if self.data_root is not None
+            else None
+        )
+        self.state_root = (
+            state_root.resolve()
+            if state_root is not None
+            else self.data_root.parent / "State"
+            if self.data_root is not None
+            else None
+        )
 
     @staticmethod
     def _creationflags() -> int:
@@ -301,8 +316,17 @@ class WorkerSupervisor:
             if worker is not None:
                 runtime_command = [str(worker)]
         elif profile_id.startswith("qwen-"):
-            if self.runtime_root is None:
+            if self.runtime_root is None or self.state_root is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
+            gate = inspect_qwen_physical_gate(
+                self.state_root,
+                self.runtime_root,
+                self.models_root,
+                profile_id=profile_id,
+                verify_model_content=True,
+            )
+            if gate.get("ready") is not True:
+                raise WorkerProcessError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
             worker = current_qwen_worker(self.runtime_root)
             if worker is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")

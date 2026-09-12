@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from importlib import metadata
 from pathlib import Path
 
@@ -107,6 +108,19 @@ def _read_context(path: Path | None) -> str:
     return value
 
 
+def _installed_runtime_root(explicit: Path | None) -> Path:
+    if explicit is not None:
+        root = explicit.resolve()
+    elif getattr(sys, "frozen", False):
+        # Runtime/qwen/<version>/TDAQwenWorker.exe -> Runtime
+        root = Path(sys.executable).resolve().parent.parent.parent
+    else:
+        raise RuntimeError("QWEN_GATE_RUNTIME_ROOT_REQUIRED")
+    if root.name.casefold() != "runtime":
+        raise RuntimeError("QWEN_GATE_RUNTIME_ROOT_INVALID")
+    return root
+
+
 def _acceptance(args: argparse.Namespace) -> int:
     from tda_companion.qwen_acceptance import (
         ACCEPTANCE_SCHEMA,
@@ -133,6 +147,19 @@ def _acceptance(args: argparse.Namespace) -> int:
             required_gpu_name=args.require_gpu_name,
             transcript_out=args.transcript_out,
         )
+        if args.record_gate:
+            from tda_companion.qwen_physical_gate import record_qwen_physical_gate
+
+            runtime_root = _installed_runtime_root(args.runtime_root)
+            state_root = (args.state_root or runtime_root.parent / "State").resolve()
+            record_qwen_physical_gate(
+                state_root,
+                runtime_root,
+                args.models_root.resolve(),
+                receipt,
+                profile_id=args.profile,
+                required_gpu_name=args.require_gpu_name,
+            )
     except QwenAcceptanceError as exc:
         print(
             json.dumps(
@@ -145,7 +172,7 @@ def _acceptance(args: argparse.Namespace) -> int:
         return 66
     except RuntimeError as exc:
         code = str(exc)
-        if not code.startswith("ACCEPTANCE_"):
+        if not code.startswith(("ACCEPTANCE_", "QWEN_GATE_")):
             code = "ACCEPTANCE_FAILED"
         print(
             json.dumps(
@@ -155,7 +182,7 @@ def _acceptance(args: argparse.Namespace) -> int:
             ),
             flush=True,
         )
-        return 66
+        return 67 if code.startswith("QWEN_GATE_") else 66
     except BaseException:
         print(
             json.dumps(
@@ -183,10 +210,13 @@ def main() -> int:
         choices=("qwen-fast", "qwen-quality"),
         default="qwen-fast",
     )
-    parser.add_argument("--require-gpu-name")
+    parser.add_argument("--require-gpu-name", default="RTX 4070")
     parser.add_argument("--transcript-out", type=Path)
     parser.add_argument("--glossary-file", type=Path)
     parser.add_argument("--context-file", type=Path)
+    parser.add_argument("--record-gate", action="store_true")
+    parser.add_argument("--runtime-root", type=Path)
+    parser.add_argument("--state-root", type=Path)
     args = parser.parse_args()
     if args.probe:
         return _probe()

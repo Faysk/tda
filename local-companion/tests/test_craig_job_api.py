@@ -65,7 +65,7 @@ def test_api_queues_staged_craig_with_real_track_count_and_redacted_context(tmp_
         assert "transcription.craig" not in client.get("/api/v1/capabilities", headers=HEADERS).json()["capabilities"]
 
 
-def test_api_rejects_local_paths_qwen_and_missing_staged_source(tmp_path: Path):
+def test_api_rejects_local_paths_unapproved_qwen_and_missing_staged_source(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
     _stage(data_root)
@@ -76,7 +76,11 @@ def test_api_rejects_local_paths_qwen_and_missing_staged_source(tmp_path: Path):
         assert client.post("/api/v1/jobs", headers=HEADERS, json=value).status_code == 422
 
         qwen = {**_body(), "profile_id": "qwen-fast"}
-        assert client.post("/api/v1/jobs", headers=HEADERS, json=qwen).status_code == 422
+        qwen_response = client.post("/api/v1/jobs", headers=HEADERS, json=qwen)
+        assert qwen_response.status_code == 409
+        assert qwen_response.json() == {
+            "error": {"code": "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED", "recoverable": True}
+        }
 
         missing_headers = {**HEADERS, "Idempotency-Key": "missing-source"}
         missing = client.post(
