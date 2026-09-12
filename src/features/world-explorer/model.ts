@@ -138,6 +138,8 @@ export type WorldGraphDraftNode = Readonly<{
 	visibility: WorldVisibility;
 	summary: string;
 	aliases: string[];
+	/** Stable media identity only; delivery URLs are resolved at the server boundary. */
+	primaryMediaAssetId?: string | null;
 }>;
 
 export type WorldGraphDraftRelationType = Readonly<{
