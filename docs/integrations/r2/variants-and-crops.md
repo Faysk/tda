@@ -2,7 +2,21 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
+
+## Prioridade editorial e integridade — decisão de 2026-09-12
+
+Preservar proporção e qualidade perceptível vem antes de reduzir bytes. O objetivo é diminuir o arquivo sem perda significativa perceptível na apresentação real; não minimizar tamanho a qualquer custo. Esta política vale também para lores com identidade visual independente.
+
+- Preservar a relação largura/altura da arte; não esticar e não cortar conteúdo por padrão para preencher um slot. Crop precisa de intenção editorial, comparação com a arte inteira e registro do enquadramento. `contain`, dimensões automáticas ou um slot adequado são alternativas válidas a `cover`.
+- Guardar o master íntegro e derivar dele. Não usar screenshot, thumbnail ou texto Base64 copiado de uma saída de ferramenta como substituto do binário original.
+- Se Base64 for inevitável como transporte, validar reconstrução por tamanho e SHA-256 calculados da fonte íntegra, antes de commit/upload. Marcadores de truncamento, conteúdo ausente e falhas de decode devem interromper a operação; não corrigi-los com padding ou remoção de caracteres.
+- Entregar imagens como binários reais com MIME correto. A chave/hash declarada no manifesto não prova o conteúdo: calcular o hash dos bytes efetivamente recuperados e comparar com o original aprovado.
+- Validar tanto a URL do objeto como a URL consumida pela página, incluindo redirects/proxies e cache. HTTP 200 do HTML não é aceite de mídia.
+- Medir dimensões naturais, proporção exibida, crop, zoom e DPR. Escolher a variante adequada ao slot; não ampliar artificialmente o arquivo para satisfazer um teste de resolução.
+- Comparar master e derivado lado a lado na escala de uso, inclusive detalhes, alpha e gradientes. Registrar bytes antes/depois, dimensões e parâmetros; ausência de inspeção visual não autoriza afirmar ausência de perda perceptível.
+
+Esta decisão estabelece critérios de aceite; não afirma que o pipeline atual já os cumpre. Aplicar o [runbook de mídia](../../operations/r2-media-runbook.md) e verificar os bytes/consumidores antes de promover referências.
 
 `cover`, `hero`, `portrait`, `artwork`, `gallery`, `social` e `original` são roles editoriais. Cover e hero são peças distintas, não apenas resoluções diferentes.
 
@@ -78,7 +92,7 @@ Se a variante estática falhar no gate e background/subject separados tiverem ma
 
 ## Fallback de qualidade
 
-Fallback nunca usa mídia de outra sessão/entity: preferir outra role da mesma identidade quando fizer sentido; caso contrário usar placeholder oficial/DS. Falha da imagem não pode remover título, métricas ou ação.
+Fallback nunca usa mídia de outra sessão/entity: preferir outra role da mesma identidade quando fizer sentido; caso contrário usar placeholder oficial/DS nas superfícies do site, ou fallback coerente com a identidade da lore independente. Falha da imagem não pode remover título, métricas ou ação.
 
 Baixa resolução também é um tipo de incompatibilidade. Se a única mídia disponível não aguenta o slot, o consumidor deve reduzir o slot, usar uma role apropriada da mesma identidade ou cair no fallback oficial; nunca inflar silenciosamente um thumbnail.
 

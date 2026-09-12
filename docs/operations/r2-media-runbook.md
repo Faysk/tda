@@ -2,9 +2,44 @@
 
 > Status: vigente
 > Owner: integrations/media + operations
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 Fluxo obrigatório: confirmar identidade/role/audience; validar provenance; escolher o master/fonte de maior fidelidade; calcular SHA-256, MIME, bytes e dimensões; decidir se o consumidor precisa do master, de variante dinâmica ou de derivado físico; validar qualidade/resolução; escolher bucket/key; verificar colisão; fazer upload somente quando autorizado; executar read-back; para mídia pública, validar URL HTTPS anônima e decode; registrar evidência; só então promover referência e validar frontend/social.
+
+O [fluxo único de mídia](../integrations/r2/media-pipeline.md) é o contrato dos gates e responsabilidades. A referência é integrada primeiro no candidato e só promovida para produção depois da validação do consumidor. Autorização já dada para o escopo não precisa ser solicitada novamente; não ampliar escopo para apagar arquivos, publicar conteúdo privado ou ativar serviços pagos.
+
+## Antes de executar
+
+- Identificar fonte íntegra, consumidor, ambiente, visibilidade e referência anterior.
+- Conferir conta/endpoint, bucket e credencial restrita sem mostrar valores em logs; falhar explicitamente se indisponível ou inválida.
+- Preservar master na cloud privada com read-back antes de depender apenas do derivado público.
+- Usar o tooling existente quando cobre o caso. O script histórico de sessões abaixo não é um uploader genérico de lores; lacunas devem virar implementação compartilhada com testes, não comandos fictícios.
+- Fazer pré-flight sem escrita; listar arquivos, destino, tamanho e validações pendentes. Upload aditivo e publicação são etapas distintas.
+
+## Diagnóstico por sintoma
+
+Evidência histórica de recuperação: [manifesto de D, Seika e Pipipi em 2026-09-12](../integrations/evidence/lore-media-recovery-2026-09-12.json). O estado de consumidor incompleto registrado nessa recuperação foi corrigido: D/Seika foram publicados pelas PRs #223/#224, commit `ed9201c9911a600918ef742c9c212aa1d18315c8`; Pipipi pelas PRs #225/#226, commit `8fa6cb53096a68c0f9865bc6f61ab29cc9514a4f`. A execução Production CD 34698087655 terminou com sucesso e `/api/version` confirmou esta última versão em 2026-09-12. Consultar [fidelidade dos pacotes](../features/lore-pack-fidelity.md) e [Pipipi](../features/pipipi-lore.md) para escopo e evidências. Masters/pacotes foram preservados no R2 privado; não repetir upload com base no diagnóstico histórico.
+
+Para pacotes completos, seguir [ZIP à produção](zip-to-production.md), incluindo todas as referências HTML/CSS/JS, e preencher o [modelo de entrega](../templates/lore-pack-delivery.md).
+
+| Sintoma | Como distinguir a causa | Próxima ação |
+| --- | --- | --- |
+| Credencial rejeitada | Validar configuração do ambiente e tipo de credencial, sem imprimir o segredo | Corrigir o par S3 e escopo; não repetir uploads às cegas |
+| URL pública 404 | Conferir objeto pela API autenticada, key exata, domínio vinculado e cache da resposta | Recuperar/upload do objeto se ausente; corrigir caminho/domínio se presente; verificar novamente pelo domínio |
+| 401/403 | Conferir autorização e visibilidade | Corrigir acesso; não tornar bucket privado público |
+| HTTP 200 com HTML | Inspecionar MIME real e decodificação | Corrigir rota/fallback; não aceitar como imagem |
+| Read-back diverge | Comparar bytes com o artefato enviado, não com outro derivado | Bloquear promoção e recuperar fonte/upload íntegros |
+| Objeto abre, página falha | Inspecionar URL efetivamente requisitada, proxy/otimizador, CSP e CORS quando relevante | Corrigir consumidor e revalidar, sem recomprimir por tentativa |
+| Imagem aparece borrada ou cortada | Conferir arquivo selecionado, tamanho natural, slot, DPR, crop e compressão | Ajustar variante/apresentação a partir do master e comparar visualmente |
+| Nova imagem não aparece | Conferir referência promovida, release e cache | Corrigir referência/cache específico; preservar objeto anterior |
+
+404 público não prova sozinho ausência no bucket. Não mascarar falha de origem adicionando um proxy. Mudança de DNS/domínio ou purge só após identificar o caminho afetado.
+
+## Execução recuperável
+
+Registrar resultado por arquivo a cada fase. Após interrupção, revalidar os objetos já enviados e retomar apenas o que falta; não sobrescrever por nome. Colisão ou hash divergente interrompe o item. Manter fonte, master e referência anterior até o aceite.
+
+Relatório de entrega deve conter os campos e checks do [fluxo único](../integrations/r2/media-pipeline.md). Upload/read-back, teste no navegador e publicação possuem estados distintos. Uma implementação futura deve automatizar os gates técnicos; a revisão perceptiva continua explícita.
 
 ## Preparação de imagem
 
