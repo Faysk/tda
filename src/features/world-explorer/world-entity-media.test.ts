@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+import {
+	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+	clampWorldEntityMediaFocalPoint,
+	isWorldEntityMediaAssetId,
+	worldEntityMediaPreviewUrl,
+	worldEntityPortraitObjectKey,
+	worldEntityPublicMediaUrl,
+} from "./world-entity-media";
+
+const CAMPAIGN_SLUG = "yuhara-main";
+const ENTITY_ID = "11111111-1111-4111-8111-111111111111";
+const ASSET_ID = "22222222-2222-4222-8222-222222222222";
+const SHA256 = "a".repeat(64);
+const OBJECT_KEY = `campaigns/${CAMPAIGN_SLUG}/entities/${ENTITY_ID}/portrait/${SHA256}.webp`;
+
+describe("World entity media contract", () => {
+	it("uses stable asset ids for private preview URLs", () => {
+		expect(isWorldEntityMediaAssetId(ASSET_ID)).toBe(true);
+		expect(worldEntityMediaPreviewUrl(ASSET_ID)).toBe(`/api/world/entity-media/${ASSET_ID}`);
+		expect(worldEntityMediaPreviewUrl("https://example.com/image.webp")).toBeUndefined();
+	});
+
+	it("builds immutable portrait keys from campaign, canonical entity identity and content hash", () => {
+		expect(
+			worldEntityPortraitObjectKey({
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+				sha256: SHA256,
+				extension: "webp",
+			}),
+		).toBe(OBJECT_KEY);
+		expect(
+			worldEntityPortraitObjectKey({
+				campaignSlug: "../escape",
+				entityId: ENTITY_ID,
+				sha256: SHA256,
+				extension: "webp",
+			}),
+		).toBeNull();
+	});
+
+	it("only exposes verified public R2 assets for the matching campaign and entity", () => {
+		const verified = {
+			status: "verified_public" as const,
+			publicBucket: WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+			publicObjectKey: OBJECT_KEY,
+			sha256: SHA256,
+			readBackVerified: true,
+			publicDeliveryVerified: true,
+			publicVerifiedAt: "2026-09-12T19:00:00.000Z",
+		};
+		expect(
+			worldEntityPublicMediaUrl(verified, {
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+			}),
+		).toBe(`https://media.dnd.faysk.dev/${OBJECT_KEY}`);
+		expect(
+			worldEntityPublicMediaUrl(verified, {
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: "33333333-3333-4333-8333-333333333333",
+			}),
+		).toBeUndefined();
+		expect(
+			worldEntityPublicMediaUrl(verified, {
+				campaignSlug: "outra-campanha",
+				entityId: ENTITY_ID,
+			}),
+		).toBeUndefined();
+		expect(
+			worldEntityPublicMediaUrl(
+				{ ...verified, publicDeliveryVerified: false },
+				{ campaignSlug: CAMPAIGN_SLUG, entityId: ENTITY_ID },
+			),
+		).toBeUndefined();
+	});
+
+	it("keeps focal points normalized", () => {
+		expect(clampWorldEntityMediaFocalPoint(-0.4)).toBe(0);
+		expect(clampWorldEntityMediaFocalPoint(0.42)).toBe(0.42);
+		expect(clampWorldEntityMediaFocalPoint(2)).toBe(1);
+		expect(clampWorldEntityMediaFocalPoint(Number.NaN)).toBe(0.5);
+	});
+});
