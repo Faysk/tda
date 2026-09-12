@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import current_whisper_worker
+from .qwen_runtime import current_qwen_worker
 from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
 
 
@@ -103,8 +104,6 @@ class WorkerSupervisor:
         is_cancelled: Callable[[], bool] | None = None,
         process_command: list[str] | None = None,
     ) -> WorkerOutcome:
-        # Validate before creating a process so malformed user-derived identifiers
-        # can never be turned into worker lifecycle or filesystem activity.
         encoded_command = command.encode()
         executable_command = process_command or self.command_factory()
         if not executable_command or not all(isinstance(item, str) and item for item in executable_command):
@@ -279,24 +278,38 @@ class WorkerSupervisor:
     ) -> WorkerOutcome:
         if self.data_root is None or self.models_root is None:
             raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
+
+        worker_command = WorkerRunCommand(
+            job_id=job_id,
+            attempt=attempt,
+            kind="transcription.craig",
+            payload={
+                "source_id": source_id,
+                "profile_id": profile_id,
+                "glossary": glossary,
+                "context": context,
+                "cpu": cpu,
+            },
+        )
+        # Validate all user-derived identifiers before consulting runtime state.
+        # Invalid source/profile input must not cause worker lookup or filesystem activity.
+        worker_command.encode()
+
         runtime_command = None
         if profile_id.startswith("whisper-") and self.runtime_root is not None:
             worker = current_whisper_worker(self.runtime_root)
             if worker is not None:
                 runtime_command = [str(worker)]
+        elif profile_id.startswith("qwen-"):
+            if self.runtime_root is None:
+                raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
+            worker = current_qwen_worker(self.runtime_root)
+            if worker is None:
+                raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
+            runtime_command = [str(worker)]
+
         return self._run_command(
-            WorkerRunCommand(
-                job_id=job_id,
-                attempt=attempt,
-                kind="transcription.craig",
-                payload={
-                    "source_id": source_id,
-                    "profile_id": profile_id,
-                    "glossary": glossary,
-                    "context": context,
-                    "cpu": cpu,
-                },
-            ),
+            worker_command,
             on_progress=on_progress,
             on_event=on_event,
             is_cancelled=is_cancelled,

@@ -61,8 +61,6 @@ def _watch_cancel(stream: BinaryIO, command: WorkerRunCommand, cancelled: thread
                 cancelled.set()
                 return
     except (OSError, ValueError, WorkerProtocolError):
-        # Parent owns lifecycle. Invalid/closed control input cannot leak details
-        # or keep a heavy worker alive indefinitely.
         return
 
 
@@ -76,9 +74,6 @@ def _run_fixture(command: WorkerRunCommand, emitter: _Emitter, cancelled: thread
         if cancelled.is_set():
             emitter.emit("cancelled", {"completed": current - 1, "total": units})
             return 0
-
-        # Deterministic CPU work proves that the child, not FastAPI, executes the
-        # unit. Real ASR adapters run through the same process boundary.
         hashlib.sha256(f"{command.job_id}:{command.attempt}:{current}".encode("utf-8")).digest()
         emitter.emit(
             "progress",
@@ -99,9 +94,11 @@ def _worker_root(name: str) -> Path:
 
 
 def _stable_error_code(error: BaseException) -> str:
-    if isinstance(error, (WhisperRuntimeError, ModelRegistryError, CraigPackageError)):
-        code = str(error)
-        if re.fullmatch(r"[A-Z0-9_]{1,96}", code):
+    code = str(error)
+    if re.fullmatch(r"[A-Z0-9_]{1,96}", code):
+        if isinstance(error, (WhisperRuntimeError, ModelRegistryError, CraigPackageError)):
+            return code
+        if error.__class__.__name__ == "QwenRuntimeError":
             return code
     return "WORKER_EXECUTION_FAILED"
 
@@ -134,8 +131,6 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         package = load_craig_package(package_root)
         profile = get_profile(str(command.payload["profile_id"]))
-        if profile.engine != "whisper":
-            raise WhisperRuntimeError("ASR_ENGINE_NOT_IMPLEMENTED")
 
         def report(value: dict) -> None:
             event_type = value.get("type")
@@ -147,17 +142,40 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             elif event_type == "event":
                 emitter.emit("event", payload)
 
-        document = transcribe_craig_package(
-            package,
-            package_root,
-            models_root,
-            profile_id=profile.id,
-            glossary=str(command.payload.get("glossary") or ""),
-            context=str(command.payload.get("context") or ""),
-            cpu=bool(command.payload.get("cpu", False)),
-            report=report,
-            is_cancelled=cancelled.is_set,
-        )
+        if profile.engine == "whisper":
+            document = transcribe_craig_package(
+                package,
+                package_root,
+                models_root,
+                profile_id=profile.id,
+                glossary=str(command.payload.get("glossary") or ""),
+                context=str(command.payload.get("context") or ""),
+                cpu=bool(command.payload.get("cpu", False)),
+                report=report,
+                is_cancelled=cancelled.is_set,
+            )
+        elif profile.engine == "qwen3":
+            if bool(command.payload.get("cpu", False)):
+                from .asr_qwen import QwenRuntimeError
+
+                raise QwenRuntimeError("QWEN_CPU_UNSUPPORTED")
+            # Import lazily so the normal Companion/Whisper process never needs to
+            # import Torch/Transformers. The isolated Qwen worker owns this stack.
+            from .asr_qwen import transcribe_craig_package_qwen
+
+            document = transcribe_craig_package_qwen(
+                package,
+                package_root,
+                models_root,
+                profile_id=profile.id,
+                glossary=str(command.payload.get("glossary") or ""),
+                context=str(command.payload.get("context") or ""),
+                report=report,
+                is_cancelled=cancelled.is_set,
+            )
+        else:
+            raise WhisperRuntimeError("ASR_ENGINE_NOT_IMPLEMENTED")
+
         if cancelled.is_set():
             emitter.emit("cancelled", {"stage": "result_prepare"})
             return 0
@@ -191,6 +209,16 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         heartbeat_thread.join(timeout=1.0)
         emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
         return 66
+    except Exception as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        if exc.__class__.__name__ == "QwenRuntimeError":
+            if str(exc) == "ASR_CANCELLED" or cancelled.is_set():
+                emitter.emit("cancelled", {"stage": "transcription"})
+                return 0
+            emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+            return 66
+        raise
     finally:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
@@ -231,16 +259,12 @@ def run_worker_stdio(
         emitter.emit("error", {"code": "WORKER_KIND_UNSUPPORTED", "recoverable": False})
         return 65
     except BaseException:
-        # Never serialize exception text, paths, prompts or model output onto the
-        # protocol. The Agent receives a stable diagnostic code only.
         try:
             emitter.emit("error", {"code": "WORKER_EXECUTION_FAILED", "recoverable": True})
         except BaseException:
             pass
         return 70
     finally:
-        # A daemon thread blocked in BufferedReader during interpreter shutdown can
-        # abort CPython. Close its local control stream and join before returning.
         cancelled.set()
         try:
             input_stream.close()

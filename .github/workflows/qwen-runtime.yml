@@ -7,7 +7,14 @@ on:
       - 'local-companion/runtime/qwen-windows-x64.json'
       - 'local-companion/packaging/build_qwen_runtime_plan.py'
       - 'local-companion/packaging/qwen_runtime_probe.py'
+      - 'local-companion/packaging/qwen_runtime_entry.py'
       - 'local-companion/tda_companion/asr_models.py'
+      - 'local-companion/tda_companion/asr_qwen.py'
+      - 'local-companion/tda_companion/qwen_runtime.py'
+      - 'local-companion/tda_companion/asr_worker.py'
+      - 'local-companion/tda_companion/worker_supervisor.py'
+      - 'local-companion/tests/test_qwen_runtime.py'
+      - 'local-companion/tests/test_qwen_worker_routing.py'
   push:
     branches: [main, Preview]
     paths:
@@ -15,7 +22,12 @@ on:
       - 'local-companion/runtime/qwen-windows-x64.json'
       - 'local-companion/packaging/build_qwen_runtime_plan.py'
       - 'local-companion/packaging/qwen_runtime_probe.py'
+      - 'local-companion/packaging/qwen_runtime_entry.py'
       - 'local-companion/tda_companion/asr_models.py'
+      - 'local-companion/tda_companion/asr_qwen.py'
+      - 'local-companion/tda_companion/qwen_runtime.py'
+      - 'local-companion/tda_companion/asr_worker.py'
+      - 'local-companion/tda_companion/worker_supervisor.py'
 
 concurrency:
   group: qwen-runtime-${{ github.event.pull_request.number || github.ref }}
