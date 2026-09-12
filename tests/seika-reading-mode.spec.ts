@@ -18,9 +18,15 @@ test("Seika alterna entre Cinemático e Leitura e mantém a navegação de capí
   await expect(reading.getByText("Volto antes do inverno.", { exact: false }).last()).toBeVisible();
   await expect(reading.getByText("Ganchos abertos para o DM", { exact: true })).toBeVisible();
 
+  const mobileTocSummary = reading.locator(".seika-reading-mobile-toc > summary");
+  if (await mobileTocSummary.isVisible()) {
+    await mobileTocSummary.click();
+  }
+
   const chapterLink = reading.locator(
     'a[data-seika-reading-link="read-a-vida-adulta"]:visible',
   ).first();
+  await expect(chapterLink).toBeVisible();
   await chapterLink.click();
 
   await expect(reading).toBeVisible();
