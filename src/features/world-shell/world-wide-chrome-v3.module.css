@@ -1,6 +1,15 @@
 @media (min-width: 1920px) {
 	:global([data-world-authoring-active="false"] section[aria-labelledby="world-explorer-title"] > header) {
-		display: none;
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	:global([data-world-authoring-active="false"] [data-testid="world-floating-chrome"]) {
