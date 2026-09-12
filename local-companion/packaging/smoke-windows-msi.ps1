@@ -74,7 +74,8 @@ try {
     if ($startup -notlike "*$Version*TDACompanion.exe*--agent*--startup*") { throw "MSI_STARTUP_REGISTRATION_INVALID" }
 
     Set-Content -Path $invalidRcArtifact -Value "not-a-zip" -Encoding ascii -NoNewline
-    $rcArguments = "--install-rc-runtime whisper --rc-artifact `"$invalidRcArtifact`" --rc-result-file `"$invalidRcResult`""
+    $invalidRcHash = (Get-FileHash -Algorithm SHA256 $invalidRcArtifact).Hash.ToLowerInvariant()
+    $rcArguments = "--install-rc-runtime whisper --rc-artifact `"$invalidRcArtifact`" --rc-artifact-sha256 $invalidRcHash --rc-result-file `"$invalidRcResult`""
     $rcProcess = Start-Process -FilePath $installedExe -ArgumentList $rcArguments -Wait -PassThru
     if ($rcProcess.ExitCode -ne 66) { throw "MSI_RC_RUNTIME_INVALID_ARTIFACT_EXIT_MISMATCH:$($rcProcess.ExitCode)" }
     if (-not (Test-Path $invalidRcResult)) { throw "MSI_RC_RUNTIME_RESULT_NOT_WRITTEN" }
