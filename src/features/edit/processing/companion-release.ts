@@ -3,6 +3,13 @@ const TAG_PATTERN = /^companion-v(\d+)\.(\d+)\.(\d+)$/;
 const REF_PATTERN = /^refs\/tags\/(companion-v(\d+)\.(\d+)\.(\d+))$/;
 const DOWNLOAD_PREFIX = "https://github.com/Faysk/tda/releases/download/";
 
+const WHISPER_TAG_PATTERN = /^companion-whisper-runtime-v(\d+)\.(\d+)\.(\d+)$/;
+const WHISPER_REF_PATTERN =
+	/^refs\/tags\/(companion-whisper-runtime-v(\d+)\.(\d+)\.(\d+))$/;
+const QWEN_TAG_PATTERN = /^companion-qwen-runtime-v(\d+)\.(\d+)\.(\d+)$/;
+const QWEN_REF_PATTERN =
+	/^refs\/tags\/(companion-qwen-runtime-v(\d+)\.(\d+)\.(\d+))$/;
+
 type GithubRef = {
 	ref?: unknown;
 };
@@ -10,6 +17,8 @@ type GithubRef = {
 type ReleaseAsset = {
 	name?: unknown;
 	browser_download_url?: unknown;
+	digest?: unknown;
+	size?: unknown;
 };
 
 type GithubRelease = {
@@ -24,6 +33,17 @@ type TagCandidate = {
 	version: readonly [number, number, number];
 };
 
+export type CompanionAssetInfo = {
+	tag: string;
+	version: string;
+	url: string;
+	sha256: string;
+	size: number;
+};
+
+export type WhisperRuntimeAssetInfo = CompanionAssetInfo;
+export type QwenRuntimeAssetInfo = CompanionAssetInfo;
+
 function isNewer(
 	left: readonly [number, number, number],
 	right: readonly [number, number, number],
@@ -34,7 +54,7 @@ function isNewer(
 	return false;
 }
 
-export function selectLatestCompanionTag(refs: unknown): string | null {
+function selectLatestTag(refs: unknown, pattern: RegExp): string | null {
 	if (!Array.isArray(refs)) return null;
 	let latest: TagCandidate | null = null;
 
@@ -42,7 +62,7 @@ export function selectLatestCompanionTag(refs: unknown): string | null {
 		if (!value || typeof value !== "object") continue;
 		const ref = (value as GithubRef).ref;
 		if (typeof ref !== "string") continue;
-		const match = REF_PATTERN.exec(ref);
+		const match = pattern.exec(ref);
 		if (!match) continue;
 
 		const candidate: TagCandidate = {
@@ -55,11 +75,25 @@ export function selectLatestCompanionTag(refs: unknown): string | null {
 	return latest?.tag ?? null;
 }
 
-export function selectCompanionAsset(
+export function selectLatestCompanionTag(refs: unknown): string | null {
+	return selectLatestTag(refs, REF_PATTERN);
+}
+
+export function selectLatestWhisperRuntimeTag(refs: unknown): string | null {
+	return selectLatestTag(refs, WHISPER_REF_PATTERN);
+}
+
+export function selectLatestQwenRuntimeTag(refs: unknown): string | null {
+	return selectLatestTag(refs, QWEN_REF_PATTERN);
+}
+
+function releaseAsset(
 	value: unknown,
 	expectedTag: string,
-): string | null {
-	if (!TAG_PATTERN.test(expectedTag) || !value || typeof value !== "object") return null;
+	tagPattern: RegExp,
+	assetName: string,
+): ReleaseAsset | null {
+	if (!tagPattern.test(expectedTag) || !value || typeof value !== "object") return null;
 	const release = value as GithubRelease;
 	if (
 		release.draft === true ||
@@ -69,13 +103,121 @@ export function selectCompanionAsset(
 	) {
 		return null;
 	}
+	return (
+		(release.assets.find((entry) => {
+			if (!entry || typeof entry !== "object") return false;
+			return (entry as ReleaseAsset).name === assetName;
+		}) as ReleaseAsset | undefined) ?? null
+	);
+}
 
-	const asset = release.assets.find((entry) => {
-		if (!entry || typeof entry !== "object") return false;
-		return (entry as ReleaseAsset).name === ASSET_NAME;
-	}) as ReleaseAsset | undefined;
+function selectAsset(
+	value: unknown,
+	expectedTag: string,
+	tagPattern: RegExp,
+	assetName: string,
+): string | null {
+	const asset = releaseAsset(value, expectedTag, tagPattern, assetName);
 	if (!asset || typeof asset.browser_download_url !== "string") return null;
-
-	const expectedUrl = `${DOWNLOAD_PREFIX}${expectedTag}/${ASSET_NAME}`;
+	const expectedUrl = `${DOWNLOAD_PREFIX}${expectedTag}/${assetName}`;
 	return asset.browser_download_url === expectedUrl ? expectedUrl : null;
+}
+
+function selectAssetInfo(
+	value: unknown,
+	expectedTag: string,
+	tagPattern: RegExp,
+	assetName: string,
+): CompanionAssetInfo | null {
+	const url = selectAsset(value, expectedTag, tagPattern, assetName);
+	const asset = releaseAsset(value, expectedTag, tagPattern, assetName);
+	const tagMatch = tagPattern.exec(expectedTag);
+	if (!url || !asset || !tagMatch) return null;
+	if (typeof asset.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)) {
+		return null;
+	}
+	if (typeof asset.size !== "number" || !Number.isSafeInteger(asset.size) || asset.size <= 0) {
+		return null;
+	}
+	return {
+		tag: expectedTag,
+		version: `${tagMatch[1]}.${tagMatch[2]}.${tagMatch[3]}`,
+		url,
+		sha256: asset.digest.slice("sha256:".length),
+		size: asset.size,
+	};
+}
+
+export function selectCompanionAsset(
+	value: unknown,
+	expectedTag: string,
+): string | null {
+	return selectAsset(value, expectedTag, TAG_PATTERN, ASSET_NAME);
+}
+
+export function selectCompanionAssetInfo(
+	value: unknown,
+	expectedTag: string,
+): CompanionAssetInfo | null {
+	return selectAssetInfo(value, expectedTag, TAG_PATTERN, ASSET_NAME);
+}
+
+function whisperAssetName(tag: string): string | null {
+	const match = WHISPER_TAG_PATTERN.exec(tag);
+	if (!match) return null;
+	return `TDAWhisperRuntime-${match[1]}.${match[2]}.${match[3]}-windows-x64.zip`;
+}
+
+export function selectWhisperRuntimeAsset(
+	value: unknown,
+	expectedTag: string,
+): string | null {
+	const assetName = whisperAssetName(expectedTag);
+	return assetName
+		? selectAsset(value, expectedTag, WHISPER_TAG_PATTERN, assetName)
+		: null;
+}
+
+export function selectWhisperRuntimeAssetInfo(
+	value: unknown,
+	expectedTag: string,
+): WhisperRuntimeAssetInfo | null {
+	const assetName = whisperAssetName(expectedTag);
+	return assetName
+		? selectAssetInfo(value, expectedTag, WHISPER_TAG_PATTERN, assetName)
+		: null;
+}
+
+function qwenVersion(tag: string): string | null {
+	const match = QWEN_TAG_PATTERN.exec(tag);
+	return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
+}
+
+export function qwenRuntimeBundleManifestName(tag: string): string | null {
+	const version = qwenVersion(tag);
+	return version ? `TDAQwenRuntimeBundle-${version}-windows-x64.json` : null;
+}
+
+export function selectQwenRuntimeBundleManifestAssetInfo(
+	value: unknown,
+	expectedTag: string,
+): QwenRuntimeAssetInfo | null {
+	const name = qwenRuntimeBundleManifestName(expectedTag);
+	return name ? selectAssetInfo(value, expectedTag, QWEN_TAG_PATTERN, name) : null;
+}
+
+export function selectQwenRuntimePartAssetInfo(
+	value: unknown,
+	expectedTag: string,
+	assetName: string,
+): QwenRuntimeAssetInfo | null {
+	const version = qwenVersion(expectedTag);
+	if (!version) return null;
+	const match = /^TDAQwenRuntime-(\d+\.\d+\.\d+)-windows-x64\.zip\.part(\d{3})$/.exec(
+		assetName,
+	);
+	if (!match || match[1] !== version || Number(match[2]) < 1 || Number(match[2]) > 16) {
+		return null;
+	}
+	return selectAssetInfo(value, expectedTag, QWEN_TAG_PATTERN, assetName);
 }

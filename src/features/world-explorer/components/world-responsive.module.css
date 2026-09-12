@@ -10,6 +10,37 @@
 	min-width: 0;
 }
 
+.layout {
+	height: 100dvh;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.canvasColumn {
+	display: flex;
+	height: 100dvh;
+	min-height: 0;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.canvasColumn:not(:has(> :global([data-testid="world-canvas"]))) {
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+
+/* Canvas mode is the spatial surface. The explicit List view remains the
+ * textual alternative instead of appending a second page below the map. */
+.canvasColumn:has(> :global([data-testid="world-canvas"])) > section[aria-labelledby="world-relations-title"] {
+	display: none;
+}
+
+.inspector {
+	height: 100dvh;
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+
 /* Closed chrome must not reserve a rail. The reopen control floats over the
  * workspace instead of charging permanent canvas rent. */
 .layout:has(.panelToggle[aria-expanded="false"]) {
@@ -38,6 +69,9 @@
 
 .layout :global([data-testid="world-canvas"]) {
 	position: relative;
+	flex: 1 1 0;
+	height: auto;
+	min-height: 0;
 }
 
 .layout :global([data-testid="world-canvas"]:not(:has(.react-flow__node)))::after {
@@ -69,6 +103,14 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+	.layout :global(.react-flow__pane) {
+		cursor: grab;
+	}
+
+	.layout :global(.react-flow__pane.dragging) {
+		cursor: grabbing;
+	}
+
 	.layout[data-world-edit-state="editing"] :global(.react-flow__node) {
 		cursor: grab;
 	}
@@ -108,10 +150,14 @@
 	.layout,
 	.layout:has(.panelToggle[aria-expanded="false"]) {
 		display: block;
-		min-height: auto;
+		height: 100dvh;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.canvasColumn {
+		height: 100dvh;
+		min-height: 0;
 		padding: 12px var(--ds-page-gutter) 0;
 	}
 
@@ -123,6 +169,7 @@
 		z-index: 45;
 		isolation: isolate;
 		width: auto;
+		height: auto;
 		min-height: 68px;
 		max-height: min(62dvh, 600px);
 		overflow: auto;

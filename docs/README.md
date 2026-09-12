@@ -88,6 +88,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Especificações de features — índice](features/README.md)
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
+- [TDA Companion v0.3 — Desktop, Agent e ASR](features/companion-desktop-asr-v0.3.md) — Agent/Desktop, worker subprocess, ingest Craig e perfis ASR locais.
 - [Personagens e NPCs](features/characters-and-npcs.md)
 - [Perfis editoriais de entities](features/entity-profiles.md)
 - [World Explorer / Ecos da Jornada](features/world-explorer.md)
@@ -118,6 +119,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Operação — índice](operations/README.md)
 - [Ambientes e configuração](operations/environments.md)
 - [Login Discord — configuração e verificação](operations/discord-auth.md)
+- [Companion — política de versões e dependências](operations/companion-dependency-policy.md) — pins compatíveis, freshness e gate de release do Companion.
 - [Release, deploy e rollback](operations/release-runbook.md)
 - [Publicação controlada](releases.md) — política resumida.
 - [Segurança operacional](operations/security-checklist.md)
@@ -137,6 +139,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0010 — persistência editorial do layout separada do canon](adr/0010-world-explorer-editorial-layout-persistence.md)
 - [ADR-0011 — persistência física candidata do layout editorial](adr/0011-world-explorer-layout-physical-persistence.md)
 - [ADR-0012 — GitHub Actions controla a entrega](adr/0012-github-actions-controlled-delivery.md)
+- [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](adr/0013-companion-agent-desktop-asr.md)
 
 ### Governança da própria documentação
 

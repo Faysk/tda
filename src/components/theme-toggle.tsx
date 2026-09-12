@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
 	oppositeTheme,
 	parseThemePreference,
@@ -9,8 +9,18 @@ import {
 	type ThemePreference,
 } from "@/features/theme/preference";
 
+const THEME_CHANGE_EVENT = "tda-theme-change";
+
 function resolveTheme(preference: ThemePreference): ResolvedTheme {
 	if (preference === "light" || preference === "dark") return preference;
+	return window.matchMedia("(prefers-color-scheme: dark)").matches
+		? "dark"
+		: "light";
+}
+
+function currentDocumentTheme(): ResolvedTheme {
+	const explicit = document.documentElement.dataset.theme;
+	if (explicit === "light" || explicit === "dark") return explicit;
 	return window.matchMedia("(prefers-color-scheme: dark)").matches
 		? "dark"
 		: "light";
@@ -22,23 +32,33 @@ function applyTheme(theme: ResolvedTheme) {
 	root.style.colorScheme = theme;
 }
 
+function readStoredPreference(): ThemePreference {
+	try {
+		return parseThemePreference(window.localStorage.getItem(THEME_STORAGE_KEY));
+	} catch {
+		return "system";
+	}
+}
+
+function syncDocumentToPreference(preference: ThemePreference): ResolvedTheme {
+	if (preference === "system") {
+		delete document.documentElement.dataset.theme;
+		document.documentElement.style.colorScheme = "light dark";
+		return resolveTheme(preference);
+	}
+	applyTheme(preference);
+	return preference;
+}
+
 export function ThemeToggle() {
 	const [effective, setEffective] = useState<ResolvedTheme>("dark");
 
-	useEffect(() => {
-		let stored: string | null = null;
-		try {
-			stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-		} catch {
-			stored = null;
-		}
+	const syncFromPreference = useCallback(() => {
+		setEffective(syncDocumentToPreference(readStoredPreference()));
+	}, []);
 
-		const preference = parseThemePreference(stored);
-		if (preference === "system") {
-			delete document.documentElement.dataset.theme;
-			document.documentElement.style.colorScheme = "light dark";
-		}
-		setEffective(resolveTheme(preference));
+	useEffect(() => {
+		syncFromPreference();
 
 		const media = window.matchMedia("(prefers-color-scheme: dark)");
 		const onSystemChange = () => {
@@ -46,12 +66,23 @@ export function ThemeToggle() {
 				setEffective(media.matches ? "dark" : "light");
 			}
 		};
+		const onThemeChange = () => setEffective(currentDocumentTheme());
+		const onStorage = (event: StorageEvent) => {
+			if (event.key === THEME_STORAGE_KEY || event.key === null) syncFromPreference();
+		};
+
 		media.addEventListener("change", onSystemChange);
-		return () => media.removeEventListener("change", onSystemChange);
-	}, []);
+		window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+		window.addEventListener("storage", onStorage);
+		return () => {
+			media.removeEventListener("change", onSystemChange);
+			window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
+			window.removeEventListener("storage", onStorage);
+		};
+	}, [syncFromPreference]);
 
 	const changeTheme = () => {
-		const next = oppositeTheme(effective);
+		const next = oppositeTheme(currentDocumentTheme());
 		try {
 			window.localStorage.setItem(THEME_STORAGE_KEY, next);
 		} catch {
@@ -59,6 +90,7 @@ export function ThemeToggle() {
 		}
 		applyTheme(next);
 		setEffective(next);
+		window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 	};
 
 	const isDark = effective === "dark";

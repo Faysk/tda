@@ -30,12 +30,13 @@ if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "VERSION_NOT_FOUND" }
 
 $work = Join-Path $output "work"
 $dist = Join-Path $output "dist"
+$maintenanceDist = Join-Path $output "maintenance-dist"
 $packageRoot = Join-Path $output "TDACompanion-$version"
 $appRoot = Join-Path $packageRoot "app"
 $metadataRoot = Join-Path $output "metadata"
 
 Remove-Item $output -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $work, $dist, $maintenanceDist, $packageRoot, $metadataRoot | Out-Null
 
 & $pythonPath -m PyInstaller `
     --noconfirm `
@@ -48,10 +49,30 @@ New-Item -ItemType Directory -Force -Path $work, $dist, $packageRoot, $metadataR
     --workpath $work `
     --specpath $work `
     --collect-submodules uvicorn `
+    --collect-data tda_companion `
+    --collect-all webview `
+    --collect-submodules pystray `
     (Join-Path $PSScriptRoot "windows_entry.py")
 if ($LASTEXITCODE -ne 0) { throw "PYINSTALLER_FAILED" }
 
 Copy-Item (Join-Path $dist "TDACompanion") $appRoot -Recurse
+
+& $pythonPath -m PyInstaller `
+    --noconfirm `
+    --clean `
+    --onefile `
+    --windowed `
+    --name TDACompanionMaintenance `
+    --distpath $maintenanceDist `
+    --workpath (Join-Path $work "maintenance") `
+    --specpath (Join-Path $work "maintenance") `
+    (Join-Path $PSScriptRoot "maintenance_entry.py")
+if ($LASTEXITCODE -ne 0) { throw "MAINTENANCE_PYINSTALLER_FAILED" }
+$maintenanceExe = Join-Path $maintenanceDist "TDACompanionMaintenance.exe"
+if (-not (Test-Path $maintenanceExe)) { throw "MAINTENANCE_EXE_NOT_CREATED" }
+Copy-Item $maintenanceExe (Join-Path $appRoot "TDACompanionMaintenance.exe")
+Copy-Item (Join-Path $PSScriptRoot "run-physical-acceptance.ps1") (Join-Path $appRoot "run-physical-acceptance.ps1")
+
 Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
 Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
 Set-Content -Path (Join-Path $packageRoot "version.txt") -Value $version -Encoding ascii -NoNewline
@@ -66,14 +87,17 @@ Alternativa portátil/manual:
 1. Extraia este pacote para uma pasta local.
 2. Execute install.ps1 no PowerShell.
 3. Abra "TDA Companion" pelo Menu Iniciar.
-4. Copie o token exibido pelo aplicativo.
-5. Em https://dnd.faysk.dev/edit/processamento, cole o token e conecte.
+4. A interface Desktop usa WebView2 e mantém o Agent em segundo plano.
+5. Em https://dnd.faysk.dev/edit/processamento, conecte o Companion quando necessário.
 
 Instalação por usuário, sem privilégios administrativos.
 Diretório do aplicativo: %LOCALAPPDATA%\TDA\Companion\versions\$version
 Diretório de dados:      %LOCALAPPDATA%\TDA\Data
 
-O token e os dados locais não são removidos durante atualização do aplicativo.
+O arquivo app\run-physical-acceptance.ps1 executa o gate físico local dos perfis ASR sem enviar áudio ao cloud.
+Por padrão ele grava somente receipts sanitizados; transcrições exigem -WriteTranscripts explícito.
+
+O token, a fila e os dados locais não são removidos durante atualização do aplicativo.
 Este aplicativo NÃO usa, inicia, modifica ou depende do antigo DnDScribeCompanion.exe.
 "@
 Set-Content -Path (Join-Path $packageRoot "README.txt") -Value $readme -Encoding utf8

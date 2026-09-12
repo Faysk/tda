@@ -32,11 +32,40 @@
         KeyPath="yes" />
     </Component>
 
+    <Component Id="MaintenanceExecutable" Directory="INSTALLFOLDER">
+      <File
+        Id="TDACompanionMaintenanceExe"
+        Source="!(bindpath.App)\TDACompanionMaintenance.exe"
+        KeyPath="yes" />
+    </Component>
+
     <Component Id="InstalledVersion" Directory="CompanionRoot">
       <File
         Id="CurrentVersionFile"
         Source="!(bindpath.Metadata)\current-version.txt"
         Name="current-version.txt"
+        KeyPath="yes" />
+    </Component>
+
+    <Component Id="ProductMetadata" Directory="CompanionRoot">
+      <RegistryKey
+        Root="HKCU"
+        Key="Software\Faysk\TDA Companion"
+        ForceDeleteOnUninstall="yes">
+        <RegistryValue Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Name="Version" Type="string" Value="[ProductVersion]" />
+        <RegistryValue Name="ProductCode" Type="string" Value="[ProductCode]" />
+        <RegistryValue Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" />
+      </RegistryKey>
+    </Component>
+
+    <Component Id="StartupRegistration" Directory="INSTALLFOLDER">
+      <RegistryValue
+        Root="HKCU"
+        Key="Software\Microsoft\Windows\CurrentVersion\Run"
+        Name="TDA Companion Agent"
+        Type="string"
+        Value="&quot;[#TDACompanionExe]&quot; --agent --startup"
         KeyPath="yes" />
     </Component>
 
@@ -46,23 +75,40 @@
         Name="TDA Companion"
         Description="TDA Companion — processamento local"
         Target="[#TDACompanionExe]"
+        Arguments="--ui"
         WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveTdaProgramsFolder" On="uninstall" />
       <RegistryValue
         Root="HKCU"
         Key="Software\Faysk\TDA Companion"
-        Name="Installed"
+        Name="StartMenuShortcut"
         Type="integer"
         Value="1"
         KeyPath="yes" />
     </Component>
 
+    <CustomAction
+      Id="PrepareUninstall"
+      FileRef="TDACompanionMaintenanceExe"
+      ExeCommand="--prepare-uninstall"
+      Execute="deferred"
+      Impersonate="yes"
+      Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="PrepareUninstall" Before="RemoveFiles" Condition='(REMOVE="ALL") AND (NOT UPGRADINGPRODUCTCODE)' />
+    </InstallExecuteSequence>
+
     <Feature Id="MainFeature" Title="TDA Companion" Level="1">
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="MaintenanceExecutable" />
       <ComponentRef Id="InstalledVersion" />
+      <ComponentRef Id="ProductMetadata" />
+      <ComponentRef Id="StartupRegistration" />
       <ComponentRef Id="StartMenuShortcut" />
       <Files Include="!(bindpath.App)\**" Directory="INSTALLFOLDER">
         <Exclude Files="!(bindpath.App)\TDACompanion.exe" />
+        <Exclude Files="!(bindpath.App)\TDACompanionMaintenance.exe" />
       </Files>
     </Feature>
   </Package>

@@ -96,9 +96,12 @@ export function WorldCanvas({
 				reconnectRadius={28}
 				nodesDraggable
 				elementsSelectable
-				selectionOnDrag
-				panOnScroll
-				panOnDrag={false}
+				selectionOnDrag={false}
+				panOnDrag
+				panOnScroll={false}
+				zoomOnScroll
+				zoomOnPinch
+				preventScrolling
 				onlyRenderVisibleElements
 				fitView
 				fitViewOptions={FIT_VIEW_OPTIONS}

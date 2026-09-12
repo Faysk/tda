@@ -41,7 +41,21 @@
 	backdrop-filter: blur(8px);
 }
 
+.backdropDismiss {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	cursor: default;
+}
+
 .palette {
+	position: relative;
+	z-index: 1;
 	width: min(720px, 100%);
 	max-height: min(76dvh, 760px);
 	display: grid;
@@ -81,6 +95,12 @@
 	color: var(--ds-foreground);
 }
 
+.headerActions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .header kbd,
 .footer kbd,
 .results kbd {
@@ -92,6 +112,29 @@
 	color: var(--ds-foreground-muted);
 	font: 650 0.62rem/1 var(--ds-font-ui);
 	text-align: center;
+}
+
+.closeButton {
+	display: grid;
+	width: 38px;
+	height: 38px;
+	place-items: center;
+	padding: 0;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 50%;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-muted);
+	font: 500 1.1rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.closeButton:hover,
+.closeButton:focus-visible {
+	outline: 0;
+	border-color: var(--ds-accent);
+	background: var(--ds-surface-hover);
+	color: var(--ds-accent-strong);
+	box-shadow: var(--ds-control-focus-ring);
 }
 
 .search {
@@ -220,7 +263,8 @@
 		min-height: 44px;
 	}
 
-	.trigger kbd {
+	.trigger kbd,
+	.headerActions kbd {
 		display: none;
 	}
 

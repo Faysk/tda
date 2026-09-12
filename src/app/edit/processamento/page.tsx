@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
+import { ProcessingSubmission } from "@/features/edit/processing/submission";
 import styles from "@/features/edit/processing/processing.module.css";
 import pageStyles from "./page.module.css";
 
@@ -33,6 +34,7 @@ export default async function ProcessingPage() {
 					<small>Windows x64 · .msi</small>
 				</a>
 			</header>
+			<ProcessingSubmission />
 			<ProcessingPanel />
 		</section>
 	);
