@@ -36,14 +36,21 @@ import {
 	WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
 	type WorldAuthoringConnectFromNodeDetail,
 } from "../world-authoring-events";
+import {
+	worldCommandForShortcut,
+	worldCommandIsAvailable,
+	worldShortcutFromKeyboardInput,
+	type WorldCommandContext,
+	type WorldCommandId,
+} from "../world-commands";
 import { appendWorldDraftNode } from "../world-direct-create";
 import {
 	appendWorldDraftRelation,
 	reconnectWorldDraftRelation,
 } from "../world-relation-draft";
-import type { WorldCommandContext } from "../world-commands";
 import authoring from "./world-authoring-shell.module.css";
 import { WorldCanvas } from "./world-canvas";
+import { WorldCommandPalette } from "./world-command-palette";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
 import { WorldDirectCreateControls } from "./world-direct-create-controls";
@@ -58,6 +65,28 @@ import {
 } from "./world-relation-authoring-controls";
 import styles from "./world-explorer.module.css";
 import responsive from "./world-responsive.module.css";
+
+const PALETTE_COMMAND_IDS: ReadonlySet<WorldCommandId> = new Set([
+	"world.openNavigation",
+	"world.search",
+	"world.reorganize",
+	"world.openList",
+	"world.toggleInspector",
+	"world.toggleFocusMode",
+	"world.createEntity",
+	"world.connectSelection",
+	"world.publish",
+	"world.finishConductor",
+	"world.discard",
+	"world.openProfile",
+]);
+
+function isTypingTarget(target: EventTarget | null): boolean {
+	return (
+		target instanceof HTMLElement &&
+		Boolean(target.closest("input, textarea, select, [contenteditable='true']"))
+	);
+}
 
 function publishedLayoutCandidate(projection: WorldGraphProjection): WorldLayoutProjection {
 	return {
@@ -99,6 +128,8 @@ export function WorldExplorerClient({
 	const workspace = useWorldWorkspaceControls();
 	const [positionOverrides, setPositionOverrides] = useState<WorldLayout>({});
 	const positionOverridesRef = useRef<WorldLayout>({});
+	const searchInputRef = useRef<HTMLInputElement>(null);
+	const executeWorldCommandRef = useRef<(id: WorldCommandId) => void>(() => undefined);
 	const [createType, setCreateType] = useState<WorldEntityType | null>(null);
 	const [createPoint, setCreatePoint] = useState<XYPosition | null>(null);
 	const [relationCandidate, setRelationCandidate] = useState<WorldRelationCandidate | null>(null);
@@ -158,6 +189,30 @@ export function WorldExplorerClient({
 		authoringPanelVisible && view === "canvas" && !authoringUi.focusMode;
 	const connectionActive =
 		relationAuthoringAvailable && authoringUi.state.tool === "connect";
+
+	const commandContext = useMemo<WorldCommandContext>(
+		() => ({
+			mode: workingProjection.mode,
+			canEditLayout,
+			canEditContent,
+			editState: edit.state,
+			hasChanges: edit.hasChanges,
+			hasSelection: Boolean(selected),
+			selectionIsFocus: Boolean(selected && selected.id === workingProjection.focusId),
+			hasProfileRoute: Boolean(selected?.route),
+			focusMode: authoringUi.focusMode,
+		}),
+		[
+			workingProjection.mode,
+			workingProjection.focusId,
+			canEditLayout,
+			canEditContent,
+			edit.state,
+			edit.hasChanges,
+			selected,
+			authoringUi.focusMode,
+		],
+	);
 
 	const graphStructure = useMemo(
 		() => toReactFlowStructure(visibleProjection, positionOverrides),
@@ -257,16 +312,6 @@ export function WorldExplorerClient({
 			});
 		}
 	}
-
-	const commandContext: WorldCommandContext = {
-		mode: workingProjection.mode,
-		canEditLayout,
-		editState: edit.state,
-		hasChanges: edit.hasChanges,
-		hasSelection: Boolean(selected),
-		selectionIsFocus: Boolean(selected && selected.id === workingProjection.focusId),
-		hasProfileRoute: Boolean(selected?.route),
-	};
 
 	function cancelDirectCreate() {
 		setCreateType(null);
@@ -404,6 +449,109 @@ export function WorldExplorerClient({
 		authoringUi.setInspectorMode("overlay");
 	}
 
+	function openDirectCreateFromCommand() {
+		if (!worldCommandIsAvailable("world.createEntity", commandContext)) return;
+		setView("canvas");
+		window.requestAnimationFrame(() => {
+			window.requestAnimationFrame(() => {
+				document
+					.querySelector<HTMLButtonElement>("[data-world-direct-create] > button")
+					?.click();
+			});
+		});
+	}
+
+	function executeWorldCommand(id: WorldCommandId) {
+		if (!worldCommandIsAvailable(id, commandContext)) return;
+		switch (id) {
+			case "world.openNavigation":
+				workspace.openNavigation();
+				return;
+			case "world.search":
+				searchInputRef.current?.focus();
+				return;
+			case "world.reorganize":
+				resetLayout();
+				return;
+			case "world.openList":
+				setView("list");
+				return;
+			case "world.toggleInspector":
+				authoringUi.toggleInspector(authoringActive ? "overlay" : "docked");
+				return;
+			case "world.toggleFocusMode":
+				authoringUi.toggleFocusMode();
+				return;
+			case "world.createEntity":
+				openDirectCreateFromCommand();
+				return;
+			case "world.connectSelection":
+				if (!selectedId) return;
+				window.dispatchEvent(
+					new CustomEvent<WorldAuthoringConnectFromNodeDetail>(
+						WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
+						{ detail: { nodeId: selectedId } },
+					),
+				);
+				return;
+			case "world.publish":
+				void edit.publish();
+				return;
+			case "world.finishConductor":
+				void edit.finish();
+				return;
+			case "world.discard":
+				void edit.discard();
+				return;
+			case "world.openProfile":
+				if (selected?.route) router.push(selected.route);
+				return;
+			default:
+				return;
+		}
+	}
+	executeWorldCommandRef.current = executeWorldCommand;
+
+	function selectEntityFromPalette(id: string) {
+		setFilter("all");
+		setRelationFilter("all");
+		setQuery("");
+		setView("canvas");
+		setSelectedId(id);
+	}
+
+	useEffect(() => {
+		if (!authoringActive) return;
+		function handleShortcut(event: KeyboardEvent) {
+			if (event.key === "Escape" && connectionActive && !isTypingTarget(event.target)) {
+				event.preventDefault();
+				setRelationCandidate(null);
+				authoringUi.setTool("select");
+				return;
+			}
+			const shortcut = worldShortcutFromKeyboardInput(event);
+			if (!shortcut || shortcut === "N") return;
+			if (shortcut !== "Mod+K" && isTypingTarget(event.target)) return;
+			const command = worldCommandForShortcut(shortcut, commandContext);
+			if (!command) return;
+			event.preventDefault();
+			if (command.id === "world.openCommandPalette") {
+				authoringUi.setCommandPaletteOpen(!authoringUi.state.commandPaletteOpen);
+				return;
+			}
+			executeWorldCommandRef.current(command.id);
+		}
+		window.addEventListener("keydown", handleShortcut);
+		return () => window.removeEventListener("keydown", handleShortcut);
+	}, [
+		authoringActive,
+		connectionActive,
+		commandContext,
+		authoringUi.state.commandPaletteOpen,
+		authoringUi.setCommandPaletteOpen,
+		authoringUi.setTool,
+	]);
+
 	return (
 		<div
 			className={`${styles.explorer} ${responsive.layout} ${authoringActive ? authoring.active : ""} ${authoringActive && authoringUi.focusMode ? authoring.focusMode : ""} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
@@ -418,6 +566,7 @@ export function WorldExplorerClient({
 			data-world-authoring-tool={authoringUi.state.tool}
 			data-world-focus-mode={authoringActive && authoringUi.focusMode ? "true" : "false"}
 			data-world-inspector-mode={authoringUi.state.inspectorMode}
+			data-world-command-palette={authoringUi.state.commandPaletteOpen ? "open" : "closed"}
 			aria-busy={edit.busy}
 		>
 			<section
@@ -457,6 +606,7 @@ export function WorldExplorerClient({
 						onToggleFocusMode={authoringUi.toggleFocusMode}
 						onToggleInspector={() => authoringUi.toggleInspector("overlay")}
 						onOpenNavigation={workspace.openNavigation}
+						onOpenCommandPalette={() => authoringUi.setCommandPaletteOpen(true)}
 					/>
 				) : null}
 
@@ -475,6 +625,7 @@ export function WorldExplorerClient({
 						resetDisabled={edit.busy}
 						demo={workingProjection.demo}
 						activeRelationTypes={activeRelationTypes}
+						searchInputRef={searchInputRef}
 					/>
 				</div>
 
@@ -614,6 +765,16 @@ export function WorldExplorerClient({
 					)
 				) : null}
 			</aside>
+
+			<WorldCommandPalette
+				open={authoringActive && authoringUi.state.commandPaletteOpen}
+				context={commandContext}
+				entities={workingProjection.nodes}
+				commandIds={PALETTE_COMMAND_IDS}
+				onClose={() => authoringUi.setCommandPaletteOpen(false)}
+				onCommand={executeWorldCommand}
+				onSelectEntity={selectEntityFromPalette}
+			/>
 		</div>
 	);
 }
