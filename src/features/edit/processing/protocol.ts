@@ -1,5 +1,10 @@
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
+export type TranscriptionProfileId =
+	| "whisper-turbo"
+	| "whisper-detailed"
+	| "qwen-fast"
+	| "qwen-quality";
 export type Health = {
 	api_version: "1";
 	service_version: string;
@@ -9,6 +14,23 @@ export type Capabilities = {
 	capabilities: string[];
 	sync: boolean;
 	device: { id: string; label: string };
+	transcription: { profiles: TranscriptionProfileId[] };
+};
+export type CraigSource = {
+	schemaVersion: "tda_craig_ingest_v1";
+	sourceId: string;
+	sourceSha256: string;
+	sizeBytes: number;
+	trackCount: number;
+	reused: boolean;
+};
+export type CraigTranscriptionInput = {
+	campaignId: string;
+	sessionId: string;
+	sourceId: string;
+	profileId: TranscriptionProfileId;
+	glossary: string;
+	context: string;
 };
 export type JobStatus =
 	| "queued"
@@ -21,6 +43,7 @@ export type JobContext = {
 	campaignId: string;
 	sessionId: string;
 	sourceId: string;
+	profileId?: TranscriptionProfileId;
 };
 export type LocalJob = {
 	id: string;
@@ -67,6 +90,8 @@ export type ResultSummary = {
 	sessionId: string;
 	sourceId: string;
 	publicationId: string;
+	profileId?: TranscriptionProfileId;
+	transcriptSha256?: string;
 };
 export type BridgeErrorCode =
 	| "unreachable"
@@ -136,6 +161,21 @@ function isoDate(value: unknown): string {
 	if (!Number.isFinite(Date.parse(parsed))) return invalid();
 	return parsed;
 }
+function sha256(value: unknown): string {
+	const parsed = text(value, 64);
+	if (!/^[a-f0-9]{64}$/u.test(parsed)) return invalid();
+	return parsed;
+}
+export function transcriptionProfile(value: unknown): TranscriptionProfileId {
+	const parsed = text(value, 32);
+	if (
+		!["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"].includes(
+			parsed,
+		)
+	)
+		return invalid();
+	return parsed as TranscriptionProfileId;
+}
 export function parseHealth(value: unknown): Health {
 	const row = record(value);
 	if (row.api_version !== "1") throw new BridgeError("incompatible");
@@ -152,10 +192,38 @@ export function parseCapabilities(value: unknown): Capabilities {
 	const device = record(row.device);
 	if (!Array.isArray(row.capabilities) || row.capabilities.length > 100)
 		return invalid();
+	let profiles: TranscriptionProfileId[] = [];
+	if (row.transcription !== undefined && row.transcription !== null) {
+		const transcription = record(row.transcription);
+		if (!Array.isArray(transcription.profiles) || transcription.profiles.length > 8)
+			return invalid();
+		profiles = transcription.profiles.map(transcriptionProfile);
+		if (new Set(profiles).size !== profiles.length) return invalid();
+	}
 	return {
 		capabilities: row.capabilities.map((value) => text(value)),
 		sync: boolean(row.sync),
 		device: { id: identifier(device.id), label: text(device.label) },
+		transcription: { profiles },
+	};
+}
+export function parseCraigSource(value: unknown): CraigSource {
+	const row = record(value);
+	if (row.schema_version !== "tda_craig_ingest_v1")
+		throw new BridgeError("incompatible");
+	const sourceId = identifier(row.source_id);
+	const sourceSha256 = sha256(row.source_sha256);
+	if (sourceId !== `craig-${sourceSha256}`) return invalid();
+	const sizeBytes = nonNegativeInteger(row.size_bytes);
+	const trackCount = nonNegativeInteger(row.track_count);
+	if (sizeBytes <= 0 || trackCount <= 0 || trackCount > 256) return invalid();
+	return {
+		schemaVersion: "tda_craig_ingest_v1",
+		sourceId,
+		sourceSha256,
+		sizeBytes,
+		trackCount,
+		reused: boolean(row.reused),
 	};
 }
 export function parseJob(value: unknown): LocalJob {
@@ -194,11 +262,15 @@ export function parseJob(value: unknown): LocalJob {
 	let context: JobContext | null = null;
 	if (row.context !== undefined && row.context !== null) {
 		const rawContext = record(row.context);
-		context = {
+		const base = {
 			campaignId: identifier(rawContext.campaign_id),
 			sessionId: identifier(rawContext.session_id),
 			sourceId: identifier(rawContext.source_id),
 		};
+		context =
+			rawContext.profile_id === undefined || rawContext.profile_id === null
+				? base
+				: { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
 	}
 	return {
 		id: identifier(row.id),
@@ -282,7 +354,7 @@ export function parseSystemSnapshot(value: unknown): SystemSnapshot {
 		gpus,
 	};
 }
-// Only a small identity projection is retained. No bundle content is displayed or sent to cloud.
+// Only identity/hashes are retained. Transcript text and local artifact content never enter the cloud UI bridge.
 export function parseResultSummary(
 	value: unknown,
 	jobId: string,
@@ -291,17 +363,32 @@ export function parseResultSummary(
 	if (row.schema_version !== "tda_local_result_v1")
 		throw new BridgeError("incompatible");
 	if (row.job_id !== jobId) return invalid();
-	const bundle = record(row.publication_bundle);
-	if (bundle.schema_version !== "publication_bundle_v1")
-		throw new BridgeError("incompatible");
 	if (record(row.sync).status !== "not_configured") return invalid();
-	const publicationId = text(bundle.publication_id);
-	if (!/^[a-f0-9]{64}$/u.test(publicationId)) return invalid();
-	return {
+
+	const base = {
 		jobId: identifier(row.job_id),
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		sourceId: identifier(row.source_id),
-		publicationId,
 	};
+	if (row.publication_bundle !== undefined && row.publication_bundle !== null) {
+		const bundle = record(row.publication_bundle);
+		if (bundle.schema_version !== "publication_bundle_v1")
+			throw new BridgeError("incompatible");
+		return { ...base, publicationId: sha256(bundle.publication_id) };
+	}
+	if (row.transcription !== undefined && row.transcription !== null) {
+		const transcription = record(row.transcription);
+		if (transcription.schema_version !== "tda_transcript_v1")
+			throw new BridgeError("incompatible");
+		if (transcription.artifact !== "transcript.json") return invalid();
+		const transcriptSha256 = sha256(transcription.sha256);
+		return {
+			...base,
+			publicationId: transcriptSha256,
+			profileId: transcriptionProfile(transcription.profile_id),
+			transcriptSha256,
+		};
+	}
+	return invalid();
 }
