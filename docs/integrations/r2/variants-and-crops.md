@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 `cover`, `hero`, `portrait`, `artwork`, `gallery`, `social` e `original` são roles editoriais. Cover e hero são peças distintas, não apenas resoluções diferentes.
 
@@ -21,6 +21,25 @@ O master é a melhor fonte conhecida e deve ser preservado sem recompressões em
 Um derivado físico só deve existir por necessidade editorial, social, técnica ou de custo medida. Ele recebe novo SHA/key e preserva provenance, dimensões, encoder/parâmetros e vínculo com o master.
 
 `next/image` e outros otimizadores web são mecanismos de entrega, não masters. Se a entrada do otimizador já for um AVIF/WebP final e pequeno, evitar uma segunda compressão lossy desnecessária. Para assets locais já preparados e muito leves, `unoptimized` pode ser preferível quando isso preserva fidelidade e não cria custo relevante de transferência.
+
+## Contrato de entrega do browser
+
+Mídia editorial deve chegar ao browser como um recurso de imagem normal e verificável:
+
+`master -> derivado validado -> arquivo/objeto binário -> URL canônica -> browser`
+
+Não usar como arquitetura permanente:
+
+- Base64 ou `data:` URI para imagens editoriais grandes;
+- arquivo textual `.b64` baixado pelo browser para reconstruir imagem;
+- fragmentos Base64 concatenados em runtime;
+- placeholder 1×1 que depende de JavaScript para descobrir a arte principal;
+- alias cuja extensão declara um formato e cujo objeto final usa outro sem que a resposta HTTP exponha o MIME real;
+- redirect como substituto de verificação de entrega.
+
+Base64 pode existir somente como **formato de transporte/build input** quando uma ferramenta não consegue movimentar binário. Nesse caso ele deve ser decodificado e validado antes de `next build`; o artefato publicado e consumido pelo browser é sempre o arquivo binário real.
+
+Para assets pequenos, code-coupled e estáveis, Git/runtime é aceitável. Para mídia pública editorial maior ou reutilizável, R2 público com custom domain é o caminho normal. A decisão de placement continua em `placement.md`; o consumidor não deve mudar a arquitetura por conveniência de tooling.
 
 ## Gate de resolução
 
@@ -60,7 +79,15 @@ Qualidade é decidida por comparação visual, não pelo menor arquivo possível
 - Não perseguir um número universal de `quality`, CRF ou bytes. Encoders e conteúdos respondem de forma diferente.
 - PSNR/SSIM podem apoiar comparação automatizada, mas não substituem inspeção humana em rostos, cabelo, texto, bordas com alpha, gradientes, céu/noite e textura fina.
 
-O objetivo de compressão é: menor arquivo que seja visualmente indistinguível ou quase indistinguível na superfície-alvo.
+O objetivo de compressão é: menor arquivo que seja visualmente indistinguível ou quase indistinguível do master na superfície-alvo.
+
+## Extensão, MIME e URL
+
+A extensão usada no contrato público deve representar o formato real sempre que possível. Se uma rota de compatibilidade conservar um nome legado, a resposta HTTP deve obrigatoriamente retornar o `Content-Type` real dos bytes e a migração para um nome coerente deve permanecer explícita.
+
+Nunca declarar preload como `image/avif` quando o recurso efetivamente entregue é WebP. Preload, `src`, `Content-Type`, metadata e objeto canônico devem convergir para o mesmo formato.
+
+Para R2, preferir URLs content-addressed/imutáveis no custom domain. Alteração de bytes gera nova key; cache longo fica associado à identidade do conteúdo, não a um nome mutável.
 
 ## Crops e focal points
 
@@ -82,6 +109,8 @@ Fallback nunca usa mídia de outra sessão/entity: preferir outra role da mesma 
 
 Baixa resolução também é um tipo de incompatibilidade. Se a única mídia disponível não aguenta o slot, o consumidor deve reduzir o slot, usar uma role apropriada da mesma identidade ou cair no fallback oficial; nunca inflar silenciosamente um thumbnail.
 
+Fallback não deve exigir reconstrução de bytes no browser. Ele aponta para outro recurso binário já materializado e verificável.
+
 ## Aceite visual obrigatório
 
 Antes de promover um novo master/derivado para uma superfície importante, revisar pelo menos:
@@ -93,6 +122,10 @@ Antes de promover um novo master/derivado para uma superfície importante, revis
 - bordas com alpha em fundos claros e escuros;
 - textura fina/rosto/cabelo quando aplicável;
 - comparação lado a lado com o master;
-- peso final e número de requests.
+- peso final e número de requests;
+- `naturalWidth`/`naturalHeight` do recurso realmente carregado;
+- `clientWidth`/`clientHeight` na superfície real;
+- ausência de `data:`/Base64 em mídia editorial publicada;
+- decode real no browser e ausência de request failed.
 
-CI verde prova integridade técnica; não prova qualidade visual.
+CI verde só vale como gate de mídia quando executa essas verificações. Build/HTTP 200 isolados não provam qualidade visual nem entrega correta.
