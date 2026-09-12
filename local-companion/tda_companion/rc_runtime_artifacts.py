@@ -14,6 +14,8 @@ from .asr_runtime import inspect_whisper_runtime, install_whisper_runtime_archiv
 from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
 from .qwen_runtime_bundle import assemble_qwen_runtime_bundle, parse_qwen_runtime_bundle_manifest
 
+RC_WHISPER_VERSION = "1.1.0"
+RC_QWEN_VERSION = "1.0.0"
 _ACTIONS_ARTIFACT_MAX_ENTRIES = 128
 _ACTIONS_ARTIFACT_MAX_UNCOMPRESSED_BYTES = 8 * 1024**3
 _COPY_CHUNK = 1024 * 1024
@@ -109,6 +111,8 @@ def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
     if not match:
         raise RcRuntimeArtifactError("RC_WHISPER_ARCHIVE_NAME_INVALID")
     version = match.group(1)
+    if version != RC_WHISPER_VERSION:
+        raise RcRuntimeArtifactError("RC_WHISPER_VERSION_MISMATCH")
     digest_file = archive.with_name(archive.name + ".sha256")
     try:
         digest_line = digest_file.read_text(encoding="ascii").strip()
@@ -124,6 +128,8 @@ def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
     state = inspect_whisper_runtime(runtime_root, verify_worker=True)
     if state.get("status") == "ready" and state.get("version") == version:
         return {"runtime": "whisper", "version": version, "status": "ready", "reused": True}
+    if state.get("status") == "corrupt" and state.get("version") == version:
+        raise RcRuntimeArtifactError("RC_WHISPER_REPAIR_REQUIRED")
     try:
         marker = install_whisper_runtime_archive(
             archive,
@@ -156,6 +162,8 @@ def _install_qwen(root: Path, runtime_root: Path, cache_root: Path) -> dict[str,
     except Exception as exc:
         raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_INVALID") from exc
     version = match.group(1)
+    if version != RC_QWEN_VERSION:
+        raise RcRuntimeArtifactError("RC_QWEN_VERSION_MISMATCH")
     if manifest.version != version or manifest.runtime_id != "qwen3-transformers":
         raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_IDENTITY_MISMATCH")
 
