@@ -20,7 +20,6 @@
 		border-radius: var(--ds-radius-lg) 0 0 var(--ds-radius-lg);
 		background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
 		box-shadow: -16px 18px 60px color-mix(in srgb, var(--ds-canvas) 56%, transparent);
-		backdrop-filter: blur(20px) saturate(108%);
 		overflow: auto;
 		overscroll-behavior: contain;
 		pointer-events: auto;
@@ -43,17 +42,16 @@
 		border: 0;
 		background: transparent;
 		box-shadow: none;
-		backdrop-filter: none;
 		overflow: visible;
 		pointer-events: none;
 	}
 
 	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Abrir painel de detalhes"]),
 	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]) {
-		position: absolute;
+		position: fixed;
 		top: 50%;
-		right: auto;
-		left: -40px;
+		right: 0;
+		left: auto;
 		z-index: 60;
 		display: grid;
 		width: 40px;
@@ -71,6 +69,10 @@
 		font: 760 1rem/1 var(--ds-font-ui);
 		pointer-events: auto;
 		transform: translateY(-50%);
+	}
+
+	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode]:not([data-world-inspector-mode="closed"])[data-world-edit-state] > aside[aria-live="polite"] > button[aria-label="Recolher painel de detalhes"]) {
+		right: min(var(--world-inspector-width), calc(100vw - 52px));
 	}
 }
 
