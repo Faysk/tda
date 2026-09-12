@@ -1,0 +1,140 @@
+name: Pipipi source masters once
+
+on:
+  push:
+    branches:
+      - claquete/pipipi-source-masters-100
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, '[source-masters]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fetch canonical CAS objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/pipipi-source
+          curl --fail --location --retry 2 \
+            'https://media.dnd.faysk.dev/lore/pipipi/365d544c0d2d45341551d81697d8063f9502215aab2cdd2d28851d12614bbe68/super_herois.webp' \
+            --output .tmp/pipipi-source/super-static.webp
+          curl --fail --location --retry 2 \
+            'https://media.dnd.faysk.dev/lore/pipipi/c00cac253196df6dd068ae261c99cdff00a83165d5bba1addf8011c9f2aeb428/cadeira.webp' \
+            --output .tmp/pipipi-source/cadeira-static.webp
+          curl --fail --location --retry 2 \
+            'https://media.dnd.faysk.dev/lore/pipipi/010dc872e51f9f380ebb260a44bd749e898713c66e849ea1b3f2b21b1731333a/ultimo_dia.webp' \
+            --output .tmp/pipipi-source/ultimo-dia-static.webp
+
+      - name: Verify exact source bytes and dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd .tmp/pipipi-source
+          printf '%s  %s\n' \
+            '365d544c0d2d45341551d81697d8063f9502215aab2cdd2d28851d12614bbe68' 'super-static.webp' \
+            'c00cac253196df6dd068ae261c99cdff00a83165d5bba1addf8011c9f2aeb428' 'cadeira-static.webp' \
+            '010dc872e51f9f380ebb260a44bd749e898713c66e849ea1b3f2b21b1731333a' 'ultimo-dia-static.webp' \
+            | sha256sum --check --strict
+          test "$(stat -c%s super-static.webp)" = '289362'
+          test "$(stat -c%s cadeira-static.webp)" = '164130'
+          test "$(stat -c%s ultimo-dia-static.webp)" = '315228'
+          file super-static.webp | grep -F '1672x941'
+          file cadeira-static.webp | grep -F '1672x941'
+          file ultimo-dia-static.webp | grep -F '1672x941'
+
+      - name: Materialize source masters and lock runtime contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .tmp/pipipi-source/super-static.webp public/lore/pipipi/super-static.webp
+          cp .tmp/pipipi-source/cadeira-static.webp public/lore/pipipi/cadeira-static.webp
+          cp .tmp/pipipi-source/ultimo-dia-static.webp public/lore/pipipi/ultimo-dia-static.webp
+          rm -f \
+            public/lore/pipipi/super-static.avif \
+            public/lore/pipipi/cadeira-static.avif \
+            public/lore/pipipi/ultimo-dia-static.avif
+          python - <<'PY'
+          from pathlib import Path
+
+          component = Path('src/features/lore/components/pipipi-cinematic-scene.tsx')
+          text = component.read_text(encoding='utf-8')
+          text = text.replace('/lore/pipipi/super-static.avif', '/lore/pipipi/super-static.webp')
+          text = text.replace('/lore/pipipi/cadeira-static.avif', '/lore/pipipi/cadeira-static.webp')
+          text = text.replace('/lore/pipipi/ultimo-dia-static.avif', '/lore/pipipi/ultimo-dia-static.webp')
+          component.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/pipipi-composition-polish.spec.ts')
+          test = test_path.read_text(encoding='utf-8')
+          test = test.replace('/lore/pipipi/super-static.avif', '/lore/pipipi/super-static.webp')
+          test = test.replace('/lore/pipipi/cadeira-static.avif', '/lore/pipipi/cadeira-static.webp')
+          test = test.replace('/lore/pipipi/ultimo-dia-static.avif', '/lore/pipipi/ultimo-dia-static.webp')
+          if 'const sourceResolution = { width: 1672, height: 941 } as const;' not in test:
+              marker = '] as const;\n\ntest("renders the three approved bed scenes as single static frames", async ({ page }) => {'
+              replacement = '] as const;\n\nconst sourceResolution = { width: 1672, height: 941 } as const;\n\ntest("renders the three approved bed scenes as source-resolution single static frames", async ({\n\tpage,\n}) => {'
+              if marker not in test:
+                  raise SystemExit('expected Pipipi test marker not found')
+              test = test.replace(marker, replacement, 1)
+              needle = '\t\tawait expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);\n'
+              dimension_check = '''\t\tawait expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);\n\t\tawait expect\n\t\t\t.poll(() =>\n\t\t\t\tmediaImages.first().evaluate((element) => {\n\t\t\t\t\tconst image = element as HTMLImageElement;\n\t\t\t\t\treturn { width: image.naturalWidth, height: image.naturalHeight };\n\t\t\t\t}),\n\t\t\t)\n\t\t\t.toEqual(sourceResolution);\n'''
+              if needle not in test:
+                  raise SystemExit('expected Pipipi image assertion not found')
+              test = test.replace(needle, dimension_check, 1)
+          test_path.write_text(test, encoding='utf-8')
+          PY
+
+          mkdir -p docs/integrations/evidence
+          cat > docs/integrations/evidence/pipipi-static-source-masters-2026-09-12.json <<'JSON'
+          {
+            "schemaVersion": 1,
+            "scope": "Pipipi static cinematic source masters",
+            "sourcePackage": "pipipi-lore-premium.zip",
+            "sourcePackageSha256": "95b1529fd0ae9357378582f990e79dbf68fa7d15d13b090dd9398a4e442fa815",
+            "resolution": { "width": 1672, "height": 941 },
+            "assets": [
+              {
+                "scene": "super-herois",
+                "runtimePath": "/lore/pipipi/super-static.webp",
+                "sourceEntry": "assets/super_herois.webp",
+                "sha256": "365d544c0d2d45341551d81697d8063f9502215aab2cdd2d28851d12614bbe68",
+                "bytes": 289362
+              },
+              {
+                "scene": "cadeira",
+                "runtimePath": "/lore/pipipi/cadeira-static.webp",
+                "sourceEntry": "assets/cadeira.webp",
+                "sha256": "c00cac253196df6dd068ae261c99cdff00a83165d5bba1addf8011c9f2aeb428",
+                "bytes": 164130
+              },
+              {
+                "scene": "ultimo-dia",
+                "runtimePath": "/lore/pipipi/ultimo-dia-static.webp",
+                "sourceEntry": "assets/ultimo_dia.webp",
+                "sha256": "010dc872e51f9f380ebb260a44bd749e898713c66e849ea1b3f2b21b1731333a",
+                "bytes": 315228
+              }
+            ],
+            "policy": "Exact canonical source bytes; no recompression; static composition preserved."
+          }
+          JSON
+
+      - name: Commit exact source masters
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            public/lore/pipipi \
+            src/features/lore/components/pipipi-cinematic-scene.tsx \
+            tests/pipipi-composition-polish.spec.ts \
+            docs/integrations/evidence/pipipi-static-source-masters-2026-09-12.json
+          git diff --cached --check
+          git commit -m '[source-masters] fix(lore): ship exact Pipipi source-resolution static artwork'
+          git push origin HEAD:claquete/pipipi-source-masters-100
