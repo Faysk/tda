@@ -29,22 +29,22 @@ function Install-RcRuntime([string]$Family, [string]$Artifact, [string]$ResultNa
     $arguments = "--install-rc-runtime $Family --rc-artifact `"$artifactPath`" --rc-result-file `"$resultPath`""
     $process = Start-Process -FilePath $companion -ArgumentList $arguments -Wait -PassThru
     if (-not (Test-Path $resultPath)) {
-        throw "RC_RUNTIME_RESULT_MISSING:$Family:$($process.ExitCode)"
+        throw "RC_RUNTIME_RESULT_MISSING:${Family}:$($process.ExitCode)"
     }
     try {
         $result = Get-Content $resultPath -Raw | ConvertFrom-Json
     } catch {
-        throw "RC_RUNTIME_RESULT_INVALID:$Family"
+        throw "RC_RUNTIME_RESULT_INVALID:${Family}"
     }
     if ($result.schema -ne "tda_rc_runtime_install_v1") {
-        throw "RC_RUNTIME_RESULT_SCHEMA_INVALID:$Family"
+        throw "RC_RUNTIME_RESULT_SCHEMA_INVALID:${Family}"
     }
     if ($process.ExitCode -ne 0 -or $result.ok -ne $true) {
         $code = if ($result.error) { [string]$result.error } else { "RC_RUNTIME_INSTALL_FAILED" }
-        throw "$code:$Family"
+        throw "${code}:${Family}"
     }
     if ($result.runtime -ne $Family -or $result.status -ne "ready") {
-        throw "RC_RUNTIME_NOT_READY:$Family"
+        throw "RC_RUNTIME_NOT_READY:${Family}"
     }
     Write-Host "$Family runtime ready: version=$($result.version) reused=$($result.reused)"
     return $result
