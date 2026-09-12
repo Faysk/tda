@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from .desktop import DesktopBridge
+from .desktop_session_bridge import SessionDesktopBridge
 from .paths import CompanionPaths
 from .settings import SettingsStore
 from .tray import TrayController
@@ -31,7 +31,7 @@ def run_desktop(
     except ModuleNotFoundError as exc:
         raise RuntimeError("DESKTOP_WEBVIEW_NOT_INSTALLED") from exc
 
-    bridge = DesktopBridge(
+    bridge = SessionDesktopBridge(
         token=token,
         port=port,
         paths=paths,
