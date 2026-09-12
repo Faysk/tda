@@ -43,7 +43,7 @@ export type JobContext = {
 	campaignId: string;
 	sessionId: string;
 	sourceId: string;
-	profileId: TranscriptionProfileId | null;
+	profileId?: TranscriptionProfileId;
 };
 export type LocalJob = {
 	id: string;
@@ -89,9 +89,9 @@ export type ResultSummary = {
 	campaignId: string;
 	sessionId: string;
 	sourceId: string;
-	publicationId: string | null;
-	profileId: TranscriptionProfileId | null;
-	transcriptSha256: string | null;
+	publicationId: string;
+	profileId?: TranscriptionProfileId;
+	transcriptSha256?: string;
 };
 export type BridgeErrorCode =
 	| "unreachable"
@@ -262,15 +262,15 @@ export function parseJob(value: unknown): LocalJob {
 	let context: JobContext | null = null;
 	if (row.context !== undefined && row.context !== null) {
 		const rawContext = record(row.context);
-		context = {
+		const base = {
 			campaignId: identifier(rawContext.campaign_id),
 			sessionId: identifier(rawContext.session_id),
 			sourceId: identifier(rawContext.source_id),
-			profileId:
-				rawContext.profile_id === undefined || rawContext.profile_id === null
-					? null
-					: transcriptionProfile(rawContext.profile_id),
 		};
+		context =
+			rawContext.profile_id === undefined || rawContext.profile_id === null
+				? base
+				: { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
 	}
 	return {
 		id: identifier(row.id),
@@ -365,32 +365,30 @@ export function parseResultSummary(
 	if (row.job_id !== jobId) return invalid();
 	if (record(row.sync).status !== "not_configured") return invalid();
 
-	let publicationId: string | null = null;
-	let profileId: TranscriptionProfileId | null = null;
-	let transcriptSha256: string | null = null;
-	if (row.publication_bundle !== undefined && row.publication_bundle !== null) {
-		const bundle = record(row.publication_bundle);
-		if (bundle.schema_version !== "publication_bundle_v1")
-			throw new BridgeError("incompatible");
-		publicationId = sha256(bundle.publication_id);
-	} else if (row.transcription !== undefined && row.transcription !== null) {
-		const transcription = record(row.transcription);
-		if (transcription.schema_version !== "tda_transcript_v1")
-			throw new BridgeError("incompatible");
-		if (transcription.artifact !== "transcript.json") return invalid();
-		profileId = transcriptionProfile(transcription.profile_id);
-		transcriptSha256 = sha256(transcription.sha256);
-	} else {
-		return invalid();
-	}
-
-	return {
+	const base = {
 		jobId: identifier(row.job_id),
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		sourceId: identifier(row.source_id),
-		publicationId,
-		profileId,
-		transcriptSha256,
 	};
+	if (row.publication_bundle !== undefined && row.publication_bundle !== null) {
+		const bundle = record(row.publication_bundle);
+		if (bundle.schema_version !== "publication_bundle_v1")
+			throw new BridgeError("incompatible");
+		return { ...base, publicationId: sha256(bundle.publication_id) };
+	}
+	if (row.transcription !== undefined && row.transcription !== null) {
+		const transcription = record(row.transcription);
+		if (transcription.schema_version !== "tda_transcript_v1")
+			throw new BridgeError("incompatible");
+		if (transcription.artifact !== "transcript.json") return invalid();
+		const transcriptSha256 = sha256(transcription.sha256);
+		return {
+			...base,
+			publicationId: transcriptSha256,
+			profileId: transcriptionProfile(transcription.profile_id),
+			transcriptSha256,
+		};
+	}
+	return invalid();
 }
