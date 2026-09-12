@@ -4,6 +4,7 @@ import {
 	clampWorldEntityMediaFocalPoint,
 	isWorldEntityMediaAssetId,
 	worldEntityMediaPreviewUrl,
+	worldEntityMediaShouldBypassImageOptimization,
 	worldEntityPortraitObjectKey,
 	worldEntityPortraitPendingObjectKey,
 	worldEntityPublicMediaUrl,
@@ -21,6 +22,20 @@ describe("World entity media contract", () => {
 		expect(isWorldEntityMediaAssetId(ASSET_ID)).toBe(true);
 		expect(worldEntityMediaPreviewUrl(ASSET_ID)).toBe(`/api/world/entity-media/${ASSET_ID}`);
 		expect(worldEntityMediaPreviewUrl("https://example.com/image.webp")).toBeUndefined();
+	});
+
+	it("bypasses Next image optimization only for authenticated private media previews", () => {
+		expect(
+			worldEntityMediaShouldBypassImageOptimization(`/api/world/entity-media/${ASSET_ID}`),
+		).toBe(true);
+		expect(
+			worldEntityMediaShouldBypassImageOptimization(
+				`https://media.dnd.faysk.dev/${OBJECT_KEY}`,
+			),
+		).toBe(false);
+		expect(worldEntityMediaShouldBypassImageOptimization("/api/world/entity-media/not-a-uuid")).toBe(
+			false,
+		);
 	});
 
 	it("builds immutable portrait keys from campaign, canonical entity identity and content hash", () => {
@@ -97,6 +112,15 @@ describe("World entity media contract", () => {
 			worldEntityPublicMediaUrl(
 				{ ...verified, publicDeliveryVerified: false },
 				{ campaignSlug: CAMPAIGN_SLUG, entityId: ENTITY_ID },
+			),
+		).toBeUndefined();
+		expect(
+			worldEntityPublicMediaUrl(
+				{
+					...verified,
+					publicObjectKey: `campaigns/${CAMPAIGN_SLUG}/entities/------------------------------------/portrait/${SHA256}.webp`,
+				},
+				{ campaignSlug: CAMPAIGN_SLUG },
 			),
 		).toBeUndefined();
 	});
