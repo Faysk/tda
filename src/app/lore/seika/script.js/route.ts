@@ -1,17 +1,216 @@
-import { gunzipSync } from "node:zlib";
-
 export const dynamic = "force-static";
 
-const SOURCE_SHA256 = "2ba5dced1925e1d54f743f85509529a2c3ef15c1b45a5e59c01f2b8bc92c5482";
-const PAYLOAD = "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";
-const BODY = gunzipSync(Buffer.from(PAYLOAD, "base64")).toString("utf8");
+const BODY = `(() => {
+  'use strict';
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (n, min = 0, max = 1) => Math.min(max, Math.max(min, n));
+  const progressBar = document.getElementById('progressBar');
+  const siteChrome = document.getElementById('siteChrome');
+  const menuToggle = document.getElementById('menuToggle');
+  const chapterNav = document.getElementById('chapterNav');
+  const seasonIndicator = document.getElementById('seasonIndicator');
+  const seasonLabels = [...document.querySelectorAll('[data-season-label]')];
+  const navLinks = [...document.querySelectorAll('.chapter-nav a')];
+  const observedScenes = [...document.querySelectorAll('.scene-observer')];
+  const departure = document.getElementById('partida');
+  const departurePan = document.getElementById('departurePan');
+  const departureLines = [...document.querySelectorAll('[data-departure-line]')];
+
+  const seasonMap = { memoria: 0, primavera: 1 / 3, verao: 2 / 3, inverno: 1 };
+  let activeChapter = 'topo';
+  let activeSeason = 'memoria';
+  let ticking = false;
+
+  function setSeason(season) {
+    if (!season || season === activeSeason) return;
+    activeSeason = season;
+    const y = seasonMap[season] ?? 0;
+    if (seasonIndicator) seasonIndicator.style.top = \`calc(\${y * 100}% - \${y * 7}px)\`;
+    seasonLabels.forEach((label) => label.classList.toggle('active', label.dataset.seasonLabel === season));
+  }
+
+  function setChapter(chapter) {
+    if (!chapter || chapter === activeChapter) return;
+    activeChapter = chapter;
+    navLinks.forEach((link) => {
+      const target = link.getAttribute('href')?.slice(1);
+      link.classList.toggle('active', target === chapter);
+    });
+  }
+
+  function scrollState() {
+    ticking = false;
+    const doc = document.documentElement;
+    const scrollMax = Math.max(1, doc.scrollHeight - window.innerHeight);
+    const p = clamp(window.scrollY / scrollMax);
+    if (progressBar) progressBar.style.transform = \`scaleX(\${p})\`;
+    siteChrome?.classList.toggle('scrolled', window.scrollY > 24);
+
+    if (departure && departurePan) {
+      const rect = departure.getBoundingClientRect();
+      const travel = Math.max(1, departure.offsetHeight - window.innerHeight);
+      const dp = clamp((-rect.top) / travel);
+      departure.style.setProperty('--depart-progress', dp.toFixed(4));
+      const lineIndex = dp < .22 ? 0 : dp < .44 ? 1 : dp < .66 ? 2 : 3;
+      departureLines.forEach((line, i) => line.classList.toggle('active', i === lineIndex));
+    }
+
+    if (!reducedMotion) {
+      document.querySelectorAll('.parallax-bg').forEach((el) => {
+        const rect = el.parentElement?.getBoundingClientRect();
+        if (!rect || rect.bottom < 0 || rect.top > window.innerHeight) return;
+        const speed = Number(el.dataset.speed || .04);
+        const local = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+        const shift = (local - .5) * window.innerHeight * speed;
+        el.style.transform = \`translate3d(0, \${shift}px, 0) scale(1.04)\`;
+      });
+    }
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(scrollState);
+    }
+  }, { passive: true });
+  window.addEventListener('resize', scrollState, { passive: true });
+  scrollState();
+
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: .12, rootMargin: '0px 0px -7% 0px' });
+  document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+
+  const sceneObserver = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    setSeason(visible.target.dataset.season);
+    setChapter(visible.target.dataset.chapter);
+  }, { threshold: [.18, .35, .55], rootMargin: '-18% 0px -42% 0px' });
+  observedScenes.forEach((scene) => sceneObserver.observe(scene));
+  seasonLabels[0]?.classList.add('active');
+
+  menuToggle?.addEventListener('click', () => {
+    const open = menuToggle.getAttribute('aria-expanded') !== 'true';
+    menuToggle.setAttribute('aria-expanded', String(open));
+    chapterNav?.classList.toggle('open', open);
+    document.body.classList.toggle('menu-open', open && window.innerWidth <= 1100);
+  });
+  navLinks.forEach((link) => link.addEventListener('click', () => {
+    menuToggle?.setAttribute('aria-expanded', 'false');
+    chapterNav?.classList.remove('open');
+    document.body.classList.remove('menu-open');
+  }));
+
+  if (!reducedMotion) {
+    document.querySelectorAll('[data-tilt-scene]').forEach((scene) => {
+      const layers = [...scene.querySelectorAll('.parallax-layer')];
+      scene.addEventListener('pointermove', (event) => {
+        if (event.pointerType === 'touch') return;
+        const rect = scene.getBoundingClientRect();
+        const nx = ((event.clientX - rect.left) / rect.width - .5) * 2;
+        const ny = ((event.clientY - rect.top) / rect.height - .5) * 2;
+        layers.forEach((layer) => {
+          const depth = Number(layer.dataset.depth || .08);
+          layer.style.transform = \`translate3d(\${nx * depth * 28}px, \${ny * depth * 22}px, 0) scale(\${1.025 + depth * .03})\`;
+        });
+      });
+      scene.addEventListener('pointerleave', () => {
+        layers.forEach((layer) => { layer.style.transform = ''; });
+      });
+    });
+
+    const hero = document.querySelector('.hero');
+    const heroLayers = hero ? [...hero.querySelectorAll('.parallax-layer')] : [];
+    hero?.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'touch') return;
+      const rect = hero.getBoundingClientRect();
+      const nx = ((event.clientX - rect.left) / rect.width - .5) * 2;
+      const ny = ((event.clientY - rect.top) / rect.height - .5) * 2;
+      heroLayers.forEach((layer) => {
+        const depth = Number(layer.dataset.depth || .05);
+        layer.style.transform = \`translate3d(\${nx * depth * 30}px, \${ny * depth * 18}px, 0) scale(\${1 + depth * .015})\`;
+      });
+    });
+    hero?.addEventListener('pointerleave', () => heroLayers.forEach((layer) => { layer.style.transform = ''; }));
+  }
+
+  const particles = document.getElementById('ritualParticles');
+  if (particles && !reducedMotion) {
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < 26; i += 1) {
+      const p = document.createElement('i');
+      p.className = 'spirit-particle';
+      p.style.left = \`\${4 + Math.random() * 83}%\`;
+      p.style.top = \`\${25 + Math.random() * 65}%\`;
+      p.style.setProperty('--dur', \`\${5.5 + Math.random() * 6}s\`);
+      p.style.setProperty('--delay', \`\${-Math.random() * 8}s\`);
+      p.style.setProperty('--drift', \`\${-55 + Math.random() * 110}px\`);
+      fragment.appendChild(p);
+    }
+    particles.appendChild(fragment);
+  }
+
+  const investigation = document.querySelector('[data-investigation]');
+  const investigationCopy = document.getElementById('investigationCopy');
+  const methodCopy = {
+    observar: ['Primeiro: o fenômeno.', 'Objetos mudavam de lugar, portas abriam e passos apareciam depois que todos já haviam ido dormir.'],
+    escutar: ['Depois: o vínculo.', 'A presença era real, mas não era maligna. Estava ligada a um objeto antigo que havia sido deslocado ou esquecido.'],
+    resolver: ['Por fim: o cuidado.', 'Incenso, símbolos, atenção. O espírito conseguiu partir e a taverna voltou ao normal — sem violência.']
+  };
+  investigation?.querySelectorAll('[data-method]').forEach((button) => {
+    button.addEventListener('click', () => {
+      investigation.querySelectorAll('[data-method]').forEach((b) => {
+        const active = b === button;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', String(active));
+      });
+      if (!investigationCopy) return;
+      const [title, text] = methodCopy[button.dataset.method] || methodCopy.observar;
+      investigationCopy.style.opacity = '0';
+      setTimeout(() => {
+        investigationCopy.innerHTML = \`<strong>\${title}</strong><p>\${text}</p>\`;
+        investigationCopy.style.opacity = '1';
+      }, reducedMotion ? 0 : 170);
+    });
+  });
+
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImage = document.getElementById('lightboxImage');
+  const lightboxCaption = document.getElementById('lightboxCaption');
+  const lightboxClose = document.getElementById('lightboxClose');
+  document.querySelectorAll('.archive-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      if (!lightbox || !lightboxImage || !lightboxCaption) return;
+      const img = item.querySelector('img');
+      lightboxImage.src = item.dataset.full || img?.src || '';
+      lightboxImage.alt = img?.alt || '';
+      lightboxCaption.textContent = item.querySelector('span')?.textContent || '';
+      if (typeof lightbox.showModal === 'function') lightbox.showModal();
+    });
+  });
+  lightboxClose?.addEventListener('click', () => lightbox?.close());
+  lightbox?.addEventListener('click', (event) => {
+    if (event.target === lightbox) lightbox.close();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && lightbox?.open) lightbox.close();
+  });
+
+  document.querySelectorAll('[data-panorama]').forEach((figure) => {
+    const o = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => entry.target.classList.toggle('visible', entry.isIntersecting));
+    }, { threshold: .3 });
+    o.observe(figure);
+  });
+})();
+`;
 
 export function GET() {
-	return new Response(BODY, {
-		headers: {
-			"Content-Type": "text/javascript; charset=utf-8",
-			"Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
-			"X-Seika-Source-SHA256": SOURCE_SHA256,
-		},
-	});
+ return new Response(BODY, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=300, s-maxage=3600" } });
 }
