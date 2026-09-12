@@ -1,8 +1,8 @@
 # Companion — operação, instalação e rollback
 
-> Status: implementação candidata v0.3 em validação
+> Status: candidato RC v0.3 validado em CI; validação física pendente
 > Owner: local-companion/processing
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 Referências: [contrato API](../integrations/local-companion-v1.md), [especificação v0.3](../features/companion-desktop-asr-v0.3.md), [política de dependências](companion-dependency-policy.md) e [processamento no Edit](../features/local-processing.md).
 
@@ -62,23 +62,23 @@ O ZIP portátil pode existir como artefato técnico, mas o MSI é o caminho de p
 
 ### Gates do MSI
 
-O workflow `Companion` precisa comprovar em Windows:
+O workflow `Companion` comprova em Windows:
 
-1. bundle PyInstaller;
-2. MSI WiX;
-3. smoke do bundle;
-4. instalação silenciosa;
-5. execução real do Agent instalado;
-6. health/version e job de smoke via loopback autenticado;
-7. encerramento controlado;
-8. desinstalação;
-9. ausência dos binários instalados esperados.
+1. bundle PyInstaller e MSI WiX;
+2. smoke do bundle e do Agent instalado;
+3. health/version e job real de smoke via loopback autenticado;
+4. instalação/desinstalação com Agent ativo e encerramento controlado;
+5. upgrade real do MSI oficial `companion-v0.2.0` para o candidato `0.3.0`;
+6. preservação de State/Data/Logs/Cache/Models/Runtime e token no upgrade;
+7. uninstall normal preservando dados;
+8. reinstalação seguida de purge completo dos roots TDA-owned;
+9. ausência de processo, porta, startup, atalhos, registry e binários esperados após remoção.
 
-Antes do RC v0.3 ainda deve existir a matriz definitiva de fresh install, upgrade N-1→N, uninstall preservando dados e purge completo com verificação de processo, porta, startup, atalhos, registry e roots TDA-owned.
+O gate usa o artefato oficial v0.2.0 e SHA-256 conhecido como N-1; portanto a matriz fresh install, N-1→N, preserve e purge é executada no CI, não apenas documentada.
 
 ## Distribuição e updates
 
-O Companion e o runtime Whisper possuem canais de release separados.
+Companion, runtime Whisper e runtime Qwen possuem canais de release separados.
 
 Companion:
 
@@ -97,7 +97,16 @@ TDAWhisperRuntime-<versão>-windows-x64.zip
 TDAWhisperRuntime-<versão>-windows-x64.zip.sha256
 ```
 
-Os endpoints do TDA selecionam somente a família correta de tags/assets, e os downloads são verificados por tamanho e SHA-256 antes da instalação. O runtime ASR fica fora do MSI para não transformar o instalador principal em um pacote de vários gigabytes.
+Runtime Qwen:
+
+```text
+companion-qwen-runtime-v<versão>
+TDAQwenRuntimeBundle-<versão>-windows-x64.json
+TDAQwenRuntimePackage-<versão>-windows-x64.json
+TDAQwenRuntime-<versão>-windows-x64.zip.part*
+```
+
+Os endpoints do TDA selecionam somente a família correta de tags/assets, e os downloads são verificados por tamanho e SHA-256 antes da instalação. Os runtimes ASR ficam fora do MSI para não transformar o instalador principal em um pacote de vários gigabytes. O bundle Qwen pode ser dividido em múltiplas partes; o archive lógico e cada parte possuem identidade/hash verificados antes da materialização.
 
 Update não pode interromper job ativo. Enquanto não houver assinatura Authenticode confiável, instalação de update continua exigindo confirmação explícita.
 
@@ -107,15 +116,17 @@ O token de pareamento é local, fica em `State`, com proteção do usuário do W
 
 A API continua somente em IPv4 loopback, com Host exato, Origin permitido e Bearer nos endpoints privados. A Web não envia path arbitrário do filesystem e não existe descoberta LAN/proxy cloud.
 
+O ingest Craig da Web envia o ZIP diretamente para o loopback. O Agent recebe em streaming, limita tamanho, calcula SHA-256 durante a gravação, materializa um `source_id` content-addressed, usa o ingestor seguro existente e remove o ZIP temporário. O áudio não passa pelo cloud.
+
 ## Processamento real candidato
 
-A branch v0.3 já possui a fronteira de worker em subprocesso e o job candidato `transcription.craig`. Craig é materializado por `source_id` opaco; o worker recebe roots controlados pelo Agent.
+A v0.3 possui worker em subprocesso, job `transcription.craig`, ingest Craig browser→loopback, checkpoints por track, timeline comum, deduplicação conservadora entre tracks e turns canônicos em `tda_transcript_v1`.
 
-O ingest preserva 1..N tracks e a timeline comum. Speaker vem da track Craig, portanto diarização não é usada como substituto para informação que o pacote já fornece.
+Craig é materializado por `source_id` opaco; o worker recebe roots controlados pelo Agent. Speaker vem da track Craig, portanto diarização não é usada como substituto para informação que o pacote já fornece.
 
 O output de engines diferentes converge para `tda_transcript_v1`. O texto integral permanece no artefato local; mensagens do worker e logs técnicos carregam apenas estado, métricas, hashes e códigos estáveis.
 
-Perfis planejados/registrados:
+Perfis registrados:
 
 ```text
 whisper-turbo
@@ -124,66 +135,78 @@ qwen-fast
 qwen-quality
 ```
 
-Neste ponto, o adapter Whisper e o runtime isolado existem; Qwen ainda não deve ser anunciado como engine executável até o runtime/adapter/alinhador estarem implementados e validados.
+Whisper é anunciado quando seu runtime isolado está íntegro. Qwen possui runtime, adapter e Forced Aligner implementados, mas cada perfil Qwen só entra em `/capabilities` depois de um gate físico válido, ligado criptograficamente à identidade do runtime, modelo e aligner atuais. Trocar qualquer um deles invalida o gate e retira o perfil da Web até nova aceitação física.
 
-## Runtime Whisper isolado
+## Runtimes ASR isolados
 
-O runtime Windows é versionado sob `Runtime\whisper` e contém Faster-Whisper/CTranslate2 e as DLLs CUDA necessárias à própria engine. Ele não modifica o Toolkit CUDA, Python ou PATH global do usuário.
+O runtime Whisper é versionado sob `Runtime\whisper` e contém Faster-Whisper/CTranslate2 e as DLLs CUDA necessárias à própria engine. O runtime Qwen é versionado sob `Runtime\qwen` e contém Torch/Transformers e dependências próprias. Nenhum deles modifica Toolkit CUDA, Python ou PATH global do usuário.
 
-O manifest de build fixa Python, Faster-Whisper, CTranslate2, CUDA Runtime/cuBLAS/cuDNN, NVML e PyInstaller. A política de dependências exige a versão estável mais recente e compatível e um gate diário verifica drift de dependências e revisions de modelos.
+Os manifests de build fixam Python e dependências. A política de dependências exige a versão estável mais recente e compatível e um gate verifica drift de dependências e revisions de modelos.
 
-`TDAWhisperWorker.exe --probe` comprova importação do stack empacotado e informa presença de CUDA/compute types. Runner comum do GitHub sem GPU pode validar empacotamento, mas **não substitui a prova física na RTX 4070 8 GB**.
+`TDAWhisperWorker.exe --probe` e `TDAQwenWorker.exe --probe` comprovam importação dos stacks empacotados sem baixar/carregar modelo. Runner comum do GitHub sem GPU valida empacotamento, bundle e smoke de instalação, mas **não substitui a prova física na RTX 4070 8 GB**.
 
 ## Gate físico — RTX 4070
 
-Antes de declarar `transcription.whisper` suportado no v0.3, executar os dois perfis Whisper sobre áudio local autorizado, em uma máquina com RTX 4070 8 GB.
+O gate físico final usa áudio local autorizado e deve cobrir os quatro perfis. O harness entregue junto do aplicativo evita quatro comandos manuais, resolve as versões correntes dos runtimes, valida o SHA-256 dos workers contra `.tda-runtime.json`, executa `--probe`, roda os perfis sequencialmente e agrega os receipts.
 
-O worker isolado possui um modo de aceitação que não envia áudio para cloud e não imprime a transcrição no stdout:
-
-```powershell
-$worker = "$env:LOCALAPPDATA\TDA\Runtime\whisper\<versao>\TDAWhisperWorker.exe"
-$models = "$env:LOCALAPPDATA\TDA\Models"
-
-& $worker --acceptance `
-  --audio "C:\caminho\amostra.flac" `
-  --models-root $models `
-  --profile whisper-turbo `
-  --require-gpu-name "RTX 4070"
-
-& $worker --acceptance `
-  --audio "C:\caminho\amostra.flac" `
-  --models-root $models `
-  --profile whisper-detailed `
-  --require-gpu-name "RTX 4070"
-```
-
-Para inspeção humana da qualidade, a transcrição só é gravada quando solicitado explicitamente:
+Depois de instalar o candidato, localizar o script pelo `current-version.txt`:
 
 ```powershell
---transcript-out "C:\caminho\whisper-turbo-transcript.json"
+$tda = "$env:LOCALAPPDATA\TDA"
+$version = (Get-Content "$tda\Companion\current-version.txt" -Raw).Trim()
+$gate = "$tda\Companion\versions\$version\run-physical-acceptance.ps1"
+
+& $gate -Audio "C:\caminho\amostra.flac"
 ```
 
-Contexto/glossário podem ser fornecidos por arquivos locais (`--context-file` e `--glossary-file`) para não colocar conteúdo de campanha na linha de comando.
+Por padrão são executados:
 
-O recibo `tda_whisper_gpu_acceptance_v1` contém:
+```text
+whisper-turbo
+whisper-detailed
+qwen-fast
+qwen-quality
+```
 
-- profile/model/revision exatos;
-- SHA-256 do áudio, nunca o path;
-- versões Faster-Whisper/CTranslate2/PyAV;
-- CUDA device count e compute types;
-- nome da GPU/driver via NVML;
-- VRAM baseline/pico e pico de uso GPU;
-- compute type efetivo e se houve fallback de memória;
-- duração do áudio;
-- tempo de prepare/load/transcrição/total;
-- RTF;
-- quantidade de segmentos/palavras;
-- SHA-256 do texto reconhecido;
-- indicação de que arquivo de transcrição foi escrito, sem incluir o texto no recibo.
+A GPU exigida por padrão é `RTX 4070`. Para um subconjunto explícito:
 
-Critério mínimo do gate físico: `pass=true`, CUDA real, GPU esperada, fala reconhecida e recibo completo. A avaliação de qualidade em português é um gate separado: comparar o JSON de transcrição com o áudio/referência e registrar nomes próprios, termos de D&D, omissões, alucinações e timestamps.
+```powershell
+& $gate -Audio "C:\caminho\amostra.flac" -Profiles whisper-turbo,qwen-fast
+```
 
-Não versionar áudio privado nem transcrição integral como evidência do CI. Um recibo sanitizado pode ser arquivado posteriormente.
+Contexto/glossário entram por arquivo local, nunca precisam ser colocados na linha de comando como conteúdo:
+
+```powershell
+& $gate `
+  -Audio "C:\caminho\amostra.flac" `
+  -ContextFile "C:\caminho\contexto.txt" `
+  -GlossaryFile "C:\caminho\glossario.txt"
+```
+
+Para inspeção humana da qualidade, transcrições locais só são gravadas com consentimento explícito:
+
+```powershell
+& $gate -Audio "C:\caminho\amostra.flac" -WriteTranscripts
+```
+
+Sem `-WriteTranscripts`, o harness grava apenas `%LOCALAPPDATA%\TDA\State\acceptance\physical-acceptance-suite.json`. O receipt agregado declara `contains_audio=false` e `contains_transcript=false`; contém hashes, versões, GPU/driver, VRAM, tempos, RTF, contagens e resultados por perfil. O path do áudio não entra no receipt.
+
+Nos perfis Qwen o harness usa `--record-gate`; isso persiste um gate sanitizado por perfil. Apenas depois dele estar `ready` o Agent anuncia o respectivo Qwen em `/capabilities`. Whisper não depende desse gate de anúncio, mas os dois perfis continuam obrigatórios para aceite do RC.
+
+Critério mínimo do gate físico: `pass=true` nos quatro perfis, CUDA real, GPU esperada, fala reconhecida, Forced Aligner válido nos Qwen e receipts completos. A avaliação de qualidade em português é um gate separado: comparar os JSONs gerados com `-WriteTranscripts` contra o áudio/referência e registrar nomes próprios, termos de D&D, omissões, alucinações, overlap e timestamps.
+
+Não versionar áudio privado nem transcrição integral como evidência do CI. Um receipt sanitizado pode ser arquivado posteriormente.
+
+### Comandos individuais de diagnóstico
+
+Se o harness falhar antes de um perfil, os workers continuam podendo ser executados separadamente:
+
+```powershell
+& "$env:LOCALAPPDATA\TDA\Runtime\whisper\<versao>\TDAWhisperWorker.exe" --probe
+& "$env:LOCALAPPDATA\TDA\Runtime\qwen\<versao>\TDAQwenWorker.exe" --probe
+```
+
+Os modos `--acceptance` individuais aceitam `--audio`, `--models-root`, `--profile`, `--require-gpu-name`, `--context-file`, `--glossary-file` e `--transcript-out`. Qwen também aceita `--record-gate`, `--runtime-root` e `--state-root`.
 
 ## ASR Whisper — receita preservada
 
@@ -209,7 +232,7 @@ Modelos são baixados separadamente em `Models` usando revision imutável e mark
 
 ## Diagnóstico
 
-O Desktop executa checks locais não destrutivos de Agent, State/Data, SQLite, disco, WebView2 e NVIDIA. Quando o runtime Whisper está instalado, também verifica integridade e `--probe` do worker.
+O Desktop executa checks locais não destrutivos de Agent, State/Data, SQLite, disco, WebView2 e NVIDIA. Quando runtimes ASR estão instalados, também verifica integridade e probe dos workers.
 
 Export de diagnóstico é sanitizado e não inclui token de pareamento, áudio ou texto integral de transcrição.
 
@@ -243,12 +266,14 @@ pnpm test:processing
 
 Além disso:
 
-- `Companion` verde em Windows/Linux;
-- MSI verde;
+- `Companion` verde em Windows/Linux, incluindo lifecycle MSI N-1→N/preserve/purge;
+- `CI` verde na árvore reconciliada com `main`;
 - `Whisper Runtime` verde;
+- `Qwen Runtime Candidate` verde;
+- `Qwen Runtime Package` verde;
 - `Companion Dependency Freshness` verde;
 - revisions ASR atuais e pinadas;
-- gate físico RTX quando runtime/ASR muda;
+- gate físico RTX nos quatro perfis;
 - benchmark PT-BR antes de escolher default definitivo;
 - documentação descrevendo somente capabilities realmente ativas.
 
