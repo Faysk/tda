@@ -67,6 +67,7 @@ export function appendWorldDraftNode(
 		visibility: input.visibility ?? "private_players",
 		summary: "",
 		aliases: [],
+		primaryMediaAssetId: null,
 	};
 	return {
 		node,
