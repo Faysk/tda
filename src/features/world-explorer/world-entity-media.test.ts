@@ -5,12 +5,14 @@ import {
 	isWorldEntityMediaAssetId,
 	worldEntityMediaPreviewUrl,
 	worldEntityPortraitObjectKey,
+	worldEntityPortraitPendingObjectKey,
 	worldEntityPublicMediaUrl,
 } from "./world-entity-media";
 
 const CAMPAIGN_SLUG = "yuhara-main";
 const ENTITY_ID = "11111111-1111-4111-8111-111111111111";
 const ASSET_ID = "22222222-2222-4222-8222-222222222222";
+const UPLOAD_ID = "33333333-3333-4333-8333-333333333333";
 const SHA256 = "a".repeat(64);
 const OBJECT_KEY = `campaigns/${CAMPAIGN_SLUG}/entities/${ENTITY_ID}/portrait/${SHA256}.webp`;
 
@@ -40,6 +42,29 @@ describe("World entity media contract", () => {
 		).toBeNull();
 	});
 
+	it("keeps browser uploads on unique pending keys instead of canonical portrait keys", () => {
+		expect(
+			worldEntityPortraitPendingObjectKey({
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+				uploadId: UPLOAD_ID,
+				sha256: SHA256,
+				extension: "webp",
+			}),
+		).toBe(
+			`uploads/pending/world-entity/${CAMPAIGN_SLUG}/${ENTITY_ID}/${UPLOAD_ID}/${SHA256}.webp`,
+		);
+		expect(
+			worldEntityPortraitPendingObjectKey({
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+				uploadId: "not-a-uuid",
+				sha256: SHA256,
+				extension: "webp",
+			}),
+		).toBeNull();
+	});
+
 	it("only exposes verified public R2 assets for the matching campaign and entity", () => {
 		const verified = {
 			status: "verified_public" as const,
@@ -59,7 +84,7 @@ describe("World entity media contract", () => {
 		expect(
 			worldEntityPublicMediaUrl(verified, {
 				campaignSlug: CAMPAIGN_SLUG,
-				entityId: "33333333-3333-4333-8333-333333333333",
+				entityId: "44444444-4444-4444-8444-444444444444",
 			}),
 		).toBeUndefined();
 		expect(
