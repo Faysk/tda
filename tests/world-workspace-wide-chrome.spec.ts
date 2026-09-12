@@ -1,7 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-function centerY(box: { y: number; height: number } | null) {
-	return box ? box.y + box.height / 2 : Number.NaN;
+async function closeWorkspaceOverlays(page: Page) {
+	const navigationClose = page.getByRole("button", { name: "Recolher navegação do mundo" });
+	if (await navigationClose.isVisible().catch(() => false)) await navigationClose.click();
+	const inspectorClose = page.getByRole("button", { name: "Recolher painel de detalhes" });
+	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
 }
 
 test("wide World workspace uses one control row and floats filters over the canvas", async ({ page }, testInfo) => {
@@ -24,16 +27,16 @@ test("wide World workspace uses one control row and floats filters over the canv
 		viewToggle.boundingBox(),
 	]);
 	for (const box of rowBoxes) expect(box).not.toBeNull();
-	const rowCenter = centerY(rowBoxes[0]);
+	const rowY = rowBoxes[0]?.y ?? 0;
 	for (const box of rowBoxes.slice(1)) {
-		expect(Math.abs(centerY(box) - rowCenter)).toBeLessThan(3);
+		expect(Math.abs((box?.y ?? rowY) - rowY)).toBeLessThan(3);
 	}
 
 	const conductor = page.getByTestId("world-conductor");
 	if (await conductor.count()) {
 		const conductorBox = await conductor.boundingBox();
 		expect(conductorBox).not.toBeNull();
-		expect(Math.abs(centerY(conductorBox) - rowCenter)).toBeLessThan(3);
+		expect(Math.abs((conductorBox?.y ?? rowY) - rowY)).toBeLessThan(3);
 	}
 
 	const canvas = page.getByTestId("world-canvas");
@@ -45,6 +48,7 @@ test("wide World workspace uses one control row and floats filters over the canv
 	expect((filterBox?.y ?? 0) + (filterBox?.height ?? 0)).toBeGreaterThan(canvasBox?.y ?? 0);
 	expect(filterBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan((canvasBox?.y ?? 0) + 100);
 
+	await closeWorkspaceOverlays(page);
 	const all = page.getByRole("button", { name: "Todos", exact: true });
 	const characters = page.getByRole("button", { name: "Personagens", exact: true });
 	await expect(all).toHaveAttribute("aria-pressed", "true");
