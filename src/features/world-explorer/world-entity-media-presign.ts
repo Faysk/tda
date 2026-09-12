@@ -49,6 +49,17 @@ function amzTimestamp(date: Date): string {
 	return date.toISOString().replace(/[:-]|\.\d{3}/gu, "");
 }
 
+function compareEncodedQueryEntry(
+	[leftKey, leftValue]: readonly [string, string],
+	[rightKey, rightValue]: readonly [string, string],
+): number {
+	if (leftKey < rightKey) return -1;
+	if (leftKey > rightKey) return 1;
+	if (leftValue < rightValue) return -1;
+	if (leftValue > rightValue) return 1;
+	return 0;
+}
+
 /**
  * Produces the same S3 SigV4 query contract used by R2 presigned PUT URLs.
  * The browser receives only the bearer URL plus the signed Content-Type;
@@ -101,11 +112,7 @@ export function presignR2PutObject({
 	] as const;
 	const canonicalQuery = queryEntries
 		.map(([key, value]) => [rfc3986(key), rfc3986(value)] as const)
-		.sort(([leftKey, leftValue], [rightKey, rightValue]) =>
-			leftKey === rightKey
-				? leftValue.localeCompare(rightValue)
-				: leftKey.localeCompare(rightKey),
-		)
+		.sort(compareEncodedQueryEntry)
 		.map(([key, value]) => `${key}=${value}`)
 		.join("&");
 	const canonicalHeaders = `content-type:${contentType}\nhost:${host}\n`;
