@@ -289,6 +289,20 @@ def inspect_qwen_physical_gate(
         or value.get("contains_transcript") is not False
     ):
         return {"status": "invalid", "ready": False, "profile_id": profile_id}
+
+    metrics = value.get("metrics") if isinstance(value.get("metrics"), dict) else {}
+    try:
+        accepted_audio_seconds = float(metrics.get("audio_seconds") or 0.0)
+    except (TypeError, ValueError):
+        accepted_audio_seconds = 0.0
+    if accepted_audio_seconds < MIN_GATE_AUDIO_SECONDS:
+        return {
+            "status": "invalid",
+            "ready": False,
+            "profile_id": profile_id,
+            "reason": "QWEN_GATE_AUDIO_TOO_SHORT",
+        }
+
     try:
         runtime = _runtime_identity(runtime_root)
         model = _model_identity(models_root, profile_id, verify_hash=verify_model_content)
@@ -330,7 +344,7 @@ def inspect_qwen_physical_gate(
         "accepted_at": value.get("accepted_at"),
         "runtime_version": runtime["version"],
         "gpu": gpu,
-        "metrics": value.get("metrics") if isinstance(value.get("metrics"), dict) else {},
+        "metrics": metrics,
     }
 
 
