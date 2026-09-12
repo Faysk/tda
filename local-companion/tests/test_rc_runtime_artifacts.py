@@ -19,6 +19,10 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _artifact_sha(path: Path) -> str:
+    return _sha256(path.read_bytes())
+
+
 def _runtime_zip(path: Path, worker_name: str, payload: bytes = b"worker") -> bytes:
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as package:
         package.writestr(worker_name, payload)
@@ -67,6 +71,16 @@ def _qwen_actions_artifact(root: Path, *, version: str = RC_QWEN_VERSION, tamper
     return artifact
 
 
+def _install(family: str, artifact: Path, root: Path) -> dict[str, object]:
+    return install_rc_runtime_artifact(
+        family,
+        artifact,
+        expected_artifact_sha256=_artifact_sha(artifact),
+        runtime_root=root / "Runtime",
+        cache_root=root / "Cache",
+    )
+
+
 def test_rc_versions_match_build_manifests() -> None:
     runtime_root = Path(__file__).resolve().parents[1] / "runtime"
     whisper = json.loads((runtime_root / "whisper-windows-x64.json").read_text(encoding="utf-8"))
@@ -77,20 +91,13 @@ def test_rc_versions_match_build_manifests() -> None:
 
 def test_install_whisper_actions_artifact_and_reuse(tmp_path: Path) -> None:
     artifact = _whisper_actions_artifact(tmp_path)
-    runtime_root = tmp_path / "Runtime"
-    cache_root = tmp_path / "Cache"
-
-    first = install_rc_runtime_artifact(
-        "whisper", artifact, runtime_root=runtime_root, cache_root=cache_root
-    )
+    first = _install("whisper", artifact, tmp_path)
     assert first["status"] == "ready"
     assert first["version"] == RC_WHISPER_VERSION
     assert first["reused"] is False
-    assert (runtime_root / "whisper" / RC_WHISPER_VERSION / "TDAWhisperWorker.exe").is_file()
+    assert (tmp_path / "Runtime" / "whisper" / RC_WHISPER_VERSION / "TDAWhisperWorker.exe").is_file()
 
-    second = install_rc_runtime_artifact(
-        "whisper", artifact, runtime_root=runtime_root, cache_root=cache_root
-    )
+    second = _install("whisper", artifact, tmp_path)
     assert second == {
         "runtime": "whisper",
         "version": RC_WHISPER_VERSION,
@@ -102,31 +109,19 @@ def test_install_whisper_actions_artifact_and_reuse(tmp_path: Path) -> None:
 def test_rejects_unpinned_whisper_runtime(tmp_path: Path) -> None:
     artifact = _whisper_actions_artifact(tmp_path, version="9.9.9")
     with pytest.raises(RcRuntimeArtifactError, match="RC_WHISPER_VERSION_MISMATCH"):
-        install_rc_runtime_artifact(
-            "whisper",
-            artifact,
-            runtime_root=tmp_path / "Runtime",
-            cache_root=tmp_path / "Cache",
-        )
+        _install("whisper", artifact, tmp_path)
 
 
 def test_install_qwen_actions_artifact_and_reuse(tmp_path: Path) -> None:
     artifact = _qwen_actions_artifact(tmp_path)
-    runtime_root = tmp_path / "Runtime"
-    cache_root = tmp_path / "Cache"
-
-    first = install_rc_runtime_artifact(
-        "qwen", artifact, runtime_root=runtime_root, cache_root=cache_root
-    )
+    first = _install("qwen", artifact, tmp_path)
     assert first["status"] == "ready"
     assert first["version"] == RC_QWEN_VERSION
     assert first["part_count"] == 1
     assert first["reused"] is False
-    assert (runtime_root / "qwen" / RC_QWEN_VERSION / "TDAQwenWorker.exe").is_file()
+    assert (tmp_path / "Runtime" / "qwen" / RC_QWEN_VERSION / "TDAQwenWorker.exe").is_file()
 
-    second = install_rc_runtime_artifact(
-        "qwen", artifact, runtime_root=runtime_root, cache_root=cache_root
-    )
+    second = _install("qwen", artifact, tmp_path)
     assert second == {
         "runtime": "qwen",
         "version": RC_QWEN_VERSION,
@@ -138,20 +133,34 @@ def test_install_qwen_actions_artifact_and_reuse(tmp_path: Path) -> None:
 def test_rejects_unpinned_qwen_runtime(tmp_path: Path) -> None:
     artifact = _qwen_actions_artifact(tmp_path, version="9.9.9")
     with pytest.raises(RcRuntimeArtifactError, match="RC_QWEN_VERSION_MISMATCH"):
-        install_rc_runtime_artifact(
-            "qwen",
-            artifact,
-            runtime_root=tmp_path / "Runtime",
-            cache_root=tmp_path / "Cache",
-        )
+        _install("qwen", artifact, tmp_path)
 
 
 def test_rejects_tampered_qwen_part(tmp_path: Path) -> None:
     artifact = _qwen_actions_artifact(tmp_path, tamper_part=True)
     with pytest.raises(RcRuntimeArtifactError, match="QWEN_BUNDLE_PART_SIZE_MISMATCH"):
+        _install("qwen", artifact, tmp_path)
+
+
+def test_rejects_outer_actions_artifact_digest_mismatch(tmp_path: Path) -> None:
+    artifact = _whisper_actions_artifact(tmp_path)
+    with pytest.raises(RcRuntimeArtifactError, match="RC_RUNTIME_ARTIFACT_HASH_MISMATCH"):
         install_rc_runtime_artifact(
-            "qwen",
+            "whisper",
             artifact,
+            expected_artifact_sha256="0" * 64,
+            runtime_root=tmp_path / "Runtime",
+            cache_root=tmp_path / "Cache",
+        )
+
+
+def test_rejects_invalid_outer_actions_artifact_digest(tmp_path: Path) -> None:
+    artifact = _whisper_actions_artifact(tmp_path)
+    with pytest.raises(RcRuntimeArtifactError, match="RC_RUNTIME_ARTIFACT_HASH_INVALID"):
+        install_rc_runtime_artifact(
+            "whisper",
+            artifact,
+            expected_artifact_sha256="nope",
             runtime_root=tmp_path / "Runtime",
             cache_root=tmp_path / "Cache",
         )
@@ -162,12 +171,7 @@ def test_rejects_actions_artifact_path_traversal(tmp_path: Path) -> None:
     with zipfile.ZipFile(artifact, "w") as package:
         package.writestr("../escape.txt", "nope")
     with pytest.raises(RcRuntimeArtifactError, match="RC_RUNTIME_ARTIFACT_PATH_INVALID"):
-        install_rc_runtime_artifact(
-            "whisper",
-            artifact,
-            runtime_root=tmp_path / "Runtime",
-            cache_root=tmp_path / "Cache",
-        )
+        _install("whisper", artifact, tmp_path)
 
 
 def test_rejects_unknown_runtime_family(tmp_path: Path) -> None:
@@ -176,6 +180,7 @@ def test_rejects_unknown_runtime_family(tmp_path: Path) -> None:
         install_rc_runtime_artifact(
             "other",
             artifact,
+            expected_artifact_sha256="0" * 64,
             runtime_root=tmp_path / "Runtime",
             cache_root=tmp_path / "Cache",
         )
