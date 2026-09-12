@@ -204,6 +204,8 @@ def inspect_qwen_runtime(runtime_root: Path, *, verify_worker: bool = False) -> 
 
 
 def current_qwen_worker(runtime_root: Path) -> Path | None:
-    state = inspect_qwen_runtime(runtime_root, verify_worker=False)
+    # Supervisor execution is an integrity boundary: never return a runtime worker
+    # before its on-disk executable matches the hash recorded at installation.
+    state = inspect_qwen_runtime(runtime_root, verify_worker=True)
     worker = state.get("worker")
     return Path(worker) if state.get("status") == "ready" and isinstance(worker, str) else None
