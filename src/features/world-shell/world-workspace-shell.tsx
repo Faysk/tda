@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
 	WorldWorkspaceControlsContext,
 	type WorldWorkspaceControls,
@@ -17,6 +16,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
+	const [siteHeaderOpen, setSiteHeaderOpen] = useState(false);
 	const [authoringActive, setAuthoringActiveState] = useState(false);
 	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
@@ -31,6 +31,10 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		syncNavigationToViewport();
 		desktop.addEventListener("change", syncNavigationToViewport);
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
+	}, [authoringActive]);
+
+	useEffect(() => {
+		if (authoringActive) setSiteHeaderOpen(false);
 	}, [authoringActive]);
 
 	const closeNavigation = useCallback(() => {
@@ -99,7 +103,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 			<div className={styles.navigationHeader}>
 				<WorldNavigationIntro />
 				<div className={styles.navigationHeaderActions}>
-					<ThemeToggle />
 					<button
 						ref={navigationCloseRef}
 						type="button"
@@ -121,6 +124,7 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
 				data-world-workspace-root
 				data-world-navigation={navigationOpen ? "open" : "closed"}
+				data-world-site-header={siteHeaderOpen ? "open" : "closed"}
 				data-world-authoring={authoringActive ? "active" : "inactive"}
 				data-testid="world-workspace"
 			>
@@ -161,6 +165,19 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					aria-hidden="true"
 					tabIndex={-1}
 				/>
+
+				{!authoringActive ? (
+					<button
+						type="button"
+						className={styles.topNavigationToggle}
+						onClick={() => setSiteHeaderOpen((value) => !value)}
+						aria-expanded={siteHeaderOpen}
+						aria-label={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
+						title={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
+					>
+						<span aria-hidden="true">{siteHeaderOpen ? "⌃" : "⌄"}</span>
+					</button>
+				) : null}
 
 				<section
 					className={styles.stage}
