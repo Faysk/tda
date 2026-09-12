@@ -18,7 +18,9 @@ O [fluxo único de mídia](../integrations/r2/media-pipeline.md) é o contrato d
 
 ## Diagnóstico por sintoma
 
-Evidência datada de recuperação: [manifesto de D, Seika e Pipipi em 2026-09-12](../integrations/evidence/lore-media-recovery-2026-09-12.json). Registra disponibilidade dos objetos, não aceite integral das páginas. Seika tem 25 WebPs do pacote, enquanto o consumidor então publicado referenciava apenas seis panoramas: restaurar camadas exige corrigir o consumidor. D tem três PNGs 1024×1536; a retirada da reconstrução Base64 ainda depende da integração do candidato. Pipipi tem três derivados WebP lossless 1672×941 dos PNGs fornecidos: `cadeira`, `super` e `ultimo-dia`; igualdade de pixels decodificados foi verificada, mas a troca das referências runtime e o aceite visual permanecem pendentes. Masters/pacotes foram preservados no R2 privado; não fazer novo upload por inferir ausência a partir do estado antigo da página.
+Evidência histórica de recuperação: [manifesto de D, Seika e Pipipi em 2026-09-12](../integrations/evidence/lore-media-recovery-2026-09-12.json). O estado de consumidor incompleto registrado nessa recuperação foi corrigido: D/Seika foram publicados pelas PRs #223/#224, commit `ed9201c9911a600918ef742c9c212aa1d18315c8`; Pipipi pelas PRs #225/#226, commit `8fa6cb53096a68c0f9865bc6f61ab29cc9514a4f`. A execução Production CD 34698087655 terminou com sucesso e `/api/version` confirmou esta última versão em 2026-09-12. Consultar [fidelidade dos pacotes](../features/lore-pack-fidelity.md) e [Pipipi](../features/pipipi-lore.md) para escopo e evidências. Masters/pacotes foram preservados no R2 privado; não repetir upload com base no diagnóstico histórico.
+
+Para pacotes completos, seguir [ZIP à produção](zip-to-production.md), incluindo todas as referências HTML/CSS/JS, e preencher o [modelo de entrega](../templates/lore-pack-delivery.md).
 
 | Sintoma | Como distinguir a causa | Próxima ação |
 | --- | --- | --- |

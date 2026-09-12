@@ -18,3 +18,5 @@
 8. [Runbook operacional](../../operations/r2-media-runbook.md) — execução, diagnóstico e recuperação.
 
 O [contrato geral](../r2.md) mantém contexto e tooling histórico. A existência de uma URL em um relatório antigo não dispensa nova validação; consultar o fluxo antes de promover referências.
+
+- [Do ZIP à produção](../../operations/zip-to-production.md) — pacote completo e validação dos consumidores.

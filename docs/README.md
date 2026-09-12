@@ -193,3 +193,5 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Vercel correta para futuras operações: conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 
 Última revisão estrutural: **2026-09-11**.
+
+- [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.

@@ -4,17 +4,17 @@ const bedScenes = [
 	{
 		id: "super-herois",
 		title: "Os super-heróis não vieram salvá-la",
-		artwork: "/lore/pipipi/super-static.avif",
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/bcad7dd703f8cbe62926da88ac8e8c26fb183e42b885381e4ca67544429f31ed/super.webp",
 	},
 	{
 		id: "cadeira",
 		title: "A cadeira",
-		artwork: "/lore/pipipi/cadeira-static.avif",
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/6f35bd23c98815540e4fffc78f0396bf6717879ab18f1e366d2698b710928524/cadeira.webp",
 	},
 	{
 		id: "ultimo-dia",
 		title: "O último dia",
-		artwork: "/lore/pipipi/ultimo-dia-static.avif",
+		artwork: "https://media.dnd.faysk.dev/lore/pipipi/391eef674c24c1448931961bc64dc58b670e363efbc8b5f0c87b5c560a539cda/ultimo-dia.webp",
 	},
 ] as const;
 
@@ -32,6 +32,10 @@ test("renders the three approved bed scenes as single static frames", async ({ p
 		await expect(mediaImages).toHaveCount(1);
 		await expect(mediaImages.first()).toBeVisible();
 		await expect(mediaImages.first()).toHaveAttribute("src", expected.artwork);
+		await expect.poll(() => mediaImages.first().evaluate((element) => {
+			const image = element as HTMLImageElement;
+			return { loaded: image.complete, width: image.naturalWidth, height: image.naturalHeight };
+		}), { timeout: 15000 }).toEqual({ loaded: true, width: 1672, height: 941 });
 
 		const motionBefore = await scene.evaluate((element) => {
 			const style = getComputedStyle(element);

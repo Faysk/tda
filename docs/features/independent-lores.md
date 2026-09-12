@@ -63,3 +63,5 @@ O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, i
 ## Futuro fora do escopo
 
 Suporte a outros jogos, múltiplas campanhas e universos pode ser estudado depois. A liberdade editorial atual não exige implementar agora um sistema multi-jogo, migração de banco, CMS genérico ou novo mecanismo de permissões.
+
+- [Do ZIP à produção](../operations/zip-to-production.md) — integrar a experiência aprovada e registrar adaptações.

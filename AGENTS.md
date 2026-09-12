@@ -10,3 +10,4 @@
 - Antes de alterar Next, ler a documentação pertinente em node_modules/next/dist/docs.
 - Consultar docs/README.md e atualizar o estado com evidências, sem confundir código com publicação.
 - Antes de preparar, enviar ou consumir imagens, ler docs/integrations/r2/media-pipeline.md e docs/operations/r2-media-runbook.md. Só promover referência após read-back, entrega e consumo validados; preservar master, proporção e qualidade perceptível.
+- Ao receber ZIP de página/lore, seguir docs/operations/zip-to-production.md e registrar a entrega com docs/templates/lore-pack-delivery.md. Inventariar todas as referências, preservar a composição aprovada e conferir consumidores em produção.

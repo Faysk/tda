@@ -134,6 +134,16 @@ Este recibo confirma a publicação da lore pioneira sem inferir migration, alte
 
 ## Critérios de aceite técnico-editorial
 
+### Correção de qualidade dos três quadros — 2026-09-12
+
+`super-herois`, `cadeira` e `ultimo-dia` passam a consumir WebP lossless no R2 em 1672×941, derivados dos três PNGs fornecidos pelo autor. [Evidência de integridade e resolução](../integrations/evidence/pipipi-original-quality-2026-09-12.json): bytes públicos verificados por SHA-256 e pixels RGBA idênticos aos PNGs. Os arquivos anteriores tinham, respectivamente, 1280×720, 960×540 e 480×270.
+
+O consumidor mantém `unoptimized`, evitando outra recompressão. Enquadramento, proporção, texto, sombra e frame estático permanecem iguais. Os arquivos antigos ficam disponíveis apenas para referências em cache; não são mais selecionados pelo consumidor atualizado. O E2E exige a resolução original, imagem única e ausência de movimento nas três cenas em desktop e celular. A publicação deve ser confirmada pelo recibo da PR de promoção e `/api/version`, separadamente da existência dos objetos no R2.
+
+Rollback: reverter as três URLs do consumidor pelo fluxo Preview → main; preservar os objetos publicados no R2. Não há migration ou alteração de permissões.
+
+### Checklist geral
+
 - texto aprovado preservado e coberto por teste estrutural;
 - ordem dos três atos preservada;
 - turning point preservado literalmente;
