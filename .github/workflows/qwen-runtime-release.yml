@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: python local-companion/packaging/build_qwen_runtime.py
       - name: Upload release payload
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: TDAQwenRuntimeRelease-windows-x64
           path: |
