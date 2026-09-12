@@ -6,27 +6,36 @@ import {
 	PutObjectCommand,
 	type S3Client,
 } from "@aws-sdk/client-s3";
-import { mediaClient } from "@/integrations/r2/server";
+import { mediaClient, mediaConnectionConfig } from "@/integrations/r2/server";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
 	WORLD_ENTITY_MEDIA_PRIVATE_BUCKET,
 	WORLD_ENTITY_MEDIA_PREVIEW_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
+	WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS,
 	type WorldEntityMediaMime,
 	worldEntityPortraitObjectKey,
+	worldEntityPortraitPendingObjectKey,
 } from "./world-entity-media";
 import {
 	inspectWorldEntityImage,
 	type WorldEntityImageInfo,
 	worldEntityMediaSha256,
 } from "./world-entity-media-image";
+import { presignR2PutObject, type R2PresignedPut } from "./world-entity-media-presign";
 
 export type VerifiedWorldEntityUpload = WorldEntityImageInfo &
 	Readonly<{
 		bucket: string;
 		objectKey: string;
 		readBackVerified: true;
+	}>;
+
+export type PresignedWorldEntityUpload = R2PresignedPut &
+	Readonly<{
+		bucket: string;
+		pendingObjectKey: string;
 	}>;
 
 function failure(code: string): never {
@@ -133,8 +142,113 @@ async function putImmutableObject({
 }
 
 /**
- * Server-side fallback upload. Browser direct upload will use a short-lived
- * presigned PUT, then call the same byte-level verification boundary below.
+ * Creates a short-lived PUT bearer URL for a unique pending key. The browser
+ * never receives R2 credentials and never writes the canonical content-addressed
+ * portrait key directly. Finalization re-reads and validates the bytes first.
+ */
+export function presignWorldEntityPortraitPendingUpload({
+	campaignSlug,
+	entityId,
+	uploadId,
+	sha256,
+	mimeType,
+}: {
+	campaignSlug: string;
+	entityId: string;
+	uploadId: string;
+	sha256: string;
+	mimeType: WorldEntityMediaMime;
+}): PresignedWorldEntityUpload {
+	const extension = mimeType === "image/png" ? "png" : "webp";
+	const pendingObjectKey = worldEntityPortraitPendingObjectKey({
+		campaignSlug,
+		entityId,
+		uploadId,
+		sha256,
+		extension,
+	});
+	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
+	const bucket = worldEntityMediaStagingBucket();
+	const { accountId, accessKeyId, secretAccessKey } = mediaConnectionConfig();
+	return {
+		...presignR2PutObject({
+			accountId,
+			bucket,
+			objectKey: pendingObjectKey,
+			accessKeyId,
+			secretAccessKey,
+			contentType: mimeType,
+			expiresIn: WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS,
+		}),
+		bucket,
+		pendingObjectKey,
+	};
+}
+
+/**
+ * Reads the exact pending object authorized by an upload intent, validates the
+ * real bytes and then materializes the immutable canonical portrait key.
+ * Pending objects are intentionally left to the dedicated R2 lifecycle policy:
+ * a still-valid presigned URL could otherwise recreate them after deletion.
+ */
+export async function finalizeWorldEntityPortraitPendingUpload({
+	campaignSlug,
+	entityId,
+	uploadId,
+	expectedSha256,
+	expectedMimeType,
+	expectedBytes,
+}: {
+	campaignSlug: string;
+	entityId: string;
+	uploadId: string;
+	expectedSha256: string;
+	expectedMimeType: WorldEntityMediaMime;
+	expectedBytes: number;
+}): Promise<VerifiedWorldEntityUpload> {
+	const extension = expectedMimeType === "image/png" ? "png" : "webp";
+	const pendingObjectKey = worldEntityPortraitPendingObjectKey({
+		campaignSlug,
+		entityId,
+		uploadId,
+		sha256: expectedSha256,
+		extension,
+	});
+	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
+
+	const bucket = worldEntityMediaStagingBucket();
+	const client = mediaClient();
+	const bytes = await objectBytes(client, bucket, pendingObjectKey);
+	const info = inspectWorldEntityImage(bytes);
+	if (
+		info.sha256 !== expectedSha256 ||
+		info.mimeType !== expectedMimeType ||
+		info.bytes !== expectedBytes
+	) {
+		failure("UPLOAD_INTENT_MISMATCH");
+	}
+
+	const objectKey = worldEntityPortraitObjectKey({
+		campaignSlug,
+		entityId,
+		sha256: info.sha256,
+		extension: info.extension,
+	});
+	if (!objectKey) failure("INVALID_OBJECT_KEY");
+	await putImmutableObject({
+		client,
+		bucket,
+		objectKey,
+		bytes,
+		info,
+		cacheControl: "private, no-store",
+	});
+	return { ...info, bucket, objectKey, readBackVerified: true };
+}
+
+/**
+ * Server-side fallback upload for trusted application code. Browser direct
+ * upload uses the pending-key presign/finalize flow above.
  */
 export async function uploadWorldEntityPortrait({
 	campaignSlug,
@@ -167,8 +281,8 @@ export async function uploadWorldEntityPortrait({
 }
 
 /**
- * Finalizes a direct-to-R2 upload. The caller supplies the intent that was
- * authorized before upload; R2 bytes are re-read and independently inspected.
+ * Verifies a canonical staged object for trusted server-side recovery/import
+ * flows. Browser direct upload does not receive a presign for canonical keys.
  */
 export async function verifyWorldEntityPortraitObject({
 	campaignSlug,
