@@ -85,6 +85,7 @@ declare
   v_now timestamptz := clock_timestamp();
   v_binding jsonb;
   v_entity_id uuid;
+  v_entity_visibility text;
   v_asset_id uuid;
   v_count integer := 0;
 begin
@@ -133,6 +134,10 @@ begin
 
   for v_binding in select value from jsonb_array_elements(p_bindings)
   loop
+    if jsonb_typeof(v_binding) <> 'object' then
+      return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+    end if;
+
     begin
       v_entity_id := (v_binding->>'entityId')::uuid;
       v_asset_id := case
@@ -143,11 +148,10 @@ begin
       return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
     end;
 
-    if jsonb_typeof(v_binding) <> 'object'
-       or not exists (
-         select 1 from public.entities e
-         where e.id = v_entity_id and e.campaign_id = v_campaign_id
-       ) then
+    select e.visibility into v_entity_visibility
+    from public.entities e
+    where e.id = v_entity_id and e.campaign_id = v_campaign_id;
+    if not found then
       return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
     end if;
 
@@ -163,14 +167,26 @@ begin
         where a.id = v_asset_id
           and a.campaign_id = v_campaign_id
           and a.role_hint = 'portrait'
-          and a.status = 'verified_public'
+          and a.status <> 'retired'
           and a.read_back_verified
-          and a.public_bucket = 'tda-media-public'
-          and a.public_object_key = a.object_key
-          and a.public_delivery_verified
-          and a.public_verified_at is not null
+          and (
+            v_entity_visibility <> 'public_web'
+            or (
+              a.status = 'verified_public'
+              and a.public_bucket = 'tda-media-public'
+              and a.public_object_key = a.object_key
+              and a.public_delivery_verified
+              and a.public_verified_at is not null
+            )
+          )
       ) then
-        return jsonb_build_object('ok', false, 'reason', 'media_not_verified');
+        return jsonb_build_object(
+          'ok', false, 'reason',
+          case when v_entity_visibility = 'public_web'
+            then 'media_not_verified'
+            else 'media_invalid'
+          end
+        );
       end if;
 
       insert into public.entity_media_bindings(
@@ -188,12 +204,13 @@ begin
   end loop;
 
   if v_count > 0 then
-    insert into public.audit_log(campaign_id, actor_id, action, table_name, new_value)
+    insert into public.audit_log(campaign_id, actor_id, action, table_name, old_value, new_value)
     values (
       v_campaign_id,
       p_actor_profile_id,
       'world_entity_media.publish',
       'entity_media_bindings',
+      null,
       jsonb_build_object('bindingCount', v_count)
     );
   end if;
@@ -205,7 +222,7 @@ $$;
 comment on table public.media_assets is
   'Stable media identity and verified R2 object metadata. Binary bytes are not stored in PostgreSQL.';
 comment on table public.entity_media_bindings is
-  'First-class entity-to-media relation. Initial World authoring supports one primary portrait per entity.';
+  'First-class entity-to-media relation. Private entity portraits may remain staged; public_web portraits require verified public delivery.';
 
 revoke all on function public.publish_world_entity_media_atomic(uuid,uuid,text,jsonb)
   from public, anon, authenticated;
