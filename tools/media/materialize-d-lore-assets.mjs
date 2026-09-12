@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = process.cwd();
 const SOURCE_DIR = path.join(ROOT, "public", "lore", "d", "assets");
@@ -178,6 +179,10 @@ export async function materializeDLoreAssets() {
   return manifest;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const invokedAsScript = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+  : false;
+
+if (invokedAsScript) {
   await materializeDLoreAssets();
 }
