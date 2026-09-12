@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorldGraphDraft } from "./model";
 import {
 	worldEntityPublicMediaUrl,
 	type WorldEntityMediaAssetRecord,
@@ -52,6 +53,54 @@ function toAssetRecord(row: MediaAssetRow): WorldEntityMediaAssetRecord | null {
 	};
 }
 
+async function loadBindings(
+	client: SupabaseClient,
+	campaignId: string,
+	entityIds: readonly string[],
+): Promise<MediaBindingRow[]> {
+	if (!worldEntityMediaEnabled() || entityIds.length === 0) return [];
+	const { data, error } = await client
+		.from("entity_media_bindings")
+		.select("entity_id,asset_id")
+		.eq("campaign_id", campaignId)
+		.eq("role", "portrait")
+		.in("entity_id", [...entityIds]);
+	if (error) throw new Error(`World entity media binding lookup failed: ${error.message}`);
+	return (data ?? []) as MediaBindingRow[];
+}
+
+export async function hydrateWorldGraphDraftMedia(
+	client: SupabaseClient,
+	campaignSlug: string,
+	draft: WorldGraphDraft,
+): Promise<WorldGraphDraft> {
+	if (!worldEntityMediaEnabled() || draft.nodes.length === 0) return draft;
+	const { data: campaign, error: campaignError } = await client
+		.from("campaigns")
+		.select("id")
+		.eq("slug", campaignSlug)
+		.maybeSingle();
+	if (campaignError || !campaign?.id) {
+		throw new Error(
+			`World entity media campaign lookup failed: ${campaignError?.message ?? "campaign_not_found"}`,
+		);
+	}
+	const bindings = await loadBindings(
+		client,
+		campaign.id,
+		draft.nodes.map((node) => node.id),
+	);
+	const assetByEntity = new Map(bindings.map((binding) => [binding.entity_id, binding.asset_id]));
+	return {
+		...draft,
+		nodes: draft.nodes.map((node) =>
+			node.primaryMediaAssetId !== undefined
+				? node
+				: { ...node, primaryMediaAssetId: assetByEntity.get(node.id) ?? null },
+		),
+	};
+}
+
 /**
  * Resolves only explicitly bound and verified public portraits.
  * Provider URLs are never read from entity metadata or accepted from callers.
@@ -61,16 +110,7 @@ export async function loadWorldEntityPortraitUrls(
 	campaignId: string,
 	entityIds: readonly string[],
 ): Promise<Map<string, string>> {
-	if (!worldEntityMediaEnabled() || entityIds.length === 0) return new Map();
-
-	const { data: bindingData, error: bindingError } = await client
-		.from("entity_media_bindings")
-		.select("entity_id,asset_id")
-		.eq("campaign_id", campaignId)
-		.eq("role", "portrait")
-		.in("entity_id", [...entityIds]);
-	if (bindingError) throw new Error(`World entity media binding lookup failed: ${bindingError.message}`);
-	const bindings = (bindingData ?? []) as MediaBindingRow[];
+	const bindings = await loadBindings(client, campaignId, entityIds);
 	if (!bindings.length) return new Map();
 
 	const assetIds = [...new Set(bindings.map((binding) => binding.asset_id))];
