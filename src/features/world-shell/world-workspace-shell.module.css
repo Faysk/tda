@@ -3,15 +3,11 @@
 	display: none;
 }
 
-:global(body:has([data-world-workspace-root]) > main#conteudo) {
-	min-height: 100dvh;
-}
-
-:global(body:has([data-world-workspace-root][data-world-authoring="active"])) {
+:global(body:has([data-world-workspace-root])) {
 	overflow: hidden;
 }
 
-:global(body:has([data-world-workspace-root][data-world-authoring="active"]) > main#conteudo) {
+:global(body:has([data-world-workspace-root]) > main#conteudo) {
 	height: 100dvh;
 	min-height: 0;
 	overflow: hidden;
@@ -23,17 +19,12 @@
 	display: grid;
 	grid-template-columns: 0 minmax(0, 1fr);
 	width: 100%;
-	min-width: 0;
-	min-height: 100dvh;
-	background: var(--ds-canvas);
-	overflow: clip;
-	transition: grid-template-columns var(--ds-motion-base) var(--ds-ease-soft);
-}
-
-.workspace[data-world-authoring="active"] {
 	height: 100dvh;
+	min-width: 0;
 	min-height: 0;
+	background: var(--ds-canvas);
 	overflow: hidden;
+	transition: grid-template-columns var(--ds-motion-base) var(--ds-ease-soft);
 }
 
 .navigationOpen {
@@ -101,12 +92,8 @@
 .stage {
 	position: relative;
 	z-index: 1;
-	min-width: 0;
-	min-height: 100dvh;
-}
-
-.workspace[data-world-authoring="active"] .stage {
 	height: 100dvh;
+	min-width: 0;
 	min-height: 0;
 	overflow: hidden;
 }
@@ -210,10 +197,6 @@
 	.workspace,
 	.navigationOpen {
 		display: block;
-		min-height: 100dvh;
-	}
-
-	.workspace[data-world-authoring="active"] {
 		height: 100dvh;
 		min-height: 0;
 	}
