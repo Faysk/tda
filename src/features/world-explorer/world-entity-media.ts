@@ -59,6 +59,17 @@ export function worldEntityMediaPreviewUrl(assetId: string): string | undefined 
 	return `/api/world/entity-media/${encodeURIComponent(assetId.toLowerCase())}`;
 }
 
+/**
+ * Next/Image does not forward request headers to authenticated source URLs.
+ * Draft portraits therefore bypass the optimizer while the public immutable R2
+ * URL continues through the normal optimized path.
+ */
+export function worldEntityMediaShouldBypassImageOptimization(imageUrl: string): boolean {
+	const prefix = "/api/world/entity-media/";
+	if (!imageUrl.startsWith(prefix)) return false;
+	return isWorldEntityMediaAssetId(imageUrl.slice(prefix.length));
+}
+
 export function worldEntityPortraitObjectKey({
 	campaignSlug,
 	entityId,
@@ -133,7 +144,9 @@ export function worldEntityPublicMediaUrl(
 		"u",
 	);
 	const match = pattern.exec(asset.publicObjectKey);
-	if (!match || match[2] !== asset.sha256) return undefined;
+	if (!match || !isWorldEntityMediaAssetId(match[1]) || match[2] !== asset.sha256) {
+		return undefined;
+	}
 	if (
 		options.entityId &&
 		(!isWorldEntityMediaAssetId(options.entityId) || match[1] !== options.entityId.toLowerCase())
