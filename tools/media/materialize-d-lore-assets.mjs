@@ -73,8 +73,20 @@ const FALLBACK = [
 function decodeBase64(text, label) {
   const stripped = text.replace(/\s+/g, "");
   if (!stripped) throw new Error(`${label}: empty base64 payload`);
+
+  const invalidIndex = stripped.search(/[^A-Za-z0-9+/=]/);
+  if (invalidIndex !== -1) {
+    const invalid = stripped.codePointAt(invalidIndex);
+    const codePoint =
+      invalid === undefined
+        ? "unknown"
+        : `U+${invalid.toString(16).toUpperCase().padStart(4, "0")}`;
+    throw new Error(
+      `${label}: invalid base64 character ${codePoint} at offset ${invalidIndex}`,
+    );
+  }
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(stripped)) {
-    throw new Error(`${label}: invalid base64 characters`);
+    throw new Error(`${label}: invalid base64 padding`);
   }
 
   const raw = stripped.replace(/=+$/, "");
