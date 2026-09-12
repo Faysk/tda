@@ -14,6 +14,7 @@ import {
 	type WorldVisibility,
 } from "../model";
 import styles from "./world-content-editor.module.css";
+import { WorldEntityMediaField } from "./world-entity-media-field";
 
 type EditorSection = "entity" | "relation" | "types";
 
@@ -383,6 +384,18 @@ function EntityEditor({
 					<h3>{entity.name}</h3>
 				</div>
 			</div>
+			<WorldEntityMediaField
+				entityId={entity.id}
+				assetId={entity.primaryMediaAssetId}
+				onAssetChange={(assetId) =>
+					onChange(
+						updateNode(draft, entity.id, { primaryMediaAssetId: assetId }),
+						assetId
+							? "Imagem vinculada ao rascunho do elemento."
+							: "Imagem removida do rascunho do elemento.",
+					)
+				}
+			/>
 			<label>
 				Nome
 				<input
@@ -493,6 +506,7 @@ function NewEntityForm({
 								visibility,
 								summary: "",
 								aliases: [],
+								primaryMediaAssetId: null,
 							},
 						],
 					},
