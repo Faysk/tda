@@ -29,8 +29,14 @@ def _body(profile_id: str, *, cpu: bool = False) -> dict:
     }
 
 
+def _app(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir(parents=True, exist_ok=True)
+    return create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+
+
 def test_qwen_profile_is_valid_api_input_but_requires_physical_gate_before_staging(tmp_path: Path):
-    app = create_app(tmp_path / "Data", TOKEN, {ORIGIN}, run_worker=False)
+    app = _app(tmp_path)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.post(
             "/api/v1/jobs",
@@ -46,7 +52,7 @@ def test_qwen_profile_is_valid_api_input_but_requires_physical_gate_before_stagi
 
 
 def test_qwen_cpu_mode_is_rejected_without_touching_source_package(tmp_path: Path):
-    app = create_app(tmp_path / "Data", TOKEN, {ORIGIN}, run_worker=False)
+    app = _app(tmp_path)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.post(
             "/api/v1/jobs",
@@ -78,7 +84,7 @@ def test_capabilities_advertise_only_profiles_with_ready_physical_gate(monkeypat
         lambda *_args, **_kwargs: {"status": "missing", "version": None},
     )
 
-    app = create_app(tmp_path / "Data", TOKEN, {ORIGIN}, run_worker=False)
+    app = _app(tmp_path)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         capability = client.get("/api/v1/capabilities", headers=HEADERS).json()
 
