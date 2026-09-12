@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("D switches between cinematic and full reading modes on the same URL", async ({ page, request }) => {
+test("D switches between cinematic and full reading modes on the same URL", async ({ page, request, isMobile, viewport }) => {
 	test.setTimeout(120000);
 	const errors: string[] = [];
 	page.on("pageerror", (error) => errors.push(error.message));
@@ -37,12 +37,15 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 	expect(new URL(page.url()).pathname).toBe(initialPath);
 	expect(new URL(page.url()).hash).toBe("#read-prologue");
 
-	await page.locator('.reading-toc [data-reading-link="read-shot"]').click();
-	await expect(toggle).toHaveAttribute("aria-checked", "true");
-	await expect(page.locator("#reading-view")).toBeVisible();
-	await expect(page.locator("#read-shot")).toBeInViewport();
-	expect(new URL(page.url()).pathname).toBe(initialPath);
-	expect(new URL(page.url()).hash).toBe("#read-shot");
+	const hasDesktopToc = !isMobile && (!viewport || viewport.width > 800);
+	if (hasDesktopToc) {
+		await page.locator('.reading-toc [data-reading-link="read-shot"]').click();
+		await expect(toggle).toHaveAttribute("aria-checked", "true");
+		await expect(page.locator("#reading-view")).toBeVisible();
+		await expect(page.locator("#read-shot")).toBeInViewport();
+		expect(new URL(page.url()).pathname).toBe(initialPath);
+		expect(new URL(page.url()).hash).toBe("#read-shot");
+	}
 
 	await toggle.click();
 	await expect(toggle).toHaveAttribute("aria-checked", "false");
