@@ -1,46 +1,45 @@
 {
-	"name": "tda",
-	"version": "0.1.0",
-	"private": true,
-	"type": "module",
-	"packageManager": "pnpm@12.3.4",
-	"engines": {
-		"node": "24.x"
-	},
-	"scripts": {
-		"dev": "next dev",
-		"build": "next build",
-		"start": "next start",
-		"typecheck": "next typegen && tsc --noEmit",
-		"lint": "biome lint .",
-		"test": "vitest run && node --test tools/media/recovery.test.mjs tools/media/publication-contract.test.mjs tools/media/lore-assets.test.mjs",
-		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm design:check && pnpm docs:check && pnpm db:docs:check",
-		"design:check": "node tools/check-design-system.mjs",
-		"docs:check": "node tools/check-docs.mjs",
-		"docs:generate": "node tools/documentation-catalog.mjs --write",
-		"db:docs:check": "node tools/check-database-governance.mjs",
-		"test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts && playwright test --config playwright.permissions.config.ts",
-		"test:processing": "playwright test --config playwright.processing.config.ts",
-		"test:processing:integration": "playwright test --config playwright.processing-integration.config.ts",
-		"verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
-	},
-	"dependencies": {
-		"@aws-sdk/client-s3": "3.1127.0",
-		"@supabase/ssr": "0.12.6",
-		"@supabase/supabase-js": "2.115.0",
-		"next": "16.3.4",
-		"react": "19.2.8",
-		"react-dom": "19.2.8",
-		"@xyflow/react": "12.11.6",
-		"server-only": "0.0.1"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "2.5.12",
-		"@playwright/test": "1.63.0",
-		"@types/node": "24.13.3",
-		"@types/react": "19.2.18",
-		"@types/react-dom": "19.2.7",
-		"typescript": "7.0.2",
-		"vitest": "5.0.0"
-	}
+  "name": "tda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "engines": { "node": "24.x" },
+  "scripts": {
+    "media:prepare": "node tools/media/materialize-d-lore-page.mjs",
+    "dev": "pnpm media:prepare && next dev",
+    "build": "pnpm media:prepare && next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "biome lint .",
+    "test": "vitest run && node --test tools/media/recovery.test.mjs tools/media/publication-contract.test.mjs tools/media/lore-assets.test.mjs tools/media/lore-delivery.test.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm design:check && pnpm docs:check && pnpm db:docs:check",
+    "design:check": "node tools/check-design-system.mjs",
+    "docs:check": "node tools/check-docs.mjs",
+    "docs:generate": "node tools/documentation-catalog.mjs --write",
+    "db:docs:check": "node tools/check-database-governance.mjs",
+    "test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts && playwright test --config playwright.permissions.config.ts",
+    "test:processing": "playwright test --config playwright.processing.config.ts",
+    "test:processing:integration": "playwright test --config playwright.processing-integration.config.ts",
+    "verify:connections": "node --env-file=.env.local tools/verify-connections.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1127.0",
+    "@supabase/ssr": "0.12.6",
+    "@supabase/supabase-js": "2.115.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "@xyflow/react": "12.11.6",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
 }
