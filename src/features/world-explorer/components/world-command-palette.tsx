@@ -111,13 +111,7 @@ export function WorldCommandPalette({
 	}
 
 	return (
-		<div
-			className={styles.backdrop}
-			data-world-command-palette
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) onClose();
-			}}
-		>
+		<div className={styles.backdrop} data-world-command-palette>
 			<section
 				className={styles.palette}
 				role="dialog"
