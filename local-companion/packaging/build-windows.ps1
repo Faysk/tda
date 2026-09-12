@@ -72,6 +72,7 @@ $maintenanceExe = Join-Path $maintenanceDist "TDACompanionMaintenance.exe"
 if (-not (Test-Path $maintenanceExe)) { throw "MAINTENANCE_EXE_NOT_CREATED" }
 Copy-Item $maintenanceExe (Join-Path $appRoot "TDACompanionMaintenance.exe")
 Copy-Item (Join-Path $PSScriptRoot "run-physical-acceptance.ps1") (Join-Path $appRoot "run-physical-acceptance.ps1")
+Copy-Item (Join-Path $PSScriptRoot "install-rc-runtimes.ps1") (Join-Path $appRoot "install-rc-runtimes.ps1")
 
 Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
 Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
@@ -94,8 +95,20 @@ Instalação por usuário, sem privilégios administrativos.
 Diretório do aplicativo: %LOCALAPPDATA%\TDA\Companion\versions\$version
 Diretório de dados:      %LOCALAPPDATA%\TDA\Data
 
-O arquivo app\run-physical-acceptance.ps1 executa o gate físico local dos perfis ASR sem enviar áudio ao cloud.
-Por padrão ele grava somente receipts sanitizados; transcrições exigem -WriteTranscripts explícito.
+Preparação de runtimes para teste RC sem publicar releases stable:
+1. Baixe os artifacts validados `TDAWhisperRuntime-windows-x64` e `TDAQwenRuntimeBundle-windows-x64` do GitHub Actions.
+2. Obtenha o digest SHA-256 informado pelo GitHub para cada artifact e use apenas os 64 caracteres hexadecimais, sem o prefixo `sha256:`.
+3. Execute o helper instalado, por exemplo:
+
+& app\install-rc-runtimes.ps1 `
+  -WhisperArtifact "C:\artifacts\TDAWhisperRuntime-windows-x64.zip" `
+  -WhisperArtifactSha256 "<sha256-do-artifact-whisper>" `
+  -QwenArtifact "C:\artifacts\TDAQwenRuntimeBundle-windows-x64.zip" `
+  -QwenArtifactSha256 "<sha256-do-artifact-qwen>"
+
+O helper verifica primeiro o SHA-256 externo do artifact e, em seguida, os hashes/tamanhos internos do runtime antes da instalação. Somente Whisper 1.1.0 e Qwen 1.0.0 são aceitos neste RC. Python, CUDA Toolkit e PATH globais não são modificados.
+
+Depois, app\run-physical-acceptance.ps1 executa o gate físico local dos perfis ASR sem enviar áudio ao cloud. Os modelos pinados são materializados separadamente em Models na primeira execução. Por padrão o gate grava somente receipts sanitizados; transcrições exigem -WriteTranscripts explícito.
 
 O token, a fila e os dados locais não são removidos durante atualização do aplicativo.
 Este aplicativo NÃO usa, inicia, modifica ou depende do antigo DnDScribeCompanion.exe.
