@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function expectWorkspaceChromeAvailable(page: import("@playwright/test").Page) {
+async function expectWorkspaceChromeAvailable(page: Page) {
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Ecos da Jornada", exact: true }),
 	).toBeVisible();
@@ -12,7 +12,14 @@ async function expectWorkspaceChromeAvailable(page: import("@playwright/test").P
 	await expect(page.getByRole("button", { name: "Reorganizar", exact: true })).toBeVisible();
 }
 
-test("World Workspace keeps primary chrome usable while navigation overlays a stable canvas", async ({
+async function closeWorkspaceOverlays(page: Page) {
+	const navigationClose = page.getByRole("button", { name: "Recolher navegação do mundo" });
+	if (await navigationClose.isVisible().catch(() => false)) await navigationClose.click();
+	const inspectorClose = page.getByRole("button", { name: "Recolher painel de detalhes" });
+	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
+}
+
+test("World Workspace keeps primary chrome available while navigation overlays a stable canvas", async ({
 	page,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
@@ -43,6 +50,7 @@ test("World Workspace chrome preserves transient view/filter state without creat
 	await page.goto("/mundo");
 
 	await expectWorkspaceChromeAvailable(page);
+	await closeWorkspaceOverlays(page);
 	await page.getByRole("button", { name: "Personagens", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Personagens", exact: true })).toHaveAttribute(
 		"aria-pressed",
