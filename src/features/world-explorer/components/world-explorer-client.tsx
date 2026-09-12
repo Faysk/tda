@@ -545,9 +545,9 @@ export function WorldExplorerClient({
 		connectionActive,
 		commandContext,
 		authoringUi.state.commandPaletteOpen,
-		selectedId,
-		selected,
-		view,
+		authoringUi.setCommandPaletteOpen,
+		cancelRelationAuthoring,
+		executeWorldCommand,
 	]);
 
 	return (
