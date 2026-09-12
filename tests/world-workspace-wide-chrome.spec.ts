@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+function centerY(box: { y: number; height: number } | null) {
+	return box ? box.y + box.height / 2 : Number.NaN;
+}
+
 test("wide World workspace uses one control row and floats filters over the canvas", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Wide workspace contract.");
 	await page.goto("/mundo");
@@ -20,16 +24,16 @@ test("wide World workspace uses one control row and floats filters over the canv
 		viewToggle.boundingBox(),
 	]);
 	for (const box of rowBoxes) expect(box).not.toBeNull();
-	const rowY = rowBoxes[0]?.y ?? 0;
+	const rowCenter = centerY(rowBoxes[0]);
 	for (const box of rowBoxes.slice(1)) {
-		expect(Math.abs((box?.y ?? rowY) - rowY)).toBeLessThan(3);
+		expect(Math.abs(centerY(box) - rowCenter)).toBeLessThan(3);
 	}
 
 	const conductor = page.getByTestId("world-conductor");
 	if (await conductor.count()) {
 		const conductorBox = await conductor.boundingBox();
 		expect(conductorBox).not.toBeNull();
-		expect(Math.abs((conductorBox?.y ?? rowY) - rowY)).toBeLessThan(3);
+		expect(Math.abs(centerY(conductorBox) - rowCenter)).toBeLessThan(3);
 	}
 
 	const canvas = page.getByTestId("world-canvas");
