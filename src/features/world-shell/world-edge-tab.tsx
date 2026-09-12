@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import styles from "./world-edge-tab.module.css";
 
 type WorldEdgeTabProps = Readonly<{
@@ -10,6 +10,7 @@ type WorldEdgeTabProps = Readonly<{
 	icon: ReactNode;
 	className?: string;
 	tabIndex?: number;
+	buttonRef?: Ref<HTMLButtonElement>;
 }>;
 
 export function WorldEdgeTab({
@@ -21,9 +22,11 @@ export function WorldEdgeTab({
 	icon,
 	className,
 	tabIndex,
+	buttonRef,
 }: WorldEdgeTabProps) {
 	return (
 		<button
+			ref={buttonRef}
 			type="button"
 			className={`${styles.tab} ${styles[edge]}${className ? ` ${className}` : ""}`}
 			data-world-edge-tab
@@ -36,9 +39,7 @@ export function WorldEdgeTab({
 			title={label}
 			tabIndex={tabIndex}
 		>
-			<span className={styles.icon} aria-hidden="true">
-				{icon}
-			</span>
+			<span className={styles.icon} aria-hidden="true">{icon}</span>
 		</button>
 	);
 }
