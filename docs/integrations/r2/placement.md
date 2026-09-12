@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-12
 
 ## Regra principal
 
@@ -17,8 +17,8 @@
 ```text
 asset crítico pequeno? -> Git/runtime
 precisa cloud?          -> não: local
-público aprovado?       -> sim: public
 homologação?            -> sim: preview
+público aprovado?       -> sim: public
 senão                   -> private
 ```
 

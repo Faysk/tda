@@ -8,7 +8,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-11 |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-12 |
 | [Arquitetura](../architecture.md) | Não declarado | Não declarado | Não declarado |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
@@ -139,7 +139,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
 | [R2 — governança de mídia e lifecycle](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-11 |
-| [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-07 |
+| [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-12 |
 | [Integração Supabase](../integrations/supabase.md) | integrations + data + identity | implementado/canônico | 2026-09-06 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
 | [Importação de transcrição local](../integrations/transcript-import.md) | sync/consumer + dados/Supabase | implementado em branch/PR; ativação negada | 2026-09-07 |
@@ -149,10 +149,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [R2 — documentação detalhada](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-11 |
+| [R2 — documentação detalhada](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-12 |
 | [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-11 |
+| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-12 |
+| [R2 — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-12 |
 | [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-11 |
 | [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-12 |
@@ -178,10 +179,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | implementação candidata validada em CI Windows/Linux | 2026-09-11 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 e mídia — runbook operacional](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-11 |
+| [R2 e mídia — runbook operacional](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-12 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-07 |
 
 ## Cobertura
 
-113 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+114 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 20 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

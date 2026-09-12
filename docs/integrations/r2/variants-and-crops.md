@@ -92,7 +92,7 @@ Se a variante estática falhar no gate e background/subject separados tiverem ma
 
 ## Fallback de qualidade
 
-Fallback nunca usa mídia de outra sessão/entity: preferir outra role da mesma identidade quando fizer sentido; caso contrário usar placeholder oficial/DS. Falha da imagem não pode remover título, métricas ou ação.
+Fallback nunca usa mídia de outra sessão/entity: preferir outra role da mesma identidade quando fizer sentido; caso contrário usar placeholder oficial/DS nas superfícies do site, ou fallback coerente com a identidade da lore independente. Falha da imagem não pode remover título, métricas ou ação.
 
 Baixa resolução também é um tipo de incompatibilidade. Se a única mídia disponível não aguenta o slot, o consumidor deve reduzir o slot, usar uma role apropriada da mesma identidade ou cair no fallback oficial; nunca inflar silenciosamente um thumbnail.
 
