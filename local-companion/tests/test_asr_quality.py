@@ -197,3 +197,20 @@ def test_quality_thresholds_reject_non_finite_and_out_of_range_values(
 def test_quality_thresholds_require_boolean_alignment_fallback_policy() -> None:
     with pytest.raises(AsrQualityError, match="allow_alignment_fallback:BOOLEAN_REQUIRED"):
         _valid_thresholds(allow_alignment_fallback=1)
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    (
+        (math.nan, "minimum_turn_iou:NUMBER_INVALID"),
+        (math.inf, "minimum_turn_iou:NUMBER_INVALID"),
+        (0.0, "minimum_turn_iou:RANGE_INVALID"),
+        (1.01, "minimum_turn_iou:RANGE_INVALID"),
+    ),
+)
+def test_minimum_turn_iou_rejects_non_finite_and_out_of_range_values(
+    value: float,
+    error: str,
+) -> None:
+    with pytest.raises(AsrQualityError, match=error):
+        evaluate_transcript_quality(_reference(), _document(), minimum_turn_iou=value)
