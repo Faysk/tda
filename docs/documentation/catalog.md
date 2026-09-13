@@ -104,7 +104,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-07 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-12 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
 | [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | especificação aceita para implementação | 2026-09-11 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
@@ -128,6 +128,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | arquitetura visual aprovada; schema de relations em desenho | 2026-09-06 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
+| [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | implementação candidata; schema remoto não aplicado | 2026-09-13 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | fundação multi-hub e roteamento implementados; layout editorial preparado; dados reais pendentes | 2026-09-08 |
 
 ## docs/integrations
@@ -158,7 +159,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-12 |
 | [R2 — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-12 |
 | [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-11 |
+| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-12 |
 | [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-12 |
 
 ## docs/legacy
@@ -179,7 +180,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-11 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
-| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-11 |
+| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-13 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato RC v0.3 validado em CI; validação física pendente | 2026-09-12 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
@@ -196,4 +197,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-120 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+121 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
