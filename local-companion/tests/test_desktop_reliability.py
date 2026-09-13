@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+import tda_companion.desktop_session_bridge as desktop_session_bridge
+
 from tda_companion.agent_connection import AgentConnectionError
+from tda_companion.desktop import DesktopBridge
 from tda_companion.desktop_session_bridge import SessionDesktopBridge
 
 
@@ -104,3 +110,122 @@ def test_background_logs_return_degraded_state_instead_of_throwing(monkeypatch, 
     assert result["logs"] == []
     assert result["unavailable"] is True
     assert result["connection"]["state"] == "unavailable"
+
+
+def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    seen: dict[str, list[str]] = {}
+    handoffs: list[str] = []
+
+    def fake_launch(self, arguments):  # noqa: ANN001
+        seen["arguments"] = list(arguments)
+        return True
+
+    def fake_install(self):  # noqa: ANN001
+        self._launch_maintenance(["--install-update", "--version", "0.3.3"])
+        return {"accepted": True, "available": True, "version": "0.3.3"}
+
+    monkeypatch.setattr(DesktopBridge, "_launch_maintenance", fake_launch)
+    monkeypatch.setattr(DesktopBridge, "install_update", fake_install)
+    monkeypatch.setattr(
+        SessionDesktopBridge,
+        "_wait_maintenance_handoff",
+        lambda self, operation_id, timeout=3.0: handoffs.append(operation_id),
+    )
+
+    result = bridge.install_update()
+
+    operation_id = result["operation_id"]
+    assert isinstance(operation_id, str) and len(operation_id) == 32
+    assert seen["arguments"][-2:] == ["--operation-id", operation_id]
+    assert "--cleanup-self" in seen["arguments"]
+    assert handoffs == [operation_id]
+
+
+def test_staged_maintenance_helper_lives_outside_tda_root(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    operation_id = "1" * 32
+    bridge._last_maintenance_operation_id = operation_id
+    source = tmp_path / "TDACompanionMaintenance.exe"
+    source.write_bytes(b"helper")
+    temp_root = tmp_path.parent / f"{tmp_path.name}-system-temp"
+    shutil.rmtree(temp_root, ignore_errors=True)
+    monkeypatch.setattr(
+        desktop_session_bridge.tempfile,
+        "gettempdir",
+        lambda: str(temp_root),
+    )
+    try:
+        helper = bridge._maintenance_helper()
+        assert helper.read_bytes() == b"helper"
+        assert tmp_path not in helper.parents
+        assert helper.parent.name == operation_id
+        assert helper.parent.parent.name == "TDACompanionMaintenance"
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def test_failed_handoff_blocks_ui_close_contract(tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    operation_id = "f" * 32
+    operation_root = tmp_path / "Cache" / "maintenance" / "operations"
+    operation_root.mkdir(parents=True)
+    (operation_root / f"{operation_id}.json").write_text(
+        json.dumps(
+            {
+                "operation_id": operation_id,
+                "action": "update",
+                "status": "failed",
+                "stage": "failed",
+                "error_code": "MAINTENANCE_START_FAILED",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="MAINTENANCE_HANDOFF_FAILED"):
+        bridge._wait_maintenance_handoff(operation_id, timeout=0.1)
+
+
+def test_snapshot_exposes_only_sanitized_maintenance_fields(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    maintenance_root = tmp_path / "Cache" / "maintenance"
+    maintenance_root.mkdir(parents=True)
+    (maintenance_root / "last-operation.json").write_text(
+        json.dumps(
+            {
+                "operation_id": "e" * 32,
+                "action": "update",
+                "status": "failed",
+                "stage": "failed",
+                "failure_stage": "running_msi",
+                "error_code": "MSI_FAILED",
+                "msi_exit_code": 1603,
+                "target_version": "0.3.3",
+                "updated_at": 123.0,
+                "private_path": r"C:\Users\secret\candidate.msi",
+                "exception": "private stack trace",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _offline(bridge.client)
+    monkeypatch.setattr(
+        bridge.client,
+        "get",
+        lambda _path: (_ for _ in ()).throw(AgentConnectionError("AGENT_CONNECTION_REFUSED")),
+    )
+
+    value = bridge.snapshot()["maintenance"]
+
+    assert value == {
+        "operation_id": "e" * 32,
+        "action": "update",
+        "status": "failed",
+        "stage": "failed",
+        "failure_stage": "running_msi",
+        "error_code": "MSI_FAILED",
+        "msi_exit_code": 1603,
+        "target_version": "0.3.3",
+        "updated_at": 123.0,
+    }

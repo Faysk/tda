@@ -4,11 +4,14 @@ import hashlib
 import json
 import os
 import re
+import ssl
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 
+from .network import NetworkClient, NetworkError, classify_network_error
 from .release_download import ReleaseRedirectError, open_verified_release
 
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
@@ -35,6 +38,27 @@ def version_tuple(value: str) -> tuple[int, int, int]:
     return tuple(int(match[index]) for index in range(1, 4))  # type: ignore[return-value]
 
 
+def _version_locked_download_url(raw_url: str, version: str) -> str:
+    url = urljoin(PRODUCTION_ORIGIN + "/", raw_url)
+    parsed = urlsplit(url)
+    try:
+        query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as exc:
+        raise ValueError("INVALID_UPDATE_URL") from exc
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "dnd.faysk.dev"
+        or parsed.username
+        or parsed.password
+        or parsed.port is not None
+        or parsed.path != "/api/downloads/companion/windows"
+        or parsed.fragment
+        or query != {"version": [version]}
+    ):
+        raise ValueError("INVALID_UPDATE_URL")
+    return url
+
+
 def parse_manifest(value: object) -> UpdateManifest:
     if not isinstance(value, dict):
         raise ValueError("INVALID_UPDATE_MANIFEST")
@@ -55,9 +79,7 @@ def parse_manifest(value: object) -> UpdateManifest:
     size = asset.get("size")
     if not isinstance(raw_url, str):
         raise ValueError("INVALID_UPDATE_URL")
-    url = urljoin(PRODUCTION_ORIGIN + "/", raw_url)
-    if url != f"{PRODUCTION_ORIGIN}/api/downloads/companion/windows":
-        raise ValueError("INVALID_UPDATE_URL")
+    url = _version_locked_download_url(raw_url, version)
     if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
         raise ValueError("INVALID_UPDATE_DIGEST")
     if not isinstance(size, int) or isinstance(size, bool) or size <= 0 or size > 512 * 1024 * 1024:
@@ -65,18 +87,31 @@ def parse_manifest(value: object) -> UpdateManifest:
     return UpdateManifest(version, tag, minimum_api, url, digest, size)
 
 
-def fetch_manifest(timeout: float = 8.0) -> UpdateManifest:
+def fetch_manifest(
+    timeout: float = 8.0,
+    *,
+    client: NetworkClient | None = None,
+) -> UpdateManifest:
     request = urllib.request.Request(
         MANIFEST_URL,
-        headers={"Accept": "application/json", "Cache-Control": "no-cache", "User-Agent": "TDACompanion"},
+        headers={
+            "Accept": "application/json",
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "User-Agent": "TDACompanion",
+        },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed HTTPS endpoint
+    network = client or NetworkClient.internet()
+    with network.open(request, timeout=timeout) as response:
         if response.status != 200:
-            raise RuntimeError("UPDATE_MANIFEST_HTTP_ERROR")
+            raise NetworkError("HTTP_ERROR", status=response.status)
         body = response.read(64 * 1024 + 1)
         if len(body) > 64 * 1024:
-            raise RuntimeError("UPDATE_MANIFEST_TOO_LARGE")
-    return parse_manifest(json.loads(body.decode("utf-8")))
+            raise NetworkError("MANIFEST_INVALID")
+    try:
+        return parse_manifest(json.loads(body.decode("utf-8")))
+    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise NetworkError("MANIFEST_INVALID") from exc
 
 
 def update_available(current_version: str, manifest: UpdateManifest) -> bool:
@@ -94,7 +129,12 @@ def download_update(manifest: UpdateManifest, cache_root: Path, timeout: float =
     total = 0
     request = urllib.request.Request(
         manifest.url,
-        headers={"Accept": "application/x-msi,application/octet-stream", "Cache-Control": "no-cache", "User-Agent": "TDACompanion"},
+        headers={
+            "Accept": "application/x-msi,application/octet-stream",
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "User-Agent": "TDACompanion",
+        },
     )
     expected_github_url = f"https://github.com/Faysk/tda/releases/download/{manifest.tag}/TDACompanion-x64.msi"
     try:
@@ -122,8 +162,11 @@ def download_update(manifest: UpdateManifest, cache_root: Path, timeout: float =
         if total != manifest.size:
             raise RuntimeError("UPDATE_SIZE_MISMATCH")
         if digest.hexdigest() != manifest.sha256:
-            raise RuntimeError("UPDATE_DIGEST_MISMATCH")
+            raise NetworkError("HASH_MISMATCH")
         os.replace(temporary, target)
         return target
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError, ssl.SSLError) as exc:
+        failure = classify_network_error(exc)
+        raise NetworkError(failure.code, status=failure.status) from exc
     finally:
         temporary.unlink(missing_ok=True)

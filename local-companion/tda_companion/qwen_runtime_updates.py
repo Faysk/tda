@@ -4,10 +4,13 @@ import hashlib
 import json
 import os
 import re
+import ssl
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from .network import NetworkClient, NetworkError, classify_network_error
 from .qwen_runtime_bundle import (
     QwenRuntimeBundleManifest,
     QwenRuntimePart,
@@ -60,26 +63,32 @@ def parse_qwen_runtime_download_manifest(value: object) -> QwenRuntimeDownloadMa
     return QwenRuntimeDownloadManifest(version=version, tag=tag, bundle=bundle)
 
 
-def fetch_qwen_runtime_manifest(timeout: float = 8.0) -> QwenRuntimeDownloadManifest:
+def fetch_qwen_runtime_manifest(
+    timeout: float = 8.0,
+    *,
+    client: NetworkClient | None = None,
+) -> QwenRuntimeDownloadManifest:
     request = urllib.request.Request(
         MANIFEST_URL,
         headers={
             "Accept": "application/json",
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
             "User-Agent": "TDACompanion",
         },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed HTTPS endpoint
+    network = client or NetworkClient.internet()
+    with network.open(request, timeout=timeout) as response:
         if response.status != 200:
-            raise RuntimeError("QWEN_RUNTIME_MANIFEST_HTTP_ERROR")
+            raise NetworkError("HTTP_ERROR", status=response.status)
         body = response.read(256 * 1024 + 1)
         if len(body) > 256 * 1024:
-            raise RuntimeError("QWEN_RUNTIME_MANIFEST_TOO_LARGE")
+            raise NetworkError("MANIFEST_INVALID")
     try:
         value = json.loads(body.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("QWEN_RUNTIME_MANIFEST_INVALID") from exc
-    return parse_qwen_runtime_download_manifest(value)
+        return parse_qwen_runtime_download_manifest(value)
+    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise NetworkError("MANIFEST_INVALID") from exc
 
 
 def qwen_runtime_update_available(
@@ -161,9 +170,12 @@ def _download_part(
         if total != part.size:
             raise RuntimeError("QWEN_RUNTIME_PART_SIZE_MISMATCH")
         if digest.hexdigest() != part.sha256:
-            raise RuntimeError("QWEN_RUNTIME_PART_DIGEST_MISMATCH")
+            raise NetworkError("HASH_MISMATCH")
         os.replace(temporary, target)
         return target
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError, ssl.SSLError) as exc:
+        failure = classify_network_error(exc)
+        raise NetworkError(failure.code, status=failure.status) from exc
     finally:
         temporary.unlink(missing_ok=True)
 

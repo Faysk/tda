@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -102,10 +103,17 @@ def run_desktop(
         return None
 
     window.events.closing += on_closing
+    previous_renderer = os.environ.get("TDA_DESKTOP_RENDERER")
+    os.environ["TDA_DESKTOP_RENDERER"] = "edgechromium"
     try:
-        # Force the modern Windows WebView2 renderer. A missing Evergreen runtime
-        # is a diagnosable installation problem, not a reason to fall back to IE.
+        # Force the modern Windows WebView2 renderer. While this event loop is
+        # alive, diagnostics can treat the running renderer itself as positive
+        # evidence that WebView2 is available even if registry reads are blocked.
         webview.start(gui="edgechromium", debug=False)
     finally:
+        if previous_renderer is None:
+            os.environ.pop("TDA_DESKTOP_RENDERER", None)
+        else:
+            os.environ["TDA_DESKTOP_RENDERER"] = previous_renderer
         if tray is not None:
             tray.stop()

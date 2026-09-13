@@ -118,11 +118,13 @@ Set-Content -Path (Join-Path $packageRoot "README.txt") -Value $readme -Encoding
 $zip = Join-Path $output "TDACompanion-$version-windows-x64.zip"
 Compress-Archive -Path (Join-Path $packageRoot "*") -DestinationPath $zip -CompressionLevel Optimal
 
+$wxs = Join-Path $PSScriptRoot "TDACompanion.wxs"
 $msi = Join-Path $output "TDACompanion-x64.msi"
 & $wixPath build `
-    (Join-Path $PSScriptRoot "TDACompanion.wxs") `
+    $wxs `
     -arch x64 `
     -d "Version=$version" `
+    -d "RollbackProbe=0" `
     -bindpath "App=$appRoot" `
     -bindpath "Metadata=$metadataRoot" `
     -pdbtype none `
@@ -130,10 +132,26 @@ $msi = Join-Path $output "TDACompanion-x64.msi"
 if ($LASTEXITCODE -ne 0) { throw "WIX_BUILD_FAILED" }
 if (-not (Test-Path $msi)) { throw "MSI_NOT_CREATED" }
 
+# Test-only MSI: identical payload/version, but with a Type 19 failure scheduled
+# immediately after RemoveExistingProducts. It is never uploaded or published.
+$rollbackProbeMsi = Join-Path $output "TDACompanion-rollback-probe-x64.msi"
+& $wixPath build `
+    $wxs `
+    -arch x64 `
+    -d "Version=$version" `
+    -d "RollbackProbe=1" `
+    -bindpath "App=$appRoot" `
+    -bindpath "Metadata=$metadataRoot" `
+    -pdbtype none `
+    -o $rollbackProbeMsi
+if ($LASTEXITCODE -ne 0) { throw "WIX_ROLLBACK_PROBE_BUILD_FAILED" }
+if (-not (Test-Path $rollbackProbeMsi)) { throw "ROLLBACK_PROBE_MSI_NOT_CREATED" }
+
 $msiHash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
 Set-Content -Path (Join-Path $output "TDACompanion-x64.msi.sha256") -Value "$msiHash  TDACompanion-x64.msi" -Encoding ascii -NoNewline
 
 Write-Host "TDA Companion package: $packageRoot"
 Write-Host "ZIP: $zip"
 Write-Host "MSI: $msi"
+Write-Host "Rollback probe MSI (test-only): $rollbackProbeMsi"
 Write-Host "MSI SHA256: $msiHash"

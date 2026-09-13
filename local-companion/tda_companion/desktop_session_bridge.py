@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 import shutil
+import tempfile
+import time
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 from . import VERSION
 from .agent_connection import AgentConnection, AgentConnectionError
@@ -46,6 +50,73 @@ class SessionDesktopBridge(DesktopBridge):
             start_agent,
             expected_version=VERSION,
         )
+        self._last_maintenance_operation_id: str | None = None
+
+    @staticmethod
+    def _read_maintenance_summary(
+        path: Path,
+        *,
+        expected_operation_id: str | None = None,
+    ) -> dict[str, object] | None:
+        try:
+            if not path.is_file() or path.stat().st_size > 64 * 1024:
+                return None
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        operation_id = value.get("operation_id")
+        status = value.get("status")
+        stage = value.get("stage")
+        action = value.get("action")
+        if (
+            not isinstance(operation_id, str)
+            or len(operation_id) != 32
+            or (expected_operation_id is not None and operation_id != expected_operation_id)
+            or status not in {"running", "completed", "failed"}
+            or not isinstance(stage, str)
+            or action not in {"update", "uninstall"}
+        ):
+            return None
+        allowed = (
+            "operation_id",
+            "action",
+            "status",
+            "stage",
+            "failure_stage",
+            "error_code",
+            "msi_exit_code",
+            "target_version",
+            "purge",
+            "updated_at",
+        )
+        return {key: value.get(key) for key in allowed if key in value}
+
+    def _maintenance_snapshot(self) -> dict[str, object] | None:
+        return self._read_maintenance_summary(
+            self.paths.cache_root / "maintenance" / "last-operation.json"
+        )
+
+    def _wait_maintenance_handoff(self, operation_id: str, timeout: float = 3.0) -> None:
+        path = (
+            self.paths.cache_root
+            / "maintenance"
+            / "operations"
+            / f"{operation_id}.json"
+        )
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            value = self._read_maintenance_summary(
+                path,
+                expected_operation_id=operation_id,
+            )
+            if value is not None:
+                if value.get("status") == "failed":
+                    raise RuntimeError("MAINTENANCE_HANDOFF_FAILED")
+                return
+            time.sleep(0.05)
+        raise RuntimeError("MAINTENANCE_HANDOFF_TIMEOUT")
 
     def _offline_snapshot(self, code: str) -> dict[str, object]:
         connection = self.client.status()
@@ -67,6 +138,7 @@ class SessionDesktopBridge(DesktopBridge):
                 "error": code,
             },
             "connection": connection,
+            "maintenance": self._maintenance_snapshot(),
             "system": {},
             "storage": storage,
             "counts": {"processing": 0, "queued": 0, "completed": 0, "attention": 0},
@@ -87,7 +159,11 @@ class SessionDesktopBridge(DesktopBridge):
             value = super().snapshot()
         except AgentConnectionError as exc:
             return self._offline_snapshot(exc.code)
-        return {**value, "connection": self.client.status()}
+        return {
+            **value,
+            "connection": self.client.status(),
+            "maintenance": self._maintenance_snapshot(),
+        }
 
     def logs(
         self,
@@ -119,6 +195,60 @@ class SessionDesktopBridge(DesktopBridge):
 
     def restart_agent(self) -> bool:
         return self.client.restart()
+
+    def _maintenance_helper(self) -> Path:
+        operation_id = self._last_maintenance_operation_id
+        if operation_id is None:
+            raise RuntimeError("MAINTENANCE_OPERATION_ID_MISSING")
+        source = self.executable.parent / "TDACompanionMaintenance.exe"
+        if not source.is_file():
+            raise RuntimeError("MAINTENANCE_HELPER_MISSING")
+        parent = Path(tempfile.gettempdir()) / "TDACompanionMaintenance"
+        parent.mkdir(parents=True, exist_ok=True)
+        staging = parent / operation_id
+        staging.mkdir(exist_ok=False)
+        target = staging / "TDACompanionMaintenance.exe"
+        shutil.copy2(source, target)
+        return target
+
+    def _launch_maintenance(self, arguments: list[str]) -> bool:
+        operation_id = uuid4().hex
+        self._last_maintenance_operation_id = operation_id
+        try:
+            launched = super()._launch_maintenance(
+                [
+                    *arguments,
+                    "--cleanup-self",
+                    "--operation-id",
+                    operation_id,
+                ]
+            )
+        except BaseException:
+            shutil.rmtree(
+                Path(tempfile.gettempdir()) / "TDACompanionMaintenance" / operation_id,
+                ignore_errors=True,
+            )
+            raise
+        if not launched:
+            raise RuntimeError("MAINTENANCE_LAUNCH_FAILED")
+        self._wait_maintenance_handoff(operation_id)
+        return True
+
+    def install_update(self) -> dict[str, object]:
+        self._last_maintenance_operation_id = None
+        result = super().install_update()
+        operation_id = self._last_maintenance_operation_id
+        if result.get("accepted") is True and operation_id is not None:
+            return {**result, "operation_id": operation_id}
+        return result
+
+    def uninstall(self, purge: bool = False) -> dict[str, object]:
+        self._last_maintenance_operation_id = None
+        result = super().uninstall(purge)
+        operation_id = self._last_maintenance_operation_id
+        if result.get("accepted") is True and operation_id is not None:
+            return {**result, "operation_id": operation_id}
+        return result
 
     def _require_selected_source(self, source_id: str) -> None:
         if not isinstance(source_id, str) or not _CRAIG_SOURCE_ID.fullmatch(source_id):
