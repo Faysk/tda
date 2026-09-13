@@ -95,13 +95,15 @@ A hidratação adiciona intenção de mídia somente quando já existe binding p
 7. Bindings de entidades não públicas podem continuar apontando para assets verificados em staging privado; URL pública só é projetada para assets explicitamente `verified_public`.
 8. No boundary da aplicação, uma publicação exclusivamente de mídia é reportada como `saved` mesmo quando graph/layout retornam `unchanged`, evitando feedback enganoso de “nada para publicar”.
 
-## Homologação remota
+## Validação e ativação controlada
 
-A primeira validação remota não usa o Supabase Production como staging. O projeto Production permanece `dmrqnbdvbkfqzctcerbx`; o schema candidato deve ser aplicado em uma **development branch Supabase isolada**, sem dados de Production, e receber somente fixtures mínimas não sensíveis necessárias ao smoke. O feature flag `TDA_WORLD_ENTITY_MEDIA_ENABLED` permanece `false` até que o deployment de homologação esteja deliberadamente apontado para essa branch e para o bucket `tda-media-preview`.
+O gate padrão antes da ativação é o PostgreSQL 16 efêmero da CI, que executa o contrato SQL candidato e os testes sintéticos sem tocar no Supabase remoto. **Não é requisito manter um projeto ou uma development branch Supabase dedicada de homologação para esta fase.** Infraestrutura isolada adicional só deve ser criada se surgir um risco específico que não possa ser validado de forma razoável pela CI e por smoke controlado, e sempre como decisão explícita de custo/operação.
+
+`TDA_WORLD_ENTITY_MEDIA_ENABLED` permanece `false` até uma decisão explícita de rollout. Quando a feature estiver pronta para ativação, o candidato deve seguir o procedimento normal do ambiente alvo: revisar migration/history e dry-run, configurar o storage necessário, habilitar a flag de forma controlada e executar um smoke pequeno com poucas entidades antes de ampliar o uso. Production não deve ser usado como ambiente de experimentação; qualquer mutação nela continua sujeita aos gates normais de release.
 
 Para o bucket de Preview, o contrato operacional gerenciado pelo repo é:
 
-- CORS para **uma origem HTTPS exata** do deployment Vercel de homologação; não usar wildcard e não incluir `dnd.faysk.dev`;
+- CORS para **uma origem HTTPS exata** do deployment Vercel que será testado; não usar wildcard e não incluir `dnd.faysk.dev`;
 - somente método `PUT`;
 - somente header `Content-Type`;
 - `ETag` pode ser exposto ao browser;
@@ -129,7 +131,7 @@ Remover o portrait grava `primaryMediaAssetId = null` no draft e restaura o fall
 
 Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e já pode ser ajustado horizontal e verticalmente no inspector, com ação para recentralizar.
 
-Nesta fundação não existe derivado físico `portrait-node` por antecipação. O retrato público pequeno usa `next/image`; o preview privado autenticado fica `unoptimized` para preservar auth. A homologação mede bytes/requests com múltiplos portraits e só transforma um derivado pequeno em requisito antes da ativação se a medição provar necessidade, sempre derivando do master e registrando provenance própria.
+Nesta fundação não existe derivado físico `portrait-node` por antecipação. O retrato público pequeno usa `next/image`; o preview privado autenticado fica `unoptimized` para preservar auth. O smoke controlado mede bytes/requests com múltiplos portraits e só transforma um derivado pequeno em requisito antes da ativação se a medição provar necessidade, sempre derivando do master e registrando provenance própria.
 
 ## Limites iniciais
 
