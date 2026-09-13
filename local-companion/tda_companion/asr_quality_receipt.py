@@ -12,6 +12,19 @@ from .transcript import TranscriptDocument
 
 RECEIPT_SCHEMA = "tda_asr_quality_receipt_v1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_RUNTIME_VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+ -]{0,159}$")
+_RUNTIME_KEYS = frozenset(
+    {
+        "python",
+        "tda_companion",
+        "qwen_asr",
+        "faster_whisper",
+        "torch",
+        "ctranslate2",
+        "cuda_driver",
+        "cuda_runtime",
+    }
+)
 
 
 class AsrQualityReceiptError(ValueError):
@@ -30,10 +43,14 @@ def _safe_runtime(values: Mapping[str, str] | None) -> dict[str, str]:
         return {}
     output: dict[str, str] = {}
     for key, value in sorted(values.items()):
-        name = str(key).strip()[:80]
-        text = str(value).strip()[:160]
+        name = str(key).strip()
+        text = str(value).strip()
         if not name or not text:
             continue
+        if name not in _RUNTIME_KEYS:
+            raise AsrQualityReceiptError(f"runtime.{name}:KEY_UNSUPPORTED")
+        if not _RUNTIME_VALUE.fullmatch(text):
+            raise AsrQualityReceiptError(f"runtime.{name}:VALUE_UNSAFE")
         output[name] = text
     return output
 
@@ -49,8 +66,9 @@ def build_quality_receipt(
 ) -> dict[str, object]:
     """Build a content-only benchmark receipt.
 
-    The receipt intentionally contains no transcript/reference text and no filesystem
-    paths. A measured receipt has no pass/fail claim until thresholds are supplied.
+    The receipt intentionally contains no transcript/reference text, raw recording
+    identifiers or filesystem paths. A measured receipt has no pass/fail claim until
+    thresholds are supplied.
     """
 
     document.validate()
@@ -66,7 +84,6 @@ def build_quality_receipt(
     return {
         "schema": RECEIPT_SCHEMA,
         "source": {
-            "recording_id": document.recording_id,
             "source_sha256": _sha256(document.source_sha256, "source_sha256"),
             "reference_sha256": _sha256(reference_sha256, "reference_sha256"),
             "hypothesis_sha256": _sha256(hypothesis_sha256, "hypothesis_sha256"),
