@@ -1,12 +1,124 @@
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+from typing import Callable
+
+from . import VERSION
+from .agent_connection import AgentConnection, AgentConnectionError
 from .asr_models import get_profile
+from .asr_runtime import inspect_whisper_runtime
 from .desktop import DesktopBridge, _CRAIG_SOURCE_ID, _PROFILE_ORDER
+from .paths import CompanionPaths
 from .qwen_desktop_prepare import QwenDesktopPrepareError, prepare_qwen_profile_from_craig
+from .qwen_runtime import inspect_qwen_runtime
+from .settings import SettingsStore
 
 
 class SessionDesktopBridge(DesktopBridge):
-    """Desktop product workflow layered over the generic maintenance bridge."""
+    """Desktop product workflow layered over the generic maintenance bridge.
+
+    The installed product uses one verified AgentConnection for every loopback
+    operation. Local-only UI state can still render while the Agent reconnects.
+    """
+
+    def __init__(
+        self,
+        *,
+        token: str,
+        port: int,
+        paths: CompanionPaths,
+        settings: SettingsStore,
+        executable: Path,
+        start_agent: Callable[[], object],
+    ):
+        super().__init__(
+            token=token,
+            port=port,
+            paths=paths,
+            settings=settings,
+            executable=executable,
+            start_agent=start_agent,
+        )
+        self.client = AgentConnection(
+            token,
+            port,
+            start_agent,
+            expected_version=VERSION,
+        )
+
+    def _offline_snapshot(self, code: str) -> dict[str, object]:
+        connection = self.client.status()
+        try:
+            usage = shutil.disk_usage(self.paths.data_root)
+            storage = {"free_bytes": usage.free, "total_bytes": usage.total}
+        except OSError:
+            storage = {"free_bytes": None, "total_bytes": None}
+        whisper_runtime = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=False)
+        qwen_runtime = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=False)
+        return {
+            "version": VERSION,
+            "agent": {
+                "product_id": "tda-companion",
+                "api_version": "1",
+                "service_version": connection.get("service_version") or VERSION,
+                "port": self.port,
+                "lifecycle": connection.get("state") or "unavailable",
+                "error": code,
+            },
+            "connection": connection,
+            "system": {},
+            "storage": storage,
+            "counts": {"processing": 0, "queued": 0, "completed": 0, "attention": 0},
+            "jobs": [],
+            "settings": self.settings.snapshot(),
+            "whisper_runtime": {
+                "status": whisper_runtime.get("status"),
+                "version": whisper_runtime.get("version"),
+            },
+            "qwen_runtime": {
+                "status": qwen_runtime.get("status"),
+                "version": qwen_runtime.get("version"),
+            },
+        }
+
+    def snapshot(self) -> dict[str, object]:
+        try:
+            value = super().snapshot()
+        except AgentConnectionError as exc:
+            return self._offline_snapshot(exc.code)
+        return {**value, "connection": self.client.status()}
+
+    def logs(
+        self,
+        level: str | None = None,
+        component: str | None = None,
+        limit: int = 200,
+    ) -> dict[str, object]:
+        try:
+            return super().logs(level=level, component=component, limit=limit)
+        except AgentConnectionError as exc:
+            return {
+                "logs": [],
+                "unavailable": True,
+                "error": exc.code,
+                "connection": self.client.status(),
+            }
+
+    def transcription_profiles(self) -> dict[str, object]:
+        try:
+            return super().transcription_profiles()
+        except AgentConnectionError as exc:
+            return {
+                "profiles": [],
+                "recommended": None,
+                "unavailable": True,
+                "error": exc.code,
+                "connection": self.client.status(),
+            }
+
+    def restart_agent(self) -> bool:
+        return self.client.restart()
 
     def _require_selected_source(self, source_id: str) -> None:
         if not isinstance(source_id, str) or not _CRAIG_SOURCE_ID.fullmatch(source_id):

@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from . import VERSION
 from .agent import AgentController, wait_until_ready
+from .agent_connection import probe_agent
 from .pairing import TOKEN_PATTERN, ensure_pairing_token
 from .paths import CompanionPaths, default_paths, migrate_v02_layout
 from .settings import SettingsStore
@@ -98,8 +99,20 @@ def _agent_arguments(args: argparse.Namespace) -> list[str]:
 
 
 def ensure_agent_running(args: argparse.Namespace) -> subprocess.Popen | None:
-    if wait_until_ready(args.port, timeout=0.6):
+    """Ensure the current Agent is available without trusting an arbitrary listener.
+
+    A verified-but-different/foreign listener is deliberately left untouched so the
+    Desktop can render an explicit compatibility/port-conflict state. We only spawn
+    when the loopback endpoint is actually unavailable.
+    """
+    existing = probe_agent(
+        args.port,
+        expected_version=VERSION,
+        timeout=0.5,
+    )
+    if existing.state in {"exact", "compatible", "foreign", "incompatible"}:
         return None
+
     creationflags = 0
     if os.name == "nt":
         creationflags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -115,7 +128,7 @@ def ensure_agent_running(args: argparse.Namespace) -> subprocess.Popen | None:
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"LOCAL_AGENT_EXITED:{process.returncode}")
-        if wait_until_ready(args.port, timeout=0.3):
+        if wait_until_ready(args.port, timeout=0.3, expected_version=VERSION):
             return process
     raise RuntimeError("LOCAL_AGENT_START_TIMEOUT")
 

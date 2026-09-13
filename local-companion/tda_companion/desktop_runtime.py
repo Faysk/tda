@@ -9,6 +9,24 @@ from .settings import SettingsStore
 from .tray import TrayController
 
 
+class DesktopExitCoordinator:
+    """Separate a user's close gesture from an intentional product shutdown."""
+
+    def __init__(self) -> None:
+        self.programmatic_exit = False
+
+    def request_exit(self, close: Callable[[], None]) -> None:
+        self.programmatic_exit = True
+        close()
+
+    def should_hide(self, close_behavior: str, *, tray_available: bool) -> bool:
+        return (
+            not self.programmatic_exit
+            and close_behavior == "hide"
+            and tray_available
+        )
+
+
 def ui_entry() -> Path:
     path = Path(__file__).resolve().parent / "ui" / "index.html"
     if not path.is_file():
@@ -23,7 +41,7 @@ def run_desktop(
     paths: CompanionPaths,
     settings: SettingsStore,
     executable: Path,
-    start_agent: Callable[[], None],
+    start_agent: Callable[[], object],
 ) -> None:
     """Run the product desktop UI while the Agent stays in its own process."""
     try:
@@ -50,7 +68,8 @@ def run_desktop(
         text_select=True,
         zoomable=False,
     )
-    bridge.bind_close_desktop(window.destroy)
+    exit_coordinator = DesktopExitCoordinator()
+    bridge.bind_close_desktop(lambda: exit_coordinator.request_exit(window.destroy))
 
     def select_craig_zip() -> str | None:
         selected = window.create_file_dialog(
@@ -74,7 +93,10 @@ def run_desktop(
 
     def on_closing() -> bool | None:
         current = settings.snapshot()
-        if current.get("close_behavior") == "hide" and tray is not None:
+        if exit_coordinator.should_hide(
+            str(current.get("close_behavior") or "hide"),
+            tray_available=tray is not None,
+        ):
             window.hide()
             return False
         return None
