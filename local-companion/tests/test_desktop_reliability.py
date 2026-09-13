@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from tda_companion.agent_connection import AgentConnectionError
 from tda_companion.desktop import DesktopBridge
 from tda_companion.desktop_session_bridge import SessionDesktopBridge
@@ -111,6 +113,7 @@ def test_background_logs_return_degraded_state_instead_of_throwing(monkeypatch, 
 def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_path: Path):
     bridge = _bridge(tmp_path)
     seen: dict[str, list[str]] = {}
+    handoffs: list[str] = []
 
     def fake_launch(self, arguments):  # noqa: ANN001
         seen["arguments"] = list(arguments)
@@ -122,12 +125,40 @@ def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_p
 
     monkeypatch.setattr(DesktopBridge, "_launch_maintenance", fake_launch)
     monkeypatch.setattr(DesktopBridge, "install_update", fake_install)
+    monkeypatch.setattr(
+        SessionDesktopBridge,
+        "_wait_maintenance_handoff",
+        lambda self, operation_id, timeout=3.0: handoffs.append(operation_id),
+    )
 
     result = bridge.install_update()
 
     operation_id = result["operation_id"]
     assert isinstance(operation_id, str) and len(operation_id) == 32
     assert seen["arguments"][-2:] == ["--operation-id", operation_id]
+    assert handoffs == [operation_id]
+
+
+def test_failed_handoff_blocks_ui_close_contract(tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    operation_id = "f" * 32
+    operation_root = tmp_path / "Cache" / "maintenance" / "operations"
+    operation_root.mkdir(parents=True)
+    (operation_root / f"{operation_id}.json").write_text(
+        json.dumps(
+            {
+                "operation_id": operation_id,
+                "action": "update",
+                "status": "failed",
+                "stage": "failed",
+                "error_code": "MAINTENANCE_START_FAILED",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="MAINTENANCE_HANDOFF_FAILED"):
+        bridge._wait_maintenance_handoff(operation_id, timeout=0.1)
 
 
 def test_snapshot_exposes_only_sanitized_maintenance_fields(monkeypatch, tmp_path: Path):
