@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -102,8 +103,9 @@ def _metrics() -> QualityMetrics:
 
 
 def test_receipt_is_deterministic_and_contains_no_transcript_text_or_paths() -> None:
+    document = replace(_document(), recording_id=r"C:\Users\Alice\session.zip")
     receipt = build_quality_receipt(
-        _document(),
+        document,
         _metrics(),
         reference_sha256="c" * 64,
         hypothesis_sha256="d" * 64,
@@ -117,10 +119,35 @@ def test_receipt_is_deterministic_and_contains_no_transcript_text_or_paths() -> 
     text = first.decode("utf-8")
     assert "fala privada" not in text
     assert "track.flac" not in text
+    assert "recording_id" not in text
+    assert "Alice" not in text
+    assert "session.zip" not in text
     assert receipt["gate"] is None
     parsed = json.loads(text)
     assert parsed["source"]["source_sha256"] == "a" * 64
     assert parsed["runtime"] == {"python": "3.12.14"}
+
+
+def test_receipt_rejects_runtime_keys_that_are_not_explicit_versions() -> None:
+    with pytest.raises(AsrQualityReceiptError, match="runtime.cwd:KEY_UNSUPPORTED"):
+        build_quality_receipt(
+            _document(),
+            _metrics(),
+            reference_sha256="c" * 64,
+            hypothesis_sha256="d" * 64,
+            runtime={"cwd": r"C:\Users\Alice"},
+        )
+
+
+def test_receipt_rejects_path_like_runtime_values() -> None:
+    with pytest.raises(AsrQualityReceiptError, match="runtime.python:VALUE_UNSAFE"):
+        build_quality_receipt(
+            _document(),
+            _metrics(),
+            reference_sha256="c" * 64,
+            hypothesis_sha256="d" * 64,
+            runtime={"python": r"C:\Users\Alice\python.exe"},
+        )
 
 
 def test_receipt_only_claims_pass_when_explicit_thresholds_are_supplied() -> None:
