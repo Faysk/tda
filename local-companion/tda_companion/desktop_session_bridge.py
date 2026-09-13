@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable
@@ -195,12 +196,39 @@ class SessionDesktopBridge(DesktopBridge):
     def restart_agent(self) -> bool:
         return self.client.restart()
 
+    def _maintenance_helper(self) -> Path:
+        operation_id = self._last_maintenance_operation_id
+        if operation_id is None:
+            raise RuntimeError("MAINTENANCE_OPERATION_ID_MISSING")
+        source = self.executable.parent / "TDACompanionMaintenance.exe"
+        if not source.is_file():
+            raise RuntimeError("MAINTENANCE_HELPER_MISSING")
+        parent = Path(tempfile.gettempdir()) / "TDACompanionMaintenance"
+        parent.mkdir(parents=True, exist_ok=True)
+        staging = parent / operation_id
+        staging.mkdir(exist_ok=False)
+        target = staging / "TDACompanionMaintenance.exe"
+        shutil.copy2(source, target)
+        return target
+
     def _launch_maintenance(self, arguments: list[str]) -> bool:
         operation_id = uuid4().hex
         self._last_maintenance_operation_id = operation_id
-        launched = super()._launch_maintenance(
-            [*arguments, "--operation-id", operation_id]
-        )
+        try:
+            launched = super()._launch_maintenance(
+                [
+                    *arguments,
+                    "--cleanup-self",
+                    "--operation-id",
+                    operation_id,
+                ]
+            )
+        except BaseException:
+            shutil.rmtree(
+                Path(tempfile.gettempdir()) / "TDACompanionMaintenance" / operation_id,
+                ignore_errors=True,
+            )
+            raise
         if not launched:
             raise RuntimeError("MAINTENANCE_LAUNCH_FAILED")
         self._wait_maintenance_handoff(operation_id)
