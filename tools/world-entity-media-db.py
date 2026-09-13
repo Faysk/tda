@@ -96,8 +96,11 @@ try:
     paths = [
         repo / "supabase/tests/world_layout_fixture.sql",
         *migration_paths,
-        # Establish a realistic published World using the canonical authoring
-        # contract before layering the media candidate on top of it.
+        # Reuse the same synthetic setup sequence as tools/world-layout-db.py.
+        # The earlier suites create the role assignment/capability state that
+        # the factual authoring contract intentionally expects.
+        repo / "supabase/tests/world_layout_snapshot_atomic.sql",
+        repo / "supabase/tests/world_edit_lease_atomic.sql",
         repo / "supabase/tests/world_graph_authoring_atomic.sql",
         repo / "supabase/candidates/20260912214500_world_entity_media_foundation_v2.sql",
         repo / "supabase/tests/world_entity_media_candidate.sql",
