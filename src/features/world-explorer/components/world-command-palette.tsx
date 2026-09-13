@@ -9,7 +9,10 @@ import {
 	type WorldCommandDefinition,
 	type WorldCommandId,
 } from "../world-commands";
-import { worldEntityMediaShouldBypassImageOptimization } from "../world-entity-media";
+import {
+	worldEntityMediaObjectPosition,
+	worldEntityMediaShouldBypassImageOptimization,
+} from "../world-entity-media";
 import styles from "./world-command-palette.module.css";
 
 const PALETTE_FOCUSABLE =
@@ -270,7 +273,6 @@ export function WorldCommandPalette({
 									</button>
 								);
 							}
-							const focal = result.entity.imageFocalPoint ?? { x: 0.5, y: 0.5 };
 							return (
 								<button
 									key={result.key}
@@ -291,7 +293,7 @@ export function WorldCommandPalette({
 												fill
 												sizes="32px"
 												unoptimized={worldEntityMediaShouldBypassImageOptimization(result.entity.imageUrl)}
-												style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
+												style={{ objectPosition: worldEntityMediaObjectPosition(result.entity.imageFocalPoint) }}
 											/>
 										) : (
 											<span>{entityInitials(result.entity.label)}</span>
