@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from tda_companion.agent_connection import AgentConnectionError
+from tda_companion.desktop import DesktopBridge
 from tda_companion.desktop_session_bridge import SessionDesktopBridge
 
 
@@ -104,3 +105,25 @@ def test_background_logs_return_degraded_state_instead_of_throwing(monkeypatch, 
     assert result["logs"] == []
     assert result["unavailable"] is True
     assert result["connection"]["state"] == "unavailable"
+
+
+def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    seen: dict[str, list[str]] = {}
+
+    def fake_launch(self, arguments):  # noqa: ANN001
+        seen["arguments"] = list(arguments)
+        return True
+
+    def fake_install(self):  # noqa: ANN001
+        self._launch_maintenance(["--install-update", "--version", "0.3.3"])
+        return {"accepted": True, "available": True, "version": "0.3.3"}
+
+    monkeypatch.setattr(DesktopBridge, "_launch_maintenance", fake_launch)
+    monkeypatch.setattr(DesktopBridge, "install_update", fake_install)
+
+    result = bridge.install_update()
+
+    operation_id = result["operation_id"]
+    assert isinstance(operation_id, str) and len(operation_id) == 32
+    assert seen["arguments"][-2:] == ["--operation-id", operation_id]
