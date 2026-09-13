@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const standaloneNoindexLores = ["d", "yllith"] as const;
+
 const config: NextConfig = {
 	poweredByHeader: false,
 	images: {
@@ -43,14 +45,33 @@ const config: NextConfig = {
 		],
 	},
 	async rewrites() {
-		return [
-			{
-				source: "/lore/d",
-				destination: "/lore/d/index.html",
-			},
-		];
+		return standaloneNoindexLores.map((slug) => ({
+			source: `/lore/${slug}`,
+			destination: `/lore/${slug}/index.html`,
+		}));
 	},
 	async headers() {
+		const loreHeaders = standaloneNoindexLores.flatMap((slug) => [
+			{
+				source: `/lore/${slug}`,
+				headers: [
+					{
+						key: "X-Robots-Tag",
+						value: "noindex, nofollow, noarchive, noimageindex",
+					},
+				],
+			},
+			{
+				source: `/lore/${slug}/:path*`,
+				headers: [
+					{
+						key: "X-Robots-Tag",
+						value: "noindex, nofollow, noarchive, noimageindex",
+					},
+				],
+			},
+		]);
+
 		return [
 			{
 				source: "/:path*",
@@ -68,24 +89,7 @@ const config: NextConfig = {
 				source: "/auth/:path*",
 				headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
 			},
-			{
-				source: "/lore/d",
-				headers: [
-					{
-						key: "X-Robots-Tag",
-						value: "noindex, nofollow, noarchive, noimageindex",
-					},
-				],
-			},
-			{
-				source: "/lore/d/:path*",
-				headers: [
-					{
-						key: "X-Robots-Tag",
-						value: "noindex, nofollow, noarchive, noimageindex",
-					},
-				],
-			},
+			...loreHeaders,
 		];
 	},
 };
