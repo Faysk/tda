@@ -42,7 +42,15 @@ export default async function AccountPage({
 			EDIT_CAPABILITIES.localProcess,
 			CAMPAIGN_SLUG,
 		).ok;
-	const hasTasks = allowed || permissionsAllowed || localAllowed;
+	const worldAllowed =
+		access.context &&
+		authorizeCampaignCapability(
+			access.context,
+			EDIT_CAPABILITIES.worldLayoutEdit,
+			CAMPAIGN_SLUG,
+		).ok;
+	const hubAllowed = allowed || permissionsAllowed || localAllowed || worldAllowed;
+	const hasTasks = hubAllowed;
 	const descriptions = {
 		anonymous: "Entre com sua conta do Discord para consultar seu acesso.",
 		unavailable:
@@ -86,12 +94,12 @@ export default async function AccountPage({
 							"Consulte as sessões, a contagem de palavras e a duração registrada.",
 					},
 					{
-						visible: allowed,
+						visible: hubAllowed,
 						id: "edit",
 						href: "/edit",
 						title: "Abrir Edit",
 						description:
-							"Acesse o espaço de revisão das transcrições. Os recursos disponíveis dependem do seu acesso.",
+							"Acesse as ferramentas administrativas disponíveis para a sua conta.",
 					},
 					{
 						visible: permissionsAllowed,
