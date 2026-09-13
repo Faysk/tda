@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { worldEntityMediaAvailabilityAction } from "../world-entity-media-availability-action";
 import {
 	finalizeWorldEntityPortraitUploadAction,
 	requestWorldEntityPortraitUploadAction,
@@ -63,6 +64,7 @@ export function WorldEntityMediaEditor({
 	onFocalPointChange: (focalPoint: WorldMediaFocalPoint) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const [available, setAvailable] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [dragging, setDragging] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
@@ -71,6 +73,20 @@ export function WorldEntityMediaEditor({
 		? worldEntityMediaPreviewUrl(entity.primaryMediaAssetId)
 		: undefined;
 	const focal = entity.primaryMediaFocalPoint ?? { x: 0.5, y: 0.5 };
+
+	useEffect(() => {
+		let active = true;
+		void worldEntityMediaAvailabilityAction()
+			.then((enabled) => {
+				if (active) setAvailable(enabled);
+			})
+			.catch(() => {
+				if (active) setAvailable(false);
+			});
+		return () => {
+			active = false;
+		};
+	}, []);
 
 	async function upload(file: File) {
 		setError(null);
@@ -159,6 +175,8 @@ export function WorldEntityMediaEditor({
 		const file = event.dataTransfer.files.item(0);
 		if (file) void upload(file);
 	}
+
+	if (!available) return null;
 
 	return (
 		<section className={styles.mediaEditor} aria-label="Imagem do elemento" aria-busy={busy}>
