@@ -1,4 +1,4 @@
--- CANDIDATE ONLY — not authorized for Production.
+-- AUTHORIZED FOR CONTROLLED PRODUCTION ROLLOUT — apply only through the governed Production CD.
 -- World entity media foundation v2.
 -- Binary bytes live in Cloudflare R2. PostgreSQL owns stable identity,
 -- verification/provenance and the semantic entity -> media binding.
