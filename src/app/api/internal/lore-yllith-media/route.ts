@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const PUBLIC_BUCKET = "tda-media-public";
 const PUBLIC_ORIGIN = "https://media.dnd.faysk.dev";
+const SITE_FILES = new Set(["index.html", "yllith.css", "yllith.js", "favicon.svg", "historia.md"]);
 
 const assets = {
 	"backgroud_jornada.avif": [44678, "04ae4968021a938e8a8e738bbe84fea20f8e0900bba0be2b6cba70bc635e06b5", "image/avif"],
@@ -23,72 +24,40 @@ const assets = {
 	"yllith.avif": [73407, "d8d2f723883922f2b31682d946e4278bbe178c7ad769b69cf08cd2ed4eaca288", "image/avif"],
 	"yllith_jornada.avif": [33469, "92b5a5922c776170d251afa3190e33e62aab1fb6e1cd9465df437129608a8cad", "image/avif"],
 	"social-yllith.jpg": [95942, "3b01721eadeeed0d0c89a72b3a9ed4131f4b3bfc1a7fe936b9a5de2817733258", "image/jpeg"],
+	"index.html": [56047, "d37439c16dd24a39c98347e20bc76532ae75a7b09889b7aa1eb653bd4bef934a", "text/html; charset=utf-8"],
+	"yllith.css": [37831, "7b0440db4e7f609ab25f6e6a6c22ee393866ff2ddf542e5cbfe18910095f76ae", "text/css; charset=utf-8"],
+	"yllith.js": [13080, "0700e3d8c1819770b70fefcb0daeed4ec18b88f52d632ba0a9c9d52a55a98b67", "text/javascript; charset=utf-8"],
+	"favicon.svg": [585, "e1a0be3b542499177cb57526e0a0e58d1210a5aea99a3fd6d6f61a2b416d24c6", "image/svg+xml"],
+	"historia.md": [16297, "33ca13c18381a977caf86c68af5f7c5c1801e9eeb6e6aca097e17d8ca1de19b1", "text/markdown; charset=utf-8"],
 } as const;
 
 type AssetName = keyof typeof assets;
 
 function isConfigured() {
-	return Boolean(
-		process.env.R2_PUBLIC_BUCKET === PUBLIC_BUCKET &&
-		process.env.R2_ACCOUNT_ID &&
-		process.env.R2_ACCESS_KEY_ID &&
-		process.env.R2_SECRET_ACCESS_KEY,
-	);
+	return Boolean(process.env.R2_PUBLIC_BUCKET === PUBLIC_BUCKET && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY);
 }
-
-function publicUrl(name: AssetName) {
+function objectKey(name: AssetName) {
 	const [, sha256] = assets[name];
-	return `${PUBLIC_ORIGIN}/lore/yllith/${sha256}/${name}`;
+	return SITE_FILES.has(name) ? `lore/yllith/site/${name}` : `lore/yllith/${sha256}/${name}`;
 }
+function publicUrl(name: AssetName) { return `${PUBLIC_ORIGIN}/${objectKey(name)}`; }
 
 export async function GET() {
-	return Response.json({
-		environment: process.env.APP_ENV ?? null,
-		configured: isConfigured(),
-		assets: (Object.keys(assets) as AssetName[]).map((name) => ({ name, url: publicUrl(name) })),
-	});
+	return Response.json({ environment: process.env.APP_ENV ?? null, configured: isConfigured(), assets: (Object.keys(assets) as AssetName[]).map((name) => ({ name, url: publicUrl(name) })) });
 }
 
 export async function POST(request: Request) {
-	if (!["preview", "production"].includes(process.env.APP_ENV ?? "")) {
-		return Response.json({ error: "release-staging endpoint" }, { status: 404 });
-	}
-	if (!isConfigured()) {
-		return Response.json({ error: "R2 configuration unavailable" }, { status: 503 });
-	}
-
+	if (!["preview", "production"].includes(process.env.APP_ENV ?? "")) return Response.json({ error: "release-staging endpoint" }, { status: 404 });
+	if (!isConfigured()) return Response.json({ error: "R2 configuration unavailable" }, { status: 503 });
 	const name = new URL(request.url).searchParams.get("file") as AssetName | null;
-	if (!name || !(name in assets)) {
-		return Response.json({ error: "unknown asset" }, { status: 400 });
-	}
-
+	if (!name || !(name in assets)) return Response.json({ error: "unknown asset" }, { status: 400 });
 	const [expectedBytes, expectedSha256, contentType] = assets[name];
 	const bytes = Buffer.from(await request.arrayBuffer());
-	if (bytes.length !== expectedBytes) {
-		return Response.json({ error: "byte length mismatch" }, { status: 422 });
-	}
+	if (bytes.length !== expectedBytes) return Response.json({ error: "byte length mismatch" }, { status: 422 });
 	const digest = createHash("sha256").update(bytes).digest("hex");
-	if (digest !== expectedSha256) {
-		return Response.json({ error: "sha256 mismatch" }, { status: 422 });
-	}
-
-	const client = new S3Client({
-		region: "auto",
-		endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-		credentials: {
-			accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-			secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-		},
-		requestChecksumCalculation: "WHEN_REQUIRED",
-	});
-	const key = `lore/yllith/${expectedSha256}/${name}`;
-	await client.send(new PutObjectCommand({
-		Bucket: PUBLIC_BUCKET,
-		Key: key,
-		Body: bytes,
-		ContentType: contentType,
-		CacheControl: "public, max-age=31536000, immutable",
-	}));
-
+	if (digest !== expectedSha256) return Response.json({ error: "sha256 mismatch" }, { status: 422 });
+	const client = new S3Client({ region: "auto", endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID!, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY! }, requestChecksumCalculation: "WHEN_REQUIRED" });
+	const key = objectKey(name);
+	await client.send(new PutObjectCommand({ Bucket: PUBLIC_BUCKET, Key: key, Body: bytes, ContentType: contentType, CacheControl: SITE_FILES.has(name) ? "public, max-age=300, must-revalidate" : "public, max-age=31536000, immutable" }));
 	return Response.json({ ok: true, name, sha256: digest, bytes: bytes.length, key, url: publicUrl(name) });
 }
