@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-13
 
 Este documento define os ambientes do TDA, seus limites de dados/segredos e o relacionamento com a esteira. Procedimentos de entrega estão em [CI/CD — operação, promoção e recuperação](ci-cd.md); configuração administrativa está em [CI/CD — configuração administrativa](cicd-admin-setup.md).
 
@@ -114,7 +114,8 @@ Preview não recebe credencial irrestrita de Production apenas por conveniência
 - escrita administrativa em Production a partir de Preview não é o padrão;
 - migrations são validadas em CI, mas aplicadas somente por Production CD;
 - testes de banco do CI usam PostgreSQL scratch/sintético;
-- quando houver necessidade real de dados isolados completos, usar projeto/branch Supabase dedicado conforme plano/custo disponível.
+- quando houver necessidade real de dados isolados completos, usar projeto/branch Supabase dedicado conforme plano/custo disponível;
+- features candidatas que dependem de novo schema, como World entity media, permanecem com o feature flag desligado até o schema isolado, o storage de Preview e o smoke real estarem validados juntos.
 
 ## Production
 
@@ -210,6 +211,7 @@ Exemplos atuais:
 - `TDA_READ_PUBLISHED_DATA`;
 - `TDA_READ_EDIT_DATA`;
 - `TDA_EDIT_UNSAFE`;
+- `TDA_WORLD_ENTITY_MEDIA_ENABLED` — server-side e `false` por padrão; só habilitar após schema/storage/smoke do ambiente alvo;
 - `TDA_AUTH_ORIGIN`;
 - `APP_ENV`;
 - `APP_COMMIT_SHA`;
@@ -257,12 +259,15 @@ A primeira Production completa pela esteira final passou preflight de autentica�
 
 Não executa `db push` no projeto Production. Testes de banco acontecem em PostgreSQL scratch/sintético no CI.
 
+Quando uma feature exige validar um schema candidato contra Supabase real antes da promoção, usar uma development branch do projeto, aplicar o candidato somente nessa branch e apontar a homologação deliberadamente para o `project_ref` isolado. A branch não carrega dados de Production; fixtures necessárias ao smoke precisam ser mínimas, explícitas e não sensíveis. Destruir/recriar a branch é preferível a transformar o banco Production em staging.
+
 ## R2 por ambiente
 
 - Production public/private separados por audience;
 - Preview usa bucket próprio;
 - local pode usar filesystem/mock explícito ou integração configurada;
-- rollback do app não implica apagar/reverter objetos R2.
+- rollback do app não implica apagar/reverter objetos R2;
+- upload browser → `tda-media-preview` exige CORS para a origem exata da homologação e lifecycle curto restrito ao prefixo efêmero `uploads/pending/`; nunca ampliar a regra aos namespaces canônicos `campaigns/`, `lore/` ou `site/`.
 
 ## Vercel
 
