@@ -8,6 +8,7 @@ from tda_companion.agent_connection import (
     AgentConnection,
     AgentConnectionError,
     AgentProbe,
+    AgentTransportError,
 )
 
 
@@ -54,6 +55,29 @@ def test_connection_recovers_once_before_retrying_request(monkeypatch):
     assert starts == 1
     assert calls == [("GET", "/jobs")]
     assert connection.status()["state"] == "ready"
+
+
+def test_retry_reuses_same_idempotency_key_after_transport_failure(monkeypatch):
+    connection = AgentConnection(TOKEN, 8765, lambda: None, expected_version="0.3.2")
+
+    def exact_probe(**_kwargs):
+        probe = AgentProbe("exact", _payload())
+        connection._record_probe(probe)
+        return probe
+
+    calls: list[str | None] = []
+
+    def request_once(_method, _path, _body=None, *, idempotency_key=None):
+        calls.append(idempotency_key)
+        if len(calls) == 1:
+            raise AgentTransportError("AGENT_CONNECTION_REFUSED")
+        return {"ok": True}
+
+    monkeypatch.setattr(connection, "probe", exact_probe)
+    monkeypatch.setattr(connection, "_request_once", request_once)
+
+    assert connection.post("/jobs", {"kind": "fixture"}, idempotency_key="job-fixed-key") == {"ok": True}
+    assert calls == ["job-fixed-key", "job-fixed-key"]
 
 
 def test_manual_stop_disables_automatic_recovery(monkeypatch):
