@@ -1,8 +1,8 @@
-"""Validate the World entity media SQL candidate in disposable PostgreSQL.
+"""Validate the World entity media migration in disposable PostgreSQL.
 
 Synthetic only: Unix socket, no TCP, no inherited PG credentials, no production
-seed and no Supabase connection. Candidate SQL is executed only inside the temp
-cluster and is never promoted/applied remotely by this runner.
+seed and no Supabase connection. Migration SQL is executed only inside the temp
+cluster; this runner never mutates a remote database.
 """
 
 import os
@@ -102,7 +102,7 @@ try:
         repo / "supabase/tests/world_layout_snapshot_atomic.sql",
         repo / "supabase/tests/world_edit_lease_atomic.sql",
         repo / "supabase/tests/world_graph_authoring_atomic.sql",
-        repo / "supabase/candidates/20260912214500_world_entity_media_foundation_v2.sql",
+        repo / "supabase/migrations/20260912214500_world_entity_media_foundation_v2.sql",
         repo / "supabase/tests/world_entity_media_candidate.sql",
     ]
     outputs = [run_sql_file(path).stdout.strip() for path in paths]
@@ -111,7 +111,7 @@ try:
         raise RuntimeError(f"missing media contract receipt: {media_output!r}")
 
     print(
-        "WORLD_ENTITY_MEDIA_DATABASE_OK synthetic=true candidate_only=true "
+        "WORLD_ENTITY_MEDIA_DATABASE_OK synthetic=true migration=true "
         "remote_mutation=false"
     )
 finally:
