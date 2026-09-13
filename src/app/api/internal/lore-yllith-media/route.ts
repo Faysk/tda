@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export const runtime = "nodejs";
@@ -34,30 +34,94 @@ const assets = {
 type AssetName = keyof typeof assets;
 
 function isConfigured() {
-	return Boolean(process.env.R2_PUBLIC_BUCKET === PUBLIC_BUCKET && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY);
+	return Boolean(
+		process.env.R2_PUBLIC_BUCKET === PUBLIC_BUCKET &&
+		process.env.R2_ACCOUNT_ID &&
+		process.env.R2_ACCESS_KEY_ID &&
+		process.env.R2_SECRET_ACCESS_KEY,
+	);
 }
+
+function isProductionAuthorized(request: Request) {
+	if (process.env.APP_ENV !== "production") return true;
+	const expected = process.env.TDA_LORE_STAGING_TOKEN?.trim();
+	const authorization = request.headers.get("authorization");
+	if (!expected || !authorization?.startsWith("Bearer ")) return false;
+	const provided = authorization.slice("Bearer ".length).trim();
+	const providedBytes = Buffer.from(provided, "utf8");
+	const expectedBytes = Buffer.from(expected, "utf8");
+	return (
+		providedBytes.length === expectedBytes.length &&
+		timingSafeEqual(providedBytes, expectedBytes)
+	);
+}
+
 function objectKey(name: AssetName) {
 	const [, sha256] = assets[name];
-	return SITE_FILES.has(name) ? `lore/yllith/site/${name}` : `lore/yllith/${sha256}/${name}`;
+	return SITE_FILES.has(name)
+		? `lore/yllith/site/${name}`
+		: `lore/yllith/${sha256}/${name}`;
 }
-function publicUrl(name: AssetName) { return `${PUBLIC_ORIGIN}/${objectKey(name)}`; }
+
+function publicUrl(name: AssetName) {
+	return `${PUBLIC_ORIGIN}/${objectKey(name)}`;
+}
 
 export async function GET() {
-	return Response.json({ environment: process.env.APP_ENV ?? null, configured: isConfigured(), assets: (Object.keys(assets) as AssetName[]).map((name) => ({ name, url: publicUrl(name) })) });
+	return Response.json({
+		environment: process.env.APP_ENV ?? null,
+		configured: isConfigured(),
+		assets: (Object.keys(assets) as AssetName[]).map((name) => ({
+			name,
+			url: publicUrl(name),
+		})),
+	});
 }
 
 export async function POST(request: Request) {
-	if (!["preview", "production"].includes(process.env.APP_ENV ?? "")) return Response.json({ error: "release-staging endpoint" }, { status: 404 });
-	if (!isConfigured()) return Response.json({ error: "R2 configuration unavailable" }, { status: 503 });
+	if (!["preview", "production"].includes(process.env.APP_ENV ?? ""))
+		return Response.json({ error: "release-staging endpoint" }, { status: 404 });
+	if (!isProductionAuthorized(request))
+		return Response.json({ error: "release-staging endpoint" }, { status: 404 });
+	if (!isConfigured())
+		return Response.json({ error: "R2 configuration unavailable" }, { status: 503 });
 	const name = new URL(request.url).searchParams.get("file") as AssetName | null;
-	if (!name || !(name in assets)) return Response.json({ error: "unknown asset" }, { status: 400 });
+	if (!name || !(name in assets))
+		return Response.json({ error: "unknown asset" }, { status: 400 });
 	const [expectedBytes, expectedSha256, contentType] = assets[name];
 	const bytes = Buffer.from(await request.arrayBuffer());
-	if (bytes.length !== expectedBytes) return Response.json({ error: "byte length mismatch" }, { status: 422 });
+	if (bytes.length !== expectedBytes)
+		return Response.json({ error: "byte length mismatch" }, { status: 422 });
 	const digest = createHash("sha256").update(bytes).digest("hex");
-	if (digest !== expectedSha256) return Response.json({ error: "sha256 mismatch" }, { status: 422 });
-	const client = new S3Client({ region: "auto", endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID!, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY! }, requestChecksumCalculation: "WHEN_REQUIRED" });
+	if (digest !== expectedSha256)
+		return Response.json({ error: "sha256 mismatch" }, { status: 422 });
+	const client = new S3Client({
+		region: "auto",
+		endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+		credentials: {
+			accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+			secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+		},
+		requestChecksumCalculation: "WHEN_REQUIRED",
+	});
 	const key = objectKey(name);
-	await client.send(new PutObjectCommand({ Bucket: PUBLIC_BUCKET, Key: key, Body: bytes, ContentType: contentType, CacheControl: SITE_FILES.has(name) ? "public, max-age=300, must-revalidate" : "public, max-age=31536000, immutable" }));
-	return Response.json({ ok: true, name, sha256: digest, bytes: bytes.length, key, url: publicUrl(name) });
+	await client.send(
+		new PutObjectCommand({
+			Bucket: PUBLIC_BUCKET,
+			Key: key,
+			Body: bytes,
+			ContentType: contentType,
+			CacheControl: SITE_FILES.has(name)
+				? "public, max-age=300, must-revalidate"
+				: "public, max-age=31536000, immutable",
+		}),
+	);
+	return Response.json({
+		ok: true,
+		name,
+		sha256: digest,
+		bytes: bytes.length,
+		key,
+		url: publicUrl(name),
+	});
 }
