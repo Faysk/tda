@@ -19,7 +19,10 @@ import {
 	WORLD_AUTHORING_OPEN_INSPECTOR_EVENT,
 	type WorldAuthoringConnectFromNodeDetail,
 } from "../world-authoring-events";
-import { worldEntityMediaShouldBypassImageOptimization } from "../world-entity-media";
+import {
+	worldEntityMediaObjectPosition,
+	worldEntityMediaShouldBypassImageOptimization,
+} from "../world-entity-media";
 import authoringStyles from "./entity-node-authoring.module.css";
 import nodeStyles from "./entity-node-v2.module.css";
 
@@ -124,7 +127,6 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
 	const kind = visualKind(item, isHero);
 	const state = stateLabel(isFocus, selected);
-	const focal = item.imageFocalPoint ?? { x: 0.5, y: 0.5 };
 	return (
 		<div
 			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
@@ -202,7 +204,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 						fill
 						sizes={isHero ? "116px" : "90px"}
 						unoptimized={worldEntityMediaShouldBypassImageOptimization(item.imageUrl)}
-						style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
+						style={{ objectPosition: worldEntityMediaObjectPosition(item.imageFocalPoint) }}
 					/>
 				) : (
 					<span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>
