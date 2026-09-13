@@ -246,6 +246,7 @@ def evaluate_transcript_quality(
     reference_turns = tuple(reference)
     if not reference_turns:
         raise AsrQualityError("reference:EMPTY")
+    minimum_turn_iou = _finite(minimum_turn_iou, "minimum_turn_iou")
     if minimum_turn_iou <= 0.0 or minimum_turn_iou > 1.0:
         raise AsrQualityError("minimum_turn_iou:RANGE_INVALID")
 
