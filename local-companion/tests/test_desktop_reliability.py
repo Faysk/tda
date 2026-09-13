@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -127,3 +128,47 @@ def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_p
     operation_id = result["operation_id"]
     assert isinstance(operation_id, str) and len(operation_id) == 32
     assert seen["arguments"][-2:] == ["--operation-id", operation_id]
+
+
+def test_snapshot_exposes_only_sanitized_maintenance_fields(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    maintenance_root = tmp_path / "Cache" / "maintenance"
+    maintenance_root.mkdir(parents=True)
+    (maintenance_root / "last-operation.json").write_text(
+        json.dumps(
+            {
+                "operation_id": "e" * 32,
+                "action": "update",
+                "status": "failed",
+                "stage": "failed",
+                "failure_stage": "running_msi",
+                "error_code": "MSI_FAILED",
+                "msi_exit_code": 1603,
+                "target_version": "0.3.3",
+                "updated_at": 123.0,
+                "private_path": r"C:\Users\secret\candidate.msi",
+                "exception": "private stack trace",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _offline(bridge.client)
+    monkeypatch.setattr(
+        bridge.client,
+        "get",
+        lambda _path: (_ for _ in ()).throw(AgentConnectionError("AGENT_CONNECTION_REFUSED")),
+    )
+
+    value = bridge.snapshot()["maintenance"]
+
+    assert value == {
+        "operation_id": "e" * 32,
+        "action": "update",
+        "status": "failed",
+        "stage": "failed",
+        "failure_stage": "running_msi",
+        "error_code": "MSI_FAILED",
+        "msi_exit_code": 1603,
+        "target_version": "0.3.3",
+        "updated_at": 123.0,
+    }
