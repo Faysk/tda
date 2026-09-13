@@ -1,100 +1,93 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
-import { StatusPill } from "@/components/ui";
-import { requireCapability } from "@/features/auth/server";
+import { currentAccess } from "@/features/auth/server";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
+	type EditCapability,
 } from "@/features/edit/access/policy";
-import { listUnsafeEditSessions } from "@/features/edit/sessions/repository";
-import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
-import styles from "@/features/edit/workbench.module.css";
-import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
+import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import styles from "./page.module.css";
 
 export const metadata: Metadata = {
 	title: "Edit",
-	description: "Workbench administrativo do TDA.",
+	description: "Ferramentas administrativas do TDA.",
 };
 
-function DisabledEdit() {
-	return (
-		<section className={styles.locked}>
-			<div className={styles.muted}>TDA / EDIT</div>
-			<h1>Edit desativado</h1>
-			<p className={styles.muted}>
-				Este espaço ainda está sendo preparado para acesso com sua conta.
-			</p>
-		</section>
-	);
-}
+type EditModule = Readonly<{
+	title: string;
+	description: string;
+	href: string;
+	capability: EditCapability;
+}>;
+
+const MODULES: readonly EditModule[] = [
+	{
+		title: "Sessões",
+		description: "Consulte sessões e revise as transcrições da campanha.",
+		href: "/edit/sessoes",
+		capability: EDIT_CAPABILITIES.transcriptRead,
+	},
+	{
+		title: "Processamento local",
+		description: "Envie arquivos, acompanhe a fila e conecte o TDA Companion.",
+		href: "/edit/processamento",
+		capability: EDIT_CAPABILITIES.localProcess,
+	},
+	{
+		title: "Mundo",
+		description: "Ajuste a composição editorial do explorador do mundo.",
+		href: "/edit/mundo",
+		capability: EDIT_CAPABILITIES.worldLayoutEdit,
+	},
+] as const;
 
 export default async function EditPage() {
-	const access = await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit");
-	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
-	const canProcessLocal = authorizeCampaignCapability(
-		access,
-		EDIT_CAPABILITIES.localProcess,
-		CAMPAIGN_SLUG,
-	).ok;
-	const canComposeWorld = authorizeCampaignCapability(
-		access,
-		EDIT_CAPABILITIES.worldLayoutEdit,
-		CAMPAIGN_SLUG,
-	).ok;
+	const access = await currentAccess();
 
-	let sessions: Awaited<ReturnType<typeof listUnsafeEditSessions>>;
-	try {
-		sessions = await listUnsafeEditSessions();
-	} catch {
-		return (
-			<section className={styles.locked}>
-				<div className={styles.muted}>TDA / EDIT</div>
-				<h1>Banco indisponível</h1>
-				<p className={styles.muted}>
-					O Edit está liberado, mas a conexão server-side com o Supabase não respondeu.
-				</p>
-			</section>
-		);
-	}
+	if (access.state === "anonymous") redirect("/entrar?next=%2Fedit");
+	if (access.state === "unavailable") redirect("/conta?acesso=indisponivel");
+	if (access.state !== "authenticated_linked" || !access.context)
+		redirect("/conta?acesso=negado");
+
+	const modules = MODULES.filter((module) =>
+		authorizeCampaignCapability(
+			access.context,
+			module.capability,
+			CAMPAIGN_SLUG,
+		).ok,
+	);
 
 	return (
 		<section className={styles.shell}>
-			<div className={styles.unsafeBanner} role="status">
-				<strong>Acesso autorizado · integração em andamento</strong>
-				<span>O acesso às transcrições depende das permissões da sua conta.</span>
-			</div>
-			<header className={styles.pageHeader}>
-				<div>
-					<div className={styles.muted}>TDA / EDIT</div>
-					<h1 className={styles.pageTitle}>Sessões</h1>
-					{canProcessLocal ? <Link href="/edit/processamento">Processamento local</Link> : null}
-					{canProcessLocal && canComposeWorld ? " · " : null}
-					{canComposeWorld ? <Link href="/edit/mundo">Composição do mundo</Link> : null}
-				</div>
-				<div className={styles.muted}>{sessions.length} sessões disponíveis</div>
+			<header className={styles.header}>
+				<p className={styles.eyebrow}>TDA / EDIT</p>
+				<h1 className={styles.title}>Ferramentas administrativas</h1>
+				<p className={styles.lead}>
+					Acesse somente as áreas liberadas para a sua conta. Cada ferramenta
+					mantém suas próprias regras de leitura, processamento e escrita.
+				</p>
 			</header>
 
-			<div className={styles.sessionGrid}>
-				{sessions.map((session) => (
-					<Link
-						className={styles.sessionCard}
-						href={`/edit/sessoes/${encodeURIComponent(session.sourceSessionId)}`}
-						key={session.id}
-					>
-						<div className={styles.sessionMeta}>
-							<StatusPill tone={session.status === "published" ? "success" : "neutral"}>
-								{session.status}
-							</StatusPill>
-							{session.arc ? <StatusPill tone="accent">{session.arc}</StatusPill> : null}
-						</div>
-						<h2 className={styles.sessionTitle}>{session.title}</h2>
-						<div className={styles.muted}>
-							{session.sessionDate ? formatSessionDate(session.sessionDate) : "Sem data"}
-						</div>
-						<div className={styles.sessionId}>{session.sourceSessionId}</div>
-					</Link>
-				))}
-			</div>
+			{modules.length ? (
+				<nav className={styles.moduleList} aria-label="Ferramentas administrativas">
+					{modules.map((module) => (
+						<Link className={styles.moduleLink} href={module.href} key={module.href}>
+							<h2 className={styles.moduleTitle}>{module.title}</h2>
+							<p className={styles.moduleDescription}>{module.description}</p>
+							<span className={styles.moduleAction} aria-hidden="true">
+								Abrir →
+							</span>
+						</Link>
+					))}
+				</nav>
+			) : (
+				<p className={styles.empty}>
+					Sua conta tem acesso administrativo, mas não há uma ferramenta disponível
+					para as permissões atuais.
+				</p>
+			)}
 		</section>
 	);
 }
