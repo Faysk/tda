@@ -114,8 +114,8 @@ Preview não recebe credencial irrestrita de Production apenas por conveniência
 - escrita administrativa em Production a partir de Preview não é o padrão;
 - migrations são validadas em CI, mas aplicadas somente por Production CD;
 - testes de banco do CI usam PostgreSQL scratch/sintético;
-- quando houver necessidade real de dados isolados completos, usar projeto/branch Supabase dedicado conforme plano/custo disponível;
-- features candidatas que dependem de novo schema, como World entity media, permanecem com o feature flag desligado até o schema isolado, o storage de Preview e o smoke real estarem validados juntos.
+- ambiente Supabase dedicado é opcional e só deve ser criado quando um risco específico não puder ser validado razoavelmente por CI/smoke e o custo operacional estiver justificado;
+- features candidatas que dependem de novo schema, como World entity media, permanecem com o feature flag desligado até o schema/storage do ambiente alvo e um smoke controlado estarem autorizados e validados.
 
 ## Production
 
@@ -257,9 +257,9 @@ A primeira Production completa pela esteira final passou preflight de autentica�
 
 ### Preview
 
-Não executa `db push` no projeto Production. Testes de banco acontecem em PostgreSQL scratch/sintético no CI.
+Não executa `db push` no projeto Production. Testes de banco acontecem em PostgreSQL scratch/sintético no CI e esse é o gate padrão para schema candidato enquanto a feature permanece desligada.
 
-Quando uma feature exige validar um schema candidato contra Supabase real antes da promoção, usar uma development branch do projeto, aplicar o candidato somente nessa branch e apontar a homologação deliberadamente para o `project_ref` isolado. A branch não carrega dados de Production; fixtures necessárias ao smoke precisam ser mínimas, explícitas e não sensíveis. Destruir/recriar a branch é preferível a transformar o banco Production em staging.
+Um projeto/branch Supabase dedicado **não é requisito padrão de homologação**. Ele pode ser criado pontualmente quando houver um risco específico que exija comportamento remoto que não possa ser coberto de forma razoável pelo PostgreSQL efêmero e por um smoke controlado, mediante decisão explícita de custo e teardown. Para o fluxo normal, candidatos permanecem em `supabase/candidates/` até a autorização de promoção; a ativação segue os gates normais do ambiente alvo com feature flag fail-closed.
 
 ## R2 por ambiente
 
