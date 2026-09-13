@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -50,8 +51,12 @@ class SessionDesktopBridge(DesktopBridge):
         )
         self._last_maintenance_operation_id: str | None = None
 
-    def _maintenance_snapshot(self) -> dict[str, object] | None:
-        path = self.paths.cache_root / "maintenance" / "last-operation.json"
+    @staticmethod
+    def _read_maintenance_summary(
+        path: Path,
+        *,
+        expected_operation_id: str | None = None,
+    ) -> dict[str, object] | None:
         try:
             if not path.is_file() or path.stat().st_size > 64 * 1024:
                 return None
@@ -67,6 +72,7 @@ class SessionDesktopBridge(DesktopBridge):
         if (
             not isinstance(operation_id, str)
             or len(operation_id) != 32
+            or (expected_operation_id is not None and operation_id != expected_operation_id)
             or status not in {"running", "completed", "failed"}
             or not isinstance(stage, str)
             or action not in {"update", "uninstall"}
@@ -85,6 +91,31 @@ class SessionDesktopBridge(DesktopBridge):
             "updated_at",
         )
         return {key: value.get(key) for key in allowed if key in value}
+
+    def _maintenance_snapshot(self) -> dict[str, object] | None:
+        return self._read_maintenance_summary(
+            self.paths.cache_root / "maintenance" / "last-operation.json"
+        )
+
+    def _wait_maintenance_handoff(self, operation_id: str, timeout: float = 3.0) -> None:
+        path = (
+            self.paths.cache_root
+            / "maintenance"
+            / "operations"
+            / f"{operation_id}.json"
+        )
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            value = self._read_maintenance_summary(
+                path,
+                expected_operation_id=operation_id,
+            )
+            if value is not None:
+                if value.get("status") == "failed":
+                    raise RuntimeError("MAINTENANCE_HANDOFF_FAILED")
+                return
+            time.sleep(0.05)
+        raise RuntimeError("MAINTENANCE_HANDOFF_TIMEOUT")
 
     def _offline_snapshot(self, code: str) -> dict[str, object]:
         connection = self.client.status()
@@ -167,9 +198,13 @@ class SessionDesktopBridge(DesktopBridge):
     def _launch_maintenance(self, arguments: list[str]) -> bool:
         operation_id = uuid4().hex
         self._last_maintenance_operation_id = operation_id
-        return super()._launch_maintenance(
+        launched = super()._launch_maintenance(
             [*arguments, "--operation-id", operation_id]
         )
+        if not launched:
+            raise RuntimeError("MAINTENANCE_LAUNCH_FAILED")
+        self._wait_maintenance_handoff(operation_id)
+        return True
 
     def install_update(self) -> dict[str, object]:
         self._last_maintenance_operation_id = None
