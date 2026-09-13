@@ -5,6 +5,9 @@ export const WORLD_ENTITY_MEDIA_PENDING_LIFECYCLE_RULE_ID =
 	"tda-world-entity-media-pending-expiry";
 export const WORLD_ENTITY_MEDIA_PENDING_PREFIX = "uploads/pending/world-entity/";
 
+const VERCEL_PREVIEW_HOST_PATTERN =
+	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?[.]vercel[.]app$/u;
+
 export function normalizeWorldEntityMediaPreviewOrigin(rawOrigin) {
 	if (typeof rawOrigin !== "string" || !rawOrigin.length) {
 		throw new Error("WORLD_ENTITY_MEDIA_PREVIEW_ORIGIN_REQUIRED");
@@ -22,7 +25,7 @@ export function normalizeWorldEntityMediaPreviewOrigin(rawOrigin) {
 		parsed.pathname !== "/" ||
 		parsed.search ||
 		parsed.hash ||
-		!parsed.hostname.endsWith(".vercel.app")
+		!VERCEL_PREVIEW_HOST_PATTERN.test(parsed.hostname)
 	) {
 		throw new Error("WORLD_ENTITY_MEDIA_PREVIEW_ORIGIN_INVALID");
 	}
