@@ -55,9 +55,20 @@ def test_all_capabilities_ready_is_global_pass():
     ]
 
 
-def test_network_failure_does_not_kill_local_processing():
+def test_dns_failure_is_degraded_when_https_still_works():
     checks = _healthy_checks()
     next(value for value in checks if value["code"] == "network_dns")["status"] = "fail"
+    capabilities = _by_id(build_capabilities(checks))
+    assert capabilities["network"]["status"] == "degraded"
+    assert capabilities["network"]["degraded"] == ["network_dns"]
+    assert capabilities["core"]["status"] == "ready"
+    assert capabilities["whisper"]["status"] == "ready"
+    assert overall_status(list(capabilities.values())) == "warning"
+
+
+def test_https_failure_marks_network_capability_unavailable():
+    checks = _healthy_checks()
+    next(value for value in checks if value["code"] == "network_https")["status"] = "fail"
     capabilities = _by_id(build_capabilities(checks))
     assert capabilities["network"]["status"] == "blocked"
     assert capabilities["core"]["status"] == "ready"
@@ -90,7 +101,7 @@ def test_core_failure_is_global_failure_even_when_asr_is_ready():
     assert overall_status(capabilities) == "fail"
 
 
-def test_both_asr_engines_blocked_is_global_failure():
+def test_both_asr_engines_unavailable_is_global_failure():
     checks = _healthy_checks()
     next(value for value in checks if value["code"] == "whisper_runtime")["status"] = "fail"
     next(value for value in checks if value["code"] == "qwen_runtime")["status"] = "fail"
