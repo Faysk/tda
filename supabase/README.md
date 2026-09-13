@@ -54,6 +54,7 @@ Estes SQL permanecem deliberadamente fora de Production:
 
 - `candidates/20260907193704_transcript_import_capability.sql`;
 - `candidates/20260907193705_transcript_import_atomic.sql`;
-- `candidates/20260908231000_backfill_screacky_historical_alias.sql`.
+- `candidates/20260908231000_backfill_screacky_historical_alias.sql`;
+- `candidates/20260912214500_world_entity_media_foundation_v2.sql` — identidade first-class de assets do World, vínculo entity → portrait e wrapper transacional de publicação; **não aplicado em Production**.
 
-Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md` e `docs/database/migrations.md`.
+Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
