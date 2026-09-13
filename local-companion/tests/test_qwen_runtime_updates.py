@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from tda_companion.network import NetworkError
 from tda_companion.qwen_runtime_bundle import QwenRuntimePart, build_qwen_runtime_bundle_manifest
 from tda_companion.qwen_runtime_updates import (
     QwenRuntimeDownloadManifest,
     download_qwen_runtime,
+    fetch_qwen_runtime_manifest,
     parse_qwen_runtime_download_manifest,
     qwen_runtime_update_available,
 )
@@ -83,10 +85,10 @@ def test_qwen_runtime_update_comparison_handles_missing_and_semver():
 
 
 class FakeResponse:
-    def __init__(self, payload: bytes):
+    def __init__(self, payload: bytes, status: int = 200):
         self.payload = payload
         self.offset = 0
-        self.status = 200
+        self.status = status
 
     def __enter__(self):
         return self
@@ -102,6 +104,33 @@ class FakeResponse:
         chunk = self.payload[self.offset : self.offset + size]
         self.offset += len(chunk)
         return chunk
+
+
+class FakeClient:
+    def __init__(self, payload: bytes):
+        self.payload = payload
+        self.request = None
+        self.timeout = None
+
+    def open(self, request, *, timeout: float):
+        self.request = request
+        self.timeout = timeout
+        return FakeResponse(self.payload)
+
+
+def test_qwen_manifest_fetch_is_no_store_and_invalid_payload_is_typed():
+    manifest = _manifest()
+    client = FakeClient(json.dumps(_manifest_value(manifest)).encode("utf-8"))
+
+    parsed = fetch_qwen_runtime_manifest(timeout=4.0, client=client)  # type: ignore[arg-type]
+
+    assert parsed == manifest
+    assert client.timeout == 4.0
+    assert client.request.get_header("Cache-control") == "no-store"
+    assert client.request.get_header("Pragma") == "no-cache"
+
+    with pytest.raises(NetworkError, match="^MANIFEST_INVALID$"):
+        fetch_qwen_runtime_manifest(client=FakeClient(b"not-json"))  # type: ignore[arg-type]
 
 
 def test_qwen_runtime_download_uses_verified_release_chain_and_assembles_parts(tmp_path: Path, monkeypatch):
@@ -187,7 +216,7 @@ def test_qwen_runtime_bad_download_never_materializes_part(tmp_path: Path, monke
         lambda *_args, **_kwargs: FakeResponse(bad),
     )
 
-    with pytest.raises(RuntimeError, match="QWEN_RUNTIME_PART_DIGEST_MISMATCH"):
+    with pytest.raises(NetworkError, match="^HASH_MISMATCH$"):
         download_qwen_runtime(manifest, tmp_path / "Cache")
     assert not list((tmp_path / "Cache").rglob("*.part001"))
     assert not list((tmp_path / "Cache").rglob("*.partial"))
