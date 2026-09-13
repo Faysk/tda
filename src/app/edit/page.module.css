@@ -1,0 +1,120 @@
+.shell {
+	width: min(1180px, calc(100% - 2 * var(--ds-page-gutter)));
+	margin: 0 auto;
+	padding: 32px 0 72px;
+	font-family: var(--ds-font-ui);
+}
+
+.header {
+	display: grid;
+	gap: 8px;
+	margin-bottom: 28px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--ds-border);
+}
+
+.eyebrow {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.title {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: clamp(2rem, 4vw, 2.75rem);
+	font-weight: 500;
+	line-height: 1.05;
+	letter-spacing: -0.025em;
+}
+
+.lead {
+	max-width: 720px;
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	line-height: 1.55;
+}
+
+.moduleList {
+	display: grid;
+	border-top: 1px solid var(--ds-border);
+}
+
+.moduleLink {
+	display: grid;
+	grid-template-columns: minmax(170px, 0.7fr) minmax(0, 1.3fr) auto;
+	align-items: center;
+	gap: 24px;
+	min-height: 92px;
+	padding: 18px 4px;
+	border-bottom: 1px solid var(--ds-border);
+	color: var(--ds-foreground);
+	text-decoration: none;
+	transition: background 140ms ease, padding 140ms ease;
+}
+
+.moduleLink:hover {
+	padding-inline: 12px;
+	background: var(--ds-surface-hover);
+}
+
+.moduleLink:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.moduleTitle {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: 1.25rem;
+	font-weight: 500;
+}
+
+.moduleDescription {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.9rem;
+	line-height: 1.5;
+}
+
+.moduleAction {
+	color: var(--ds-accent-strong);
+	font-size: 0.8rem;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.empty {
+	margin-top: 20px;
+	padding: 20px 0;
+	border-top: 1px solid var(--ds-border);
+	border-bottom: 1px solid var(--ds-border);
+	color: var(--ds-foreground-muted);
+	line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+	.shell {
+		width: min(100% - 24px, 1180px);
+		padding-top: 20px;
+	}
+
+	.moduleLink {
+		grid-template-columns: 1fr auto;
+		gap: 8px 16px;
+	}
+
+	.moduleDescription {
+		grid-column: 1 / -1;
+		grid-row: 2;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.moduleLink {
+		transition: none;
+	}
+}

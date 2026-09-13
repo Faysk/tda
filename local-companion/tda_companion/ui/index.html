@@ -16,6 +16,7 @@
       </div>
       <nav aria-label="Navegação do Companion">
         <button type="button" class="nav-item active" data-view="overview"><span>⌂</span>Visão geral</button>
+        <button type="button" class="nav-item" data-view="process"><span>▶</span>Processar sessão</button>
         <button type="button" class="nav-item" data-view="logs"><span>▤</span>Logs</button>
         <button type="button" class="nav-item" data-view="diagnostics"><span>◌</span>Diagnóstico</button>
         <button type="button" class="nav-item" data-view="settings"><span>⚙</span>Configurações</button>
@@ -31,7 +32,7 @@
         <header class="page-head">
           <div>
             <h1>Tudo certo por aqui.</h1>
-            <p>Este é o painel de controle da máquina local. Sessões, resultados e revisão continuam no site do TDA.</p>
+            <p>Controle o processamento local desta máquina e envie novas sessões sem sair do Companion.</p>
           </div>
           <div class="head-actions">
             <span class="pill success" id="agent-pill">● Agente local</span>
@@ -72,10 +73,11 @@
             <div class="empty-work" id="work-summary">
               <div class="empty-icon">▤</div>
               <h3>Nenhum processamento em andamento.</h3>
-              <p>A fila está livre. Envie um novo trabalho pelo site do TDA quando quiser processar uma sessão.</p>
+              <p>A fila está livre. Selecione um ZIP do Craig para iniciar uma transcrição local.</p>
             </div>
             <div class="action-row">
-              <button type="button" class="primary" id="open-tda">Abrir TDA</button>
+              <button type="button" class="primary" id="new-session">Processar sessão</button>
+              <button type="button" id="open-tda">Abrir TDA</button>
               <button type="button" id="toggle-queue">Pausar fila</button>
               <button type="button" id="restart-agent">Reiniciar Agent</button>
             </div>
@@ -102,8 +104,87 @@
         </div>
       </section>
 
+      <section class="view" id="view-process">
+        <header class="sub-head process-head">
+          <div>
+            <h1>Processar sessão</h1>
+            <p>Selecione o ZIP multitrack do Craig. Cada participante continua em sua própria faixa e o Companion monta a linha do tempo depois da transcrição.</p>
+          </div>
+          <span class="pill" id="process-state-pill">Aguardando sessão</span>
+        </header>
+
+        <div class="process-layout">
+          <section class="panel process-workspace">
+            <div class="workflow-step">
+              <div class="step-head">
+                <div class="step-title">
+                  <span class="step-number">1</span>
+                  <div><h2>Sessão do Craig</h2><p>Escolha o arquivo <code>.zip</code> original. Não é preciso extrair nem mover para uma pasta especial.</p></div>
+                </div>
+                <button type="button" class="primary" id="select-craig">Selecionar ZIP</button>
+              </div>
+              <div class="source-empty" id="source-empty">Nenhuma sessão selecionada.</div>
+              <div class="session-summary hidden" id="session-summary">
+                <div class="session-file-row">
+                  <div><strong id="session-name">—</strong><span id="session-meta">—</span></div>
+                  <span class="pill success" id="session-track-count">— faixas</span>
+                </div>
+                <ul class="track-list" id="track-list" aria-label="Participantes encontrados"></ul>
+              </div>
+            </div>
+
+            <div class="workflow-step">
+              <div class="step-head">
+                <div class="step-title">
+                  <span class="step-number">2</span>
+                  <div><h2>Qualidade da transcrição</h2><p>Para sessões importantes, priorize precisão. O primeiro uso pode baixar runtime e modelos verificados.</p></div>
+                </div>
+              </div>
+              <div class="profile-list" id="profile-list" role="radiogroup" aria-label="Qualidade da transcrição">
+                <div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>
+              </div>
+            </div>
+
+            <details class="advanced-options">
+              <summary>Opções avançadas de reconhecimento</summary>
+              <div class="advanced-grid">
+                <label>Contexto da campanha<textarea id="session-context" maxlength="1200" rows="4" placeholder="Ex.: Sessão em Neverwinter, investigação do culto…"></textarea><small>Ajuda o modelo a interpretar o contexto; fica apenas no processamento local.</small></label>
+                <label>Nomes e termos importantes<textarea id="session-glossary" maxlength="1200" rows="4" placeholder="Ex.: Valindra, Neverwinter, Zhentarim…"></textarea><small>Use para nomes próprios, lugares, NPCs e termos de D&amp;D.</small></label>
+              </div>
+            </details>
+
+            <div class="process-action-bar">
+              <div class="process-status" aria-live="polite">
+                <strong id="process-status-title">Selecione uma sessão para começar.</strong>
+                <span id="process-status-detail">O arquivo é processado localmente neste computador.</span>
+              </div>
+              <button type="button" class="primary process-button" id="start-processing" disabled>Preparar e processar</button>
+            </div>
+          </section>
+
+          <aside class="process-guide">
+            <section>
+              <h2>O que acontece</h2>
+              <ol class="process-steps">
+                <li><b>Validação</b><span>O ZIP é conferido e cada faixa é identificada pelo participante.</span></li>
+                <li><b>Preparação</b><span>Runtime e modelo necessários são baixados e verificados automaticamente.</span></li>
+                <li><b>Transcrição</b><span>As faixas são processadas separadamente, com checkpoints para sessões longas.</span></li>
+                <li><b>Linha do tempo</b><span>Os turnos são alinhados e reunidos sem misturar as vozes de origem.</span></li>
+              </ol>
+            </section>
+            <section class="privacy-note">
+              <h2>Local por padrão</h2>
+              <p>Áudio e transcrição integral não são enviados para logs. A preparação Qwen usa uma janela temporária local de 180 s para validar a GPU e a remove ao terminar.</p>
+            </section>
+          </aside>
+        </div>
+      </section>
+
       <section class="view" id="view-logs">
-        <header class="sub-head"><div><h1>Logs</h1><p>Logs técnicos do Agent. Tokens, áudio e texto integral de transcrição não são registrados aqui.</p></div><button type="button" id="open-logs">Abrir pasta de logs</button></header>
+        <header class="sub-head">
+          <div><h1>Logs</h1><p>Logs técnicos do Agent. Tokens, áudio e texto integral de transcrição não são registrados aqui.</p></div>
+          <button type="button" id="open-logs">Abrir pasta de logs</button>
+        </header>
         <div class="toolbar">
           <select id="log-level" aria-label="Nível dos logs"><option value="">Todos os níveis</option><option value="info">Info</option><option value="warning">Avisos</option><option value="error">Erros</option><option value="debug">Debug</option></select>
           <input id="log-search" type="search" placeholder="Buscar nos logs…" />
@@ -113,7 +194,10 @@
       </section>
 
       <section class="view" id="view-diagnostics">
-        <header class="sub-head"><div><h1>Diagnóstico</h1><p>Checks locais não destrutivos para identificar problemas no Agent, storage e GPU.</p></div><div class="action-row"><button type="button" id="export-diagnostics">Exportar diagnóstico</button><button type="button" class="primary" id="run-diagnostics">Executar diagnóstico</button></div></header>
+        <header class="sub-head">
+          <div><h1>Diagnóstico</h1><p>Checks locais não destrutivos para identificar problemas no Agent, storage e GPU.</p></div>
+          <div class="action-row"><button type="button" id="export-diagnostics">Exportar diagnóstico</button><button type="button" class="primary" id="run-diagnostics">Executar diagnóstico</button></div>
+        </header>
         <div class="panel diagnostic-summary"><div><span>Estado geral</span><strong id="diagnostic-overall">Ainda não executado</strong></div><small id="diagnostic-time">—</small></div>
         <div class="diagnostic-list" id="diagnostic-list"></div>
       </section>
@@ -121,31 +205,41 @@
       <section class="view" id="view-settings">
         <header class="sub-head"><div><h1>Configurações</h1><p>Preferências deste computador. Configurações editoriais continuam no TDA Web.</p></div></header>
         <div class="settings-grid">
-          <section class="panel setting-group"><h2>Inicialização</h2><label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label><label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label><label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label></section>
-          <section class="panel setting-group"><h2>Aparência e janela</h2><label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label><label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label></section>
-          <section class="panel setting-group"><h2>Pareamento</h2><p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p><div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div></section>
           <section class="panel setting-group">
-            <h2>Runtime de transcrição</h2>
-            <p id="whisper-runtime-detail">Whisper isolado ainda não verificado.</p>
-            <div class="action-row">
-              <button type="button" id="check-whisper-runtime">Verificar runtime</button>
-              <button type="button" class="primary hidden" id="install-whisper-runtime">Instalar runtime</button>
+            <h2>Inicialização</h2>
+            <label class="switch-row"><span><b>Iniciar com o Windows</b><small>Mantém o Agent disponível após entrar na sua conta.</small></span><input id="setting-startup" type="checkbox" /></label>
+            <label class="switch-row"><span><b>Mostrar ícone na bandeja</b><small>Acesso rápido ao Companion.</small></span><input id="setting-tray" type="checkbox" /></label>
+            <label class="switch-row"><span><b>Verificar atualizações</b><small>Apenas verifica; instalação continua confirmada.</small></span><input id="setting-updates" type="checkbox" /></label>
+          </section>
+          <section class="panel setting-group">
+            <h2>Aparência e janela</h2>
+            <label>Tema<select id="setting-theme"><option value="system">Sistema</option><option value="dark">Escuro</option><option value="light">Claro</option></select></label>
+            <label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label>
+          </section>
+          <section class="panel setting-group">
+            <h2>Pareamento</h2>
+            <p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p>
+            <div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div>
+          </section>
+          <section class="panel setting-group runtime-settings">
+            <h2>Runtimes de transcrição</h2>
+            <p>Normalmente o Companion prepara o runtime necessário quando você processa uma sessão.</p>
+            <div class="runtime-setting-row">
+              <div><b>Whisper</b><span id="whisper-runtime-detail">Ainda não verificado.</span><small class="feedback" id="whisper-runtime-feedback">Runtime isolado; não altera o PATH global.</small></div>
+              <div class="action-row"><button type="button" id="check-whisper-runtime">Verificar</button><button type="button" class="primary hidden" id="install-whisper-runtime">Instalar</button></div>
             </div>
-            <small class="feedback" id="whisper-runtime-feedback">CUDA, cuBLAS e cuDNN ficam contidos no runtime local; o Companion não altera o PATH global.</small>
+            <div class="runtime-setting-row">
+              <div><b>Qwen3 ASR</b><span id="qwen-runtime-detail">Ainda não verificado.</span><small class="feedback" id="qwen-runtime-feedback">Usado nos perfis de maior precisão e alinhamento.</small></div>
+              <div class="action-row"><button type="button" id="check-qwen-runtime">Verificar</button><button type="button" class="primary hidden" id="install-qwen-runtime">Instalar</button></div>
+            </div>
           </section>
           <section class="panel setting-group danger-zone">
             <h2>Aplicativo</h2>
             <p><span id="settings-version">TDA Companion —</span><br />API local v1</p>
-            <div class="action-row app-update-actions">
-              <button type="button" id="check-update">Verificar atualização</button>
-              <button type="button" class="primary update-install hidden" id="install-update">Atualizar agora</button>
-            </div>
+            <div class="action-row app-update-actions"><button type="button" id="check-update">Verificar atualização</button><button type="button" class="primary update-install hidden" id="install-update">Atualizar agora</button></div>
             <div class="app-separator"></div>
             <p><b>Desinstalação</b><br />Você pode remover só o aplicativo e manter os dados para uma futura reinstalação, ou apagar completamente o TDA local deste usuário.</p>
-            <div class="action-row">
-              <button type="button" id="uninstall-keep">Desinstalar e manter dados</button>
-              <button type="button" class="danger" id="uninstall-purge">Remover completamente</button>
-            </div>
+            <div class="action-row"><button type="button" id="uninstall-keep">Desinstalar e manter dados</button><button type="button" class="danger" id="uninstall-purge">Remover completamente</button></div>
           </section>
         </div>
       </section>
