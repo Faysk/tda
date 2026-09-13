@@ -19,6 +19,9 @@ from .qwen_runtime import inspect_qwen_runtime
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 
+WEBVIEW2_CLIENT_GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+WEBVIEW2_RENDERER_ENV = "TDA_DESKTOP_RENDERER"
+
 
 def _check(code: str, status: str, message: str, detail: str | None = None) -> dict[str, Any]:
     value: dict[str, Any] = {"code": code, "status": status, "message": message}
@@ -54,38 +57,73 @@ def _sqlite_check(path: Path) -> dict[str, Any]:
         return _check("sqlite", "fail", "Não foi possível validar o banco local", type(exc).__name__)
 
 
+def _valid_webview2_version(value: object) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    parts = text.split(".")
+    if not parts or any(not part.isdigit() for part in parts):
+        return False
+    return any(int(part) > 0 for part in parts)
+
+
+def _windows_is_64bit() -> bool:
+    architecture = (
+        os.environ.get("PROCESSOR_ARCHITEW6432")
+        or os.environ.get("PROCESSOR_ARCHITECTURE")
+        or ""
+    ).lower()
+    return architecture in {"amd64", "arm64", "ia64"} or architecture.endswith("64")
+
+
+def _webview2_registry_version(winreg_module: Any, *, is_64bit: bool) -> tuple[str | None, str | None]:
+    user_path = rf"Software\Microsoft\EdgeUpdate\Clients\{WEBVIEW2_CLIENT_GUID}"
+    machine_root = r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients" if is_64bit else r"SOFTWARE\Microsoft\EdgeUpdate\Clients"
+    machine_path = rf"{machine_root}\{WEBVIEW2_CLIENT_GUID}"
+    locations = [
+        (winreg_module.HKEY_CURRENT_USER, user_path),
+        (winreg_module.HKEY_LOCAL_MACHINE, machine_path),
+    ]
+    first_error: str | None = None
+    for hive, path in locations:
+        try:
+            with winreg_module.OpenKey(hive, path) as key:
+                version, _ = winreg_module.QueryValueEx(key, "pv")
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            if first_error is None:
+                first_error = type(exc).__name__
+            continue
+        if _valid_webview2_version(version):
+            return str(version).strip(), None
+    return None, first_error
+
+
 def _webview2_check() -> dict[str, Any]:
+    # The Desktop explicitly starts pywebview with gui="edgechromium". If this
+    # diagnostic is being invoked from that running UI, the active renderer is
+    # stronger evidence than a registry read that may be hidden by policy.
+    if os.environ.get(WEBVIEW2_RENDERER_ENV, "").strip().lower() == "edgechromium":
+        return _check(
+            "webview2",
+            "pass",
+            "WebView2 Runtime ativo nesta interface",
+            "renderer edgechromium",
+        )
     if os.name != "nt":
         return _check("webview2", "unavailable", "WebView2 é específico do Windows")
     try:
         import winreg
-
-        locations = [
-            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\EdgeUpdate\Clients"),
-            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\EdgeUpdate\Clients"),
-        ]
-        for hive, path in locations:
-            try:
-                with winreg.OpenKey(hive, path) as clients:
-                    count = winreg.QueryInfoKey(clients)[0]
-                    for index in range(count):
-                        name = winreg.EnumKey(clients, index)
-                        with winreg.OpenKey(clients, name) as child:
-                            try:
-                                product, _ = winreg.QueryValueEx(child, "name")
-                            except FileNotFoundError:
-                                product = ""
-                            if "webview2" in str(product).lower():
-                                try:
-                                    version, _ = winreg.QueryValueEx(child, "pv")
-                                except FileNotFoundError:
-                                    version = "detectado"
-                                return _check("webview2", "pass", "WebView2 Runtime disponível", str(version))
-            except FileNotFoundError:
-                continue
-        return _check("webview2", "warning", "WebView2 Runtime não foi localizado no registro")
     except Exception as exc:
         return _check("webview2", "warning", "Não foi possível consultar WebView2", type(exc).__name__)
+
+    version, error = _webview2_registry_version(winreg, is_64bit=_windows_is_64bit())
+    if version is not None:
+        return _check("webview2", "pass", "WebView2 Runtime disponível", version)
+    if error is not None:
+        return _check("webview2", "warning", "Não foi possível consultar WebView2", error)
+    return _check("webview2", "warning", "WebView2 Runtime não foi localizado no registro oficial")
 
 
 def _whisper_runtime_check(paths: CompanionPaths) -> dict[str, Any]:
