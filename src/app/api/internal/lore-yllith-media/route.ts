@@ -22,7 +22,7 @@ const assets = {
 	"sonho_paralax_nevoa.avif": [14532, "dcfd8cfb7c1ab21a47a4441e34497935de06865140e0f79a56a9c0d63ea5cbb2", "image/avif"],
 	"yllith.avif": [73407, "d8d2f723883922f2b31682d946e4278bbe178c7ad769b69cf08cd2ed4eaca288", "image/avif"],
 	"yllith_jornada.avif": [33469, "92b5a5922c776170d251afa3190e33e62aab1fb6e1cd9465df437129608a8cad", "image/avif"],
-	"social-yllith.jpg": [225462, "c06d0be79fef0ef58d710f0243567724ed457610cbe657845e8297f41377cac9", "image/jpeg"],
+	"social-yllith.jpg": [95942, "3b01721eadeeed0d0c89a72b3a9ed4131f4b3bfc1a7fe936b9a5de2817733258", "image/jpeg"],
 } as const;
 
 type AssetName = keyof typeof assets;
@@ -50,7 +50,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-	if (!['preview', 'production'].includes(process.env.APP_ENV ?? '')) {
+	if (!["preview", "production"].includes(process.env.APP_ENV ?? "")) {
 		return Response.json({ error: "release-staging endpoint" }, { status: 404 });
 	}
 	if (!isConfigured()) {
