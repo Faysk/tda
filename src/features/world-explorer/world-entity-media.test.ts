@@ -3,6 +3,7 @@ import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	clampWorldEntityMediaFocalPoint,
 	isWorldEntityMediaAssetId,
+	worldEntityMediaObjectPosition,
 	worldEntityMediaPreviewUrl,
 	worldEntityMediaShouldBypassImageOptimization,
 	worldEntityPortraitObjectKey,
@@ -130,5 +131,8 @@ describe("World entity media contract", () => {
 		expect(clampWorldEntityMediaFocalPoint(0.42)).toBe(0.42);
 		expect(clampWorldEntityMediaFocalPoint(2)).toBe(1);
 		expect(clampWorldEntityMediaFocalPoint(Number.NaN)).toBe(0.5);
+		expect(worldEntityMediaObjectPosition()).toBe("50% 50%");
+		expect(worldEntityMediaObjectPosition({ x: 0.2, y: 0.75 })).toBe("20% 75%");
+		expect(worldEntityMediaObjectPosition({ x: -2, y: 4 })).toBe("0% 100%");
 	});
 });
