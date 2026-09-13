@@ -266,22 +266,23 @@ test("account tasks reflect access and remain usable at narrow widths", async ({
 	).toBeVisible();
 	await expect(
 		tasks.getByRole("link", { name: "Abrir Edit", exact: true }),
-	).toHaveCount(0);
+	).toBeVisible();
 });
 
-test("private route returns distinguish denied from unavailable access", async ({
+test("admin hub admits effective grants and still distinguishes unavailable access", async ({
 	page,
 	context,
 }) => {
 	await login(context, "manager");
 	await page.goto("/edit");
-	await expect(page).toHaveURL(/\/conta\?acesso=negado$/u);
-	await expect(page.locator("main").getByRole("alert")).toContainText(
-		"não tem acesso à área que você tentou abrir",
-	);
+	await expect(page).toHaveURL(/\/edit$/u);
 	await expect(
-		page.getByRole("link", { name: "Consultar permissões", exact: true }),
+		page.getByRole("heading", { name: "Ferramentas administrativas" }),
 	).toBeVisible();
+	await expect(page.getByRole("link", { name: /Permissões/u })).toHaveAttribute(
+		"href",
+		"/edit/yuhara-main/permissions",
+	);
 
 	await context.clearCookies();
 	await login(context, "unavailable");
