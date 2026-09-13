@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 from . import VERSION
 from .agent_connection import AgentConnection, AgentConnectionError
@@ -46,6 +47,7 @@ class SessionDesktopBridge(DesktopBridge):
             start_agent,
             expected_version=VERSION,
         )
+        self._last_maintenance_operation_id: str | None = None
 
     def _offline_snapshot(self, code: str) -> dict[str, object]:
         connection = self.client.status()
@@ -119,6 +121,29 @@ class SessionDesktopBridge(DesktopBridge):
 
     def restart_agent(self) -> bool:
         return self.client.restart()
+
+    def _launch_maintenance(self, arguments: list[str]) -> bool:
+        operation_id = uuid4().hex
+        self._last_maintenance_operation_id = operation_id
+        return super()._launch_maintenance(
+            [*arguments, "--operation-id", operation_id]
+        )
+
+    def install_update(self) -> dict[str, object]:
+        self._last_maintenance_operation_id = None
+        result = super().install_update()
+        operation_id = self._last_maintenance_operation_id
+        if result.get("accepted") is True and operation_id is not None:
+            return {**result, "operation_id": operation_id}
+        return result
+
+    def uninstall(self, purge: bool = False) -> dict[str, object]:
+        self._last_maintenance_operation_id = None
+        result = super().uninstall(purge)
+        operation_id = self._last_maintenance_operation_id
+        if result.get("accepted") is True and operation_id is not None:
+            return {**result, "operation_id": operation_id}
+        return result
 
     def _require_selected_source(self, source_id: str) -> None:
         if not isinstance(source_id, str) or not _CRAIG_SOURCE_ID.fullmatch(source_id):
