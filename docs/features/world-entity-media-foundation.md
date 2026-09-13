@@ -2,7 +2,7 @@
 
 > Owner: narrative-memory / integrations-media / frontend
 > Status: implementação candidata; schema remoto não aplicado
-> Última revisão: 2026-09-13
+> Última revisão: 2026-09-12
 
 > Contrato de implementação para a primeira imagem canônica de cada elemento do Mundo. Este documento não autoriza migration em Production.
 
