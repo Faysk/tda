@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -15,12 +16,16 @@ from uuid import uuid4
 
 from . import VERSION
 from .agent import wait_until_ready
+from .asr_models import get_profile
 from .asr_runtime import inspect_whisper_runtime, install_whisper_runtime_archive
 from .asr_runtime_updates import (
     download_whisper_runtime,
     fetch_whisper_runtime_manifest,
     whisper_runtime_update_available,
 )
+from .craig import CraigPackageError
+from .craig_ingest import CraigUploadError, ingest_craig_file
+from .craig_runtime import load_craig_package
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
 from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
@@ -35,6 +40,30 @@ from .updates import download_update, fetch_manifest, update_available
 
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
 PROCESSING_URL = f"{PRODUCTION_ORIGIN}/edit/processamento"
+_CRAIG_SOURCE_ID = re.compile(r"^craig-[0-9a-f]{64}$")
+_PROFILE_ORDER = ("qwen-quality", "qwen-fast", "whisper-detailed", "whisper-turbo")
+_PROFILE_PRESENTATION = {
+    "qwen-quality": {
+        "label": "Melhor precisão",
+        "description": "Qwen3-ASR 1.7B com alinhamento por palavra. Prioriza qualidade para sessões longas.",
+        "recommended": True,
+    },
+    "qwen-fast": {
+        "label": "Qwen equilibrado",
+        "description": "Qwen3-ASR 0.6B com alinhamento por palavra e menor uso de VRAM.",
+        "recommended": False,
+    },
+    "whisper-detailed": {
+        "label": "Whisper detalhado",
+        "description": "Whisper large-v3 para máxima compatibilidade com o pipeline detalhado.",
+        "recommended": False,
+    },
+    "whisper-turbo": {
+        "label": "Whisper rápido",
+        "description": "Whisper large-v3-turbo para priorizar velocidade.",
+        "recommended": False,
+    },
+}
 
 
 class LocalAgentClient:
@@ -43,7 +72,14 @@ class LocalAgentClient:
         self.port = port
         self.base = f"http://127.0.0.1:{port}/api/v1"
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        idempotency_key: str | None = None,
+    ) -> Any:
         data = None
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -54,6 +90,8 @@ class LocalAgentClient:
             data = json.dumps(body, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json"
             headers["Origin"] = PRODUCTION_ORIGIN
+        if idempotency_key is not None:
+            headers["Idempotency-Key"] = idempotency_key
         request = urllib.request.Request(
             self.base + path,
             data=data,
@@ -78,8 +116,14 @@ class LocalAgentClient:
     def get(self, path: str) -> Any:
         return self._request("GET", path)
 
-    def post(self, path: str, body: dict[str, Any]) -> Any:
-        return self._request("POST", path, body)
+    def post(
+        self,
+        path: str,
+        body: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+    ) -> Any:
+        return self._request("POST", path, body, idempotency_key=idempotency_key)
 
 
 class DesktopBridge:
@@ -103,9 +147,14 @@ class DesktopBridge:
         self.start_agent = start_agent
         self.client = LocalAgentClient(token, port)
         self._close_desktop: Callable[[], None] | None = None
+        self._select_craig_zip: Callable[[], str | Path | None] | None = None
+        self._selected_sources: set[str] = set()
 
     def bind_close_desktop(self, callback: Callable[[], None]) -> None:
         self._close_desktop = callback
+
+    def bind_select_craig_zip(self, callback: Callable[[], str | Path | None]) -> None:
+        self._select_craig_zip = callback
 
     @staticmethod
     def _job_counts(jobs: list[dict[str, Any]]) -> dict[str, int]:
@@ -163,6 +212,102 @@ class DesktopBridge:
 
     def set_queue_paused(self, paused: bool) -> dict[str, Any]:
         return self.client.post("/lifecycle", {"action": "pause" if paused else "resume"})
+
+    def select_craig_session(self) -> dict[str, Any]:
+        if self._select_craig_zip is None:
+            raise RuntimeError("CRAIG_FILE_PICKER_UNAVAILABLE")
+        selected = self._select_craig_zip()
+        if selected is None or not str(selected).strip():
+            return {"selected": False}
+        try:
+            session = ingest_craig_file(Path(selected), self.paths.data_root)
+        except CraigUploadError as exc:
+            raise RuntimeError(exc.code) from None
+        source_id = session.get("source_id")
+        if not isinstance(source_id, str) or not _CRAIG_SOURCE_ID.fullmatch(source_id):
+            raise RuntimeError("CRAIG_SOURCE_INVALID")
+        self._selected_sources.add(source_id)
+        return {"selected": True, **session}
+
+    def transcription_profiles(self) -> dict[str, Any]:
+        capabilities = self.client.get("/capabilities")
+        transcription = capabilities.get("transcription", {}) if isinstance(capabilities, dict) else {}
+        ready_values = transcription.get("profiles", []) if isinstance(transcription, dict) else []
+        ready = {value for value in ready_values if isinstance(value, str)}
+        gates = transcription.get("qwen_physical_gate", {}) if isinstance(transcription, dict) else {}
+        whisper_state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=False)
+        qwen_state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=False)
+
+        profiles: list[dict[str, Any]] = []
+        for profile_id in _PROFILE_ORDER:
+            profile = get_profile(profile_id)
+            presentation = _PROFILE_PRESENTATION[profile_id]
+            is_ready = profile_id in ready
+            reason: str | None = None
+            if not is_ready and profile.engine == "whisper":
+                reason = "WHISPER_RUNTIME_REQUIRED" if whisper_state.get("status") != "ready" else "PROFILE_NOT_READY"
+            elif not is_ready:
+                gate = gates.get(profile_id, {}) if isinstance(gates, dict) else {}
+                if qwen_state.get("status") != "ready":
+                    reason = "QWEN_RUNTIME_REQUIRED"
+                elif isinstance(gate, dict):
+                    reason = str(gate.get("reason") or f"QWEN_GATE_{str(gate.get('status') or 'missing').upper()}")
+                else:
+                    reason = "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED"
+            profiles.append(
+                {
+                    "id": profile_id,
+                    "label": presentation["label"],
+                    "description": presentation["description"],
+                    "recommended": presentation["recommended"],
+                    "engine": profile.engine,
+                    "ready": is_ready,
+                    "preparation_required": not is_ready,
+                    "reason": reason,
+                }
+            )
+        return {"profiles": profiles, "recommended": "qwen-quality"}
+
+    def start_craig_transcription(
+        self,
+        source_id: str,
+        profile_id: str,
+        glossary: str = "",
+        context: str = "",
+    ) -> dict[str, Any]:
+        if not isinstance(source_id, str) or not _CRAIG_SOURCE_ID.fullmatch(source_id):
+            raise RuntimeError("CRAIG_SOURCE_INVALID")
+        if source_id not in self._selected_sources:
+            raise RuntimeError("CRAIG_SOURCE_NOT_SELECTED")
+        if profile_id not in _PROFILE_ORDER:
+            raise RuntimeError("TRANSCRIPTION_PROFILE_INVALID")
+        if len(glossary) > 1200 or len(context) > 1200:
+            raise RuntimeError("TRANSCRIPTION_CONTEXT_TOO_LARGE")
+        try:
+            load_craig_package(self.paths.data_root / "staging" / source_id, verify_tracks=False)
+        except CraigPackageError as exc:
+            raise RuntimeError(str(exc)) from None
+
+        profiles = self.transcription_profiles()["profiles"]
+        selected = next((profile for profile in profiles if profile["id"] == profile_id), None)
+        if not isinstance(selected, dict) or selected.get("ready") is not True:
+            raise RuntimeError(str(selected.get("reason") if isinstance(selected, dict) else "TRANSCRIPTION_PROFILE_NOT_READY"))
+
+        body = {
+            "kind": "transcription.craig",
+            "campaign_id": "desktop-local",
+            "session_id": f"local-{source_id[-24:]}",
+            "source_id": source_id,
+            "profile_id": profile_id,
+            "glossary": glossary,
+            "context": context,
+            "cpu": False,
+        }
+        return self.client.post(
+            "/jobs",
+            body,
+            idempotency_key=f"desktop-{uuid4().hex}",
+        )
 
     def open_tda(self) -> bool:
         return bool(webbrowser.open(PROCESSING_URL))

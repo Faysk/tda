@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from importlib import metadata
 from pathlib import Path
 
@@ -87,6 +88,7 @@ def _probe() -> int:
                 "qwen3_asr_native": True,
                 "forced_aligner_native": True,
                 "physical_gate_available": True,
+                "long_track_acceptance_window": True,
                 "min_gate_audio_seconds": float(MIN_GATE_AUDIO_SECONDS),
                 "devices": devices,
             },
@@ -140,29 +142,58 @@ def _acceptance(args: argparse.Namespace) -> int:
             flush=True,
         )
         return 64
-    try:
-        receipt = run_qwen_gpu_acceptance(
-            args.audio,
-            args.models_root,
-            profile_id=args.profile,
-            glossary=_read_context(args.glossary_file),
-            context=_read_context(args.context_file),
-            required_gpu_name=args.require_gpu_name,
-            transcript_out=args.transcript_out,
-        )
-        if args.record_gate:
-            from tda_companion.qwen_physical_gate import record_qwen_physical_gate
 
-            runtime_root = _installed_runtime_root(args.runtime_root)
-            state_root = (args.state_root or runtime_root.parent / "State").resolve()
-            record_qwen_physical_gate(
-                state_root,
-                runtime_root,
-                args.models_root.resolve(),
-                receipt,
+    try:
+        context = _read_context(args.context_file)
+        glossary = _read_context(args.glossary_file)
+        runtime_root = _installed_runtime_root(args.runtime_root) if args.record_gate else None
+        state_root = (
+            (args.state_root or runtime_root.parent / "State").resolve()
+            if runtime_root is not None
+            else None
+        )
+
+        def execute(source: Path, window_meta: dict[str, float] | None = None) -> dict[str, object]:
+            receipt = run_qwen_gpu_acceptance(
+                source,
+                args.models_root,
                 profile_id=args.profile,
+                glossary=glossary,
+                context=context,
                 required_gpu_name=args.require_gpu_name,
+                transcript_out=args.transcript_out,
             )
+            if window_meta is not None:
+                receipt["source_window"] = window_meta
+            if args.record_gate:
+                from tda_companion.qwen_physical_gate import record_qwen_physical_gate
+
+                assert runtime_root is not None and state_root is not None
+                record_qwen_physical_gate(
+                    state_root,
+                    runtime_root,
+                    args.models_root.resolve(),
+                    receipt,
+                    profile_id=args.profile,
+                    required_gpu_name=args.require_gpu_name,
+                )
+            return receipt
+
+        if args.acceptance_window:
+            if args.scratch_root is None:
+                raise RuntimeError("ACCEPTANCE_SCRATCH_ROOT_REQUIRED")
+            if args.transcript_out is not None:
+                raise RuntimeError("ACCEPTANCE_WINDOW_TRANSCRIPT_FORBIDDEN")
+            scratch_root = args.scratch_root.resolve()
+            scratch_root.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix="tda-qwen-gate-", dir=str(scratch_root)) as temporary:
+                from tda_companion.qwen_acceptance_window import materialize_qwen_acceptance_window
+
+                sample = Path(temporary) / "acceptance-window.wav"
+                window_meta = materialize_qwen_acceptance_window(args.audio, sample)
+                receipt = execute(sample, window_meta)
+        else:
+            receipt = execute(args.audio)
     except QwenAcceptanceError as exc:
         print(
             json.dumps(
@@ -218,6 +249,8 @@ def main() -> int:
     parser.add_argument("--glossary-file", type=Path)
     parser.add_argument("--context-file", type=Path)
     parser.add_argument("--record-gate", action="store_true")
+    parser.add_argument("--acceptance-window", action="store_true")
+    parser.add_argument("--scratch-root", type=Path)
     parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--state-root", type=Path)
     args = parser.parse_args()
