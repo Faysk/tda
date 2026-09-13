@@ -161,7 +161,7 @@ export function WorldEntityMediaEditor({
 	}
 
 	return (
-		<section className={styles.mediaEditor} aria-label="Imagem do elemento">
+		<section className={styles.mediaEditor} aria-label="Imagem do elemento" aria-busy={busy}>
 			<div className={styles.heading}>
 				<strong>Imagem do elemento</strong>
 				<span>PNG ou WebP · até 8 MiB</span>
@@ -272,8 +272,16 @@ export function WorldEntityMediaEditor({
 					</div>
 				</>
 			) : null}
-			{status ? <p className={styles.status}>{status}</p> : null}
-			{error ? <p className={styles.error}>{error}</p> : null}
+			{status ? (
+				<p className={styles.status} role="status" aria-live="polite">
+					{status}
+				</p>
+			) : null}
+			{error ? (
+				<p className={styles.error} role="alert">
+					{error}
+				</p>
+			) : null}
 		</section>
 	);
 }
