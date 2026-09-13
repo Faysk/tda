@@ -114,3 +114,24 @@ test("retries transient HTTP failures within the same bounded window", async () 
 
   assert.equal(result.attempt, 2);
 });
+
+test("aborts a hung request so the bounded verifier cannot stall indefinitely", async () => {
+  const fetchImpl = async (_url, { signal }) =>
+    new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+
+  await assert.rejects(
+    verifyCanonicalProduction({
+      origin: "https://example.test",
+      sourceSha: "expected-sha",
+      releaseId: "prod-expected",
+      fetchImpl,
+      attempts: 1,
+      delayMs: 0,
+      requestTimeoutMs: 5,
+      sleepImpl: async () => {},
+    }),
+    /did not converge after 1 attempts/,
+  );
+});
