@@ -103,7 +103,7 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 				<div className={styles.muted}>TDA / EDIT / TRANSCRIÇÃO</div>
 				<h1>Transcrição indisponível</h1>
 				<p className={styles.muted}>Não foi possível consultar os segmentos desta sessão.</p>
-				<ActionLink href="/edit" variant="tertiary">Voltar às sessões</ActionLink>
+				<ActionLink href="/edit/sessoes" variant="tertiary">Voltar às sessões</ActionLink>
 			</section>
 		);
 	}
@@ -147,7 +147,7 @@ export default async function EditSessionPage({ params, searchParams }: PageProp
 
 			<header className={styles.workbenchHeader}>
 				<div>
-					<Link className={styles.muted} href="/edit">← Sessões do Edit</Link>
+					<Link className={styles.muted} href="/edit/sessoes">← Sessões do Edit</Link>
 					<h1 className={styles.pageTitle}>{session.title}</h1>
 					<div className={styles.sessionMeta}>
 						{session.sessionDate ? <span>{formatSessionDate(session.sessionDate)}</span> : null}
