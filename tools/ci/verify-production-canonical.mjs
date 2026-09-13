@@ -1,14 +1,16 @@
 const DEFAULT_ATTEMPTS = 18;
 const DEFAULT_DELAY_MS = 5000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function readJson(fetchImpl, url) {
+async function readJson(fetchImpl, url, requestTimeoutMs) {
   const response = await fetchImpl(url, {
     headers: { accept: "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(requestTimeoutMs),
   });
 
   if (!response.ok) {
@@ -25,6 +27,7 @@ export async function verifyCanonicalProduction({
   fetchImpl = globalThis.fetch,
   attempts = DEFAULT_ATTEMPTS,
   delayMs = DEFAULT_DELAY_MS,
+  requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
   sleepImpl = sleep,
   onAttempt = () => {},
 }) {
@@ -37,6 +40,9 @@ export async function verifyCanonicalProduction({
   if (!Number.isInteger(attempts) || attempts < 1) {
     throw new Error("attempts must be a positive integer");
   }
+  if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1) {
+    throw new Error("requestTimeoutMs must be a positive integer");
+  }
 
   const base = origin.replace(/\/$/, "");
   let lastError = null;
@@ -44,8 +50,8 @@ export async function verifyCanonicalProduction({
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const [health, version] = await Promise.all([
-        readJson(fetchImpl, `${base}/api/health`),
-        readJson(fetchImpl, `${base}/api/version`),
+        readJson(fetchImpl, `${base}/api/health`, requestTimeoutMs),
+        readJson(fetchImpl, `${base}/api/version`, requestTimeoutMs),
       ]);
 
       const mismatches = [];
@@ -91,6 +97,10 @@ async function main() {
   const releaseId = process.env.RELEASE_ID;
   const attempts = Number.parseInt(process.env.CANONICAL_VERIFY_ATTEMPTS ?? `${DEFAULT_ATTEMPTS}`, 10);
   const delayMs = Number.parseInt(process.env.CANONICAL_VERIFY_DELAY_MS ?? `${DEFAULT_DELAY_MS}`, 10);
+  const requestTimeoutMs = Number.parseInt(
+    process.env.CANONICAL_VERIFY_REQUEST_TIMEOUT_MS ?? `${DEFAULT_REQUEST_TIMEOUT_MS}`,
+    10,
+  );
 
   const result = await verifyCanonicalProduction({
     origin,
@@ -98,6 +108,7 @@ async function main() {
     releaseId,
     attempts,
     delayMs,
+    requestTimeoutMs,
     onAttempt({ attempt, ok, error, health, version }) {
       if (ok) {
         console.log(
