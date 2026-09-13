@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import math
+
+import pytest
+
 from tda_companion.asr_quality import (
+    AsrQualityError,
     QualityThresholds,
     ReferenceTurn,
     apply_quality_thresholds,
@@ -124,6 +129,19 @@ def _reference() -> tuple[ReferenceTurn, ...]:
     )
 
 
+def _valid_thresholds(**overrides: object) -> QualityThresholds:
+    values: dict[str, object] = {
+        "max_word_error_rate": 0.30,
+        "min_turn_coverage": 0.90,
+        "min_speaker_accuracy": 0.90,
+        "max_boundary_p95_seconds": 1.0,
+        "min_overlap_f1": 0.80,
+        "allow_alignment_fallback": False,
+    }
+    values.update(overrides)
+    return QualityThresholds(**values)  # type: ignore[arg-type]
+
+
 def test_quality_metrics_capture_text_timing_speaker_and_overlap() -> None:
     metrics = evaluate_transcript_quality(_reference(), _document())
 
@@ -147,19 +165,35 @@ def test_word_error_rate_records_real_text_error() -> None:
 
 def test_alignment_fallback_is_explicit_and_can_block_a_quality_gate() -> None:
     metrics = evaluate_transcript_quality(_reference(), _document(fallback=True))
-    result = apply_quality_thresholds(
-        metrics,
-        QualityThresholds(
-            max_word_error_rate=0.30,
-            min_turn_coverage=0.90,
-            min_speaker_accuracy=0.90,
-            max_boundary_p95_seconds=1.0,
-            min_overlap_f1=0.80,
-            allow_alignment_fallback=False,
-        ),
-    )
+    result = apply_quality_thresholds(metrics, _valid_thresholds())
 
     assert metrics.timing_precision == "window_fallback"
     assert metrics.alignment_fallback_present is True
     assert result.passed is False
     assert "ALIGNMENT_FALLBACK" in result.failures
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    (
+        ("max_word_error_rate", math.nan, "max_word_error_rate:NUMBER_INVALID"),
+        ("min_turn_coverage", math.inf, "min_turn_coverage:NUMBER_INVALID"),
+        ("min_speaker_accuracy", -0.01, "min_speaker_accuracy:RANGE_INVALID"),
+        ("min_turn_coverage", 1.01, "min_turn_coverage:RANGE_INVALID"),
+        ("max_word_error_rate", -0.01, "max_word_error_rate:RANGE_INVALID"),
+        ("max_boundary_p95_seconds", -0.01, "max_boundary_p95_seconds:RANGE_INVALID"),
+        ("min_overlap_f1", 1.01, "min_overlap_f1:RANGE_INVALID"),
+    ),
+)
+def test_quality_thresholds_reject_non_finite_and_out_of_range_values(
+    field: str,
+    value: float,
+    error: str,
+) -> None:
+    with pytest.raises(AsrQualityError, match=error):
+        _valid_thresholds(**{field: value})
+
+
+def test_quality_thresholds_require_boolean_alignment_fallback_policy() -> None:
+    with pytest.raises(AsrQualityError, match="allow_alignment_fallback:BOOLEAN_REQUIRED"):
+        _valid_thresholds(allow_alignment_fallback=1)
