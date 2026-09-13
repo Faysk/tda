@@ -56,6 +56,40 @@ function Assert-FileValue([string]$Path, [string]$Expected, [string]$Code) {
     if ((Get-Content $Path -Raw).Trim() -ne $Expected) { throw "$Code`:CHANGED" }
 }
 
+function Get-RegistryValueSnapshot([string]$Path, [string]$Name) {
+    if (-not (Test-Path $Path)) {
+        return [pscustomobject]@{ Exists = $false; Value = $null }
+    }
+    $key = Get-Item -Path $Path -ErrorAction Stop
+    $names = @($key.GetValueNames())
+    if ($names -notcontains $Name) {
+        return [pscustomobject]@{ Exists = $false; Value = $null }
+    }
+    return [pscustomobject]@{
+        Exists = $true
+        Value = $key.GetValue(
+            $Name,
+            $null,
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+    }
+}
+
+function Assert-RegistryValueSnapshot(
+    [string]$Path,
+    [string]$Name,
+    $Expected,
+    [string]$Code
+) {
+    $actual = Get-RegistryValueSnapshot $Path $Name
+    if ([bool]$actual.Exists -ne [bool]$Expected.Exists) {
+        throw "$Code`:EXISTENCE_CHANGED"
+    }
+    if ($actual.Exists -and ([string]$actual.Value -cne [string]$Expected.Value)) {
+        throw "$Code`:VALUE_CHANGED"
+    }
+}
+
 function Seed-PersistentRoots([string]$Value) {
     foreach ($name in @("State", "Data", "Logs", "Cache", "Models", "Runtime")) {
         $folder = Join-Path $tdaRoot $name
@@ -89,16 +123,20 @@ try {
     Assert-FileValue $previousMarker $previousVersion "PREVIOUS_VERSION_MARKER"
     if (-not (Test-Path $previousExe)) { throw "PREVIOUS_EXECUTABLE_MISSING" }
     if (-not (Test-Path $productKey)) { throw "PREVIOUS_PRODUCT_REGISTRY_MISSING" }
-    $previousMetadata = Get-ItemProperty -Path $productKey
-    $previousProductCode = [string]$previousMetadata.ProductCode
-    if ($previousMetadata.Version -ne $previousVersion -or -not $previousProductCode) {
-        throw "PREVIOUS_PRODUCT_REGISTRY_INVALID"
-    }
-    $previousStartup = (Get-ItemProperty -Path $runKey -Name "TDA Companion Agent" -ErrorAction Stop)."TDA Companion Agent"
-    if ($previousStartup -notlike "*$previousVersion*TDACompanion.exe*--agent*--startup*") {
-        throw "PREVIOUS_STARTUP_INVALID"
-    }
     if (-not (Test-Path $shortcut)) { throw "PREVIOUS_SHORTCUT_MISSING" }
+
+    # 0.2.0 predates the richer ProductMetadata/StartupRegistration contract.
+    # Capture exactly what the historical MSI produced and require rollback to
+    # restore the same presence/absence and values instead of projecting 0.3.x
+    # registry fields backwards onto it.
+    $baselineRegistry = @{}
+    foreach ($name in @("Installed", "Version", "ProductCode", "InstallDir")) {
+        $baselineRegistry[$name] = Get-RegistryValueSnapshot $productKey $name
+    }
+    if (-not $baselineRegistry["Installed"].Exists -or [int]$baselineRegistry["Installed"].Value -ne 1) {
+        throw "PREVIOUS_INSTALLED_REGISTRY_INVALID"
+    }
+    $baselineStartup = Get-RegistryValueSnapshot $runKey "TDA Companion Agent"
 
     Seed-PersistentRoots "keep-across-upgrade"
     $oldToken = Join-Path $tdaRoot "State\pairing-token.txt"
@@ -117,13 +155,10 @@ try {
     Assert-PersistentRoots "keep-across-upgrade"
     Assert-FileValue $oldToken $tokenBefore "PAIRING_TOKEN_ROLLBACK"
     if (-not (Test-Path $productKey)) { throw "ROLLBACK_PRODUCT_REGISTRY_MISSING" }
-    $rolledBackMetadata = Get-ItemProperty -Path $productKey
-    if ($rolledBackMetadata.Version -ne $previousVersion) { throw "ROLLBACK_REGISTRY_VERSION_NOT_RESTORED" }
-    if ([string]$rolledBackMetadata.ProductCode -ne $previousProductCode) { throw "ROLLBACK_PRODUCT_CODE_NOT_RESTORED" }
-    $rolledBackStartup = (Get-ItemProperty -Path $runKey -Name "TDA Companion Agent" -ErrorAction Stop)."TDA Companion Agent"
-    if ($rolledBackStartup -notlike "*$previousVersion*TDACompanion.exe*--agent*--startup*") {
-        throw "ROLLBACK_STARTUP_NOT_RESTORED"
+    foreach ($name in @("Installed", "Version", "ProductCode", "InstallDir")) {
+        Assert-RegistryValueSnapshot $productKey $name $baselineRegistry[$name] "ROLLBACK_REGISTRY_$name"
     }
+    Assert-RegistryValueSnapshot $runKey "TDA Companion Agent" $baselineStartup "ROLLBACK_STARTUP"
     if (-not (Test-Path $shortcut)) { throw "ROLLBACK_SHORTCUT_NOT_RESTORED" }
 
     # Real successful WiX MajorUpgrade after rollback proof.
@@ -137,6 +172,14 @@ try {
     Assert-FileValue $oldToken $tokenBefore "PAIRING_TOKEN_UPGRADE"
     if (Test-Path $previousExe) {
         throw "PREVIOUS_EXECUTABLE_LEFT_AFTER_MAJOR_UPGRADE"
+    }
+    $currentVersionRegistry = Get-RegistryValueSnapshot $productKey "Version"
+    $currentProductCode = Get-RegistryValueSnapshot $productKey "ProductCode"
+    if (-not $currentVersionRegistry.Exists -or [string]$currentVersionRegistry.Value -ne $CurrentVersion) {
+        throw "CURRENT_REGISTRY_VERSION_INVALID"
+    }
+    if (-not $currentProductCode.Exists -or -not [string]$currentProductCode.Value) {
+        throw "CURRENT_PRODUCT_CODE_MISSING"
     }
 
     # Normal uninstall must remove application integration and preserve all user roots.
@@ -160,19 +203,23 @@ try {
     Write-Host "TDA Companion lifecycle smoke: PASS ($previousVersion -> forced rollback -> $CurrentVersion -> preserve uninstall -> purge)"
 }
 finally {
-    Remove-Item $previousMsi -Force -ErrorAction SilentlyContinue
-    # Best-effort cleanup only if the test failed before purge.
+    # Best-effort cleanup only if the test failed before purge. 0.2.0 did not
+    # publish ProductCode in the TDA registry, so its verified baseline MSI is
+    # the authoritative uninstall fallback.
     if (Test-Path $tdaRoot) {
         $maintenance = Current-MaintenanceExe
         if (Test-Path $maintenance) {
             try { Start-Process -FilePath $maintenance -ArgumentList @("--uninstall", "--purge", "--root", "`"$tdaRoot`"") -Wait | Out-Null } catch { }
         } elseif (Test-Path $productKey) {
             try {
-                $productCode = [string](Get-ItemProperty -Path $productKey).ProductCode
-                if ($productCode) {
-                    Start-Process -FilePath "msiexec.exe" -ArgumentList @("/x", $productCode, "/qn", "/norestart") -Wait | Out-Null
+                $productCodeSnapshot = Get-RegistryValueSnapshot $productKey "ProductCode"
+                if ($productCodeSnapshot.Exists -and [string]$productCodeSnapshot.Value) {
+                    Start-Process -FilePath "msiexec.exe" -ArgumentList @("/x", [string]$productCodeSnapshot.Value, "/qn", "/norestart") -Wait | Out-Null
+                } elseif (Test-Path $previousMsi) {
+                    Start-Process -FilePath "msiexec.exe" -ArgumentList @("/x", "`"$previousMsi`"", "/qn", "/norestart") -Wait | Out-Null
                 }
             } catch { }
         }
     }
+    Remove-Item $previousMsi -Force -ErrorAction SilentlyContinue
 }
