@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import ctypes
 import hashlib
 import json
@@ -513,6 +514,46 @@ def uninstall(
         raise
 
 
+def _schedule_self_cleanup(operation_id: str) -> None:
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        return
+    executable = Path(sys.executable).resolve()
+    staging = executable.parent
+    if (
+        staging.name != operation_id
+        or staging.parent.name != "TDACompanionMaintenance"
+        or executable.name.casefold() != "tdacompanionmaintenance.exe"
+    ):
+        return
+    path_b64 = base64.b64encode(str(staging).encode("utf-8")).decode("ascii")
+    script = (
+        "$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"
+        + path_b64
+        + "')); Start-Sleep -Milliseconds 900; "
+        "Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue"
+    )
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    subprocess.Popen(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded,
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        creationflags=(
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        ),
+    )
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="TDACompanionMaintenance")
     actions = parser.add_mutually_exclusive_group(required=True)
@@ -523,6 +564,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--parent-pid", type=int)
     parser.add_argument("--operation-id")
+    parser.add_argument("--cleanup-self", action="store_true")
     parser.add_argument("--msi", type=Path)
     parser.add_argument("--sha256")
     parser.add_argument("--version")
@@ -574,6 +616,12 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
         return 1
+    finally:
+        if args.cleanup_self and operation_id is not None:
+            try:
+                _schedule_self_cleanup(operation_id)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
