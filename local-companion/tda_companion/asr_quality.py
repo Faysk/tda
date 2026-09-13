@@ -57,6 +57,29 @@ class QualityThresholds:
     min_overlap_f1: float
     allow_alignment_fallback: bool = False
 
+    def __post_init__(self) -> None:
+        max_word_error_rate = _finite(self.max_word_error_rate, "max_word_error_rate")
+        min_turn_coverage = _finite(self.min_turn_coverage, "min_turn_coverage")
+        min_speaker_accuracy = _finite(self.min_speaker_accuracy, "min_speaker_accuracy")
+        max_boundary_p95_seconds = _finite(
+            self.max_boundary_p95_seconds,
+            "max_boundary_p95_seconds",
+        )
+        min_overlap_f1 = _finite(self.min_overlap_f1, "min_overlap_f1")
+
+        if max_word_error_rate < 0.0:
+            raise AsrQualityError("max_word_error_rate:RANGE_INVALID")
+        if not 0.0 <= min_turn_coverage <= 1.0:
+            raise AsrQualityError("min_turn_coverage:RANGE_INVALID")
+        if not 0.0 <= min_speaker_accuracy <= 1.0:
+            raise AsrQualityError("min_speaker_accuracy:RANGE_INVALID")
+        if max_boundary_p95_seconds < 0.0:
+            raise AsrQualityError("max_boundary_p95_seconds:RANGE_INVALID")
+        if not 0.0 <= min_overlap_f1 <= 1.0:
+            raise AsrQualityError("min_overlap_f1:RANGE_INVALID")
+        if not isinstance(self.allow_alignment_fallback, bool):
+            raise AsrQualityError("allow_alignment_fallback:BOOLEAN_REQUIRED")
+
 
 @dataclass(frozen=True)
 class QualityGateResult:
@@ -97,7 +120,18 @@ def _edit_counts(reference: list[str], hypothesis: list[str]) -> tuple[int, int,
                 (deletion[0] + 1, deletion[1], deletion[2] + 1, deletion[3]),
                 (insertion[0] + 1, insertion[1], insertion[2], insertion[3] + 1),
             )
-            current.append(min(candidates, key=lambda item: (item[0], item[1] + item[2] + item[3], item[1], item[2], item[3])))
+            current.append(
+                min(
+                    candidates,
+                    key=lambda item: (
+                        item[0],
+                        item[1] + item[2] + item[3],
+                        item[1],
+                        item[2],
+                        item[3],
+                    ),
+                )
+            )
         previous = current
     _, substitutions, deletions, insertions = previous[-1]
     return substitutions, deletions, insertions
