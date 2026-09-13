@@ -41,6 +41,12 @@ const MODULES: readonly EditModule[] = [
 		href: "/edit/mundo",
 		capability: EDIT_CAPABILITIES.worldLayoutEdit,
 	},
+	{
+		title: "Permissões",
+		description: "Consulte quem tem acesso e quais ações estão liberadas na campanha.",
+		href: `/edit/${CAMPAIGN_SLUG}/permissions`,
+		capability: EDIT_CAPABILITIES.permissionsManage,
+	},
 ] as const;
 
 export default async function EditPage() {
