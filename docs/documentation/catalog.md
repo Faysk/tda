@@ -78,7 +78,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Assets oficiais da marca TDA](../design-system/official-assets.md) | brand / design-system | canônico para marca; integração runtime parcial e verificável | 2026-09-06 |
 | [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; atualizado após Home V2 e shell responsiva | 2026-09-12 |
 | [TDA — Diretriz geral de UX, design e hierarquia visual](../design-system/ux-hierarchy.md) | design-system / frontend | canônico | 2026-09-12 |
-| [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; implementação pendente | 2026-09-06 |
+| [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; workspace atual implementado, chrome v3 planejado | 2026-09-12 |
+| [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação planejada | 2026-09-12 |
 
 ## docs/documentation
 
@@ -197,4 +198,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-121 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+122 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
