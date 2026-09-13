@@ -164,3 +164,11 @@ export function clampWorldEntityMediaFocalPoint(value: number): number {
 	if (!Number.isFinite(value)) return 0.5;
 	return Math.min(1, Math.max(0, value));
 }
+
+export function worldEntityMediaObjectPosition(
+	focalPoint?: Readonly<{ x: number; y: number }>,
+): string {
+	const x = clampWorldEntityMediaFocalPoint(focalPoint?.x ?? 0.5);
+	const y = clampWorldEntityMediaFocalPoint(focalPoint?.y ?? 0.5);
+	return `${x * 100}% ${y * 100}%`;
+}
