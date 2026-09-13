@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -49,6 +50,42 @@ class SessionDesktopBridge(DesktopBridge):
         )
         self._last_maintenance_operation_id: str | None = None
 
+    def _maintenance_snapshot(self) -> dict[str, object] | None:
+        path = self.paths.cache_root / "maintenance" / "last-operation.json"
+        try:
+            if not path.is_file() or path.stat().st_size > 64 * 1024:
+                return None
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        operation_id = value.get("operation_id")
+        status = value.get("status")
+        stage = value.get("stage")
+        action = value.get("action")
+        if (
+            not isinstance(operation_id, str)
+            or len(operation_id) != 32
+            or status not in {"running", "completed", "failed"}
+            or not isinstance(stage, str)
+            or action not in {"update", "uninstall"}
+        ):
+            return None
+        allowed = (
+            "operation_id",
+            "action",
+            "status",
+            "stage",
+            "failure_stage",
+            "error_code",
+            "msi_exit_code",
+            "target_version",
+            "purge",
+            "updated_at",
+        )
+        return {key: value.get(key) for key in allowed if key in value}
+
     def _offline_snapshot(self, code: str) -> dict[str, object]:
         connection = self.client.status()
         try:
@@ -69,6 +106,7 @@ class SessionDesktopBridge(DesktopBridge):
                 "error": code,
             },
             "connection": connection,
+            "maintenance": self._maintenance_snapshot(),
             "system": {},
             "storage": storage,
             "counts": {"processing": 0, "queued": 0, "completed": 0, "attention": 0},
@@ -89,7 +127,11 @@ class SessionDesktopBridge(DesktopBridge):
             value = super().snapshot()
         except AgentConnectionError as exc:
             return self._offline_snapshot(exc.code)
-        return {**value, "connection": self.client.status()}
+        return {
+            **value,
+            "connection": self.client.status(),
+            "maintenance": self._maintenance_snapshot(),
+        }
 
     def logs(
         self,
