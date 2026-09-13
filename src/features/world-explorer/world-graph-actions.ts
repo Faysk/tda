@@ -253,13 +253,14 @@ export async function publishWorldEditStateAction(
 		if (graphRevision === undefined || layoutRevision === undefined) {
 			return { ok: false, reason: "dependency_unavailable" };
 		}
+		const mediaStatus = safeMediaStatus(payload.mediaStatus);
 		revalidatePath("/mundo");
 		return {
 			ok: true,
-			status: payload.status,
+			status: mediaStatus === "saved" ? "saved" : payload.status,
 			graphRevision,
 			layoutRevision,
-			mediaStatus: safeMediaStatus(payload.mediaStatus),
+			mediaStatus,
 		};
 	}
 	if (payload.reason === "media_not_verified" || payload.reason === "media_invalid") {
