@@ -7,6 +7,7 @@ import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
 import type { WorldGraphDraft } from "./model";
+import { worldEntityMediaDraftHasIntent } from "./world-entity-media-intent";
 import { prepareWorldEntityMediaForPublish } from "./world-entity-media-publication";
 import { hydrateWorldGraphDraftMedia } from "./world-entity-media-repository";
 import { worldEntityMediaEnabled } from "./world-entity-media-server";
@@ -222,6 +223,12 @@ export async function publishWorldEditStateAction(
 	}
 
 	const mediaEnabled = worldEntityMediaEnabled();
+	if (!mediaEnabled && worldEntityMediaDraftHasIntent(publicationDraft)) {
+		// A flag can be disabled while an editor still owns a draft created when
+		// media was available. Never fall back to the legacy publisher in that
+		// state: it would consume the lease while silently dropping media intent.
+		return { ok: false, reason: "media_pending" };
+	}
 	const preparedMedia = await prepareWorldEntityMediaForPublish({
 		client,
 		draft: publicationDraft,
