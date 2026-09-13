@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WorldNodeDTO } from "../model";
 import {
@@ -8,6 +9,7 @@ import {
 	type WorldCommandDefinition,
 	type WorldCommandId,
 } from "../world-commands";
+import { worldEntityMediaShouldBypassImageOptimization } from "../world-entity-media";
 import styles from "./world-command-palette.module.css";
 
 const PALETTE_FOCUSABLE =
@@ -31,6 +33,16 @@ function commandSearchText(command: WorldCommandDefinition): string {
 
 function entitySearchText(entity: WorldNodeDTO): string {
 	return `${entity.label} ${entity.subtitle ?? ""} ${entity.entityType ?? ""}`;
+}
+
+function entityInitials(label: string): string {
+	return label
+		.split(/\s+/u)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part.charAt(0))
+		.join("")
+		.toLocaleUpperCase("pt-BR");
 }
 
 function shortcutLabel(shortcut: WorldCommandDefinition["shortcut"]): string | null {
@@ -258,6 +270,7 @@ export function WorldCommandPalette({
 									</button>
 								);
 							}
+							const focal = result.entity.imageFocalPoint ?? { x: 0.5, y: 0.5 };
 							return (
 								<button
 									key={result.key}
@@ -269,7 +282,21 @@ export function WorldCommandPalette({
 									onMouseEnter={() => setActiveIndex(index)}
 									onClick={() => activate(result)}
 								>
-									<span className={styles.resultIcon} aria-hidden="true">◇</span>
+									<span className={styles.entityPortrait} aria-hidden="true">
+										{result.entity.imageUrl ? (
+											<Image
+												className={styles.entityPortraitImage}
+												src={result.entity.imageUrl}
+												alt=""
+												fill
+												sizes="32px"
+												unoptimized={worldEntityMediaShouldBypassImageOptimization(result.entity.imageUrl)}
+												style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
+											/>
+										) : (
+											<span>{entityInitials(result.entity.label)}</span>
+										)}
+									</span>
 									<span className={styles.resultCopy}>
 										<strong>{result.entity.label}</strong>
 										<small>{result.entity.subtitle ?? result.entity.entityType ?? "Elemento"}</small>
