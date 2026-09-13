@@ -4,6 +4,13 @@
 -- verification/provenance and the semantic entity -> media binding.
 -- Browser roles receive no table or RPC grants.
 
+-- A composite entity key lets the media binding enforce campaign scope in the
+-- database instead of trusting an application-side UUID lookup alone. `id` is
+-- already globally unique; this redundant unique constraint exists solely as a
+-- referenced key for the campaign-scoped FK below.
+alter table public.entities
+  add constraint entities_campaign_id_id_key unique (campaign_id, id);
+
 create table public.media_assets (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
@@ -14,7 +21,7 @@ create table public.media_assets (
   object_key text not null,
   sha256 text not null check (sha256 ~ '^[0-9a-f]{64}$'),
   mime_type text not null check (mime_type in ('image/png', 'image/webp')),
-  byte_size bigint not null check (byte_size between 1 and 8388608),
+  byte_size bigint not null check (byte_size between 24 and 8388608),
   width integer not null check (width between 1 and 16384),
   height integer not null check (height between 1 and 16384),
   read_back_verified boolean not null default false,
@@ -28,7 +35,7 @@ create table public.media_assets (
   unique (campaign_id, id),
   unique (campaign_id, staged_bucket, object_key),
   check (
-    object_key ~ '^campaigns/[a-z0-9][a-z0-9-]{0,95}/entities/[0-9a-f-]{36}/(portrait|artwork|gallery)/[0-9a-f]{64}[.](png|webp)$'
+    object_key ~ '^campaigns/[a-z0-9][a-z0-9-]{0,95}/entities/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/(portrait|artwork|gallery)/[0-9a-f]{64}[.](png|webp)$'
   ),
   check (
     (status = 'verified_public'
@@ -47,7 +54,7 @@ create index media_assets_campaign_status_idx
 
 create table public.entity_media_bindings (
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  entity_id uuid not null references public.entities(id) on delete cascade,
+  entity_id uuid not null,
   role text not null default 'portrait' check (role = 'portrait'),
   asset_id uuid not null,
   focal_x numeric(5,4) not null default 0.5 check (focal_x between 0 and 1),
@@ -56,6 +63,8 @@ create table public.entity_media_bindings (
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
   primary key (campaign_id, entity_id, role),
+  foreign key (campaign_id, entity_id)
+    references public.entities(campaign_id, id) on delete cascade,
   foreign key (campaign_id, asset_id)
     references public.media_assets(campaign_id, id) on delete restrict
 );
@@ -98,11 +107,15 @@ declare
   v_entity_id uuid;
   v_entity_visibility text;
   v_asset_id uuid;
+  v_draft_asset_id uuid;
   v_focal_x numeric(5,4);
   v_focal_y numeric(5,4);
+  v_draft_focal_x numeric(5,4);
+  v_draft_focal_y numeric(5,4);
   v_expected_key text;
   v_result jsonb;
   v_count integer := 0;
+  v_draft_media_count integer := 0;
 begin
   if p_auth_user_id is null
      or p_actor_profile_id is null
@@ -166,6 +179,17 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'duplicate');
   end if;
 
+  -- Every explicit media field in the lease draft must have exactly one binding
+  -- argument and vice versa. This prevents an internal/service-role caller from
+  -- publishing the factual graph while silently dropping or replacing the media
+  -- intent that the editor actually saved in the same lease.
+  select count(*)::integer into v_draft_media_count
+  from jsonb_array_elements(v_draft->'nodes') n(value)
+  where n.value ? 'primaryMediaAssetId';
+  if jsonb_array_length(p_bindings) <> v_draft_media_count then
+    return jsonb_build_object('ok', false, 'reason', 'media_invalid');
+  end if;
+
   -- Validate ALL media intent before the existing publisher mutates or deletes
   -- the lease. Visibility is read from the draft, not the old entity row, so a
   -- private -> public_web transition cannot bind a merely staged asset.
@@ -195,9 +219,50 @@ begin
     from jsonb_array_elements(v_draft->'nodes') n(value)
     where n.value->>'id' = v_entity_id::text
     limit 1;
-    if not found then
-      return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+    if not found or not (v_draft_node ? 'primaryMediaAssetId') then
+      return jsonb_build_object('ok', false, 'reason', 'media_invalid');
     end if;
+
+    begin
+      if v_draft_node->'primaryMediaAssetId' = 'null'::jsonb then
+        v_draft_asset_id := null;
+      elsif jsonb_typeof(v_draft_node->'primaryMediaAssetId') = 'string' then
+        v_draft_asset_id := (v_draft_node->>'primaryMediaAssetId')::uuid;
+      else
+        return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+      end if;
+
+      if v_draft_asset_id is null then
+        if v_draft_node ? 'primaryMediaFocalPoint'
+           and v_draft_node->'primaryMediaFocalPoint' <> 'null'::jsonb then
+          return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+        end if;
+        v_draft_focal_x := 0.5;
+        v_draft_focal_y := 0.5;
+      elsif not (v_draft_node ? 'primaryMediaFocalPoint')
+            or v_draft_node->'primaryMediaFocalPoint' = 'null'::jsonb then
+        v_draft_focal_x := 0.5;
+        v_draft_focal_y := 0.5;
+      elsif jsonb_typeof(v_draft_node->'primaryMediaFocalPoint') = 'object'
+            and jsonb_typeof(v_draft_node->'primaryMediaFocalPoint'->'x') = 'number'
+            and jsonb_typeof(v_draft_node->'primaryMediaFocalPoint'->'y') = 'number' then
+        v_draft_focal_x := (v_draft_node->'primaryMediaFocalPoint'->>'x')::numeric;
+        v_draft_focal_y := (v_draft_node->'primaryMediaFocalPoint'->>'y')::numeric;
+      else
+        return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+      end if;
+    exception when others then
+      return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+    end;
+
+    if v_draft_focal_x < 0 or v_draft_focal_x > 1
+       or v_draft_focal_y < 0 or v_draft_focal_y > 1
+       or v_asset_id is distinct from v_draft_asset_id
+       or v_focal_x is distinct from v_draft_focal_x
+       or v_focal_y is distinct from v_draft_focal_y then
+      return jsonb_build_object('ok', false, 'reason', 'media_invalid');
+    end if;
+
     v_entity_visibility := v_draft_node->>'visibility';
     if v_entity_visibility not in (
       'private_master','private_players','review_only','public_campaign','public_web'
