@@ -9,6 +9,7 @@ import {
 	buildWorldInspectorContext,
 	type WorldInspectorConnection,
 } from "../world-inspector-context";
+import { worldEntityMediaShouldBypassImageOptimization } from "../world-entity-media";
 import styles from "./world-explorer.module.css";
 import inspectorStyles from "./world-inspector.module.css";
 
@@ -75,6 +76,7 @@ export function WorldInspectorContent({
 		visibleRelationHighlights,
 	} = context;
 	const prominence = prominenceLabel(selected);
+	const focal = selected.imageFocalPoint ?? { x: 0.5, y: 0.5 };
 	const tabs: Array<{ id: InspectorTab; label: string; count?: number }> = [
 		{ id: "overview", label: "Visão geral" },
 		{ id: "relations", label: "Laços", count: connections.length },
@@ -94,6 +96,8 @@ export function WorldInspectorContent({
 							alt=""
 							fill
 							sizes="520px"
+							unoptimized={worldEntityMediaShouldBypassImageOptimization(selected.imageUrl)}
+							style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
 						/>
 					) : (
 						<span className={inspectorStyles.identityInitial}>
