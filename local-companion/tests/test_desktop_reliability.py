@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import tda_companion.desktop_session_bridge as desktop_session_bridge
 
 from tda_companion.agent_connection import AgentConnectionError
 from tda_companion.desktop import DesktopBridge
@@ -136,7 +138,31 @@ def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_p
     operation_id = result["operation_id"]
     assert isinstance(operation_id, str) and len(operation_id) == 32
     assert seen["arguments"][-2:] == ["--operation-id", operation_id]
+    assert "--cleanup-self" in seen["arguments"]
     assert handoffs == [operation_id]
+
+
+def test_staged_maintenance_helper_lives_outside_tda_root(monkeypatch, tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    operation_id = "1" * 32
+    bridge._last_maintenance_operation_id = operation_id
+    source = tmp_path / "TDACompanionMaintenance.exe"
+    source.write_bytes(b"helper")
+    temp_root = tmp_path.parent / f"{tmp_path.name}-system-temp"
+    shutil.rmtree(temp_root, ignore_errors=True)
+    monkeypatch.setattr(
+        desktop_session_bridge.tempfile,
+        "gettempdir",
+        lambda: str(temp_root),
+    )
+    try:
+        helper = bridge._maintenance_helper()
+        assert helper.read_bytes() == b"helper"
+        assert tmp_path not in helper.parents
+        assert helper.parent.name == operation_id
+        assert helper.parent.parent.name == "TDACompanionMaintenance"
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 def test_failed_handoff_blocks_ui_close_contract(tmp_path: Path):
