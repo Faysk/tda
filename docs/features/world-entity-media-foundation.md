@@ -2,7 +2,7 @@
 
 > Owner: narrative-memory / integrations-media / frontend
 > Status: implementação candidata; schema remoto não aplicado
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-13
 
 > Contrato de implementação para a primeira imagem canônica de cada elemento do Mundo. Este documento não autoriza migration em Production.
 
@@ -95,23 +95,45 @@ A hidratação adiciona intenção de mídia somente quando já existe binding p
 7. Bindings de entidades não públicas podem continuar apontando para assets verificados em staging privado; URL pública só é projetada para assets explicitamente `verified_public`.
 8. No boundary da aplicação, uma publicação exclusivamente de mídia é reportada como `saved` mesmo quando graph/layout retornam `unchanged`, evitando feedback enganoso de “nada para publicar”.
 
+## Homologação remota
+
+A primeira validação remota não usa o Supabase Production como staging. O projeto Production permanece `dmrqnbdvbkfqzctcerbx`; o schema candidato deve ser aplicado em uma **development branch Supabase isolada**, sem dados de Production, e receber somente fixtures mínimas não sensíveis necessárias ao smoke. O feature flag `TDA_WORLD_ENTITY_MEDIA_ENABLED` permanece `false` até que o deployment de homologação esteja deliberadamente apontado para essa branch e para o bucket `tda-media-preview`.
+
+Para o bucket de Preview, o contrato operacional gerenciado pelo repo é:
+
+- CORS para **uma origem HTTPS exata** do deployment Vercel de homologação; não usar wildcard e não incluir `dnd.faysk.dev`;
+- somente método `PUT`;
+- somente header `Content-Type`;
+- `ETag` pode ser exposto ao browser;
+- preflight cache de 600 segundos;
+- lifecycle de 1 dia somente para `uploads/pending/world-entity/`;
+- nenhuma regra de expiração alcança `campaigns/`, `lore/`, `site/` ou outros namespaces canônicos.
+
+`tools/world-entity-media-r2-preview.mjs` implementa plan/check/apply dessa política. O modo padrão apenas imprime o plano e não usa credenciais. `--check` faz read-back da configuração atual. `--apply` exige também `--confirm-preview`, recusa qualquer bucket diferente de `tda-media-preview`, preserva regras de bucket não gerenciadas por esta feature e valida novamente CORS/lifecycle após a escrita. Se a credencial de runtime da aplicação não possuir permissão de configuração de bucket, ela **não deve** ser ampliada apenas por conveniência; usar uma credencial operacional separada para esse ajuste.
+
+A origem CORS deve ser obtida do deployment real que será testado, porque o Preview CD atual gera URL `*.vercel.app` sem alias estável garantido. Trocar deployment exige revisar a origem antes de esperar que um presigned PUT funcione no browser.
+
 ## Validação automatizada do candidato
 
 A CI executa `tools/world-entity-media-db.py` em um PostgreSQL 16 efêmero, acessível apenas por Unix socket, sem TCP e sem herdar credenciais `PG*`. O runner reaplica a fixture/migrations e os contratos sintéticos canônicos do World antes de executar o SQL em `supabase/candidates/`; ele não se conecta ao Supabase e não promove migration.
 
 O contrato sintético cobre RLS deny-by-default, ausência de grants para `anon`/`authenticated`, isolamento de campaign pela FK composta, rejeição de binding que não corresponda ao draft da lease, bloqueio `media_not_verified` sem consumir o rascunho e publicação atômica do portrait depois de o asset sintético estar marcado como verificado. O job existente de `world-layout-db` continua rodando separadamente para provar que o candidato não substitui os guardrails de layout/graph.
 
+A política R2 de Preview possui teste unitário separado para impedir ampliação acidental de origin/método/header e para provar que o lifecycle continua restrito ao prefixo efêmero. A configuração remota continua sendo uma etapa operacional explícita, nunca efeito colateral de build/deploy.
+
 ## Primeira UX
 
 O inspector de **Conduzir** já integra `WorldEntityMediaEditor`: preview circular, adicionar/trocar/remover, file picker e drag-and-drop, cálculo SHA-256 no browser e estados de preparação/upload/finalização. Quando a finalização retorna o asset UUID, o editor grava `primaryMediaAssetId` no draft e preserva/inicializa o focal point; a projeção de draft troca o retrato do node imediatamente pela rota privada, sem alterar o Mundo publicado.
 
-Remover o portrait grava `primaryMediaAssetId = null` no draft e restaura o fallback de iniciais no canvas. O feature flag continua fail-closed e desligado por default enquanto schema/R2/CORS não forem autorizados no ambiente; integrar a superfície visual não ativa infraestrutura remota por efeito colateral.
+Remover o portrait grava `primaryMediaAssetId = null` no draft e restaura o fallback de iniciais no canvas. O feature flag continua fail-closed e desligado por default enquanto schema/R2/CORS não estiverem autorizados e validados no ambiente; integrar a superfície visual não ativa infraestrutura remota por efeito colateral.
 
-Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e já pode ser ajustado horizontal e verticalmente no inspector, com ação para recentralizar; derivados pequenos para avatar/node continuam pendentes.
+Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e respeita `imageFocalPoint` via `object-position`. O focal point inicia em `(0.5, 0.5)` e já pode ser ajustado horizontal e verticalmente no inspector, com ação para recentralizar.
+
+Nesta fundação não existe derivado físico `portrait-node` por antecipação. O retrato público pequeno usa `next/image`; o preview privado autenticado fica `unoptimized` para preservar auth. A homologação mede bytes/requests com múltiplos portraits e só transforma um derivado pequeno em requisito antes da ativação se a medição provar necessidade, sempre derivando do master e registrando provenance própria.
 
 ## Limites iniciais
 
-PNG e WebP; de 24 bytes até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. Presigned PUT expira em 5 minutos. O pipeline deve favorecer derivados pequenos para node/avatar e não servir o original de vários megabytes como thumbnail.
+PNG e WebP; de 24 bytes até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. Presigned PUT expira em 5 minutos. O pipeline deve favorecer entrega proporcional ao slot e nunca promover thumbnail como novo master.
 
 ## Não objetivos desta fase
 
