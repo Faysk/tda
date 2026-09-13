@@ -122,7 +122,7 @@ export async function hydrateWorldGraphDraftMedia(
 						primaryMediaAssetId: binding.asset_id,
 						primaryMediaFocalPoint: focalPoint(binding),
 					}
-				: { ...node, primaryMediaAssetId: null };
+				: node;
 		}),
 	};
 }
