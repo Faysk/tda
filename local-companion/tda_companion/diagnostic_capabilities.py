@@ -65,13 +65,14 @@ def build_capabilities(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     core_degraded = ["disk"] if _status(values, "disk") == "warning" else []
     core = _summary("core", core_blockers, core_degraded)
 
-    network_codes = (
-        "network_dns",
-        "network_https",
-        "network_manifest",
-        "network_asset",
+    network_blockers = _not_pass(
+        values,
+        ("network_https", "network_manifest", "network_asset"),
     )
-    network = _summary("network", _not_pass(values, network_codes))
+    network_degraded = []
+    if not network_blockers and _status(values, "network_dns") != "pass":
+        network_degraded.append("network_dns")
+    network = _summary("network", network_blockers, network_degraded)
 
     maintenance_codes = (
         "maintenance_metadata",
