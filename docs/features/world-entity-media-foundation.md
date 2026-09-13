@@ -2,7 +2,7 @@
 
 > Owner: narrative-memory / integrations-media / frontend
 > Status: implementação candidata; schema remoto não aplicado
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-13
 
 > Contrato de implementação para a primeira imagem canônica de cada elemento do Mundo. Este documento não autoriza migration em Production.
 
@@ -44,6 +44,8 @@ O `sha256` da chave canônica torna o objeto imutável e permite read-back/integ
 
 `entity_media_bindings` contém o vínculo `(campaign_id, entity_id, role) -> asset_id` e focal point normalizado. A primeira versão aceita somente `role = portrait`, preservando espaço para expansão sem adicionar colunas de URL a `entities`.
 
+O vínculo da entidade é protegido também no banco por FK composta `(campaign_id, entity_id) -> entities(campaign_id, id)`. O `id` de entidade já é globalmente único; a constraint composta redundante existe para tornar o isolamento entre campanhas uma invariável relacional, sem depender apenas de checagens da aplicação.
+
 O SQL correspondente vive em `supabase/candidates/` até autorização explícita para migration remota.
 
 ## Segurança
@@ -56,6 +58,7 @@ O SQL correspondente vive em `supabase/candidates/` até autorização explícit
 - `Content-Length` e hash declarados pelo cliente não são tratados como prova. A finalização lê o objeto do R2 e confirma magic bytes, MIME real, tamanho e SHA-256.
 - Assets de outra campaign ou outro entity não podem ser associados por troca de UUID.
 - A visibility usada para decidir se o asset precisa estar público vem do `draft_graph` que será publicado, não do estado antigo de `entities`.
+- O wrapper de publicação exige correspondência exata entre `p_bindings` e a intenção de mídia persistida no `draft_graph` da mesma lease: UUID do asset, remoção explícita e focal point não podem ser trocados por um caller interno sem invalidar a publicação.
 
 ## Upload direto para R2
 
@@ -79,15 +82,24 @@ Antes de responder, a rota resolve campaign + asset por UUID, rejeita asset `ret
 
 O draft hidratado e alterações locais podem usar essa rota como `imageUrl`; a projeção pública continua independente e só usa URL pública verificada. No node, essa URL autenticada é renderizada com `next/image` em modo `unoptimized`, porque o otimizador do Next não deve ser a ponte de autenticação para uma origem privada. Depois de publicado, o URL imutável em `media.dnd.faysk.dev/campaigns/{campaign}/entities/...` volta ao pipeline normal de otimização do Next e está explicitamente coberto por `remotePatterns`.
 
+A hidratação adiciona intenção de mídia somente quando já existe binding persistido. Entidades sem portrait permanecem sem `primaryMediaAssetId`; `null` é reservado para uma remoção explícita feita pelo editor. Isso evita transformar uma simples abertura do modo Conduzir em centenas de remoções/no-ops artificiais no próximo publish.
+
 ## Publicação
 
 1. O editor escolhe um asset no draft (`primaryMediaAssetId`).
 2. O draft continua privado e recuperável enquanto a lease existir.
 3. Antes de consumir a lease, o servidor valida todos os assets pedidos pelo draft. Para entidade `public_web`, promove o objeto imutável para `tda-media-public` e confirma read-back + entrega pública.
 4. Se promoção/verificação falhar, a publicação é bloqueada como `media_pending`; graph/layout e bindings não são publicados e a lease/draft permanece disponível para retry.
-5. Com a mídia pronta, o wrapper SQL candidato `publish_world_edit_state_with_media_atomic(...)` valida o mesmo draft/lease, chama a publicação factual/layout existente e aplica `entity_media_bindings` dentro da mesma transação PostgreSQL.
+5. Com a mídia pronta, o wrapper SQL candidato `publish_world_edit_state_with_media_atomic(...)` valida o mesmo draft/lease, exige que os bindings recebidos correspondam à intenção salva nessa lease, chama a publicação factual/layout existente e aplica `entity_media_bindings` dentro da mesma transação PostgreSQL.
 6. Qualquer falha SQL depois da chamada factual reverte também graph/layout, evitando estado factual publicado com binding de mídia parcialmente aplicado.
 7. Bindings de entidades não públicas podem continuar apontando para assets verificados em staging privado; URL pública só é projetada para assets explicitamente `verified_public`.
+8. No boundary da aplicação, uma publicação exclusivamente de mídia é reportada como `saved` mesmo quando graph/layout retornam `unchanged`, evitando feedback enganoso de “nada para publicar”.
+
+## Validação automatizada do candidato
+
+A CI executa `tools/world-entity-media-db.py` em um PostgreSQL 16 efêmero, acessível apenas por Unix socket, sem TCP e sem herdar credenciais `PG*`. O runner reaplica a fixture/migrations e os contratos sintéticos canônicos do World antes de executar o SQL em `supabase/candidates/`; ele não se conecta ao Supabase e não promove migration.
+
+O contrato sintético cobre RLS deny-by-default, ausência de grants para `anon`/`authenticated`, isolamento de campaign pela FK composta, rejeição de binding que não corresponda ao draft da lease, bloqueio `media_not_verified` sem consumir o rascunho e publicação atômica do portrait depois de o asset sintético estar marcado como verificado. O job existente de `world-layout-db` continua rodando separadamente para provar que o candidato não substitui os guardrails de layout/graph.
 
 ## Primeira UX
 
@@ -99,7 +111,7 @@ Nós continuam circulares; a imagem usa crop `cover`, fallback para iniciais e r
 
 ## Limites iniciais
 
-PNG e WebP; até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. Presigned PUT expira em 5 minutos. O pipeline deve favorecer derivados pequenos para node/avatar e não servir o original de vários megabytes como thumbnail.
+PNG e WebP; de 24 bytes até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. Presigned PUT expira em 5 minutos. O pipeline deve favorecer derivados pequenos para node/avatar e não servir o original de vários megabytes como thumbnail.
 
 ## Não objetivos desta fase
 
