@@ -9,42 +9,103 @@ on:
 permissions:
   contents: read
 
+env:
+  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  VERCEL_CLI_VERSION: 59.11.7
+
 jobs:
   recover:
     runs-on: ubuntu-latest
+    environment: preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Recover historical public shell
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+
+      - name: Pull Preview media credentials
         shell: bash
         run: |
-          set -u
+          set -euo pipefail
+          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+            echo "::error::Missing preview VERCEL_TOKEN"
+            exit 1
+          fi
+          npm install --global "vercel@${VERCEL_CLI_VERSION}"
+          MEDIA_ENV="$RUNNER_TEMP/tda-media-preview.env"
+          vercel env pull "$MEDIA_ENV" --yes --environment=preview --token="$VERCEL_TOKEN" >/dev/null
+          chmod 600 "$MEDIA_ENV"
+          echo "TDA_MEDIA_ENV=$MEDIA_ENV" >> "$GITHUB_ENV"
+
+      - name: Recover historical shell directly from R2
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p recovered
-          base='https://media.dnd.faysk.dev/lore/yllith/site'
-          cat > expected.tsv <<'EOF'
-          index.html	56047	d37439c16dd24a39c98347e20bc76532ae75a7b09889b7aa1eb653bd4bef934a
-          yllith.css	37831	7b0440db4e7f609ab25f6e6a6c22ee393866ff2ddf542e5cbfe18910095f76ae
-          yllith.js	13080	0700e3d8c1819770b70fefcb0daeed4ec18b88f52d632ba0a9c9d52a55a98b67
-          favicon.svg	585	e1a0be3b542499177cb57526e0a0e58d1210a5aea99a3fd6d6f61a2b416d24c6
-          historia.md	16297	33ca13c18381a977caf86c68af5f7c5c1801e9eeb6e6aca097e17d8ca1de19b1
-          EOF
-          printf 'file\thttp\tbytes\tsha256\tmatch\n' > recovered/status.tsv
-          while IFS=$'\t' read -r file expected_bytes expected_sha; do
-            code="$(curl -L -sS --connect-timeout 10 --max-time 45 -o "recovered/$file" -w '%{http_code}' "$base/$file" || true)"
-            if [ "$code" = '200' ]; then
-              bytes="$(wc -c < "recovered/$file" | tr -d ' ')"
-              sha="$(sha256sum "recovered/$file" | awk '{print $1}')"
-              match=no
-              if [ "$bytes" = "$expected_bytes" ] && [ "$sha" = "$expected_sha" ]; then match=yes; fi
-              printf '%s\t%s\t%s\t%s\t%s\n' "$file" "$code" "$bytes" "$sha" "$match" | tee -a recovered/status.tsv
-            else
-              rm -f "recovered/$file"
-              printf '%s\t%s\t-\t-\tno\n' "$file" "${code:-curl-error}" | tee -a recovered/status.tsv
-            fi
-          done < expected.tsv
-          cat recovered/status.tsv
+          node --env-file="$TDA_MEDIA_ENV" --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+          const expected = {
+            'index.html': [56047, 'd37439c16dd24a39c98347e20bc76532ae75a7b09889b7aa1eb653bd4bef934a'],
+            'yllith.css': [37831, '7b0440db4e7f609ab25f6e6a6c22ee393866ff2ddf542e5cbfe18910095f76ae'],
+            'yllith.js': [13080, '0700e3d8c1819770b70fefcb0daeed4ec18b88f52d632ba0a9c9d52a55a98b67'],
+            'favicon.svg': [585, 'e1a0be3b542499177cb57526e0a0e58d1210a5aea99a3fd6d6f61a2b416d24c6'],
+            'historia.md': [16297, '33ca13c18381a977caf86c68af5f7c5c1801e9eeb6e6aca097e17d8ca1de19b1'],
+          };
+
+          const bucket = process.env.R2_PUBLIC_BUCKET;
+          const account = process.env.R2_ACCOUNT_ID;
+          const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+          const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+          if (bucket !== 'tda-media-public' || !account || !accessKeyId || !secretAccessKey) {
+            throw new Error('R2 preview configuration unavailable or unexpected');
+          }
+
+          const client = new S3Client({
+            region: 'auto',
+            endpoint: `https://${account}.r2.cloudflarestorage.com`,
+            credentials: { accessKeyId, secretAccessKey },
+            requestChecksumCalculation: 'WHEN_REQUIRED',
+          });
+
+          const rows = ['file\tr2\tbytes\tsha256\tmatch'];
+          for (const [file, [expectedBytes, expectedSha]] of Object.entries(expected)) {
+            const key = `lore/yllith/site/${file}`;
+            try {
+              const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+              const bytes = Buffer.from(await result.Body.transformToByteArray());
+              const sha = createHash('sha256').update(bytes).digest('hex');
+              const match = bytes.length === expectedBytes && sha === expectedSha;
+              if (match) fs.writeFileSync(`recovered/${file}`, bytes);
+              rows.push(`${file}\tfound\t${bytes.length}\t${sha}\t${match ? 'yes' : 'no'}`);
+            } catch (error) {
+              const code = error?.name || error?.Code || 'error';
+              rows.push(`${file}\t${code}\t-\t-\tno`);
+            }
+          }
+          fs.writeFileSync('recovered/status.tsv', `${rows.join('\n')}\n`);
+          console.log(rows.join('\n'));
+          NODE
+
       - name: Upload recovery evidence
         uses: actions/upload-artifact@v4
         with:
-          name: yllith-shell-recovery
+          name: yllith-shell-r2-recovery
           path: recovered/
           if-no-files-found: error
           retention-days: 3
