@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+env:
+  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  VERCEL_CLI_VERSION: 59.11.7
+
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -22,14 +27,9 @@ jobs:
           EXPECTED_TYPE: image/avif
         run: |
           set -euo pipefail
-
           probe() {
-            local label="$1"
-            local target="$2"
-            shift 2
-            local body="$RUNNER_TEMP/${label}.body"
-            local headers="$RUNNER_TEMP/${label}.headers"
-            local status
+            local label="$1"; local target="$2"; shift 2
+            local body="$RUNNER_TEMP/${label}.body"; local headers="$RUNNER_TEMP/${label}.headers"; local status
             status="$(curl -L -sS --connect-timeout 10 --max-time 30 -o "$body" -D "$headers" -w '%{http_code}' "$@" "$target" || true)"
             local bytes type sha server cf_ray cf_mitigated title error_code
             bytes="$(wc -c < "$body" 2>/dev/null || echo 0)"
@@ -41,15 +41,72 @@ jobs:
             title="$(tr '\n' ' ' < "$body" | sed -n 's:.*<title>\([^<]*\)</title>.*:\1:p' | head -n1 || true)"
             error_code="$(grep -Eo 'Error[[:space:]]+[0-9]{3,5}|error code:[[:space:]]*[0-9]{3,5}|code[[:space:]]+[0-9]{3,5}' "$body" | head -n1 || true)"
             echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing} cf_mitigated=${cf_mitigated:-missing} title=${title:-missing} error_code=${error_code:-missing}"
-            if [[ "$status" == "200" && "$type" == "$EXPECTED_TYPE" && "$bytes" == "$EXPECTED_BYTES" && "$sha" == "$EXPECTED_SHA" ]]; then
-              echo "PROBE_EXACT_OK $label"
-            fi
+            if [[ "$status" == "200" && "$type" == "$EXPECTED_TYPE" && "$bytes" == "$EXPECTED_BYTES" && "$sha" == "$EXPECTED_SHA" ]]; then echo "PROBE_EXACT_OK $label"; fi
           }
-
           probe canonical-default "$URL"
           probe canonical-tda-ua "$URL" -A 'TDA-Media-Verification/1.0 (+https://dnd.faysk.dev)'
           probe canonical-browser "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
           probe canonical-browser-referer "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' -e 'https://dnd.faysk.dev/'
           probe cachebust-browser "${URL}?tda_verify=${GITHUB_RUN_ID}" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
 
-          echo 'Diagnostic only: job succeeds regardless of probe HTTP status; inspect PROBE lines.'
+  r2-readback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment:
+      name: preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Pull Preview configuration
+        run: |
+          npm install --global "vercel@${VERCEL_CLI_VERSION}"
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+      - name: Verify R2 configuration presence without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --env-file=.vercel/.env.preview.local --input-type=module <<'NODE'
+          const required = ['R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_PUBLIC_BUCKET'];
+          const missing = required.filter((name) => !process.env[name]?.trim());
+          console.log(`R2_CONFIG presence=${required.length - missing.length}/${required.length} bucket_ok=${process.env.R2_PUBLIC_BUCKET === 'tda-media-public'}`);
+          if (missing.length) throw new Error(`Missing R2 configuration names: ${missing.join(', ')}`);
+          if (process.env.R2_PUBLIC_BUCKET !== 'tda-media-public') throw new Error('R2_PUBLIC_BUCKET mismatch');
+          NODE
+      - name: Read back all canonical Yllith objects directly from R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --env-file=.vercel/.env.preview.local --input-type=module <<'NODE'
+          import fs from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+          const manifest = JSON.parse(await fs.readFile('media/manifests/yllith-recovered-batch-1.json','utf8'));
+          const client = new S3Client({region:'auto', endpoint:`https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials:{accessKeyId:process.env.R2_ACCESS_KEY_ID, secretAccessKey:process.env.R2_SECRET_ACCESS_KEY}, requestChecksumCalculation:'WHEN_REQUIRED'});
+          let verified = 0;
+          for (const asset of manifest.assets) {
+            const key = `${manifest.namespace}/${asset.sha256}/${asset.file}`;
+            const head = await client.send(new HeadObjectCommand({Bucket:manifest.bucket, Key:key}));
+            if (head.ContentLength !== asset.bytes) throw new Error(`R2 size mismatch ${asset.file}`);
+            const got = await client.send(new GetObjectCommand({Bucket:manifest.bucket, Key:key}));
+            if (!got.Body?.transformToByteArray) throw new Error(`R2 body unreadable ${asset.file}`);
+            const bytes = Buffer.from(await got.Body.transformToByteArray());
+            const sha = createHash('sha256').update(bytes).digest('hex');
+            if (bytes.length !== asset.bytes || sha !== asset.sha256 || got.ContentType !== asset.contentType) throw new Error(`R2 exact readback mismatch ${asset.file}`);
+            verified += 1;
+            console.log(`R2_EXACT_OK ${asset.file}`);
+          }
+          console.log(`R2_READBACK_OK ${verified}/${manifest.assets.length}`);
+          NODE
