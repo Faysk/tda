@@ -17,7 +17,7 @@ env:
 jobs:
   recover:
     runs-on: ubuntu-latest
-    environment: preview
+    environment: production
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
@@ -36,21 +36,21 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
 
-      - name: Pull Preview media credentials
+      - name: Pull Production media credentials
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-            echo "::error::Missing preview VERCEL_TOKEN"
+            echo "::error::Missing production VERCEL_TOKEN"
             exit 1
           fi
           npm install --global "vercel@${VERCEL_CLI_VERSION}"
-          MEDIA_ENV="$RUNNER_TEMP/tda-media-preview.env"
-          vercel env pull "$MEDIA_ENV" --yes --environment=preview --token="$VERCEL_TOKEN" >/dev/null
+          MEDIA_ENV="$RUNNER_TEMP/tda-media-production.env"
+          vercel env pull "$MEDIA_ENV" --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
           chmod 600 "$MEDIA_ENV"
           echo "TDA_MEDIA_ENV=$MEDIA_ENV" >> "$GITHUB_ENV"
 
-      - name: Recover historical shell directly from R2
+      - name: Recover historical shell directly from R2 (read only)
         shell: bash
         run: |
           set -euo pipefail
@@ -73,7 +73,7 @@ jobs:
           const accessKeyId = process.env.R2_ACCESS_KEY_ID;
           const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
           if (bucket !== 'tda-media-public' || !account || !accessKeyId || !secretAccessKey) {
-            throw new Error('R2 preview configuration unavailable or unexpected');
+            throw new Error('R2 production configuration unavailable or unexpected');
           }
 
           const client = new S3Client({
