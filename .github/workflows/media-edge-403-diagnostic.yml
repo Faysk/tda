@@ -31,13 +31,16 @@ jobs:
             local headers="$RUNNER_TEMP/${label}.headers"
             local status
             status="$(curl -L -sS --connect-timeout 10 --max-time 30 -o "$body" -D "$headers" -w '%{http_code}' "$@" "$target" || true)"
-            local bytes type sha server cf_ray
+            local bytes type sha server cf_ray cf_mitigated title error_code
             bytes="$(wc -c < "$body" 2>/dev/null || echo 0)"
             type="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r",""); print $2; exit}' "$headers" || true)"
             server="$(awk 'BEGIN{IGNORECASE=1}/^server:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
             cf_ray="$(awk 'BEGIN{IGNORECASE=1}/^cf-ray:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
+            cf_mitigated="$(awk 'BEGIN{IGNORECASE=1}/^cf-mitigated:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
             sha="$(sha256sum "$body" 2>/dev/null | awk '{print $1}' || true)"
-            echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing}"
+            title="$(tr '\n' ' ' < "$body" | sed -n 's:.*<title>\([^<]*\)</title>.*:\1:p' | head -n1 || true)"
+            error_code="$(grep -Eo 'Error[[:space:]]+[0-9]{3,5}|error code:[[:space:]]*[0-9]{3,5}|code[[:space:]]+[0-9]{3,5}' "$body" | head -n1 || true)"
+            echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing} cf_mitigated=${cf_mitigated:-missing} title=${title:-missing} error_code=${error_code:-missing}"
             if [[ "$status" == "200" && "$type" == "$EXPECTED_TYPE" && "$bytes" == "$EXPECTED_BYTES" && "$sha" == "$EXPECTED_SHA" ]]; then
               echo "PROBE_EXACT_OK $label"
             fi
