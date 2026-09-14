@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+env:
+  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  VERCEL_CLI_VERSION: 59.11.7
+
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -26,7 +31,7 @@ jobs:
             local label="$1"; local target="$2"; shift 2
             local body="$RUNNER_TEMP/${label}.body"; local headers="$RUNNER_TEMP/${label}.headers"; local status
             status="$(curl -L -sS --connect-timeout 10 --max-time 30 -o "$body" -D "$headers" -w '%{http_code}' "$@" "$target" || true)"
-            local bytes type sha server cf_ray cf_mitigated title error_code
+            local bytes type sha server cf_ray cf_mitigated title
             bytes="$(wc -c < "$body" 2>/dev/null || echo 0)"
             type="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r",""); print $2; exit}' "$headers" || true)"
             server="$(awk 'BEGIN{IGNORECASE=1}/^server:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
@@ -34,26 +39,21 @@ jobs:
             cf_mitigated="$(awk 'BEGIN{IGNORECASE=1}/^cf-mitigated:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
             sha="$(sha256sum "$body" 2>/dev/null | awk '{print $1}' || true)"
             title="$(tr '\n' ' ' < "$body" | sed -n 's:.*<title>\([^<]*\)</title>.*:\1:p' | head -n1 || true)"
-            error_code="$(grep -Eo 'Error[[:space:]]+[0-9]{3,5}|error code:[[:space:]]*[0-9]{3,5}|code[[:space:]]+[0-9]{3,5}' "$body" | head -n1 || true)"
-            echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing} cf_mitigated=${cf_mitigated:-missing} title=${title:-missing} error_code=${error_code:-missing}"
-            if [[ "$status" == "200" && "$type" == "$EXPECTED_TYPE" && "$bytes" == "$EXPECTED_BYTES" && "$sha" == "$EXPECTED_SHA" ]]; then echo "PROBE_EXACT_OK $label"; fi
+            echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing} cf_mitigated=${cf_mitigated:-missing} title=${title:-missing}"
           }
           probe canonical-default "$URL"
           probe canonical-tda-ua "$URL" -A 'TDA-Media-Verification/1.0 (+https://dnd.faysk.dev)'
           probe canonical-browser "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
           probe canonical-browser-referer "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' -e 'https://dnd.faysk.dev/'
-          probe cachebust-browser "${URL}?tda_verify=${GITHUB_RUN_ID}" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+          probe cachebust-browser "${URL}?tda_verify=${GITHUB_RUN_ID}" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
-  github-r2-readback:
+  production-vercel-r2-readback:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     environment:
-      name: preview
+      name: production
     env:
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,20 +68,24 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Verify GitHub R2 secret presence without printing values
+      - name: Pull Production configuration read-only
+        run: |
+          npm install --global "vercel@${VERCEL_CLI_VERSION}"
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Verify Production R2 configuration presence without printing values
         shell: bash
         run: |
-          node --input-type=module <<'NODE'
+          node --env-file=.vercel/.env.production.local --input-type=module <<'NODE'
           const required = ['R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_PUBLIC_BUCKET'];
           const missing = required.filter((name) => !process.env[name]?.trim());
-          console.log(`GITHUB_R2_CONFIG presence=${required.length - missing.length}/${required.length} bucket_ok=${process.env.R2_PUBLIC_BUCKET === 'tda-media-public'}`);
-          if (missing.length) throw new Error(`Missing GitHub R2 secret names: ${missing.join(', ')}`);
+          console.log(`PRODUCTION_R2_CONFIG presence=${required.length - missing.length}/${required.length} bucket_ok=${process.env.R2_PUBLIC_BUCKET === 'tda-media-public'}`);
+          if (missing.length) throw new Error(`Missing Production R2 configuration names: ${missing.join(', ')}`);
           if (process.env.R2_PUBLIC_BUCKET !== 'tda-media-public') throw new Error('R2_PUBLIC_BUCKET mismatch');
           NODE
       - name: Read back all canonical Yllith objects directly from R2
         shell: bash
         run: |
-          node --input-type=module <<'NODE'
+          node --env-file=.vercel/.env.production.local --input-type=module <<'NODE'
           import fs from 'node:fs/promises';
           import { createHash } from 'node:crypto';
           import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
