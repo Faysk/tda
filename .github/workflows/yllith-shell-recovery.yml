@@ -9,17 +9,15 @@ on:
 permissions:
   contents: read
 
-env:
-  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
-  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-  VERCEL_CLI_VERSION: 59.11.7
-
 jobs:
   recover:
     runs-on: ubuntu-latest
     environment: production
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      R2_PUBLIC_BUCKET: tda-media-public
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v7
 
@@ -36,26 +34,29 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
 
-      - name: Pull Production media credentials
+      - name: Check GitHub Environment credential presence
+        id: credentials
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-            echo "::error::Missing production VERCEL_TOKEN"
-            exit 1
-          fi
-          npm install --global "vercel@${VERCEL_CLI_VERSION}"
-          MEDIA_ENV="$RUNNER_TEMP/tda-media-production.env"
-          vercel env pull "$MEDIA_ENV" --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
-          chmod 600 "$MEDIA_ENV"
-          echo "TDA_MEDIA_ENV=$MEDIA_ENV" >> "$GITHUB_ENV"
+          ok=true
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name=missing"
+              ok=false
+            else
+              echo "$name=present"
+            fi
+          done
+          echo "available=$ok" >> "$GITHUB_OUTPUT"
 
       - name: Recover historical shell directly from R2 (read only)
+        if: steps.credentials.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p recovered
-          node --env-file="$TDA_MEDIA_ENV" --input-type=module <<'NODE'
+          node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { createHash } from 'node:crypto';
           import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -68,18 +69,13 @@ jobs:
             'historia.md': [16297, '33ca13c18381a977caf86c68af5f7c5c1801e9eeb6e6aca097e17d8ca1de19b1'],
           };
 
-          const bucket = process.env.R2_PUBLIC_BUCKET;
-          const account = process.env.R2_ACCOUNT_ID;
-          const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-          const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-          if (bucket !== 'tda-media-public' || !account || !accessKeyId || !secretAccessKey) {
-            throw new Error('R2 production configuration unavailable or unexpected');
-          }
-
           const client = new S3Client({
             region: 'auto',
-            endpoint: `https://${account}.r2.cloudflarestorage.com`,
-            credentials: { accessKeyId, secretAccessKey },
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+              accessKeyId: process.env.R2_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
             requestChecksumCalculation: 'WHEN_REQUIRED',
           });
 
@@ -87,25 +83,31 @@ jobs:
           for (const [file, [expectedBytes, expectedSha]] of Object.entries(expected)) {
             const key = `lore/yllith/site/${file}`;
             try {
-              const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+              const result = await client.send(new GetObjectCommand({ Bucket: process.env.R2_PUBLIC_BUCKET, Key: key }));
               const bytes = Buffer.from(await result.Body.transformToByteArray());
               const sha = createHash('sha256').update(bytes).digest('hex');
               const match = bytes.length === expectedBytes && sha === expectedSha;
               if (match) fs.writeFileSync(`recovered/${file}`, bytes);
               rows.push(`${file}\tfound\t${bytes.length}\t${sha}\t${match ? 'yes' : 'no'}`);
             } catch (error) {
-              const code = error?.name || error?.Code || 'error';
-              rows.push(`${file}\t${code}\t-\t-\tno`);
+              rows.push(`${file}\t${error?.name || 'error'}\t-\t-\tno`);
             }
           }
           fs.writeFileSync('recovered/status.tsv', `${rows.join('\n')}\n`);
           console.log(rows.join('\n'));
           NODE
 
+      - name: Record unavailable credentials
+        if: steps.credentials.outputs.available != 'true'
+        shell: bash
+        run: |
+          mkdir -p recovered
+          printf 'GitHub production environment does not currently expose R2 read credentials.\n' > recovered/status.txt
+
       - name: Upload recovery evidence
         uses: actions/upload-artifact@v4
         with:
-          name: yllith-shell-r2-recovery
+          name: yllith-shell-github-secret-recovery
           path: recovered/
           if-no-files-found: error
           retention-days: 3
