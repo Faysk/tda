@@ -13,13 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Recover exact public objects
+      - name: Inventory and recover exact public objects
         shell: python
         run: |
           import base64
           import hashlib
           import json
           import pathlib
+          import urllib.error
           import urllib.request
 
           assets = {
@@ -42,29 +43,45 @@ jobs:
           out = pathlib.Path("recovered-yllith")
           out.mkdir()
           inventory = []
+          failures = []
 
           for name, (expected_bytes, expected_sha, content_type) in assets.items():
               url = f"{origin}/{expected_sha}/{name}"
-              request = urllib.request.Request(url, headers={"User-Agent": "TDA-Yllith-Recovery/1"})
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  payload = response.read(expected_bytes + 1)
-                  actual_type = response.headers.get_content_type()
-              actual_sha = hashlib.sha256(payload).hexdigest()
-              if len(payload) != expected_bytes:
-                  raise RuntimeError(f"{name}: bytes {len(payload)} != {expected_bytes}")
-              if actual_sha != expected_sha:
-                  raise RuntimeError(f"{name}: sha256 {actual_sha} != {expected_sha}")
-              if actual_type != content_type:
-                  raise RuntimeError(f"{name}: content-type {actual_type} != {content_type}")
-              encoded = base64.b64encode(payload).decode("ascii") + "\n"
-              (out / f"{name}.base64").write_text(encoded, encoding="ascii")
-              inventory.append({"file": name, "bytes": expected_bytes, "sha256": expected_sha, "contentType": content_type, "url": url})
-              print(f"RECOVERED {name} {expected_bytes} {expected_sha}")
+              row = {"file": name, "bytes": expected_bytes, "sha256": expected_sha, "contentType": content_type, "url": url}
+              try:
+                  request = urllib.request.Request(url, headers={"User-Agent": "TDA-Yllith-Recovery/1"})
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      payload = response.read(expected_bytes + 1)
+                      actual_type = response.headers.get_content_type()
+                  actual_sha = hashlib.sha256(payload).hexdigest()
+                  if len(payload) != expected_bytes:
+                      raise RuntimeError(f"bytes {len(payload)} != {expected_bytes}")
+                  if actual_sha != expected_sha:
+                      raise RuntimeError(f"sha256 {actual_sha} != {expected_sha}")
+                  if actual_type != content_type:
+                      raise RuntimeError(f"content-type {actual_type} != {content_type}")
+                  (out / f"{name}.base64").write_text(base64.b64encode(payload).decode("ascii") + "\n", encoding="ascii")
+                  row["status"] = "recovered"
+                  print(f"RECOVERED {name} {expected_bytes} {expected_sha}")
+              except urllib.error.HTTPError as error:
+                  row["status"] = f"http-{error.code}"
+                  failures.append(name)
+                  print(f"MISSING {name} HTTP {error.code}")
+              except Exception as error:
+                  row["status"] = "invalid"
+                  row["error"] = str(error)
+                  failures.append(name)
+                  print(f"INVALID {name}: {error}")
+              inventory.append(row)
 
           (out / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-          print(f"YLLITH_RECOVERY_OK {len(inventory)} assets")
+          recovered = sum(row["status"] == "recovered" for row in inventory)
+          print(f"YLLITH_RECOVERY_SUMMARY recovered={recovered} unavailable_or_invalid={len(failures)} total={len(inventory)}")
+          if failures:
+              raise SystemExit(2)
 
-      - name: Upload verified recovery artifact
+      - name: Upload recovery inventory and verified bytes
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: yllith-canonical-media
