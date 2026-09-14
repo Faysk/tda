@@ -1,0 +1,128 @@
+name: Media CD Verify-Only Patch
+
+on:
+  push:
+    branches:
+      - ops/recover-yllith-shell-site
+    paths:
+      - .github/workflows/media-cd-verify-only-patch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/media-public-verification-cd
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.3.4
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+
+      - name: Make application CD verify immutable media without R2 write credentials
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_between(text, start, end, replacement, label):
+              if start not in text:
+                  raise SystemExit(f'missing start marker for {label}: {start}')
+              start_index = text.index(start)
+              if end not in text[start_index:]:
+                  raise SystemExit(f'missing end marker for {label}: {end}')
+              end_index = text.index(end, start_index)
+              return text[:start_index] + replacement + text[end_index:]
+
+          preview = Path('.github/workflows/preview.yml')
+          text = preview.read_text(encoding='utf-8')
+          text = replace_between(
+              text,
+              '      - name: Pull Preview media credentials\n',
+              '      - name: Build Preview artifact\n',
+              '''      - name: Verify immutable public media\n        id: media\n        shell: bash\n        run: |\n          set -euo pipefail\n          node tools/media/verify-public.mjs \\\n            --receipt .local/media-preview-verification-receipt.json\n          node --input-type=module - <<'NODE'\n          import fs from "node:fs";\n          const receipt = JSON.parse(fs.readFileSync(".local/media-preview-verification-receipt.json", "utf8"));\n          const summary = receipt.summary;\n          if (summary.assets !== summary.verified) {\n            throw new Error(`Media public verification incomplete: ${summary.verified}/${summary.assets}`);\n          }\n          const output = process.env.GITHUB_OUTPUT;\n          fs.appendFileSync(output, `assets=${summary.assets}\\n`);\n          fs.appendFileSync(output, `verified=${summary.verified}\\n`);\n          fs.appendFileSync(output, `manifest_set=${receipt.manifestSetSha256}\\n`);\n          NODE\n\n''',
+              'preview media steps',
+          )
+          text = text.replace('          MEDIA_PUBLISHED: ${{ steps.media.outputs.published }}\n', '')
+          text = text.replace('          MEDIA_REUSED: ${{ steps.media.outputs.reused }}\n', '')
+          text = text.replace(
+              '            echo "- Media: $MEDIA_VERIFIED/$MEDIA_ASSETS verified (published=$MEDIA_PUBLISHED, reused=$MEDIA_REUSED)"\n',
+              '            echo "- Media delivery: $MEDIA_VERIFIED/$MEDIA_ASSETS publicly verified"\n',
+          )
+          preview.write_text(text, encoding='utf-8')
+
+          production = Path('.github/workflows/production.yml')
+          text = production.read_text(encoding='utf-8')
+          text = replace_between(
+              text,
+              '      - name: Pull Production media credentials\n',
+              '      - name: Build Production artifact\n',
+              '''      - name: Verify immutable public media\n        id: media\n        shell: bash\n        run: |\n          set -euo pipefail\n          node tools/media/verify-public.mjs \\\n            --receipt .local/media-production-verification-receipt.json\n          node --input-type=module - <<'NODE'\n          import fs from "node:fs";\n          const receipt = JSON.parse(fs.readFileSync(".local/media-production-verification-receipt.json", "utf8"));\n          const summary = receipt.summary;\n          if (summary.assets !== summary.verified) {\n            throw new Error(`Media public verification incomplete: ${summary.verified}/${summary.assets}`);\n          }\n          const output = process.env.GITHUB_OUTPUT;\n          fs.appendFileSync(output, `assets=${summary.assets}\\n`);\n          fs.appendFileSync(output, `verified=${summary.verified}\\n`);\n          fs.appendFileSync(output, `manifest_set=${receipt.manifestSetSha256}\\n`);\n          NODE\n\n''',
+              'production media steps',
+          )
+          text = text.replace('          MEDIA_PUBLISHED: ${{ steps.media.outputs.published }}\n', '')
+          text = text.replace('          MEDIA_REUSED: ${{ steps.media.outputs.reused }}\n', '')
+          text = text.replace(
+              '          - Immutable media: $MEDIA_VERIFIED/$MEDIA_ASSETS verified (published=$MEDIA_PUBLISHED, reused=$MEDIA_REUSED)\n',
+              '          - Immutable media delivery: $MEDIA_VERIFIED/$MEDIA_ASSETS publicly verified\n',
+          )
+          production.write_text(text, encoding='utf-8')
+
+          access = Path('docs/integrations/r2/media-access-contract.md')
+          text = access.read_text(encoding='utf-8')
+          old = '- o deploy normal não depende dela: a Media Pipeline continua sendo o caminho canônico de publicação automática;\n'
+          new = ('- o deploy normal não depende dela nem de credencial permanente de escrita no R2: a publicação de objetos imutáveis acontece antes da integração do candidato, no ambiente autorizado da Media Pipeline;\n'
+                 '- Preview CD e Production CD verificam a entrega pública declarada pelos manifestos (MIME, bytes e SHA-256) e bloqueiam promoção em caso de divergência; não publicam nem sobrescrevem objetos no storage;\n')
+          if old not in text:
+              raise SystemExit('media access contract insertion target missing')
+          access.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          pipeline = Path('docs/integrations/r2/media-pipeline.md')
+          text = pipeline.read_text(encoding='utf-8')
+          marker = 'Erro em qualquer gate interrompe a promoção daquele candidato. Um lote incompleto deve indicar itens com sucesso e falha; nunca apresentar sucesso geral nem deixar referência quebrada ativa. A publicação de parte de um lote exige escopo explícito e consumidores independentes validados.\n'
+          addition = marker + ('\n### Separação entre publicação e deploy\n\n'
+              'A fase 5 pertence à automação autorizada de mídia e ocorre antes da integração do candidato. Preview CD e Production CD não precisam de credenciais permanentes de escrita no R2: repetem a fase 6 sobre todos os objetos declarados pelos manifestos e falham se a entrega pública não corresponder ao MIME, número de bytes e SHA-256 esperados. Essa separação preserva least privilege e impede que um deploy comum publique, sobrescreva ou recupere segredos de storage.\n')
+          if marker not in text:
+              raise SystemExit('media pipeline insertion target missing')
+          pipeline.write_text(text.replace(marker, addition, 1), encoding='utf-8')
+          PY
+
+      - name: Verify media tooling tests
+        run: node --test tools/media/pipeline.test.mjs tools/media/verify-public.test.mjs
+
+      - name: Run repository checks
+        run: pnpm check
+
+      - name: Verify patch has no whitespace errors
+        run: git diff --check
+
+      - name: Commit verify-only CD boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Faysk'
+          git config user.email 'faysk.nan@gmail.com'
+          git add \
+            .github/workflows/preview.yml \
+            .github/workflows/production.yml \
+            docs/integrations/r2/media-access-contract.md \
+            docs/integrations/r2/media-pipeline.md \
+            tools/media/verify-public.mjs \
+            tools/media/verify-public.test.mjs
+          git diff --cached --check
+          git commit -m 'fix(media): make application CD verification-only'
+          git push origin HEAD:fix/media-public-verification-cd
