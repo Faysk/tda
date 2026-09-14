@@ -1,0 +1,72 @@
+name: Recover Yllith canonical media
+
+on:
+  push:
+    branches: [ops/recover-yllith-canonical-media]
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Recover exact public objects
+        shell: python
+        run: |
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import urllib.request
+
+          assets = {
+              "backgroud_jornada.avif": (44678, "04ae4968021a938e8a8e738bbe84fea20f8e0900bba0be2b6cba70bc635e06b5", "image/avif"),
+              "despedida_pais_background.avif": (43481, "f096873034fe4cd14c1cfd24849dcf2fa127bcd65964dc9dd244846a7487421e", "image/avif"),
+              "despedida_pais_destaque.webp": (56612, "88c7ce480d435e1f565faa2a257ea645da65d54d8a066a506b0672345f45484f", "image/webp"),
+              "despedida_tios_backgroud.avif": (42002, "6e094723afb19b7be52115ecccfc291d699ead15e66bdea688befef07638c803", "image/avif"),
+              "despedida_tios_destaque-personagem.webp": (32900, "8f06c91fc38b1ab98f918d390632b7859068f39e7664cf33842f5296def7ba9d", "image/webp"),
+              "maos_sobre_mapa_matilha.webp": (20272, "4f76223c2b0b4065beb6457173bf8a3a684715c7fcf76a395ccc7e252c0734d4", "image/webp"),
+              "mapa_matilha_sem_mao.avif": (84082, "84e87577d93d06b69e9b5d9ff644e2d860cae32ee4542b8e0a7c523124c6850c", "image/avif"),
+              "social-yllith.jpg": (65609, "b9858046c31ddc338fafe822b8c6132d4b4a4383c5f11b7b6e536943f8509f48", "image/jpeg"),
+              "sonho-paralax_personagem.webp": (22930, "34a720045e7b9886d152e6b67cdb161c1f81194579cf693c4a0750ad2a055fab", "image/webp"),
+              "sonho_paralax_backgroud.avif": (16786, "bcf5985f7f43bb50e40d36fc40a6e35192343cf39d9159a479ad0a62f3bab655", "image/avif"),
+              "sonho_paralax_espirito.webp": (18090, "52dcd41179659ff80bb0b55bab50862a4d4449d726a5dd3a0b50af5db02800fd", "image/webp"),
+              "sonho_paralax_nevoa.webp": (22342, "1bc774679515e7524ed4db58738455554c8eeef298042a7cff365ca41ed05b2b", "image/webp"),
+              "yllith.webp": (98122, "77ec8886af074c15310ec9f078c530d24d9fbe29cb1ff12fe9ab27b8b031538f", "image/webp"),
+              "yllith_jornada.webp": (34612, "24f564be0e4a17610dc2d6eaec92dcbcff139440dcf64ead30c982e0b2c5f886", "image/webp"),
+          }
+          origin = "https://media.dnd.faysk.dev/lore/yllith"
+          out = pathlib.Path("recovered-yllith")
+          out.mkdir()
+          inventory = []
+
+          for name, (expected_bytes, expected_sha, content_type) in assets.items():
+              url = f"{origin}/{expected_sha}/{name}"
+              request = urllib.request.Request(url, headers={"User-Agent": "TDA-Yllith-Recovery/1"})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = response.read(expected_bytes + 1)
+                  actual_type = response.headers.get_content_type()
+              actual_sha = hashlib.sha256(payload).hexdigest()
+              if len(payload) != expected_bytes:
+                  raise RuntimeError(f"{name}: bytes {len(payload)} != {expected_bytes}")
+              if actual_sha != expected_sha:
+                  raise RuntimeError(f"{name}: sha256 {actual_sha} != {expected_sha}")
+              if actual_type != content_type:
+                  raise RuntimeError(f"{name}: content-type {actual_type} != {content_type}")
+              encoded = base64.b64encode(payload).decode("ascii") + "\n"
+              (out / f"{name}.base64").write_text(encoded, encoding="ascii")
+              inventory.append({"file": name, "bytes": expected_bytes, "sha256": expected_sha, "contentType": content_type, "url": url})
+              print(f"RECOVERED {name} {expected_bytes} {expected_sha}")
+
+          (out / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+          print(f"YLLITH_RECOVERY_OK {len(inventory)} assets")
+
+      - name: Upload verified recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yllith-canonical-media
+          path: recovered-yllith/
+          if-no-files-found: error
+          retention-days: 1
