@@ -1,0 +1,59 @@
+name: Vercel R2 Decrypt Probe
+
+on:
+  push:
+    branches:
+      - ops/recover-yllith-shell-site
+    paths:
+      - .github/workflows/vercel-r2-decrypt-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+      VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+    steps:
+      - name: Probe decrypted project env values without printing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const expected = [
+            'R2_ACCOUNT_ID',
+            'R2_ACCESS_KEY_ID',
+            'R2_SECRET_ACCESS_KEY',
+            'R2_PUBLIC_BUCKET',
+          ];
+
+          const token = process.env.VERCEL_TOKEN;
+          if (!token) throw new Error('VERCEL_TOKEN missing');
+
+          const url = new URL(`https://api.vercel.com/v10/projects/${process.env.VERCEL_PROJECT_ID}/env`);
+          url.searchParams.set('decrypt', 'true');
+          url.searchParams.set('teamId', process.env.VERCEL_ORG_ID);
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) throw new Error(`Vercel env API returned ${response.status}`);
+          const payload = await response.json();
+          const envs = Array.isArray(payload.envs) ? payload.envs : [];
+
+          let all = true;
+          for (const key of expected) {
+            const candidates = envs.filter((env) => env.key === key && Array.isArray(env.target) && env.target.includes('production'));
+            const env = candidates[0] || envs.find((item) => item.key === key);
+            const value = env?.value;
+            const decryptable = typeof value === 'string' && value.length > 0 && value !== '[SENSITIVE]';
+            console.log(`${key}: present=${Boolean(env)} type=${env?.type || '-'} decryptable=${decryptable}`);
+            if (!decryptable) all = false;
+          }
+          console.log(`R2_VERCEL_API_DECRYPTABLE=${all}`);
+          if (!all) process.exitCode = 2;
+          NODE
