@@ -1,0 +1,50 @@
+name: Yllith Shell Recovery
+
+on:
+  push:
+    branches:
+      - ops/recover-yllith-shell-site
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recover historical public shell
+        shell: bash
+        run: |
+          set -u
+          mkdir -p recovered
+          base='https://media.dnd.faysk.dev/lore/yllith/site'
+          cat > expected.tsv <<'EOF'
+          index.html	56047	d37439c16dd24a39c98347e20bc76532ae75a7b09889b7aa1eb653bd4bef934a
+          yllith.css	37831	7b0440db4e7f609ab25f6e6a6c22ee393866ff2ddf542e5cbfe18910095f76ae
+          yllith.js	13080	0700e3d8c1819770b70fefcb0daeed4ec18b88f52d632ba0a9c9d52a55a98b67
+          favicon.svg	585	e1a0be3b542499177cb57526e0a0e58d1210a5aea99a3fd6d6f61a2b416d24c6
+          historia.md	16297	33ca13c18381a977caf86c68af5f7c5c1801e9eeb6e6aca097e17d8ca1de19b1
+          EOF
+          printf 'file\thttp\tbytes\tsha256\tmatch\n' > recovered/status.tsv
+          while IFS=$'\t' read -r file expected_bytes expected_sha; do
+            code="$(curl -L -sS --connect-timeout 10 --max-time 45 -o "recovered/$file" -w '%{http_code}' "$base/$file" || true)"
+            if [ "$code" = '200' ]; then
+              bytes="$(wc -c < "recovered/$file" | tr -d ' ')"
+              sha="$(sha256sum "recovered/$file" | awk '{print $1}')"
+              match=no
+              if [ "$bytes" = "$expected_bytes" ] && [ "$sha" = "$expected_sha" ]; then match=yes; fi
+              printf '%s\t%s\t%s\t%s\t%s\n' "$file" "$code" "$bytes" "$sha" "$match" | tee -a recovered/status.tsv
+            else
+              rm -f "recovered/$file"
+              printf '%s\t%s\t-\t-\tno\n' "$file" "${code:-curl-error}" | tee -a recovered/status.tsv
+            fi
+          done < expected.tsv
+          cat recovered/status.tsv
+      - name: Upload recovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: yllith-shell-recovery
+          path: recovered/
+          if-no-files-found: error
+          retention-days: 3
