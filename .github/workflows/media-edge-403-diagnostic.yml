@@ -1,0 +1,52 @@
+name: Media Edge 403 Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/media-edge-403-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Yllith public media edge
+        shell: bash
+        env:
+          URL: https://media.dnd.faysk.dev/lore/yllith/04ae4968021a938e8a8e738bbe84fea20f8e0900bba0be2b6cba70bc635e06b5/backgroud_jornada.avif
+          EXPECTED_SHA: 04ae4968021a938e8a8e738bbe84fea20f8e0900bba0be2b6cba70bc635e06b5
+          EXPECTED_BYTES: '44678'
+          EXPECTED_TYPE: image/avif
+        run: |
+          set -euo pipefail
+
+          probe() {
+            local label="$1"
+            local target="$2"
+            shift 2
+            local body="$RUNNER_TEMP/${label}.body"
+            local headers="$RUNNER_TEMP/${label}.headers"
+            local status
+            status="$(curl -L -sS --connect-timeout 10 --max-time 30 -o "$body" -D "$headers" -w '%{http_code}' "$@" "$target" || true)"
+            local bytes type sha server cf_ray
+            bytes="$(wc -c < "$body" 2>/dev/null || echo 0)"
+            type="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r",""); print $2; exit}' "$headers" || true)"
+            server="$(awk 'BEGIN{IGNORECASE=1}/^server:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
+            cf_ray="$(awk 'BEGIN{IGNORECASE=1}/^cf-ray:/{gsub("\r",""); sub(/^[^:]+:[[:space:]]*/,""); print; exit}' "$headers" || true)"
+            sha="$(sha256sum "$body" 2>/dev/null | awk '{print $1}' || true)"
+            echo "PROBE label=$label status=$status type=${type:-missing} bytes=$bytes sha=${sha:-missing} server=${server:-missing} cf_ray=${cf_ray:-missing}"
+            if [[ "$status" == "200" && "$type" == "$EXPECTED_TYPE" && "$bytes" == "$EXPECTED_BYTES" && "$sha" == "$EXPECTED_SHA" ]]; then
+              echo "PROBE_EXACT_OK $label"
+            fi
+          }
+
+          probe canonical-default "$URL"
+          probe canonical-tda-ua "$URL" -A 'TDA-Media-Verification/1.0 (+https://dnd.faysk.dev)'
+          probe canonical-browser "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+          probe canonical-browser-referer "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' -e 'https://dnd.faysk.dev/'
+          probe cachebust-browser "${URL}?tda_verify=${GITHUB_RUN_ID}" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+
+          echo 'Diagnostic only: job succeeds regardless of probe HTTP status; inspect PROBE lines.'
