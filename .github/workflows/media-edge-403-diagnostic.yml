@@ -8,11 +8,6 @@ on:
 permissions:
   contents: read
 
-env:
-  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
-  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-  VERCEL_CLI_VERSION: 59.11.7
-
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -49,13 +44,16 @@ jobs:
           probe canonical-browser-referer "$URL" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' -e 'https://dnd.faysk.dev/'
           probe cachebust-browser "${URL}?tda_verify=${GITHUB_RUN_ID}" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
 
-  r2-readback:
+  github-r2-readback:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     environment:
       name: preview
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -70,26 +68,20 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Pull Preview configuration
-        run: |
-          npm install --global "vercel@${VERCEL_CLI_VERSION}"
-          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
-      - name: Verify R2 configuration presence without printing values
+      - name: Verify GitHub R2 secret presence without printing values
         shell: bash
         run: |
-          set -euo pipefail
-          node --env-file=.vercel/.env.preview.local --input-type=module <<'NODE'
+          node --input-type=module <<'NODE'
           const required = ['R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_PUBLIC_BUCKET'];
           const missing = required.filter((name) => !process.env[name]?.trim());
-          console.log(`R2_CONFIG presence=${required.length - missing.length}/${required.length} bucket_ok=${process.env.R2_PUBLIC_BUCKET === 'tda-media-public'}`);
-          if (missing.length) throw new Error(`Missing R2 configuration names: ${missing.join(', ')}`);
+          console.log(`GITHUB_R2_CONFIG presence=${required.length - missing.length}/${required.length} bucket_ok=${process.env.R2_PUBLIC_BUCKET === 'tda-media-public'}`);
+          if (missing.length) throw new Error(`Missing GitHub R2 secret names: ${missing.join(', ')}`);
           if (process.env.R2_PUBLIC_BUCKET !== 'tda-media-public') throw new Error('R2_PUBLIC_BUCKET mismatch');
           NODE
       - name: Read back all canonical Yllith objects directly from R2
         shell: bash
         run: |
-          set -euo pipefail
-          node --env-file=.vercel/.env.preview.local --input-type=module <<'NODE'
+          node --input-type=module <<'NODE'
           import fs from 'node:fs/promises';
           import { createHash } from 'node:crypto';
           import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
