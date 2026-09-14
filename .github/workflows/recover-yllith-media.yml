@@ -1,3 +1,4 @@
+# Recovery-only workflow; do not merge this workflow into Preview.
 name: Recover Yllith canonical media
 
 on:
