@@ -37,6 +37,10 @@ const assets = {
     bytes: 244263,
     sha256: "febe6350fb80ea3c7a84b76ee5673f44365d231d7729ccdae57c0fedaaebd834",
   },
+  "horizonte-hq.avif": {
+    bytes: 238231,
+    sha256: "95c30d52b452ef0560a755fdbcb1138b5e9066cd3dfa2496b03d30d350681197",
+  },
 } as const;
 
 type AssetName = keyof typeof assets;
