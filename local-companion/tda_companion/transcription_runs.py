@@ -7,12 +7,14 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .transcript import TranscriptDocument
 
 RUN_SCHEMA_VERSION = "tda_transcription_run_v1"
 RUN_LIST_SCHEMA_VERSION = "tda_transcription_runs_v1"
 _RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
+_SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_MANIFEST_BYTES = 256 * 1024
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
@@ -52,7 +54,7 @@ def _sha256_text(value: str) -> str:
 
 def _atomic_bytes(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.partial")
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
     try:
         with temporary.open("xb") as handle:
             handle.write(payload)
@@ -120,9 +122,17 @@ def run_root(package_root: Path, run_id: str) -> Path:
     return result
 
 
+def _source_id(package_root: Path, explicit: str | None = None) -> str:
+    value = explicit if explicit is not None else package_root.resolve().name
+    if not isinstance(value, str) or not _SOURCE_ID.fullmatch(value):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_SOURCE_ID_INVALID")
+    return value
+
+
 def _manifest_for_document(
     document: TranscriptDocument,
     *,
+    source_id: str,
     run_id: str,
     job_id: str,
     attempt: int,
@@ -139,7 +149,7 @@ def _manifest_for_document(
         "run_id": run_id,
         "origin": "asr",
         "status": "completed",
-        "source_id": f"craig-{document.source_sha256}",
+        "source_id": source_id,
         "source_sha256": document.source_sha256.lower(),
         "job_id": job_id,
         "attempt": attempt,
@@ -177,6 +187,7 @@ def write_completed_run(
     *,
     job_id: str,
     attempt: int,
+    source_id: str | None = None,
     glossary: str = "",
     context: str = "",
 ) -> dict[str, Any]:
@@ -185,32 +196,29 @@ def write_completed_run(
     The manifest is written last. A run without a valid manifest is never listed as
     completed, so crashes between transcript creation and manifest commit fail closed.
     """
+    resolved_source_id = _source_id(package_root, source_id)
     run_id = run_id_for(job_id, attempt)
     destination = run_root(package_root, run_id)
     if destination.exists():
         raise TranscriptionRunError("TRANSCRIPTION_RUN_ALREADY_EXISTS")
     destination.mkdir(parents=True, exist_ok=False)
     transcript = destination / "transcript.json"
-    try:
-        document.write_atomic(transcript)
-        digest = _sha256_file(transcript)
-        size = transcript.stat().st_size
-        manifest = _manifest_for_document(
-            document,
-            run_id=run_id,
-            job_id=job_id,
-            attempt=attempt,
-            transcript_sha256=digest,
-            transcript_size_bytes=size,
-            glossary=glossary,
-            context=context,
-        )
-        _atomic_json(destination / "run.json", manifest)
-        return manifest
-    except BaseException:
-        # Do not remove evidence from a partially written run. Without run.json it is
-        # intentionally invisible as a completed result and can be cleaned later.
-        raise
+    document.write_atomic(transcript)
+    digest = _sha256_file(transcript)
+    size = transcript.stat().st_size
+    manifest = _manifest_for_document(
+        document,
+        source_id=resolved_source_id,
+        run_id=run_id,
+        job_id=job_id,
+        attempt=attempt,
+        transcript_sha256=digest,
+        transcript_size_bytes=size,
+        glossary=glossary,
+        context=context,
+    )
+    _atomic_json(destination / "run.json", manifest)
+    return manifest
 
 
 def write_compatibility_mirror(package_root: Path, run_id: str) -> str:
@@ -237,9 +245,10 @@ def _validate_manifest(
     source_sha256 = value.get("source_sha256")
     if (
         not isinstance(source_id, str)
+        or not _SOURCE_ID.fullmatch(source_id)
+        or source_id != package_root.resolve().name
         or not isinstance(source_sha256, str)
         or not _SHA256.fullmatch(source_sha256)
-        or source_id != f"craig-{source_sha256}"
     ):
         raise TranscriptionRunError("TRANSCRIPTION_RUN_SOURCE_INVALID")
     profile_id = value.get("profile_id")
@@ -317,7 +326,9 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
     """Preserve a valid legacy root transcript as an immutable historical run.
 
     The original root file is deliberately retained. Invalid legacy files are left
-    untouched and ignored rather than blocking a new ASR run.
+    untouched and ignored rather than blocking a new ASR run. If the root file is
+    already the compatibility mirror of an immutable run, that run is reused instead
+    of creating a duplicate legacy entry.
     """
     legacy = package_root.resolve() / "transcript.json"
     if not legacy.is_file():
@@ -338,7 +349,17 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
     profile_id = engine.get("profile")
     if not isinstance(profile_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", profile_id):
         return None
+
     digest = hashlib.sha256(payload).hexdigest()
+    # Once 0.3.x starts mirroring the newest immutable run back to the historical
+    # root path, do not mistake that mirror for a new legacy result.
+    for existing in list_runs(package_root, verify_content=False):
+        if existing.get("transcript_sha256") == digest:
+            try:
+                return load_run(package_root, str(existing["run_id"]), verify_content=True)
+            except TranscriptionRunError:
+                continue
+
     run_id = f"legacy-{digest}"
     destination = run_root(package_root, run_id)
     if destination.exists():
@@ -347,51 +368,48 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
         except TranscriptionRunError:
             return None
     destination.mkdir(parents=True, exist_ok=False)
-    try:
-        _atomic_bytes(destination / "transcript.json", payload)
-        manifest = {
-            "schema_version": RUN_SCHEMA_VERSION,
-            "run_id": run_id,
-            "origin": "legacy_transcript_v1",
-            "status": "completed",
-            "source_id": source_id,
-            "source_sha256": source_sha256,
-            "job_id": None,
-            "attempt": None,
-            "profile_id": profile_id,
-            "engine": engine.get("engine"),
-            "model": engine.get("model"),
-            "model_revision": engine.get("model_revision"),
-            "device": engine.get("device"),
-            "compute_type": engine.get("compute_type"),
-            "alignment": engine.get("alignment"),
-            "language": value.get("language"),
-            "context_sha256": None,
-            "glossary_sha256": None,
-            "transcript_schema_version": "tda_transcript_v1",
-            "artifact": "transcript.json",
-            "transcript_sha256": digest,
-            "transcript_size_bytes": len(payload),
-            "created_at": value.get("created_at"),
-            "completed_at": value.get("created_at") or utc_now(),
-            "stats": {
-                key: stats.get(key)
-                for key in (
-                    "processing_seconds",
-                    "rtf",
-                    "word_count",
-                    "segment_count",
-                    "track_count",
-                    "turn_count",
-                    "deduplicated_segment_count",
-                )
-                if key in stats
-            },
-        }
-        _atomic_json(destination / "run.json", manifest)
-        return manifest
-    except BaseException:
-        raise
+    _atomic_bytes(destination / "transcript.json", payload)
+    manifest = {
+        "schema_version": RUN_SCHEMA_VERSION,
+        "run_id": run_id,
+        "origin": "legacy_transcript_v1",
+        "status": "completed",
+        "source_id": _source_id(package_root, source_id),
+        "source_sha256": source_sha256,
+        "job_id": None,
+        "attempt": None,
+        "profile_id": profile_id,
+        "engine": engine.get("engine"),
+        "model": engine.get("model"),
+        "model_revision": engine.get("model_revision"),
+        "device": engine.get("device"),
+        "compute_type": engine.get("compute_type"),
+        "alignment": engine.get("alignment"),
+        "language": value.get("language"),
+        "context_sha256": None,
+        "glossary_sha256": None,
+        "transcript_schema_version": "tda_transcript_v1",
+        "artifact": "transcript.json",
+        "transcript_sha256": digest,
+        "transcript_size_bytes": len(payload),
+        "created_at": value.get("created_at"),
+        "completed_at": value.get("created_at") or utc_now(),
+        "stats": {
+            key: stats.get(key)
+            for key in (
+                "processing_seconds",
+                "rtf",
+                "word_count",
+                "segment_count",
+                "track_count",
+                "turn_count",
+                "deduplicated_segment_count",
+            )
+            if key in stats
+        },
+    }
+    _atomic_json(destination / "run.json", manifest)
+    return manifest
 
 
 def ensure_legacy_and_list(
