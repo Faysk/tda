@@ -181,7 +181,7 @@ jobs:
           console.log(`YLLITH_HQ_PUBLICATION_OK ${results.length}/8`);
           NODE
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: yllith-hq-publication-receipt
           path: .local/yllith-hq-publication-receipt.json
