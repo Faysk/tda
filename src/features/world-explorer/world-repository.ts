@@ -15,6 +15,7 @@ import type {
 	WorldRelationTypeDTO,
 	WorldVisibility,
 } from "./model";
+import { worldPublicProfileRoute } from "./public-profile-route";
 import { loadWorldEntityPortraitPresentations } from "./world-entity-media-repository";
 
 type WorldAudience = "public" | "editor";
@@ -178,6 +179,7 @@ export async function loadWorldDataset(
 
 	let nodes = ((entityData ?? []) as EntityRow[]).flatMap((row) => {
 		if (!ENTITY_TYPES.has(row.entity_type as WorldEntityType)) return [];
+		const entityType = row.entity_type as WorldEntityType;
 		const visibility = VISIBILITIES.has(row.visibility as WorldVisibility)
 			? (row.visibility as WorldVisibility)
 			: "private_players";
@@ -186,12 +188,18 @@ export async function loadWorldDataset(
 				id: row.id,
 				slug: row.slug,
 				kind: "entity" as const,
-				entityType: row.entity_type as WorldEntityType,
+				entityType,
 				label: row.name,
 				status: row.status ?? "active",
 				visibility,
 				summary: row.summary ?? "",
 				aliases: row.aliases ?? [],
+				route: worldPublicProfileRoute({
+					entityType,
+					slug: row.slug,
+					status: row.status,
+					visibility: row.visibility,
+				}),
 			},
 		];
 	});
