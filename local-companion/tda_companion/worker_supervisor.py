@@ -321,12 +321,17 @@ class WorkerSupervisor:
         elif profile_id.startswith("qwen-"):
             if self.runtime_root is None or self.state_root is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
+            # The physical gate was recorded only after full model + aligner
+            # content verification. Normal job dispatch must validate that sealed
+            # identity cheaply instead of re-hashing multi-GB model files before
+            # every transcription. Full content hashing remains part of gate
+            # creation and explicit diagnostics.
             gate = inspect_qwen_physical_gate(
                 self.state_root,
                 self.runtime_root,
                 self.models_root,
                 profile_id=profile_id,
-                verify_model_content=True,
+                verify_model_content=False,
             )
             if gate.get("ready") is not True:
                 raise WorkerProcessError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
