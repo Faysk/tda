@@ -28,7 +28,12 @@ def test_qwen_job_dispatch_trusts_sealed_gate_without_full_model_rehash(monkeypa
         return {"ready": True, "status": "ready", "profile_id": profile_id}
 
     monkeypatch.setattr(worker_supervisor, "inspect_qwen_physical_gate", inspect_gate)
-    monkeypatch.setattr(worker_supervisor, "current_qwen_worker", lambda _root: worker)
+
+    def locate_worker(_root, *, verify_worker=False):  # noqa: ANN001
+        observed["verify_worker"] = verify_worker
+        return worker
+
+    monkeypatch.setattr(worker_supervisor, "current_qwen_worker", locate_worker)
 
     supervisor = WorkerSupervisor(
         data_root=data_root,
@@ -61,6 +66,7 @@ def test_qwen_job_dispatch_trusts_sealed_gate_without_full_model_rehash(monkeypa
     assert observed["kind"] == "transcription.craig"
     assert observed["profile_id"] == "qwen-quality"
     assert observed["verify_model_content"] is False
+    assert observed["verify_worker"] is False
     assert observed["process_command"] == [str(worker)]
 
 
