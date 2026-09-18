@@ -23,10 +23,21 @@ type CompanionManifestChannel = "stable" | "rc";
 function requestedChannel(request: Request): CompanionManifestChannel | null {
 	const url = new URL(request.url);
 	const channels = url.searchParams.getAll("channel");
-	const unexpected = Array.from(url.searchParams.keys()).some((key) => key !== "channel");
-	if (unexpected || channels.length > 1) return null;
+	const keys = Array.from(url.searchParams.keys());
+	const unexpected = keys.some((key) => key !== "channel");
+	if (unexpected || channels.length > 1) {
+		console.info("COMPANION_RELEASE_REQUEST_INVALID_QUERY", {
+			keys: [...new Set(keys)].sort(),
+			channel_count: channels.length,
+		});
+		return null;
+	}
 	const channel = channels[0] ?? "stable";
-	return channel === "stable" || channel === "rc" ? channel : null;
+	if (channel !== "stable" && channel !== "rc") {
+		console.info("COMPANION_RELEASE_REQUEST_INVALID_CHANNEL", { channel });
+		return null;
+	}
+	return channel;
 }
 
 async function fetchReleaseCatalog(): Promise<unknown[]> {
