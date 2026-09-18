@@ -335,7 +335,7 @@ class WorkerSupervisor:
             )
             if gate.get("ready") is not True:
                 raise WorkerProcessError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
-            worker = current_qwen_worker(self.runtime_root)
+            worker = current_qwen_worker(self.runtime_root, verify_worker=False)
             if worker is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
             runtime_command = [str(worker)]
