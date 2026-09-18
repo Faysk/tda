@@ -262,6 +262,14 @@ def create_app(
                                 is_cancelled=is_cancelled,
                             )
                         elif body["kind"] == "transcription.craig":
+                            store.set_stage(job_id, attempt, "dispatch_validate")
+                            log(
+                                "info",
+                                "worker",
+                                "WORKER_STAGE",
+                                "Worker dispatch validation started",
+                                {"job_id": job_id, "stage": "dispatch_validate"},
+                            )
                             outcome = await asyncio.to_thread(
                                 worker_supervisor.run_craig,
                                 job_id=job_id,
