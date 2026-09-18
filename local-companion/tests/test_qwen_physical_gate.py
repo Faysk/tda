@@ -196,7 +196,15 @@ def test_gate_is_invalidated_when_worker_or_model_content_changes(tmp_path: Path
 
     worker = runtime / "qwen" / MIN_COMPATIBLE_QWEN_RUNTIME_VERSION / "TDAQwenWorker.exe"
     worker.write_bytes(b"tampered")
-    stale = inspect_qwen_physical_gate(state, runtime, models, profile_id="qwen-fast")
+    lightweight = inspect_qwen_physical_gate(state, runtime, models, profile_id="qwen-fast")
+    assert lightweight["ready"] is True
+    stale = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+        verify_model_content=True,
+    )
     assert stale["ready"] is False
     assert stale["status"] == "stale"
 
