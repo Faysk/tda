@@ -111,6 +111,19 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
 
+      - name: Probe canonical Companion manifests from public runner
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 388 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suffix in "" "?channel=stable" "?channel=rc"; do
+            echo "=== manifest${suffix} ==="
+            curl --fail-with-body --silent --show-error --location \
+              -H 'User-Agent: TDA-GitHub-Public-Probe/1' \
+              "https://dnd.faysk.dev/api/downloads/companion/windows/manifest${suffix}"
+            echo
+          done
+
       - name: Migration safety policy
         shell: bash
         env:
