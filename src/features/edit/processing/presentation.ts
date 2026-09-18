@@ -32,6 +32,7 @@ export const jobLabels: Record<JobStatus, string> = {
 };
 export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
+	dispatch_validate: "Validando runtime e gate físico",
 	fixture: "Ensaio sintético",
 	checking_model: "Verificando modelo",
 	downloading_model: "Baixando modelo",
