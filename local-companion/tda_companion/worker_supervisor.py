@@ -217,7 +217,7 @@ class WorkerSupervisor:
                     cancel_sent = True
                     cancel_deadline = now + self.cancel_grace
 
-                if not ready and now - started > self.startup_timeout:
+                if not ready and not cancel_sent and now - started > self.startup_timeout:
                     raise WorkerProcessError("WORKER_START_TIMEOUT")
                 if cancel_deadline is not None and now > cancel_deadline:
                     # Cancellation is a user-requested terminal state, not a worker
@@ -395,6 +395,12 @@ class WorkerSupervisor:
         # Validate all user-derived identifiers before consulting runtime state.
         # Invalid source/profile input must not cause worker lookup or filesystem activity.
         worker_command.encode()
+        if is_cancelled is not None and is_cancelled():
+            return WorkerOutcome(
+                terminal="cancelled",
+                payload={"stage": "cancelled_before_runtime", "forced": False},
+                returncode=0,
+            )
 
         runtime_command = None
         runtime_environment: dict[str, str] | None = None
@@ -434,6 +440,13 @@ class WorkerSupervisor:
                 "TDA_ASR_RUNTIME_FAMILY": "qwen",
                 "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
             }
+
+        if is_cancelled is not None and is_cancelled():
+            return WorkerOutcome(
+                terminal="cancelled",
+                payload={"stage": "cancelled_before_worker_launch", "forced": False},
+                returncode=0,
+            )
 
         return self._run_command(
             worker_command,
