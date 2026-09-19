@@ -138,7 +138,27 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         package_root = (staging_root / source_id).resolve()
         if package_root.parent != staging_root:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
-        package = load_craig_package(package_root)
+        # Ingest already established full per-track SHA-256 identities. Re-reading
+        # every staged FLAC here made large sessions spend minutes on disk I/O
+        # before the first ASR stage while GPU/CPU looked idle. Normal execution
+        # revalidates the manifest, safe paths and exact sizes; explicit ingest /
+        # deep diagnostics remain the byte-hash trust boundary.
+        emitter.emit(
+            "stage",
+            {
+                "stage": "source_validation",
+                "profile": str(command.payload["profile_id"]),
+            },
+        )
+        package = load_craig_package(package_root, verify_tracks=False)
+        emitter.emit(
+            "event",
+            {
+                "code": "SOURCE_VALIDATED",
+                "stage": "source_validation",
+                "track_count": len(package.tracks),
+            },
+        )
         profile = get_profile(str(command.payload["profile_id"]))
 
         # Preserve a valid pre-runs transcript before any compatibility mirror can
