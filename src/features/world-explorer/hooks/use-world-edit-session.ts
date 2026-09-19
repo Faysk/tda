@@ -291,15 +291,19 @@ export function useWorldEditSession({
 		onEditingStarted?.();
 		setState("editing");
 		setFeedback(
-			result.staleRecovery
-				? "Existe um rascunho anterior preservado, mas o Mundo publicado mudou desde então. Ele não foi apagado nem aplicado automaticamente; esta sessão começou do estado publicado atual."
-				: result.status === "acquired"
-					? canEditContent
-						? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; cada alteração confirmada fica preservada até publicar."
-						: "Edição exclusiva ativa. Cada alteração de posição confirmada fica preservada até publicar."
-					: result.recoverySource === "durable"
-						? "Rascunho durável recuperado de uma sessão anterior. Revise antes de publicar."
-						: "Rascunho de edição recuperado. Revise antes de publicar.",
+			result.previousPublishConfirmed
+				? result.previousPublishedGraphRevision !== undefined
+					? `A publicação anterior foi confirmada pelo servidor · revisão ${result.previousPublishedGraphRevision}. Esta sessão começou do estado publicado.`
+					: `A publicação anterior foi confirmada pelo servidor · revisão de layout ${result.previousPublishedLayoutRevision ?? result.draft.revision}. Esta sessão começou do estado publicado.`
+				: result.staleRecovery
+					? "Existe um rascunho anterior preservado, mas o Mundo publicado mudou desde então. Ele não foi apagado nem aplicado automaticamente; esta sessão começou do estado publicado atual."
+					: result.status === "acquired"
+						? canEditContent
+							? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; cada alteração confirmada fica preservada até publicar."
+							: "Edição exclusiva ativa. Cada alteração de posição confirmada fica preservada até publicar."
+						: result.recoverySource === "durable"
+							? "Rascunho durável recuperado de uma sessão anterior. Revise antes de publicar."
+							: "Rascunho de edição recuperado. Revise antes de publicar.",
 		);
 	}
 
