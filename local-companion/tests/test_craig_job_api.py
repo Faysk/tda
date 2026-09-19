@@ -241,6 +241,53 @@ def test_transcription_retry_resets_uncheckpointed_progress(tmp_path: Path):
     assert retried["progress"] == {"completed": 0, "total": 2, "unit": "tracks"}
 
 
+def test_agent_restart_recovers_committed_run_before_marking_job_interrupted(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    job = store.submit(
+        "restart-recovery",
+        {**_body(), "units": 2},
+    )
+    job_id, attempt = store.claim()
+    assert job_id == job["id"]
+    assert store.get(job_id)["progress"]["completed"] == 0
+
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    manifest = write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary="Yuhara Pipipi",
+        context="campanha principal",
+    )
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        assert recovered["status"] == "succeeded"
+        assert recovered["progress"] == {
+            "completed": 2,
+            "total": 2,
+            "unit": "tracks",
+        }
+        result = client.get(f"/api/v1/jobs/{job_id}/result", headers=HEADERS).json()
+        assert result["transcription"]["run_id"] == manifest["run_id"]
+        assert result["transcription"]["sha256"] == manifest["transcript_sha256"]
+        events = client.get(f"/api/v1/jobs/{job_id}/events", headers=HEADERS).json()["events"]
+        assert any(event["code"] == "SUCCEEDED_RECOVERED" for event in events)
+
+
 def test_api_finalizes_from_immutable_run_not_legacy_mirror(monkeypatch, tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
