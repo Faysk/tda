@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.qwen_acceptance as qwen_acceptance
 import tda_companion.qwen_physical_gate as gate_module
 import tda_companion.qwen_runtime as qwen_runtime_module
 from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
@@ -21,6 +22,25 @@ from tda_companion.qwen_physical_gate import (
 )
 from tda_companion.qwen_runtime import install_qwen_runtime_archive
 from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+
+
+def test_qwen_resumable_staging_ignores_redirected_partial(tmp_path: Path):
+    downloads = tmp_path / ".downloads"
+    downloads.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    redirected = downloads / "qwen3-asr-redirect.partial"
+    try:
+        redirected.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this runner")
+
+    chosen = qwen_acceptance._resumable_model_staging(downloads, "qwen3-asr")
+
+    assert chosen != redirected
+    assert chosen.parent == downloads
+    assert chosen.name.startswith("qwen3-asr-")
+    assert chosen.name.endswith(".partial")
 
 
 def _install_runtime(root: Path) -> None:
