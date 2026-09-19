@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import "@xyflow/react/dist/style.css";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
@@ -18,6 +19,27 @@ type MundoPageProps = {
 	searchParams: Promise<{ foco?: string | string[] }>;
 };
 
+const mundoAccess = cache(async () => {
+	const [layoutAccess, contentAccess] = await Promise.all([
+		authorizeCampaignCapabilityServer({
+			action: EDIT_CAPABILITIES.worldLayoutEdit,
+			campaignSlug: CAMPAIGN_SLUG,
+		}),
+		authorizeCampaignCapabilityServer({
+			action: EDIT_CAPABILITIES.contentEdit,
+			campaignSlug: CAMPAIGN_SLUG,
+		}),
+	]);
+	const canEditLayout = layoutAccess.ok === true;
+	const canEditContent = contentAccess.ok === true;
+	const fullWorldEditor = canEditLayout && canEditContent;
+	const audience = await resolveWorldAudienceServer({
+		fullWorldEditor,
+		campaignSlug: CAMPAIGN_SLUG,
+	});
+	return { canEditLayout, canEditContent, fullWorldEditor, audience };
+});
+
 function requestedFocusFrom(
 	query: Awaited<MundoPageProps["searchParams"]>,
 ): string | undefined {
@@ -29,7 +51,8 @@ export async function generateMetadata({
 }: MundoPageProps): Promise<Metadata> {
 	const query = await searchParams;
 	const requestedFocus = requestedFocusFrom(query);
-	const dataset = await loadWorldDataset("public");
+	const { audience } = await mundoAccess();
+	const dataset = await loadWorldDataset(audience);
 	const focusId = resolveWorldFocusId(dataset, requestedFocus);
 	const focus = focusId ? dataset.nodes.find((node) => node.id === focusId) : undefined;
 	const shareFocusedEntity = Boolean(requestedFocus && focus?.slug);
@@ -54,23 +77,7 @@ export async function generateMetadata({
 export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const query = await searchParams;
 	const requestedFocus = requestedFocusFrom(query);
-	const [layoutAccess, contentAccess] = await Promise.all([
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.worldLayoutEdit,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.contentEdit,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-	]);
-	const canEditLayout = layoutAccess.ok === true;
-	const canEditContent = contentAccess.ok === true;
-	const fullWorldEditor = canEditLayout && canEditContent;
-	const audience = await resolveWorldAudienceServer({
-		fullWorldEditor,
-		campaignSlug: CAMPAIGN_SLUG,
-	});
+	const { canEditLayout, fullWorldEditor, audience } = await mundoAccess();
 	const dataset = await loadWorldDataset(audience);
 	const focusId = resolveWorldFocusId(dataset, requestedFocus);
 	const projection = buildWorldProjection(dataset, focusId);
