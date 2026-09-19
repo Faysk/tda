@@ -361,7 +361,7 @@ def _distribution_version(name: str) -> str:
 def _whisper_runtime_fingerprint() -> str:
     return ";".join(
         (
-            "checkpoint=whisper-track-v1",
+            "checkpoint=whisper-track-v2",
             f"faster-whisper={_distribution_version('faster-whisper')}",
             f"ctranslate2={_distribution_version('ctranslate2')}",
         )
