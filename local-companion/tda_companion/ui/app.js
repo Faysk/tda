@@ -63,6 +63,7 @@
     AGENT_VERSION_MISMATCH: "A interface e o Agent são de versões diferentes. Reinicie o Agent antes de alterar o estado local.",
     AGENT_RESTART_VERSION_MISMATCH: "O Agent reiniciado ainda não corresponde à versão desta interface.",
     AGENT_RESTART_FAILED: "O Agent não voltou corretamente após o reinício.",
+    AGENT_RESTART_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "O Agent está preparando um perfil de transcrição e não pode ser reiniciado agora.",
     AGENT_SHUTDOWN_TIMEOUT: "O Agent não encerrou dentro do tempo esperado.",
   };
 
