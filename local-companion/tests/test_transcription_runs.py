@@ -174,6 +174,33 @@ def test_valid_legacy_transcript_is_copied_idempotently_and_original_is_retained
     assert len(list_runs(package_root, verify_content=True)) == 1
 
 
+def test_interrupted_legacy_migration_is_rebuilt_from_root_transcript(tmp_path: Path):
+    source_sha = "d" * 64
+    source_id = f"craig-{source_sha}"
+    package_root = tmp_path / source_id
+    package_root.mkdir()
+    legacy = package_root / "transcript.json"
+    _document(source_sha, "whisper-detailed", "legado interrompido").write_atomic(legacy)
+    payload = legacy.read_bytes()
+    run_id = f"legacy-{hashlib.sha256(payload).hexdigest()}"
+    incomplete = package_root / "runs" / run_id
+    incomplete.mkdir(parents=True)
+    (incomplete / "transcript.json.partial").write_bytes(b"incomplete")
+
+    migrated = migrate_legacy_transcript(
+        package_root,
+        source_id=source_id,
+        source_sha256=source_sha,
+    )
+
+    assert migrated is not None
+    assert migrated["run_id"] == run_id
+    assert (incomplete / "run.json").is_file()
+    assert (incomplete / "transcript.json").read_bytes() == payload
+    assert not (incomplete / "transcript.json.partial").exists()
+    assert legacy.read_bytes() == payload
+
+
 def test_invalid_legacy_transcript_is_never_promoted_or_deleted(tmp_path: Path):
     source_sha = "f" * 64
     source_id = f"craig-{source_sha}"
