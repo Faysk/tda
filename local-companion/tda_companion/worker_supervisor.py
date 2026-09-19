@@ -154,6 +154,7 @@ class WorkerSupervisor:
         assert process.stderr is not None
 
         stdout_overflow = object()
+        stdout_decode_error = object()
         lines: queue.Queue[object] = queue.Queue()
         stdout_done = threading.Event()
 
@@ -167,7 +168,9 @@ class WorkerSupervisor:
                         lines.put(stdout_overflow)
                         return
                     lines.put(line)
-            except (OSError, UnicodeError, ValueError):
+            except UnicodeError:
+                lines.put(stdout_decode_error)
+            except (OSError, ValueError):
                 pass
             finally:
                 # Queue EOF before publishing the done flag. Once stdout_done is
@@ -256,6 +259,11 @@ class WorkerSupervisor:
                         "WORKER_LINE_SIZE_INVALID",
                         recoverable=False,
                     )
+                if line is stdout_decode_error:
+                    raise WorkerProcessError(
+                        "WORKER_STDOUT_ENCODING_INVALID",
+                        recoverable=False,
+                    )
                 if not isinstance(line, str):
                     raise WorkerProcessError(
                         "WORKER_PROTOCOL_INVALID",
@@ -283,7 +291,17 @@ class WorkerSupervisor:
                 previous_seq = message.seq
                 last_message = time.monotonic()
 
+                if not ready and message.type != "ready":
+                    raise WorkerProcessError(
+                        "WORKER_READY_REQUIRED",
+                        recoverable=False,
+                    )
                 if message.type == "ready":
+                    if ready:
+                        raise WorkerProcessError(
+                            "WORKER_READY_REPLAY",
+                            recoverable=False,
+                        )
                     ready = True
                     if on_event is not None:
                         on_event(message)
