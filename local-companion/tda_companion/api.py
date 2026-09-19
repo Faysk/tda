@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import os
 import re
+import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -174,6 +175,7 @@ def create_app(
     )
     worker_healthy = True
     worker_wake = asyncio.Event()
+    worker_stop = threading.Event()
     # Serializes the instant where a queued job becomes running with the instant
     # where first-use preparation becomes active. Without this gate, the API and
     # queue worker could race between "no running job" and Store.claim(), allowing
@@ -236,7 +238,7 @@ def create_app(
     async def worker():
         nonlocal worker_healthy
         log("info", "worker", "QUEUE_WORKER_STARTED", "Queue worker started")
-        while True:
+        while not worker_stop.is_set():
             try:
                 preparation_active = False
                 async with dispatch_gate:
@@ -279,6 +281,8 @@ def create_app(
                         )
 
                     def is_cancelled() -> bool:
+                        if worker_stop.is_set():
+                            return True
                         try:
                             return store.get(job_id)["status"] == "cancelled"
                         except KeyError:
@@ -395,7 +399,11 @@ def create_app(
                             if not store.complete(job_id, attempt, result):
                                 raise WorkerProcessError("WORKER_STALE_ATTEMPT")
                             final_state = store.get(job_id)
-                        if outcome.terminal == "cancelled" and final_state["status"] == "running":
+                        if (
+                            outcome.terminal == "cancelled"
+                            and final_state["status"] == "running"
+                            and not worker_stop.is_set()
+                        ):
                             final_state = store.action(job_id, "cancel")
                         if outcome.terminal == "cancelled" and outcome.payload.get("forced") is True:
                             log(
@@ -461,12 +469,20 @@ def create_app(
         try:
             yield
         finally:
+            worker_stop.set()
+            worker_wake.set()
             if task:
-                task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                    # asyncio.to_thread does not cancel the underlying worker
+                    # thread. Give the supervisor time to deliver cancellation to
+                    # the isolated native/CUDA process and return cleanly.
+                    await asyncio.wait_for(task, timeout=12.0)
+                except TimeoutError:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
             store.recover()
             log("info", "agent", "API_STOPPED", "Local API stopped")
 
