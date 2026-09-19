@@ -148,6 +148,7 @@ class WorkerSupervisor:
         assert process.stderr is not None
 
         lines: queue.Queue[str | None] = queue.Queue()
+        stdout_done = threading.Event()
 
         def read_stdout() -> None:
             try:
@@ -156,7 +157,11 @@ class WorkerSupervisor:
             except (OSError, UnicodeError, ValueError):
                 pass
             finally:
+                # Queue EOF before publishing the done flag. Once stdout_done is
+                # visible, every preceding line (and the sentinel) is already
+                # available to the supervisor and cannot be lost to poll/empty race.
                 lines.put(None)
+                stdout_done.set()
 
         reader = threading.Thread(target=read_stdout, name="tda-worker-stdout", daemon=True)
         stderr_reader = threading.Thread(
@@ -218,7 +223,11 @@ class WorkerSupervisor:
                 try:
                     line = lines.get(timeout=0.1)
                 except queue.Empty:
-                    if process.poll() is not None and lines.empty():
+                    if (
+                        process.poll() is not None
+                        and stdout_done.is_set()
+                        and lines.empty()
+                    ):
                         break
                     continue
                 if line is None:
@@ -234,7 +243,10 @@ class WorkerSupervisor:
                         previous_seq=previous_seq,
                     )
                 except WorkerProtocolError as exc:
-                    raise WorkerProcessError(str(exc)) from None
+                    raise WorkerProcessError(
+                        str(exc),
+                        recoverable=False,
+                    ) from None
                 previous_seq = message.seq
                 last_message = time.monotonic()
 
