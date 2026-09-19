@@ -6,6 +6,7 @@ import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { WorldExplorerClient } from "@/features/world-explorer/components/world-explorer-client";
 import { WorldExplorerProvider } from "@/features/world-explorer/components/world-explorer-provider";
+import { resolveWorldAudienceServer } from "@/features/world-explorer/world-audience-server";
 import { loadPublishedWorldLayout } from "@/features/world-explorer/layout-repository";
 import {
 	buildWorldProjection,
@@ -66,7 +67,11 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const canEditLayout = layoutAccess.ok === true;
 	const canEditContent = contentAccess.ok === true;
 	const fullWorldEditor = canEditLayout && canEditContent;
-	const dataset = await loadWorldDataset(fullWorldEditor ? "editor" : "public");
+	const audience = await resolveWorldAudienceServer({
+		fullWorldEditor,
+		campaignSlug: CAMPAIGN_SLUG,
+	});
+	const dataset = await loadWorldDataset(audience);
 	const focusId = resolveWorldFocusId(dataset, requestedFocus);
 	const projection = buildWorldProjection(dataset, focusId);
 	projection.layout = await loadPublishedWorldLayout(projection);
