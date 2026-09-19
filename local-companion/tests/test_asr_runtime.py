@@ -63,6 +63,7 @@ def test_corrupt_current_version_can_be_repaired_transactionally(tmp_path: Path)
     )
     worker = runtime_root / "whisper" / version / "TDAWhisperWorker.exe"
     worker.write_bytes(b"tampered")
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "corrupt"
     assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "corrupt"
 
     marker = install_whisper_runtime_archive(
@@ -163,6 +164,30 @@ def test_runtime_archive_rejects_path_traversal_and_symlink_like_entries(tmp_pat
             version="1.0.0",
             expected_sha256=digest,
         )
+
+
+def test_legacy_whisper_runtime_marker_without_metadata_seal_remains_compatible(tmp_path: Path):
+    archive = tmp_path / "legacy.zip"
+    digest = _runtime_zip(archive)
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    marker_path = runtime_root / "whisper" / version / ".tda-runtime.json"
+    value = json.loads(marker_path.read_text(encoding="utf-8"))
+    value.pop("worker_metadata_sha256")
+    marker_path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "ready"
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
 
 
 def test_runtime_requires_expected_worker_and_detects_worker_tamper(tmp_path: Path):
