@@ -871,7 +871,7 @@ def create_app(
     @app.post("/api/v1/preparation")
     async def prepare_profile(body: ProfilePreparationRequest):
         async with dispatch_gate:
-            if store.has_active_jobs():
+            if store.has_active_transcription_jobs():
                 return error(
                     "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
                     409,
@@ -953,45 +953,48 @@ def create_app(
     async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
         payload = body.model_dump()
         if body.kind == "transcription.craig":
-            if body.profile_id.startswith("qwen-"):
-                # Qwen is fail-closed before consulting the staged source: an
-                # unaccepted GPU/profile must not trigger source filesystem work.
-                if body.cpu:
-                    raise Conflict("QWEN_CPU_UNSUPPORTED")
-                gate = inspect_qwen_physical_gate(
-                    resolved_state_root,
-                    resolved_runtime_root,
-                    resolved_models_root,
-                    profile_id=body.profile_id,
-                )
-                if gate.get("ready") is not True:
-                    raise Conflict("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
-                try:
-                    _, package = staged_package(body.source_id, verify_tracks=False)
-                except CraigPackageError as exc:
-                    raise Conflict(str(exc)) from None
-            else:
-                # Whisper keeps source validation first so a missing/invalid Craig
-                # package is reported deterministically even on an unprepared PC.
-                try:
-                    _, package = staged_package(body.source_id, verify_tracks=False)
-                except CraigPackageError as exc:
-                    raise Conflict(str(exc)) from None
-                whisper = inspect_whisper_runtime(
-                    resolved_runtime_root,
-                    verify_worker=True,
-                )
-                if whisper.get("status") != "ready":
-                    raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
-                model = inspect_model_install(
-                    resolved_models_root,
-                    get_profile(body.profile_id),
-                    verify_hash=False,
-                )
-                if model.get("status") != "ready":
-                    raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
-            payload["units"] = len(package.tracks)
-        value = store.submit(idempotency_key, payload)
+            async with dispatch_gate:
+                if body.profile_id.startswith("qwen-"):
+                    # Qwen is fail-closed before consulting the staged source: an
+                    # unaccepted GPU/profile must not trigger source filesystem work.
+                    if body.cpu:
+                        raise Conflict("QWEN_CPU_UNSUPPORTED")
+                    gate = inspect_qwen_physical_gate(
+                        resolved_state_root,
+                        resolved_runtime_root,
+                        resolved_models_root,
+                        profile_id=body.profile_id,
+                    )
+                    if gate.get("ready") is not True:
+                        raise Conflict("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
+                    try:
+                        _, package = staged_package(body.source_id, verify_tracks=False)
+                    except CraigPackageError as exc:
+                        raise Conflict(str(exc)) from None
+                else:
+                    # Whisper keeps source validation first so a missing/invalid Craig
+                    # package is reported deterministically even on an unprepared PC.
+                    try:
+                        _, package = staged_package(body.source_id, verify_tracks=False)
+                    except CraigPackageError as exc:
+                        raise Conflict(str(exc)) from None
+                    whisper = inspect_whisper_runtime(
+                        resolved_runtime_root,
+                        verify_worker=True,
+                    )
+                    if whisper.get("status") != "ready":
+                        raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
+                    model = inspect_model_install(
+                        resolved_models_root,
+                        get_profile(body.profile_id),
+                        verify_hash=False,
+                    )
+                    if model.get("status") != "ready":
+                        raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
+                payload["units"] = len(package.tracks)
+                value = store.submit(idempotency_key, payload)
+        else:
+            value = store.submit(idempotency_key, payload)
         worker_wake.set()
         return value
 
