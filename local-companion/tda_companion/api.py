@@ -235,6 +235,9 @@ def create_app(
                             )
 
                     def observe_event(message) -> None:
+                        if message.type == "heartbeat":
+                            store.touch(job_id, attempt)
+                            return
                         if message.type == "stage":
                             stage = str(message.payload.get("stage") or "worker")[:64]
                             store.set_stage(job_id, attempt, stage)
@@ -310,6 +313,14 @@ def create_app(
                             final_state = store.get(job_id)
                         if outcome.terminal == "cancelled" and final_state["status"] == "running":
                             final_state = store.action(job_id, "cancel")
+                        if outcome.terminal == "cancelled" and outcome.payload.get("forced") is True:
+                            log(
+                                "warning",
+                                "worker",
+                                "WORKER_CANCEL_FORCED",
+                                "Worker did not acknowledge cancellation within the grace period and was stopped",
+                                {"job_id": job_id},
+                            )
                         if outcome.terminal == "result" and final_state["status"] not in {
                             "succeeded",
                             "cancelled",
