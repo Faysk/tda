@@ -288,6 +288,79 @@ def test_agent_restart_recovers_committed_run_before_marking_job_interrupted(tmp
         assert any(event["code"] == "SUCCEEDED_RECOVERED" for event in events)
 
 
+def test_agent_restart_recovers_valid_run_from_failed_bookkeeping(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("restart-failed-bookkeeping", body)
+    job_id, attempt = store.claim()
+
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    manifest = write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary=body["glossary"],
+        context=body["context"],
+    )
+    store.fail(job_id, attempt, "WORKER_EXECUTION_FAILED", recoverable=True)
+    assert store.get(job_id)["status"] == "failed"
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        assert recovered["status"] == "succeeded"
+        result = client.get(f"/api/v1/jobs/{job_id}/result", headers=HEADERS).json()
+        assert result["transcription"]["run_id"] == manifest["run_id"]
+
+
+def test_agent_restart_never_recovers_user_cancelled_run(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("restart-cancelled-run", body)
+    job_id, attempt = store.claim()
+
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary=body["glossary"],
+        context=body["context"],
+    )
+    store.action(job_id, "cancel")
+    assert store.get(job_id)["status"] == "cancelled"
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        assert recovered["status"] == "cancelled"
+        assert recovered["result_available"] is False
+
+
 def test_agent_restart_does_not_recover_run_with_different_context(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
