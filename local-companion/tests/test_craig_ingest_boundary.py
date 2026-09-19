@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 import zipfile
 from pathlib import Path
 
@@ -304,6 +305,41 @@ def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_pa
         )
         assert unauthorized.status_code == 401
         assert unauthorized.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_run_discovery_runs_filesystem_work_off_event_loop(monkeypatch, tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    get_headers = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        source_id = staged.json()["source_id"]
+        boundary = client.app
+        original = boundary._run_listing
+        observed: dict[str, int] = {}
+        caller_thread = threading.get_ident()
+
+        def wrapped(value: str):
+            observed["thread"] = threading.get_ident()
+            return original(value)
+
+        monkeypatch.setattr(boundary, "_run_listing", wrapped)
+
+        response = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+
+        assert response.status_code == 200
+        assert observed["thread"] != caller_thread
 
 
 def test_run_discovery_preflight_allows_only_get_authorization(tmp_path: Path):
