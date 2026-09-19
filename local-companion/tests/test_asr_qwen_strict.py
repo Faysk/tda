@@ -77,6 +77,40 @@ def test_qwen_checkpoint_pipeline_revision_is_explicit():
     assert "checkpoint=qwen-track-v2" in _runtime_fingerprint()
 
 
+def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    def plan(profile_id: str) -> QwenPlan:
+        assert reports[-1] == {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": profile_id,
+        }
+        raise QwenRuntimeError("TEST_STOP_AFTER_RUNTIME_VALIDATION")
+
+    with pytest.raises(QwenRuntimeError, match="TEST_STOP_AFTER_RUNTIME_VALIDATION"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            report=reports.append,
+            plan_resolver=plan,
+        )
+
+    assert reports == [
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": "qwen-fast",
+        }
+    ]
+
+
 def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path):
     package, root = _package(tmp_path)
 
