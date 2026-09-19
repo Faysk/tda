@@ -27,6 +27,14 @@ def test_worker_wire_rejects_non_finite_numbers():
     with pytest.raises(WorkerProtocolError, match="WORKER_JSON_ENCODE_FAILED"):
         message.encode()
 
+    raw = (
+        '{"protocol":"tda_worker_v1","job_id":"job","attempt":1,'
+        '"seq":1,"at":"2026-09-19T12:00:00Z","type":"event",'
+        '"payload":{"code":"GPU_SAMPLE","percent":NaN}}'
+    )
+    with pytest.raises(WorkerProtocolError, match="WORKER_JSON_INVALID"):
+        WorkerMessage.decode(raw)
+
 
 def test_craig_worker_command_roundtrip_uses_opaque_source_id_only():
     command = WorkerRunCommand(
