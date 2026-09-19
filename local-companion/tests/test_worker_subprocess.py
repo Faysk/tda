@@ -339,6 +339,75 @@ while True:
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
 
 
+def test_supervisor_cancel_outranks_startup_timeout(tmp_path):
+    script = tmp_path / "never_ready_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=0.05,
+        heartbeat_timeout=1,
+        cancel_grace=0.15,
+    )
+    started = time.monotonic()
+
+    outcome = supervisor.run_fixture(
+        job_id="cancel-before-ready",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: time.monotonic() - started >= 0.04,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload["forced"] is True
+
+
+def test_run_craig_skips_runtime_lookup_when_already_cancelled(tmp_path, monkeypatch):
+    supervisor = WorkerSupervisor(
+        data_root=tmp_path / "Data",
+        models_root=tmp_path / "Models",
+        runtime_root=tmp_path / "Runtime",
+        state_root=tmp_path / "State",
+    )
+
+    monkeypatch.setattr(
+        supervisor_module,
+        "inspect_qwen_physical_gate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("runtime gate must not run after cancellation")
+        ),
+    )
+
+    outcome = supervisor.run_craig(
+        job_id="cancel-before-runtime",
+        attempt=1,
+        source_id="craig-" + "a" * 64,
+        profile_id="qwen-quality",
+        glossary="",
+        context="",
+        cpu=False,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: True,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload == {
+        "stage": "cancelled_before_runtime",
+        "forced": False,
+    }
+
+
 def test_supervisor_preserves_cancel_when_child_hangs_after_ack(tmp_path):
     script = tmp_path / "cancel_then_hang_worker.py"
     script.write_text(
