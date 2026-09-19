@@ -75,9 +75,24 @@ class AgentController:
         if self.server is not None:
             self.server.should_exit = True
 
+    def _release_stopped_resources(self) -> bool:
+        """Release controller-owned resources only after the server thread is gone."""
+        if self.thread is not None and self.thread.is_alive():
+            return False
+        self.server = None
+        self.thread = None
+        if self.lock is not None:
+            self.lock.__exit__(None, None, None)
+            self.lock = None
+        return True
+
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
             return
+        # A previous stop may have failed closed while lifespan teardown was
+        # still running. Once that thread has subsequently exited, release the
+        # retained lock before acquiring a fresh one for the restart.
+        self._release_stopped_resources()
         self.data_root.mkdir(parents=True, exist_ok=True)
         self.lock = RootLock(self.data_root)
         self.lock.__enter__()
@@ -128,12 +143,7 @@ class AgentController:
             # Never release the data-root lock while the HTTP/lifespan thread is
             # still alive. That thread may still own SQLite state, staged audio or
             # a native/CUDA worker during shutdown.
-            if self.thread is None or not self.thread.is_alive():
-                self.server = None
-                self.thread = None
-                if self.lock is not None:
-                    self.lock.__exit__(None, None, None)
-                    self.lock = None
+            self._release_stopped_resources()
             raise
 
     def stop(self) -> None:
@@ -146,11 +156,7 @@ class AgentController:
             thread.join(timeout=30)
         if thread is not None and thread.is_alive():
             raise RuntimeError("LOCAL_SERVICE_STOP_TIMEOUT")
-        self.server = None
-        self.thread = None
-        if self.lock is not None:
-            self.lock.__exit__(None, None, None)
-            self.lock = None
+        self._release_stopped_resources()
 
     def run_forever(self, on_ready=None) -> None:
         self.start()
