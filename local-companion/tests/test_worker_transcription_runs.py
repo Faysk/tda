@@ -89,6 +89,29 @@ def _run(command: WorkerRunCommand) -> tuple[int, list[dict]]:
     return code, messages
 
 
+def test_worker_rejects_transcript_bound_to_a_different_source(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, _source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document("f" * 64, "fonte errada"),
+    )
+
+    code, messages = _run(_command("job-wrong-source", source_id))
+
+    assert code == 66
+    error = next(message for message in messages if message["type"] == "error")
+    assert error["payload"]["code"] == "TRANSCRIPTION_SOURCE_HASH_MISMATCH"
+    assert list_runs(package_root, verify_content=True) == []
+
+
 def test_worker_keeps_previous_run_and_uses_root_only_as_latest_compatibility_mirror(
     tmp_path: Path,
     monkeypatch,
