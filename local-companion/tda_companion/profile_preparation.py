@@ -80,6 +80,18 @@ def _runtime_ready(state: dict, family: str) -> bool:
     )
 
 
+def _probe_qwen_runtime(
+    runtime_root: Path,
+    is_cancelled: Callable[[], bool] | None,
+) -> dict:
+    if is_cancelled is None:
+        return probe_qwen_long_track_gate(runtime_root)
+    return probe_qwen_long_track_gate(
+        runtime_root,
+        is_cancelled=is_cancelled,
+    )
+
+
 def whisper_model_ready(state: dict[str, object]) -> bool:
     metadata_sha256 = state.get("metadata_sha256")
     return (
@@ -214,10 +226,7 @@ def _install_qwen_runtime(
     state = inspect_qwen_runtime(runtime_root, verify_worker=True)
     if _runtime_ready(state, "qwen"):
         try:
-            probe_qwen_long_track_gate(
-                runtime_root,
-                is_cancelled=is_cancelled,
-            )
+            _probe_qwen_runtime(runtime_root, is_cancelled)
             return {
                 "status": "ready",
                 "version": state.get("version"),
@@ -282,10 +291,7 @@ def _install_qwen_runtime(
             runtime_root=runtime_root,
             cache_root=cache_root,
         )
-        probe_qwen_long_track_gate(
-            runtime_root,
-            is_cancelled=is_cancelled,
-        )
+        _probe_qwen_runtime(runtime_root, is_cancelled)
     except Exception as exc:
         if stable_error is not None:
             raise ProfilePreparationError(_error_code(exc)) from exc
