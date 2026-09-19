@@ -31,6 +31,21 @@ def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publishe
     assert "gh release create" not in package
 
 
+def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
+    required = {
+        "local-companion/tda_companion/asr_checkpoints.py",
+        "local-companion/tda_companion/asr_qwen_strict.py",
+        "local-companion/tda_companion/asr_timeline.py",
+        "local-companion/tda_companion/craig_runtime.py",
+        "local-companion/tda_companion/transcript.py",
+        "local-companion/tda_companion/transcription_runs.py",
+    }
+    for name in ("qwen-runtime.yml", "qwen-runtime-package.yml"):
+        value = _workflow(name)
+        for path in required:
+            assert value.count(path) == 2, f"{name} must watch {path} on PR and push"
+
+
 def test_runtime_stable_promotion_requires_physical_receipt_and_reuses_release_object():
     rc = _workflow("runtime-rc.yml")
     promote = _workflow("runtime-promote.yml")
