@@ -491,6 +491,7 @@ def create_app(
         while not worker_stop.is_set():
             try:
                 preparation_active = False
+                job_cancel: threading.Event | None = None
                 async with dispatch_gate:
                     preparation_active = (
                         preparation_manager.snapshot().get("active") is True
@@ -500,6 +501,12 @@ def create_app(
                         if preparation_active
                         else await asyncio.to_thread(claim_under_source_gate)
                     )
+                    if claimed is not None:
+                        # Register ownership before releasing dispatch_gate. There
+                        # is no await between the committed claim and this marker,
+                        # so cancel/delete cannot observe a running attempt without
+                        # an in-memory active-worker fence.
+                        job_cancel = register_active_worker(claimed[0])
                 if preparation_active:
                     worker_healthy = True
                     await asyncio.sleep(0.25)
@@ -534,7 +541,8 @@ def create_app(
                             {"job_id": job_id, "profile_id": body["profile_id"]},
                         )
 
-                    job_cancel = register_active_worker(job_id)
+                    if job_cancel is None:
+                        raise RuntimeError("ACTIVE_WORKER_REGISTRATION_MISSING")
                     noisy_event_last_at: dict[str, float] = {}
                     noisy_event_interval = 5.0
 
