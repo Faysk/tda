@@ -175,7 +175,7 @@ qwen-fast
 qwen-quality
 ```
 
-A GPU exigida por padrão é `RTX 4070`. Para um subconjunto explícito:
+O **harness de aceite deste candidato** exige por padrão `RTX 4070`, porque a máquina física certificadora deste corte usa essa GPU. Isso não é uma restrição de produto: o Agent aceita a GPU local que cumpra o contrato CUDA e compute capability mínimo; um nome exato só é exigido quando o harness recebe `-RequireGpuName`. Para um subconjunto explícito:
 
 ```powershell
 & $gate -Audio "C:\caminho\amostra.flac" -Profiles whisper-turbo,qwen-fast
