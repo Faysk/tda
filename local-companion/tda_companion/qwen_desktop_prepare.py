@@ -137,6 +137,9 @@ def prepare_qwen_profile_from_craig(
     if profile_id not in {"qwen-fast", "qwen-quality"}:
         raise QwenDesktopPrepareError("QWEN_PROFILE_REQUIRED")
     report = progress or (lambda _stage, _context: None)
+    worker = current_qwen_worker(runtime_root)
+    if worker is None:
+        raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
     profile = get_profile(profile_id)
     _verify_or_reset_qwen_model(
         models_root,
@@ -148,9 +151,6 @@ def prepare_qwen_profile_from_craig(
         ALIGNER_PROFILE,
         corrupt_code="QWEN_ALIGNER_REPAIR_FAILED",
     )
-    worker = current_qwen_worker(runtime_root)
-    if worker is None:
-        raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
     report("runtime_probe", {"profile_id": profile_id})
     probe = probe_qwen_long_track_gate(runtime_root, runner=runner)
     report(
