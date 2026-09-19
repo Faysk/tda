@@ -144,6 +144,50 @@ describe("processing state", () => {
 		});
 	});
 
+	it("renews an expired browser session during an action and retries only that request", async () => {
+		let sessionNumber = 0;
+		let lifecycleAttempts = 0;
+		let acceptedLifecycleActions = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({ ...health, service_version: "0.3.14" });
+			if (value.endsWith("/session")) {
+				sessionNumber += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: `browser_session_token_12345678901234567890123${sessionNumber}`,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/lifecycle") && init?.method === "POST") {
+				lifecycleAttempts += 1;
+				if (lifecycleAttempts === 1) return new Response(null, { status: 401 });
+				acceptedLifecycleActions += 1;
+				expect(init.headers).toMatchObject({
+					Authorization:
+						"Bearer browser_session_token_123456789012345678901232",
+				});
+				return Response.json({ ...health, service_version: "0.3.14" });
+			}
+			return Response.json({ jobs: [job] });
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect();
+		await controller.lifecycle("pause");
+
+		expect(sessionNumber).toBe(2);
+		expect(lifecycleAttempts).toBe(2);
+		expect(acceptedLifecycleActions).toBe(1);
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			error: null,
+			jobs: [job],
+		});
+	});
+
 	it("renews an expired automatic browser session during refresh", async () => {
 		let sessionNumber = 0;
 		let jobsReads = 0;
@@ -185,6 +229,23 @@ describe("processing state", () => {
 		expect(sessionNumber).toBe(2);
 		expect(jobsReads).toBe(3);
 		expect(pairingStates).not.toContain(false);
+	});
+
+	it("does not auto-bootstrap a legacy token after unauthorized", async () => {
+		const { request, controller } = fixture();
+		await controller.connect(token);
+		request.mockClear();
+		request.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+		await controller.lifecycle("pause");
+
+		expect(
+			request.mock.calls.some(([url]) => String(url).endsWith("/session")),
+		).toBe(false);
+		expect(controller.snapshot()).toMatchObject({
+			connection: "error",
+			error: "unauthorized",
+		});
 	});
 
 	it("does not send token to an incompatible service", async () => {
