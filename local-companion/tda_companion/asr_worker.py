@@ -281,7 +281,7 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
     except (ModelRegistryError, CraigPackageError, TranscriptionRunError) as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
-        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": False})
         return 66
     except Exception as exc:
         heartbeat_stop.set()
