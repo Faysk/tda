@@ -235,6 +235,19 @@ def create_app(
                             )
 
                     def observe_event(message) -> None:
+                        if message.type == "ready":
+                            store.touch(job_id, attempt)
+                            log(
+                                "info",
+                                "worker",
+                                "WORKER_READY",
+                                "Worker process accepted the job",
+                                {
+                                    "job_id": job_id,
+                                    "profile_id": body.get("profile_id"),
+                                },
+                            )
+                            return
                         if message.type == "heartbeat":
                             store.touch(job_id, attempt)
                             return
