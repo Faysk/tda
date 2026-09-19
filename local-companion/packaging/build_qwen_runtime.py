@@ -225,6 +225,8 @@ def main() -> int:
             "--hidden-import",
             "tda_companion.asr_qwen",
             "--hidden-import",
+            "tda_companion.asr_qwen_strict",
+            "--hidden-import",
             "tda_companion.qwen_acceptance",
             "--hidden-import",
             "tda_companion.asr_worker",
