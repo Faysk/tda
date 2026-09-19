@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from tda_companion.asr_models import get_profile
-from tda_companion.asr_qwen import AudioWindow, QWEN_WINDOW_SECONDS, QwenRuntimeError
+from tda_companion.asr_qwen import (
+    AudioWindow,
+    QWEN_WINDOW_SECONDS,
+    QwenRuntimeError,
+    _runtime_fingerprint,
+)
 from tda_companion.asr_qwen_strict import (
     QWEN_WINDOW_OVERLAP_SECONDS,
     _owned_words,
@@ -66,6 +71,10 @@ def _two_windows(_path: Path):
     stride = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
     yield AudioWindow(index=1, start=0.0, end=QWEN_WINDOW_SECONDS, audio="w1")
     yield AudioWindow(index=2, start=stride, end=stride + 46.0, audio="w2")
+
+
+def test_qwen_checkpoint_pipeline_revision_is_explicit():
+    assert "checkpoint=qwen-track-v2" in _runtime_fingerprint()
 
 
 def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path):
