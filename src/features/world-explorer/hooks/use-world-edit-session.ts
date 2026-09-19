@@ -471,9 +471,44 @@ export function useWorldEditSession({
 	async function release(message: string) {
 		if (!leaseToken || state !== "editing") return;
 		cancelPendingDraftSaves();
-		draftSequence.current += 1;
-		setFeedback("Encerrando a sessão de edição…");
+		const sequence = ++draftSequence.current;
+
+		if (hasChanges) {
+			setFeedback("Salvando um checkpoint final antes de encerrar a edição…");
+			const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
+			if (!layoutCandidate) {
+				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				return;
+			}
+
+			const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
+			if (sequence !== draftSequence.current) return;
+			if (!layoutResult.ok) {
+				if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
+					markLeaseLost(layoutResult.reason);
+				} else {
+					setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
+				}
+				return;
+			}
+
+			if (canEditContent && graphDraftRef.current) {
+				const graphResult = await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+				if (sequence !== draftSequence.current) return;
+				if (!graphResult.ok) {
+					if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
+						markLeaseLost(graphResult.reason);
+					} else {
+						setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+					}
+					return;
+				}
+			}
+		}
+
 		await saveQueue.current;
+		if (sequence !== draftSequence.current) return;
+		setFeedback("Encerrando a sessão de edição…");
 		const result = await releaseWorldLayoutSessionAction(leaseToken);
 		if (!result.ok) {
 			setFeedback(worldEditFailureMessage(result.reason));
