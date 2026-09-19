@@ -181,6 +181,41 @@ def test_profile_preparation_cancel_becomes_terminal_and_joinable(
     assert final["error_code"] == "TRANSCRIPTION_PREPARATION_CANCELLED"
 
 
+def test_preparation_rejects_restart_while_terminal_thread_is_still_unwinding(
+    tmp_path: Path,
+    monkeypatch,
+):
+    manager = _manager(tmp_path)
+    source_id = "craig-" + "d" * 64
+
+    monkeypatch.setattr(
+        preparation,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: object(),
+    )
+
+    class StillAlive:
+        @staticmethod
+        def is_alive():
+            return True
+
+    manager._thread = StillAlive()  # type: ignore[assignment]
+    manager._state.update(
+        {
+            "active": False,
+            "state": "completed",
+            "source_id": source_id,
+            "profile_id": "whisper-turbo",
+        }
+    )
+
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_ALREADY_RUNNING",
+    ):
+        manager.start(source_id, "whisper-turbo")
+
+
 def test_preparation_reuses_same_request_and_rejects_competing_work(
     tmp_path: Path,
     monkeypatch,
