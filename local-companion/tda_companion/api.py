@@ -245,10 +245,14 @@ def create_app(
 
     def claim_under_source_gate():
         with source_gate:
+            if worker_stop.is_set():
+                return None
             return store.claim()
 
     def start_preparation_under_source_gate(source_id: str, profile_id: str):
         with source_gate:
+            if worker_stop.is_set():
+                raise ProfilePreparationError("AGENT_SHUTTING_DOWN")
             return preparation_manager.start(source_id, profile_id)
 
     def staged_package_under_source_gate(source_id: str):
