@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from tda_companion.asr_models import (
     inspect_model_install,
     model_path,
     public_profiles,
+    verify_and_upgrade_model_install,
     write_install_marker,
 )
 
@@ -87,6 +89,41 @@ def test_qwen_native_checkpoint_marker_is_reproducible(tmp_path: Path):
     assert marker["alignment"] == QWEN_FORCED_ALIGNER_MODEL_ID
     assert marker["alignment_revision"] == QWEN_FORCED_ALIGNER_REVISION
     assert state["status"] == "ready"
+
+
+def test_legacy_model_marker_is_upgraded_only_after_full_verification(tmp_path: Path):
+    profile = get_profile("whisper-turbo")
+    directory = _write_model_fixture(tmp_path, profile.id)
+    write_install_marker(directory, profile)
+    marker_path = directory / MODEL_MARKER
+    legacy = json.loads(marker_path.read_text(encoding="utf-8"))
+    legacy.pop("metadata_sha256")
+    marker_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    assert inspect_model_install(tmp_path, profile, verify_hash=False)["status"] == "ready"
+    upgraded = verify_and_upgrade_model_install(tmp_path, profile)
+
+    assert upgraded["status"] == "ready"
+    assert len(str(upgraded["metadata_sha256"])) == 64
+    persisted = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert persisted["metadata_sha256"] == upgraded["metadata_sha256"]
+
+
+def test_corrupt_legacy_model_marker_is_not_promoted(tmp_path: Path):
+    profile = get_profile("whisper-detailed")
+    directory = _write_model_fixture(tmp_path, profile.id)
+    write_install_marker(directory, profile)
+    marker_path = directory / MODEL_MARKER
+    legacy = json.loads(marker_path.read_text(encoding="utf-8"))
+    legacy.pop("metadata_sha256")
+    marker_path.write_text(json.dumps(legacy), encoding="utf-8")
+    (directory / "model.bin").write_bytes(b"corrupt")
+
+    state = verify_and_upgrade_model_install(tmp_path, profile)
+
+    assert state["status"] == "corrupt"
+    persisted = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert "metadata_sha256" not in persisted
 
 
 def test_model_metadata_fingerprint_detects_tampering_without_full_hash(tmp_path: Path):
