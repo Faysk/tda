@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import zipfile
 from pathlib import Path
 
 import pytest
 
+import tda_companion.asr_runtime as runtime_module
 from tda_companion.asr_runtime import (
     AsrRuntimeError,
     current_whisper_worker,
     inspect_whisper_runtime,
     install_whisper_runtime_archive,
+    recover_interrupted_whisper_runtime_install,
 )
 from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
 
@@ -47,6 +51,94 @@ def test_verified_runtime_installs_versioned_and_switches_current_atomically(tmp
     assert selector["version"] == version
 
 
+def test_startup_recovery_restores_interrupted_whisper_runtime_swap(tmp_path: Path):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"stable")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "whisper"
+    target = parent / version
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    target.rename(backup)
+    partial.mkdir()
+    (partial / "junk").write_text("partial", encoding="utf-8")
+
+    recovered = recover_interrupted_whisper_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert target.is_dir()
+    assert not backup.exists()
+    assert not partial.exists()
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
+def test_startup_recovery_prefers_verified_whisper_partial_over_corrupt_selected_target(
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"fresh-worker")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "whisper"
+    target = parent / version
+    partial = parent / f".{version}-{'c' * 32}.partial"
+    shutil.copytree(target, partial)
+    (target / "TDAWhisperWorker.exe").write_bytes(b"corrupt-target")
+
+    recovered = recover_interrupted_whisper_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert not partial.exists()
+    assert (target / "TDAWhisperWorker.exe").read_bytes() == b"fresh-worker"
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
+def test_startup_recovery_prefers_verified_whisper_partial_over_corrupt_backup(
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"fresh-worker")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "whisper"
+    target = parent / version
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    shutil.copytree(target, partial)
+    target.rename(backup)
+    (backup / "TDAWhisperWorker.exe").write_bytes(b"corrupt-backup")
+
+    recovered = recover_interrupted_whisper_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert not backup.exists()
+    assert not partial.exists()
+    assert (target / "TDAWhisperWorker.exe").read_bytes() == b"fresh-worker"
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
 def test_corrupt_current_version_can_be_repaired_transactionally(tmp_path: Path):
     original = tmp_path / "runtime-original.zip"
     original_digest = _runtime_zip(original, payload=b"original")
@@ -63,6 +155,7 @@ def test_corrupt_current_version_can_be_repaired_transactionally(tmp_path: Path)
     )
     worker = runtime_root / "whisper" / version / "TDAWhisperWorker.exe"
     worker.write_bytes(b"tampered")
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "corrupt"
     assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "corrupt"
 
     marker = install_whisper_runtime_archive(
@@ -163,6 +256,88 @@ def test_runtime_archive_rejects_path_traversal_and_symlink_like_entries(tmp_pat
             version="1.0.0",
             expected_sha256=digest,
         )
+
+
+def test_whisper_runtime_metadata_drift_is_verified_once_and_resealed(
+    monkeypatch,
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive)
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+    worker = runtime_root / "whisper" / version / "TDAWhisperWorker.exe"
+    marker_path = runtime_root / "whisper" / version / ".tda-runtime.json"
+    before_marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    before = worker.stat()
+    os.utime(
+        worker,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    original = runtime_module._sha256_file
+    calls = 0
+
+    def counted(path: Path) -> str:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(runtime_module, "_sha256_file", counted)
+    state = inspect_whisper_runtime(runtime_root, verify_worker=False)
+
+    assert state["status"] == "ready"
+    assert calls == 1
+    resealed = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert resealed["worker_sha256"] == before_marker["worker_sha256"]
+    assert (
+        resealed["worker_metadata_sha256"]
+        != before_marker["worker_metadata_sha256"]
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("resealed Whisper runtime must return to metadata fast path")
+        ),
+    )
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "ready"
+
+
+def test_legacy_whisper_runtime_marker_without_metadata_seal_remains_compatible(tmp_path: Path):
+    archive = tmp_path / "legacy.zip"
+    digest = _runtime_zip(archive)
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    marker_path = runtime_root / "whisper" / version / ".tda-runtime.json"
+    value = json.loads(marker_path.read_text(encoding="utf-8"))
+    value.pop("worker_metadata_sha256")
+    marker_path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "ready"
+    assert "worker_metadata_sha256" not in json.loads(
+        marker_path.read_text(encoding="utf-8")
+    )
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+    upgraded = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert len(upgraded["worker_metadata_sha256"]) == 64
 
 
 def test_runtime_requires_expected_worker_and_detects_worker_tamper(tmp_path: Path):

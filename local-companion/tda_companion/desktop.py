@@ -173,6 +173,12 @@ class DesktopBridge:
     def _has_running_job(self) -> bool:
         return any(job.get("status") == "running" for job in self._jobs())
 
+    def _has_active_job(self) -> bool:
+        # Maintenance/runtime mutation must also fence queued work. Otherwise the
+        # Agent can claim a job immediately after this desktop-side check and
+        # begin loading Runtime/Models while the desktop repairs those same files.
+        return any(job.get("status") in {"queued", "running"} for job in self._jobs())
+
     def snapshot(self) -> dict[str, Any]:
         agent = self.client.get("/agent")
         system = self.client.get("/system")
@@ -383,7 +389,7 @@ class DesktopBridge:
         }
 
     def install_whisper_runtime(self) -> dict[str, Any]:
-        if self._has_running_job():
+        if self._has_active_job():
             raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
         state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
         manifest = fetch_whisper_runtime_manifest()
@@ -443,7 +449,7 @@ class DesktopBridge:
         }
 
     def install_qwen_runtime(self) -> dict[str, Any]:
-        if self._has_running_job():
+        if self._has_active_job():
             raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
         state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
         manifest = fetch_qwen_runtime_manifest()
@@ -514,7 +520,7 @@ class DesktopBridge:
         return True
 
     def install_update(self) -> dict[str, Any]:
-        if self._has_running_job():
+        if self._has_active_job():
             raise RuntimeError("UPDATE_BLOCKED_BY_RUNNING_JOB")
         manifest = fetch_manifest()
         if not update_available(VERSION, manifest):

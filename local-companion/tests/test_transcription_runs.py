@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -13,6 +15,7 @@ from tda_companion.transcript import (
     stats_for_tracks,
 )
 from tda_companion.transcription_runs import (
+    TranscriptionRunError,
     ensure_legacy_and_list,
     list_runs,
     load_run,
@@ -171,6 +174,33 @@ def test_valid_legacy_transcript_is_copied_idempotently_and_original_is_retained
     assert len(list_runs(package_root, verify_content=True)) == 1
 
 
+def test_interrupted_legacy_migration_is_rebuilt_from_root_transcript(tmp_path: Path):
+    source_sha = "d" * 64
+    source_id = f"craig-{source_sha}"
+    package_root = tmp_path / source_id
+    package_root.mkdir()
+    legacy = package_root / "transcript.json"
+    _document(source_sha, "whisper-detailed", "legado interrompido").write_atomic(legacy)
+    payload = legacy.read_bytes()
+    run_id = f"legacy-{hashlib.sha256(payload).hexdigest()}"
+    incomplete = package_root / "runs" / run_id
+    incomplete.mkdir(parents=True)
+    (incomplete / "transcript.json.partial").write_bytes(b"incomplete")
+
+    migrated = migrate_legacy_transcript(
+        package_root,
+        source_id=source_id,
+        source_sha256=source_sha,
+    )
+
+    assert migrated is not None
+    assert migrated["run_id"] == run_id
+    assert (incomplete / "run.json").is_file()
+    assert (incomplete / "transcript.json").read_bytes() == payload
+    assert not (incomplete / "transcript.json.partial").exists()
+    assert legacy.read_bytes() == payload
+
+
 def test_invalid_legacy_transcript_is_never_promoted_or_deleted(tmp_path: Path):
     source_sha = "f" * 64
     source_id = f"craig-{source_sha}"
@@ -217,6 +247,30 @@ def test_tampered_run_is_excluded_when_content_verification_is_requested(tmp_pat
     transcript.write_bytes(encoded)
 
     assert list_runs(package_root, verify_content=False) != []
+    assert list_runs(package_root, verify_content=True) == []
+
+
+def test_symlinked_run_transcript_is_rejected(tmp_path: Path):
+    source_sha = "3" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    run = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-detailed", "original"),
+        job_id="job-symlink",
+        attempt=1,
+    )
+    transcript = package_root / "runs" / run["run_id"] / "transcript.json"
+    external = tmp_path / "external-transcript.json"
+    external.write_bytes(transcript.read_bytes())
+    transcript.unlink()
+    try:
+        transcript.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+
+    with pytest.raises(TranscriptionRunError, match="TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK"):
+        load_run(package_root, run["run_id"], verify_content=True)
     assert list_runs(package_root, verify_content=True) == []
 
 

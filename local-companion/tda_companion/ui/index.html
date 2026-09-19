@@ -16,7 +16,7 @@
       </div>
       <nav aria-label="Navegação do Companion">
         <button type="button" class="nav-item active" data-view="overview"><span>⌂</span>Visão geral</button>
-        <button type="button" class="nav-item" data-view="process"><span>▶</span>Processar sessão</button>
+        <button type="button" class="nav-item" data-view="process"><span>▶</span>Execução local</button>
         <button type="button" class="nav-item" data-view="logs"><span>▤</span>Logs</button>
         <button type="button" class="nav-item" data-view="diagnostics"><span>◌</span>Diagnóstico</button>
         <button type="button" class="nav-item" data-view="settings"><span>⚙</span>Configurações</button>
@@ -32,7 +32,7 @@
         <header class="page-head">
           <div>
             <h1>Tudo certo por aqui.</h1>
-            <p>Controle o processamento local desta máquina e envie novas sessões sem sair do Companion.</p>
+            <p>Monitore o Agent, a fila e os recursos desta máquina. Novas sessões são iniciadas no TDA Web.</p>
           </div>
           <div class="head-actions">
             <span class="pill success" id="agent-pill">● Agente local</span>
@@ -73,10 +73,10 @@
             <div class="empty-work" id="work-summary">
               <div class="empty-icon">▤</div>
               <h3>Nenhum processamento em andamento.</h3>
-              <p>A fila está livre. Selecione um ZIP do Craig para iniciar uma transcrição local.</p>
+              <p>A fila está livre. Inicie uma nova sessão pela tela de Processamento no TDA Web.</p>
             </div>
             <div class="action-row">
-              <button type="button" class="primary" id="new-session">Processar sessão</button>
+              <button type="button" class="primary" id="new-session">Abrir Processamento no TDA</button>
               <button type="button" id="open-tda">Abrir TDA</button>
               <button type="button" id="toggle-queue">Pausar fila</button>
               <button type="button" id="restart-agent">Reiniciar Agent</button>
@@ -107,10 +107,10 @@
       <section class="view" id="view-process">
         <header class="sub-head process-head">
           <div>
-            <h1>Processar sessão</h1>
-            <p>Selecione o ZIP multitrack do Craig. Cada participante continua em sua própria faixa e o Companion monta a linha do tempo depois da transcrição.</p>
+            <h1>Execução local</h1>
+            <p>O TDA Web define o trabalho. O Companion executa, monitora e mantém a máquina pronta.</p>
           </div>
-          <span class="pill" id="process-state-pill">Aguardando sessão</span>
+          <span class="pill success">Gerenciado pelo TDA</span>
         </header>
 
         <div class="process-layout">
@@ -118,79 +118,49 @@
             <div class="workflow-step">
               <div class="step-head">
                 <div class="step-title">
-                  <span class="step-number">1</span>
-                  <div><h2>Sessão do Craig</h2><p>Escolha o arquivo <code>.zip</code> original. Não é preciso extrair nem mover para uma pasta especial.</p></div>
+                  <span class="step-number">↗</span>
+                  <div>
+                    <h2>Nova sessão</h2>
+                    <p>ZIP, perfil, contexto e glossário possuem uma única porta de entrada: Processamento no TDA Web.</p>
+                  </div>
                 </div>
-                <button type="button" class="primary" id="select-craig">Selecionar ZIP</button>
-              </div>
-              <div class="source-empty" id="source-empty">Nenhuma sessão selecionada.</div>
-              <div class="session-summary hidden" id="session-summary">
-                <div class="session-file-row">
-                  <div><strong id="session-name">—</strong><span id="session-meta">—</span></div>
-                  <span class="pill success" id="session-track-count">— faixas</span>
-                </div>
-                <ul class="track-list" id="track-list" aria-label="Participantes encontrados"></ul>
+                <button type="button" class="primary" id="open-processing-web">Abrir Processamento no TDA</button>
               </div>
             </div>
 
             <div class="workflow-step">
               <div class="step-head">
                 <div class="step-title">
-                  <span class="step-number">2</span>
-                  <div><h2>Qualidade da transcrição</h2><p>Para sessões importantes, priorize precisão. O primeiro uso pode baixar runtime e modelos verificados.</p></div>
+                  <span class="step-number">●</span>
+                  <div>
+                    <h2>Worker local</h2>
+                    <p id="execution-title">Aguardando estado do Agent…</p>
+                  </div>
                 </div>
+                <span class="pill" id="execution-state">Verificando</span>
               </div>
-              <div class="profile-list" id="profile-list" role="radiogroup" aria-label="Qualidade da transcrição">
-                <div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>
-              </div>
-            </div>
-
-            <details class="advanced-options">
-              <summary>Opções avançadas de reconhecimento</summary>
-              <div class="advanced-grid">
-                <label>Contexto da campanha<textarea id="session-context" maxlength="1200" rows="4" placeholder="Ex.: Sessão em Neverwinter, investigação do culto…"></textarea><small>Ajuda o modelo a interpretar o contexto; fica apenas no processamento local.</small></label>
-                <label>Nomes e termos importantes<textarea id="session-glossary" maxlength="1200" rows="4" placeholder="Ex.: Valindra, Neverwinter, Zhentarim…"></textarea><small>Use para nomes próprios, lugares, NPCs e termos de D&amp;D.</small></label>
-              </div>
-            </details>
-
-            <div class="preparation-progress hidden" id="preparation-progress" aria-live="polite">
-              <div class="preparation-progress-head">
-                <div>
-                  <span class="preparation-kicker">Preparação do primeiro uso</span>
-                  <strong id="preparation-title">Preparando perfil…</strong>
-                  <p id="preparation-detail">Conferindo o estado local.</p>
-                </div>
-                <span class="preparation-elapsed" id="preparation-elapsed">0 s</span>
-              </div>
-              <ol class="preparation-stage-list" id="preparation-stage-list"></ol>
-              <div class="preparation-progress-foot">
-                <span id="preparation-bytes">Cada etapa aparecerá aqui conforme avançar.</span>
-                <button type="button" class="quiet" id="preparation-open-logs">Ver logs da preparação</button>
+              <div class="notice" id="execution-detail">Fila, etapa e última atividade aparecem aqui quando houver processamento.</div>
+              <div class="action-row">
+                <button type="button" id="execution-open-logs">Ver logs</button>
+                <button type="button" data-go="diagnostics">Executar diagnóstico</button>
               </div>
             </div>
 
-            <div class="process-action-bar">
-              <div class="process-status" aria-live="polite">
-                <strong id="process-status-title">Selecione uma sessão para começar.</strong>
-                <span id="process-status-detail">O arquivo é processado localmente neste computador.</span>
-              </div>
-              <button type="button" class="primary process-button" id="start-processing" disabled>Preparar e processar</button>
-            </div>
+            <div class="notice">Fechar esta janela não interrompe o Agent. Trabalhos ativos continuam em segundo plano e podem ser acompanhados aqui ou no TDA Web.</div>
           </section>
 
           <aside class="process-guide">
             <section>
-              <h2>O que acontece</h2>
+              <h2>Divisão de responsabilidade</h2>
               <ol class="process-steps">
-                <li><b>Validação</b><span>O ZIP é conferido e cada faixa é identificada pelo participante.</span></li>
-                <li><b>Preparação</b><span>Runtime e modelo necessários são baixados e verificados automaticamente.</span></li>
-                <li><b>Transcrição</b><span>As faixas são processadas separadamente, com checkpoints para sessões longas.</span></li>
-                <li><b>Linha do tempo</b><span>Os turnos são alinhados e reunidos sem misturar as vozes de origem.</span></li>
+                <li><b>TDA Web</b><span>Seleciona sessão, perfil e contexto; cria/cancela trabalhos; apresenta resultados e revisão.</span></li>
+                <li><b>Companion</b><span>Executa fila e workers locais, usa CPU/GPU e mantém runtimes/modelos.</span></li>
+                <li><b>Agent</b><span>Persiste jobs, eventos e liveness; expõe telemetria e diagnóstico via loopback.</span></li>
               </ol>
             </section>
             <section class="privacy-note">
               <h2>Local por padrão</h2>
-              <p>Áudio e transcrição integral não são enviados para logs. A preparação Qwen usa uma janela temporária local de 60 s para validar a GPU e a remove ao terminar.</p>
+              <p>Áudio e transcrição integral permanecem no computador. Logs registram fatos técnicos, não o conteúdo das falas.</p>
             </section>
           </aside>
         </div>
@@ -233,9 +203,8 @@
             <label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label>
           </section>
           <section class="panel setting-group">
-            <h2>Pareamento</h2>
-            <p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p>
-            <div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div>
+            <h2>Conexão com o TDA</h2>
+            <p>O site conecta automaticamente ao Agent quando o Companion está aberto. O token mestre permanece interno ao Companion; o navegador recebe somente uma sessão temporária vinculada ao domínio do TDA.</p>
           </section>
           <section class="panel setting-group runtime-settings">
             <h2>Runtimes de transcrição</h2>

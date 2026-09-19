@@ -1,5 +1,6 @@
 """Transactional queue. Single supervisor owns recovery; claims are atomic."""
 import json
+import math
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -15,10 +16,11 @@ class Conflict(Exception):
 
 class Store:
     def __init__(self, root):
+        root.mkdir(parents=True, exist_ok=True)
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2):
+            if version not in (0, 1, 2, 3, 4):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -30,6 +32,11 @@ class Store:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
                     code TEXT NOT NULL, at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS idempotency_keys (
+                    key TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL,
+                    signature TEXT NOT NULL
+                );
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -38,7 +45,18 @@ class Store:
                 db.execute("ALTER TABLE events ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")
             if "data" not in event_columns:
                 db.execute("ALTER TABLE events ADD COLUMN data TEXT")
-            db.execute("PRAGMA user_version=2")
+            job_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()
+            }
+            if "error_recoverable" not in job_columns:
+                db.execute(
+                    "ALTER TABLE jobs ADD COLUMN error_recoverable INTEGER NOT NULL DEFAULT 1"
+                )
+            db.execute(
+                "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
+                "SELECT idem,id,signature FROM jobs"
+            )
+            db.execute("PRAGMA user_version=4")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -57,8 +75,18 @@ class Store:
         finally:
             db.close()
 
+    @contextmanager
+    def read(self):
+        db = sqlite3.connect(self.path, timeout=10)
+        db.row_factory = sqlite3.Row
+        try:
+            db.execute("PRAGMA query_only=ON")
+            yield db
+        finally:
+            db.close()
+
     def setting(self, key):
-        with self.tx() as db:
+        with self.read() as db:
             return db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()[0]
 
     def pause(self, paused):
@@ -66,8 +94,18 @@ class Store:
             db.execute("UPDATE settings SET value=? WHERE key='paused'", (json.dumps(paused),))
 
     def has_running_jobs(self):
-        with self.tx() as db:
+        with self.read() as db:
             return db.execute("SELECT 1 FROM jobs WHERE status='running' LIMIT 1").fetchone() is not None
+
+    def has_active_transcription_jobs(self):
+        with self.read() as db:
+            rows = db.execute(
+                "SELECT body FROM jobs WHERE status IN ('queued','running')"
+            ).fetchall()
+            return any(
+                json.loads(row["body"]).get("kind") == "transcription.craig"
+                for row in rows
+            )
 
     def event(self, db, job_id, code, data=None, level="info"):
         payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")) if data else None
@@ -96,7 +134,9 @@ class Store:
         for key, value in payload.items():
             if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", key):
                 raise Conflict("WORKER_EVENT_DATA_INVALID")
-            if value is None or isinstance(value, (bool, int, float)):
+            if value is None or isinstance(value, (bool, int)):
+                clean[key] = value
+            elif isinstance(value, float) and math.isfinite(value):
                 clean[key] = value
             elif isinstance(value, str) and len(value) <= 256:
                 clean[key] = value
@@ -118,7 +158,7 @@ class Store:
         with self.tx() as db:
             for row in db.execute("SELECT id FROM jobs WHERE status='running'").fetchall():
                 db.execute(
-                    "UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',updated=? WHERE id=?",
+                    "UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',error_recoverable=1,updated=? WHERE id=?",
                     (utc_now(), row["id"]),
                 )
                 self.event(db, row["id"], "PROCESS_INTERRUPTED", level="warning")
@@ -144,7 +184,14 @@ class Store:
                 total=body["units"],
                 unit="tracks" if body["kind"] == "transcription.craig" else "items",
             ),
-            error=dict(code=row["error"], recoverable=True) if row["error"] else None,
+            error=(
+                dict(
+                    code=row["error"],
+                    recoverable=bool(row["error_recoverable"]),
+                )
+                if row["error"]
+                else None
+            ),
             result_available=row["result"] is not None,
             updated_at=row["updated"],
             attempt=row["attempt"],
@@ -170,10 +217,19 @@ class Store:
     def submit(self, key, body):
         signature = sha256_json(body)
         with self.tx() as db:
-            row = db.execute("SELECT * FROM jobs WHERE idem=?", (key,)).fetchone()
-            if row:
-                if row["signature"] != signature:
+            alias = db.execute(
+                "SELECT job_id,signature FROM idempotency_keys WHERE key=?",
+                (key,),
+            ).fetchone()
+            if alias:
+                if alias["signature"] != signature:
                     raise Conflict("IDEMPOTENCY_CONFLICT")
+                row = db.execute(
+                    "SELECT * FROM jobs WHERE id=?",
+                    (alias["job_id"],),
+                ).fetchone()
+                if not row:
+                    raise Conflict("IDEMPOTENCY_STATE_INVALID")
                 return self.dto(row)
             if body.get("kind") == "transcription.craig":
                 active = db.execute(
@@ -186,6 +242,10 @@ class Store:
                     (signature,),
                 ).fetchone()
                 if active:
+                    db.execute(
+                        "INSERT INTO idempotency_keys(key,job_id,signature) VALUES (?,?,?)",
+                        (key, active["id"], signature),
+                    )
                     self.event(
                         db,
                         active["id"],
@@ -216,30 +276,76 @@ class Store:
                 "INSERT INTO jobs(id,idem,signature,body,status,stage,updated) VALUES (?,?,?,?,'queued','queued',?)",
                 (job_id, key, signature, json.dumps(body), utc_now()),
             )
+            db.execute(
+                "INSERT INTO idempotency_keys(key,job_id,signature) VALUES (?,?,?)",
+                (key, job_id, signature),
+            )
             self.event(db, job_id, "QUEUED", {"total": units})
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
     def get(self, job_id):
-        with self.tx() as db:
+        with self.read() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             if not row:
                 raise KeyError(job_id)
             return self.dto(row)
 
     def body(self, job_id):
-        with self.tx() as db:
+        with self.read() as db:
             row = db.execute("SELECT body FROM jobs WHERE id=?", (job_id,)).fetchone()
             if not row:
                 raise KeyError(job_id)
             return json.loads(row["body"])
 
     def jobs(self):
-        with self.tx() as db:
+        with self.read() as db:
             return [self.dto(r) for r in db.execute("SELECT * FROM jobs ORDER BY updated DESC LIMIT 100")]
 
+    def has_running_source(self, source_id: str) -> bool:
+        with self.read() as db:
+            rows = db.execute(
+                "SELECT body FROM jobs WHERE status='running'"
+            ).fetchall()
+            for row in rows:
+                try:
+                    body = json.loads(row["body"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if (
+                    body.get("kind") == "transcription.craig"
+                    and body.get("source_id") == source_id
+                ):
+                    return True
+            return False
+
+    def reconciliation_candidates(self):
+        with self.read() as db:
+            rows = db.execute(
+                """
+                SELECT id,attempt,body,status,error_recoverable FROM jobs
+                WHERE (
+                    status IN ('running','interrupted')
+                    OR (status='failed' AND error_recoverable=1)
+                )
+                  AND result IS NULL
+                  AND attempt > 0
+                ORDER BY updated
+                """
+            ).fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "attempt": row["attempt"],
+                    "body": json.loads(row["body"]),
+                    "status": row["status"],
+                }
+                for row in rows
+            ]
+
     def events(self, job_id):
-        self.get(job_id)
-        with self.tx() as db:
+        with self.read() as db:
+            if not db.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
+                raise KeyError(job_id)
             rows = db.execute(
                 "SELECT seq,code,at,level,data FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100",
                 (job_id,),
@@ -263,6 +369,7 @@ class Store:
             if row["status"] not in ("succeeded", "failed", "interrupted", "cancelled"):
                 raise Conflict("JOB_ACTIVE")
             db.execute("DELETE FROM events WHERE job_id=?", (job_id,))
+            db.execute("DELETE FROM idempotency_keys WHERE job_id=?", (job_id,))
             db.execute("DELETE FROM jobs WHERE id=?", (job_id,))
             return {"deleted": True, "id": job_id}
 
@@ -277,11 +384,14 @@ class Store:
             if action == "cancel":
                 if status == "cancelled":
                     return self.dto(row)
-                if status == "succeeded":
+                if status not in ("queued", "running"):
                     raise Conflict("JOB_TERMINAL")
                 status = "cancelled"
             else:
-                if status not in ("failed", "interrupted"):
+                if (
+                    status not in ("failed", "interrupted")
+                    or not bool(row["error_recoverable"])
+                ):
                     raise Conflict("JOB_NOT_RETRYABLE")
                 if body["kind"] == "transcription.craig":
                     requested_work = self._transcription_work_signature(body)
@@ -299,12 +409,14 @@ class Store:
                         ):
                             raise Conflict("TRANSCRIPTION_WORK_ALREADY_ACTIVE")
                 status = "queued"
-                # Real ASR checkpoint reuse is not wired yet. Reset progress instead
-                # of pretending that a partial transcript can resume safely.
+                # Queue progress restarts from zero for the new attempt.
+                # Engines may reuse validated per-track checkpoints, but every
+                # reused track must be replayed as fresh sequential progress before
+                # this attempt can commit its own immutable result.
                 if body["kind"] == "transcription.craig":
                     completed = 0
             db.execute(
-                "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,updated=? WHERE id=?",
+                "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
                 (status, status, completed, utc_now(), job_id),
             )
             self.event(
@@ -344,6 +456,16 @@ class Store:
                 self.event(db, job_id, "STAGE_CHANGED", {"stage": stage})
             return bool(changed)
 
+    def touch(self, job_id, attempt):
+        """Refresh liveness for a running attempt without creating noisy events."""
+        with self.tx() as db:
+            return bool(
+                db.execute(
+                    "UPDATE jobs SET updated=? WHERE id=? AND status='running' AND attempt=?",
+                    (utc_now(), job_id, attempt),
+                ).rowcount
+            )
+
     def progress(self, job_id, attempt, *, completed, total, stage):
         with self.tx() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
@@ -380,6 +502,33 @@ class Store:
                 (encoded, utc_now(), job_id),
             )
             self.event(db, job_id, "SUCCEEDED", {"total": body["units"]})
+            return True
+
+    def complete_recovered(self, job_id, attempt, result):
+        encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if (
+                not row
+                or row["status"] not in ("running", "interrupted", "failed")
+                or row["attempt"] != attempt
+                or row["result"] is not None
+            ):
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "transcription.craig":
+                raise Conflict("RECOVERED_RESULT_KIND_INVALID")
+            db.execute(
+                "UPDATE jobs SET completed=?,status='succeeded',stage='complete',result=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
+                (body["units"], encoded, utc_now(), job_id),
+            )
+            self.event(
+                db,
+                job_id,
+                "SUCCEEDED_RECOVERED",
+                {"attempt": attempt, "total": body["units"]},
+                level="warning",
+            )
             return True
 
     def step(self, job_id, attempt):
@@ -445,20 +594,31 @@ class Store:
             return not done
 
     def result(self, job_id):
-        self.get(job_id)
-        with self.tx() as db:
-            value = db.execute("SELECT result FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
+        with self.read() as db:
+            row = db.execute("SELECT result FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            value = row["result"]
             if value is None:
                 raise Conflict("RESULT_NOT_READY")
             return json.loads(value)
 
-    def fail(self, job_id, attempt, error_code="FIXTURE_EXECUTION_FAILED"):
+    def fail(
+        self,
+        job_id,
+        attempt,
+        error_code="FIXTURE_EXECUTION_FAILED",
+        *,
+        recoverable=True,
+    ):
         if not isinstance(error_code, str) or not re.fullmatch(r"[A-Z0-9_]{1,96}", error_code):
             error_code = "WORKER_EXECUTION_FAILED"
+        if not isinstance(recoverable, bool):
+            recoverable = True
         with self.tx() as db:
             changed = db.execute(
-                "UPDATE jobs SET status='failed',stage='failed',error=?,updated=? WHERE id=? AND status='running' AND attempt=?",
-                (error_code, utc_now(), job_id, attempt),
+                "UPDATE jobs SET status='failed',stage='failed',error=?,error_recoverable=?,updated=? WHERE id=? AND status='running' AND attempt=?",
+                (error_code, int(recoverable), utc_now(), job_id, attempt),
             ).rowcount
             if changed:
                 self.event(db, job_id, error_code, level="error")

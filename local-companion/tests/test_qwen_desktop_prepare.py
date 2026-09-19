@@ -91,6 +91,33 @@ def test_probe_rejects_gpu_discovery_without_executable_cuda(monkeypatch, tmp_pa
         probe_qwen_long_track_gate(tmp_path / "Runtime", runner=runner)
 
 
+def test_qwen_explicit_preparation_resets_only_deep_verified_corrupt_model(
+    monkeypatch,
+    tmp_path: Path,
+):
+    profile = prepare.get_profile("qwen-fast")
+    observed = []
+
+    monkeypatch.setattr(
+        prepare,
+        "verify_and_upgrade_model_install",
+        lambda *_args, **_kwargs: {"status": "corrupt"},
+    )
+    monkeypatch.setattr(
+        prepare,
+        "reset_model_install",
+        lambda root, value: observed.append((root, value.id)),
+    )
+
+    prepare._verify_or_reset_qwen_model(
+        tmp_path / "Models",
+        profile,
+        corrupt_code="QWEN_MODEL_REPAIR_FAILED",
+    )
+
+    assert observed == [(tmp_path / "Models", "qwen-fast")]
+
+
 def test_prepare_qwen_uses_staged_track_and_returns_only_safe_gate_summary(monkeypatch, tmp_path: Path):
     runtime_root = tmp_path / "Runtime"
     worker = tmp_path / "TDAQwenWorker.exe"
@@ -104,9 +131,22 @@ def test_prepare_qwen_uses_staged_track_and_returns_only_safe_gate_summary(monke
     track = tracks_root / "001.flac"
     track.write_bytes(b"fLaC")
     package = SimpleNamespace(
-        tracks=(SimpleNamespace(number=1, size_bytes=1234, path="tracks/001.flac"),),
+        tracks=(
+            SimpleNamespace(
+                number=1,
+                size_bytes=1234,
+                path="tracks/001.flac",
+                staged_mtime_ns=123,
+            ),
+        ),
     )
-    monkeypatch.setattr(prepare, "load_craig_package", lambda *_args, **_kwargs: package)
+    verification_modes: list[bool] = []
+
+    def load_package(_root, *, verify_tracks=True):
+        verification_modes.append(verify_tracks)
+        return package
+
+    monkeypatch.setattr(prepare, "load_craig_package", load_package)
 
     calls: list[list[str]] = []
     progress_events: list[tuple[str, dict[str, object]]] = []
@@ -160,6 +200,7 @@ def test_prepare_qwen_uses_staged_track_and_returns_only_safe_gate_summary(monke
         "physical_gate",
         "physical_gate_ready",
     ]
+    assert verification_modes == [False]
     assert progress_events[2][1]["track_count"] == 1
     assert progress_events[3][1]["audio_window_seconds"] == 60
     assert value == {
@@ -178,3 +219,101 @@ def test_prepare_qwen_uses_staged_track_and_returns_only_safe_gate_summary(monke
     assert "--transcript-out" not in acceptance
     assert str(track.resolve()) in acceptance
     assert str(track.resolve()) not in repr(value)
+
+
+def test_prepare_qwen_deep_verifies_legacy_staging_once(monkeypatch, tmp_path: Path):
+    runtime_root = tmp_path / "Runtime"
+    worker = tmp_path / "TDAQwenWorker.exe"
+    worker.write_bytes(b"worker")
+    monkeypatch.setattr(prepare, "current_qwen_worker", lambda _root: worker)
+
+    source_id = "craig-" + "b" * 64
+    package_root = tmp_path / "Data" / "staging" / source_id
+    tracks_root = package_root / "tracks"
+    tracks_root.mkdir(parents=True)
+    track = tracks_root / "001.flac"
+    track.write_bytes(b"fLaC")
+
+    legacy = SimpleNamespace(
+        tracks=(
+            SimpleNamespace(
+                number=1,
+                size_bytes=4,
+                path="tracks/001.flac",
+                staged_mtime_ns=None,
+            ),
+        ),
+    )
+    sealed = SimpleNamespace(
+        tracks=(
+            SimpleNamespace(
+                number=1,
+                size_bytes=4,
+                path="tracks/001.flac",
+                staged_mtime_ns=123,
+            ),
+        ),
+    )
+    verification_modes: list[bool] = []
+
+    def load_package(_root, *, verify_tracks=True):
+        verification_modes.append(verify_tracks)
+        return sealed if verify_tracks else legacy
+
+    monkeypatch.setattr(prepare, "load_craig_package", load_package)
+    monkeypatch.setattr(
+        prepare,
+        "probe_qwen_long_track_gate",
+        lambda _root, **_kwargs: {
+            "ready": True,
+            "audio_decode_ready": True,
+            "cuda_available": True,
+            "cuda_execution_ready": True,
+            "driver_version": "570.144",
+            "torch_cuda": "12.6",
+            "long_track_acceptance_window": True,
+        },
+    )
+
+    def runner(command, **_kwargs):
+        if "--probe" in command:
+            return _result(
+                {
+                    "schema": "tda_qwen_runtime_probe_v1",
+                    "ready": True,
+                    "audio_decode_ready": True,
+                    "cuda_available": True,
+                    "cuda_execution_ready": True,
+                    "cuda_execution_error": None,
+                    "driver_version": "570.144",
+                    "torch_cuda": "12.6",
+                    "long_track_acceptance_window": True,
+                }
+            )
+        return _result(
+            {
+                "schema": "tda_qwen_gpu_acceptance_v1",
+                "pass": True,
+                "gpu": {"name": "GPU"},
+                "inference": {"audio_seconds": 60.0},
+                "source_window": {
+                    "start_seconds": 0.0,
+                    "duration_seconds": 60.0,
+                    "energy_dbfs": -20.0,
+                },
+            }
+        )
+
+    value = prepare_qwen_profile_from_craig(
+        data_root=tmp_path / "Data",
+        cache_root=tmp_path / "Cache",
+        models_root=tmp_path / "Models",
+        runtime_root=runtime_root,
+        state_root=tmp_path / "State",
+        source_id=source_id,
+        profile_id="qwen-fast",
+        runner=runner,
+    )
+
+    assert value["ready"] is True
+    assert verification_modes == [False, True]

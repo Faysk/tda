@@ -240,6 +240,45 @@ def test_complete_bits_partial_is_acknowledged_before_local_promotion(tmp_path: 
 
 
 @pytest.mark.skipif(os.name != "nt", reason="BITS is a Windows transport")
+def test_bits_reconnect_does_not_hash_partial_before_acknowledgement(tmp_path: Path, monkeypatch):
+    payload = b"already-transferred"
+    target = tmp_path / "TDACompanion-x64.msi"
+    partial = target.with_name(target.name + ".partial")
+    partial.write_bytes(payload)
+    phase = {"acknowledged": False}
+    original = __import__("tda_companion.large_download", fromlist=["_sha256_file"])._sha256_file
+
+    def guarded_hash(path: Path) -> str:
+        if path == partial.resolve() and not phase["acknowledged"]:
+            raise AssertionError("BITS partial must not be hashed before reconnect")
+        return original(path)
+
+    def acknowledge(_source_url: str, destination: Path, *, timeout: float) -> str:
+        del timeout
+        assert destination == partial.resolve()
+        phase["acknowledged"] = True
+        return "complete"
+
+    monkeypatch.setattr("tda_companion.large_download._sha256_file", guarded_hash)
+    monkeypatch.setattr("tda_companion.large_download._run_bits_transfer", acknowledge)
+
+    result = download_verified_release_asset(
+        target=target,
+        github_url=_url(),
+        expected_size=len(payload),
+        expected_sha256=_sha(payload),
+        timeout=2.0,
+        fallback_open=lambda: (_ for _ in ()).throw(AssertionError("fallback should not run")),
+        prefer_bits=True,
+        size_exceeded_code="TEST_SIZE_EXCEEDED",
+        size_mismatch_code="TEST_SIZE_MISMATCH",
+    )
+
+    assert phase["acknowledged"] is True
+    assert result.read_bytes() == payload
+
+
+@pytest.mark.skipif(os.name != "nt", reason="BITS is a Windows transport")
 def test_bits_pending_keeps_job_owned_transfer_for_later_retry(tmp_path: Path, monkeypatch):
     payload = b"still-downloading"
 

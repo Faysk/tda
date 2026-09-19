@@ -13,9 +13,11 @@ from .asr_models import ModelRegistryError, get_profile
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
     migrate_legacy_transcript,
+    remove_incomplete_runs,
     write_compatibility_mirror,
     write_completed_run,
 )
@@ -138,7 +140,37 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         package_root = (staging_root / source_id).resolve()
         if package_root.parent != staging_root:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
-        package = load_craig_package(package_root)
+        # Ingest already established full per-track SHA-256 identities. Re-reading
+        # every staged FLAC here made large sessions spend minutes on disk I/O
+        # before the first ASR stage while GPU/CPU looked idle. Normal execution
+        # revalidates the manifest, safe paths and exact sizes; explicit ingest /
+        # deep diagnostics remain the byte-hash trust boundary.
+        emitter.emit(
+            "stage",
+            {
+                "stage": "source_validation",
+                "profile": str(command.payload["profile_id"]),
+            },
+        )
+        package = load_craig_package(package_root, verify_tracks=False)
+        removed_runs = remove_incomplete_runs(package_root)
+        if removed_runs:
+            emitter.emit(
+                "event",
+                {
+                    "code": "INCOMPLETE_RUNS_CLEANED",
+                    "stage": "source_validation",
+                    "count": removed_runs,
+                },
+            )
+        emitter.emit(
+            "event",
+            {
+                "code": "SOURCE_VALIDATED",
+                "stage": "source_validation",
+                "track_count": len(package.tracks),
+            },
+        )
         profile = get_profile(str(command.payload["profile_id"]))
 
         # Preserve a valid pre-runs transcript before any compatibility mirror can
@@ -197,6 +229,9 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             emitter.emit("cancelled", {"stage": "result_prepare"})
             return 0
 
+        if document.source_sha256.lower() != package.source_sha256.lower():
+            raise TranscriptionRunError("TRANSCRIPTION_SOURCE_HASH_MISMATCH")
+
         manifest = write_completed_run(
             package_root,
             document,
@@ -208,10 +243,29 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         run_id = str(manifest["run_id"])
         digest = str(manifest["transcript_sha256"])
 
-        # Existing 0.3.x API/result consumers still validate the root transcript.
-        # Keep it only as a compatibility mirror; immutable runs are authoritative.
-        if write_compatibility_mirror(package_root, run_id) != digest:
-            raise TranscriptionRunError("TRANSCRIPTION_RUN_MIRROR_HASH_MISMATCH")
+        # Keep the historical root transcript only as a compatibility mirror.
+        # The immutable run is authoritative: a locked/corrupt legacy mirror must
+        # not turn a fully committed ASR result into a failed job.
+        try:
+            mirror_digest = write_compatibility_mirror(package_root, run_id)
+            if mirror_digest != digest:
+                emitter.emit(
+                    "event",
+                    {
+                        "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                        "stage": "result_prepare",
+                        "reason": "hash_mismatch",
+                    },
+                )
+        except (OSError, TranscriptionRunError):
+            emitter.emit(
+                "event",
+                {
+                    "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                    "stage": "result_prepare",
+                    "reason": "write_failed",
+                },
+            )
 
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
@@ -236,10 +290,18 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             return 0
         emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
         return 66
+    except TranscriptValidationError:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit(
+            "error",
+            {"code": "TRANSCRIPT_VALIDATION_FAILED", "recoverable": False},
+        )
+        return 66
     except (ModelRegistryError, CraigPackageError, TranscriptionRunError) as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
-        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+        emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": False})
         return 66
     except Exception as exc:
         heartbeat_stop.set()

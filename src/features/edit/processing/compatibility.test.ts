@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { supportsTerminalJobDelete } from "./compatibility";
+import {
+	supportsAutomaticLoopbackSession,
+	supportsTerminalJobDelete,
+} from "./compatibility";
 
 describe("processing compatibility", () => {
 	it.each([
@@ -16,5 +19,18 @@ describe("processing compatibility", () => {
 		["garbage", false],
 	])("terminal job deletion compatibility for %s", (version, expected) => {
 		expect(supportsTerminalJobDelete(version)).toBe(expected);
+	});
+
+
+	it.each([
+		[undefined, false],
+		["0.3.13", false],
+		["0.3.14", true],
+		["0.3.14-rc.1", true],
+		["0.4.0", true],
+		["1.0.0", true],
+		["garbage", false],
+	])("automatic loopback session compatibility for %s", (version, expected) => {
+		expect(supportsAutomaticLoopbackSession(version)).toBe(expected);
 	});
 });

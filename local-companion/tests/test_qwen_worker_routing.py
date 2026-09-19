@@ -13,11 +13,22 @@ class CapturingSupervisor(WorkerSupervisor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.process_command: list[str] | None = None
+        self.environment_overrides: dict[str, str] | None = None
         self.command: WorkerRunCommand | None = None
 
-    def _run_command(self, command, *, on_progress, on_event=None, is_cancelled=None, process_command=None):
+    def _run_command(
+        self,
+        command,
+        *,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+        process_command=None,
+        environment_overrides=None,
+    ):
         self.command = command
         self.process_command = process_command
+        self.environment_overrides = environment_overrides
         return WorkerOutcome(terminal="result", payload={"ok": True}, returncode=0)
 
 
@@ -76,6 +87,10 @@ def test_qwen_profile_uses_sealed_gate_without_full_content_rehash(monkeypatch, 
 
     assert outcome.terminal == "result"
     assert supervisor.process_command == [str(worker)]
+    assert supervisor.environment_overrides == {
+        "TDA_ASR_RUNTIME_FAMILY": "qwen",
+        "TDA_ASR_RUNTIME_VERSION": "1.0.0",
+    }
     assert supervisor.command is not None
     assert supervisor.command.payload["profile_id"] == "qwen-fast"
     assert gate_calls["verify_model_content"] is False

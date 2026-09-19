@@ -1,15 +1,15 @@
 # Companion — protocolo local v1
 
-> Status: implementação candidata
+> Status: vigente
 > Owner: local-companion/processing
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-19
 > Fonte de verdade: `local-companion/tda_companion/api.py`, `store.py`, `telemetry.py` e `windows_app.py`
 
-O protocolo wire permanece `api_version="1"`. A versão de serviço candidata é `0.2.0`. A evolução é aditiva: eventos e telemetria foram acrescentados sem transformar autorização local em autorização cloud.
+O protocolo wire permanece `api_version="1"`. A versão de serviço deste corte é `0.3.14`. A evolução continua local-first: jobs ASR Craig, eventos, telemetria e sessões de navegador existem no loopback sem transformar autorização local em autorização cloud.
 
-**Este corte não publica conteúdo e ainda não conecta o ASR preservado ao supervisor HTTP.**
+**Concluir ASR continua sem publicar conteúdo no cloud.**
 
-## Transporte e pareamento
+## Transporte e sessão do navegador
 
 Destino do produto:
 
@@ -17,11 +17,26 @@ Destino do produto:
 http://127.0.0.1:8765/api/v1
 ```
 
-O processo escuta apenas IPv4 loopback, rejeita Host diferente de `127.0.0.1:<porta>` e não redireciona paths. Apenas `GET /health` é público e não expõe identidade do dispositivo, paths, telemetria ou jobs.
+O processo escuta apenas IPv4 loopback, rejeita Host diferente de `127.0.0.1:<porta>` e não redireciona paths. `GET /health` é público e mínimo; ele não expõe device id, paths, telemetria ou jobs.
 
-O TDA Companion gera um token URL-safe local de 32 bytes e o protege para o usuário do Windows. O browser mantém esse token somente em memória. Não há cookie, query parameter, refresh token, storage do browser ou credencial administrativa cloud.
+O Companion mantém um **token mestre** URL-safe protegido para o usuário do Windows. Esse segredo não faz parte da UX Web normal.
 
-Todos os GET privados exigem `Authorization: Bearer <token>`. POST exige também Origin permitido e `Content-Type: application/json`. Corpo máximo: 4096 bytes. CORS reflete somente origem autorizada; cookies não são usados.
+Para navegador, o fluxo é:
+
+```text
+GET /health
+POST /session  Origin=https://dnd.faysk.dev
+  -> {token temporário, expires_in_seconds}
+GET/POST privados
+  Authorization: Bearer <token temporário>
+  Origin=https://dnd.faysk.dev
+```
+
+`POST /session` não exige o token mestre, mas exige Host loopback, Origin exata na allowlist, JSON e CORS/PNA válidos. O Agent gera uma credencial aleatória, guarda somente seu SHA-256 em memória e a vincula à Origin emissora. A sessão expira e é invalidada por restart do Agent.
+
+O token temporário não vai para cookie, localStorage, sessionStorage, query string, logs ou cloud. Um bearer temporário apresentado sem a Origin correta é recusado. O token mestre continua aceito para clientes nativos/técnicos compatíveis.
+
+POST exige Origin permitido e `Content-Type: application/json`. Corpo máximo: 4096 bytes. CORS reflete somente origem autorizada; cookies não são usados.
 
 ## Aplicativo Windows
 
@@ -40,7 +55,7 @@ O instalador oficial candidato é:
 TDACompanion-x64.msi
 ```
 
-Ele é instalado por usuário, sem Windows Service e sem Startup automático. Releases em `main` usam tag `companion-v<versão>` e asset fixo `TDACompanion-x64.msi`.
+Ele é instalado por usuário, sem Windows Service, e registra startup per-user do Agent. O MSI também registra `tda-companion://open` para que uma ação explícita no site possa abrir a UI Desktop. Releases em `main` usam tag `companion-v<versão>` e asset fixo `TDACompanion-x64.msi`.
 
 Como o mesmo repositório também possui releases `prod-*`, o site resolve a versão mais recente pelo endpoint próprio `/api/downloads/companion/windows`, que filtra somente `companion-vX.Y.Z` e então redireciona ao asset oficial. O atalho genérico `/releases/latest` do repositório não é usado para decidir a versão do Companion.
 
@@ -69,8 +84,9 @@ Consumidores devem fazer feature detection.
 
 | Método/path após `/api/v1` | Resposta / comportamento |
 | --- | --- |
-| GET `/health` | `{api_version:"1",service_version:"0.2.0",lifecycle:"preparing"\|"ready"\|"paused"}` |
-| GET `/version` | `{api_version:"1",service_version:"0.2.0"}` |
+| GET `/health` | health público mínimo, com `api_version:"1"`, service version e lifecycle |
+| POST `/session` | bootstrap Web origin-bound; retorna bearer temporário em memória |
+| GET `/version` | identidade/versionamento do serviço local |
 | GET `/capabilities` | capabilities locais, `sync:false` e identidade do device |
 | GET `/system` | snapshot best-effort de SO/CPU/RAM/GPU; privado |
 | GET `/lifecycle` | mesmo DTO health |
@@ -188,9 +204,15 @@ A fixture retorna envelope `tda_local_result_v1`, publication bundle e `sync.sta
 
 A fixture não pode ser tratada como publicação real. Sync remoto autenticado, receipt server-side e publicação permanecem fora desta entrega.
 
-## ASR preservado
+## ASR Craig vigente
 
-O código preservado em `tda_companion/legacy/transcriber.py` possui callbacks úteis para modelo/device, retomada, track, total de tracks, speaker e porcentagem. Ele ainda não está conectado ao `JobRequest`/worker HTTP e não deve ser apresentado como funcionalidade ativa.
+`transcription.craig` é job oficial do Agent e executa em processo worker isolado. O ingest Craig estabelece hashes completos das faixas e staging seguro. No dispatch normal, o worker chama o loader com `verify_tracks=false`: manifesto, paths e tamanhos continuam sendo validados, mas centenas de MB não são relidos antes de cada inferência.
+
+O worker emite `source_validation` imediatamente e heartbeat periódico. O Agent usa o heartbeat para atualizar `Job.updated_at` sem criar um evento persistido a cada poucos segundos. Assim a interface consegue distinguir **worker vivo/preparando** de congelamento real.
+
+Perfis Qwen exigem runtime/modelo/gate físico compatíveis antes do job. Whisper e Qwen produzem o mesmo contrato de transcript/run local.
+
+Cancelamento é cooperativo primeiro. Se código nativo/CUDA não responder dentro do grace period, o subprocesso isolado é encerrado e o job permanece `cancelled`; o log técnico registra `WORKER_CANCEL_FORCED` em vez de converter a ação do usuário em falha `WORKER_CANCEL_TIMEOUT`.
 
 ## Validação
 

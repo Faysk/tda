@@ -104,7 +104,8 @@ def _distribution_version(name: str) -> str:
 def _runtime_fingerprint() -> str:
     return ";".join(
         (
-            "checkpoint=qwen-track-v1",
+            "checkpoint=qwen-track-v2",
+            f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
             f"torch={_distribution_version('torch')}",
             f"transformers={_distribution_version('transformers')}",
             f"accelerate={_distribution_version('accelerate')}",

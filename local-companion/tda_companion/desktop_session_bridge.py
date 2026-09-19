@@ -591,10 +591,25 @@ class SessionDesktopBridge(DesktopBridge):
             value = super().snapshot()
         except AgentConnectionError as exc:
             return self._offline_snapshot(exc.code)
+        try:
+            preparation = self.client.get("/preparation")
+        except (AgentConnectionError, RuntimeError):
+            preparation = {
+                "schema": "tda_profile_preparation_v1",
+                "state": "idle",
+                "active": False,
+                "stage": "idle",
+                "title": "Preparação indisponível.",
+                "detail": "",
+                "sequence": 0,
+                "elapsed_seconds": 0.0,
+                "error_code": None,
+            }
         return {
             **value,
             "connection": self.client.status(),
             "maintenance": self._maintenance_snapshot(),
+            "preparation": preparation,
         }
 
     def logs(
@@ -630,7 +645,16 @@ class SessionDesktopBridge(DesktopBridge):
                 "connection": self.client.status(),
             }
 
+    def _agent_preparation_active(self) -> bool:
+        try:
+            value = self.client.get("/preparation")
+        except (AgentConnectionError, RuntimeError):
+            return False
+        return isinstance(value, dict) and value.get("active") is True
+
     def restart_agent(self) -> bool:
+        if self._agent_preparation_active():
+            raise RuntimeError("AGENT_RESTART_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         return self.client.restart()
 
     def check_update(self) -> dict[str, object]:
@@ -683,6 +707,8 @@ class SessionDesktopBridge(DesktopBridge):
         }
 
     def install_whisper_runtime(self) -> dict[str, object]:
+        if self._agent_preparation_active():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         try:
             result = super().install_whisper_runtime()
             if result.get("accepted") is True or result.get("status") == "ready":
@@ -698,6 +724,8 @@ class SessionDesktopBridge(DesktopBridge):
             raise self._friendly_network_error(exc) from None
 
     def install_qwen_runtime(self) -> dict[str, object]:
+        if self._agent_preparation_active():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         try:
             result = super().install_qwen_runtime()
             if result.get("accepted") is True or result.get("status") == "ready":
@@ -763,7 +791,7 @@ class SessionDesktopBridge(DesktopBridge):
             self._maintenance_handoff_process = None
 
     def install_update(self) -> dict[str, object]:
-        if self._preparation_public().get("active") is True:
+        if self._agent_preparation_active() or self._preparation_public().get("active") is True:
             raise RuntimeError("MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         self._last_maintenance_operation_id = None
         try:
@@ -776,7 +804,7 @@ class SessionDesktopBridge(DesktopBridge):
         return result
 
     def uninstall(self, purge: bool = False) -> dict[str, object]:
-        if self._preparation_public().get("active") is True:
+        if self._agent_preparation_active() or self._preparation_public().get("active") is True:
             raise RuntimeError("MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         self._last_maintenance_operation_id = None
         result = super().uninstall(purge)
@@ -795,7 +823,7 @@ class SessionDesktopBridge(DesktopBridge):
         self._require_selected_source(source_id)
         if profile_id not in _PROFILE_ORDER:
             raise RuntimeError("TRANSCRIPTION_PROFILE_INVALID")
-        if self._has_running_job():
+        if self._has_active_job():
             raise RuntimeError("TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB")
 
         current = self.transcription_profiles()
