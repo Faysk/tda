@@ -29,6 +29,9 @@ export type AcquireWorldLayoutSessionResult =
 			expiresAt: string;
 			recoverySource?: "lease" | "durable";
 			staleRecovery?: boolean;
+			previousPublishConfirmed?: boolean;
+			previousPublishedGraphRevision?: number;
+			previousPublishedLayoutRevision?: number;
 	  }>
 	| Readonly<{
 			ok: false;
@@ -132,6 +135,9 @@ export async function acquireWorldLayoutSessionAction(
 				draft: { schemaVersion: 1, view: "overview", revision, positions },
 				recoverySource,
 				staleRecovery: payload.staleRecovery === true,
+				previousPublishConfirmed: payload.previousPublishConfirmed === true,
+				previousPublishedGraphRevision: safeRevision(payload.previousPublishedGraphRevision),
+				previousPublishedLayoutRevision: safeRevision(payload.previousPublishedLayoutRevision),
 			};
 		}
 	}
