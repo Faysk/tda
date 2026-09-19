@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.qwen_physical_gate as gate_module
 import tda_companion.qwen_runtime as qwen_runtime_module
 from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
 from tda_companion.qwen_acceptance import ALIGNER_PROFILE
@@ -262,6 +263,45 @@ def test_v2_gate_reseals_metadata_only_runtime_drift_once(monkeypatch, tmp_path:
         profile_id="qwen-fast",
     )
     assert second["ready"] is True
+
+
+def test_v2_gate_model_metadata_drift_does_not_rehash_unchanged_components(
+    monkeypatch,
+    tmp_path: Path,
+):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+
+    model = model_path(models, "qwen-fast") / "model.safetensors"
+    before = model.stat()
+    os.utime(
+        model,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    monkeypatch.setattr(
+        qwen_runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("unchanged runtime must not be deep-hashed for model drift")
+        ),
+    )
+    monkeypatch.setattr(
+        gate_module,
+        "verify_and_upgrade_model_install",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("model already verified by metadata-drift inspection")
+        ),
+    )
+
+    inspected = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+
+    assert inspected["ready"] is True
 
 
 def test_deep_verification_detects_same_metadata_worker_tamper(tmp_path: Path):
