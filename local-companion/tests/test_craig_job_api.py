@@ -185,6 +185,42 @@ def test_api_rejects_local_paths_unapproved_qwen_and_missing_staged_source(tmp_p
         }
 
 
+def test_cancel_cannot_rewrite_failed_or_interrupted_terminal_state(tmp_path: Path):
+    store = Store(tmp_path)
+    failed = store.submit("terminal-failed", {**_body(), "units": 2})
+    failed_id, failed_attempt = store.claim()
+    assert failed_id == failed["id"]
+    store.fail(failed_id, failed_attempt, "WORKER_EXECUTION_FAILED")
+
+    try:
+        store.action(failed_id, "cancel")
+    except Exception as exc:
+        assert isinstance(exc, Exception)
+        assert str(exc) == "JOB_TERMINAL"
+    else:
+        raise AssertionError("failed job must remain terminal")
+
+    assert store.get(failed_id)["status"] == "failed"
+
+    interrupted = store.submit(
+        "terminal-interrupted",
+        {**_body(source_id="other-source"), "units": 1},
+    )
+    interrupted_id, _ = store.claim()
+    assert interrupted_id == interrupted["id"]
+    store.recover()
+    assert store.get(interrupted_id)["status"] == "interrupted"
+
+    try:
+        store.action(interrupted_id, "cancel")
+    except Exception as exc:
+        assert str(exc) == "JOB_TERMINAL"
+    else:
+        raise AssertionError("interrupted job must remain terminal")
+
+    assert store.get(interrupted_id)["status"] == "interrupted"
+
+
 def test_transcription_retry_resets_uncheckpointed_progress(tmp_path: Path):
     store = Store(tmp_path)
     job = store.submit(
