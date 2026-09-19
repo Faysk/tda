@@ -112,6 +112,41 @@ def test_worker_rejects_transcript_bound_to_a_different_source(tmp_path: Path, m
     assert list_runs(package_root, verify_content=True) == []
 
 
+def test_worker_succeeds_when_legacy_mirror_write_fails(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "resultado autoritativo"),
+    )
+    monkeypatch.setattr(
+        worker,
+        "write_compatibility_mirror",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("locked")),
+    )
+
+    code, messages = _run(_command("job-mirror-locked", source_id))
+
+    assert code == 0
+    result = next(message for message in messages if message["type"] == "result")
+    run_id = result["payload"]["run_id"]
+    assert (package_root / "runs" / run_id / "run.json").is_file()
+    warning = next(
+        message
+        for message in messages
+        if message["type"] == "event"
+        and message["payload"].get("code") == "COMPATIBILITY_MIRROR_WRITE_FAILED"
+    )
+    assert warning["payload"]["reason"] == "write_failed"
+    assert len(list_runs(package_root, verify_content=True)) == 1
+
+
 def test_worker_keeps_previous_run_and_uses_root_only_as_latest_compatibility_mirror(
     tmp_path: Path,
     monkeypatch,
