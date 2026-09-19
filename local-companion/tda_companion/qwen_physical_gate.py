@@ -519,22 +519,28 @@ def inspect_qwen_physical_gate(
                 }
 
             # A metadata-only difference can come from copy/backup/AV activity.
-            # Prove current bytes once before resealing the cheap metadata binding.
+            # Deep-verify only the components whose sealed metadata actually
+            # changed. Unchanged component bindings already match the accepted v2
+            # receipt and must not trigger unrelated multi-GB reads.
+            runtime_drift = stored_runtime != runtime
+            model_drift = stored_model != model
+            aligner_drift = stored_aligner != aligner
             try:
-                runtime = _runtime_identity(runtime_root, verify_worker=True)
-                if not model_verification.get("content_verified"):
+                if runtime_drift:
+                    runtime = _runtime_identity(runtime_root, verify_worker=True)
+                if model_drift and not model_verification.get("content_verified"):
                     model_state = verify_and_upgrade_model_install(models_root, profile_id)
                     if model_state.get("status") != "ready":
                         raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
-                if not aligner_verification.get("content_verified"):
+                    model = _model_identity(models_root, profile_id, verify_hash=False)
+                if aligner_drift and not aligner_verification.get("content_verified"):
                     aligner_state = verify_and_upgrade_model_install(
                         models_root,
                         ALIGNER_PROFILE,
                     )
                     if aligner_state.get("status") != "ready":
                         raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
-                model = _model_identity(models_root, profile_id, verify_hash=False)
-                aligner = _aligner_identity(models_root, verify_hash=False)
+                    aligner = _aligner_identity(models_root, verify_hash=False)
             except (ModelRegistryError, OSError, QwenPhysicalGateError):
                 return {
                     "status": "stale",
