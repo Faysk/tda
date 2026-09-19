@@ -152,7 +152,10 @@ def _install_whisper_runtime(
         manifest = fetch_whisper_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
-        if whisper_runtime_update_available(current_value, manifest):
+        if (
+            whisper_runtime_version_compatible(manifest.version)
+            and whisper_runtime_update_available(current_value, manifest)
+        ):
             target = runtime_root / "whisper" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = download_whisper_runtime(manifest, cache_root)
@@ -215,7 +218,10 @@ def _install_qwen_runtime(
         manifest = fetch_qwen_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
-        if qwen_runtime_update_available(current_value, manifest):
+        if (
+            qwen_runtime_version_compatible(manifest.version)
+            and qwen_runtime_update_available(current_value, manifest)
+        ):
             target = runtime_root / "qwen" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = download_qwen_runtime(manifest, cache_root)
