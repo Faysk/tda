@@ -203,6 +203,31 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
     release = True
 
 
+def test_whisper_cancellation_never_falls_back_to_runtime_rc(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(
+        preparation,
+        "inspect_whisper_runtime",
+        lambda *_args, **_kwargs: {"status": "missing", "version": None},
+    )
+    monkeypatch.setattr(
+        preparation,
+        "install_published_runtime_rc",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("cancelled preparation must not enter RC fallback")
+        ),
+    )
+
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_CANCELLED",
+    ):
+        preparation._install_whisper_runtime(
+            tmp_path / "Runtime",
+            tmp_path / "Cache",
+            is_cancelled=lambda: True,
+        )
+
+
 def test_whisper_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypatch):
     calls = {"inspect": 0, "stable_download": 0, "rc": 0}
 
