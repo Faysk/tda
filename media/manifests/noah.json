@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "project": "noah-lore",
   "namespace": "lore/noah",
-  "bucket": "tda-media-public",
   "publicOrigin": "https://media.dnd.faysk.dev",
+  "bucket": "tda-media-public",
   "assets": [
     {
       "file": "noah_amigos_dormitorio_prismari.webp",
