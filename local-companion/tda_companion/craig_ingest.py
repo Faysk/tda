@@ -292,6 +292,8 @@ def _finish_snapshot_ingest(
                         source_sha256=source_sha256,
                         source_name=source_name,
                         size_bytes=size_bytes,
+                        source_gate=source_gate,
+                        source_running=source_running,
                     )
                 raise
             if existing is not None:
