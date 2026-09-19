@@ -8,9 +8,9 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 	unreachable:
 		"Não foi possível alcançar o serviço. Confira se ele está aberto neste computador e se este site tem permissão de acesso à rede local. O navegador não informa se a causa é conexão, origem ou permissão.",
 	timeout:
-		"O serviço não respondeu a tempo. Confira o aplicativo local e conecte novamente. Uma ação enviada pode ter sido recebida; verifique a fila antes de repetir.",
+		"O serviço local não respondeu a tempo. Confira o Companion e tente novamente. Uma ação enviada pode ter sido recebida; verifique a fila antes de repetir.",
 	unauthorized:
-		"Pareamento recusado ou revogado. Copie um token válido do aplicativo local e conecte novamente.",
+		"A sessão local expirou ou foi recusada. O TDA tentará criar uma nova sessão automaticamente; se necessário, abra o Companion e tente novamente.",
 	forbidden:
 		"O serviço recusou este acesso. Confira no aplicativo local se a origem exata deste site está autorizada.",
 	incompatible:
