@@ -148,6 +148,8 @@ _NON_RECOVERABLE_CONFLICTS = frozenset(
         "RECOVERED_RESULT_KIND_INVALID",
         "JOB_UNITS_INVALID",
         "WORKER_RESULT_INCOMPLETE",
+        "RESULT_ARTIFACT_UNAVAILABLE",
+        "RESULT_ARTIFACT_MISMATCH",
     }
 )
 
@@ -1042,6 +1044,39 @@ def create_app(
 
     @app.get("/api/v1/jobs/{job_id}/result")
     def result(job_id: str):
-        return store.result(job_id)
+        value = store.result(job_id)
+        transcription = value.get("transcription") if isinstance(value, dict) else None
+        if not isinstance(transcription, dict):
+            return value
+
+        body = store.body(job_id)
+        run_id = transcription.get("run_id")
+        digest = transcription.get("sha256")
+        if not isinstance(run_id, str) or not isinstance(digest, str):
+            raise Conflict("RESULT_ARTIFACT_MISMATCH")
+        try:
+            package_root, package = staged_package(
+                body["source_id"],
+                verify_tracks=False,
+            )
+            manifest = load_run(package_root, run_id, verify_content=True)
+        except (KeyError, CraigPackageError, TranscriptionRunError, ValueError) as exc:
+            raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
+
+        if (
+            manifest.get("job_id") != job_id
+            or manifest.get("source_id") != body.get("source_id")
+            or manifest.get("source_sha256") != package.source_sha256
+            or manifest.get("profile_id") != body.get("profile_id")
+            or manifest.get("artifact") != "transcript.json"
+            or manifest.get("transcript_sha256") != digest
+            or manifest.get("context_sha256") != _sha256_text(body.get("context"))
+            or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+            or not isinstance(manifest.get("stats"), dict)
+            or manifest["stats"].get("track_count") != body.get("units")
+            or len(package.tracks) != body.get("units")
+        ):
+            raise Conflict("RESULT_ARTIFACT_MISMATCH")
+        return value
 
     return app
