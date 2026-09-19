@@ -84,6 +84,16 @@ export function useWorldEditSession({
 		graphDraftRef.current = graphDraft;
 	}, [graphDraft]);
 
+	useEffect(() => {
+		if (state !== "editing" || !hasChanges) return;
+		const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = "";
+		};
+		window.addEventListener("beforeunload", warnBeforeLeaving);
+		return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+	}, [hasChanges, state]);
+
 	const markLeaseLost = useCallback((reason: string) => {
 		draftSequence.current += 1;
 		setState("view");
