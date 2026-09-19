@@ -339,6 +339,50 @@ while True:
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
 
 
+def test_supervisor_cancel_wins_when_heartbeat_is_already_stale(tmp_path):
+    script = tmp_path / "stale_heartbeat_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdout.write(
+    WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=0,
+        type="ready",
+        payload={"kind": command.kind},
+    ).encode()
+)
+sys.stdout.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=0.05,
+        cancel_grace=0.05,
+    )
+    started = time.monotonic()
+
+    outcome = supervisor.run_fixture(
+        job_id="cancel-stale-heartbeat",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: time.monotonic() - started >= 0.05,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload == {"stage": "forced_termination", "forced": True}
+
+
 def test_supervisor_preserves_non_recoverable_worker_error(tmp_path):
     script = tmp_path / "fatal_worker.py"
     script.write_text(
