@@ -290,7 +290,7 @@ def test_resumable_download_stops_when_preparation_is_cancelled(monkeypatch):
     calls = 0
     cancelled = False
 
-    def operation():
+    def operation(_remaining):
         nonlocal calls, cancelled
         calls += 1
         cancelled = True
@@ -340,7 +340,11 @@ def test_whisper_cancellation_arriving_during_stable_install_is_not_reported_rea
     monkeypatch.setattr(preparation, "inspect_whisper_runtime", inspect)
     monkeypatch.setattr(preparation, "fetch_whisper_runtime_manifest", lambda: Manifest())
     monkeypatch.setattr(preparation, "whisper_runtime_update_available", lambda *_args: True)
-    monkeypatch.setattr(preparation, "download_whisper_runtime", lambda *_args: tmp_path / "runtime.zip")
+    monkeypatch.setattr(
+        preparation,
+        "download_whisper_runtime",
+        lambda *_args, **_kwargs: tmp_path / "runtime.zip",
+    )
     monkeypatch.setattr(preparation, "install_whisper_runtime_archive", install)
     monkeypatch.setattr(
         preparation,
