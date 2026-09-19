@@ -98,6 +98,7 @@ class AgentController:
                 origins=self.origins,
                 port=self.port,
                 system_log=self.system_log,
+                browser_sessions=api.state.browser_sessions,
             )
             config = uvicorn.Config(
                 app,
