@@ -63,9 +63,10 @@ describe("processing state", () => {
 	});
 	it("connects automatically when the Companion is already open", async () => {
 		const sessionToken = "browser_session_token_123456789012345678901234";
+		const autoSessionHealth = { ...health, service_version: "0.3.14" };
 		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
 			const value = String(url);
-			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/health")) return Response.json(autoSessionHealth);
 			if (value.endsWith("/session"))
 				return Response.json({
 					schema: "tda_loopback_session_v1",
