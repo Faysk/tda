@@ -349,9 +349,9 @@ def test_preparation_validation_errors_are_non_recoverable(client):
             "profile_id": "qwen-quality",
         },
     )
-    assert invalid_source.status_code == 400
+    assert invalid_source.status_code == 422
     assert invalid_source.json()["error"] == {
-        "code": "CRAIG_SOURCE_INVALID",
+        "code": "INVALID_REQUEST",
         "recoverable": False,
     }
 
@@ -364,6 +364,10 @@ def test_preparation_validation_errors_are_non_recoverable(client):
         },
     )
     assert invalid_profile.status_code == 422
+    assert invalid_profile.json()["error"] == {
+        "code": "INVALID_REQUEST",
+        "recoverable": False,
+    }
 
 
 def test_preparation_cannot_jump_a_queued_transcription(client, monkeypatch):
