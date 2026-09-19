@@ -219,6 +219,34 @@ def _read_marker(path: Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
+def _refresh_metadata_marker(
+    directory: Path,
+    marker: dict[str, object],
+    metadata_sha256: str,
+) -> None:
+    updated = dict(marker)
+    updated["metadata_sha256"] = metadata_sha256
+    temporary = directory / f"{MODEL_MARKER}.metadata.partial"
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(
+                updated,
+                handle,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, directory / MODEL_MARKER)
+    except OSError:
+        # The content was already cryptographically verified. Failure to refresh
+        # the cheap seal must not turn a healthy model into a false corruption.
+        pass
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def verify_and_upgrade_model_install(
     models_root: Path,
     profile: AsrProfile | str,
@@ -309,6 +337,7 @@ def inspect_model_install(
         return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
 
     metadata_sha256 = marker.get("metadata_sha256")
+    metadata_drift = False
     if metadata_sha256 is not None:
         if not isinstance(metadata_sha256, str) or len(metadata_sha256) != 64:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
@@ -316,16 +345,22 @@ def inspect_model_install(
             actual_metadata = compute_model_metadata_sha256(directory)
         except (ModelRegistryError, OSError):
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
-        if actual_metadata != metadata_sha256:
-            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        metadata_drift = actual_metadata != metadata_sha256
 
-    if verify_hash:
+    if verify_hash or metadata_drift:
         try:
             actual = compute_model_content_sha256(directory)
         except ModelRegistryError:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
         if actual != marker["content_sha256"]:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+
+    if metadata_drift:
+        try:
+            metadata_sha256 = compute_model_metadata_sha256(directory)
+        except (ModelRegistryError, OSError):
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        _refresh_metadata_marker(directory, marker, metadata_sha256)
 
     return {
         "profile": value.public_dict(),
@@ -335,6 +370,6 @@ def inspect_model_install(
         "alignment": value.alignment,
         "alignment_revision": value.alignment_revision,
         "content_sha256": marker["content_sha256"],
-        "metadata_sha256": marker.get("metadata_sha256"),
+        "metadata_sha256": metadata_sha256,
         "installed_at": marker.get("installed_at"),
     }
