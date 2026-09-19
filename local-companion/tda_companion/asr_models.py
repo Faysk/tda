@@ -199,6 +199,7 @@ def write_install_marker(directory: Path, profile: AsrProfile) -> dict[str, obje
         "alignment": profile.alignment,
         "alignment_revision": profile.alignment_revision,
         "content_sha256": compute_model_content_sha256(root),
+        "metadata_sha256": compute_model_metadata_sha256(root),
         "installed_at": _utc_now(),
     }
     temporary = root / f"{MODEL_MARKER}.partial"
@@ -268,6 +269,17 @@ def inspect_model_install(
     if not expected_identity:
         return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
 
+    metadata_sha256 = marker.get("metadata_sha256")
+    if metadata_sha256 is not None:
+        if not isinstance(metadata_sha256, str) or len(metadata_sha256) != 64:
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        try:
+            actual_metadata = compute_model_metadata_sha256(directory)
+        except (ModelRegistryError, OSError):
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        if actual_metadata != metadata_sha256:
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+
     if verify_hash:
         try:
             actual = compute_model_content_sha256(directory)
@@ -284,5 +296,6 @@ def inspect_model_install(
         "alignment": value.alignment,
         "alignment_revision": value.alignment_revision,
         "content_sha256": marker["content_sha256"],
+        "metadata_sha256": marker.get("metadata_sha256"),
         "installed_at": marker.get("installed_at"),
     }
