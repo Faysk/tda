@@ -177,10 +177,19 @@ class WorkerSupervisor:
             while terminal is None:
                 now = time.monotonic()
                 if is_cancelled is not None and is_cancelled() and not cancel_sent:
-                    process.stdin.write(
-                        WorkerCancelCommand(job_id=command.job_id, attempt=command.attempt).encode()
-                    )
-                    process.stdin.flush()
+                    try:
+                        process.stdin.write(
+                            WorkerCancelCommand(
+                                job_id=command.job_id,
+                                attempt=command.attempt,
+                            ).encode()
+                        )
+                        process.stdin.flush()
+                    except (BrokenPipeError, OSError, ValueError):
+                        # The child may have closed stdin after already producing a
+                        # terminal stdout message. Keep draining stdout instead of
+                        # turning a cancel-vs-exit race into a false worker failure.
+                        pass
                     cancel_sent = True
                     cancel_deadline = now + self.cancel_grace
 
