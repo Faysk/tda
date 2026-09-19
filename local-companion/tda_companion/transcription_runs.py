@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -202,23 +203,42 @@ def write_completed_run(
     if destination.exists():
         raise TranscriptionRunError("TRANSCRIPTION_RUN_ALREADY_EXISTS")
     destination.mkdir(parents=True, exist_ok=False)
-    transcript = destination / "transcript.json"
-    document.write_atomic(transcript)
-    digest = _sha256_file(transcript)
-    size = transcript.stat().st_size
-    manifest = _manifest_for_document(
-        document,
-        source_id=resolved_source_id,
-        run_id=run_id,
-        job_id=job_id,
-        attempt=attempt,
-        transcript_sha256=digest,
-        transcript_size_bytes=size,
-        glossary=glossary,
-        context=context,
-    )
-    _atomic_json(destination / "run.json", manifest)
-    return manifest
+    try:
+        transcript = destination / "transcript.json"
+        document.write_atomic(transcript)
+        digest = _sha256_file(transcript)
+        size = transcript.stat().st_size
+        manifest = _manifest_for_document(
+            document,
+            source_id=resolved_source_id,
+            run_id=run_id,
+            job_id=job_id,
+            attempt=attempt,
+            transcript_sha256=digest,
+            transcript_size_bytes=size,
+            glossary=glossary,
+            context=context,
+        )
+        _atomic_json(destination / "run.json", manifest)
+        return manifest
+    except BaseException:
+        # The manifest is the immutable commit marker. Before it exists, this
+        # directory is incomplete and cannot become a completed run.
+        if not (destination / "run.json").is_file():
+            shutil.rmtree(destination, ignore_errors=True)
+        raise
+
+
+def remove_incomplete_run(package_root: Path, run_id: str) -> bool:
+    """Remove only an uncommitted run directory (no run.json commit marker)."""
+    destination = run_root(package_root, run_id)
+    if not destination.is_dir() or (destination / "run.json").exists():
+        return False
+    try:
+        shutil.rmtree(destination)
+    except OSError:
+        return False
+    return not destination.exists()
 
 
 def write_compatibility_mirror(package_root: Path, run_id: str) -> str:
