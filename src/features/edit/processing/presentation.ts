@@ -52,6 +52,7 @@ export const stageLabels: Record<string, string> = {
 	noise_cleanup: "Limpeza de ruído",
 	resuming: "Retomando checkpoint",
 	transcribing: "Transcrição",
+	transcription: "Transcrição",
 	consolidating: "Consolidação",
 	complete: "Resultado preparado",
 	cancelled: "Cancelado",
