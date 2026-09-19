@@ -190,12 +190,12 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
     )
 
     stages = [item.get("stage") for item in reports if item.get("type") == "stage"]
-    assert "energy_analysis" in stages
-    assert stages.index("energy_analysis") < stages.index("cross_track_dedup")
+    assert "energy_analysis" not in stages
+    assert stages.index("alignment") < stages.index("cross_track_dedup")
 
-    # ASR pass + alignment replay + energy replay. Production alignment consumes
-    # each replayed window immediately instead of building {index: AudioWindow}.
-    assert reads == 3
+    # Fresh tracks reuse the alignment windows for dedup energy, so production
+    # decodes each track only for ASR + alignment instead of a third energy pass.
+    assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
     assert "strict-overlap-v2" in document.engine.alignment
     assert document.warnings == ()
