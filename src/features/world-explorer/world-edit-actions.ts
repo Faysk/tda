@@ -61,9 +61,13 @@ export type WorldEditMutationResult =
 type RpcPayload = Readonly<Record<string, unknown>>;
 
 function safeRevision(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
-		? value
-		: undefined;
+	const parsed =
+		typeof value === "number"
+			? value
+			: typeof value === "string" && /^\\d+$/u.test(value)
+				? Number(value)
+				: Number.NaN;
+	return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function safeString(value: unknown): string | undefined {
