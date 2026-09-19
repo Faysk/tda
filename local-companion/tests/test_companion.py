@@ -340,6 +340,32 @@ def test_profile_preparation_api_is_authenticated_and_returns_sanitized_status(
     assert response.json()["operation_id"] == "op123"
 
 
+def test_preparation_validation_errors_are_non_recoverable(client):
+    invalid_source = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "not-a-craig-source",
+            "profile_id": "qwen-quality",
+        },
+    )
+    assert invalid_source.status_code == 400
+    assert invalid_source.json()["error"] == {
+        "code": "CRAIG_SOURCE_INVALID",
+        "recoverable": False,
+    }
+
+    invalid_profile = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "craig-" + "a" * 64,
+            "profile_id": "whisper-magic",
+        },
+    )
+    assert invalid_profile.status_code == 422
+
+
 def test_preparation_cannot_jump_a_queued_transcription(client, monkeypatch):
     source_id = "craig-" + "a" * 64
     queued = client.app.state.store.submit(
