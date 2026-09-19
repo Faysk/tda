@@ -244,6 +244,29 @@ export function WorldExplorerClient({
 	}, [graph, setEdges, setNodes]);
 
 	useEffect(() => {
+		if (edit.editing) return;
+		let lastRefreshAt = Date.now();
+		const refreshPublishedWorld = () => {
+			if (document.visibilityState !== "visible") return;
+			const now = Date.now();
+			if (now - lastRefreshAt < 5_000) return;
+			lastRefreshAt = now;
+			router.refresh();
+		};
+		const onVisibilityChange = () => {
+			if (document.visibilityState === "visible") refreshPublishedWorld();
+		};
+		window.addEventListener("focus", refreshPublishedWorld);
+		window.addEventListener("online", refreshPublishedWorld);
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		return () => {
+			window.removeEventListener("focus", refreshPublishedWorld);
+			window.removeEventListener("online", refreshPublishedWorld);
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+		};
+	}, [edit.editing, router]);
+
+	useEffect(() => {
 		workspace.setAuthoringActive(edit.editing);
 		if (!edit.editing) authoringUi.authoringStopped();
 	}, [edit.editing, workspace.setAuthoringActive, authoringUi.authoringStopped]);
