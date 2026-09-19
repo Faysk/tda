@@ -339,6 +339,61 @@ while True:
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
 
 
+def test_supervisor_preserves_cancel_when_child_hangs_after_ack(tmp_path):
+    script = tmp_path / "cancel_then_hang_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdout.write(
+    WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=0,
+        type="ready",
+        payload={"kind": command.kind},
+    ).encode()
+)
+sys.stdout.flush()
+sys.stdin.buffer.readline()
+sys.stdout.write(
+    WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=1,
+        type="cancelled",
+        payload={"stage": "native_teardown"},
+    ).encode()
+)
+sys.stdout.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+        cancel_grace=1,
+    )
+
+    outcome = supervisor.run_fixture(
+        job_id="cancel-ack-hang",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: True,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload["stage"] == "native_teardown"
+    assert outcome.payload["forced"] is True
+
+
 def test_supervisor_cancel_wins_when_heartbeat_is_already_stale(tmp_path):
     script = tmp_path / "stale_heartbeat_worker.py"
     script.write_text(
