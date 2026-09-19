@@ -24,6 +24,22 @@ def _manager(tmp_path: Path) -> ProfilePreparationManager:
     )
 
 
+def test_terminal_preparation_elapsed_time_is_frozen(monkeypatch, tmp_path: Path):
+    manager = _manager(tmp_path)
+    manager._started_at = 100.0
+    manager._state.update({"active": True, "state": "running"})
+
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: 112.34)
+    manager._set("complete", "Pronto.", "Concluído.", state="completed")
+    first = manager.snapshot()
+
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: 999.0)
+    second = manager.snapshot()
+
+    assert first["elapsed_seconds"] == 12.3
+    assert second["elapsed_seconds"] == 12.3
+
+
 def test_qwen_preparation_runs_in_background_and_reports_truthful_stages(
     tmp_path: Path,
     monkeypatch,
