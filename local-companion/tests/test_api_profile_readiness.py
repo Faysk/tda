@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import zipfile
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 
 import tda_companion.api as api_module
 from tda_companion.api import create_app
+from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
 from tda_companion.asr_runtime import install_whisper_runtime_archive
 from tda_companion.craig import ingest_craig_zip
 from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
@@ -98,6 +100,31 @@ def test_agent_rejects_whisper_submission_when_runtime_is_not_ready(tmp_path: Pa
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "WHISPER_RUNTIME_UNAVAILABLE"
+
+
+def test_agent_requires_one_time_preparation_for_legacy_whisper_marker(tmp_path: Path):
+    _install_whisper_runtime(tmp_path)
+    profile = get_profile("whisper-detailed")
+    directory = model_path(tmp_path / "Models", profile)
+    directory.mkdir(parents=True)
+    for name in profile.required_files:
+        (directory / name).write_bytes(f"fixture:{name}".encode("utf-8"))
+    write_install_marker(directory, profile)
+
+    marker_path = directory / MODEL_MARKER
+    legacy = json.loads(marker_path.read_text(encoding="utf-8"))
+    legacy.pop("metadata_sha256")
+    marker_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    with _client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**_headers(), "Idempotency-Key": "whisper-legacy-marker"},
+            json=_body(),
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "WHISPER_MODEL_PREPARATION_REQUIRED"
 
 
 def test_agent_rejects_whisper_submission_until_model_is_prepared(tmp_path: Path):
