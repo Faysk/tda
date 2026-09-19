@@ -26,15 +26,47 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 
 function messageFor(code: string): string {
 	return {
-		unauthorized: "O pareamento local expirou. Reconecte o Companion.",
+		unauthorized: "A sessão local expirou. O TDA tentará reconectar ao Companion.",
 		forbidden: "O Companion recusou esta origem.",
 		conflict: "O Companion recusou a operação no estado atual.",
 		timeout: "A operação local excedeu o tempo esperado. Confira a fila antes de repetir.",
 		unreachable: "Não foi possível alcançar o Companion local.",
 		invalid_response: "O Companion respondeu com um contrato inválido.",
-		incompatible: "A versão do Companion não suporta este fluxo.",
+		incompatible: "A versão do Companion não suporta este fluxo. Atualize o aplicativo local.",
 		service_error: "O Companion encontrou uma falha local.",
 	}[code] ?? "Falha local inesperada.";
+}
+
+function preparationMessage(code: string | null): string {
+	if (!code) return "A preparação local não foi concluída.";
+	return {
+		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
+			"Já existe outra preparação em andamento neste computador.",
+		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
+			"Espere o trabalho atual terminar antes de preparar outro perfil.",
+		QWEN_CUDA_UNAVAILABLE:
+			"O Qwen não encontrou CUDA disponível nesta máquina.",
+		QWEN_CUDA_DRIVER_INCOMPATIBLE:
+			"O driver NVIDIA não consegue executar o runtime CUDA exigido pelo Qwen.",
+		QWEN_CUDA_EXECUTION_FAILED:
+			"A GPU foi encontrada, mas uma operação CUDA real falhou.",
+		QWEN_ASR_GPU_MEMORY_EXHAUSTED:
+			"O Qwen ficou sem VRAM durante a validação local.",
+		QWEN_ACCEPTANCE_AUDIO_TOO_SHORT:
+			"Nenhuma faixa do ZIP possui áudio útil suficiente para validar o Qwen.",
+		QWEN_ACCEPTANCE_NO_SPEECH_RECOGNIZED:
+			"A amostra local escolhida não teve fala suficiente para validar o Qwen.",
+		QWEN_MODEL_DOWNLOAD_FAILED:
+			"Não foi possível baixar o modelo Qwen.",
+		QWEN_RUNTIME_UNAVAILABLE:
+			"O runtime Qwen compatível ainda não está disponível.",
+		WHISPER_RUNTIME_UNAVAILABLE:
+			"O runtime Whisper compatível ainda não está disponível.",
+		WHISPER_MODEL_DOWNLOAD_FAILED:
+			"Não foi possível baixar o modelo Whisper.",
+		WHISPER_MODEL_PREPARATION_TIMEOUT:
+			"A preparação do modelo Whisper excedeu o limite de tempo.",
+	}[code] ?? `Preparação não concluída · ${code}`;
 }
 
 type PendingSubmission = {
@@ -119,13 +151,31 @@ export function ProcessingSubmission() {
 		};
 	}, [bridge, paired]);
 
-	const canTranscribe = useMemo(
+	const availableProfiles = useMemo(
+		() =>
+			capabilities?.transcription.catalog.length
+				? capabilities.transcription.catalog
+				: (capabilities?.transcription.profiles ?? []).map((id) => ({
+						id,
+						engine: id.startsWith("qwen-")
+							? ("qwen3" as const)
+							: ("whisper" as const),
+						ready: true,
+						preparationRequired: false,
+						reason: null,
+					})),
+		[capabilities],
+	);
+
+	const canSubmit = useMemo(
 		() =>
 			Boolean(
-				capabilities?.capabilities.includes("transcription.craig") &&
-				capabilities.transcription.profiles.length,
+				capabilities &&
+					availableProfiles.length > 0 &&
+					(capabilities.capabilities.includes("transcription.craig") ||
+						capabilities.capabilities.includes("transcription.prepare")),
 			),
-		[capabilities],
+		[availableProfiles, capabilities],
 	);
 
 	if (!paired) return null;
@@ -183,11 +233,7 @@ export function ProcessingSubmission() {
 					preparation = await bridge.preparation(controller.signal);
 				}
 				if (preparation.state !== "completed") {
-					setError(
-						preparation.errorCode
-							? `Preparação não concluída · ${preparation.errorCode}`
-							: "A preparação local não foi concluída.",
-					);
+					setError(preparationMessage(preparation.errorCode));
 					return;
 				}
 				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
@@ -228,8 +274,15 @@ export function ProcessingSubmission() {
 			setFile(null);
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
-			const code = cause instanceof BridgeError ? cause.code : "service_error";
-			setError(messageFor(code));
+			if (cause instanceof BridgeError) {
+				setError(
+					cause.serverCode
+						? preparationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+			} else {
+				setError(messageFor("service_error"));
+			}
 			setStatus(
 				pending.current
 					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
