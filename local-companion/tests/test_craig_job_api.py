@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 import time
 import zipfile
 from pathlib import Path
@@ -323,6 +324,111 @@ def test_agent_restart_recovers_valid_run_from_failed_bookkeeping(tmp_path: Path
         assert recovered["status"] == "succeeded"
         result = client.get(f"/api/v1/jobs/{job_id}/result", headers=HEADERS).json()
         assert result["transcription"]["run_id"] == manifest["run_id"]
+
+
+def test_retry_recovers_committed_run_without_starting_new_attempt(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        store = Store(data_root)
+        body = {**_body(), "units": 2}
+        job = store.submit("retry-committed-run", body)
+        job_id, attempt = store.claim()
+        assert attempt == 1
+
+        package_root = data_root / "staging" / "craig-source"
+        package = load_craig_package(package_root, verify_tracks=False)
+        manifest = write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job_id,
+            attempt=attempt,
+            glossary=body["glossary"],
+            context=body["context"],
+        )
+        store.fail(job_id, attempt, "WORKER_EXECUTION_FAILED", recoverable=True)
+        assert store.get(job_id)["status"] == "failed"
+
+        response = client.post(
+            f"/api/v1/jobs/{job_id}/retry",
+            headers=HEADERS,
+            json={},
+        )
+
+        assert response.status_code == 200
+        recovered = response.json()
+        assert recovered["status"] == "succeeded"
+        assert recovered["attempt"] == 1
+        result = client.get(f"/api/v1/jobs/{job_id}/result", headers=HEADERS).json()
+        assert result["transcription"]["run_id"] == manifest["run_id"]
+
+
+def test_result_rejects_run_from_stale_attempt(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("stale-attempt-result", body)
+    job_id, attempt = store.claim()
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    manifest = write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary=body["glossary"],
+        context=body["context"],
+    )
+    result = {
+        "schema_version": "tda_local_result_v1",
+        "campaign_id": body["campaign_id"],
+        "session_id": body["session_id"],
+        "source_id": body["source_id"],
+        "job_id": job_id,
+        "transcription": {
+            "schema_version": "tda_transcript_v1",
+            "profile_id": body["profile_id"],
+            "artifact": "transcript.json",
+            "run_id": manifest["run_id"],
+            "sha256": manifest["transcript_sha256"],
+        },
+        "sync": {"status": "not_configured"},
+    }
+    assert store.progress(job_id, attempt, completed=1, total=2, stage="transcription")
+    assert store.progress(job_id, attempt, completed=2, total=2, stage="transcription")
+    assert store.complete(job_id, attempt, result)
+
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE jobs SET attempt=attempt+1 WHERE id=?", (job_id,))
+        db.commit()
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.get(f"/api/v1/jobs/{job_id}/result", headers=HEADERS)
+
+        assert response.status_code == 409
+        assert response.json()["error"] == {
+            "code": "RESULT_ARTIFACT_MISMATCH",
+            "recoverable": False,
+        }
 
 
 def test_agent_restart_never_recovers_user_cancelled_run(tmp_path: Path):
