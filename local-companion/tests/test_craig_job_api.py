@@ -381,5 +381,5 @@ def test_api_rejects_worker_result_bound_to_other_run_identity(monkeypatch, tmp_
         failed = _wait_for_job(client, queued["id"], "failed")
         assert failed["error"] == {
             "code": "WORKER_RESULT_RUN_MISMATCH",
-            "recoverable": True,
+            "recoverable": False,
         }
