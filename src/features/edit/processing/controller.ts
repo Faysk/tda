@@ -142,14 +142,12 @@ export class ProcessingController {
 			});
 	}
 
-	connect = async (token: string) => {
+	connect = async () => {
 		this.disconnect();
 		this.update({ connection: "connecting" });
 		await this.run(async (signal) => {
-			// Never send a credential before confirming the public protocol version.
-			await this.bridge.health(signal);
+			await this.bridge.bootstrap(signal);
 			if (signal.aborted) return;
-			this.bridge.pair(token);
 			await this.read(signal);
 		});
 	};
