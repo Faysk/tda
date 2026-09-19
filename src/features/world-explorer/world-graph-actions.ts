@@ -90,7 +90,8 @@ async function recordWorldDraftPublishFailure(input: {
 			})
 			.eq("campaign_id", input.campaignId)
 			.eq("owner_profile_id", input.profileId)
-			.eq("lease_token", input.leaseToken);
+			.eq("lease_token", input.leaseToken)
+			.eq("status", "active");
 		if (error) console.error("World draft publish failure receipt failed", error.message);
 	} catch (error) {
 		console.error(
