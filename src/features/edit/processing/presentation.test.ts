@@ -27,6 +27,18 @@ describe("processing presentation", () => {
 		);
 	});
 
+	it("explains worker handshake, encoding and runtime failures", () => {
+		expect(presentJobError("WORKER_STDOUT_ENCODING_INVALID")).toContain("codificação");
+		expect(presentJobError("WORKER_READY_REQUIRED")).toContain("handshake");
+		expect(presentJobError("WORKER_SEQUENCE_GAP")).toContain("sequência");
+		expect(presentJobError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")).toContain(
+			"validação física",
+		);
+		expect(presentJobError("WHISPER_RUNTIME_UNAVAILABLE")).toContain(
+			"Whisper",
+		);
+	});
+
 	it("explains new integrity and worker-contract failures", () => {
 		expect(presentJobError("AGENT_BUSY")).toContain("ocupado");
 		expect(presentJobError("RESULT_ARTIFACT_UNAVAILABLE")).toContain(
