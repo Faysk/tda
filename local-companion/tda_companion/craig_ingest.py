@@ -20,6 +20,7 @@ from .transcription_runs import (
     TranscriptionRunError,
     list_runs,
     load_run,
+    migrate_legacy_transcript,
     write_compatibility_mirror,
 )
 
@@ -191,8 +192,17 @@ def _copy_run_history(
     existing: Path,
     replacement: Path,
     *,
+    source_id: str,
     source_sha256: str,
 ) -> None:
+    # Older Companion versions may have only the root transcript.json. Promote
+    # a valid legacy result before snapshotting run history so a source repair
+    # never destroys the user's last completed transcription.
+    migrate_legacy_transcript(
+        existing,
+        source_id=source_id,
+        source_sha256=source_sha256,
+    )
     runs = list_runs(existing, verify_content=True)
     if not runs:
         return
@@ -282,6 +292,7 @@ def _repair_existing_staging(
                     _copy_run_history(
                         existing,
                         replacement,
+                        source_id=source_id,
                         source_sha256=source_sha256,
                     )
 
