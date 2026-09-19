@@ -6,7 +6,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from .asr_models import get_profile, inspect_model_install
+from .asr_models import (
+    get_profile,
+    inspect_model_install,
+    verify_and_upgrade_model_install,
+)
 from .asr_runtime import current_whisper_worker
 
 _MAX_STDOUT_BYTES = 64 * 1024
@@ -50,7 +54,7 @@ def prepare_whisper_profile(
     if profile.engine != "whisper":
         raise WhisperDesktopPrepareError("WHISPER_PROFILE_REQUIRED")
 
-    existing = inspect_model_install(models_root, profile, verify_hash=False)
+    existing = verify_and_upgrade_model_install(models_root, profile)
     if existing.get("status") == "ready":
         return {
             "ready": True,
@@ -92,7 +96,7 @@ def prepare_whisper_profile(
         code = str(value.get("error") or "WHISPER_MODEL_PREPARATION_FAILED")
         raise WhisperDesktopPrepareError(code)
 
-    verified = inspect_model_install(models_root, profile, verify_hash=False)
+    verified = verify_and_upgrade_model_install(models_root, profile)
     if verified.get("status") != "ready":
         raise WhisperDesktopPrepareError("WHISPER_MODEL_PREPARATION_NOT_VISIBLE")
     digest = verified.get("content_sha256")
