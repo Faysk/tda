@@ -97,6 +97,10 @@ export function ProcessingSubmission() {
 	const pending = useRef<PendingSubmission | null>(null);
 
 	useEffect(() => {
+		return () => request.current?.abort();
+	}, []);
+
+	useEffect(() => {
 		if (!paired) {
 			request.current?.abort();
 			setCapabilities(null);
