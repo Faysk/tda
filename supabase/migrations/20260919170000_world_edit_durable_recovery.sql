@@ -34,6 +34,44 @@ create index world_edit_drafts_active_idx
   on public.world_edit_drafts(campaign_id, owner_profile_id, updated_at desc)
   where status = 'active';
 
+-- Do not create a rollout gap: any lease that already exists when this migration
+-- lands may contain the only copy of an editor's saved work. Seed a durable
+-- checkpoint before changing acquisition/release behavior.
+insert into public.world_edit_drafts(
+  campaign_id,
+  owner_profile_id,
+  lease_token,
+  base_layout_revision,
+  base_graph_revision,
+  draft_positions,
+  draft_graph,
+  graph_draft_initialized,
+  status,
+  created_at,
+  updated_at
+)
+select
+  lease.campaign_id,
+  lease.holder_profile_id,
+  lease.lease_token,
+  lease.base_layout_revision,
+  lease.base_graph_revision,
+  lease.draft_positions,
+  lease.draft_graph,
+  lease.graph_draft_initialized,
+  'active',
+  lease.acquired_at,
+  lease.draft_updated_at
+from public.world_edit_leases lease
+on conflict (campaign_id, owner_profile_id, lease_token) do update set
+  base_layout_revision = excluded.base_layout_revision,
+  base_graph_revision = excluded.base_graph_revision,
+  draft_positions = excluded.draft_positions,
+  draft_graph = excluded.draft_graph,
+  graph_draft_initialized = excluded.graph_draft_initialized,
+  status = 'active',
+  updated_at = excluded.updated_at;
+
 alter table public.world_edit_drafts enable row level security;
 revoke all on public.world_edit_drafts from public, anon, authenticated, service_role;
 grant select, insert, update on public.world_edit_drafts to service_role;
