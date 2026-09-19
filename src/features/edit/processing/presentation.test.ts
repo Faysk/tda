@@ -53,6 +53,27 @@ describe("processing presentation", () => {
 		);
 	});
 
+	it("uses friendly worker diagnostics in the event history", () => {
+		expect(
+			presentJobEvent({
+				seq: 20,
+				code: "WORKER_READY_REQUIRED",
+				at: "2026-09-19T12:00:00Z",
+				level: "error",
+				data: {},
+			}).title,
+		).toContain("handshake");
+		expect(
+			presentJobEvent({
+				seq: 21,
+				code: "WORKER_RESULT_TEARDOWN_FORCED",
+				at: "2026-09-19T12:00:01Z",
+				level: "warning",
+				data: {},
+			}).detail,
+		).toContain("run imutável");
+	});
+
 	it("explains recovery and legacy mirror degradation", () => {
 		expect(
 			presentJobEvent({
