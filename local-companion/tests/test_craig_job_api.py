@@ -431,6 +431,52 @@ def test_result_rejects_run_from_stale_attempt(tmp_path: Path):
         }
 
 
+def test_agent_restart_never_resurrects_non_recoverable_failed_run(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("restart-fatal-run", body)
+    job_id, attempt = store.claim()
+
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary=body["glossary"],
+        context=body["context"],
+    )
+    store.fail(
+        job_id,
+        attempt,
+        "WORKER_RESULT_INCOMPLETE",
+        recoverable=False,
+    )
+    assert store.get(job_id)["status"] == "failed"
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        state = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+
+        assert state["status"] == "failed"
+        assert state["error"] == {
+            "code": "WORKER_RESULT_INCOMPLETE",
+            "recoverable": False,
+        }
+        assert state["result_available"] is False
+
+
 def test_agent_restart_never_recovers_user_cancelled_run(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
