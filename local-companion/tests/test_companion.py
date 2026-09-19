@@ -340,6 +340,40 @@ def test_profile_preparation_api_is_authenticated_and_returns_sanitized_status(
     assert response.json()["operation_id"] == "op123"
 
 
+def test_preparation_cannot_jump_a_queued_job(client, monkeypatch):
+    queued = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "queued-before-preparation"},
+        json=BODY,
+    )
+    assert queued.status_code == 200
+    assert queued.json()["status"] == "queued"
+
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(
+        manager,
+        "start",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("preparation must not start ahead of queued work")
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "craig-" + "a" * 64,
+            "profile_id": "qwen-quality",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
+        "recoverable": True,
+    }
+
+
 def test_api_lifecycle_result(client):
     headers = {**HEADERS, "Idempotency-Key": "fixture-1"}
     job = client.post("/api/v1/jobs", headers=headers, json=BODY).json()
