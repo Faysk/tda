@@ -489,6 +489,171 @@ begin
 end;
 $$;
 
+
+-- Publish confirmation must be part of the same transaction as canonical state.
+-- A lost HTTP response can then be reconciled by lease token without guessing
+-- whether the commit happened.
+do $migration$
+declare
+  v_definition text;
+  v_old text := $needle$
+  if coalesce((v_result->>'ok')::boolean, false) then
+    delete from public.world_edit_leases lease
+    where lease.campaign_id = v_campaign_id
+      and lease.holder_profile_id = p_actor_profile_id
+      and lease.lease_token = p_lease_token;
+  end if;
+$needle$;
+  v_new text := $replacement$
+  if coalesce((v_result->>'ok')::boolean, false) then
+    insert into public.world_edit_drafts(
+      campaign_id,
+      owner_profile_id,
+      lease_token,
+      base_layout_revision,
+      base_graph_revision,
+      draft_positions,
+      draft_graph,
+      graph_draft_initialized,
+      status,
+      last_publish_attempt_at,
+      last_publish_error,
+      published_layout_revision,
+      updated_at
+    ) values (
+      v_campaign_id,
+      p_actor_profile_id,
+      p_lease_token,
+      v_existing.base_layout_revision,
+      v_existing.base_graph_revision,
+      v_existing.draft_positions,
+      v_existing.draft_graph,
+      v_existing.graph_draft_initialized,
+      'published',
+      v_now,
+      null,
+      (v_result->>'revision')::bigint,
+      v_now
+    )
+    on conflict (campaign_id, owner_profile_id, lease_token) do update set
+      base_layout_revision = excluded.base_layout_revision,
+      base_graph_revision = excluded.base_graph_revision,
+      draft_positions = excluded.draft_positions,
+      draft_graph = excluded.draft_graph,
+      graph_draft_initialized = excluded.graph_draft_initialized,
+      status = 'published',
+      last_publish_attempt_at = excluded.last_publish_attempt_at,
+      last_publish_error = null,
+      published_layout_revision = excluded.published_layout_revision,
+      updated_at = excluded.updated_at;
+
+    delete from public.world_edit_leases lease
+    where lease.campaign_id = v_campaign_id
+      and lease.holder_profile_id = p_actor_profile_id
+      and lease.lease_token = p_lease_token;
+  end if;
+$replacement$;
+begin
+  select pg_get_functiondef(
+    'public.publish_world_edit_layout_atomic(uuid,uuid,text,uuid)'::regprocedure
+  ) into v_definition;
+
+  if v_definition is null then
+    raise exception 'publish_world_edit_layout_atomic is missing';
+  end if;
+
+  if strpos(v_definition, 'published_layout_revision = excluded.published_layout_revision') = 0 then
+    if strpos(v_definition, v_old) = 0 then
+      raise exception 'unexpected layout publisher definition for durable receipt';
+    end if;
+    v_definition := replace(v_definition, v_old, v_new);
+    execute v_definition;
+  end if;
+end;
+$migration$;
+
+do $migration$
+declare
+  v_definition text;
+  v_old text := $needle$
+  delete from public.world_edit_leases
+  where campaign_id = v_campaign_id
+    and holder_profile_id = p_actor_profile_id
+    and lease_token = p_lease_token;
+
+  return jsonb_build_object(
+$needle$;
+  v_new text := $replacement$
+  insert into public.world_edit_drafts(
+    campaign_id,
+    owner_profile_id,
+    lease_token,
+    base_layout_revision,
+    base_graph_revision,
+    draft_positions,
+    draft_graph,
+    graph_draft_initialized,
+    status,
+    last_publish_attempt_at,
+    last_publish_error,
+    published_graph_revision,
+    published_layout_revision,
+    updated_at
+  ) values (
+    v_campaign_id,
+    p_actor_profile_id,
+    p_lease_token,
+    v_lease.base_layout_revision,
+    v_lease.base_graph_revision,
+    v_lease.draft_positions,
+    v_lease.draft_graph,
+    v_lease.graph_draft_initialized,
+    'published',
+    v_now,
+    null,
+    v_next_revision,
+    (v_layout_result->>'revision')::bigint,
+    v_now
+  )
+  on conflict (campaign_id, owner_profile_id, lease_token) do update set
+    base_layout_revision = excluded.base_layout_revision,
+    base_graph_revision = excluded.base_graph_revision,
+    draft_positions = excluded.draft_positions,
+    draft_graph = excluded.draft_graph,
+    graph_draft_initialized = excluded.graph_draft_initialized,
+    status = 'published',
+    last_publish_attempt_at = excluded.last_publish_attempt_at,
+    last_publish_error = null,
+    published_graph_revision = excluded.published_graph_revision,
+    published_layout_revision = excluded.published_layout_revision,
+    updated_at = excluded.updated_at;
+
+  delete from public.world_edit_leases
+  where campaign_id = v_campaign_id
+    and holder_profile_id = p_actor_profile_id
+    and lease_token = p_lease_token;
+
+  return jsonb_build_object(
+$replacement$;
+begin
+  select pg_get_functiondef(
+    'public.publish_world_edit_state_atomic(uuid,uuid,text,uuid)'::regprocedure
+  ) into v_definition;
+
+  if v_definition is null then
+    raise exception 'publish_world_edit_state_atomic is missing';
+  end if;
+
+  if strpos(v_definition, 'published_graph_revision = excluded.published_graph_revision') = 0 then
+    if strpos(v_definition, v_old) = 0 then
+      raise exception 'unexpected graph publisher definition for durable receipt';
+    end if;
+    v_definition := replace(v_definition, v_old, v_new);
+    execute v_definition;
+  end if;
+end;
+$migration$;
+
 comment on table public.world_edit_drafts is
   'Server-only durable checkpoints for World editing sessions. Lease expiry, handoff or release must not erase hours of editorial work.';
 comment on function public.acquire_world_edit_lease_atomic(uuid,uuid,text,uuid) is
