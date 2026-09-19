@@ -36,6 +36,8 @@
 }
 
 .archive {
+	display: grid;
+	gap: 32px;
 	width: min(1120px, calc(100% - 40px));
 	margin: 0 auto;
 }
@@ -163,5 +165,18 @@
 @media (prefers-reduced-motion: reduce) {
 	.cardBackground {
 		transition: none;
+	}
+}
+
+/* Keep the entire vertical artwork, including on hover and narrow screens. */
+.card[data-lore="noah"] .cardBackground {
+	object-fit: contain;
+	object-position: right center;
+	transform: none;
+}
+
+@media (max-width: 650px) {
+	.card[data-lore="noah"] .cardBackground {
+		object-position: center top;
 	}
 }
