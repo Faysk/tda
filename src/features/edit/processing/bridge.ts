@@ -7,9 +7,10 @@ import {
 	parseCapabilities,
 	parseCraigSource,
 	parseHealth,
+	parseJob,
+	parsePreparationStatus,
 	record,
 	text,
-	parseJob,
 	parseJobEvents,
 	parseJobs,
 	parseResultSummary,
@@ -159,6 +160,21 @@ export class LocalBridge {
 	}
 	async capabilities(signal: AbortSignal) {
 		return parseCapabilities(await this.json("/capabilities", signal));
+	}
+	async preparation(signal: AbortSignal) {
+		return parsePreparationStatus(await this.json("/preparation", signal));
+	}
+	async prepareProfile(
+		sourceId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parsePreparationStatus(
+			await this.json("/preparation", signal, {
+				source_id: identifier(sourceId),
+				profile_id: profileId,
+			}),
+		);
 	}
 	async jobs(signal: AbortSignal) {
 		return parseJobs(await this.json("/jobs", signal));
