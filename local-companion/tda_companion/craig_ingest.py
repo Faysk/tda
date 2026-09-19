@@ -33,7 +33,7 @@ _REPAIR_BACKUP = re.compile(
     r"^\.(?P<source_id>craig-[0-9a-f]{64})\.backup-[0-9a-f]{32}$"
 )
 _REPAIR_PARTIAL = re.compile(
-    r"^\.craig-[0-9a-f]{64}\.repair-[0-9a-f]{32}\.partial$"
+    r"^\.(?P<source_id>craig-[0-9a-f]{64})\.repair-[0-9a-f]{32}\.partial$"
 )
 
 
@@ -139,21 +139,27 @@ def recover_interrupted_craig_repairs(
                 return []
 
             backups: dict[str, list[Path]] = {}
-            partials: list[Path] = []
+            partials: dict[str, list[Path]] = {}
             for candidate in entries:
                 backup = _REPAIR_BACKUP.fullmatch(candidate.name)
                 if backup is not None:
                     backups.setdefault(backup.group("source_id"), []).append(candidate)
                     continue
-                if _REPAIR_PARTIAL.fullmatch(candidate.name):
-                    partials.append(candidate)
+                partial = _REPAIR_PARTIAL.fullmatch(candidate.name)
+                if partial is not None:
+                    partials.setdefault(partial.group("source_id"), []).append(candidate)
 
-            for source_id, candidates in backups.items():
+            source_ids = set(backups) | set(partials)
+            for source_id in source_ids:
+                candidates = backups.get(source_id, [])
+                replacements = partials.get(source_id, [])
                 existing = staging_root / source_id
                 if existing.is_symlink():
                     continue
                 if existing.exists():
                     for candidate in candidates:
+                        _remove_path(candidate)
+                    for candidate in replacements:
                         _remove_path(candidate)
                     continue
 
@@ -163,27 +169,51 @@ def recover_interrupted_craig_repairs(
                     except OSError:
                         return -1
 
-                ordered = sorted(candidates, key=modified, reverse=True)
-                restored = False
-                for candidate in ordered:
-                    if candidate.is_symlink() or not candidate.is_dir():
+                # A fully materialized repair replacement is preferable to the
+                # backup because the backup may be the corrupt source that caused
+                # the repair in the first place. Prove replacement bytes before
+                # promoting it.
+                expected_sha256 = source_id.removeprefix("craig-")
+                promoted = False
+                for replacement in sorted(replacements, key=modified, reverse=True):
+                    if replacement.is_symlink() or not replacement.is_dir():
                         continue
                     try:
-                        os.replace(candidate, existing)
+                        package = load_craig_package(replacement, verify_tracks=True)
+                    except CraigPackageError:
+                        continue
+                    if package.source_sha256 != expected_sha256:
+                        continue
+                    try:
+                        os.replace(replacement, existing)
                     except OSError:
                         continue
                     recovered.append(source_id)
-                    restored = True
+                    promoted = True
                     break
-                if restored:
+
+                if not promoted:
+                    ordered = sorted(candidates, key=modified, reverse=True)
                     for candidate in ordered:
+                        if candidate.is_symlink() or not candidate.is_dir():
+                            continue
+                        try:
+                            os.replace(candidate, existing)
+                        except OSError:
+                            continue
+                        recovered.append(source_id)
+                        promoted = True
+                        break
+
+                if promoted:
+                    for candidate in candidates:
+                        _remove_path(candidate)
+                    for candidate in replacements:
                         if candidate != existing:
                             _remove_path(candidate)
-
-            # A process restart proves these belong to an earlier execution.
-            # They are never authoritative and can be discarded safely.
-            for candidate in partials:
-                _remove_path(candidate)
+                else:
+                    for candidate in replacements:
+                        _remove_path(candidate)
 
     return recovered
 
