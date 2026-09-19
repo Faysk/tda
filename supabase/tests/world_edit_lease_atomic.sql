@@ -281,7 +281,7 @@ set acquired_at = acquired_at - interval '2 minutes',
     expires_at = clock_timestamp() - interval '1 second';
 
 set role service_role;
-do $
+do $$
 declare
   result jsonb;
   token_a uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
