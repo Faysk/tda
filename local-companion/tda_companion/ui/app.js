@@ -732,18 +732,6 @@
     $("setting-updates").addEventListener("change", (event) => updateSetting("check_updates", event.target.checked));
     $("setting-theme").addEventListener("change", (event) => updateSetting("theme", event.target.value));
     $("setting-close").addEventListener("change", (event) => updateSetting("close_behavior", event.target.value));
-    $("copy-token").addEventListener("click", async () => {
-      try {
-        const token = await api.pairing_token();
-        await navigator.clipboard.writeText(token);
-        $("token-feedback").textContent = "Token copiado";
-        window.setTimeout(() => {
-          $("token-feedback").textContent = "";
-        }, 2200);
-      } catch (error) {
-        toast(`Não foi possível copiar o token: ${errorText(error)}`, true);
-      }
-    });
     $("check-whisper-runtime").addEventListener("click", () => checkWhisperRuntime(true));
     $("install-whisper-runtime").addEventListener("click", installWhisperRuntime);
     $("check-qwen-runtime").addEventListener("click", () => checkQwenRuntime(true));
