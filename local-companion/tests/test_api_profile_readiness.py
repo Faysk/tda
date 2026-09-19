@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+import tda_companion.api as api_module
 from tda_companion.api import create_app
 from tda_companion.asr_runtime import install_whisper_runtime_archive
 from tda_companion.craig import ingest_craig_zip
@@ -65,6 +66,26 @@ def _install_whisper_runtime(tmp_path: Path) -> None:
         version=MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
         expected_sha256=digest,
     )
+
+
+def test_whisper_submission_uses_metadata_runtime_check_not_full_rehash(monkeypatch, tmp_path: Path):
+    calls: list[bool] = []
+
+    def inspect(_root, *, verify_worker=False):
+        calls.append(verify_worker)
+        return {"status": "missing"}
+
+    monkeypatch.setattr(api_module, "inspect_whisper_runtime", inspect)
+
+    with _client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**_headers(), "Idempotency-Key": "whisper-light-runtime-check"},
+            json=_body(),
+        )
+
+    assert response.status_code == 409
+    assert calls == [False]
 
 
 def test_agent_rejects_whisper_submission_when_runtime_is_not_ready(tmp_path: Path):
