@@ -202,6 +202,15 @@ def create_app(
     active_worker: dict[str, object | None] = {"job_id": None, "cancel": None}
     source_gate = threading.RLock()
 
+    def source_in_use(source_id: str) -> bool:
+        if store.has_running_source(source_id):
+            return True
+        preparation = preparation_manager.snapshot()
+        return (
+            preparation.get("active") is True
+            and preparation.get("source_id") == source_id
+        )
+
     def register_active_worker(job_id: str) -> threading.Event:
         cancel = threading.Event()
         with active_worker_lock:
@@ -729,6 +738,7 @@ def create_app(
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
     app.state.source_gate = source_gate
+    app.state.source_in_use = source_in_use
     app.state.data_root = data_root
     app.state.models_root = resolved_models_root
     app.state.state_root = resolved_state_root
@@ -920,7 +930,8 @@ def create_app(
                     True,
                 )
             try:
-                value = preparation_manager.start(body.source_id, body.profile_id)
+                with source_gate:
+                    value = preparation_manager.start(body.source_id, body.profile_id)
             except ProfilePreparationError as exc:
                 status = (
                     409
