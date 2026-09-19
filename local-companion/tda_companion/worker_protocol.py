@@ -59,7 +59,9 @@ def _encode(value: dict[str, Any]) -> str:
         line = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     except (TypeError, ValueError) as exc:
         raise WorkerProtocolError("WORKER_JSON_ENCODE_FAILED") from exc
-    if len(line.encode("utf-8")) > MAX_LINE_BYTES:
+    # MAX_LINE_BYTES is the wire-line budget, including the newline that
+    # readline-based worker/supervisor boundaries consume.
+    if len(line.encode("utf-8")) + 1 > MAX_LINE_BYTES:
         raise WorkerProtocolError("WORKER_LINE_TOO_LARGE")
     return line + "\n"
 
