@@ -1,8 +1,8 @@
 # Companion — operação, instalação e rollback
 
-> Status: candidato v0.3 em estabilização; CI técnica válida, aceite físico da 0.3.2 reprovado
+> Status: candidato 0.3.14 em validação; Stable bloqueada até aceite físico real
 > Owner: local-companion/processing
-> Última revisão: 2026-09-13
+> Última revisão: 2026-09-19
 
 Referências: [contrato de confiabilidade e aceite real](companion-reliability.md), [contrato API](../integrations/local-companion-v1.md), [especificação v0.3](../features/companion-desktop-asr-v0.3.md), [política de dependências](companion-dependency-policy.md) e [processamento no Edit](../features/local-processing.md).
 
@@ -53,6 +53,7 @@ O MSI candidato v0.3:
 - instala versões sob `%LOCALAPPDATA%\TDA\Companion\versions\<versão>`;
 - mantém `current-version.txt` e metadata de instalação;
 - cria o atalho `TDA Companion` no Menu Iniciar;
+- registra `tda-companion://open` em `HKCU\Software\Classes` para abertura explícita pelo site;
 - registra o Agent em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`;
 - instala o helper de manutenção junto do aplicativo;
 - usa `MajorUpgrade` com UpgradeCode estável;
@@ -112,13 +113,15 @@ Os endpoints do TDA selecionam somente a família correta de tags/assets, e os d
 
 Update não pode interromper job ativo. Enquanto não houver assinatura Authenticode confiável, instalação de update continua exigindo confirmação explícita. A estabilização adiciona ainda dois invariantes: manifest stable não pode ficar stale e o download precisa apontar para o asset imutável da mesma versão selecionada pelo manifest.
 
-## Pareamento e segurança
+## Conexão local e segurança
 
-O token de pareamento é local, fica em `State`, com proteção do usuário do Windows, e não é cookie, query string, storage persistente do browser, log ou dado cloud.
+O token mestre do Companion continua local em `State`, protegido para o usuário do Windows, mas deixou de ser uma tarefa de produto. A Web não pede copiar/colar esse segredo.
+
+Quando o site encontra um Agent 0.3.14+ compatível, chama `POST /api/v1/session`. O Agent emite um bearer temporário, origin-bound, mantido somente em memória e armazenado internamente apenas por digest. Restart do Agent invalida a sessão. Não há cookie, query string de credencial, storage persistente do browser, log ou dado cloud.
 
 A API continua somente em IPv4 loopback, com Host exato, Origin permitido e Bearer nos endpoints privados. A Web não envia path arbitrário do filesystem e não existe descoberta LAN/proxy cloud.
 
-Antes de qualquer request autenticada do Desktop, o listener local deve provar identidade TDA/API/versão conforme `companion-reliability.md`; HTTP 200 isolado não é suficiente e um processo estranho na porta 8765 não deve receber o token.
+Antes de bootstrap/autorização, o listener local deve provar identidade TDA/API/versão conforme `companion-reliability.md`; HTTP 200 isolado não é suficiente. Companion anterior a 0.3.14 é apresentado como incompatível com a sessão automática, em vez de receber um request que não entende.
 
 O ingest Craig da Web envia o ZIP diretamente para o loopback. O Agent recebe em streaming, limita tamanho, calcula SHA-256 durante a gravação, materializa um `source_id` content-addressed, usa o ingestor seguro existente e remove o ZIP temporário. O áudio não passa pelo cloud.
 
