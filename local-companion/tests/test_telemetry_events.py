@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 import tda_companion.telemetry as telemetry_module
 from tda_companion.api import create_app
 from tda_companion.store import Store
+from tda_companion.system_log import SystemLog
 from tda_companion.telemetry import SystemTelemetry
+from tda_companion.worker_protocol import WorkerMessage
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
 
 TOKEN = "s" * 43
 ORIGIN = "https://panel.example"
@@ -133,6 +136,102 @@ def test_structured_events_keep_facts_and_job_context(tmp_path):
             for event in events
         )
         assert all(set(event) == {"seq", "code", "at", "level", "data"} for event in events)
+
+
+def test_worker_diagnostics_do_not_log_speaker_identity(monkeypatch, tmp_path):
+    system_log = SystemLog(tmp_path / "logs")
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, completed, is_cancelled
+        assert on_event is not None
+        on_event(
+            WorkerMessage.create(
+                job_id=job_id,
+                attempt=attempt,
+                seq=0,
+                type="event",
+                payload={
+                    "code": "QWEN_WINDOW_TRANSCRIBED",
+                    "stage": "transcription",
+                    "track": 1,
+                    "total_tracks": units,
+                    "window": 7,
+                    "speaker": "Nome Privado",
+                },
+            )
+        )
+        for current in range(1, units + 1):
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=current,
+                    type="progress",
+                    payload={
+                        "completed": current,
+                        "total": units,
+                        "unit": "items",
+                        "stage": "fixture",
+                    },
+                )
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload={"kind": "synthetic.fixture", "units": units},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(
+        tmp_path / "Data",
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        system_log=system_log,
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        job = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "private-speaker-log"},
+            json=BODY,
+        ).json()
+        deadline = __import__("time").monotonic() + 3.0
+        while __import__("time").monotonic() < deadline:
+            current = client.get(f"/api/v1/jobs/{job['id']}", headers=HEADERS).json()
+            if current["status"] == "succeeded":
+                break
+            __import__("time").sleep(0.01)
+        events = client.get(
+            f"/api/v1/jobs/{job['id']}/events",
+            headers=HEADERS,
+        ).json()["events"]
+
+    detail = next(event for event in events if event["code"] == "QWEN_WINDOW_TRANSCRIBED")
+    assert detail["data"]["speaker"] == "Nome Privado"
+
+    rows = [
+        row
+        for row in system_log.tail(limit=100)
+        if row["code"] == "QWEN_WINDOW_TRANSCRIBED"
+    ]
+    assert len(rows) == 1
+    assert rows[0]["context"]["track"] == 1
+    assert rows[0]["context"]["window"] == 7
+    assert "speaker" not in rows[0]["context"]
+    assert "Nome Privado" not in (tmp_path / "logs" / "companion.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_v1_local_database_migrates_events_without_losing_jobs(tmp_path):
