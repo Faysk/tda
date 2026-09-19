@@ -288,6 +288,125 @@ def test_agent_restart_recovers_committed_run_before_marking_job_interrupted(tmp
         assert any(event["code"] == "SUCCEEDED_RECOVERED" for event in events)
 
 
+def test_agent_restart_does_not_recover_run_with_different_context(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("restart-context-mismatch", body)
+    job_id, attempt = store.claim()
+
+    package_root = data_root / "staging" / "craig-source"
+    package = load_craig_package(package_root, verify_tracks=False)
+    write_completed_run(
+        package_root,
+        _document(package),
+        job_id=job_id,
+        attempt=attempt,
+        glossary=body["glossary"],
+        context="outro contexto",
+    )
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        assert recovered["status"] == "interrupted"
+        assert recovered["error"] == {
+            "code": "PROCESS_INTERRUPTED",
+            "recoverable": True,
+        }
+
+
+def test_api_rejects_completed_run_with_wrong_track_count(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        job_id = kwargs["job_id"]
+        attempt = kwargs["attempt"]
+        source_id = kwargs["source_id"]
+        profile_id = kwargs["profile_id"]
+        package_root = data_root / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        full = _document(package, profile_id)
+        one_track = (full.tracks[0],)
+        document = TranscriptDocument(
+            recording_id=full.recording_id,
+            source_sha256=full.source_sha256,
+            language=full.language,
+            engine=full.engine,
+            tracks=one_track,
+            stats=stats_for_tracks(one_track, processing_seconds=1.0),
+        )
+        manifest = write_completed_run(
+            package_root,
+            document,
+            job_id=job_id,
+            attempt=attempt,
+            glossary=kwargs["glossary"],
+            context=kwargs["context"],
+        )
+        for completed in range(1, len(package.tracks) + 1):
+            kwargs["on_progress"](
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=completed,
+                    type="progress",
+                    payload={
+                        "completed": completed,
+                        "total": len(package.tracks),
+                        "unit": "tracks",
+                        "stage": "transcription",
+                    },
+                )
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload={
+                "kind": "transcription.craig",
+                "schema_version": "tda_transcript_v1",
+                "source_id": source_id,
+                "profile_id": profile_id,
+                "artifact": "transcript.json",
+                "run_id": manifest["run_id"],
+                "sha256": manifest["transcript_sha256"],
+            },
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "wrong-track-count"},
+            json=_body(),
+        ).json()
+        failed = _wait_for_job(client, queued["id"], "failed")
+        assert failed["error"] == {
+            "code": "WORKER_RESULT_RUN_MISMATCH",
+            "recoverable": False,
+        }
+
+
 def test_api_finalizes_from_immutable_run_not_legacy_mirror(monkeypatch, tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
