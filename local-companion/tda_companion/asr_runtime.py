@@ -262,6 +262,8 @@ def inspect_whisper_runtime(runtime_root: Path, *, verify_worker: bool = False) 
     if not worker.is_file():
         return {"status": "corrupt", "version": version, "worker": None}
     sealed_metadata = marker.get("worker_metadata_sha256")
+    current_metadata: str | None = None
+    metadata_drift = False
     if sealed_metadata is not None:
         if (
             not isinstance(sealed_metadata, str)
@@ -269,12 +271,29 @@ def inspect_whisper_runtime(runtime_root: Path, *, verify_worker: bool = False) 
         ):
             return {"status": "corrupt", "version": version, "worker": None}
         try:
-            if _worker_metadata_sha256(worker) != sealed_metadata:
-                return {"status": "corrupt", "version": version, "worker": None}
+            current_metadata = _worker_metadata_sha256(worker)
         except AsrRuntimeError:
             return {"status": "corrupt", "version": version, "worker": None}
-    if verify_worker and _sha256_file(worker) != marker["worker_sha256"]:
-        return {"status": "corrupt", "version": version, "worker": None}
+        metadata_drift = current_metadata != sealed_metadata
+
+    if verify_worker or metadata_drift:
+        try:
+            if _sha256_file(worker) != marker["worker_sha256"]:
+                return {"status": "corrupt", "version": version, "worker": None}
+        except OSError:
+            return {"status": "corrupt", "version": version, "worker": None}
+
+    if metadata_drift or (verify_worker and sealed_metadata is None):
+        try:
+            current_metadata = current_metadata or _worker_metadata_sha256(worker)
+            updated = dict(marker)
+            updated["worker_metadata_sha256"] = current_metadata
+            _atomic_json(marker_path, updated)
+            marker = updated
+        except (OSError, AsrRuntimeError):
+            # Content identity already passed. A temporary inability to rewrite
+            # the cheap seal must not misclassify the runtime as corrupt.
+            pass
     if not whisper_runtime_version_compatible(version):
         return {"status": "incompatible", "version": version, "worker": None}
     return {"status": "ready", "version": version, "worker": str(worker.resolve())}
