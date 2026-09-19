@@ -107,10 +107,18 @@ def _finish_snapshot_ingest(
     if existing is not None:
         return existing
 
-    source_zip = uploads_root / f"{source_id}.zip"
-    os.replace(snapshot, source_zip)
+    # Each request owns its immutable snapshot until ingest completes. Do not
+    # rename it to a shared content-addressed ZIP path: two simultaneous uploads
+    # of the same archive could otherwise unlink/replace the file under each
+    # other's extractor. The digest was computed while this exact snapshot was
+    # streamed and fsynced, so reuse it instead of hashing the whole ZIP again.
     try:
-        package = ingest_craig_zip(source_zip, staging_root / source_id)
+        package = ingest_craig_zip(
+            snapshot,
+            staging_root / source_id,
+            source_sha256=source_sha256,
+            source_name=source_name or f"{source_id}.zip",
+        )
     except CraigPackageError as exc:
         if str(exc) == "CRAIG_DESTINATION_EXISTS":
             existing = _reuse_existing(
@@ -123,8 +131,6 @@ def _finish_snapshot_ingest(
             if existing is not None:
                 return existing
         raise CraigUploadError(str(exc), 422, False) from exc
-    finally:
-        source_zip.unlink(missing_ok=True)
 
     return _summary(
         package,
