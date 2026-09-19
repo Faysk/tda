@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse, Response
 
 from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
+from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
 from .system_log import SystemLog
 from .transcription_runs import TranscriptionRunError, ensure_legacy_and_list
@@ -55,6 +56,7 @@ class CraigIngestBoundary:
         origins: frozenset[str],
         port: int,
         system_log: SystemLog | None = None,
+        browser_sessions: BrowserSessionManager | None = None,
     ) -> None:
         self.app = app
         self.data_root = data_root.resolve()
@@ -62,6 +64,7 @@ class CraigIngestBoundary:
         self.origins = origins
         self.port = port
         self.system_log = system_log
+        self.browser_sessions = browser_sessions
 
     def _log(self, code: str, message: str, context: dict[str, object] | None = None) -> None:
         if self.system_log is not None:
@@ -71,10 +74,22 @@ class CraigIngestBoundary:
         response.headers.update(_cors_headers(origin))
         await response(scope, receive, send)
 
-    def _authorized(self, request: Request) -> bool:
-        return hmac.compare_digest(
-            request.headers.get("authorization", "").encode("utf-8"),
+    def _authorized(self, request: Request, origin: str | None) -> bool:
+        authorization = request.headers.get("authorization", "")
+        if hmac.compare_digest(
+            authorization.encode("utf-8"),
             f"Bearer {self.token}".encode("ascii"),
+        ):
+            return True
+        if (
+            self.browser_sessions is None
+            or origin is None
+            or not authorization.startswith("Bearer ")
+        ):
+            return False
+        return self.browser_sessions.validate(
+            authorization[len("Bearer "):],
+            origin,
         )
 
     async def _common_guard(self, request: Request, scope, receive, send) -> tuple[str | None, bool]:
@@ -121,7 +136,7 @@ class CraigIngestBoundary:
         if request.method != "GET":
             await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
             return
-        if not self._authorized(request):
+        if not self._authorized(request, origin):
             await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
             return
 
@@ -197,7 +212,7 @@ class CraigIngestBoundary:
         if not origin:
             await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
             return
-        if not self._authorized(request):
+        if not self._authorized(request, origin):
             await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
             return
 
