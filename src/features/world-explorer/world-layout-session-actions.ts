@@ -26,14 +26,16 @@ export type AcquireWorldLayoutSessionResult =
 			ok: true;
 			status: "acquired" | "resumed" | "recovered";
 			draft: WorldLayoutProjection;
-		expiresAt: string;
+			expiresAt: string;
+			recoverySource?: "lease" | "durable";
+			staleRecovery?: boolean;
 	  }>
 	| Readonly<{
 			ok: false;
 			reason: "busy";
 			holderLabel: string;
 			sameActor: boolean;
-		expiresAt?: string;
+			expiresAt?: string;
 	  }>
 	| Readonly<{ ok: false; reason: WorldLayoutSessionFailure }>;
 
