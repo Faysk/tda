@@ -61,6 +61,48 @@ describe("processing state", () => {
 			busy: false,
 		});
 	});
+	it("connects automatically when the Companion is already open", async () => {
+		const sessionToken = "browser_session_token_123456789012345678901234";
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/session"))
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionToken,
+					expires_in_seconds: 28_800,
+				});
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/system"))
+				return Response.json({
+					sampled_at: "2026-09-19T00:00:00Z",
+					host: { os: "Windows 11", cpu: null },
+					cpu: { utilization_percent: null },
+					memory: { used_bytes: null, total_bytes: null, percent: null },
+					gpus: [],
+				});
+			return Response.json({ jobs: [job] });
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect();
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			jobs: [job],
+		});
+		const sessionCall = request.mock.calls.find(([url]) =>
+			String(url).endsWith("/session"),
+		);
+		expect(sessionCall?.[1]?.headers).not.toHaveProperty("Authorization");
+		const jobsCall = request.mock.calls.find(([url]) =>
+			String(url).endsWith("/jobs"),
+		);
+		expect(jobsCall?.[1]?.headers).toMatchObject({
+			Authorization: `Bearer ${sessionToken}`,
+		});
+	});
+
 	it("does not send token to an incompatible service", async () => {
 		const { request, controller } = fixture();
 		request.mockResolvedValue(Response.json({ api_version: "99" }));
