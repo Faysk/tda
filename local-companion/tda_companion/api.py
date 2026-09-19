@@ -438,11 +438,17 @@ def create_app(
                         if current["status"] == "cancelled":
                             return
                         if current["status"] != "running" or current["attempt"] != attempt:
-                            raise RuntimeError("WORKER_STALE_ATTEMPT")
+                            raise WorkerProcessError(
+                                "WORKER_STALE_ATTEMPT",
+                                recoverable=False,
+                            )
                         expected = int(message.payload["completed"])
                         actual = int(current["progress"]["completed"])
                         if expected != actual + 1:
-                            raise RuntimeError("WORKER_PROGRESS_GAP")
+                            raise WorkerProcessError(
+                                "WORKER_PROGRESS_GAP",
+                                recoverable=False,
+                            )
                         if body["kind"] == "synthetic.fixture":
                             store.step(job_id, attempt)
                         else:
