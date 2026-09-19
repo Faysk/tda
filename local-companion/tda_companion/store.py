@@ -261,6 +261,20 @@ class Store:
         with self.read() as db:
             return [self.dto(r) for r in db.execute("SELECT * FROM jobs ORDER BY updated DESC LIMIT 100")]
 
+    def running_attempts(self):
+        with self.read() as db:
+            rows = db.execute(
+                "SELECT id,attempt,body FROM jobs WHERE status='running' ORDER BY updated"
+            ).fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "attempt": row["attempt"],
+                    "body": json.loads(row["body"]),
+                }
+                for row in rows
+            ]
+
     def events(self, job_id):
         with self.read() as db:
             if not db.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
@@ -418,6 +432,28 @@ class Store:
                 (encoded, utc_now(), job_id),
             )
             self.event(db, job_id, "SUCCEEDED", {"total": body["units"]})
+            return True
+
+    def complete_recovered(self, job_id, attempt, result):
+        encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["status"] != "running" or row["attempt"] != attempt:
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "transcription.craig":
+                raise Conflict("RECOVERED_RESULT_KIND_INVALID")
+            db.execute(
+                "UPDATE jobs SET completed=?,status='succeeded',stage='complete',result=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
+                (body["units"], encoded, utc_now(), job_id),
+            )
+            self.event(
+                db,
+                job_id,
+                "SUCCEEDED_RECOVERED",
+                {"attempt": attempt, "total": body["units"]},
+                level="warning",
+            )
             return True
 
     def step(self, job_id, attempt):
