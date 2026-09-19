@@ -201,6 +201,10 @@ def create_app(
         log("info", "worker", "QUEUE_WORKER_STARTED", "Queue worker started")
         while True:
             try:
+                if preparation_manager.snapshot().get("active") is True:
+                    worker_healthy = True
+                    await asyncio.sleep(0.25)
+                    continue
                 claimed = store.claim()
                 if claimed:
                     job_id, attempt = claimed
@@ -558,24 +562,23 @@ def create_app(
 
     @app.get("/api/v1/capabilities")
     def capabilities():
-        features = ["synthetic.fixture", "job.events", "system.telemetry", "worker.subprocess"]
-        profiles: list[str] = []
-        whisper = inspect_whisper_runtime(resolved_runtime_root, verify_worker=True)
-        if whisper.get("status") == "ready":
-            for profile_id in ("whisper-turbo", "whisper-detailed"):
-                model = inspect_model_install(
-                    resolved_models_root,
-                    get_profile(profile_id),
-                    verify_hash=False,
-                )
-                if model.get("status") == "ready":
-                    profiles.append(profile_id)
-        qwen_profiles = ready_qwen_profiles(
+        features = [
+            "synthetic.fixture",
+            "job.events",
+            "system.telemetry",
+            "worker.subprocess",
+            "transcription.prepare",
+        ]
+        catalog = profile_catalog(
             resolved_state_root,
             resolved_runtime_root,
             resolved_models_root,
         )
-        profiles.extend(qwen_profiles)
+        profiles = [
+            str(item["id"])
+            for item in catalog
+            if item.get("ready") is True
+        ]
         if profiles:
             features.append("transcription.craig")
         if system_log is not None:
@@ -588,6 +591,7 @@ def create_app(
             device=dict(id=store.setting("device"), label="TDA local"),
             transcription={
                 "profiles": profiles,
+                "catalog": catalog,
                 "qwen_physical_gate": {
                     profile_id: inspect_qwen_physical_gate(
                         resolved_state_root,
@@ -599,6 +603,30 @@ def create_app(
                 },
             },
         )
+
+    @app.get("/api/v1/preparation")
+    def preparation_status():
+        return preparation_manager.snapshot()
+
+    @app.post("/api/v1/preparation")
+    def prepare_profile(body: ProfilePreparationRequest):
+        if store.has_running_jobs():
+            return error(
+                "TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB",
+                409,
+                True,
+            )
+        try:
+            value = preparation_manager.start(body.source_id, body.profile_id)
+        except ProfilePreparationError as exc:
+            status = (
+                409
+                if exc.code == "TRANSCRIPTION_PREPARATION_ALREADY_RUNNING"
+                else 400
+            )
+            return error(exc.code, status, True)
+        worker_wake.set()
+        return value
 
     @app.get("/api/v1/system")
     def system():
