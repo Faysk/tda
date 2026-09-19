@@ -117,6 +117,7 @@ export type ResultSummary = {
 	publicationId: string;
 	profileId?: TranscriptionProfileId;
 	transcriptSha256?: string;
+	runId?: string;
 };
 export type BridgeErrorCode =
 	| "unreachable"
@@ -481,11 +482,14 @@ export function parseResultSummary(
 			throw new BridgeError("incompatible");
 		if (transcription.artifact !== "transcript.json") return invalid();
 		const transcriptSha256 = sha256(transcription.sha256);
+		const runId = text(transcription.run_id, 196);
+		if (!/^[A-Za-z0-9_-]{1,196}$/u.test(runId)) return invalid();
 		return {
 			...base,
 			publicationId: transcriptSha256,
 			profileId: transcriptionProfile(transcription.profile_id),
 			transcriptSha256,
+			runId,
 		};
 	}
 	return invalid();
