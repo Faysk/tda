@@ -22,6 +22,7 @@ export type ProcessingState = Readonly<{
 	events: readonly JobEvent[];
 	observedJobId: string | null;
 	error: BridgeErrorCode | null;
+	serverError: string | null;
 	checkedAt: string | null;
 	result: ResultSummary | null;
 	uncertainSubmission: boolean;
@@ -37,6 +38,7 @@ const initial: ProcessingState = {
 	events: [],
 	observedJobId: null,
 	error: null,
+	serverError: null,
 	checkedAt: null,
 	result: null,
 	uncertainSubmission: false,
@@ -93,7 +95,7 @@ export class ProcessingController {
 		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
-		this.update({ busy: true, error: null });
+		this.update({ busy: true, error: null, serverError: null });
 
 		try {
 			await action(signal);
@@ -111,16 +113,19 @@ export class ProcessingController {
 				].includes(code);
 				if (["forbidden", "incompatible"].includes(code))
 					this.bridge.disconnect();
+				const serverError =
+					error instanceof BridgeError ? error.serverCode : null;
 				if (bridgeFailure) {
 					this.update({
 						...initial,
 						connection: "error",
 						busy: true,
 						error: code,
+						serverError,
 						uncertainSubmission: this.#submissionKey !== null,
 					});
 				} else {
-					this.update({ error: code });
+					this.update({ error: code, serverError });
 				}
 			}
 		} finally {
