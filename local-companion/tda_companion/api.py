@@ -511,12 +511,28 @@ def create_app(
                                 "ASR_CHECKPOINT_REUSED",
                                 "ASR_CHECKPOINT_SAVED",
                             }:
+                                safe_log_data = {
+                                    key: value
+                                    for key, value in data.items()
+                                    if key
+                                    in {
+                                        "stage",
+                                        "track",
+                                        "total_tracks",
+                                        "window",
+                                        "downloaded_bytes",
+                                        "total_bytes",
+                                        "profile_id",
+                                        "reason",
+                                        "compute_type",
+                                    }
+                                }
                                 log(
                                     "info",
                                     "worker",
                                     code,
                                     "Worker reported progress detail",
-                                    {"job_id": job_id, **data},
+                                    {"job_id": job_id, **safe_log_data},
                                 )
 
                     try:
