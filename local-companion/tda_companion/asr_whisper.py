@@ -388,9 +388,18 @@ def transcribe_craig_package(
     profile = get_profile(profile_id)
     if profile.engine != "whisper":
         raise WhisperRuntimeError("WHISPER_PROFILE_REQUIRED")
-    plan = resolve_whisper_plan(profile_id, cpu=cpu, cuda_status=cuda_status)
     report = report or (lambda _: None)
     is_cancelled = is_cancelled or (lambda: False)
+    if is_cancelled():
+        raise WhisperRuntimeError("ASR_CANCELLED")
+    report(
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": profile.id,
+        }
+    )
+    plan = resolve_whisper_plan(profile_id, cpu=cpu, cuda_status=cuda_status)
 
     options = whisper_transcribe_options(glossary=glossary, context=context)
     runtime_fingerprint = _whisper_runtime_fingerprint()
