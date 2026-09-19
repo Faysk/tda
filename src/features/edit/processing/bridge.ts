@@ -260,24 +260,30 @@ export class LocalBridge {
 	async craigSource(file: File, signal: AbortSignal) {
 		if (!(file instanceof Blob) || file.size <= 0)
 			throw new BridgeError("invalid_response");
-		const timeout = AbortSignal.timeout(15 * 60 * 1000);
+		let timedOut = false;
 		const uploadOnce = async () => {
-			const response = await this.request(`${LOCAL_API}/sources/craig`, {
-				method: "POST",
-				headers: {
-					Accept: "application/json",
-					Authorization: `Bearer ${this.token()}`,
-					"Content-Type": "application/zip",
-				},
-				body: file,
-				mode: "cors",
-				credentials: "omit",
-				redirect: "error",
-				cache: "no-store",
-				referrerPolicy: "no-referrer",
-				signal: AbortSignal.any([signal, timeout]),
-			});
-			return parseCraigSource(await this.responseJson(response));
+			const timeout = AbortSignal.timeout(15 * 60 * 1000);
+			try {
+				const response = await this.request(`${LOCAL_API}/sources/craig`, {
+					method: "POST",
+					headers: {
+						Accept: "application/json",
+						Authorization: `Bearer ${this.token()}`,
+						"Content-Type": "application/zip",
+					},
+					body: file,
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return parseCraigSource(await this.responseJson(response));
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
 		};
 		try {
 			return await uploadOnce();
@@ -286,14 +292,14 @@ export class LocalBridge {
 				error instanceof BridgeError &&
 				error.code === "unauthorized" &&
 				pairingMode === "browser" &&
-				!signal.aborted &&
-				!timeout.aborted
+				!signal.aborted
 			) {
 				await this.bootstrap(signal);
+				timedOut = false;
 				return await uploadOnce();
 			}
 			if (error instanceof BridgeError) throw error;
-			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
 		}
 	}
 	async transcription(input: CraigTranscriptionInput, key: string, signal: AbortSignal) {
