@@ -203,6 +203,57 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
     release = True
 
 
+def test_whisper_cancellation_arriving_during_stable_install_is_not_reported_ready(
+    tmp_path: Path,
+    monkeypatch,
+):
+    cancelled = False
+    calls = {"inspect": 0, "rc": 0}
+
+    def inspect(_root, verify_worker=True):
+        del verify_worker
+        calls["inspect"] += 1
+        return (
+            {"status": "missing", "version": None}
+            if calls["inspect"] == 1
+            else {
+                "status": "ready",
+                "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+            }
+        )
+
+    class Manifest:
+        version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+        sha256 = "a" * 64
+
+    def install(*_args, **_kwargs):
+        nonlocal cancelled
+        cancelled = True
+
+    monkeypatch.setattr(preparation, "inspect_whisper_runtime", inspect)
+    monkeypatch.setattr(preparation, "fetch_whisper_runtime_manifest", lambda: Manifest())
+    monkeypatch.setattr(preparation, "whisper_runtime_update_available", lambda *_args: True)
+    monkeypatch.setattr(preparation, "download_whisper_runtime", lambda *_args: tmp_path / "runtime.zip")
+    monkeypatch.setattr(preparation, "install_whisper_runtime_archive", install)
+    monkeypatch.setattr(
+        preparation,
+        "install_published_runtime_rc",
+        lambda *_args, **_kwargs: calls.__setitem__("rc", calls["rc"] + 1),
+    )
+
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_CANCELLED",
+    ):
+        preparation._install_whisper_runtime(
+            tmp_path / "Runtime",
+            tmp_path / "Cache",
+            is_cancelled=lambda: cancelled,
+        )
+
+    assert calls["rc"] == 0
+
+
 def test_whisper_cancellation_never_falls_back_to_runtime_rc(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         preparation,
