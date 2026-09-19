@@ -224,6 +224,8 @@ class WorkerSupervisor:
 
                 if message.type == "ready":
                     ready = True
+                    if on_event is not None:
+                        on_event(message)
                 elif message.type == "progress":
                     on_progress(message)
                 elif message.type in {"stage", "event", "heartbeat"}:
