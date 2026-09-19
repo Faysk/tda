@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -74,7 +75,10 @@ def test_qwen_preparation_runs_in_background_and_reports_truthful_stages(
     monkeypatch.setattr(
         preparation,
         "_install_qwen_runtime",
-        lambda _runtime, _cache: {"status": "ready", "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION},
+        lambda _runtime, _cache, **_kwargs: {
+            "status": "ready",
+            "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+        },
     )
 
     def prepare_qwen(**kwargs):
@@ -98,6 +102,55 @@ def test_qwen_preparation_runs_in_background_and_reports_truthful_stages(
     assert final["stage"] == "complete"
     assert final["error_code"] is None
     assert final["elapsed_seconds"] >= 0
+
+
+def test_profile_preparation_cancel_becomes_terminal_and_joinable(
+    tmp_path: Path,
+    monkeypatch,
+):
+    manager = _manager(tmp_path)
+    source_id = "craig-" + "c" * 64
+
+    monkeypatch.setattr(
+        preparation,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: object(),
+    )
+    monkeypatch.setattr(
+        preparation,
+        "profile_catalog",
+        lambda *_args: [
+            {
+                "id": "whisper-turbo",
+                "engine": "whisper",
+                "ready": False,
+                "preparation_required": True,
+                "reason": "WHISPER_RUNTIME_REQUIRED",
+            }
+        ],
+    )
+
+    entered = threading.Event()
+
+    def install(_runtime, _cache, *, is_cancelled=None):
+        entered.set()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            preparation._check_cancelled(is_cancelled)
+            time.sleep(0.01)
+        raise AssertionError("cancellation was not observed")
+
+    monkeypatch.setattr(preparation, "_install_whisper_runtime", install)
+
+    manager.start(source_id, "whisper-turbo")
+    assert entered.wait(timeout=1)
+    assert manager.request_cancel() is True
+    assert manager.wait(timeout=2) is True
+
+    final = manager.snapshot()
+    assert final["active"] is False
+    assert final["state"] == "failed"
+    assert final["error_code"] == "TRANSCRIPTION_PREPARATION_CANCELLED"
 
 
 def test_preparation_reuses_same_request_and_rejects_competing_work(
@@ -128,7 +181,7 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
         ],
     )
 
-    def install(_runtime, _cache):
+    def install(_runtime, _cache, **_kwargs):
         nonlocal release
         deadline = time.monotonic() + 1
         while not release and time.monotonic() < deadline:
