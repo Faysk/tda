@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import hmac
 import os
 import re
@@ -29,6 +28,7 @@ from .qwen_physical_gate import inspect_qwen_physical_gate
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
+from .transcription_runs import TranscriptionRunError, load_run
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -130,14 +130,6 @@ def error(code, status, recoverable=False):
     return JSONResponse({"error": {"code": code, "recoverable": recoverable}}, status_code=status)
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def create_app(
     root,
     token,
@@ -228,7 +220,12 @@ def create_app(
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         return package_root, load_craig_package(package_root, verify_tracks=verify_tracks)
 
-    def finalize_transcription_result(job_id: str, body: dict, worker_payload: dict) -> dict:
+    def finalize_transcription_result(
+        job_id: str,
+        attempt: int,
+        body: dict,
+        worker_payload: dict,
+    ) -> dict:
         if (
             worker_payload.get("kind") != "transcription.craig"
             or worker_payload.get("source_id") != body["source_id"]
@@ -238,14 +235,28 @@ def create_app(
         ):
             raise WorkerProcessError("WORKER_RESULT_INVALID")
         digest = worker_payload.get("sha256")
+        run_id = worker_payload.get("run_id")
         if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
             raise WorkerProcessError("WORKER_RESULT_HASH_INVALID")
-        package_root, _ = staged_package(body["source_id"], verify_tracks=False)
-        artifact = (package_root / "transcript.json").resolve()
-        if artifact.parent != package_root or not artifact.is_file():
-            raise WorkerProcessError("WORKER_RESULT_ARTIFACT_MISSING")
-        if _sha256_file(artifact) != digest:
-            raise WorkerProcessError("WORKER_RESULT_HASH_MISMATCH")
+        if not isinstance(run_id, str):
+            raise WorkerProcessError("WORKER_RESULT_RUN_INVALID")
+
+        package_root, package = staged_package(body["source_id"], verify_tracks=False)
+        try:
+            manifest = load_run(package_root, run_id, verify_content=True)
+        except TranscriptionRunError as exc:
+            raise WorkerProcessError("WORKER_RESULT_RUN_INVALID") from exc
+        if (
+            manifest.get("job_id") != job_id
+            or manifest.get("attempt") != attempt
+            or manifest.get("source_id") != body["source_id"]
+            or manifest.get("source_sha256") != package.source_sha256
+            or manifest.get("profile_id") != body["profile_id"]
+            or manifest.get("artifact") != "transcript.json"
+            or manifest.get("transcript_sha256") != digest
+        ):
+            raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH")
+
         return {
             "schema_version": "tda_local_result_v1",
             "campaign_id": body["campaign_id"],
@@ -256,6 +267,7 @@ def create_app(
                 "schema_version": "tda_transcript_v1",
                 "profile_id": body["profile_id"],
                 "artifact": "transcript.json",
+                "run_id": run_id,
                 "sha256": digest,
             },
             "sync": {"status": "not_configured"},
@@ -426,7 +438,7 @@ def create_app(
 
                         final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
-                            result = finalize_transcription_result(job_id, body, outcome.payload)
+                            result = finalize_transcription_result(job_id, attempt, body, outcome.payload)
                             if not store.complete(job_id, attempt, result):
                                 raise WorkerProcessError("WORKER_STALE_ATTEMPT")
                             final_state = store.get(job_id)
