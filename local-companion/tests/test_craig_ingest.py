@@ -18,6 +18,7 @@ from tda_companion.craig_ingest import (
     ingest_craig_file,
     ingest_craig_request,
     recover_interrupted_craig_repairs,
+    remove_incomplete_craig_uploads,
 )
 from tda_companion.craig_runtime import load_craig_package
 from tda_companion.transcript import (
@@ -34,6 +35,26 @@ from tda_companion.transcription_runs import list_runs, write_completed_run
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+def test_startup_cleanup_removes_only_craig_upload_partials(tmp_path: Path):
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    first = uploads / ("." + "a" * 32 + ".zip.partial")
+    second = uploads / ("." + "b" * 32 + ".zip.partial")
+    unrelated = uploads / "keep.zip.partial"
+    lookalike_directory = uploads / ("." + "c" * 32 + ".zip.partial")
+    first.write_bytes(b"partial-a")
+    second.write_bytes(b"partial-b")
+    unrelated.write_bytes(b"keep")
+    lookalike_directory.mkdir()
+
+    assert remove_incomplete_craig_uploads(tmp_path) == 2
+
+    assert first.exists() is False
+    assert second.exists() is False
+    assert unrelated.read_bytes() == b"keep"
+    assert lookalike_directory.is_dir()
 
 
 def _zip_bytes() -> bytes:
