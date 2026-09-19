@@ -349,6 +349,11 @@ def test_v1_local_database_migrates_events_without_losing_jobs(tmp_path):
         version = db.execute("PRAGMA user_version").fetchone()[0]
         event_columns = {row[1] for row in db.execute("PRAGMA table_info(events)").fetchall()}
         job_columns = {row[1] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
-    assert version == 3
+    assert version == 4
     assert {"level", "data"} <= event_columns
     assert "error_recoverable" in job_columns
+    with sqlite3.connect(path) as db:
+        assert {
+            row[1]
+            for row in db.execute("PRAGMA table_info(idempotency_keys)").fetchall()
+        } == {"key", "job_id", "signature"}
