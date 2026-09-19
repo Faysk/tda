@@ -75,6 +75,15 @@ def _runtime_ready(state: dict, family: str) -> bool:
     )
 
 
+def whisper_model_ready(state: dict[str, object]) -> bool:
+    metadata_sha256 = state.get("metadata_sha256")
+    return (
+        state.get("status") == "ready"
+        and isinstance(metadata_sha256, str)
+        and re.fullmatch(r"[0-9a-f]{64}", metadata_sha256) is not None
+    )
+
+
 def profile_catalog(
     state_root: Path,
     runtime_root: Path,
@@ -93,7 +102,7 @@ def profile_catalog(
                 reason = "WHISPER_RUNTIME_REQUIRED"
             else:
                 model = inspect_model_install(models_root, profile, verify_hash=False)
-                ready = model.get("status") == "ready"
+                ready = whisper_model_ready(model)
                 if not ready:
                     reason = "WHISPER_MODEL_PREPARATION_REQUIRED"
         else:
