@@ -267,7 +267,8 @@ def test_craig_adapter_rejects_track_escape(tmp_path: Path):
         )
 
 
-def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
+def test_craig_whisper_reuses_exact_track_checkpoint(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.1.3")
     models_root = tmp_path / "Models"
     _install_whisper_fixture(models_root)
     package_root = tmp_path / "Data" / "staging" / "fixture-source"
@@ -348,6 +349,17 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         item.get("stage") for item in second_reports if item.get("type") == "stage"
     ]
 
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.1.4")
+    transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        report=lambda _item: None,
+        **common,
+    )
+    assert calls["transcribe"] == 2
+    assert calls["load"] == 2
+
     transcribe_craig_package(
         package,
         package_root,
@@ -358,5 +370,5 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         cuda_status={"available": True, "supported_compute_types": ["float16"]},
         model_loader=loader,
     )
-    assert calls["transcribe"] == 2
-    assert calls["load"] == 2
+    assert calls["transcribe"] == 3
+    assert calls["load"] == 3
