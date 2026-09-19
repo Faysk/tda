@@ -850,11 +850,14 @@ Compatibilidade e recuperação:
 Objetivo:
 
 - separar a exclusividade temporária de edição da durabilidade do trabalho: o lease continua curto e serializa escritores, enquanto `world_edit_drafts` preserva checkpoints do rascunho além da vida da row de lease;
+- fazer backfill dos leases que já existirem no instante do rollout antes de trocar o comportamento, evitando uma janela em que um rascunho pré-migration continue tendo cópia única;
 - impedir perda silenciosa de horas de edição quando a sessão expira, a aba recarrega, ocorre falha de publicação, release comum ou troca posterior de lease;
 - restaurar automaticamente o checkpoint mais recente do mesmo editor quando ele ainda é compatível com as revisions publicadas;
 - detectar recovery obsoleto quando layout/graph publicados avançaram e não aplicar o rascunho automaticamente sobre uma base diferente;
 - diferenciar release comum de descarte explícito: release não apaga o checkpoint; descarte marca uma cópia como `discarded` para recuperação/auditoria e só então encerra o lease;
 - registrar receipt de tentativa de publicação no checkpoint (`last_publish_attempt_at` / `last_publish_error`) e revision confirmada em sucesso;
+- persistir o receipt positivo **na mesma transação SQL da publicação canônica e antes da remoção do lease**, de modo que uma resposta HTTP perdida possa ser reconciliada por token sem inferir o resultado;
+- ao reabrir com o mesmo token depois de uma resposta ambígua, expor a revision já confirmada ao editor;
 - garantir que autosave puramente factual também avance `draft_updated_at`, para que o checkpoint durável seja atualizado mesmo sem mudança de layout.
 
 Segurança e privacidade:
