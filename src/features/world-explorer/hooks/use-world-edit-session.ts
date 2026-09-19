@@ -347,7 +347,9 @@ export function useWorldEditSession({
 					? `A publicação anterior foi confirmada pelo servidor · revisão ${result.previousPublishedGraphRevision}. Esta sessão começou do estado publicado.`
 					: `A publicação anterior foi confirmada pelo servidor · revisão de layout ${result.previousPublishedLayoutRevision ?? result.draft.revision}. Esta sessão começou do estado publicado.`
 				: result.staleRecovery
-					? "Existe um rascunho anterior preservado, mas o Mundo publicado mudou desde então. Ele não foi apagado nem aplicado automaticamente; esta sessão começou do estado publicado atual."
+					? result.status === "recovered"
+						? "Rascunho anterior recuperado, mas o Mundo publicado mudou desde a base dele. O trabalho foi preservado para revisão; a publicação continuará bloqueada por conflito até essa diferença ser reconciliada."
+						: "Existe um rascunho anterior preservado, mas o Mundo publicado mudou desde então. Ele não foi aplicado automaticamente; esta sessão começou do estado publicado atual."
 					: result.status === "acquired"
 						? canEditContent
 							? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; cada alteração confirmada fica preservada até publicar."
