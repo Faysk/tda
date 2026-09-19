@@ -38,7 +38,7 @@ export function presentJobError(code: string): string {
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
 		WORKER_COMMAND_INVALID: "O Companion não conseguiu iniciar o worker com um comando local válido.",
 		WORKER_EXITED_WITHOUT_RESULT: "O worker local encerrou sem informar resultado, cancelamento ou erro.",
-		WORKER_EXIT_TIMEOUT: "O worker concluiu o processamento, mas não encerrou corretamente dentro do limite.",
+		WORKER_EXIT_TIMEOUT: "O processo do worker não encerrou corretamente dentro do limite esperado.",
 		WORKER_NONZERO_EXIT: "O worker informou o resultado, mas o processo encerrou de forma anormal; o TDA verificará se existe um run íntegro para recuperar.",
 		WORKER_PROTOCOL_INVALID: "O worker local enviou uma mensagem inválida para o Companion.",
 		WORKER_LINE_SIZE_INVALID: "O worker local enviou uma mensagem maior que o limite seguro do protocolo.",
