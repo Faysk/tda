@@ -214,6 +214,15 @@ def transcribe_craig_package_qwen_strict(
         raise QwenRuntimeError("QWEN_PROFILE_REQUIRED")
     report = report or (lambda _: None)
     is_cancelled = is_cancelled or (lambda: False)
+    if is_cancelled():
+        raise QwenRuntimeError("ASR_CANCELLED")
+    report(
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": profile.id,
+        }
+    )
     plan: QwenPlan = plan_resolver(profile.id)
     prompt = _bounded_prompt(context, glossary)
     recipe = {
