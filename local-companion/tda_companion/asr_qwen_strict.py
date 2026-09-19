@@ -239,6 +239,8 @@ def transcribe_craig_package_qwen_strict(
 
     cached_tracks: dict[int, TranscriptTrack] = {}
     pending_tracks = []
+    total_tracks = len(package.tracks)
+    completed_tracks = 0
     for track in package.tracks:
         if is_cancelled():
             raise QwenRuntimeError("ASR_CANCELLED")
@@ -246,7 +248,26 @@ def transcribe_craig_package_qwen_strict(
         cached = load_track_checkpoint(package_root, signature, track) if checkpoints else None
         if cached is not None and not any(segment.id.endswith("-fallback") for segment in cached.segments):
             cached_tracks[track.number] = cached
-            report({"type": "event", "code": "ASR_CHECKPOINT_REUSED", "track": track.number})
+            report(
+                {
+                    "type": "event",
+                    "code": "ASR_CHECKPOINT_REUSED",
+                    "stage": "source_validation",
+                    "track": track.number,
+                    "total_tracks": total_tracks,
+                    "speaker": track.speaker,
+                }
+            )
+            completed_tracks += 1
+            report(
+                {
+                    "type": "progress",
+                    "completed": completed_tracks,
+                    "total": total_tracks,
+                    "unit": "tracks",
+                    "stage": "source_validation",
+                }
+            )
         else:
             pending_tracks.append(track)
 
@@ -260,6 +281,16 @@ def transcribe_craig_package_qwen_strict(
         try:
             for track in pending_tracks:
                 source = _safe_track_path(package_root, track)
+                report(
+                    {
+                        "type": "event",
+                        "code": "TRACK_STARTED",
+                        "stage": "transcription",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                    }
+                )
                 values: list[QwenWindowTranscript] = []
                 for window in window_reader(source):
                     if is_cancelled():
@@ -274,7 +305,17 @@ def transcribe_craig_package_qwen_strict(
                             language=language or "Portuguese",
                         )
                     )
-                    report({"type": "event", "code": "QWEN_WINDOW_TRANSCRIBED", "stage": "transcription", "track": track.number, "window": window.index})
+                    report(
+                        {
+                            "type": "event",
+                            "code": "QWEN_WINDOW_TRANSCRIBED",
+                            "stage": "transcription",
+                            "track": track.number,
+                            "total_tracks": total_tracks,
+                            "speaker": track.speaker,
+                            "window": window.index,
+                        }
+                    )
                 if not values:
                     raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
                 pending_text[track.number] = values
@@ -335,8 +376,31 @@ def transcribe_craig_package_qwen_strict(
                         report({"type": "event", "code": "ASR_CHECKPOINT_SAVED", "track": track.number})
                     except (OSError, ValueError):
                         report({"type": "event", "code": "ASR_CHECKPOINT_WRITE_SKIPPED", "track": track.number})
+                report(
+                    {
+                        "type": "event",
+                        "code": "TRACK_COMPLETED",
+                        "stage": "alignment",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                    }
+                )
+                completed_tracks += 1
+                report(
+                    {
+                        "type": "progress",
+                        "completed": completed_tracks,
+                        "total": total_tracks,
+                        "unit": "tracks",
+                        "stage": "alignment",
+                    }
+                )
         finally:
             aligner.close()
+
+    if completed_tracks != total_tracks:
+        raise QwenRuntimeError("QWEN_TRACK_PROGRESS_INCOMPLETE")
 
     transcript_tracks = tuple(cached_tracks.get(track.number) or new_tracks[track.number] for track in package.tracks)
 
