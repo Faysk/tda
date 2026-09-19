@@ -8,6 +8,7 @@ import pytest
 from tda_companion.asr_models import get_profile, model_path, write_install_marker
 from tda_companion.asr_whisper import (
     WhisperRuntimeError,
+    _whisper_runtime_fingerprint,
     prepare_whisper_model,
     resolve_whisper_plan,
     transcribe_craig_package,
@@ -24,6 +25,10 @@ def _install_whisper_fixture(models_root: Path, profile_id: str = "whisper-turbo
         (directory / name).write_bytes(f"fixture:{name}".encode("utf-8"))
     write_install_marker(directory, profile)
     return directory
+
+
+def test_whisper_checkpoint_pipeline_revision_is_explicit():
+    assert "checkpoint=whisper-track-v2" in _whisper_runtime_fingerprint()
 
 
 def test_whisper_plan_prefers_float16_and_only_uses_cpu_when_requested():
