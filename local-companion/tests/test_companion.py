@@ -132,6 +132,47 @@ def test_browser_session_bootstraps_without_exposing_master_token(client):
     ).status_code == 403
 
 
+def test_profile_preparation_api_is_authenticated_and_returns_sanitized_status(
+    client,
+    monkeypatch,
+):
+    source_id = "craig-" + "a" * 64
+    state = {
+        "schema": "tda_profile_preparation_v1",
+        "state": "running",
+        "active": True,
+        "operation_id": "op123",
+        "source_id": source_id,
+        "profile_id": "qwen-quality",
+        "engine": "qwen3",
+        "stage": "qwen_probe",
+        "title": "Verificando CUDA e runtime…",
+        "detail": "Validação local.",
+        "sequence": 2,
+        "error_code": None,
+        "elapsed_seconds": 1.5,
+    }
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(manager, "start", lambda source, profile: state)
+    monkeypatch.setattr(manager, "snapshot", lambda: state)
+
+    assert client.get("/api/v1/preparation").status_code == 401
+
+    response = client.get("/api/v1/preparation", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == state
+    assert "path" not in response.text.casefold()
+    assert "token" not in response.text.casefold()
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={"source_id": source_id, "profile_id": "qwen-quality"},
+    )
+    assert response.status_code == 200
+    assert response.json()["operation_id"] == "op123"
+
+
 def test_api_lifecycle_result(client):
     headers = {**HEADERS, "Idempotency-Key": "fixture-1"}
     job = client.post("/api/v1/jobs", headers=headers, json=BODY).json()
