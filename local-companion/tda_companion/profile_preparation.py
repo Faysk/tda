@@ -188,6 +188,7 @@ def _install_whisper_runtime(
                 expected_sha256=manifest.sha256,
                 replace_corrupt=repairing,
             )
+            _check_cancelled(is_cancelled)
         state = inspect_whisper_runtime(runtime_root, verify_worker=True)
         if _runtime_ready(state, "whisper"):
             return {
@@ -208,6 +209,7 @@ def _install_whisper_runtime(
             runtime_root=runtime_root,
             cache_root=cache_root,
         )
+        _check_cancelled(is_cancelled)
     except Exception as exc:
         if stable_error is not None:
             raise ProfilePreparationError(_error_code(exc)) from exc
@@ -262,6 +264,7 @@ def _install_qwen_runtime(
                 expected_sha256=manifest.bundle.archive_sha256,
                 replace_corrupt=repairing,
             )
+            _check_cancelled(is_cancelled)
         state = inspect_qwen_runtime(runtime_root, verify_worker=True)
         if _runtime_ready(state, "qwen"):
             try:
@@ -290,6 +293,7 @@ def _install_qwen_runtime(
             runtime_root=runtime_root,
             cache_root=cache_root,
         )
+        _check_cancelled(is_cancelled)
         _probe_qwen_runtime(runtime_root, is_cancelled)
     except Exception as exc:
         if stable_error is not None:
