@@ -146,6 +146,8 @@ _NON_RECOVERABLE_CONFLICTS = frozenset(
         "WORKER_EVENT_LEVEL_INVALID",
         "WORKER_EVENT_DATA_INVALID",
         "RECOVERED_RESULT_KIND_INVALID",
+        "JOB_UNITS_INVALID",
+        "WORKER_RESULT_INCOMPLETE",
     }
 )
 
@@ -606,6 +608,21 @@ def create_app(
                             "WORKER_PROCESS_FAILED",
                             "Worker process failed",
                             {"job_id": job_id, "worker_code": exc.code},
+                        )
+                    except Conflict as exc:
+                        code = str(exc)
+                        store.fail(
+                            job_id,
+                            attempt,
+                            code,
+                            recoverable=conflict_recoverable(code),
+                        )
+                        log(
+                            "error",
+                            "worker",
+                            "WORKER_CONTRACT_FAILED",
+                            "Worker violated the local queue contract",
+                            {"job_id": job_id, "worker_code": code},
                         )
                     except Exception:
                         code = "WORKER_EXECUTION_FAILED" if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
