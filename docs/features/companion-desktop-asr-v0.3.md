@@ -2,8 +2,8 @@
 
 > Status: especificação aceita para implementação; estabilização R1–R4 em andamento
 > Owner: local-companion / processing
-> Última revisão: 2026-09-13
-> ADR: `docs/adr/0013-companion-agent-desktop-asr.md`
+> Última revisão: 2026-09-19
+> ADRs: `docs/adr/0013-companion-agent-desktop-asr.md`, `docs/adr/0017-web-single-entry-loopback-session.md`
 > Confiabilidade: `docs/operations/companion-reliability.md`
 
 ## Princípio do produto
@@ -29,12 +29,16 @@ TDACompanion.exe --ui
   -> WebView2 local UI -> AgentConnection -> Agent
 
 TDA Web/Edit
-  -> pareamento explícito -> Agent
+  -> health público mínimo
+  -> sessão browser temporária origin-bound
+  -> Agent
 ```
 
 Fechar a janela não encerra o Agent nem o processamento. Crash da UI não afeta Agent. Crash do worker não derruba Agent/API/UI.
 
-O Desktop não trata HTTP 200 como identidade suficiente do Agent. Antes de enviar Bearer token, o health público precisa provar `product_id`, `api_version`, `service_version`, `pid` e porta esperada. Os estados de conexão de produto são:
+A Web é a única entrada de produto para selecionar ZIP, perfil, contexto e glossário. O Desktop observa a execução local e cuida da máquina; não mantém um segundo formulário editorial concorrente.
+
+O browser não trata HTTP 200 como identidade suficiente do Agent. Antes de pedir uma sessão temporária, o health público precisa provar `product_id`, `api_version`, `service_version`, `pid` e porta esperada. O token mestre persistido não é copiado para a Web. Os estados de conexão de produto são:
 
 ```text
 starting
@@ -77,6 +81,7 @@ Navegação:
 
 ```text
 Visão geral
+Execução local
 Logs
 Diagnóstico
 Configurações
@@ -98,9 +103,9 @@ Mostrar:
 - reiniciar Agent;
 - abrir pasta local.
 
-Quando o Agent estiver indisponível, a UI continua renderizável com dados locais possíveis. Não deve apagar uma sessão Craig já validada nem gerar toast a cada polling.
+Quando o Agent estiver indisponível, a UI continua renderizável com dados locais possíveis e não gera toast a cada polling.
 
-O Desktop não replica sessões, mundo, lores ou revisão editorial.
+**Execução local** mostra fila/estado/stage/liveness e encaminha novas sessões para o TDA Web. O Desktop não replica seleção de sessão, mundo, lores, contexto editorial ou revisão.
 
 ### Tray
 
@@ -156,7 +161,7 @@ Export gera ZIP sanitizado com manifest/system/health/model state/logs recentes,
 - tema;
 - comportamento ao fechar;
 - paths/tamanho de Data e Models;
-- copiar/regenerar pareamento;
+- conexão automática com o TDA; token mestre apenas em diagnóstico avançado;
 - instalar/remover modelos;
 - versão/API/build;
 - reparar;

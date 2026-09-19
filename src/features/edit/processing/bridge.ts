@@ -1,3 +1,4 @@
+import { supportsAutomaticLoopbackSession } from "./compatibility";
 import {
 	BridgeError,
 	type CraigTranscriptionInput,
@@ -7,13 +8,19 @@ import {
 	parseCraigSource,
 	parseHealth,
 	parseJob,
+	parsePreparationStatus,
+	record,
+	text,
 	parseJobEvents,
 	parseJobs,
 	parseResultSummary,
 	parseSystemSnapshot,
 } from "./protocol";
 
+type PairingMode = "none" | "legacy" | "browser";
+
 let pairedToken = "";
+let pairingMode: PairingMode = "none";
 const pairingListeners = new Set<() => void>();
 
 function notifyPairing() {
@@ -29,7 +36,7 @@ export function subscribeLocalBridgePairing(listener: () => void) {
 	return () => pairingListeners.delete(listener);
 }
 
-function mapStatus(status: number): BridgeError {
+function mapStatus(status: number, serverCode: string | null = null): BridgeError {
 	return new BridgeError(
 		status === 401
 			? "unauthorized"
@@ -38,7 +45,18 @@ function mapStatus(status: number): BridgeError {
 				: status === 409
 					? "conflict"
 					: "service_error",
+		serverCode,
 	);
+}
+
+function sanitizedServerCode(value: unknown): string | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	const error = (value as Record<string, unknown>).error;
+	if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+	const code = (error as Record<string, unknown>).code;
+	return typeof code === "string" && /^[A-Z0-9_]{1,96}$/u.test(code)
+		? code
+		: null;
 }
 
 export class LocalBridge {
@@ -47,16 +65,45 @@ export class LocalBridge {
 			fetch(input, init),
 	) {}
 
-	pair(token: string) {
+	private setPairing(token: string, mode: Exclude<PairingMode, "none">) {
 		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
 			throw new BridgeError("unauthorized");
 		pairedToken = token;
+		pairingMode = mode;
 		notifyPairing();
 	}
 
+	pair(token: string) {
+		this.setPairing(token, "legacy");
+	}
+
+	async bootstrap(signal: AbortSignal) {
+		// Health is intentionally public so we confirm the expected loopback
+		// protocol before asking the local Agent for a browser-scoped credential.
+		const health = await this.health(signal);
+		if (!supportsAutomaticLoopbackSession(health.service_version))
+			throw new BridgeError("incompatible");
+		const value = record(
+			await this.json("/session", signal, {}, undefined, true),
+		);
+		if (value.schema !== "tda_loopback_session_v1")
+			throw new BridgeError("incompatible");
+		const token = text(value.token, 256);
+		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
+			throw new BridgeError("invalid_response");
+		if (
+			typeof value.expires_in_seconds !== "number" ||
+			!Number.isSafeInteger(value.expires_in_seconds) ||
+			value.expires_in_seconds < 60
+		)
+			throw new BridgeError("invalid_response");
+		this.setPairing(token, "browser");
+	}
+
 	disconnect() {
-		if (!pairedToken) return;
+		if (!pairedToken && pairingMode === "none") return;
 		pairedToken = "";
+		pairingMode = "none";
 		notifyPairing();
 	}
 
@@ -66,11 +113,14 @@ export class LocalBridge {
 	}
 
 	private async responseJson(response: Response) {
-		if (!response.ok) throw mapStatus(response.status);
-		if (!response.headers.get("content-type")?.includes("application/json"))
-			throw new BridgeError("invalid_response");
+		const isJson =
+			response.headers.get("content-type")?.includes("application/json") ?? false;
 		const reader = response.body?.getReader();
-		if (!reader) throw new BridgeError("invalid_response");
+		if (!reader) {
+			if (!response.ok) throw mapStatus(response.status);
+			throw new BridgeError("invalid_response");
+		}
+
 		let size = 0;
 		let data = "";
 		const decoder = new TextDecoder();
@@ -81,18 +131,30 @@ export class LocalBridge {
 				size += value.byteLength;
 				if (size > 1024 * 1024) {
 					await reader.cancel();
+					if (!response.ok) throw mapStatus(response.status);
 					throw new BridgeError("invalid_response");
 				}
-				data += decoder.decode(value, { stream: true });
+				if (isJson) data += decoder.decode(value, { stream: true });
 			}
 		} finally {
 			reader.releaseLock();
 		}
-		try {
-			return JSON.parse(data + decoder.decode()) as unknown;
-		} catch {
+
+		if (!isJson) {
+			if (!response.ok) throw mapStatus(response.status);
 			throw new BridgeError("invalid_response");
 		}
+
+		let value: unknown;
+		try {
+			value = JSON.parse(data + decoder.decode()) as unknown;
+		} catch {
+			if (!response.ok) throw mapStatus(response.status);
+			throw new BridgeError("invalid_response");
+		}
+		if (!response.ok)
+			throw mapStatus(response.status, sanitizedServerCode(value));
+		return value;
 	}
 
 	private async json(
@@ -102,27 +164,48 @@ export class LocalBridge {
 		key?: string,
 		publicRequest = false,
 	) {
-		const headers: Record<string, string> = { Accept: "application/json" };
-		if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
-		if (body !== undefined) headers["Content-Type"] = "application/json";
-		if (key) headers["Idempotency-Key"] = identifier(key);
-		const timeout = AbortSignal.timeout(8000);
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(8000);
+			const headers: Record<string, string> = { Accept: "application/json" };
+			if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
+			if (body !== undefined) headers["Content-Type"] = "application/json";
+			if (key) headers["Idempotency-Key"] = identifier(key);
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: body === undefined ? "GET" : "POST",
+					headers,
+					body: body === undefined ? undefined : JSON.stringify(body),
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return await this.responseJson(response);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+
 		try {
-			const response = await this.request(`${LOCAL_API}${path}`, {
-				method: body === undefined ? "GET" : "POST",
-				headers,
-				body: body === undefined ? undefined : JSON.stringify(body),
-				mode: "cors",
-				credentials: "omit",
-				redirect: "error",
-				cache: "no-store",
-				referrerPolicy: "no-referrer",
-				signal: AbortSignal.any([signal, timeout]),
-			});
-			return await this.responseJson(response);
+			return await requestOnce();
 		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				!publicRequest &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
 			if (error instanceof BridgeError) throw error;
-			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
 		}
 	}
 
@@ -133,6 +216,21 @@ export class LocalBridge {
 	}
 	async capabilities(signal: AbortSignal) {
 		return parseCapabilities(await this.json("/capabilities", signal));
+	}
+	async preparation(signal: AbortSignal) {
+		return parsePreparationStatus(await this.json("/preparation", signal));
+	}
+	async prepareProfile(
+		sourceId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parsePreparationStatus(
+			await this.json("/preparation", signal, {
+				source_id: identifier(sourceId),
+				profile_id: profileId,
+			}),
+		);
 	}
 	async jobs(signal: AbortSignal) {
 		return parseJobs(await this.json("/jobs", signal));
@@ -162,27 +260,46 @@ export class LocalBridge {
 	async craigSource(file: File, signal: AbortSignal) {
 		if (!(file instanceof Blob) || file.size <= 0)
 			throw new BridgeError("invalid_response");
-		const timeout = AbortSignal.timeout(15 * 60 * 1000);
+		let timedOut = false;
+		const uploadOnce = async () => {
+			const timeout = AbortSignal.timeout(15 * 60 * 1000);
+			try {
+				const response = await this.request(`${LOCAL_API}/sources/craig`, {
+					method: "POST",
+					headers: {
+						Accept: "application/json",
+						Authorization: `Bearer ${this.token()}`,
+						"Content-Type": "application/zip",
+					},
+					body: file,
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return parseCraigSource(await this.responseJson(response));
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
 		try {
-			const response = await this.request(`${LOCAL_API}/sources/craig`, {
-				method: "POST",
-				headers: {
-					Accept: "application/json",
-					Authorization: `Bearer ${this.token()}`,
-					"Content-Type": "application/zip",
-				},
-				body: file,
-				mode: "cors",
-				credentials: "omit",
-				redirect: "error",
-				cache: "no-store",
-				referrerPolicy: "no-referrer",
-				signal: AbortSignal.any([signal, timeout]),
-			});
-			return parseCraigSource(await this.responseJson(response));
+			return await uploadOnce();
 		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await uploadOnce();
+			}
 			if (error instanceof BridgeError) throw error;
-			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
 		}
 	}
 	async transcription(input: CraigTranscriptionInput, key: string, signal: AbortSignal) {

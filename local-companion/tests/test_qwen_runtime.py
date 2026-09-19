@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from tda_companion.qwen_runtime import (
     current_qwen_worker,
     inspect_qwen_runtime,
     install_qwen_runtime_archive,
+    recover_interrupted_qwen_runtime_install,
 )
 from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
 
@@ -45,6 +47,94 @@ def test_verified_qwen_runtime_installs_versioned_and_switches_current_atomicall
     assert current_qwen_worker(runtime_root) == worker.resolve()
     selector = json.loads((runtime_root / "qwen" / "current.json").read_text(encoding="utf-8"))
     assert selector["version"] == version
+
+
+def test_startup_recovery_restores_interrupted_qwen_runtime_swap(tmp_path: Path):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"stable")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+    install_qwen_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "qwen"
+    target = parent / version
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    target.rename(backup)
+    partial.mkdir()
+    (partial / "junk").write_text("partial", encoding="utf-8")
+
+    recovered = recover_interrupted_qwen_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert target.is_dir()
+    assert not backup.exists()
+    assert not partial.exists()
+    assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
+def test_startup_recovery_prefers_verified_qwen_partial_over_corrupt_selected_target(
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"fresh-worker")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+    install_qwen_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "qwen"
+    target = parent / version
+    partial = parent / f".{version}-{'c' * 32}.partial"
+    shutil.copytree(target, partial)
+    (target / "TDAQwenWorker.exe").write_bytes(b"corrupt-target")
+
+    recovered = recover_interrupted_qwen_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert not partial.exists()
+    assert (target / "TDAQwenWorker.exe").read_bytes() == b"fresh-worker"
+    assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
+def test_startup_recovery_prefers_verified_qwen_partial_over_corrupt_backup(
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"fresh-worker")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+    install_qwen_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "qwen"
+    target = parent / version
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    shutil.copytree(target, partial)
+    target.rename(backup)
+    (backup / "TDAQwenWorker.exe").write_bytes(b"corrupt-backup")
+
+    recovered = recover_interrupted_qwen_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert not backup.exists()
+    assert not partial.exists()
+    assert (target / "TDAQwenWorker.exe").read_bytes() == b"fresh-worker"
+    assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
 
 
 def test_pre_runs_qwen_runtime_is_valid_but_incompatible(tmp_path: Path):

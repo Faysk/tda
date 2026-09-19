@@ -361,7 +361,8 @@ def _distribution_version(name: str) -> str:
 def _whisper_runtime_fingerprint() -> str:
     return ";".join(
         (
-            "checkpoint=whisper-track-v1",
+            "checkpoint=whisper-track-v2",
+            f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
             f"faster-whisper={_distribution_version('faster-whisper')}",
             f"ctranslate2={_distribution_version('ctranslate2')}",
         )
@@ -387,43 +388,104 @@ def transcribe_craig_package(
     profile = get_profile(profile_id)
     if profile.engine != "whisper":
         raise WhisperRuntimeError("WHISPER_PROFILE_REQUIRED")
-    plan = resolve_whisper_plan(profile_id, cpu=cpu, cuda_status=cuda_status)
     report = report or (lambda _: None)
     is_cancelled = is_cancelled or (lambda: False)
+    if is_cancelled():
+        raise WhisperRuntimeError("ASR_CANCELLED")
+    report(
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": profile.id,
+        }
+    )
+    plan = resolve_whisper_plan(profile_id, cpu=cpu, cuda_status=cuda_status)
 
-    prepared = prepare_whisper_model(
-        models_root,
-        profile,
-        downloader=downloader,
-        report=report,
-    )
-    report({"type": "stage", "stage": "model_load", "profile": profile.id})
-    model, effective_compute_type, used_fallback = model_loader(prepared, plan)
     options = whisper_transcribe_options(glossary=glossary, context=context)
-    checkpoint_recipe = {
-        "transcribe_options": options,
-        "device": plan.device,
-        "compute_type": effective_compute_type,
-        "cpu_requested": plan.cpu_requested,
-    }
-    checkpoint_signature = build_checkpoint_signature(
-        package,
-        profile,
-        recipe=checkpoint_recipe,
-        context=_bounded_context(context, 2000),
-        glossary=_bounded_context(glossary, 2000),
-        runtime_fingerprint=_whisper_runtime_fingerprint(),
-    )
+    runtime_fingerprint = _whisper_runtime_fingerprint()
+
+    def checkpoint_signature_for(compute_type: str):
+        checkpoint_recipe = {
+            "transcribe_options": options,
+            "device": plan.device,
+            "compute_type": compute_type,
+            "cpu_requested": plan.cpu_requested,
+        }
+        return build_checkpoint_signature(
+            package,
+            profile,
+            recipe=checkpoint_recipe,
+            context=_bounded_context(context, 2000),
+            glossary=_bounded_context(glossary, 2000),
+            runtime_fingerprint=runtime_fingerprint,
+        )
+
+    total_tracks = len(package.tracks)
+    preloaded_checkpoints: dict[int, TranscriptTrack] = {}
+    checkpoint_signature = None
+    effective_compute_type = plan.compute_type
+    used_fallback = False
+    model = None
+
+    if checkpoints:
+        candidates = [(plan.compute_type, False)]
+        if plan.fallback_compute_type:
+            candidates.append((plan.fallback_compute_type, True))
+        for compute_type, fallback in candidates:
+            candidate_signature = checkpoint_signature_for(compute_type)
+            candidate_tracks: dict[int, TranscriptTrack] = {}
+            for track in package.tracks:
+                _safe_track_path(package_root, track)
+                cached = load_track_checkpoint(package_root, candidate_signature, track)
+                if cached is not None:
+                    candidate_tracks[track.number] = cached
+            if len(candidate_tracks) == total_tracks:
+                checkpoint_signature = candidate_signature
+                preloaded_checkpoints = candidate_tracks
+                effective_compute_type = compute_type
+                used_fallback = fallback
+                report(
+                    {
+                        "type": "event",
+                        "code": "ASR_CHECKPOINT_FAST_PATH",
+                        "stage": "source_validation",
+                        "total_tracks": total_tracks,
+                        "compute_type": compute_type,
+                    }
+                )
+                break
+
+    if checkpoint_signature is None:
+        prepared = prepare_whisper_model(
+            models_root,
+            profile,
+            downloader=downloader,
+            report=report,
+        )
+        report({"type": "stage", "stage": "model_load", "profile": profile.id})
+        model, effective_compute_type, used_fallback = model_loader(prepared, plan)
+        checkpoint_signature = checkpoint_signature_for(effective_compute_type)
 
     started = time.monotonic()
     tracks: list[TranscriptTrack] = []
-    total_tracks = len(package.tracks)
     report({"type": "stage", "stage": "transcription", "profile": profile.id})
     for index, track in enumerate(package.tracks, start=1):
         if is_cancelled():
             raise WhisperRuntimeError("ASR_CANCELLED")
+        report(
+            {
+                "type": "event",
+                "code": "TRACK_STARTED",
+                "stage": "transcription",
+                "track": track.number,
+                "total_tracks": total_tracks,
+                "speaker": track.speaker,
+            }
+        )
         source = _safe_track_path(package_root, track)
-        cached = load_track_checkpoint(package_root, checkpoint_signature, track) if checkpoints else None
+        cached = preloaded_checkpoints.get(track.number)
+        if cached is None and checkpoints:
+            cached = load_track_checkpoint(package_root, checkpoint_signature, track)
         if cached is not None:
             tracks.append(cached)
             report(
@@ -435,14 +497,31 @@ def transcribe_craig_package(
                 }
             )
         else:
+            if model is None:
+                raise WhisperRuntimeError("WHISPER_MODEL_NOT_LOADED")
             segments_iter, info = model.transcribe(str(source), **options)
             segments: list[TranscriptSegment] = []
+            activity_last_at = 0.0
             for segment in segments_iter:
                 if is_cancelled():
                     raise WhisperRuntimeError("ASR_CANCELLED")
                 value = _segment_from_engine(track.number, segment)
                 if value.text:
                     segments.append(value)
+                    now = time.monotonic()
+                    if len(segments) == 1 or now - activity_last_at >= 5.0:
+                        activity_last_at = now
+                        report(
+                            {
+                                "type": "event",
+                                "code": "WHISPER_SEGMENT_TRANSCRIBED",
+                                "stage": "transcription",
+                                "track": track.number,
+                                "total_tracks": total_tracks,
+                                "speaker": track.speaker,
+                                "segment": len(segments),
+                            }
+                        )
 
             identity = asdict(track.identity) if track.identity is not None else None
             duration = round(float(getattr(info, "duration", 0.0) or 0.0), 3)
@@ -479,6 +558,16 @@ def transcribe_craig_package(
                         }
                     )
 
+        report(
+            {
+                "type": "event",
+                "code": "TRACK_COMPLETED",
+                "stage": "transcription",
+                "track": track.number,
+                "total_tracks": total_tracks,
+                "speaker": track.speaker,
+            }
+        )
         report(
             {
                 "type": "progress",
@@ -537,6 +626,6 @@ def transcribe_craig_package(
         ),
         warnings=warnings,
     )
-    document.validate()
     report({"type": "stage", "stage": "result_prepare", "profile": profile.id})
+    document.validate()
     return document

@@ -214,6 +214,15 @@ def transcribe_craig_package_qwen_strict(
         raise QwenRuntimeError("QWEN_PROFILE_REQUIRED")
     report = report or (lambda _: None)
     is_cancelled = is_cancelled or (lambda: False)
+    if is_cancelled():
+        raise QwenRuntimeError("ASR_CANCELLED")
+    report(
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": profile.id,
+        }
+    )
     plan: QwenPlan = plan_resolver(profile.id)
     prompt = _bounded_prompt(context, glossary)
     recipe = {
@@ -239,6 +248,8 @@ def transcribe_craig_package_qwen_strict(
 
     cached_tracks: dict[int, TranscriptTrack] = {}
     pending_tracks = []
+    total_tracks = len(package.tracks)
+    completed_tracks = 0
     for track in package.tracks:
         if is_cancelled():
             raise QwenRuntimeError("ASR_CANCELLED")
@@ -246,7 +257,26 @@ def transcribe_craig_package_qwen_strict(
         cached = load_track_checkpoint(package_root, signature, track) if checkpoints else None
         if cached is not None and not any(segment.id.endswith("-fallback") for segment in cached.segments):
             cached_tracks[track.number] = cached
-            report({"type": "event", "code": "ASR_CHECKPOINT_REUSED", "track": track.number})
+            report(
+                {
+                    "type": "event",
+                    "code": "ASR_CHECKPOINT_REUSED",
+                    "stage": "source_validation",
+                    "track": track.number,
+                    "total_tracks": total_tracks,
+                    "speaker": track.speaker,
+                }
+            )
+            completed_tracks += 1
+            report(
+                {
+                    "type": "progress",
+                    "completed": completed_tracks,
+                    "total": total_tracks,
+                    "unit": "tracks",
+                    "stage": "source_validation",
+                }
+            )
         else:
             pending_tracks.append(track)
 
@@ -255,11 +285,22 @@ def transcribe_craig_package_qwen_strict(
     if pending_tracks:
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
         model_root = model_prepare(models_root.resolve(), profile)
-        report({"type": "stage", "stage": "transcription", "profile": profile.id})
+        report({"type": "stage", "stage": "model_load", "profile": profile.id})
         asr_session: AsrSession = asr_session_factory(model_root, plan)
+        report({"type": "stage", "stage": "transcription", "profile": profile.id})
         try:
             for track in pending_tracks:
                 source = _safe_track_path(package_root, track)
+                report(
+                    {
+                        "type": "event",
+                        "code": "TRACK_STARTED",
+                        "stage": "transcription",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                    }
+                )
                 values: list[QwenWindowTranscript] = []
                 for window in window_reader(source):
                     if is_cancelled():
@@ -274,7 +315,17 @@ def transcribe_craig_package_qwen_strict(
                             language=language or "Portuguese",
                         )
                     )
-                    report({"type": "event", "code": "QWEN_WINDOW_TRANSCRIBED", "stage": "transcription", "track": track.number, "window": window.index})
+                    report(
+                        {
+                            "type": "event",
+                            "code": "QWEN_WINDOW_TRANSCRIBED",
+                            "stage": "transcription",
+                            "track": track.number,
+                            "total_tracks": total_tracks,
+                            "speaker": track.speaker,
+                            "window": window.index,
+                        }
+                    )
                 if not values:
                     raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
                 pending_text[track.number] = values
@@ -282,6 +333,7 @@ def transcribe_craig_package_qwen_strict(
             asr_session.close()
 
     new_tracks: dict[int, TranscriptTrack] = {}
+    energy_by_segment: dict[tuple[int, str], float] = {}
     if pending_tracks:
         report({"type": "stage", "stage": "alignment", "profile": profile.id})
         aligner_root = aligner_prepare(models_root.resolve())
@@ -304,16 +356,22 @@ def transcribe_craig_package_qwen_strict(
                     if pending is None or not math.isclose(pending.start, window.start, abs_tol=0.001) or not math.isclose(pending.end, window.end, abs_tol=0.001):
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                     seen.add(window.index)
-                    segments.extend(
-                        _strict_alignment_segments(
-                            track.number,
-                            window,
-                            pending,
-                            aligner,
-                            first=window.index == expected[0].index,
-                            last=window.index == last_index,
-                        )
+                    window_segments = _strict_alignment_segments(
+                        track.number,
+                        window,
+                        pending,
+                        aligner,
+                        first=window.index == expected[0].index,
+                        last=window.index == last_index,
                     )
+                    segments.extend(window_segments)
+                    for segment in window_segments:
+                        key = (track.number, segment.id)
+                        value = energy_reader(window, segment.start, segment.end)
+                        energy_by_segment[key] = max(
+                            energy_by_segment.get(key, -120.0),
+                            value,
+                        )
                     duration = max(duration, window.end)
                 if seen != set(expected_by_index):
                     raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
@@ -335,29 +393,58 @@ def transcribe_craig_package_qwen_strict(
                         report({"type": "event", "code": "ASR_CHECKPOINT_SAVED", "track": track.number})
                     except (OSError, ValueError):
                         report({"type": "event", "code": "ASR_CHECKPOINT_WRITE_SKIPPED", "track": track.number})
+                report(
+                    {
+                        "type": "event",
+                        "code": "TRACK_COMPLETED",
+                        "stage": "alignment",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                    }
+                )
+                completed_tracks += 1
+                report(
+                    {
+                        "type": "progress",
+                        "completed": completed_tracks,
+                        "total": total_tracks,
+                        "unit": "tracks",
+                        "stage": "alignment",
+                    }
+                )
         finally:
             aligner.close()
 
+    if completed_tracks != total_tracks:
+        raise QwenRuntimeError("QWEN_TRACK_PROGRESS_INCOMPLETE")
+
     transcript_tracks = tuple(cached_tracks.get(track.number) or new_tracks[track.number] for track in package.tracks)
 
-    energy_by_segment: dict[tuple[int, str], float] = {}
-    tracks_by_number = {track.number: track for track in transcript_tracks}
-    for source_track in package.tracks:
-        source = _safe_track_path(package_root, source_track)
-        transcript_track = tracks_by_number[source_track.number]
-        remaining = list(transcript_track.segments)
-        for window in window_reader(source):
-            if is_cancelled():
-                raise QwenRuntimeError("ASR_CANCELLED")
-            next_remaining: list[TranscriptSegment] = []
-            for segment in remaining:
-                if segment.end <= window.start or segment.start >= window.end:
-                    next_remaining.append(segment)
-                    continue
-                key = (transcript_track.number, segment.id)
-                value = energy_reader(window, segment.start, segment.end)
-                energy_by_segment[key] = max(energy_by_segment.get(key, -120.0), value)
-            remaining = next_remaining
+    if cached_tracks:
+        report({"type": "stage", "stage": "energy_analysis", "profile": profile.id})
+        tracks_by_number = {track.number: track for track in transcript_tracks}
+        for source_track in package.tracks:
+            if source_track.number not in cached_tracks:
+                continue
+            source = _safe_track_path(package_root, source_track)
+            transcript_track = tracks_by_number[source_track.number]
+            remaining = list(transcript_track.segments)
+            for window in window_reader(source):
+                if is_cancelled():
+                    raise QwenRuntimeError("ASR_CANCELLED")
+                next_remaining: list[TranscriptSegment] = []
+                for segment in remaining:
+                    if segment.end <= window.start or segment.start >= window.end:
+                        next_remaining.append(segment)
+                        continue
+                    key = (transcript_track.number, segment.id)
+                    value = energy_reader(window, segment.start, segment.end)
+                    energy_by_segment[key] = max(
+                        energy_by_segment.get(key, -120.0),
+                        value,
+                    )
+                remaining = next_remaining
 
     report({"type": "stage", "stage": "cross_track_dedup", "profile": profile.id})
     flattened = flatten_tracks(transcript_tracks)
@@ -391,6 +478,6 @@ def transcribe_craig_package_qwen_strict(
         ),
         warnings=(),
     )
-    document.validate()
     report({"type": "stage", "stage": "result_prepare", "profile": profile.id})
+    document.validate()
     return document

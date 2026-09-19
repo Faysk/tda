@@ -127,6 +127,7 @@ describe("real local processing bridge", () => {
 						schema_version: "tda_transcript_v1",
 						profile_id: "qwen-quality",
 						artifact: "transcript.json",
+						run_id: "run-job-real-a1",
 						sha256: digest,
 					},
 					sync: { status: "not_configured" },
@@ -141,6 +142,7 @@ describe("real local processing bridge", () => {
 			publicationId: digest,
 			profileId: "qwen-quality",
 			transcriptSha256: digest,
+			runId: "run-job-real-a1",
 		});
 	});
 });

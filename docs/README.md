@@ -142,6 +142,10 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0011 — persistência física candidata do layout editorial](adr/0011-world-explorer-layout-physical-persistence.md)
 - [ADR-0012 — GitHub Actions controla a entrega](adr/0012-github-actions-controlled-delivery.md)
 - [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](adr/0013-companion-agent-desktop-asr.md)
+- [ADR-0014 — R2 como boundary de mídia publicada](adr/0014-r2-media-storage-and-publishing.md)
+- [ADR-0015 — entrega simples orientada a recuperação](adr/0015-recovery-oriented-delivery.md)
+- [ADR-0016 — runs locais imutáveis, revisão explícita e publicação versionada](adr/0016-transcript-runs-review-publication.md)
+- [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](adr/0017-web-single-entry-loopback-session.md)
 
 ### Governança da própria documentação
 

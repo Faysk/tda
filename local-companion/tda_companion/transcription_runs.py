@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,8 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def _bounded_json(path: Path) -> dict[str, Any]:
+    if path.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_MANIFEST_SYMLINK")
     try:
         size = path.stat().st_size
     except OSError as exc:
@@ -92,6 +95,8 @@ def _bounded_json(path: Path) -> dict[str, Any]:
 
 
 def _bounded_transcript(path: Path) -> bytes:
+    if path.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK")
     try:
         size = path.stat().st_size
     except OSError as exc:
@@ -202,23 +207,64 @@ def write_completed_run(
     if destination.exists():
         raise TranscriptionRunError("TRANSCRIPTION_RUN_ALREADY_EXISTS")
     destination.mkdir(parents=True, exist_ok=False)
-    transcript = destination / "transcript.json"
-    document.write_atomic(transcript)
-    digest = _sha256_file(transcript)
-    size = transcript.stat().st_size
-    manifest = _manifest_for_document(
-        document,
-        source_id=resolved_source_id,
-        run_id=run_id,
-        job_id=job_id,
-        attempt=attempt,
-        transcript_sha256=digest,
-        transcript_size_bytes=size,
-        glossary=glossary,
-        context=context,
-    )
-    _atomic_json(destination / "run.json", manifest)
-    return manifest
+    try:
+        transcript = destination / "transcript.json"
+        document.write_atomic(transcript)
+        digest = _sha256_file(transcript)
+        size = transcript.stat().st_size
+        manifest = _manifest_for_document(
+            document,
+            source_id=resolved_source_id,
+            run_id=run_id,
+            job_id=job_id,
+            attempt=attempt,
+            transcript_sha256=digest,
+            transcript_size_bytes=size,
+            glossary=glossary,
+            context=context,
+        )
+        _atomic_json(destination / "run.json", manifest)
+        return manifest
+    except BaseException:
+        # The manifest is the immutable commit marker. Before it exists, this
+        # directory is incomplete and cannot become a completed run.
+        if not (destination / "run.json").is_file():
+            shutil.rmtree(destination, ignore_errors=True)
+        raise
+
+
+def remove_incomplete_run(package_root: Path, run_id: str) -> bool:
+    """Remove only an uncommitted run directory (no run.json commit marker)."""
+    destination = run_root(package_root, run_id)
+    if not destination.is_dir() or (destination / "run.json").exists():
+        return False
+    try:
+        shutil.rmtree(destination)
+    except OSError:
+        return False
+    return not destination.exists()
+
+
+def remove_incomplete_runs(package_root: Path) -> int:
+    """Remove only orphan run directories that never reached the run.json commit marker."""
+    root = _runs_root(package_root)
+    if not root.is_dir():
+        return 0
+    removed = 0
+    for candidate in root.iterdir():
+        if (
+            candidate.is_dir()
+            and not candidate.is_symlink()
+            and _RUN_ID.fullmatch(candidate.name)
+            and not (candidate / "run.json").exists()
+        ):
+            try:
+                shutil.rmtree(candidate)
+            except OSError:
+                continue
+            if not candidate.exists():
+                removed += 1
+    return removed
 
 
 def write_compatibility_mirror(package_root: Path, run_id: str) -> str:
@@ -262,6 +308,8 @@ def _validate_manifest(
         raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SIZE_INVALID")
     root = run_root(package_root, run_id)
     transcript = root / "transcript.json"
+    if transcript.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK")
     try:
         actual_size = transcript.stat().st_size
     except OSError as exc:
@@ -366,50 +414,60 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
         try:
             return load_run(package_root, run_id, verify_content=True)
         except TranscriptionRunError:
-            return None
+            # A directory without run.json is only an interrupted migration, not
+            # an immutable commit. Rebuild it from the still-valid root legacy
+            # transcript instead of permanently abandoning migration.
+            if not remove_incomplete_run(package_root, run_id):
+                return None
+
     destination.mkdir(parents=True, exist_ok=False)
-    _atomic_bytes(destination / "transcript.json", payload)
-    manifest = {
-        "schema_version": RUN_SCHEMA_VERSION,
-        "run_id": run_id,
-        "origin": "legacy_transcript_v1",
-        "status": "completed",
-        "source_id": _source_id(package_root, source_id),
-        "source_sha256": source_sha256,
-        "job_id": None,
-        "attempt": None,
-        "profile_id": profile_id,
-        "engine": engine.get("engine"),
-        "model": engine.get("model"),
-        "model_revision": engine.get("model_revision"),
-        "device": engine.get("device"),
-        "compute_type": engine.get("compute_type"),
-        "alignment": engine.get("alignment"),
-        "language": value.get("language"),
-        "context_sha256": None,
-        "glossary_sha256": None,
-        "transcript_schema_version": "tda_transcript_v1",
-        "artifact": "transcript.json",
-        "transcript_sha256": digest,
-        "transcript_size_bytes": len(payload),
-        "created_at": value.get("created_at"),
-        "completed_at": value.get("created_at") or utc_now(),
-        "stats": {
-            key: stats.get(key)
-            for key in (
-                "processing_seconds",
-                "rtf",
-                "word_count",
-                "segment_count",
-                "track_count",
-                "turn_count",
-                "deduplicated_segment_count",
-            )
-            if key in stats
-        },
-    }
-    _atomic_json(destination / "run.json", manifest)
-    return manifest
+    try:
+        _atomic_bytes(destination / "transcript.json", payload)
+        manifest = {
+            "schema_version": RUN_SCHEMA_VERSION,
+            "run_id": run_id,
+            "origin": "legacy_transcript_v1",
+            "status": "completed",
+            "source_id": _source_id(package_root, source_id),
+            "source_sha256": source_sha256,
+            "job_id": None,
+            "attempt": None,
+            "profile_id": profile_id,
+            "engine": engine.get("engine"),
+            "model": engine.get("model"),
+            "model_revision": engine.get("model_revision"),
+            "device": engine.get("device"),
+            "compute_type": engine.get("compute_type"),
+            "alignment": engine.get("alignment"),
+            "language": value.get("language"),
+            "context_sha256": None,
+            "glossary_sha256": None,
+            "transcript_schema_version": "tda_transcript_v1",
+            "artifact": "transcript.json",
+            "transcript_sha256": digest,
+            "transcript_size_bytes": len(payload),
+            "created_at": value.get("created_at"),
+            "completed_at": value.get("created_at") or utc_now(),
+            "stats": {
+                key: stats.get(key)
+                for key in (
+                    "processing_seconds",
+                    "rtf",
+                    "word_count",
+                    "segment_count",
+                    "track_count",
+                    "turn_count",
+                    "deduplicated_segment_count",
+                )
+                if key in stats
+            },
+        }
+        _atomic_json(destination / "run.json", manifest)
+        return manifest
+    except BaseException:
+        if not (destination / "run.json").is_file():
+            shutil.rmtree(destination, ignore_errors=True)
+        raise
 
 
 def ensure_legacy_and_list(

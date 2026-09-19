@@ -158,3 +158,32 @@ test("preparation, paused queue and recoverable failure stay distinct", async ({
 	await page.getByRole("button", { name: "Retomar fila" }).click();
 	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
 });
+
+test("running job at N/N does not claim pipeline completion", async ({ page }) => {
+	const completedButRunning = {
+		...running,
+		id: "still-consolidating",
+		status: "running",
+		stage: "consolidating",
+		progress: { completed: 3, total: 3, unit: "items" },
+	};
+	await page.route(`${origin}/**`, async (route) => {
+		const path = new URL(route.request().url()).pathname;
+		await route.fulfill({
+			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
+			json: path.endsWith("/health")
+				? { api_version: "1", service_version: "0.1.0", lifecycle: "ready" }
+				: path.endsWith("/capabilities")
+					? {
+							capabilities: ["synthetic.fixture"],
+							sync: false,
+							device: { id: "test-device", label: "PC sintético" },
+						}
+					: { jobs: [completedButRunning] },
+		});
+	});
+	await page.goto("/");
+	await pair(page);
+	await expect(page.getByText("100%", { exact: true })).toHaveCount(0);
+	await expect(page.getByText(/3 \/ 3 itens/)).toBeVisible();
+});

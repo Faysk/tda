@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,7 @@ from fastapi.testclient import TestClient
 from tda_companion.api import create_app
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
 
 TOKEN = "s" * 43
 ORIGIN = "https://panel.example"
@@ -34,6 +37,210 @@ def client(tmp_path):
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=False)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         yield client
+
+
+def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, tmp_path):
+    started = threading.Event()
+    cancel_seen = threading.Event()
+    release = threading.Event()
+    stopped = threading.Event()
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, job_id, attempt, units, completed, on_progress, on_event
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        cancel_seen.set()
+        assert release.wait(2.0)
+        stopped.set()
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "user_cancel", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        response = live.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "cancel-running-job"},
+            json={**BODY, "units": 10},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        assert started.wait(2.0)
+
+        cancelled = live.post(
+            f"/api/v1/jobs/{job_id}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert cancelled.status_code == 200
+        assert cancelled.json()["status"] == "cancelled"
+        assert cancel_seen.wait(1.0)
+
+        blocked_delete = live.post(
+            f"/api/v1/jobs/{job_id}/delete",
+            headers=HEADERS,
+            json={},
+        )
+        assert blocked_delete.status_code == 409
+        assert blocked_delete.json()["error"]["code"] == "JOB_ACTIVE"
+
+        release.set()
+        assert stopped.wait(2.0)
+        assert live.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()["status"] == "cancelled"
+
+    persisted = Store(tmp_path).get(job_id)
+    assert persisted["status"] == "cancelled"
+    assert persisted["error"] is None
+
+
+def test_cancelled_craig_source_stays_owned_until_worker_exits(monkeypatch, tmp_path):
+    started = threading.Event()
+    cancel_seen = threading.Event()
+    release = threading.Event()
+
+    def fake_run_craig(
+        self,
+        *,
+        job_id,
+        attempt,
+        source_id,
+        profile_id,
+        glossary,
+        context,
+        cpu,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del (
+            self,
+            job_id,
+            attempt,
+            source_id,
+            profile_id,
+            glossary,
+            context,
+            cpu,
+            on_progress,
+            on_event,
+        )
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        cancel_seen.set()
+        assert release.wait(2.0)
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "user_cancel", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+    source_id = "craig-" + "a" * 64
+    job = app.state.store.submit(
+        "cancelled-craig-source-owner",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "whisper-turbo",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 1,
+        },
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        assert started.wait(2.0)
+        cancelled = live.post(
+            f"/api/v1/jobs/{job['id']}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert cancelled.status_code == 200
+        assert cancel_seen.wait(1.0)
+        assert app.state.store.get(job["id"])["status"] == "cancelled"
+        assert app.state.source_in_use(source_id) is True
+
+        release.set()
+        deadline = time.monotonic() + 2.0
+        while app.state.source_in_use(source_id) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert app.state.source_in_use(source_id) is False
+
+
+def test_agent_shutdown_stops_active_worker_and_leaves_job_retryable(monkeypatch, tmp_path):
+    started = threading.Event()
+    stopped = threading.Event()
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, job_id, attempt, units, completed, on_progress, on_event
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        stopped.set()
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "shutdown", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        response = live.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "shutdown-job"},
+            json={**BODY, "units": 10},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        assert started.wait(2.0)
+
+    assert stopped.wait(2.0)
+    recovered = Store(tmp_path).get(job_id)
+    assert recovered["status"] == "interrupted"
+    assert recovered["stage"] == "interrupted"
+    assert recovered["error"] == {"code": "PROCESS_INTERRUPTED", "recoverable": True}
+    assert recovered["attempt"] == 1
 
 
 def test_security_and_validation(client):
@@ -86,6 +293,261 @@ def test_security_and_validation(client):
     assert response.headers["access-control-allow-origin"] == ORIGIN
     assert "access-control-allow-credentials" not in response.headers
     assert client.get("/api/v1/jobs/", headers=HEADERS).status_code == 404
+
+
+def test_conflict_recoverability_matches_whether_repeating_can_help(client):
+    first = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "conflict-contract"},
+        json=BODY,
+    )
+    assert first.status_code == 200
+    job_id = first.json()["id"]
+
+    idem_conflict = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "conflict-contract"},
+        json={**BODY, "units": 4},
+    )
+    assert idem_conflict.status_code == 409
+    assert idem_conflict.json() == {
+        "error": {"code": "IDEMPOTENCY_CONFLICT", "recoverable": False}
+    }
+
+    retry_queued = client.post(
+        f"/api/v1/jobs/{job_id}/retry",
+        headers=HEADERS,
+        json={},
+    )
+    assert retry_queued.status_code == 409
+    assert retry_queued.json() == {
+        "error": {"code": "JOB_NOT_RETRYABLE", "recoverable": False}
+    }
+
+    delete_active = client.post(
+        f"/api/v1/jobs/{job_id}/delete",
+        headers=HEADERS,
+        json={},
+    )
+    assert delete_active.status_code == 409
+    assert delete_active.json() == {
+        "error": {"code": "JOB_ACTIVE", "recoverable": True}
+    }
+
+
+def test_browser_session_bootstraps_without_exposing_master_token(client):
+    response = client.post(
+        "/api/v1/session",
+        headers={"Origin": ORIGIN, "Content-Type": "application/json"},
+        json={},
+    )
+    assert response.status_code == 200
+    value = response.json()
+    assert value["schema"] == "tda_loopback_session_v1"
+    assert isinstance(value["token"], str) and len(value["token"]) >= 32
+    assert value["token"] != TOKEN
+    assert value["expires_in_seconds"] >= 60
+    assert TOKEN not in response.text
+
+    browser_headers = {
+        "Authorization": f"Bearer {value['token']}",
+        "Origin": ORIGIN,
+    }
+    jobs = client.get("/api/v1/jobs", headers=browser_headers)
+    assert jobs.status_code == 200
+    assert jobs.json() == {"jobs": []}
+
+    # Browser-scoped credentials require the exact issuing Origin.
+    assert client.get(
+        "/api/v1/jobs",
+        headers={"Authorization": f"Bearer {value['token']}"},
+    ).status_code == 401
+    assert client.get(
+        "/api/v1/jobs",
+        headers={**browser_headers, "Origin": "https://evil.example"},
+    ).status_code == 403
+
+    # The temporary browser credential is intentionally narrower than the
+    # master token: Web processing endpoints are allowed, local administration is not.
+    logs = client.get("/api/v1/logs", headers=browser_headers)
+    assert logs.status_code == 403
+    assert logs.json() == {
+        "error": {"code": "BROWSER_SESSION_SCOPE_REJECTED", "recoverable": False}
+    }
+    agent = client.get("/api/v1/agent", headers=browser_headers)
+    assert agent.status_code == 403
+    control = client.post(
+        "/api/v1/agent/control",
+        headers={**browser_headers, "Content-Type": "application/json"},
+        json={"action": "shutdown", "force": False},
+    )
+    assert control.status_code == 403
+    assert client.get("/api/v1/logs", headers=HEADERS).status_code == 200
+
+    assert client.post(
+        "/api/v1/session",
+        headers={"Content-Type": "application/json"},
+        json={},
+    ).status_code == 403
+    assert client.post(
+        "/api/v1/session",
+        headers={"Origin": "https://evil.example", "Content-Type": "application/json"},
+        json={},
+    ).status_code == 403
+
+
+def test_profile_preparation_api_is_authenticated_and_returns_sanitized_status(
+    client,
+    monkeypatch,
+):
+    source_id = "craig-" + "a" * 64
+    state = {
+        "schema": "tda_profile_preparation_v1",
+        "state": "running",
+        "active": True,
+        "operation_id": "op123",
+        "source_id": source_id,
+        "profile_id": "qwen-quality",
+        "engine": "qwen3",
+        "stage": "qwen_probe",
+        "title": "Verificando CUDA e runtime…",
+        "detail": "Validação local.",
+        "sequence": 2,
+        "error_code": None,
+        "elapsed_seconds": 1.5,
+    }
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(manager, "start", lambda source, profile: state)
+    monkeypatch.setattr(manager, "snapshot", lambda: state)
+
+    assert client.get("/api/v1/preparation").status_code == 401
+
+    response = client.get("/api/v1/preparation", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json() == state
+    assert "path" not in response.text.casefold()
+    assert "token" not in response.text.casefold()
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={"source_id": source_id, "profile_id": "qwen-quality"},
+    )
+    assert response.status_code == 200
+    assert response.json()["operation_id"] == "op123"
+
+
+def test_preparation_validation_errors_are_non_recoverable(client):
+    invalid_source = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "not-a-craig-source",
+            "profile_id": "qwen-quality",
+        },
+    )
+    assert invalid_source.status_code == 422
+    assert invalid_source.json()["error"] == {
+        "code": "INVALID_REQUEST",
+        "recoverable": False,
+    }
+
+    invalid_profile = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "craig-" + "a" * 64,
+            "profile_id": "whisper-magic",
+        },
+    )
+    assert invalid_profile.status_code == 422
+    assert invalid_profile.json()["error"] == {
+        "code": "INVALID_REQUEST",
+        "recoverable": False,
+    }
+
+
+def test_preparation_cannot_jump_a_queued_transcription(client, monkeypatch):
+    source_id = "craig-" + "a" * 64
+    queued = client.app.state.store.submit(
+        "queued-before-preparation",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "qwen-quality",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 2,
+        },
+    )
+    assert queued["status"] == "queued"
+
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(
+        manager,
+        "start",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("preparation must not start ahead of queued transcription")
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={"source_id": source_id, "profile_id": "qwen-quality"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
+        "recoverable": True,
+    }
+
+
+def test_synthetic_queue_does_not_block_profile_preparation(client, monkeypatch):
+    queued = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "synthetic-before-preparation"},
+        json=BODY,
+    )
+    assert queued.status_code == 200
+    assert queued.json()["status"] == "queued"
+
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(
+        manager,
+        "start",
+        lambda source_id, profile_id: {
+            "schema": "tda_profile_preparation_v1",
+            "state": "running",
+            "active": True,
+            "operation_id": "synthetic-does-not-block",
+            "source_id": source_id,
+            "profile_id": profile_id,
+            "engine": "qwen3",
+            "stage": "starting",
+            "title": "Iniciando preparação…",
+            "detail": "",
+            "sequence": 1,
+            "error_code": None,
+            "elapsed_seconds": 0.0,
+        },
+    )
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={
+            "source_id": "craig-" + "b" * 64,
+            "profile_id": "qwen-quality",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["operation_id"] == "synthetic-does-not-block"
 
 
 def test_api_lifecycle_result(client):

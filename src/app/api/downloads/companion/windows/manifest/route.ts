@@ -23,7 +23,13 @@ type CompanionManifestChannel = "stable" | "rc";
 function requestedChannel(request: Request): CompanionManifestChannel | null {
 	const url = new URL(request.url);
 	const channels = url.searchParams.getAll("channel");
-	const unexpected = Array.from(url.searchParams.keys()).some((key) => key !== "channel");
+	// Vercel Authentication/share links may append _vercel_share before the
+	// request reaches the application. It is transport metadata, not part of
+	// the manifest contract, so ignore only this documented platform key while
+	// keeping every other unexpected application query fail-closed.
+	const unexpected = Array.from(url.searchParams.keys()).some(
+		(key) => key !== "channel" && key !== "_vercel_share",
+	);
 	if (unexpected || channels.length > 1) return null;
 	const channel = channels[0] ?? "stable";
 	return channel === "stable" || channel === "rc" ? channel : null;

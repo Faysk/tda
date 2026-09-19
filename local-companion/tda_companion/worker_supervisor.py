@@ -13,13 +13,20 @@ from typing import Callable
 from .asr_runtime import current_whisper_worker
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import current_qwen_worker
-from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
+from .worker_protocol import (
+    MAX_LINE_BYTES,
+    WorkerCancelCommand,
+    WorkerMessage,
+    WorkerProtocolError,
+    WorkerRunCommand,
+)
 
 
 class WorkerProcessError(RuntimeError):
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, recoverable: bool = True):
         super().__init__(code)
         self.code = code
+        self.recoverable = recoverable
 
 
 @dataclass(frozen=True)
@@ -44,7 +51,7 @@ class WorkerSupervisor:
         command_factory: Callable[[], list[str]] = default_worker_command,
         startup_timeout: float = 10.0,
         heartbeat_timeout: float = 30.0,
-        cancel_grace: float = 3.0,
+        cancel_grace: float = 5.0,
         data_root: Path | None = None,
         models_root: Path | None = None,
         runtime_root: Path | None = None,
@@ -102,12 +109,17 @@ class WorkerSupervisor:
             except subprocess.TimeoutExpired:
                 pass
 
-    def _environment(self) -> dict[str, str]:
+    def _environment(
+        self,
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         environment = os.environ.copy()
         if self.data_root is not None:
             environment["TDA_WORKER_DATA_ROOT"] = str(self.data_root)
         if self.models_root is not None:
             environment["TDA_WORKER_MODELS_ROOT"] = str(self.models_root)
+        if overrides:
+            environment.update(overrides)
         return environment
 
     def _run_command(
@@ -118,6 +130,7 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         process_command: list[str] | None = None,
+        environment_overrides: dict[str, str] | None = None,
     ) -> WorkerOutcome:
         encoded_command = command.encode()
         executable_command = process_command or self.command_factory()
@@ -134,22 +147,34 @@ class WorkerSupervisor:
             bufsize=1,
             close_fds=True,
             creationflags=self._creationflags(),
-            env=self._environment(),
+            env=self._environment(environment_overrides),
         )
         assert process.stdin is not None
         assert process.stdout is not None
         assert process.stderr is not None
 
-        lines: queue.Queue[str | None] = queue.Queue()
+        stdout_overflow = object()
+        lines: queue.Queue[object] = queue.Queue()
+        stdout_done = threading.Event()
 
         def read_stdout() -> None:
             try:
-                for line in process.stdout:
+                while True:
+                    line = process.stdout.readline(MAX_LINE_BYTES + 1)
+                    if not line:
+                        break
+                    if len(line) > MAX_LINE_BYTES or not line.endswith("\n"):
+                        lines.put(stdout_overflow)
+                        return
                     lines.put(line)
             except (OSError, UnicodeError, ValueError):
                 pass
             finally:
+                # Queue EOF before publishing the done flag. Once stdout_done is
+                # visible, every preceding line (and the sentinel) is already
+                # available to the supervisor and cannot be lost to poll/empty race.
                 lines.put(None)
+                stdout_done.set()
 
         reader = threading.Thread(target=read_stdout, name="tda-worker-stdout", daemon=True)
         stderr_reader = threading.Thread(
@@ -176,30 +201,66 @@ class WorkerSupervisor:
             while terminal is None:
                 now = time.monotonic()
                 if is_cancelled is not None and is_cancelled() and not cancel_sent:
-                    process.stdin.write(
-                        WorkerCancelCommand(job_id=command.job_id, attempt=command.attempt).encode()
-                    )
-                    process.stdin.flush()
+                    try:
+                        process.stdin.write(
+                            WorkerCancelCommand(
+                                job_id=command.job_id,
+                                attempt=command.attempt,
+                            ).encode()
+                        )
+                        process.stdin.flush()
+                    except (BrokenPipeError, OSError, ValueError):
+                        # The child may have closed stdin after already producing a
+                        # terminal stdout message. Keep draining stdout instead of
+                        # turning a cancel-vs-exit race into a false worker failure.
+                        pass
                     cancel_sent = True
                     cancel_deadline = now + self.cancel_grace
 
                 if not ready and now - started > self.startup_timeout:
                     raise WorkerProcessError("WORKER_START_TIMEOUT")
-                if ready and now - last_message > self.heartbeat_timeout:
-                    raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
                 if cancel_deadline is not None and now > cancel_deadline:
-                    raise WorkerProcessError("WORKER_CANCEL_TIMEOUT")
+                    # Cancellation is a user-requested terminal state, not a worker
+                    # failure. Heavy native/CUDA code may not return to Python in
+                    # time to acknowledge stdin, so force-stop the isolated worker
+                    # after a short grace period and preserve truthful cancellation.
+                    self._stop_process(process)
+                    return WorkerOutcome(
+                        terminal="cancelled",
+                        payload={"stage": "forced_termination", "forced": True},
+                        returncode=process.returncode if process.returncode is not None else -1,
+                    )
+                # Once cancellation was accepted by the supervisor, heartbeat
+                # expiry must not race it into a false worker failure. Native/CUDA
+                # code can remain inside an uninterruptible call until the grace
+                # deadline, at which point the isolated process is force-stopped.
+                if ready and not cancel_sent and now - last_message > self.heartbeat_timeout:
+                    raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
 
                 try:
                     line = lines.get(timeout=0.1)
                 except queue.Empty:
-                    if process.poll() is not None and lines.empty():
+                    if (
+                        process.poll() is not None
+                        and stdout_done.is_set()
+                        and lines.empty()
+                    ):
                         break
                     continue
                 if line is None:
                     if process.poll() is not None:
                         break
                     continue
+                if line is stdout_overflow:
+                    raise WorkerProcessError(
+                        "WORKER_LINE_SIZE_INVALID",
+                        recoverable=False,
+                    )
+                if not isinstance(line, str):
+                    raise WorkerProcessError(
+                        "WORKER_PROTOCOL_INVALID",
+                        recoverable=False,
+                    )
 
                 try:
                     message = WorkerMessage.decode(
@@ -209,12 +270,17 @@ class WorkerSupervisor:
                         previous_seq=previous_seq,
                     )
                 except WorkerProtocolError as exc:
-                    raise WorkerProcessError(str(exc)) from None
+                    raise WorkerProcessError(
+                        str(exc),
+                        recoverable=False,
+                    ) from None
                 previous_seq = message.seq
                 last_message = time.monotonic()
 
                 if message.type == "ready":
                     ready = True
+                    if on_event is not None:
+                        on_event(message)
                 elif message.type == "progress":
                     on_progress(message)
                 elif message.type in {"stage", "event", "heartbeat"}:
@@ -222,7 +288,8 @@ class WorkerSupervisor:
                         on_event(message)
                 elif message.type == "error":
                     code = str(message.payload.get("code") or "WORKER_EXECUTION_FAILED")
-                    raise WorkerProcessError(code)
+                    recoverable = message.payload.get("recoverable", True)
+                    raise WorkerProcessError(code, recoverable=bool(recoverable))
                 elif message.type in {"result", "cancelled"}:
                     terminal = message
 
@@ -236,6 +303,12 @@ class WorkerSupervisor:
                 raise WorkerProcessError("WORKER_EXIT_TIMEOUT") from None
 
             if terminal is None:
+                if cancel_sent:
+                    return WorkerOutcome(
+                        terminal="cancelled",
+                        payload={"stage": "worker_exit_after_cancel", "forced": False},
+                        returncode=returncode,
+                    )
                 raise WorkerProcessError("WORKER_EXITED_WITHOUT_RESULT")
             if terminal.type == "result" and returncode != 0:
                 raise WorkerProcessError("WORKER_NONZERO_EXIT")
@@ -311,6 +384,7 @@ class WorkerSupervisor:
         worker_command.encode()
 
         runtime_command = None
+        runtime_environment: dict[str, str] | None = None
         if profile_id.startswith("whisper-"):
             if self.runtime_root is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNCONFIGURED")
@@ -318,6 +392,10 @@ class WorkerSupervisor:
             if worker is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
             runtime_command = [str(worker)]
+            runtime_environment = {
+                "TDA_ASR_RUNTIME_FAMILY": "whisper",
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
+            }
         elif profile_id.startswith("qwen-"):
             if self.runtime_root is None or self.state_root is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
@@ -339,6 +417,10 @@ class WorkerSupervisor:
             if worker is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
             runtime_command = [str(worker)]
+            runtime_environment = {
+                "TDA_ASR_RUNTIME_FAMILY": "qwen",
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
+            }
 
         return self._run_command(
             worker_command,
@@ -346,4 +428,5 @@ class WorkerSupervisor:
             on_event=on_event,
             is_cancelled=is_cancelled,
             process_command=runtime_command,
+            environment_overrides=runtime_environment,
         )

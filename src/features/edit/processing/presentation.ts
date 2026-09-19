@@ -2,15 +2,16 @@ import type {
 	BridgeErrorCode,
 	JobEvent,
 	JobStatus,
+	LocalJob,
 } from "./protocol";
 
 export const connectionHelp: Record<BridgeErrorCode, string> = {
 	unreachable:
 		"Não foi possível alcançar o serviço. Confira se ele está aberto neste computador e se este site tem permissão de acesso à rede local. O navegador não informa se a causa é conexão, origem ou permissão.",
 	timeout:
-		"O serviço não respondeu a tempo. Confira o aplicativo local e conecte novamente. Uma ação enviada pode ter sido recebida; verifique a fila antes de repetir.",
+		"O serviço local não respondeu a tempo. Confira o Companion e tente novamente. Uma ação enviada pode ter sido recebida; verifique a fila antes de repetir.",
 	unauthorized:
-		"Pareamento recusado ou revogado. Copie um token válido do aplicativo local e conecte novamente.",
+		"A sessão local expirou ou foi recusada. O TDA tentará criar uma nova sessão automaticamente; se necessário, abra o Companion e tente novamente.",
 	forbidden:
 		"O serviço recusou este acesso. Confira no aplicativo local se a origem exata deste site está autorizada.",
 	incompatible:
@@ -18,10 +19,42 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 	invalid_response:
 		"O serviço retornou dados inválidos para este contrato. Confira sua versão e consulte o suporte com o código invalid_response.",
 	conflict:
-		"O estado do trabalho mudou. Conecte novamente para consultar a fila antes de tentar outra ação.",
+		"O estado local mudou e esta ação não pôde ser aplicada. A conexão continua ativa; atualize a fila e confira o trabalho antes de repetir.",
 	service_error:
-		"O serviço não concluiu a solicitação. Confira o diagnóstico no aplicativo local e conecte novamente.",
+		"O Companion não concluiu esta solicitação. A conexão continua ativa; confira os eventos/diagnóstico local antes de repetir.",
 };
+export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
+	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
+	if (job.kind === "transcription.craig") return "Transcrição de sessão";
+	return job.kind;
+}
+
+export function presentJobError(code: string): string {
+	const known: Record<string, string> = {
+		AGENT_BUSY: "O Companion está ocupado com um processamento ou preparação local; aguarde a operação atual terminar.",
+		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
+		WORKER_START_TIMEOUT: "O worker local não iniciou dentro do tempo esperado.",
+		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
+		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
+		WORKER_RESULT_RUN_INVALID: "O run local falhou na validação de integridade.",
+		WORKER_RESULT_RUN_MISMATCH: "O run local não corresponde a este job e tentativa.",
+		WORKER_RESULT_INCOMPLETE: "O worker terminou sem concluir todas as unidades exigidas pela fila.",
+		WORKER_PROGRESS_GAP: "O worker informou progresso fora de ordem; o job foi interrompido para proteger o estado local.",
+		TRANSCRIPT_VALIDATION_FAILED: "O engine produziu uma transcrição que não passou pela validação estrutural.",
+		TRANSCRIPTION_SOURCE_HASH_MISMATCH: "A transcrição não corresponde à fonte Craig esperada.",
+		RESULT_ARTIFACT_UNAVAILABLE: "O run concluído está registrado, mas o artefato imutável não está mais disponível no disco.",
+		RESULT_ARTIFACT_MISMATCH: "O artefato local não corresponde mais à identidade registrada para este resultado.",
+		CRAIG_MANIFEST_INVALID: "A fonte Craig local está inválida; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_HASH_MISMATCH: "Uma faixa Craig foi alterada; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH: "Uma faixa Craig mudou de tamanho; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_METADATA_MISMATCH: "Uma faixa Craig mudou no disco; reimporte o ZIP original para reparar a fonte local.",
+		CRAIG_STAGING_REPAIR_FAILED: "O TDA tentou reparar a fonte Craig local, mas não conseguiu concluir a troca segura.",
+		QWEN_ASR_GPU_MEMORY_EXHAUSTED: "O Qwen ficou sem VRAM durante a execução.",
+		WHISPER_MODEL_LOAD_FAILED: "O Whisper não conseguiu carregar o modelo local.",
+	};
+	return known[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
+}
+
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
 	running: "Processando",
@@ -33,12 +66,14 @@ export const jobLabels: Record<JobStatus, string> = {
 export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
 	runtime_validation: "Validando runtime e gate físico",
+	source_validation: "Validando sessão local",
 	fixture: "Ensaio sintético",
 	checking_model: "Verificando modelo",
 	downloading_model: "Baixando modelo",
 	model_prepare: "Baixando/verificando modelo local",
 	model_load: "Carregando modelo na GPU",
 	alignment: "Alinhando palavras e timestamps",
+	energy_analysis: "Analisando energia entre faixas",
 	cross_track_dedup: "Removendo falas duplicadas",
 	merge_timeline: "Montando linha do tempo",
 	turn_building: "Organizando turnos de fala",
@@ -51,8 +86,10 @@ export const stageLabels: Record<string, string> = {
 	noise_cleanup: "Limpeza de ruído",
 	resuming: "Retomando checkpoint",
 	transcribing: "Transcrição",
+	transcription: "Transcrição",
 	consolidating: "Consolidação",
 	complete: "Resultado preparado",
+	failed: "Falha na execução",
 	cancelled: "Cancelado",
 	interrupted: "Execução interrompida",
 };
@@ -126,6 +163,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: `Qwen concluiu uma janela de áudio${track !== null ? ` da faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
 			};
 		}
+		case "ASR_CHECKPOINT_FAST_PATH":
+			return {
+				title: "Todas as faixas foram recuperadas de checkpoints compatíveis.",
+				detail: "O modelo não precisou ser carregado novamente.",
+			};
 		case "ASR_CHECKPOINT_REUSED":
 			return { title: "Checkpoint local reutilizado; esta faixa não precisa ser refeita." };
 		case "ASR_CHECKPOINT_SAVED":
@@ -144,6 +186,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						? `Unidade ${completed} de ${total} concluída.`
 						: "Unidade de trabalho concluída.",
 				detail: choose(genericProgressJokes, event.seq),
+			};
+		case "SOURCE_VALIDATED":
+			return {
+				title: "Sessão local validada.",
+				detail: "Manifesto, faixas e tamanhos conferidos; iniciando o pipeline de ASR.",
 			};
 		case "WORKER_DISPATCH_PREPARING":
 			return {
@@ -196,6 +243,33 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: "Processamento concluído com sucesso.",
 				detail: "Sobreviveu todo mundo. Inclusive o PC.",
 			};
+		case "SUCCEEDED_RECOVERED":
+		case "JOB_RECOVERED_FROM_IMMUTABLE_RUN":
+			return {
+				title: "Resultado completo recuperado após reinício do Agent.",
+				detail: "O run imutável já estava íntegro no disco; nenhuma retranscrição foi necessária.",
+			};
+		case "COMPATIBILITY_MIRROR_WRITE_FAILED":
+			return {
+				title: "Run concluído; o espelho legado não pôde ser atualizado.",
+				detail: "O resultado imutável continua válido e é a fonte de verdade.",
+			};
+		case "INCOMPLETE_RUNS_CLEANED": {
+			const count = numberData(event, "count");
+			return {
+				title:
+					count === 1
+						? "Um run incompleto de uma execução interrompida foi limpo."
+						: count !== null
+							? `${count} runs incompletos de execuções interrompidas foram limpos.`
+							: "Runs incompletos de uma execução interrompida foram limpos.",
+				detail: "Runs com commit válido nunca são removidos por esta limpeza.",
+			};
+		}
+		case "WORKER_RESULT_RUN_INVALID":
+		case "WORKER_RESULT_RUN_MISMATCH":
+		case "TRANSCRIPTION_SOURCE_HASH_MISMATCH":
+			return { title: presentJobError(event.code) };
 		case "CANCELLED":
 			return { title: "Processamento cancelado pelo operador." };
 		case "INTERRUPTED":

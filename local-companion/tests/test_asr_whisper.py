@@ -5,9 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
+import tda_companion.asr_whisper as asr_whisper
 from tda_companion.asr_models import get_profile, model_path, write_install_marker
 from tda_companion.asr_whisper import (
     WhisperRuntimeError,
+    _whisper_runtime_fingerprint,
     prepare_whisper_model,
     resolve_whisper_plan,
     transcribe_craig_package,
@@ -24,6 +26,10 @@ def _install_whisper_fixture(models_root: Path, profile_id: str = "whisper-turbo
         (directory / name).write_bytes(f"fixture:{name}".encode("utf-8"))
     write_install_marker(directory, profile)
     return directory
+
+
+def test_whisper_checkpoint_pipeline_revision_is_explicit():
+    assert "checkpoint=whisper-track-v2" in _whisper_runtime_fingerprint()
 
 
 def test_whisper_plan_prefers_float16_and_only_uses_cpu_when_requested():
@@ -86,6 +92,52 @@ def test_model_prepare_uses_tda_marker_and_no_fake_percent(tmp_path: Path):
     assert download["profile"] == profile.id
     assert int(download["downloaded_bytes"]) > 0
     assert all("percent" not in item for item in reports)
+
+
+def test_whisper_reports_runtime_validation_before_cuda_probe(monkeypatch, tmp_path: Path):
+    reports: list[dict] = []
+    package_root = tmp_path / "Data" / "staging" / "runtime-stage"
+    package_root.mkdir(parents=True)
+    package = CraigPackage(
+        schema_version="tda_craig_package_v1",
+        source_zip="fixture.zip",
+        source_sha256="a" * 64,
+        recording_id="runtime-stage",
+        guild=None,
+        channel=None,
+        requester=None,
+        start_time=None,
+        tracks=(),
+        info_present=False,
+        raw_dat_present=False,
+    )
+
+    def resolve(*_args, **_kwargs):
+        assert reports[-1] == {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": "whisper-turbo",
+        }
+        raise WhisperRuntimeError("TEST_STOP_AFTER_RUNTIME_VALIDATION")
+
+    monkeypatch.setattr(asr_whisper, "resolve_whisper_plan", resolve)
+
+    with pytest.raises(WhisperRuntimeError, match="TEST_STOP_AFTER_RUNTIME_VALIDATION"):
+        transcribe_craig_package(
+            package,
+            package_root,
+            tmp_path / "Models",
+            profile_id="whisper-turbo",
+            report=reports.append,
+        )
+
+    assert reports == [
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": "whisper-turbo",
+        }
+    ]
 
 
 def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Path):
@@ -200,6 +252,31 @@ def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Pat
         }
         for item in reports
     )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_STARTED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        for item in reports
+    )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "WHISPER_SEGMENT_TRANSCRIBED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        and item.get("segment") == 1
+        for item in reports
+    )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_COMPLETED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        for item in reports
+    )
     stages = [item.get("stage") for item in reports if item.get("type") == "stage"]
     assert stages[-4:] == ["cross_track_dedup", "merge_timeline", "turn_building", "result_prepare"]
 
@@ -246,7 +323,8 @@ def test_craig_adapter_rejects_track_escape(tmp_path: Path):
         )
 
 
-def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
+def test_craig_whisper_reuses_exact_track_checkpoint(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.1.3")
     models_root = tmp_path / "Models"
     _install_whisper_fixture(models_root)
     package_root = tmp_path / "Data" / "staging" / "fixture-source"
@@ -277,7 +355,7 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         info_present=False,
         raw_dat_present=False,
     )
-    calls = {"transcribe": 0}
+    calls = {"transcribe": 0, "load": 0}
 
     class FakeModel:
         def transcribe(self, _path: str, **_options):
@@ -289,6 +367,7 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
             return iter(segments), SimpleNamespace(duration=2.0)
 
     def loader(_path, plan):
+        calls["load"] += 1
         return FakeModel(), plan.compute_type, False
 
     common = {
@@ -316,10 +395,26 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
     )
 
     assert calls["transcribe"] == 1
+    assert calls["load"] == 1
     assert second.as_dict()["tracks"] == first.as_dict()["tracks"]
     assert second.as_dict()["turns"] == first.as_dict()["turns"]
     assert any(item.get("code") == "ASR_CHECKPOINT_SAVED" for item in first_reports)
     assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in second_reports)
+    assert any(item.get("code") == "ASR_CHECKPOINT_FAST_PATH" for item in second_reports)
+    assert "model_load" not in [
+        item.get("stage") for item in second_reports if item.get("type") == "stage"
+    ]
+
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.1.4")
+    transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        report=lambda _item: None,
+        **common,
+    )
+    assert calls["transcribe"] == 2
+    assert calls["load"] == 2
 
     transcribe_craig_package(
         package,
@@ -331,4 +426,5 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         cuda_status={"available": True, "supported_compute_types": ["float16"]},
         model_loader=loader,
     )
-    assert calls["transcribe"] == 2
+    assert calls["transcribe"] == 3
+    assert calls["load"] == 3

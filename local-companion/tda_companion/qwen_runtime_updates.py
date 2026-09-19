@@ -94,8 +94,8 @@ def qwen_runtime_update_available(
     current_version: str | None,
     manifest: QwenRuntimeDownloadManifest,
 ) -> bool:
-    # Companion 0.3.5 cannot install an obsolete Stable when the compatible
-    # 1.0.2+ worker is still only available through the dedicated RC gate.
+    # Never install a Stable worker below the Companion's current minimum
+    # compatibility. A verified RC may be the only acceptable build during rollout.
     if not qwen_runtime_version_compatible(manifest.version):
         return False
     if current_version is None:

@@ -41,6 +41,7 @@ class CraigTrack:
     size_bytes: int
     sha256: str
     identity: CraigIdentity | None
+    staged_mtime_ns: int | None = None
     timeline_offset_seconds: float = 0.0
 
 
@@ -245,12 +246,36 @@ def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int
         return tracks, info_member, raw_present
 
 
-def ingest_craig_zip(source_zip: Path, destination: Path) -> CraigPackage:
-    """Safely materialize only FLAC tracks and bounded metadata from a Craig ZIP."""
+def ingest_craig_zip(
+    source_zip: Path,
+    destination: Path,
+    *,
+    source_sha256: str | None = None,
+    source_name: str | None = None,
+) -> CraigPackage:
+    """Safely materialize only FLAC tracks and bounded metadata from a Craig ZIP.
+
+    Callers that already hashed an immutable local snapshot while streaming it may
+    pass that digest to avoid re-reading the full archive before extraction.
+    """
     source_zip = source_zip.resolve()
     destination = destination.resolve()
     tracks, info_member, raw_present = inspect_craig_zip(source_zip)
-    source_sha = _sha256_file(source_zip)
+    if source_sha256 is None:
+        source_sha = _sha256_file(source_zip)
+    else:
+        source_sha = source_sha256.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", source_sha):
+            raise CraigPackageError("CRAIG_SOURCE_HASH_INVALID")
+    logical_source_name = source_name or source_zip.name
+    if (
+        not logical_source_name
+        or len(logical_source_name) > 512
+        or Path(logical_source_name).name != logical_source_name
+        or "/" in logical_source_name
+        or "\\" in logical_source_name
+    ):
+        raise CraigPackageError("CRAIG_SOURCE_NAME_INVALID")
     staging = destination.parent / f".{destination.name}-{uuid4().hex}.partial"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True, exist_ok=False)
@@ -299,12 +324,13 @@ def ingest_craig_zip(source_zip: Path, destination: Path) -> CraigPackage:
                         size_bytes=member.file_size,
                         sha256=digest,
                         identity=identity,
+                        staged_mtime_ns=target.stat().st_mtime_ns,
                     )
                 )
 
         package = CraigPackage(
             schema_version="tda_craig_package_v1",
-            source_zip=source_zip.name,
+            source_zip=logical_source_name,
             source_sha256=source_sha,
             recording_id=info_value.get("recording_id") if isinstance(info_value.get("recording_id"), str) else None,
             guild=info_value.get("guild") if isinstance(info_value.get("guild"), str) else None,
@@ -322,7 +348,15 @@ def ingest_craig_zip(source_zip: Path, destination: Path) -> CraigPackage:
         )
         if destination.exists():
             raise CraigPackageError("CRAIG_DESTINATION_EXISTS")
-        os.replace(staging, destination)
+        try:
+            os.replace(staging, destination)
+        except OSError as exc:
+            # Another ingest of the same content may win after the exists()
+            # check but before the atomic promotion. Surface that as the normal
+            # content-addressed reuse race instead of a generic storage failure.
+            if destination.is_dir():
+                raise CraigPackageError("CRAIG_DESTINATION_EXISTS") from exc
+            raise
         return package
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)

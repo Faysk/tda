@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from tda_companion.asr_models import get_profile, model_path, write_install_marker
+import tda_companion.qwen_physical_gate as gate_module
+import tda_companion.qwen_runtime as qwen_runtime_module
+from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
 from tda_companion.qwen_acceptance import ALIGNER_PROFILE
 from tda_companion.qwen_physical_gate import (
     MIN_GATE_AUDIO_SECONDS,
@@ -219,6 +221,89 @@ def test_gate_fast_path_trusts_receipt_and_full_revalidation_detects_tamper(tmp_
     assert lightweight_model["status"] == "stale"
     assert lightweight_model["reason"] == "QWEN_GATE_BINDING_CHANGED"
 
+def test_v2_gate_reseals_metadata_only_runtime_drift_once(monkeypatch, tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    before_gate = json.loads(gate_path.read_text(encoding="utf-8"))
+
+    worker = runtime / "qwen" / MIN_COMPATIBLE_QWEN_RUNTIME_VERSION / "TDAQwenWorker.exe"
+    before = worker.stat()
+    os.utime(
+        worker,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    inspected = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+
+    assert inspected["ready"] is True
+    resealed = json.loads(gate_path.read_text(encoding="utf-8"))
+    assert (
+        resealed["runtime"]["worker_metadata_sha256"]
+        != before_gate["runtime"]["worker_metadata_sha256"]
+    )
+    assert resealed["runtime"]["worker_sha256"] == before_gate["runtime"]["worker_sha256"]
+
+    monkeypatch.setattr(
+        qwen_runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("resealed Qwen gate must return to metadata-only fast path")
+        ),
+    )
+    second = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+    assert second["ready"] is True
+
+
+def test_v2_gate_model_metadata_drift_does_not_rehash_unchanged_components(
+    monkeypatch,
+    tmp_path: Path,
+):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+
+    model = model_path(models, "qwen-fast") / "model.safetensors"
+    before = model.stat()
+    os.utime(
+        model,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    monkeypatch.setattr(
+        qwen_runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("unchanged runtime must not be deep-hashed for model drift")
+        ),
+    )
+    monkeypatch.setattr(
+        gate_module,
+        "verify_and_upgrade_model_install",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("model already verified by metadata-drift inspection")
+        ),
+    )
+
+    inspected = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+
+    assert inspected["ready"] is True
+
+
 def test_deep_verification_detects_same_metadata_worker_tamper(tmp_path: Path):
     state, runtime, models = _prepared(tmp_path)
     record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
@@ -294,7 +379,7 @@ def test_gate_can_still_require_an_explicit_gpu_name(tmp_path: Path):
         )
 
 
-def test_legacy_gate_is_upgraded_to_metadata_seal_without_full_rehash(tmp_path: Path):
+def test_legacy_gate_is_deep_verified_once_and_upgrades_model_markers(tmp_path: Path):
     state, runtime, models = _prepared(tmp_path)
     record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
     gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
@@ -324,6 +409,12 @@ def test_legacy_gate_is_upgraded_to_metadata_seal_without_full_rehash(tmp_path: 
     ).hexdigest()
     gate_path.write_text(json.dumps(persisted, separators=(",", ":")), encoding="utf-8")
 
+    for profile in (get_profile("qwen-fast"), ALIGNER_PROFILE):
+        marker_path = model_path(models, profile) / MODEL_MARKER
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        marker.pop("metadata_sha256")
+        marker_path.write_text(json.dumps(marker, separators=(",", ":")), encoding="utf-8")
+
     migrated = inspect_qwen_physical_gate(state, runtime, models, profile_id="qwen-fast")
     assert migrated["ready"] is True
     upgraded = json.loads(gate_path.read_text(encoding="utf-8"))
@@ -331,3 +422,61 @@ def test_legacy_gate_is_upgraded_to_metadata_seal_without_full_rehash(tmp_path: 
     assert "worker_metadata_sha256" in upgraded["runtime"]
     assert "metadata_sha256" in upgraded["model"]
     assert "metadata_sha256" in upgraded["aligner"]
+    for profile in (get_profile("qwen-fast"), ALIGNER_PROFILE):
+        marker = json.loads(
+            (model_path(models, profile) / MODEL_MARKER).read_text(encoding="utf-8")
+        )
+        assert len(marker["metadata_sha256"]) == 64
+
+
+def test_legacy_gate_refuses_to_promote_tampered_legacy_model(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    persisted = json.loads(gate_path.read_text(encoding="utf-8"))
+
+    persisted["schema"] = "tda_qwen_physical_gate_v1"
+    for section, metadata_key in (
+        ("runtime", "worker_metadata_sha256"),
+        ("model", "metadata_sha256"),
+        ("aligner", "metadata_sha256"),
+    ):
+        persisted[section].pop(metadata_key)
+    legacy_binding = {
+        "schema": "tda_qwen_physical_gate_v1",
+        "profile_id": "qwen-fast",
+        "runtime": persisted["runtime"],
+        "model": persisted["model"],
+        "aligner": persisted["aligner"],
+    }
+    persisted["binding_sha256"] = hashlib.sha256(
+        json.dumps(
+            legacy_binding,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    gate_path.write_text(json.dumps(persisted, separators=(",", ":")), encoding="utf-8")
+
+    marker_path = model_path(models, "qwen-fast") / MODEL_MARKER
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker.pop("metadata_sha256")
+    marker_path.write_text(json.dumps(marker, separators=(",", ":")), encoding="utf-8")
+    model_path_file = model_path(models, "qwen-fast") / "model.safetensors"
+    model_path_file.write_bytes(model_path_file.read_bytes() + b"-tampered-before-upgrade")
+
+    inspected = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+
+    assert inspected["ready"] is False
+    assert inspected["status"] == "stale"
+    assert inspected["reason"] == "QWEN_GATE_BINDING_CHANGED"
+    after = json.loads(gate_path.read_text(encoding="utf-8"))
+    assert after["schema"] == "tda_qwen_physical_gate_v1"
+    marker_after = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert "metadata_sha256" not in marker_after

@@ -22,6 +22,7 @@ export type ProcessingState = Readonly<{
 	events: readonly JobEvent[];
 	observedJobId: string | null;
 	error: BridgeErrorCode | null;
+	serverError: string | null;
 	checkedAt: string | null;
 	result: ResultSummary | null;
 	uncertainSubmission: boolean;
@@ -37,6 +38,7 @@ const initial: ProcessingState = {
 	events: [],
 	observedJobId: null,
 	error: null,
+	serverError: null,
 	checkedAt: null,
 	result: null,
 	uncertainSubmission: false,
@@ -66,10 +68,14 @@ export class ProcessingController {
 		for (const listener of this.#listeners) listener();
 	}
 
-	disconnect = () => {
+	private resetRequest() {
 		this.#epoch++;
 		this.#request.abort();
 		this.#request = new AbortController();
+	}
+
+	disconnect = () => {
+		this.resetRequest();
 		this.bridge.disconnect();
 		// Retain the idempotency key in memory after an ambiguous submission.
 		this.update({
@@ -89,20 +95,38 @@ export class ProcessingController {
 		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
-		this.update({ busy: true, error: null });
+		this.update({ busy: true, error: null, serverError: null });
 
 		try {
 			await action(signal);
 		} catch (error) {
 			if (epoch === this.#epoch) {
-				this.bridge.disconnect();
-				this.update({
-					...initial,
-					connection: "error",
-					busy: true,
-					error: error instanceof BridgeError ? error.code : "service_error",
-					uncertainSubmission: this.#submissionKey !== null,
-				});
+				const code =
+					error instanceof BridgeError ? error.code : "service_error";
+				const bridgeFailure = [
+					"unreachable",
+					"unauthorized",
+					"forbidden",
+					"incompatible",
+					"invalid_response",
+					"timeout",
+				].includes(code);
+				if (["forbidden", "incompatible"].includes(code))
+					this.bridge.disconnect();
+				const serverError =
+					error instanceof BridgeError ? error.serverCode : null;
+				if (bridgeFailure) {
+					this.update({
+						...initial,
+						connection: "error",
+						busy: true,
+						error: code,
+						serverError,
+						uncertainSubmission: this.#submissionKey !== null,
+					});
+				} else {
+					this.update({ error: code, serverError });
+				}
 			}
 		} finally {
 			if (epoch === this.#epoch) this.update({ busy: false });
@@ -114,9 +138,17 @@ export class ProcessingController {
 		const health = await this.bridge.health(signal);
 		const capabilities = await this.bridge.capabilities(signal);
 		const jobs = await this.bridge.jobs(signal);
+		const nextQueued =
+			jobs
+				.filter((job) => job.status === "queued")
+				.sort(
+					(left, right) =>
+						new Date(left.updated_at).getTime() -
+						new Date(right.updated_at).getTime(),
+				)[0] ?? null;
 		const observedJob =
 			jobs.find((job) => job.status === "running") ??
-			jobs.find((job) => job.status === "queued") ??
+			nextQueued ??
 			jobs[0] ??
 			null;
 
@@ -142,21 +174,46 @@ export class ProcessingController {
 			});
 	}
 
-	connect = async (token: string) => {
+	connect = async (legacyToken?: string) => {
 		this.disconnect();
 		this.update({ connection: "connecting" });
 		await this.run(async (signal) => {
-			// Never send a credential before confirming the public protocol version.
-			await this.bridge.health(signal);
+			if (legacyToken) {
+				// Compatibility path for tests/support tooling only. Product UI uses
+				// automatic browser sessions and never asks the user to copy a token.
+				await this.bridge.health(signal);
+				if (signal.aborted) return;
+				this.bridge.pair(legacyToken);
+			} else {
+				await this.bridge.bootstrap(signal);
+			}
 			if (signal.aborted) return;
-			this.bridge.pair(token);
+			await this.read(signal);
+		});
+	};
+
+	private renewBrowserSession = async () => {
+		this.resetRequest();
+		this.update({ connection: "connecting" });
+		await this.run(async (signal) => {
+			// Bootstrap is public. Keep the previous bearer alive until pair() swaps in
+			// the replacement so sibling local operations never observe a false
+			// unpaired gap during normal session renewal.
+			await this.bridge.bootstrap(signal);
+			if (signal.aborted) return;
 			await this.read(signal);
 		});
 	};
 
 	refresh = async () => {
-		if (this.#state.connection === "connected")
-			await this.run((signal) => this.read(signal));
+		if (this.#state.connection !== "connected") return;
+		await this.run((signal) => this.read(signal));
+		// Browser sessions are deliberately ephemeral. Re-read through the public
+		// snapshot after the awaited operation because run() may have transitioned
+		// the controller from connected to error.
+		const current = this.snapshot();
+		if (current.connection === "error" && current.error === "unauthorized")
+			await this.renewBrowserSession();
 	};
 
 	lifecycle = async (action: "pause" | "resume") => {

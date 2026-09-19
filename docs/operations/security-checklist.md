@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: security/operations
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-19
 
 Use antes de abrir uma nova superfície, publicar release ou alterar integração sensível.
 
@@ -72,6 +72,7 @@ Use antes de abrir uma nova superfície, publicar release ou alterar integraçã
 - [ ] key externa armazenada hashed quando aplicável;
 - [ ] revogação/expiração possível;
 - [ ] Actions de terceiros usam SHA imutável de 40 caracteres;
+- [ ] CodeQL analisa TypeScript/JavaScript e Python em PR/main, com action pinada por SHA;
 - [ ] RC distribuído possui attestation de provenance para os bytes publicados;
 - [ ] MSI recebe Authenticode antes da criação do candidate manifest/RC quando o certificado de code signing estiver provisionado;
 - [ ] assinatura nunca é aplicada depois do teste físico, pois isso alteraria os bytes aceitos.

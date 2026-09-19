@@ -86,6 +86,23 @@ describe("Companion Windows manifest route", () => {
     });
   });
 
+  it("ignores Vercel share transport metadata without weakening channel validation", async () => {
+    mockGithubReleases();
+
+    const response = await GET(
+      new Request(
+        "https://dnd.faysk.dev/api/downloads/companion/windows/manifest?channel=rc&_vercel_share=temporary-preview-token",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      channel: "rc",
+      version: "0.3.10",
+      tag: "companion-rc-v0.3.10-0123456789ab",
+    });
+  });
+
   it.each([
     "?channel=nightly",
     "?channel=rc&channel=stable",

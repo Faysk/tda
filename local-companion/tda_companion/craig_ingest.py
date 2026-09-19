@@ -1,20 +1,40 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
+import re
+import shutil
+import threading
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 from uuid import uuid4
 
 from fastapi import Request
 
 from .craig import CraigPackage, CraigPackageError, ingest_craig_zip
 from .craig_runtime import load_craig_package
+from .transcription_runs import (
+    TranscriptionRunError,
+    list_runs,
+    load_run,
+    migrate_legacy_transcript,
+    write_compatibility_mirror,
+)
 
 CRAIG_UPLOAD_SCHEMA = "tda_craig_ingest_v1"
 CRAIG_UPLOAD_MAX_BYTES = 64 * 1024**3
 CRAIG_UPLOAD_MEDIA_TYPES = frozenset({"application/zip", "application/octet-stream"})
 _COPY_CHUNK = 1024 * 1024
+_REPAIR_SWAP_LOCK = threading.Lock()
+_REPAIR_BACKUP = re.compile(
+    r"^\.(?P<source_id>craig-[0-9a-f]{64})\.backup-[0-9a-f]{32}$"
+)
+_REPAIR_PARTIAL = re.compile(
+    r"^\.(?P<source_id>craig-[0-9a-f]{64})\.repair-[0-9a-f]{32}\.partial$"
+)
 
 
 @dataclass(frozen=True)
@@ -71,7 +91,11 @@ def _reuse_existing(
     if not package_root.exists():
         return None
     try:
-        package = load_craig_package(package_root, verify_tracks=True)
+        package = load_craig_package(package_root, verify_tracks=False)
+        if any(track.staged_mtime_ns is None for track in package.tracks):
+            # Legacy staged packages predate the metadata seal. Pay the full
+            # verification cost once; the loader upgrades the seal on success.
+            package = load_craig_package(package_root, verify_tracks=True)
     except CraigPackageError as exc:
         raise CraigUploadError("CRAIG_STAGING_EXISTING_INVALID", 409, True) from exc
     if package.source_sha256 != source_sha256:
@@ -86,6 +110,281 @@ def _reuse_existing(
     )
 
 
+def _remove_path(path: Path) -> None:
+    try:
+        if path.is_symlink() or path.is_file():
+            path.unlink(missing_ok=True)
+        elif path.is_dir():
+            shutil.rmtree(path)
+    except OSError:
+        pass
+
+
+def recover_interrupted_craig_repairs(
+    data_root: Path,
+    *,
+    source_gate: Any | None = None,
+) -> list[str]:
+    staging_root = data_root.resolve() / "staging"
+    if not staging_root.is_dir():
+        return []
+
+    gate = source_gate if source_gate is not None else nullcontext()
+    recovered: list[str] = []
+    with gate:
+        with _REPAIR_SWAP_LOCK:
+            try:
+                entries = list(staging_root.iterdir())
+            except OSError:
+                return []
+
+            backups: dict[str, list[Path]] = {}
+            partials: dict[str, list[Path]] = {}
+            for candidate in entries:
+                backup = _REPAIR_BACKUP.fullmatch(candidate.name)
+                if backup is not None:
+                    backups.setdefault(backup.group("source_id"), []).append(candidate)
+                    continue
+                partial = _REPAIR_PARTIAL.fullmatch(candidate.name)
+                if partial is not None:
+                    partials.setdefault(partial.group("source_id"), []).append(candidate)
+
+            source_ids = set(backups) | set(partials)
+            for source_id in source_ids:
+                candidates = backups.get(source_id, [])
+                replacements = partials.get(source_id, [])
+                existing = staging_root / source_id
+                if existing.is_symlink():
+                    continue
+
+                expected_sha256 = source_id.removeprefix("craig-")
+                if existing.exists():
+                    try:
+                        current = load_craig_package(existing, verify_tracks=True)
+                        existing_valid = current.source_sha256 == expected_sha256
+                    except CraigPackageError:
+                        existing_valid = False
+                    if existing_valid:
+                        for candidate in candidates:
+                            _remove_path(candidate)
+                        for candidate in replacements:
+                            _remove_path(candidate)
+                        continue
+
+                    displaced = (
+                        staging_root / f".{source_id}.backup-{uuid4().hex}"
+                    )
+                    try:
+                        os.replace(existing, displaced)
+                    except OSError:
+                        # Do not destroy leftovers if the invalid current source
+                        # could not be moved out of the way safely.
+                        continue
+                    candidates.append(displaced)
+
+                def modified(path: Path) -> int:
+                    try:
+                        return path.stat().st_mtime_ns
+                    except OSError:
+                        return -1
+
+                # A fully materialized repair replacement is preferable to the
+                # backup because the backup may be the corrupt source that caused
+                # the repair in the first place. Prove replacement bytes before
+                # promoting it.
+                promoted = False
+                for replacement in sorted(replacements, key=modified, reverse=True):
+                    if replacement.is_symlink() or not replacement.is_dir():
+                        continue
+                    try:
+                        package = load_craig_package(replacement, verify_tracks=True)
+                    except CraigPackageError:
+                        continue
+                    if package.source_sha256 != expected_sha256:
+                        continue
+                    try:
+                        os.replace(replacement, existing)
+                    except OSError:
+                        continue
+                    recovered.append(source_id)
+                    promoted = True
+                    break
+
+                if not promoted:
+                    ordered = sorted(candidates, key=modified, reverse=True)
+                    verified_backups: list[Path] = []
+                    fallback_backups: list[Path] = []
+                    for candidate in ordered:
+                        if candidate.is_symlink() or not candidate.is_dir():
+                            continue
+                        try:
+                            package = load_craig_package(candidate, verify_tracks=True)
+                        except CraigPackageError:
+                            fallback_backups.append(candidate)
+                            continue
+                        if package.source_sha256 == expected_sha256:
+                            verified_backups.append(candidate)
+                        else:
+                            fallback_backups.append(candidate)
+
+                    for candidate in verified_backups + fallback_backups:
+                        try:
+                            os.replace(candidate, existing)
+                        except OSError:
+                            continue
+                        recovered.append(source_id)
+                        promoted = True
+                        break
+
+                if promoted:
+                    for candidate in candidates:
+                        _remove_path(candidate)
+                    for candidate in replacements:
+                        if candidate != existing:
+                            _remove_path(candidate)
+                else:
+                    for candidate in replacements:
+                        _remove_path(candidate)
+
+    return recovered
+
+
+def _copy_run_history(
+    existing: Path,
+    replacement: Path,
+    *,
+    source_id: str,
+    source_sha256: str,
+) -> None:
+    # Older Companion versions may have only the root transcript.json. Promote
+    # a valid legacy result before snapshotting run history so a source repair
+    # never destroys the user's last completed transcription.
+    migrate_legacy_transcript(
+        existing,
+        source_id=source_id,
+        source_sha256=source_sha256,
+    )
+    runs = list_runs(existing, verify_content=True)
+    if not runs:
+        return
+    target = replacement / "runs"
+    target.mkdir(parents=True, exist_ok=True)
+    for summary in runs:
+        run_id = str(summary["run_id"])
+        try:
+            manifest = load_run(existing, run_id, verify_content=True)
+        except TranscriptionRunError:
+            continue
+        if manifest.get("source_sha256") != source_sha256:
+            continue
+        source = existing / "runs" / run_id
+        destination = target / run_id
+        if source.is_symlink() or not source.is_dir():
+            continue
+        shutil.copytree(source, destination)
+
+
+def _refresh_compatibility_mirror(package_root: Path) -> None:
+    runs = list_runs(package_root, verify_content=True)
+    if not runs:
+        return
+    try:
+        write_compatibility_mirror(package_root, str(runs[0]["run_id"]))
+    except (OSError, TranscriptionRunError):
+        pass
+
+
+def _repair_existing_staging(
+    snapshot: Path,
+    *,
+    staging_root: Path,
+    source_id: str,
+    source_sha256: str,
+    source_name: str | None,
+    size_bytes: int,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
+) -> dict[str, object]:
+    if source_running is not None and source_running(source_id):
+        raise CraigUploadError(
+            "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            409,
+            True,
+        )
+
+    existing = staging_root / source_id
+    replacement = staging_root / f".{source_id}.repair-{uuid4().hex}.partial"
+    backup = staging_root / f".{source_id}.backup-{uuid4().hex}"
+    try:
+        package = ingest_craig_zip(
+            snapshot,
+            replacement,
+            source_sha256=source_sha256,
+            source_name=source_name or f"{source_id}.zip",
+        )
+        gate = source_gate if source_gate is not None else nullcontext()
+        with gate:
+            if source_running is not None and source_running(source_id):
+                raise CraigUploadError(
+                    "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+                    409,
+                    True,
+                )
+            with _REPAIR_SWAP_LOCK:
+                try:
+                    valid = _reuse_existing(
+                        staging_root,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                        size_bytes=size_bytes,
+                        source_name=source_name,
+                    )
+                except CraigUploadError as exc:
+                    if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
+                        raise
+                    valid = None
+                if valid is not None:
+                    return valid
+
+                # Preserve immutable runs only after source ownership is stable.
+                # Holding source_gate here prevents a new worker claim while we
+                # snapshot the run history immediately before the directory swap.
+                if existing.is_dir() and not existing.is_symlink():
+                    _copy_run_history(
+                        existing,
+                        replacement,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                    )
+
+                if not existing.exists() and not existing.is_symlink():
+                    os.replace(replacement, existing)
+                else:
+                    os.replace(existing, backup)
+                    try:
+                        os.replace(replacement, existing)
+                    except BaseException:
+                        os.replace(backup, existing)
+                        raise
+
+        _refresh_compatibility_mirror(existing)
+        _remove_path(backup)
+        return _summary(
+            package,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            size_bytes=size_bytes,
+            reused=False,
+            source_name=source_name,
+        )
+    except CraigUploadError:
+        raise
+    except (CraigPackageError, OSError, shutil.Error) as exc:
+        raise CraigUploadError("CRAIG_STAGING_REPAIR_FAILED", 503, True) from exc
+    finally:
+        _remove_path(replacement)
+
+
 def _finish_snapshot_ingest(
     snapshot: Path,
     *,
@@ -93,38 +392,74 @@ def _finish_snapshot_ingest(
     source_sha256: str,
     size_bytes: int,
     source_name: str | None,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
 ) -> dict[str, object]:
     uploads_root = data_root / "uploads"
     staging_root = data_root / "staging"
     source_id = f"craig-{source_sha256}"
-    existing = _reuse_existing(
-        staging_root,
-        source_id=source_id,
-        source_sha256=source_sha256,
-        size_bytes=size_bytes,
-        source_name=source_name,
-    )
+    try:
+        existing = _reuse_existing(
+            staging_root,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            size_bytes=size_bytes,
+            source_name=source_name,
+        )
+    except CraigUploadError as exc:
+        if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
+            raise
+        return _repair_existing_staging(
+            snapshot,
+            staging_root=staging_root,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            source_name=source_name,
+            size_bytes=size_bytes,
+            source_gate=source_gate,
+            source_running=source_running,
+        )
     if existing is not None:
         return existing
 
-    source_zip = uploads_root / f"{source_id}.zip"
-    os.replace(snapshot, source_zip)
+    # Each request owns its immutable snapshot until ingest completes. Do not
+    # rename it to a shared content-addressed ZIP path: two simultaneous uploads
+    # of the same archive could otherwise unlink/replace the file under each
+    # other's extractor. The digest was computed while this exact snapshot was
+    # streamed and fsynced, so reuse it instead of hashing the whole ZIP again.
     try:
-        package = ingest_craig_zip(source_zip, staging_root / source_id)
+        package = ingest_craig_zip(
+            snapshot,
+            staging_root / source_id,
+            source_sha256=source_sha256,
+            source_name=source_name or f"{source_id}.zip",
+        )
     except CraigPackageError as exc:
         if str(exc) == "CRAIG_DESTINATION_EXISTS":
-            existing = _reuse_existing(
-                staging_root,
-                source_id=source_id,
-                source_sha256=source_sha256,
-                size_bytes=size_bytes,
-                source_name=source_name,
-            )
+            try:
+                existing = _reuse_existing(
+                    staging_root,
+                    source_id=source_id,
+                    source_sha256=source_sha256,
+                    size_bytes=size_bytes,
+                    source_name=source_name,
+                )
+            except CraigUploadError as reuse_exc:
+                if reuse_exc.code == "CRAIG_STAGING_EXISTING_INVALID":
+                    return _repair_existing_staging(
+                        snapshot,
+                        staging_root=staging_root,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                        source_name=source_name,
+                        size_bytes=size_bytes,
+                        source_gate=source_gate,
+                        source_running=source_running,
+                    )
+                raise
             if existing is not None:
                 return existing
         raise CraigUploadError(str(exc), 422, False) from exc
-    finally:
-        source_zip.unlink(missing_ok=True)
 
     return _summary(
         package,
@@ -188,7 +523,13 @@ def ingest_craig_file(source_zip: Path, data_root: Path) -> dict[str, object]:
         temporary.unlink(missing_ok=True)
 
 
-async def ingest_craig_request(request: Request, data_root: Path) -> dict[str, object]:
+async def ingest_craig_request(
+    request: Request,
+    data_root: Path,
+    *,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
+) -> dict[str, object]:
     """Stream a Craig ZIP from the browser into local staging without trusting a filesystem path."""
     root = data_root.resolve()
     uploads_root = root / "uploads"
@@ -215,12 +556,15 @@ async def ingest_craig_request(request: Request, data_root: Path) -> dict[str, o
         if written <= 0:
             raise CraigUploadError("CRAIG_UPLOAD_EMPTY", 422, False)
 
-        return _finish_snapshot_ingest(
+        return await asyncio.to_thread(
+            _finish_snapshot_ingest,
             temporary,
             data_root=root,
             source_sha256=digest.hexdigest(),
             size_bytes=written,
             source_name=None,
+            source_gate=source_gate,
+            source_running=source_running,
         )
     except CraigUploadError:
         raise

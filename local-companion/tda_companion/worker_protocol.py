@@ -40,14 +40,18 @@ def _validate_payload(value: Any) -> dict[str, Any]:
     return value
 
 
+def _reject_json_constant(_value: str) -> None:
+    raise ValueError("NON_FINITE_JSON_NUMBER")
+
+
 def _decode_json_line(line: str | bytes) -> dict[str, Any]:
     raw = line.encode("utf-8") if isinstance(line, str) else bytes(line)
     if not raw or len(raw) > MAX_LINE_BYTES:
         raise WorkerProtocolError("WORKER_LINE_SIZE_INVALID")
     try:
         text = raw.decode("utf-8")
-        value = json.loads(text)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value = json.loads(text, parse_constant=_reject_json_constant)
+    except (UnicodeDecodeError, ValueError) as exc:
         raise WorkerProtocolError("WORKER_JSON_INVALID") from exc
     if not isinstance(value, dict):
         raise WorkerProtocolError("WORKER_OBJECT_REQUIRED")
@@ -56,10 +60,18 @@ def _decode_json_line(line: str | bytes) -> dict[str, Any]:
 
 def _encode(value: dict[str, Any]) -> str:
     try:
-        line = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        line = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
     except (TypeError, ValueError) as exc:
         raise WorkerProtocolError("WORKER_JSON_ENCODE_FAILED") from exc
-    if len(line.encode("utf-8")) > MAX_LINE_BYTES:
+    # MAX_LINE_BYTES is the wire-line budget, including the newline that
+    # readline-based worker/supervisor boundaries consume.
+    if len(line.encode("utf-8")) + 1 > MAX_LINE_BYTES:
         raise WorkerProtocolError("WORKER_LINE_TOO_LARGE")
     return line + "\n"
 
@@ -222,6 +234,9 @@ class WorkerMessage:
             code = self.payload.get("code")
             if not isinstance(code, str) or not re.fullmatch(r"[A-Z0-9_]{1,96}", code):
                 raise WorkerProtocolError("WORKER_ERROR_CODE_INVALID")
+            recoverable = self.payload.get("recoverable", True)
+            if not isinstance(recoverable, bool):
+                raise WorkerProtocolError("WORKER_ERROR_RECOVERABLE_INVALID")
 
     def encode(self) -> str:
         self.validate()

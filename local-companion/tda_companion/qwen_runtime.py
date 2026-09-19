@@ -20,6 +20,12 @@ MAX_RUNTIME_UNCOMPRESSED_BYTES = 12 * 1024**3
 _COPY_CHUNK = 1024 * 1024
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_RUNTIME_BACKUP = re.compile(
+    r"^\.(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]{32}\.backup$"
+)
+_RUNTIME_PARTIAL = re.compile(
+    r"^\.(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]{32}\.partial$"
+)
 
 
 class QwenRuntimeInstallError(RuntimeError):
@@ -32,6 +38,151 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _valid_recovery_runtime_directory(path: Path, version: str) -> bool:
+    if path.is_symlink() or not path.is_dir():
+        return False
+    marker_path = path / ".tda-runtime.json"
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if (
+        not isinstance(marker, dict)
+        or marker.get("schema") != RUNTIME_SCHEMA
+        or marker.get("runtime_id") != QWEN_RUNTIME_ID
+        or marker.get("version") != version
+        or marker.get("worker") != QWEN_WORKER_EXE
+        or not isinstance(marker.get("worker_sha256"), str)
+        or not _SHA256.fullmatch(marker["worker_sha256"])
+    ):
+        return False
+    worker = path / QWEN_WORKER_EXE
+    if not worker.is_file():
+        return False
+    try:
+        return _sha256_file(worker) == marker["worker_sha256"]
+    except OSError:
+        return False
+
+
+def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
+    """Recover only a current runtime swap proven interrupted by a previous process."""
+    parent = qwen_root(runtime_root)
+    if not parent.is_dir():
+        return []
+
+    selector_version: str | None = None
+    try:
+        selector = json.loads((parent / "current.json").read_text(encoding="utf-8"))
+        value = selector.get("version") if isinstance(selector, dict) else None
+        if isinstance(value, str) and _VERSION.fullmatch(value):
+            selector_version = value
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    try:
+        entries = list(parent.iterdir())
+    except OSError:
+        return []
+
+    backups: dict[str, list[Path]] = {}
+    partials: dict[str, list[Path]] = {}
+    for candidate in entries:
+        backup = _RUNTIME_BACKUP.fullmatch(candidate.name)
+        if backup is not None:
+            backups.setdefault(backup.group("version"), []).append(candidate)
+            continue
+        partial = _RUNTIME_PARTIAL.fullmatch(candidate.name)
+        if partial is not None:
+            partials.setdefault(partial.group("version"), []).append(candidate)
+
+    recovered: list[str] = []
+    for version in set(backups) | set(partials):
+        candidates = backups.get(version, [])
+        replacements = partials.get(version, [])
+        target = parent / version
+        if _valid_recovery_runtime_directory(target, version):
+            for candidate in candidates + replacements:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
+            continue
+        if selector_version != version:
+            # Inactive-version leftovers are not authoritative. They can be
+            # removed without changing the selected runtime.
+            for candidate in replacements:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
+            continue
+
+        # The selected target exists but failed verification. Move it aside so a
+        # fully verified replacement can be promoted atomically. If recovery
+        # cannot find anything better, this displaced target remains a fallback.
+        if target.exists() or target.is_symlink():
+            displaced = parent / f".{version}-{uuid4().hex}.backup"
+            try:
+                os.replace(target, displaced)
+            except OSError:
+                continue
+            candidates.append(displaced)
+
+        def modified(path: Path) -> int:
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                return -1
+
+        promoted = False
+        for replacement in sorted(replacements, key=modified, reverse=True):
+            if not _valid_recovery_runtime_directory(replacement, version):
+                continue
+            try:
+                os.replace(replacement, target)
+            except OSError:
+                continue
+            recovered.append(version)
+            promoted = True
+            break
+
+        if not promoted:
+            ordered = sorted(candidates, key=modified, reverse=True)
+            verified = [
+                candidate
+                for candidate in ordered
+                if _valid_recovery_runtime_directory(candidate, version)
+            ]
+            fallback = [candidate for candidate in ordered if candidate not in verified]
+            for candidate in verified + fallback:
+                if candidate.is_symlink() or not candidate.is_dir():
+                    continue
+                try:
+                    os.replace(candidate, target)
+                except OSError:
+                    continue
+                recovered.append(version)
+                promoted = True
+                break
+
+        if promoted:
+            for candidate in candidates + replacements:
+                if candidate.exists():
+                    if candidate.is_dir() and not candidate.is_symlink():
+                        shutil.rmtree(candidate, ignore_errors=True)
+                    else:
+                        candidate.unlink(missing_ok=True)
+        else:
+            for candidate in replacements:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
+
+    return recovered
 
 
 def qwen_root(runtime_root: Path) -> Path:

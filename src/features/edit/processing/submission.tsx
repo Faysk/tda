@@ -12,6 +12,7 @@ import {
 	BridgeError,
 	type Capabilities,
 	type CraigSource,
+	type PreparationStatus,
 	type TranscriptionProfileId,
 } from "./protocol";
 import styles from "./submission.module.css";
@@ -25,21 +26,90 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 
 function messageFor(code: string): string {
 	return {
-		unauthorized: "O pareamento local expirou. Reconecte o Companion.",
+		unauthorized: "A sessão local expirou. O TDA tentará reconectar ao Companion.",
 		forbidden: "O Companion recusou esta origem.",
 		conflict: "O Companion recusou a operação no estado atual.",
 		timeout: "A operação local excedeu o tempo esperado. Confira a fila antes de repetir.",
 		unreachable: "Não foi possível alcançar o Companion local.",
 		invalid_response: "O Companion respondeu com um contrato inválido.",
-		incompatible: "A versão do Companion não suporta este fluxo.",
+		incompatible: "A versão do Companion não suporta este fluxo. Atualize o aplicativo local.",
 		service_error: "O Companion encontrou uma falha local.",
 	}[code] ?? "Falha local inesperada.";
+}
+
+function localOperationMessage(code: string | null): string {
+	if (!code) return "A operação local não foi concluída.";
+	return {
+		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
+			"Já existe outra preparação em andamento neste computador.",
+		TRANSCRIPTION_PREPARATION_CANCELLED:
+			"A preparação local foi cancelada antes de terminar.",
+		TRANSCRIPTION_PREPARATION_TIMEOUT:
+			"A preparação local atingiu o limite de 2 horas e foi encerrada.",
+		TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB:
+			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro perfil.",
+		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
+			"Espere o trabalho atual terminar antes de preparar outro perfil.",
+		TRANSCRIPTION_WORK_ALREADY_ACTIVE:
+			"Já existe uma transcrição equivalente na fila ou em execução.",
+		CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB:
+			"Essa fonte está em uso pelo processamento ou pela preparação local. Aguarde terminar antes de reimportar o ZIP.",
+		CRAIG_STAGING_REPAIR_FAILED:
+			"O Companion tentou reparar a cópia local da sessão, mas não conseguiu concluir a troca segura.",
+		CRAIG_STAGING_EXISTING_INVALID:
+			"A cópia local dessa sessão está inconsistente. Reenvie o ZIP original quando a fonte não estiver em uso.",
+		CRAIG_MANIFEST_TRACK_HASH_MISMATCH:
+			"Uma faixa da cópia local foi alterada. Reenvie o ZIP original para reparar a sessão.",
+		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH:
+			"Uma faixa da cópia local mudou de tamanho. Reenvie o ZIP original para reparar a sessão.",
+		CRAIG_UPLOAD_STORAGE_FAILED:
+			"O Companion não conseguiu gravar o ZIP no armazenamento local.",
+		CRAIG_UPLOAD_SIZE_LIMIT:
+			"O ZIP ultrapassa o limite aceito pelo Companion.",
+		CRAIG_ZIP_REQUIRED:
+			"Escolha um arquivo ZIP exportado pelo Craig.",
+		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
+			"O Qwen precisa ser preparado e validado novamente nesta GPU antes de entrar na fila.",
+		WHISPER_MODEL_PREPARATION_REQUIRED:
+			"O modelo Whisper precisa ser preparado novamente antes de entrar na fila.",
+		QWEN_CUDA_UNAVAILABLE:
+			"O Qwen não encontrou CUDA disponível nesta máquina.",
+		QWEN_CUDA_DRIVER_INCOMPATIBLE:
+			"O driver NVIDIA não consegue executar o runtime CUDA exigido pelo Qwen.",
+		QWEN_CUDA_EXECUTION_FAILED:
+			"A GPU foi encontrada, mas uma operação CUDA real falhou.",
+		QWEN_ASR_GPU_MEMORY_EXHAUSTED:
+			"O Qwen ficou sem VRAM durante a validação local.",
+		QWEN_ACCEPTANCE_AUDIO_TOO_SHORT:
+			"Nenhuma faixa do ZIP possui áudio útil suficiente para validar o Qwen.",
+		QWEN_ACCEPTANCE_NO_SPEECH_RECOGNIZED:
+			"A amostra local escolhida não teve fala suficiente para validar o Qwen.",
+		QWEN_MODEL_DOWNLOAD_FAILED:
+			"Não foi possível baixar o modelo Qwen.",
+		QWEN_RUNTIME_UNAVAILABLE:
+			"O runtime Qwen compatível ainda não está disponível.",
+		WHISPER_RUNTIME_UNAVAILABLE:
+			"O runtime Whisper compatível ainda não está disponível.",
+		WHISPER_MODEL_DOWNLOAD_FAILED:
+			"Não foi possível baixar o modelo Whisper.",
+		WHISPER_MODEL_PREPARATION_TIMEOUT:
+			"A preparação do modelo Whisper excedeu o limite de tempo.",
+	}[code] ?? `Operação local não concluída · ${code}`;
 }
 
 type PendingSubmission = {
 	key: string;
 	signature: string;
 };
+
+function sourceMustBeRestaged(code: string | null): boolean {
+	if (!code) return false;
+	return (
+		code.startsWith("CRAIG_MANIFEST_") ||
+		code === "CRAIG_STAGING_EXISTING_INVALID" ||
+		code === "CRAIG_STAGING_REPAIR_FAILED"
+	);
+}
 
 export function ProcessingSubmission() {
 	const paired = useSyncExternalStore(
@@ -64,6 +134,10 @@ export function ProcessingSubmission() {
 	const pending = useRef<PendingSubmission | null>(null);
 
 	useEffect(() => {
+		return () => request.current?.abort();
+	}, []);
+
+	useEffect(() => {
 		if (!paired) {
 			request.current?.abort();
 			setCapabilities(null);
@@ -82,10 +156,15 @@ export function ProcessingSubmission() {
 				const value = await bridge.capabilities(controller.signal);
 				if (stopped || controller.signal.aborted) return;
 				setCapabilities(value);
+				const choices = value.transcription.catalog.length
+					? value.transcription.catalog.map((item) => item.id)
+					: value.transcription.profiles;
 				setProfile((current) =>
-					current && value.transcription.profiles.includes(current)
+					current && choices.includes(current)
 						? current
-						: (value.transcription.profiles[0] ?? ""),
+						: choices.includes("qwen-quality")
+							? "qwen-quality"
+							: (choices[0] ?? ""),
 				);
 				setCapabilityError(null);
 			} catch (cause) {
@@ -113,20 +192,38 @@ export function ProcessingSubmission() {
 		};
 	}, [bridge, paired]);
 
-	const canTranscribe = useMemo(
+	const availableProfiles = useMemo(
+		() =>
+			capabilities?.transcription.catalog.length
+				? capabilities.transcription.catalog
+				: (capabilities?.transcription.profiles ?? []).map((id) => ({
+						id,
+						engine: id.startsWith("qwen-")
+							? ("qwen3" as const)
+							: ("whisper" as const),
+						ready: true,
+						preparationRequired: false,
+						reason: null,
+					})),
+		[capabilities],
+	);
+
+	const canSubmit = useMemo(
 		() =>
 			Boolean(
-				capabilities?.capabilities.includes("transcription.craig") &&
-				capabilities.transcription.profiles.length,
+				capabilities &&
+					availableProfiles.length > 0 &&
+					(capabilities.capabilities.includes("transcription.craig") ||
+						capabilities.capabilities.includes("transcription.prepare")),
 			),
-		[capabilities],
+		[availableProfiles, capabilities],
 	);
 
 	if (!paired) return null;
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canTranscribe) return;
+		if (busy || !file || !profile || !canSubmit) return;
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
@@ -141,15 +238,73 @@ export function ProcessingSubmission() {
 		request.current = controller;
 		setBusy(true);
 		setError(null);
-		setStatus("Enviando o ZIP diretamente para o Companion local…");
+		setStatus(
+			source
+				? "Reutilizando a fonte já verificada neste Companion…"
+				: "Enviando o ZIP diretamente para o Companion local…",
+		);
 		try {
-			const staged = await bridge.craigSource(file, controller.signal);
-			setSource(staged);
+			const staged = source ?? (await bridge.craigSource(file, controller.signal));
+			if (!source) setSource(staged);
 			setStatus(
-				staged.reused
-					? `Fonte local já verificada · ${staged.trackCount} tracks. Enfileirando…`
-					: `ZIP verificado · ${staged.trackCount} tracks. Enfileirando…`,
+				staged.reused || source
+					? `Fonte local já verificada · ${staged.trackCount} tracks.`
+					: `ZIP verificado · ${staged.trackCount} tracks.`,
 			);
+
+			// Uploads grandes can take long enough for runtime/model readiness to
+			// change. Decide preparation from a fresh Agent snapshot, not from the
+			// render that existed when the user clicked submit.
+			const currentCapabilities = await bridge.capabilities(controller.signal);
+			setCapabilities(currentCapabilities);
+			const currentProfiles = currentCapabilities.transcription.catalog.length
+				? currentCapabilities.transcription.catalog
+				: currentCapabilities.transcription.profiles.map((id) => ({
+						id,
+						engine: id.startsWith("qwen-")
+							? ("qwen3" as const)
+							: ("whisper" as const),
+						ready: true,
+						preparationRequired: false,
+						reason: null,
+					}));
+			const selectedProfile = currentProfiles.find((item) => item.id === profile);
+			if (!selectedProfile) {
+				setError("O perfil selecionado não está disponível neste Companion.");
+				return;
+			}
+			if (!selectedProfile.ready) {
+				setStatus("Preparando o perfil no Agent local…");
+				let preparation: PreparationStatus = await bridge.prepareProfile(
+					staged.sourceId,
+					profile,
+					controller.signal,
+				);
+				const preparationDeadline = Date.now() + 2 * 60 * 60 * 1000;
+				while (preparation.state === "running") {
+					setStatus(
+						`${preparation.title} ${preparation.detail} · ${Math.round(preparation.elapsedSeconds)} s`,
+					);
+					if (Date.now() >= preparationDeadline) {
+						setError("A preparação excedeu o limite de 2 horas.");
+						return;
+					}
+					await new Promise((resolve) => window.setTimeout(resolve, 1500));
+					if (controller.signal.aborted) return;
+					preparation = await bridge.preparation(controller.signal);
+				}
+				if (preparation.state !== "completed") {
+					setError(localOperationMessage(preparation.errorCode));
+					return;
+				}
+				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
+				const refreshed = await bridge.capabilities(controller.signal);
+				setCapabilities(refreshed);
+				if (!refreshed.transcription.profiles.includes(profile)) {
+					setError("O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.");
+					return;
+				}
+			}
 
 			const signature = JSON.stringify([
 				CAMPAIGN_SLUG,
@@ -180,8 +335,16 @@ export function ProcessingSubmission() {
 			setFile(null);
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
-			const code = cause instanceof BridgeError ? cause.code : "service_error";
-			setError(messageFor(code));
+			if (cause instanceof BridgeError) {
+				if (sourceMustBeRestaged(cause.serverCode)) setSource(null);
+				setError(
+					cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+			} else {
+				setError(messageFor("service_error"));
+			}
 			setStatus(
 				pending.current
 					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
@@ -202,9 +365,13 @@ export function ProcessingSubmission() {
 				<small>ZIP → loopback → GPU local</small>
 			</div>
 
-			{!canTranscribe ? (
+			{!capabilities ? (
 				<p className={styles.notice} role="status">
-					Nenhum perfil ASR está pronto ainda. Se a preparação foi iniciada no Companion, acompanhe lá as etapas de runtime, modelo e validação da GPU. Esta tela verifica novamente a cada 3 segundos e libera o formulário automaticamente assim que o perfil ficar pronto.
+					Lendo os perfis disponíveis no Companion…
+				</p>
+			) : !canSubmit ? (
+				<p className={styles.notice} role="status">
+					Este Companion não anunciou um fluxo de transcrição/preparação compatível. Atualize o aplicativo local.
 				</p>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
@@ -228,8 +395,10 @@ export function ProcessingSubmission() {
 							disabled={busy}
 							required
 						>
-							{capabilities?.transcription.profiles.map((id) => (
-								<option key={id} value={id}>{profileLabels[id]}</option>
+							{availableProfiles.map((item) => (
+								<option key={item.id} value={item.id}>
+									{profileLabels[item.id]}{item.ready ? "" : " · preparar no primeiro uso"}
+								</option>
 							))}
 						</select>
 					</label>
@@ -269,6 +438,11 @@ export function ProcessingSubmission() {
 							placeholder="Personagens, NPCs, lugares e termos difíceis."
 						/>
 					</label>
+					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
+						<p className={styles.notice} role="status">
+							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
+						</p>
+					) : null}
 					<div className={styles.actions}>
 						<Button type="submit" variant="primary" disabled={busy || !file || !profile}>
 							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
