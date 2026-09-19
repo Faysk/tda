@@ -213,4 +213,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-136 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+137 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 24 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
