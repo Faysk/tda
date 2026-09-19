@@ -209,6 +209,20 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						? `Arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
 						: `Transcrição iniciada${speaker ? ` — ${speaker}` : ""}.`,
 			};
+		case "TRACK_ALIGNMENT_STARTED":
+			return {
+				title:
+					track !== null && totalTracks !== null
+						? `Alinhando arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
+						: `Alinhando timestamps${speaker ? ` — ${speaker}` : ""}.`,
+			};
+		case "TRACK_ENERGY_STARTED":
+			return {
+				title:
+					track !== null && totalTracks !== null
+						? `Analisando energia do arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
+						: `Analisando energia da faixa${speaker ? ` — ${speaker}` : ""}.`,
+			};
 		case "TRACK_PROGRESS":
 			return {
 				title: `${speaker ? `Processando voz — ${speaker}` : "Transcrevendo áudio"}${percent !== null ? ` · ${Math.round(percent)}%` : ""}.`,
