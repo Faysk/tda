@@ -8,6 +8,7 @@ import { ProcessingController } from "./controller";
 import {
 	connectionHelp,
 	jobLabels,
+	presentJobError,
 	presentJobEvent,
 	presentJobTitle,
 	stageLabels,
@@ -172,7 +173,9 @@ function JobRow({
 				<strong>{presentJobTitle(job)}</strong>
 				<span>
 					{job.context?.sessionId ? `Sessão ${job.context.sessionId} · ` : ""}
-					{stageLabels[job.stage] ?? job.stage}
+					{job.error
+						? presentJobError(job.error.code)
+						: (stageLabels[job.stage] ?? job.stage)}
 				</span>
 			</div>
 			<div className={styles.jobRowProgress}>
