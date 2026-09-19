@@ -59,6 +59,38 @@ describe("loopback bridge", () => {
 		});
 		expect(request).toHaveBeenCalledTimes(2);
 	});
+	it("bootstraps an ephemeral browser credential without a copied master token", async () => {
+		const sessionToken = "browser_session_token_123456789012345678901234";
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session"))
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionToken,
+					expires_in_seconds: 28_800,
+				});
+			return Response.json({ jobs: [] });
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		await bridge.jobs(signal());
+
+		expect(request).toHaveBeenCalledTimes(3);
+		expect(request.mock.calls[0][1]?.headers).not.toHaveProperty("Authorization");
+		expect(request.mock.calls[1][1]?.headers).not.toHaveProperty("Authorization");
+		expect(request.mock.calls[1][0]).toBe(`${LOCAL_API}/session`);
+		expect(request.mock.calls[2][1]?.headers).toMatchObject({
+			Authorization: `Bearer ${sessionToken}`,
+		});
+	});
+
 	it("deletes a terminal job through the authenticated local action endpoint", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({ deleted: true, id: "test-job" }),
