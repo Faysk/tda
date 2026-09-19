@@ -404,8 +404,8 @@ export function useWorldEditSession({
 		}
 		completePublishedEdit(
 			publishResult.status === "unchanged"
-				? "Nenhuma mudança de layout precisava ser publicada."
-				: "Composição publicada para todos.",
+				? `Publicação confirmada. Nenhuma mudança de layout era necessária · revisão ${publishResult.revision}.`
+				: `Composição publicada com sucesso · revisão ${publishResult.revision}.`,
 		);
 	}
 
