@@ -34,6 +34,24 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _worker_metadata_sha256(path: Path) -> str:
+    try:
+        stat_value = path.stat()
+    except OSError as exc:
+        raise AsrRuntimeError("ASR_RUNTIME_WORKER_MISSING") from exc
+    payload = json.dumps(
+        {
+            "name": path.name,
+            "size": stat_value.st_size,
+            "mtime_ns": stat_value.st_mtime_ns,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def whisper_root(runtime_root: Path) -> Path:
     return runtime_root.resolve() / "whisper"
 
@@ -172,6 +190,7 @@ def install_whisper_runtime_archive(
             "version": version,
             "worker": WHISPER_WORKER_EXE,
             "worker_sha256": worker_sha,
+            "worker_metadata_sha256": _worker_metadata_sha256(worker),
             "archive_sha256": actual_archive_sha,
         }
         _atomic_json(staging / ".tda-runtime.json", marker)
@@ -242,6 +261,18 @@ def inspect_whisper_runtime(runtime_root: Path, *, verify_worker: bool = False) 
     worker = version_root / WHISPER_WORKER_EXE
     if not worker.is_file():
         return {"status": "corrupt", "version": version, "worker": None}
+    sealed_metadata = marker.get("worker_metadata_sha256")
+    if sealed_metadata is not None:
+        if (
+            not isinstance(sealed_metadata, str)
+            or not _SHA256.fullmatch(sealed_metadata)
+        ):
+            return {"status": "corrupt", "version": version, "worker": None}
+        try:
+            if _worker_metadata_sha256(worker) != sealed_metadata:
+                return {"status": "corrupt", "version": version, "worker": None}
+        except AsrRuntimeError:
+            return {"status": "corrupt", "version": version, "worker": None}
     if verify_worker and _sha256_file(worker) != marker["worker_sha256"]:
         return {"status": "corrupt", "version": version, "worker": None}
     if not whisper_runtime_version_compatible(version):
