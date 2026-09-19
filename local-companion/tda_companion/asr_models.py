@@ -219,6 +219,45 @@ def _read_marker(path: Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
+def verify_and_upgrade_model_install(
+    models_root: Path,
+    profile: AsrProfile | str,
+) -> dict[str, object]:
+    """Deep-verify an installed model and backfill the cheap metadata fingerprint.
+
+    This belongs to explicit preparation/maintenance paths, never hot job dispatch.
+    Legacy markers are upgraded only after their stored content hash has been
+    recomputed and proven to match the bytes currently on disk.
+    """
+    value = get_profile(profile) if isinstance(profile, str) else profile
+    state = inspect_model_install(models_root, value, verify_hash=True)
+    if state.get("status") != "ready" or state.get("metadata_sha256") is not None:
+        return state
+
+    directory = model_path(models_root, value)
+    marker_path = directory / MODEL_MARKER
+    marker_value = _read_marker(marker_path)
+    if marker_value is None:
+        return {
+            "profile": value.public_dict(),
+            "status": "corrupt",
+            "path": str(directory),
+        }
+    marker_value["metadata_sha256"] = compute_model_metadata_sha256(directory)
+    temporary = directory / f"{MODEL_MARKER}.partial"
+    temporary.write_text(
+        json.dumps(
+            marker_value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    os.replace(temporary, marker_path)
+    return inspect_model_install(models_root, value, verify_hash=False)
+
+
 def reset_model_install(models_root: Path, profile: AsrProfile | str) -> None:
     value = get_profile(profile) if isinstance(profile, str) else profile
     root = models_root.resolve()
