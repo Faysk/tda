@@ -95,13 +95,14 @@ class Store:
         with self.read() as db:
             return db.execute("SELECT 1 FROM jobs WHERE status='running' LIMIT 1").fetchone() is not None
 
-    def has_active_jobs(self):
+    def has_active_transcription_jobs(self):
         with self.read() as db:
-            return (
-                db.execute(
-                    "SELECT 1 FROM jobs WHERE status IN ('queued','running') LIMIT 1"
-                ).fetchone()
-                is not None
+            rows = db.execute(
+                "SELECT body FROM jobs WHERE status IN ('queued','running')"
+            ).fetchall()
+            return any(
+                json.loads(row["body"]).get("kind") == "transcription.craig"
+                for row in rows
             )
 
     def event(self, db, job_id, code, data=None, level="info"):
