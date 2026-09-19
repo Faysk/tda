@@ -41,7 +41,7 @@ Na fotografia anterior a esta entrega, a versão pública instalável é o **TDA
 
 `0.3.5` só passa a ser versão instalável quando o candidato for integrado em `main` e o pipeline de release publicar o RC correspondente a esses bytes exatos. Merge/PR não deve ser descrito antecipadamente como release publicada.
 
-Os manifests Stable públicos podem permanecer temporariamente em Whisper 1.1.1 e Qwen 1.0.1 durante a promoção, mas o Companion 0.3.14 exige no mínimo Whisper 1.1.3 e Qwen 1.0.7. Durante rollout RC, o primeiro uso pode instalar somente o candidato publicado exato e verificado dessa versão compatível; Stable não é tratado como compatível enquanto estiver abaixo do mínimo. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
+Os manifests Stable públicos podem permanecer temporariamente em Whisper 1.1.1 e Qwen 1.0.1 durante a promoção, mas o Companion 0.3.14 exige no mínimo Whisper 1.1.4 e Qwen 1.0.7. Durante rollout RC, o primeiro uso pode instalar somente o candidato publicado exato e verificado dessa versão compatível; Stable não é tratado como compatível enquanto estiver abaixo do mínimo. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 
 ## Runs locais imutáveis — Slice 1
 
