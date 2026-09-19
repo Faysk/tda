@@ -120,3 +120,34 @@ def test_agent_stop_releases_lock_after_server_thread_has_finished(tmp_path: Pat
     assert controller.lock is None
     assert controller.thread is None
     assert controller.server is None
+
+
+def test_agent_releases_retained_lock_after_timed_out_thread_later_exits(tmp_path: Path):
+    controller = AgentController(
+        tmp_path / "Data",
+        "x" * 43,
+        frozenset({"https://dnd.faysk.dev"}),
+        8765,
+    )
+    fake_lock = _FakeLock()
+    fake_server = _FakeServer()
+    fake_thread = _FakeThread(alive=True)
+    controller.lock = fake_lock
+    controller.server = fake_server
+    controller.thread = fake_thread
+
+    try:
+        controller.stop()
+    except RuntimeError as exc:
+        assert str(exc) == "LOCAL_SERVICE_STOP_TIMEOUT"
+    else:
+        raise AssertionError("alive server thread must fail closed")
+
+    assert fake_lock.released is False
+    fake_thread.alive = False
+
+    assert controller._release_stopped_resources() is True
+    assert fake_lock.released is True
+    assert controller.lock is None
+    assert controller.thread is None
+    assert controller.server is None
