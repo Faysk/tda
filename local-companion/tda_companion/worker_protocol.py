@@ -222,6 +222,9 @@ class WorkerMessage:
             code = self.payload.get("code")
             if not isinstance(code, str) or not re.fullmatch(r"[A-Z0-9_]{1,96}", code):
                 raise WorkerProtocolError("WORKER_ERROR_CODE_INVALID")
+            recoverable = self.payload.get("recoverable", True)
+            if not isinstance(recoverable, bool):
+                raise WorkerProtocolError("WORKER_ERROR_RECOVERABLE_INVALID")
 
     def encode(self) -> str:
         self.validate()
