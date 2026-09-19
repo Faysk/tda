@@ -129,6 +129,64 @@ def test_supervisor_cancels_child_cooperatively():
     assert seen < 100
 
 
+def test_supervisor_cancel_survives_child_stdin_closing_before_terminal(tmp_path):
+    script = tmp_path / "close_stdin_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdin.close()
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "heartbeat", {"stage": "finishing"}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+time.sleep(0.1)
+sys.stdout.write(
+    WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=2,
+        type="cancelled",
+        payload={"stage": "finished-after-close"},
+    ).encode()
+)
+sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+        cancel_grace=0.5,
+    )
+
+    outcome = supervisor.run_fixture(
+        job_id="cancel-closed-stdin",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: True,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload["stage"] == "finished-after-close"
+
+
 def test_supervisor_force_stops_unresponsive_cancel_as_cancelled(tmp_path):
     script = tmp_path / "ignore_cancel_worker.py"
     script.write_text(
