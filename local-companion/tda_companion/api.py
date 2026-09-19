@@ -349,12 +349,13 @@ def create_app(
             if body.get("kind") != "transcription.craig" or attempt < 1:
                 continue
             try:
-                package_root, package = staged_package(
-                    body["source_id"],
-                    verify_tracks=False,
-                )
-                run_id = run_id_for(job_id, attempt)
-                manifest = load_run(package_root, run_id, verify_content=True)
+                with source_gate:
+                    package_root, package = staged_package(
+                        body["source_id"],
+                        verify_tracks=False,
+                    )
+                    run_id = run_id_for(job_id, attempt)
+                    manifest = load_run(package_root, run_id, verify_content=True)
             except (KeyError, CraigPackageError, TranscriptionRunError, ValueError):
                 continue
             digest = manifest.get("transcript_sha256")
@@ -1053,6 +1054,10 @@ def create_app(
             body = store.body(job_id)
             if body.get("kind") == "transcription.craig":
                 async with dispatch_gate:
+                    reconcile_completed_transcription_runs()
+                    current = store.get(job_id)
+                    if current["status"] == "succeeded":
+                        return current
                     value = store.action(job_id, action)
             else:
                 value = store.action(job_id, action)
@@ -1075,21 +1080,32 @@ def create_app(
             return value
 
         body = store.body(job_id)
+        job_state = store.get(job_id)
         run_id = transcription.get("run_id")
         digest = transcription.get("sha256")
-        if not isinstance(run_id, str) or not isinstance(digest, str):
+        attempt = job_state.get("attempt")
+        if (
+            not isinstance(run_id, str)
+            or not isinstance(digest, str)
+            or isinstance(attempt, bool)
+            or not isinstance(attempt, int)
+            or attempt < 1
+            or run_id != run_id_for(job_id, attempt)
+        ):
             raise Conflict("RESULT_ARTIFACT_MISMATCH")
         try:
-            package_root, package = staged_package(
-                body["source_id"],
-                verify_tracks=False,
-            )
-            manifest = load_run(package_root, run_id, verify_content=True)
+            with source_gate:
+                package_root, package = staged_package(
+                    body["source_id"],
+                    verify_tracks=False,
+                )
+                manifest = load_run(package_root, run_id, verify_content=True)
         except (KeyError, CraigPackageError, TranscriptionRunError, ValueError) as exc:
             raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
 
         if (
             manifest.get("job_id") != job_id
+            or manifest.get("attempt") != attempt
             or manifest.get("source_id") != body.get("source_id")
             or manifest.get("source_sha256") != package.source_sha256
             or manifest.get("profile_id") != body.get("profile_id")
