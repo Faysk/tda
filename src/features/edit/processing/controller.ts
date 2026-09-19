@@ -95,12 +95,15 @@ export class ProcessingController {
 			await action(signal);
 		} catch (error) {
 			if (epoch === this.#epoch) {
-				this.bridge.disconnect();
+				const code =
+					error instanceof BridgeError ? error.code : "service_error";
+				if (["unauthorized", "forbidden", "incompatible"].includes(code))
+					this.bridge.disconnect();
 				this.update({
 					...initial,
 					connection: "error",
 					busy: true,
-					error: error instanceof BridgeError ? error.code : "service_error",
+					error: code,
 					uncertainSubmission: this.#submissionKey !== null,
 				});
 			}
