@@ -10,6 +10,7 @@ from tda_companion.profile_preparation import (
     ProfilePreparationError,
     ProfilePreparationManager,
 )
+from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
 
 
 def _manager(tmp_path: Path) -> ProfilePreparationManager:
@@ -54,7 +55,7 @@ def test_qwen_preparation_runs_in_background_and_reports_truthful_stages(
     monkeypatch.setattr(
         preparation,
         "_install_qwen_runtime",
-        lambda _runtime, _cache: {"status": "ready", "version": "1.0.6"},
+        lambda _runtime, _cache: {"status": "ready", "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION},
     )
 
     def prepare_qwen(**kwargs):
@@ -140,13 +141,13 @@ def test_qwen_hardware_failure_after_stable_install_does_not_fall_back_to_rc(
         calls["inspect"] += 1
         if calls["inspect"] == 1:
             return {"status": "missing", "version": None}
-        return {"status": "ready", "version": "1.0.6"}
+        return {"status": "ready", "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION}
 
     class Bundle:
         archive_sha256 = "a" * 64
 
     class Manifest:
-        version = "1.0.6"
+        version = MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
         bundle = Bundle()
 
     monkeypatch.setattr(preparation, "inspect_qwen_runtime", inspect)
@@ -170,7 +171,7 @@ def test_qwen_hardware_failure_after_stable_install_does_not_fall_back_to_rc(
 
     def fallback(*_args, **_kwargs):
         calls["fallback"] += 1
-        return {"version": "1.0.6"}
+        return {"version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION}
 
     monkeypatch.setattr(preparation, "install_published_runtime_rc", fallback)
 
