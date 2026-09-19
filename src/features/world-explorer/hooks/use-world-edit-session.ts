@@ -26,6 +26,7 @@ import {
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
 const WORLD_EDIT_HEARTBEAT_MS = 20_000;
 const WORLD_EDIT_DRAFT_DEBOUNCE_MS = 500;
+const WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS = 10_000;
 const WORLD_BUSY_NOTICE_MS = 5_000;
 
 type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
@@ -72,6 +73,7 @@ export function useWorldEditSession({
 	const [busyNotice, setBusyNotice] = useState<string | null>(null);
 	const layoutDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const draftSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const draftSequence = useRef(0);
 	const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -96,6 +98,12 @@ export function useWorldEditSession({
 
 	const markLeaseLost = useCallback((reason: string) => {
 		draftSequence.current += 1;
+		if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
+		if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
+		if (draftSafetyTimer.current) clearTimeout(draftSafetyTimer.current);
+		layoutDraftTimer.current = null;
+		graphDraftTimer.current = null;
+		draftSafetyTimer.current = null;
 		setState("view");
 		setLeaseToken(null);
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
@@ -125,6 +133,7 @@ export function useWorldEditSession({
 		() => () => {
 			if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
 			if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
+			if (draftSafetyTimer.current) clearTimeout(draftSafetyTimer.current);
 			if (busyTimer.current) clearTimeout(busyTimer.current);
 		},
 		[],
@@ -171,6 +180,46 @@ export function useWorldEditSession({
 		});
 	}
 
+	function scheduleSafetyDraftFlush() {
+		if (state !== "editing" || !leaseToken || draftSafetyTimer.current) return;
+		draftSafetyTimer.current = setTimeout(() => {
+			draftSafetyTimer.current = null;
+			if (state !== "editing") return;
+			const latestGraph = graphDraftRef.current;
+			const layoutCandidate = buildLayoutCandidate(latestGraph);
+			if (!layoutCandidate) {
+				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				return;
+			}
+			const sequence = ++draftSequence.current;
+			void queueLayoutDraftRequest(leaseToken, layoutCandidate).then(async (layoutResult) => {
+				if (sequence !== draftSequence.current) return;
+				if (!layoutResult.ok) {
+					if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
+						markLeaseLost(layoutResult.reason);
+					} else {
+						setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
+					}
+					return;
+				}
+
+				if (canEditContent && latestGraph) {
+					const graphResult = await queueGraphDraftRequest(leaseToken, latestGraph);
+					if (sequence !== draftSequence.current) return;
+					if (!graphResult.ok) {
+						if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
+							markLeaseLost(graphResult.reason);
+						} else {
+							setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+						}
+						return;
+					}
+				}
+				setFeedback("Checkpoint de segurança confirmado. Seu rascunho está preservado.");
+			});
+		}, WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS);
+	}
+
 	function scheduleLayoutDraftSave(
 		candidate: WorldLayoutProjection,
 		pendingMessage = "Alterações locais — salvando rascunho…",
@@ -179,6 +228,7 @@ export function useWorldEditSession({
 		if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
 		const sequence = ++draftSequence.current;
 		setFeedback(pendingMessage);
+		scheduleSafetyDraftFlush();
 		layoutDraftTimer.current = setTimeout(() => {
 			layoutDraftTimer.current = null;
 			void queueLayoutDraftRequest(leaseToken, candidate).then((result) => {
@@ -208,6 +258,7 @@ export function useWorldEditSession({
 		if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
 		const sequence = ++draftSequence.current;
 		setFeedback(pendingMessage);
+		scheduleSafetyDraftFlush();
 		graphDraftTimer.current = setTimeout(() => {
 			graphDraftTimer.current = null;
 			void queueGraphDraftRequest(leaseToken, draft).then((result) => {
@@ -315,6 +366,10 @@ export function useWorldEditSession({
 		if (graphDraftTimer.current) {
 			clearTimeout(graphDraftTimer.current);
 			graphDraftTimer.current = null;
+		}
+		if (draftSafetyTimer.current) {
+			clearTimeout(draftSafetyTimer.current);
+			draftSafetyTimer.current = null;
 		}
 	}
 
