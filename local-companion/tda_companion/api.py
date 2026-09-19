@@ -286,7 +286,6 @@ def create_app(
                     continue
                 if claimed:
                     job_id, attempt = claimed
-                    job_cancel = register_active_worker(job_id)
                     state = store.get(job_id)
                     body = store.body(job_id)
                     log(
@@ -314,6 +313,8 @@ def create_app(
                             "Validating sealed runtime receipt before worker launch",
                             {"job_id": job_id, "profile_id": body["profile_id"]},
                         )
+
+                    job_cancel = register_active_worker(job_id)
 
                     def is_cancelled() -> bool:
                         return worker_stop.is_set() or job_cancel.is_set()
