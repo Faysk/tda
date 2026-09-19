@@ -316,6 +316,67 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
     assert package.source_sha256 == first["source_sha256"]
 
 
+def test_repair_copies_run_history_only_while_source_gate_is_held(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao-gated.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+
+    package = load_craig_package(package_root, verify_tracks=True)
+    write_completed_run(
+        package_root,
+        _document(package),
+        job_id="gated-run",
+        attempt=1,
+    )
+    track = package_root / "tracks" / "track-000001.flac"
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
+
+    class Gate:
+        held = False
+
+        def __enter__(self):
+            self.held = True
+            return self
+
+        def __exit__(self, *_args):
+            self.held = False
+            return False
+
+    gate = Gate()
+    original_copy = ingest_module._copy_run_history
+    observed = {"called": False}
+
+    def guarded_copy(*args, **kwargs):
+        assert gate.held is True
+        observed["called"] = True
+        return original_copy(*args, **kwargs)
+
+    monkeypatch.setattr(ingest_module, "_copy_run_history", guarded_copy)
+
+    repaired = ingest_module._finish_snapshot_ingest(
+        source,
+        data_root=data_root,
+        source_sha256=first["source_sha256"],
+        size_bytes=source.stat().st_size,
+        source_name=source.name,
+        source_gate=gate,
+        source_running=lambda _source_id: False,
+    )
+
+    assert repaired["reused"] is False
+    assert observed["called"] is True
+    assert track.read_bytes() == original
+    assert list_runs(package_root, verify_content=True)
+
+
 def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
     data_root = tmp_path / "Data"
     source = tmp_path / "sessao-concorrente.zip"
