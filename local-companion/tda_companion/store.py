@@ -277,7 +277,7 @@ class Store:
             if action == "cancel":
                 if status == "cancelled":
                     return self.dto(row)
-                if status == "succeeded":
+                if status not in ("queued", "running"):
                     raise Conflict("JOB_TERMINAL")
                 status = "cancelled"
             else:
