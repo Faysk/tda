@@ -36,6 +36,9 @@ _REPAIR_PARTIAL = re.compile(
     r"^\.(?P<source_id>craig-[0-9a-f]{64})\.repair-[0-9a-f]{32}\.partial$"
 )
 _UPLOAD_PARTIAL = re.compile(r"^\.[0-9a-f]{32}\.zip\.partial$")
+_INGEST_PARTIAL = re.compile(
+    r"^\.craig-[0-9a-f]{64}-[0-9a-f]{32}\.partial$"
+)
 
 
 @dataclass(frozen=True)
@@ -142,6 +145,33 @@ def remove_incomplete_craig_uploads(data_root: Path) -> int:
                 candidate.unlink(missing_ok=True)
                 if not candidate.exists() and not candidate.is_symlink():
                     removed += 1
+        except OSError:
+            continue
+    return removed
+
+
+def remove_incomplete_craig_staging(data_root: Path) -> int:
+    """Remove non-resumable extracted Craig staging left by a hard process stop."""
+    staging_root = data_root.resolve() / "staging"
+    if not staging_root.is_dir():
+        return 0
+    removed = 0
+    try:
+        entries = list(staging_root.iterdir())
+    except OSError:
+        return 0
+    for candidate in entries:
+        if _INGEST_PARTIAL.fullmatch(candidate.name) is None:
+            continue
+        try:
+            is_junction = bool(
+                getattr(candidate, "is_junction", lambda: False)()
+            )
+            if candidate.is_symlink() or is_junction or not candidate.is_dir():
+                continue
+            shutil.rmtree(candidate)
+            if not candidate.exists():
+                removed += 1
         except OSError:
             continue
     return removed
