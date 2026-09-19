@@ -318,8 +318,11 @@ class Store:
         with self.read() as db:
             rows = db.execute(
                 """
-                SELECT id,attempt,body,status FROM jobs
-                WHERE status IN ('running','interrupted','failed')
+                SELECT id,attempt,body,status,error_recoverable FROM jobs
+                WHERE (
+                    status IN ('running','interrupted')
+                    OR (status='failed' AND error_recoverable=1)
+                )
                   AND result IS NULL
                   AND attempt > 0
                 ORDER BY updated
