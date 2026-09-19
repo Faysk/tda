@@ -422,6 +422,16 @@ def transcribe_craig_package(
     for index, track in enumerate(package.tracks, start=1):
         if is_cancelled():
             raise WhisperRuntimeError("ASR_CANCELLED")
+        report(
+            {
+                "type": "event",
+                "code": "TRACK_STARTED",
+                "stage": "transcription",
+                "track": track.number,
+                "total_tracks": total_tracks,
+                "speaker": track.speaker,
+            }
+        )
         source = _safe_track_path(package_root, track)
         cached = load_track_checkpoint(package_root, checkpoint_signature, track) if checkpoints else None
         if cached is not None:
@@ -479,6 +489,16 @@ def transcribe_craig_package(
                         }
                     )
 
+        report(
+            {
+                "type": "event",
+                "code": "TRACK_COMPLETED",
+                "stage": "transcription",
+                "track": track.number,
+                "total_tracks": total_tracks,
+                "speaker": track.speaker,
+            }
+        )
         report(
             {
                 "type": "progress",
