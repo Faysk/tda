@@ -13,7 +13,12 @@ from starlette.requests import Request
 import tda_companion.craig as craig_module
 import tda_companion.craig_ingest as ingest_module
 import tda_companion.craig_runtime as runtime_module
-from tda_companion.craig_ingest import CraigUploadError, ingest_craig_file, ingest_craig_request
+from tda_companion.craig_ingest import (
+    CraigUploadError,
+    ingest_craig_file,
+    ingest_craig_request,
+    recover_interrupted_craig_repairs,
+)
 from tda_companion.craig_runtime import load_craig_package
 from tda_companion.transcript import (
     TranscriptDocument,
@@ -200,6 +205,72 @@ def test_ingest_local_file_snapshots_reuses_and_returns_safe_session_metadata(tm
     assert second["reused"] is True
     assert second["source_name"] == "minha-sessao.zip"
     assert not list((data_root / "uploads").iterdir())
+
+
+def test_repair_is_rejected_before_reextracting_when_source_is_running(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    track = package_root / "tracks" / "track-000001.flac"
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
+
+    original_ingest = ingest_module.ingest_craig_zip
+    calls = 0
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_ingest(*args, **kwargs)
+
+    monkeypatch.setattr(ingest_module, "ingest_craig_zip", counted)
+
+    with pytest.raises(
+        CraigUploadError,
+        match="CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+    ):
+        ingest_module._finish_snapshot_ingest(
+            source,
+            data_root=data_root,
+            source_sha256=first["source_sha256"],
+            size_bytes=source.stat().st_size,
+            source_name=source.name,
+            source_running=lambda source_id: source_id == first["source_id"],
+        )
+
+    assert calls == 0
+    assert track.read_bytes() == replacement
+
+
+def test_interrupted_repair_backup_is_restored_and_partial_is_cleaned(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+    staging = data_root / "staging"
+    package_root = staging / first["source_id"]
+    backup = staging / f".{first['source_id']}.backup-{'a' * 32}"
+    partial = staging / f".{first['source_id']}.repair-{'b' * 32}.partial"
+
+    package_root.rename(backup)
+    partial.mkdir()
+    (partial / "junk").write_text("partial", encoding="utf-8")
+
+    recovered = recover_interrupted_craig_repairs(data_root)
+
+    assert recovered == [first["source_id"]]
+    assert package_root.is_dir()
+    assert not backup.exists()
+    assert not partial.exists()
+    package = load_craig_package(package_root, verify_tracks=True)
+    assert package.source_sha256 == first["source_sha256"]
 
 
 def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoints(tmp_path: Path):
