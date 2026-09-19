@@ -128,8 +128,11 @@ export type BridgeErrorCode =
 	| "conflict"
 	| "service_error";
 export class BridgeError extends Error {
-	constructor(public readonly code: BridgeErrorCode) {
-		super(code);
+	constructor(
+		public readonly code: BridgeErrorCode,
+		public readonly serverCode: string | null = null,
+	) {
+		super(serverCode ?? code);
 	}
 }
 function invalid(): never {
