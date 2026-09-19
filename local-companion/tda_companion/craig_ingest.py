@@ -15,6 +15,7 @@ from .craig_runtime import load_craig_package
 from .transcription_runs import (
     TranscriptionRunError,
     list_runs,
+    load_run,
     write_compatibility_mirror,
 )
 
@@ -104,12 +105,30 @@ def _remove_path(path: Path) -> None:
         pass
 
 
-def _copy_run_history(existing: Path, replacement: Path) -> None:
-    runs = existing / "runs"
-    if not runs.is_dir() or runs.is_symlink():
+def _copy_run_history(
+    existing: Path,
+    replacement: Path,
+    *,
+    source_sha256: str,
+) -> None:
+    runs = list_runs(existing, verify_content=True)
+    if not runs:
         return
     target = replacement / "runs"
-    shutil.copytree(runs, target)
+    target.mkdir(parents=True, exist_ok=True)
+    for summary in runs:
+        run_id = str(summary["run_id"])
+        try:
+            manifest = load_run(existing, run_id, verify_content=True)
+        except TranscriptionRunError:
+            continue
+        if manifest.get("source_sha256") != source_sha256:
+            continue
+        source = existing / "runs" / run_id
+        destination = target / run_id
+        if source.is_symlink() or not source.is_dir():
+            continue
+        shutil.copytree(source, destination)
 
 
 def _refresh_compatibility_mirror(package_root: Path) -> None:
@@ -142,7 +161,11 @@ def _repair_existing_staging(
             source_name=source_name or f"{source_id}.zip",
         )
         if existing.is_dir() and not existing.is_symlink():
-            _copy_run_history(existing, replacement)
+            _copy_run_history(
+                existing,
+                replacement,
+                source_sha256=source_sha256,
+            )
 
         with _REPAIR_SWAP_LOCK:
             try:
