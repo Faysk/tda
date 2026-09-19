@@ -25,7 +25,7 @@ from tda_companion.transcript import (
 )
 from tda_companion.transcription_runs import write_completed_run
 from tda_companion.worker_protocol import WorkerMessage
-from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
 TOKEN = "c" * 43
 ORIGIN = "https://dnd.faysk.dev"
@@ -240,6 +240,58 @@ def test_transcription_retry_resets_uncheckpointed_progress(tmp_path: Path):
     retried = store.action(job_id, "retry")
     assert retried["status"] == "queued"
     assert retried["progress"] == {"completed": 0, "total": 2, "unit": "tracks"}
+
+
+def test_worker_failure_immediately_recovers_valid_immutable_run(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        package_root = data_root / "staging" / kwargs["source_id"]
+        package = load_craig_package(package_root, verify_tracks=False)
+        write_completed_run(
+            package_root,
+            _document(package, kwargs["profile_id"]),
+            job_id=kwargs["job_id"],
+            attempt=kwargs["attempt"],
+            glossary=kwargs["glossary"],
+            context=kwargs["context"],
+        )
+        raise WorkerProcessError("WORKER_NONZERO_EXIT", recoverable=True)
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "immediate-run-recovery"},
+            json=_body(),
+        ).json()
+        recovered = _wait_for_job(client, queued["id"], "succeeded")
+        assert recovered["attempt"] == 1
+        assert recovered["progress"] == {
+            "completed": 2,
+            "total": 2,
+            "unit": "tracks",
+        }
+        events = client.get(
+            f"/api/v1/jobs/{queued['id']}/events",
+            headers=HEADERS,
+        ).json()["events"]
+        assert any(event["code"] == "SUCCEEDED_RECOVERED" for event in events)
 
 
 def test_agent_restart_recovers_committed_run_before_marking_job_interrupted(tmp_path: Path):
