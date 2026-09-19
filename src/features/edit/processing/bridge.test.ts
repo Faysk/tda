@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { LocalBridge } from "./bridge";
-import { LOCAL_API, parseJob, parseJobs, parseResultSummary } from "./protocol";
+import {
+	LOCAL_API,
+	parseCapabilities,
+	parseJob,
+	parseJobs,
+	parsePreparationStatus,
+	parseResultSummary,
+} from "./protocol";
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
 const job = {
@@ -108,6 +115,51 @@ describe("loopback bridge", () => {
 		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/health`);
 	});
 
+	it("starts and observes Agent-owned profile preparation", async () => {
+		const sourceId = `craig-${"a".repeat(64)}`;
+		const preparation = {
+			schema: "tda_profile_preparation_v1",
+			state: "running",
+			active: true,
+			operation_id: "op123",
+			source_id: sourceId,
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			stage: "qwen_probe",
+			title: "Verificando CUDA e runtime…",
+			detail: "Validação local.",
+			sequence: 2,
+			elapsed_seconds: 1.5,
+			error_code: null,
+		};
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json(preparation),
+		);
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		const started = await bridge.prepareProfile(
+			sourceId,
+			"qwen-quality",
+			signal(),
+		);
+		const observed = await bridge.preparation(signal());
+
+		expect(started).toMatchObject({
+			state: "running",
+			profileId: "qwen-quality",
+			stage: "qwen_probe",
+		});
+		expect(observed.operationId).toBe("op123");
+		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/preparation`);
+		expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+			source_id: sourceId,
+			profile_id: "qwen-quality",
+		});
+		expect(request.mock.calls[1][1]?.method).toBe("GET");
+		bridge.disconnect();
+	});
+
 	it("deletes a terminal job through the authenticated local action endpoint", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({ deleted: true, id: "test-job" }),
@@ -203,6 +255,55 @@ describe("loopback bridge", () => {
 		});
 	});
 });
+describe("preparation wire validation", () => {
+	it("parses the full profile catalog and preparation status", () => {
+		const capabilities = parseCapabilities({
+			capabilities: ["transcription.prepare"],
+			sync: false,
+			device: { id: "device-1", label: "TDA local" },
+			transcription: {
+				profiles: [],
+				catalog: [
+					{
+						id: "qwen-quality",
+						engine: "qwen3",
+						ready: false,
+						preparation_required: true,
+						reason: "QWEN_RUNTIME_REQUIRED",
+					},
+				],
+			},
+		});
+		expect(capabilities.transcription.catalog[0]).toMatchObject({
+			id: "qwen-quality",
+			ready: false,
+			preparationRequired: true,
+		});
+
+		expect(
+			parsePreparationStatus({
+				schema: "tda_profile_preparation_v1",
+				state: "completed",
+				active: false,
+				operation_id: "op123",
+				source_id: `craig-${"a".repeat(64)}`,
+				profile_id: "qwen-quality",
+				engine: "qwen3",
+				stage: "complete",
+				title: "Preparação concluída.",
+				detail: "Pronto.",
+				sequence: 8,
+				elapsed_seconds: 42.5,
+				error_code: null,
+			}),
+		).toMatchObject({
+			state: "completed",
+			profileId: "qwen-quality",
+			elapsedSeconds: 42.5,
+		});
+	});
+});
+
 describe("wire validation", () => {
 	it.each([
 		{ completed: 4, total: 3, unit: "items" },
