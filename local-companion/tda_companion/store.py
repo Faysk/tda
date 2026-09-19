@@ -344,6 +344,16 @@ class Store:
                 self.event(db, job_id, "STAGE_CHANGED", {"stage": stage})
             return bool(changed)
 
+    def touch(self, job_id, attempt):
+        """Refresh liveness for a running attempt without creating noisy events."""
+        with self.tx() as db:
+            return bool(
+                db.execute(
+                    "UPDATE jobs SET updated=? WHERE id=? AND status='running' AND attempt=?",
+                    (utc_now(), job_id, attempt),
+                ).rowcount
+            )
+
     def progress(self, job_id, attempt, *, completed, total, stage):
         with self.tx() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
