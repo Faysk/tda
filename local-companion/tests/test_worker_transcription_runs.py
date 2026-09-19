@@ -90,6 +90,42 @@ def _run(command: WorkerRunCommand) -> tuple[int, list[dict]]:
     return code, messages
 
 
+def test_worker_cleans_only_uncommitted_crash_runs_before_asr(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "recuperado"),
+    )
+
+    orphan = package_root / "runs" / "run-crashed-a1"
+    orphan.mkdir(parents=True)
+    (orphan / "transcript.json.partial").write_text("partial", encoding="utf-8")
+
+    committed = package_root / "runs" / "run-preserve-a1"
+    committed.mkdir(parents=True)
+    (committed / "run.json").write_text("keep-even-if-invalid", encoding="utf-8")
+
+    code, messages = _run(_command("job-clean-orphan", source_id))
+
+    assert code == 0
+    assert not orphan.exists()
+    assert committed.is_dir()
+    event = next(
+        message
+        for message in messages
+        if message["type"] == "event"
+        and message["payload"].get("code") == "INCOMPLETE_RUNS_CLEANED"
+    )
+    assert event["payload"]["count"] == 1
+
+
 def test_worker_marks_invalid_transcript_output_non_retryable(tmp_path: Path, monkeypatch):
     data_root = tmp_path / "Data"
     models_root = tmp_path / "Models"
