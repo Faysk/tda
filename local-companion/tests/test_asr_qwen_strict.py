@@ -122,6 +122,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
     package, root = _package(tmp_path)
     reads = 0
     align_calls: list[str] = []
+    reports: list[dict] = []
 
     def reader(_path: Path):
         nonlocal reads
@@ -157,6 +158,35 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
         aligner_session_factory=lambda _root, _plan: Aligner(),
         window_reader=reader,
         energy_reader=lambda *_args: -10.0,
+        report=reports.append,
+    )
+
+    assert [
+        item
+        for item in reports
+        if item.get("type") == "progress"
+    ] == [
+        {
+            "type": "progress",
+            "completed": 1,
+            "total": 1,
+            "unit": "tracks",
+            "stage": "alignment",
+        }
+    ]
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_STARTED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        for item in reports
+    )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_COMPLETED"
+        and item.get("track") == 1
+        for item in reports
     )
 
     # ASR pass + alignment replay + energy replay. Production alignment consumes
