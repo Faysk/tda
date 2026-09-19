@@ -44,6 +44,8 @@ function localOperationMessage(code: string | null): string {
 			"Já existe outra preparação em andamento neste computador.",
 		TRANSCRIPTION_PREPARATION_CANCELLED:
 			"A preparação local foi cancelada antes de terminar.",
+		TRANSCRIPTION_PREPARATION_TIMEOUT:
+			"A preparação local atingiu o limite de 2 horas e foi encerrada.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB:
 			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro perfil.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
