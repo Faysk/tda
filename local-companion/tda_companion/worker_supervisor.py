@@ -219,8 +219,6 @@ class WorkerSupervisor:
 
                 if not ready and now - started > self.startup_timeout:
                     raise WorkerProcessError("WORKER_START_TIMEOUT")
-                if ready and now - last_message > self.heartbeat_timeout:
-                    raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
                 if cancel_deadline is not None and now > cancel_deadline:
                     # Cancellation is a user-requested terminal state, not a worker
                     # failure. Heavy native/CUDA code may not return to Python in
@@ -232,6 +230,12 @@ class WorkerSupervisor:
                         payload={"stage": "forced_termination", "forced": True},
                         returncode=process.returncode if process.returncode is not None else -1,
                     )
+                # Once cancellation was accepted by the supervisor, heartbeat
+                # expiry must not race it into a false worker failure. Native/CUDA
+                # code can remain inside an uninterruptible call until the grace
+                # deadline, at which point the isolated process is force-stopped.
+                if ready and not cancel_sent and now - last_message > self.heartbeat_timeout:
+                    raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
 
                 try:
                     line = lines.get(timeout=0.1)
