@@ -231,10 +231,29 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         run_id = str(manifest["run_id"])
         digest = str(manifest["transcript_sha256"])
 
-        # Existing 0.3.x API/result consumers still validate the root transcript.
-        # Keep it only as a compatibility mirror; immutable runs are authoritative.
-        if write_compatibility_mirror(package_root, run_id) != digest:
-            raise TranscriptionRunError("TRANSCRIPTION_RUN_MIRROR_HASH_MISMATCH")
+        # Keep the historical root transcript only as a compatibility mirror.
+        # The immutable run is authoritative: a locked/corrupt legacy mirror must
+        # not turn a fully committed ASR result into a failed job.
+        try:
+            mirror_digest = write_compatibility_mirror(package_root, run_id)
+            if mirror_digest != digest:
+                emitter.emit(
+                    "event",
+                    {
+                        "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                        "stage": "result_prepare",
+                        "reason": "hash_mismatch",
+                    },
+                )
+        except (OSError, TranscriptionRunError):
+            emitter.emit(
+                "event",
+                {
+                    "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                    "stage": "result_prepare",
+                    "reason": "write_failed",
+                },
+            )
 
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
