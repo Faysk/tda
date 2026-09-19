@@ -405,6 +405,7 @@ def transcribe_craig_package_qwen_strict(
 
     transcript_tracks = tuple(cached_tracks.get(track.number) or new_tracks[track.number] for track in package.tracks)
 
+    report({"type": "stage", "stage": "energy_analysis", "profile": profile.id})
     energy_by_segment: dict[tuple[int, str], float] = {}
     tracks_by_number = {track.number: track for track in transcript_tracks}
     for source_track in package.tracks:
