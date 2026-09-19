@@ -340,10 +340,50 @@ def test_profile_preparation_api_is_authenticated_and_returns_sanitized_status(
     assert response.json()["operation_id"] == "op123"
 
 
-def test_preparation_cannot_jump_a_queued_job(client, monkeypatch):
+def test_preparation_cannot_jump_a_queued_transcription(client, monkeypatch):
+    source_id = "craig-" + "a" * 64
+    queued = client.app.state.store.submit(
+        "queued-before-preparation",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "qwen-quality",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 2,
+        },
+    )
+    assert queued["status"] == "queued"
+
+    manager = client.app.state.preparation_manager
+    monkeypatch.setattr(
+        manager,
+        "start",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("preparation must not start ahead of queued transcription")
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/preparation",
+        headers=HEADERS,
+        json={"source_id": source_id, "profile_id": "qwen-quality"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
+        "recoverable": True,
+    }
+
+
+def test_synthetic_queue_does_not_block_profile_preparation(client, monkeypatch):
     queued = client.post(
         "/api/v1/jobs",
-        headers={**HEADERS, "Idempotency-Key": "queued-before-preparation"},
+        headers={**HEADERS, "Idempotency-Key": "synthetic-before-preparation"},
         json=BODY,
     )
     assert queued.status_code == 200
@@ -353,25 +393,34 @@ def test_preparation_cannot_jump_a_queued_job(client, monkeypatch):
     monkeypatch.setattr(
         manager,
         "start",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("preparation must not start ahead of queued work")
-        ),
+        lambda source_id, profile_id: {
+            "schema": "tda_profile_preparation_v1",
+            "state": "running",
+            "active": True,
+            "operation_id": "synthetic-does-not-block",
+            "source_id": source_id,
+            "profile_id": profile_id,
+            "engine": "qwen3",
+            "stage": "starting",
+            "title": "Iniciando preparação…",
+            "detail": "",
+            "sequence": 1,
+            "error_code": None,
+            "elapsed_seconds": 0.0,
+        },
     )
 
     response = client.post(
         "/api/v1/preparation",
         headers=HEADERS,
         json={
-            "source_id": "craig-" + "a" * 64,
+            "source_id": "craig-" + "b" * 64,
             "profile_id": "qwen-quality",
         },
     )
 
-    assert response.status_code == 409
-    assert response.json()["error"] == {
-        "code": "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
-        "recoverable": True,
-    }
+    assert response.status_code == 200
+    assert response.json()["operation_id"] == "synthetic-does-not-block"
 
 
 def test_api_lifecycle_result(client):
