@@ -392,7 +392,20 @@ def create_app(
                                 attempt,
                                 code,
                                 data,
+                                level=(
+                                    "warning"
+                                    if code == "COMPATIBILITY_MIRROR_WRITE_FAILED"
+                                    else "info"
+                                ),
                             )
+                            if code == "COMPATIBILITY_MIRROR_WRITE_FAILED":
+                                log(
+                                    "warning",
+                                    "worker",
+                                    code,
+                                    "Immutable run completed but the legacy transcript mirror could not be updated",
+                                    {"job_id": job_id, **data},
+                                )
                             if code in {
                                 "MODEL_DOWNLOAD_PROGRESS",
                                 "QWEN_WINDOW_TRANSCRIBED",
