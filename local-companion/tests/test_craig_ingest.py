@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from starlette.requests import Request
 
+import tda_companion.craig as craig_module
 import tda_companion.craig_ingest as ingest_module
 from tda_companion.craig_ingest import CraigUploadError, ingest_craig_file, ingest_craig_request
 from tda_companion.craig_runtime import load_craig_package
@@ -72,6 +73,28 @@ async def test_ingest_is_content_addressed_reusable_and_cleans_raw_zip(tmp_path:
     second = await ingest_craig_request(_request(payload), data_root)
     assert second["source_id"] == source_id
     assert second["reused"] is True
+    assert not list((data_root / "uploads").iterdir())
+
+
+@pytest.mark.anyio
+async def test_streamed_ingest_reuses_digest_without_rehashing_full_zip(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    payload = _zip_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+
+    monkeypatch.setattr(
+        craig_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(AssertionError("streamed snapshot must not be rehashed")),
+    )
+
+    result = await ingest_craig_request(_request(payload), data_root)
+
+    assert result["source_sha256"] == digest
+    assert result["source_id"] == f"craig-{digest}"
+    package = load_craig_package(data_root / "staging" / result["source_id"], verify_tracks=True)
+    assert package.source_sha256 == digest
+    assert package.source_zip == f"craig-{digest}.zip"
     assert not list((data_root / "uploads").iterdir())
 
 
