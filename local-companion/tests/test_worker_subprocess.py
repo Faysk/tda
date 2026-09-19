@@ -346,6 +346,36 @@ for seq, kind, payload in (
     assert exc.value.recoverable is False
 
 
+def test_supervisor_rejects_oversized_stdout_before_protocol_decode(tmp_path):
+    script = tmp_path / "oversized_stdout_worker.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdout.write("x" * (64 * 1024 + 1024))
+sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_LINE_SIZE_INVALID") as exc:
+        supervisor.run_fixture(
+            job_id="oversized-stdout",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert exc.value.recoverable is False
+
+
 def test_supervisor_rejects_worker_protocol_corruption(tmp_path):
     script = tmp_path / "bad_worker.py"
     script.write_text(
