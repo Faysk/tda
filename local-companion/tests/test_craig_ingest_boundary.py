@@ -33,7 +33,7 @@ def _client(tmp_path: Path) -> TestClient:
         port=8765,
         browser_sessions=api.state.browser_sessions,
         source_gate=api.state.source_gate,
-        source_running=api.state.store.has_running_source,
+        source_running=api.state.source_in_use,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -151,6 +151,56 @@ def test_boundary_blocks_repair_while_same_source_is_running(tmp_path: Path):
         assert claimed is not None
         assert claimed[0] == job["id"]
         assert store.has_running_source(source_id) is True
+
+        blocked = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+
+        assert blocked.status_code == 409
+        assert blocked.json()["error"] == {
+            "code": "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            "recoverable": True,
+        }
+        assert track.read_bytes() == replacement
+
+
+def test_boundary_blocks_repair_while_preparation_owns_same_source(
+    monkeypatch,
+    tmp_path: Path,
+):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        track = package_root / "tracks" / "track-000001.flac"
+        replacement = b"fLaC-ALICE"
+        assert len(replacement) == track.stat().st_size
+        track.write_bytes(replacement)
+
+        manager = client.app.app.state.preparation_manager
+        monkeypatch.setattr(
+            manager,
+            "snapshot",
+            lambda: {
+                "active": True,
+                "source_id": source_id,
+                "profile_id": "qwen-quality",
+            },
+        )
+        assert client.app.app.state.source_in_use(source_id) is True
 
         blocked = client.post(
             "/api/v1/sources/craig",
