@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.qwen_runtime as qwen_runtime_module
 from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
 from tda_companion.qwen_acceptance import ALIGNER_PROFILE
 from tda_companion.qwen_physical_gate import (
@@ -218,6 +219,50 @@ def test_gate_fast_path_trusts_receipt_and_full_revalidation_detects_tamper(tmp_
     assert lightweight_model["ready"] is False
     assert lightweight_model["status"] == "stale"
     assert lightweight_model["reason"] == "QWEN_GATE_BINDING_CHANGED"
+
+def test_v2_gate_reseals_metadata_only_runtime_drift_once(monkeypatch, tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    record_qwen_physical_gate(state, runtime, models, _receipt(), profile_id="qwen-fast")
+    gate_path = state / "qwen-physical-gates" / "qwen-fast.json"
+    before_gate = json.loads(gate_path.read_text(encoding="utf-8"))
+
+    worker = runtime / "qwen" / MIN_COMPATIBLE_QWEN_RUNTIME_VERSION / "TDAQwenWorker.exe"
+    before = worker.stat()
+    os.utime(
+        worker,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    inspected = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+
+    assert inspected["ready"] is True
+    resealed = json.loads(gate_path.read_text(encoding="utf-8"))
+    assert (
+        resealed["runtime"]["worker_metadata_sha256"]
+        != before_gate["runtime"]["worker_metadata_sha256"]
+    )
+    assert resealed["runtime"]["worker_sha256"] == before_gate["runtime"]["worker_sha256"]
+
+    monkeypatch.setattr(
+        qwen_runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("resealed Qwen gate must return to metadata-only fast path")
+        ),
+    )
+    second = inspect_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        profile_id="qwen-fast",
+    )
+    assert second["ready"] is True
+
 
 def test_deep_verification_detects_same_metadata_worker_tamper(tmp_path: Path):
     state, runtime, models = _prepared(tmp_path)
