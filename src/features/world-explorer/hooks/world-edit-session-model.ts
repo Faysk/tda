@@ -42,9 +42,29 @@ export function worldDraftSaveFailureMessage(reason: string): string {
 	}
 }
 
-/** Backward-compatible generic mapping for callers that do not know the phase yet. */
 export function worldEditFailureMessage(reason: string): string {
-	return worldPublishFailureMessage(reason);
+	switch (reason) {
+		case "unauthenticated":
+			return "Sua sessão expirou. Entre novamente antes de editar o Mundo.";
+		case "profile_unresolved":
+			return "Sua conta ainda não está vinculada a um perfil que possa editar o Mundo.";
+		case "forbidden":
+			return "Sua conta não possui permissão para esta edição do Mundo.";
+		case "conflict":
+			return "O Mundo publicado mudou enquanto este rascunho estava aberto. O rascunho foi preservado para reconciliação.";
+		case "lease_lost":
+			return "A sessão exclusiva de edição expirou. Seu rascunho confirmado continua preservado para recuperação.";
+		case "invalid_payload":
+			return "Há um campo inválido no rascunho. Corrija-o antes de continuar.";
+		case "duplicate":
+			return "Já existe um elemento, slug ou ligação incompatível com esta alteração.";
+		case "review_required":
+			return "Esta alteração precisa de revisão ou fonte canônica antes de poder ser publicada para essa audiência.";
+		case "media_pending":
+			return "A imagem ainda não pôde ser verificada. O rascunho e a sessão de edição foram preservados.";
+		default:
+			return "Não foi possível confirmar esta operação agora. O estado publicado não foi alterado.";
+	}
 }
 
 export function worldLayoutPositionsEqual(
