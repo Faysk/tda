@@ -98,7 +98,10 @@ drop trigger if exists world_edit_lease_durable_checkpoint on public.world_edit_
 create trigger world_edit_lease_durable_checkpoint
 after update on public.world_edit_leases
 for each row
-when (old.draft_updated_at is distinct from new.draft_updated_at)
+when (
+  old.holder_profile_id = new.holder_profile_id
+  and old.draft_updated_at is distinct from new.draft_updated_at
+)
 execute function public.checkpoint_world_edit_draft_from_lease();
 
 revoke all on function public.checkpoint_world_edit_draft_from_lease()
