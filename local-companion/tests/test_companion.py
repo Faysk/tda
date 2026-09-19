@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 
 import pytest
+
+import tda_companion.api as api_module
 from fastapi.testclient import TestClient
 
 from tda_companion.api import create_app
@@ -210,6 +212,73 @@ def test_cancelled_craig_source_stays_owned_until_worker_exits(monkeypatch, tmp_
         while app.state.source_in_use(source_id) and time.monotonic() < deadline:
             time.sleep(0.01)
         assert app.state.source_in_use(source_id) is False
+
+
+def test_agent_shutdown_waits_past_fast_window_until_worker_thread_exits(
+    monkeypatch,
+    tmp_path,
+):
+    started = threading.Event()
+    cancel_seen = threading.Event()
+    release = threading.Event()
+    stopped = threading.Event()
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, job_id, attempt, units, completed, on_progress, on_event
+        assert is_cancelled is not None
+        started.set()
+        while not is_cancelled():
+            time.sleep(0.005)
+        cancel_seen.set()
+        assert release.wait(2.0)
+        stopped.set()
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "shutdown", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    monkeypatch.setattr(api_module, "_WORKER_SHUTDOWN_FAST_SECONDS", 0.05)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+    live = TestClient(app, base_url="http://127.0.0.1:8765")
+    live.__enter__()
+    response = live.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "slow-shutdown-worker"},
+        json={**BODY, "units": 10},
+    )
+    assert response.status_code == 200
+    assert started.wait(2.0)
+
+    shutdown_done = threading.Event()
+
+    def close_client():
+        try:
+            live.__exit__(None, None, None)
+        finally:
+            shutdown_done.set()
+
+    closer = threading.Thread(target=close_client)
+    closer.start()
+    assert cancel_seen.wait(1.0)
+    time.sleep(0.1)
+    assert shutdown_done.is_set() is False
+
+    release.set()
+    assert stopped.wait(1.0)
+    closer.join(timeout=2.0)
+    assert shutdown_done.is_set() is True
 
 
 def test_agent_shutdown_stops_active_worker_and_leaves_job_retryable(monkeypatch, tmp_path):
