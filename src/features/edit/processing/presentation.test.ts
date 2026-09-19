@@ -28,6 +28,7 @@ describe("processing presentation", () => {
 	});
 
 	it("explains new integrity and worker-contract failures", () => {
+		expect(presentJobError("AGENT_BUSY")).toContain("ocupado");
 		expect(presentJobError("RESULT_ARTIFACT_UNAVAILABLE")).toContain(
 			"não está mais disponível",
 		);
