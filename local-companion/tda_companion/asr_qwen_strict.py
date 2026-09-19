@@ -276,8 +276,9 @@ def transcribe_craig_package_qwen_strict(
     if pending_tracks:
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
         model_root = model_prepare(models_root.resolve(), profile)
-        report({"type": "stage", "stage": "transcription", "profile": profile.id})
+        report({"type": "stage", "stage": "model_load", "profile": profile.id})
         asr_session: AsrSession = asr_session_factory(model_root, plan)
+        report({"type": "stage", "stage": "transcription", "profile": profile.id})
         try:
             for track in pending_tracks:
                 source = _safe_track_path(package_root, track)
