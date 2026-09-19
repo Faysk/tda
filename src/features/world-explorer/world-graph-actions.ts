@@ -145,6 +145,36 @@ async function recordWorldDraftPublishSuccess(input: {
 	}
 }
 
+async function confirmedGraphPublishReceipt(input: {
+	client: WorldEditDataClient;
+	campaignId: string;
+	profileId: string;
+	leaseToken: string;
+}): Promise<WorldGraphMutationResult | null> {
+	const { data, error } = await input.client
+		.from("world_edit_drafts")
+		.select("status,published_graph_revision,published_layout_revision")
+		.eq("campaign_id", input.campaignId)
+		.eq("owner_profile_id", input.profileId)
+		.eq("lease_token", input.leaseToken)
+		.maybeSingle();
+	if (error) {
+		console.error("World publish receipt lookup failed", error.message);
+		return null;
+	}
+	if (!data || data.status !== "published") return null;
+	const graphRevision = safeNumber(data.published_graph_revision);
+	const layoutRevision = safeNumber(data.published_layout_revision);
+	if (graphRevision === undefined || layoutRevision === undefined) return null;
+	return {
+		ok: true,
+		status: "saved",
+		graphRevision,
+		layoutRevision,
+	};
+}
+
+
 export async function acquireWorldGraphDraftAction(
 	leaseToken: string,
 ): Promise<AcquireWorldGraphDraftResult> {
@@ -369,6 +399,16 @@ export async function publishWorldEditStateAction(
 		: await client.rpc("publish_world_edit_state_atomic", rpcArgs);
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World combined publish failed", error.message);
+		const receipt = await confirmedGraphPublishReceipt({
+			client,
+			campaignId: campaign.id,
+			profileId: contentAccess.profileId,
+			leaseToken,
+		});
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
+		}
 		return failPublish("dependency_unavailable");
 	}
 	const payload = data as RpcPayload;
