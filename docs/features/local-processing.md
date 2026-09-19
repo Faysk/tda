@@ -11,7 +11,7 @@ O contrato editorial pós-processamento é definido em [Transcrição — runs l
 
 ## Estado atual
 
-A base vigente e o candidato 0.3.5 desta entrega cobrem:
+A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -37,11 +37,9 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão instalável versus candidato de código
 
-Na fotografia anterior a esta entrega, a versão pública instalável é o **TDA Companion 0.3.4 RC**. Como o Slice 1 altera os bytes do Companion, esta entrega sobe a linha de código para **0.3.5** em vez de reutilizar a identidade do RC 0.3.4.
+A linha de código desta entrega é o **TDA Companion 0.3.14**. Esse número identifica os bytes candidatos desta revisão, mas não deve ser descrito como release publicada antes de integração em `main` e publicação do RC correspondente pelo pipeline.
 
-`0.3.5` só passa a ser versão instalável quando o candidato for integrado em `main` e o pipeline de release publicar o RC correspondente a esses bytes exatos. Merge/PR não deve ser descrito antecipadamente como release publicada.
-
-Os manifests Stable públicos podem permanecer temporariamente em Whisper 1.1.1 e Qwen 1.0.1 durante a promoção, mas o Companion 0.3.14 exige no mínimo Whisper 1.1.4 e Qwen 1.0.7. Durante rollout RC, o primeiro uso pode instalar somente o candidato publicado exato e verificado dessa versão compatível; Stable não é tratado como compatível enquanto estiver abaixo do mínimo. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
+O Companion 0.3.14 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.7**. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 
 ## Runs locais imutáveis — Slice 1
 
