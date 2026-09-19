@@ -39,6 +39,63 @@ def client(tmp_path):
         yield client
 
 
+def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, tmp_path):
+    started = threading.Event()
+    stopped = threading.Event()
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, job_id, attempt, units, completed, on_progress, on_event
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        stopped.set()
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "user_cancel", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        response = live.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "cancel-running-job"},
+            json={**BODY, "units": 10},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        assert started.wait(2.0)
+
+        cancelled = live.post(
+            f"/api/v1/jobs/{job_id}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert cancelled.status_code == 200
+        assert cancelled.json()["status"] == "cancelled"
+        assert stopped.wait(2.0)
+        assert live.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()["status"] == "cancelled"
+
+    persisted = Store(tmp_path).get(job_id)
+    assert persisted["status"] == "cancelled"
+    assert persisted["error"] is None
+
+
 def test_agent_shutdown_stops_active_worker_and_leaves_job_retryable(monkeypatch, tmp_path):
     started = threading.Event()
     stopped = threading.Event()
