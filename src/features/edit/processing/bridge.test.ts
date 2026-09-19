@@ -132,7 +132,7 @@ describe("loopback bridge", () => {
 			elapsed_seconds: 1.5,
 			error_code: null,
 		};
-		const request = vi.fn<typeof fetch>().mockResolvedValue(
+		const request = vi.fn<typeof fetch>().mockImplementation(async () =>
 			Response.json(preparation),
 		);
 		const bridge = new LocalBridge(request);
