@@ -478,6 +478,22 @@ def create_app(
                     {"job_id": job_id, "attempt": attempt, "run_id": run_id},
                 )
 
+    async def reconcile_durable_run_after_failure(body: dict) -> None:
+        if body.get("kind") != "transcription.craig":
+            return
+        try:
+            await asyncio.to_thread(reconcile_completed_transcription_runs)
+        except Exception:
+            # Failure reconciliation is opportunistic here. The original job
+            # failure remains durable/retryable, and startup/retry reconciliation
+            # will attempt the same immutable-run recovery again later.
+            log(
+                "warning",
+                "worker",
+                "JOB_RECOVERY_CHECK_FAILED",
+                "Could not check for a durable transcription run immediately after worker failure",
+            )
+
     async def wait_for_work() -> None:
         try:
             await asyncio.wait_for(worker_wake.wait(), timeout=5.0)
@@ -789,6 +805,7 @@ def create_app(
                             "Worker process failed",
                             {"job_id": job_id, "worker_code": exc.code},
                         )
+                        await reconcile_durable_run_after_failure(body)
                     except Conflict as exc:
                         code = str(exc)
                         store.fail(
@@ -804,6 +821,7 @@ def create_app(
                             "Worker violated the local queue contract",
                             {"job_id": job_id, "worker_code": code},
                         )
+                        await reconcile_durable_run_after_failure(body)
                     except Exception:
                         code = "WORKER_EXECUTION_FAILED" if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
                         store.fail(job_id, attempt, code)
@@ -814,6 +832,7 @@ def create_app(
                             "Job execution failed",
                             {"job_id": job_id},
                         )
+                        await reconcile_durable_run_after_failure(body)
                     finally:
                         clear_active_worker(job_id, job_cancel)
                     worker_healthy = True
