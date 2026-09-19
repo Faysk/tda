@@ -611,6 +611,6 @@ def transcribe_craig_package(
         ),
         warnings=warnings,
     )
-    document.validate()
     report({"type": "stage", "stage": "result_prepare", "profile": profile.id})
+    document.validate()
     return document
