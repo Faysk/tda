@@ -176,6 +176,40 @@ def create_app(
     worker_healthy = True
     worker_wake = asyncio.Event()
     worker_stop = threading.Event()
+    active_worker_lock = threading.Lock()
+    active_worker: dict[str, object | None] = {"job_id": None, "cancel": None}
+
+    def register_active_worker(job_id: str) -> threading.Event:
+        cancel = threading.Event()
+        with active_worker_lock:
+            active_worker["job_id"] = job_id
+            active_worker["cancel"] = cancel
+        try:
+            if store.get(job_id)["status"] == "cancelled":
+                cancel.set()
+        except KeyError:
+            cancel.set()
+        return cancel
+
+    def signal_active_worker_cancel(job_id: str) -> None:
+        cancel: threading.Event | None = None
+        with active_worker_lock:
+            if active_worker.get("job_id") == job_id:
+                value = active_worker.get("cancel")
+                if isinstance(value, threading.Event):
+                    cancel = value
+        if cancel is not None:
+            cancel.set()
+
+    def clear_active_worker(job_id: str, cancel: threading.Event) -> None:
+        with active_worker_lock:
+            if (
+                active_worker.get("job_id") == job_id
+                and active_worker.get("cancel") is cancel
+            ):
+                active_worker["job_id"] = None
+                active_worker["cancel"] = None
+
     # Serializes the instant where a queued job becomes running with the instant
     # where first-use preparation becomes active. Without this gate, the API and
     # queue worker could race between "no running job" and Store.claim(), allowing
@@ -252,6 +286,7 @@ def create_app(
                     continue
                 if claimed:
                     job_id, attempt = claimed
+                    job_cancel = register_active_worker(job_id)
                     state = store.get(job_id)
                     body = store.body(job_id)
                     log(
@@ -281,12 +316,7 @@ def create_app(
                         )
 
                     def is_cancelled() -> bool:
-                        if worker_stop.is_set():
-                            return True
-                        try:
-                            return store.get(job_id)["status"] == "cancelled"
-                        except KeyError:
-                            return True
+                        return worker_stop.is_set() or job_cancel.is_set()
 
                     def commit_progress(message) -> None:
                         current = store.get(job_id)
@@ -445,6 +475,8 @@ def create_app(
                             "Job execution failed",
                             {"job_id": job_id},
                         )
+                    finally:
+                        clear_active_worker(job_id, job_cancel)
                     worker_healthy = True
                     continue
                 worker_healthy = True
@@ -809,6 +841,8 @@ def create_app(
         if action == "delete":
             return store.remove(job_id)
         value = store.action(job_id, action)
+        if action == "cancel":
+            signal_active_worker_cancel(job_id)
         if action == "retry":
             worker_wake.set()
         return value
