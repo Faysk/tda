@@ -415,7 +415,10 @@ export function ProcessingPanel() {
 				)}
 				{state.error ? (
 					<p className={styles.connectionError} role="alert">
-						{connectionHelp[state.error]} <small>Código: {state.error}</small>
+						{state.serverError
+							? presentJobError(state.serverError)
+							: connectionHelp[state.error]}{" "}
+						<small>Código: {state.serverError ?? state.error}</small>
 					</p>
 				) : null}
 			</section>
