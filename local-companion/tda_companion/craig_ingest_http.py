@@ -57,6 +57,8 @@ class CraigIngestBoundary:
         port: int,
         system_log: SystemLog | None = None,
         browser_sessions: BrowserSessionManager | None = None,
+        source_gate: object | None = None,
+        source_running: Callable[[str], bool] | None = None,
     ) -> None:
         self.app = app
         self.data_root = data_root.resolve()
@@ -65,6 +67,8 @@ class CraigIngestBoundary:
         self.port = port
         self.system_log = system_log
         self.browser_sessions = browser_sessions
+        self.source_gate = source_gate
+        self.source_running = source_running
 
     def _log(self, code: str, message: str, context: dict[str, object] | None = None) -> None:
         if self.system_log is not None:
@@ -222,7 +226,12 @@ class CraigIngestBoundary:
             return
 
         try:
-            value = await ingest_craig_request(request, self.data_root)
+            value = await ingest_craig_request(
+                request,
+                self.data_root,
+                source_gate=self.source_gate,
+                source_running=self.source_running,
+            )
             response = JSONResponse(value)
             self._log(
                 "CRAIG_SOURCE_REUSED" if value.get("reused") else "CRAIG_SOURCE_STAGED",
