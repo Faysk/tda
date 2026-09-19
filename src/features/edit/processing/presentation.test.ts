@@ -78,7 +78,7 @@ describe("processing presentation", () => {
 });
 
 
-test("presents Qwen post-ASR track context truthfully", () => {
+it("presents Qwen post-ASR track context truthfully", () => {
 	expect(
 		presentJobEvent({
 			seq: 41,
