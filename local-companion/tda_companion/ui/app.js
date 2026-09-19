@@ -18,6 +18,7 @@
     TRANSCRIPTION_WORK_ALREADY_ACTIVE: "Esta mesma transcrição já está ativa em outra tela ou sessão. Acompanhe o trabalho existente em vez de criar uma cópia.",
     MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "Aguarde a preparação do perfil terminar antes de atualizar ou remover o Companion.",
     RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB: "O runtime não pode ser alterado enquanto há um trabalho em execução.",
+    RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "O runtime não pode ser alterado enquanto o Agent prepara um perfil de transcrição.",
     QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen ainda não está disponível.",
     QWEN_RUNTIME_LONG_GATE_REQUIRED: "O runtime Qwen instalado é antigo e precisa ser atualizado.",
     QWEN_CUDA_UNAVAILABLE: "O Qwen não encontrou CUDA disponível nesta máquina.",
