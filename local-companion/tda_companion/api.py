@@ -998,7 +998,7 @@ def create_app(
                         raise Conflict(str(exc)) from None
                     whisper = inspect_whisper_runtime(
                         resolved_runtime_root,
-                        verify_worker=True,
+                        verify_worker=False,
                     )
                     if whisper.get("status") != "ready":
                         raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
