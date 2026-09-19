@@ -1,11 +1,12 @@
 import sqlite3
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 import tda_companion.telemetry as telemetry_module
 from tda_companion.api import create_app
-from tda_companion.store import Store
+from tda_companion.store import Conflict, Store
 from tda_companion.system_log import SystemLog
 from tda_companion.telemetry import SystemTelemetry
 from tda_companion.worker_protocol import WorkerMessage
@@ -25,6 +26,30 @@ BODY = dict(
     source_id="synthetic-source",
     units=3,
 )
+
+
+def test_store_rejects_non_finite_worker_event_values(tmp_path):
+    store = Store(tmp_path)
+    job = store.submit(
+        "finite-event-values",
+        {
+            "kind": "synthetic.fixture",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": "source",
+            "units": 1,
+        },
+    )
+    job_id, attempt = store.claim()
+    assert job_id == job["id"]
+
+    with pytest.raises(Conflict, match="WORKER_EVENT_DATA_INVALID"):
+        store.record_worker_event(
+            job_id,
+            attempt,
+            "GPU_SAMPLE",
+            {"percent": float("nan")},
+        )
 
 
 def test_system_telemetry_is_authenticated_and_best_effort(tmp_path):
