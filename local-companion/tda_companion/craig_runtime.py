@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .craig import (
     CraigIdentity,
@@ -49,6 +51,30 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _refresh_manifest_metadata(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(encoded) > _MANIFEST_MAX_BYTES:
+            return
+        with temporary.open("xb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except OSError:
+        # Metadata sealing is an optimization. A verified package remains usable
+        # even if Windows/AV temporarily prevents refreshing the manifest.
+        pass
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _identity(value: Any) -> CraigIdentity | None:
@@ -106,6 +132,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
 
     tracks: list[CraigTrack] = []
     seen_numbers: set[int] = set()
+    metadata_refresh = False
     for item in tracks_value:
         if not isinstance(item, dict):
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_INVALID")
@@ -160,6 +187,10 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         if metadata_drift or verify_tracks:
             if _sha256_file(candidate) != digest:
                 raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
+            if metadata_drift or staged_mtime_ns is None:
+                staged_mtime_ns = stat.st_mtime_ns
+                item["staged_mtime_ns"] = staged_mtime_ns
+                metadata_refresh = True
 
         tracks.append(
             CraigTrack(
@@ -174,6 +205,9 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 timeline_offset_seconds=float(offset),
             )
         )
+
+    if metadata_refresh:
+        _refresh_manifest_metadata(manifest_path, value)
 
     tracks.sort(key=lambda item: item.number)
     return CraigPackage(
