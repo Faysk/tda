@@ -9,6 +9,7 @@ import {
 	connectionHelp,
 	jobLabels,
 	presentJobEvent,
+	presentJobTitle,
 	stageLabels,
 } from "./presentation";
 import type { JobEvent, LocalJob, SystemGpu } from "./protocol";
@@ -23,12 +24,6 @@ function jobTone(status: LocalJob["status"]): StatusTone {
 	if (status === "failed" || status === "interrupted") return "danger";
 	if (status === "running" || status === "queued") return "accent";
 	return "neutral";
-}
-
-function jobTitle(job: LocalJob): string {
-	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
-	if (job.kind === "transcription.session") return "Transcrição de sessão";
-	return job.kind;
 }
 
 function progressPercent(job: LocalJob): number | null {
@@ -172,7 +167,7 @@ function JobRow({
 	return (
 		<li className={styles.jobRow} data-status={job.status}>
 			<div className={styles.jobRowMain}>
-				<strong>{jobTitle(job)}</strong>
+				<strong>{presentJobTitle(job)}</strong>
 				<span>
 					{job.context?.sessionId ? `Sessão ${job.context.sessionId} · ` : ""}
 					{stageLabels[job.stage] ?? job.stage}
@@ -436,7 +431,7 @@ export function ProcessingPanel() {
 										<div className={styles.activeHeader}>
 											<div>
 												<span className={styles.overline}>{activeJob.context?.sessionId ? `Sessão ${activeJob.context.sessionId}` : "Trabalho local"}</span>
-												<h3>{jobTitle(activeJob)}</h3>
+												<h3>{presentJobTitle(activeJob)}</h3>
 											</div>
 											<StatusPill tone="accent">Processando</StatusPill>
 										</div>
@@ -527,7 +522,7 @@ export function ProcessingPanel() {
 							</div>
 							{observedJob ? (
 								<dl className={styles.jobDetails}>
-									<div><dt>Trabalho</dt><dd>{jobTitle(observedJob)}</dd></div>
+									<div><dt>Trabalho</dt><dd>{presentJobTitle(observedJob)}</dd></div>
 									<div><dt>Estado</dt><dd>{jobLabels[observedJob.status]}</dd></div>
 									<div><dt>Etapa</dt><dd>{stageLabels[observedJob.stage] ?? observedJob.stage}</dd></div>
 									{observedJob.context?.sessionId ? <div><dt>Sessão</dt><dd>{observedJob.context.sessionId}</dd></div> : null}
