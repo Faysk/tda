@@ -515,6 +515,11 @@ def create_app(
                 if claimed:
                     job_id, attempt = claimed
                     state = store.get(job_id)
+                    if state["status"] == "cancelled":
+                        if job_cancel is not None:
+                            clear_active_worker(job_id, job_cancel)
+                        worker_healthy = True
+                        continue
                     body = store.body(job_id)
                     log(
                         "info",
