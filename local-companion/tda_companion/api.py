@@ -673,7 +673,8 @@ def create_app(
                                     {"job_id": job_id, "attempt": attempt},
                                 )
                             else:
-                                result = finalize_transcription_result(
+                                result = await asyncio.to_thread(
+                                    finalize_transcription_result,
                                     job_id,
                                     attempt,
                                     body,
