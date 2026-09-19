@@ -346,6 +346,16 @@ def transcribe_craig_package_qwen_strict(
         try:
             for track in pending_tracks:
                 source = _safe_track_path(package_root, track)
+                report(
+                    {
+                        "type": "event",
+                        "code": "TRACK_ALIGNMENT_STARTED",
+                        "stage": "alignment",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                    }
+                )
                 expected = pending_text[track.number]
                 expected_by_index = {item.index: item for item in expected}
                 seen: set[int] = set()
@@ -432,6 +442,16 @@ def transcribe_craig_package_qwen_strict(
         for source_track in package.tracks:
             if source_track.number not in cached_tracks:
                 continue
+            report(
+                {
+                    "type": "event",
+                    "code": "TRACK_ENERGY_STARTED",
+                    "stage": "energy_analysis",
+                    "track": source_track.number,
+                    "total_tracks": total_tracks,
+                    "speaker": source_track.speaker,
+                }
+            )
             source = _safe_track_path(package_root, source_track)
             transcript_track = tracks_by_number[source_track.number]
             remaining = list(transcript_track.segments)
