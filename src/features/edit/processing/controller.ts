@@ -142,11 +142,19 @@ export class ProcessingController {
 			});
 	}
 
-	connect = async () => {
+	connect = async (legacyToken?: string) => {
 		this.disconnect();
 		this.update({ connection: "connecting" });
 		await this.run(async (signal) => {
-			await this.bridge.bootstrap(signal);
+			if (legacyToken) {
+				// Compatibility path for tests/support tooling only. Product UI uses
+				// automatic browser sessions and never asks the user to copy a token.
+				await this.bridge.health(signal);
+				if (signal.aborted) return;
+				this.bridge.pair(legacyToken);
+			} else {
+				await this.bridge.bootstrap(signal);
+			}
 			if (signal.aborted) return;
 			await this.read(signal);
 		});
