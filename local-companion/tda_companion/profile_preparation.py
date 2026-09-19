@@ -64,6 +64,11 @@ def _error_code(exc: BaseException) -> str:
     return "TRANSCRIPTION_PREPARATION_FAILED"
 
 
+def _check_cancelled(is_cancelled: Callable[[], bool] | None) -> None:
+    if is_cancelled is not None and is_cancelled():
+        raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_CANCELLED")
+
+
 def _runtime_ready(state: dict, family: str) -> bool:
     version = state.get("version")
     if state.get("status") != "ready" or not isinstance(version, str):
@@ -137,7 +142,10 @@ def profile_catalog(
 def _install_whisper_runtime(
     runtime_root: Path,
     cache_root: Path,
+    *,
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
+    _check_cancelled(is_cancelled)
     state = inspect_whisper_runtime(runtime_root, verify_worker=True)
     if _runtime_ready(state, "whisper"):
         return {
@@ -149,6 +157,7 @@ def _install_whisper_runtime(
 
     stable_error: BaseException | None = None
     try:
+        _check_cancelled(is_cancelled)
         manifest = fetch_whisper_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
@@ -159,6 +168,7 @@ def _install_whisper_runtime(
             target = runtime_root / "whisper" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = download_whisper_runtime(manifest, cache_root)
+            _check_cancelled(is_cancelled)
             install_whisper_runtime_archive(
                 archive,
                 runtime_root,
@@ -178,6 +188,7 @@ def _install_whisper_runtime(
         stable_error = exc
 
     try:
+        _check_cancelled(is_cancelled)
         result = install_published_runtime_rc(
             "whisper",
             runtime_root=runtime_root,
@@ -196,11 +207,17 @@ def _install_whisper_runtime(
 def _install_qwen_runtime(
     runtime_root: Path,
     cache_root: Path,
+    *,
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
+    _check_cancelled(is_cancelled)
     state = inspect_qwen_runtime(runtime_root, verify_worker=True)
     if _runtime_ready(state, "qwen"):
         try:
-            probe_qwen_long_track_gate(runtime_root)
+            probe_qwen_long_track_gate(
+                runtime_root,
+                is_cancelled=is_cancelled,
+            )
             return {
                 "status": "ready",
                 "version": state.get("version"),
@@ -215,6 +232,7 @@ def _install_qwen_runtime(
 
     stable_error: BaseException | None = None
     try:
+        _check_cancelled(is_cancelled)
         manifest = fetch_qwen_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
@@ -225,6 +243,7 @@ def _install_qwen_runtime(
             target = runtime_root / "qwen" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = download_qwen_runtime(manifest, cache_root)
+            _check_cancelled(is_cancelled)
             install_qwen_runtime_archive(
                 archive,
                 runtime_root,
@@ -235,7 +254,10 @@ def _install_qwen_runtime(
         state = inspect_qwen_runtime(runtime_root, verify_worker=True)
         if _runtime_ready(state, "qwen"):
             try:
-                probe_qwen_long_track_gate(runtime_root)
+                probe_qwen_long_track_gate(
+                    runtime_root,
+                    is_cancelled=is_cancelled,
+                )
                 return {
                     "status": "ready",
                     "version": state.get("version"),
@@ -254,12 +276,16 @@ def _install_qwen_runtime(
         stable_error = exc
 
     try:
+        _check_cancelled(is_cancelled)
         result = install_published_runtime_rc(
             "qwen",
             runtime_root=runtime_root,
             cache_root=cache_root,
         )
-        probe_qwen_long_track_gate(runtime_root)
+        probe_qwen_long_track_gate(
+            runtime_root,
+            is_cancelled=is_cancelled,
+        )
     except Exception as exc:
         if stable_error is not None:
             raise ProfilePreparationError(_error_code(exc)) from exc
@@ -296,6 +322,7 @@ class ProfilePreparationManager:
         self.system_log = system_log
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._cancel = threading.Event()
         self._started_at: float | None = None
         self._state: dict[str, object] = {
             "schema": "tda_profile_preparation_v1",
@@ -332,6 +359,24 @@ class ProfilePreparationManager:
     def snapshot(self) -> dict[str, object]:
         with self._lock:
             return self._snapshot_locked()
+
+    def request_cancel(self) -> bool:
+        with self._lock:
+            active = self._state.get("active") is True
+            if active:
+                self._cancel.set()
+            return active
+
+    def wait(self, timeout: float | None = None) -> bool:
+        with self._lock:
+            thread = self._thread
+        if thread is None:
+            return True
+        thread.join(timeout=timeout)
+        return not thread.is_alive()
+
+    def _ensure_not_cancelled(self) -> None:
+        _check_cancelled(self._cancel.is_set)
 
     def _set(
         self,
@@ -438,6 +483,7 @@ class ProfilePreparationManager:
 
             operation_id = uuid4().hex
             profile = get_profile(profile_id)
+            self._cancel.clear()
             self._started_at = time.monotonic()
             self._state = {
                 "schema": "tda_profile_preparation_v1",
@@ -477,6 +523,7 @@ class ProfilePreparationManager:
     def _run(self, operation_id: str, source_id: str, profile_id: str) -> None:
         profile = get_profile(profile_id)
         try:
+            self._ensure_not_cancelled()
             catalog = profile_catalog(self.state_root, self.runtime_root, self.models_root)
             current = next(item for item in catalog if item["id"] == profile_id)
             if current.get("ready") is True:
@@ -488,13 +535,18 @@ class ProfilePreparationManager:
                 )
                 return
 
+            self._ensure_not_cancelled()
             self._set(
                 "runtime",
                 "Preparando runtime de transcrição…",
                 "Baixando, verificando ou reutilizando o runtime compatível.",
             )
             if profile.engine == "whisper":
-                runtime = _install_whisper_runtime(self.runtime_root, self.cache_root)
+                runtime = _install_whisper_runtime(
+                    self.runtime_root,
+                    self.cache_root,
+                    is_cancelled=self._cancel.is_set,
+                )
                 self._set(
                     "whisper_model",
                     "Preparando modelo Whisper…",
@@ -506,11 +558,16 @@ class ProfilePreparationManager:
                         models_root=self.models_root,
                         runtime_root=self.runtime_root,
                         profile_id=profile_id,
+                        is_cancelled=self._cancel.is_set,
                     )
                 except WhisperDesktopPrepareError as exc:
                     raise ProfilePreparationError(exc.code) from exc
             else:
-                runtime = _install_qwen_runtime(self.runtime_root, self.cache_root)
+                runtime = _install_qwen_runtime(
+                    self.runtime_root,
+                    self.cache_root,
+                    is_cancelled=self._cancel.is_set,
+                )
                 self._set(
                     "qwen_probe",
                     "Runtime Qwen pronto.",
@@ -527,10 +584,12 @@ class ProfilePreparationManager:
                         source_id=source_id,
                         profile_id=profile_id,
                         progress=self._qwen_progress,
+                        is_cancelled=self._cancel.is_set,
                     )
                 except QwenDesktopPrepareError as exc:
                     raise ProfilePreparationError(exc.code) from exc
 
+            self._ensure_not_cancelled()
             refreshed = profile_catalog(self.state_root, self.runtime_root, self.models_root)
             ready = next(item for item in refreshed if item["id"] == profile_id)
             if ready.get("ready") is not True:
