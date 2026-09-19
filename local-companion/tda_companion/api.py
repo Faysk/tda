@@ -1095,7 +1095,8 @@ def create_app(
                     # unaccepted GPU/profile must not trigger source filesystem work.
                     if body.cpu:
                         raise Conflict("QWEN_CPU_UNSUPPORTED")
-                    gate = inspect_qwen_physical_gate(
+                    gate = await asyncio.to_thread(
+                        inspect_qwen_physical_gate,
                         resolved_state_root,
                         resolved_runtime_root,
                         resolved_models_root,
@@ -1120,13 +1121,15 @@ def create_app(
                         )
                     except CraigPackageError as exc:
                         raise Conflict(str(exc)) from None
-                    whisper = inspect_whisper_runtime(
+                    whisper = await asyncio.to_thread(
+                        inspect_whisper_runtime,
                         resolved_runtime_root,
                         verify_worker=False,
                     )
                     if whisper.get("status") != "ready":
                         raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
-                    model = inspect_model_install(
+                    model = await asyncio.to_thread(
+                        inspect_model_install,
                         resolved_models_root,
                         get_profile(body.profile_id),
                         verify_hash=False,
