@@ -296,7 +296,7 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 		engine,
 		stage: text(row.stage, 64),
 		title: text(row.title, 240),
-		detail: text(row.detail, 500),
+		detail: row.detail === "" ? "" : text(row.detail, 500),
 		sequence: nonNegativeInteger(row.sequence),
 		elapsedSeconds: elapsed,
 		errorCode: nullableText(row.error_code, 96),
