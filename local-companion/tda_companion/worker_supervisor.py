@@ -103,12 +103,17 @@ class WorkerSupervisor:
             except subprocess.TimeoutExpired:
                 pass
 
-    def _environment(self) -> dict[str, str]:
+    def _environment(
+        self,
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         environment = os.environ.copy()
         if self.data_root is not None:
             environment["TDA_WORKER_DATA_ROOT"] = str(self.data_root)
         if self.models_root is not None:
             environment["TDA_WORKER_MODELS_ROOT"] = str(self.models_root)
+        if overrides:
+            environment.update(overrides)
         return environment
 
     def _run_command(
@@ -119,6 +124,7 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         process_command: list[str] | None = None,
+        environment_overrides: dict[str, str] | None = None,
     ) -> WorkerOutcome:
         encoded_command = command.encode()
         executable_command = process_command or self.command_factory()
@@ -135,7 +141,7 @@ class WorkerSupervisor:
             bufsize=1,
             close_fds=True,
             creationflags=self._creationflags(),
-            env=self._environment(),
+            env=self._environment(environment_overrides),
         )
         assert process.stdin is not None
         assert process.stdout is not None
@@ -339,6 +345,7 @@ class WorkerSupervisor:
         worker_command.encode()
 
         runtime_command = None
+        runtime_environment: dict[str, str] | None = None
         if profile_id.startswith("whisper-"):
             if self.runtime_root is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNCONFIGURED")
@@ -346,6 +353,10 @@ class WorkerSupervisor:
             if worker is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
             runtime_command = [str(worker)]
+            runtime_environment = {
+                "TDA_ASR_RUNTIME_FAMILY": "whisper",
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
+            }
         elif profile_id.startswith("qwen-"):
             if self.runtime_root is None or self.state_root is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNCONFIGURED")
@@ -367,6 +378,10 @@ class WorkerSupervisor:
             if worker is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
             runtime_command = [str(worker)]
+            runtime_environment = {
+                "TDA_ASR_RUNTIME_FAMILY": "qwen",
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
+            }
 
         return self._run_command(
             worker_command,
@@ -374,4 +389,5 @@ class WorkerSupervisor:
             on_event=on_event,
             is_cancelled=is_cancelled,
             process_command=runtime_command,
+            environment_overrides=runtime_environment,
         )
