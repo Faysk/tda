@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import re
 import shutil
 import threading
 from contextlib import nullcontext
@@ -27,6 +28,12 @@ CRAIG_UPLOAD_MAX_BYTES = 64 * 1024**3
 CRAIG_UPLOAD_MEDIA_TYPES = frozenset({"application/zip", "application/octet-stream"})
 _COPY_CHUNK = 1024 * 1024
 _REPAIR_SWAP_LOCK = threading.Lock()
+_REPAIR_BACKUP = re.compile(
+    r"^\.(?P<source_id>craig-[0-9a-f]{64})\.backup-[0-9a-f]{32}$"
+)
+_REPAIR_PARTIAL = re.compile(
+    r"^\.craig-[0-9a-f]{64}\.repair-[0-9a-f]{32}\.partial$"
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +117,74 @@ def _remove_path(path: Path) -> None:
             shutil.rmtree(path)
     except OSError:
         pass
+
+
+def recover_interrupted_craig_repairs(
+    data_root: Path,
+    *,
+    source_gate: Any | None = None,
+) -> list[str]:
+    staging_root = data_root.resolve() / "staging"
+    if not staging_root.is_dir():
+        return []
+
+    gate = source_gate if source_gate is not None else nullcontext()
+    recovered: list[str] = []
+    with gate:
+        with _REPAIR_SWAP_LOCK:
+            try:
+                entries = list(staging_root.iterdir())
+            except OSError:
+                return []
+
+            backups: dict[str, list[Path]] = {}
+            partials: list[Path] = []
+            for candidate in entries:
+                backup = _REPAIR_BACKUP.fullmatch(candidate.name)
+                if backup is not None:
+                    backups.setdefault(backup.group("source_id"), []).append(candidate)
+                    continue
+                if _REPAIR_PARTIAL.fullmatch(candidate.name):
+                    partials.append(candidate)
+
+            for source_id, candidates in backups.items():
+                existing = staging_root / source_id
+                if existing.is_symlink():
+                    continue
+                if existing.exists():
+                    for candidate in candidates:
+                        _remove_path(candidate)
+                    continue
+
+                def modified(path: Path) -> int:
+                    try:
+                        return path.stat().st_mtime_ns
+                    except OSError:
+                        return -1
+
+                ordered = sorted(candidates, key=modified, reverse=True)
+                restored = False
+                for candidate in ordered:
+                    if candidate.is_symlink() or not candidate.is_dir():
+                        continue
+                    try:
+                        os.replace(candidate, existing)
+                    except OSError:
+                        continue
+                    recovered.append(source_id)
+                    restored = True
+                    break
+                if restored:
+                    for candidate in ordered:
+                        if candidate != existing:
+                            _remove_path(candidate)
+
+            # A process restart proves these belong to an earlier execution.
+            # They are never authoritative and can be discarded safely.
+            for candidate in partials:
+                _remove_path(candidate)
+
+    return recovered
 
 
 def _copy_run_history(
