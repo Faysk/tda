@@ -127,7 +127,10 @@ def test_overlap_ownership_assigns_boundary_words_once():
     assert {word.text for word in owned_first}.isdisjoint({word.text for word in owned_second})
 
 
-def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: Path):
+def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
+    monkeypatch,
+    tmp_path: Path,
+):
     monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.6")
     package, root = _package(tmp_path)
     reads = 0
