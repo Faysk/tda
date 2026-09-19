@@ -112,7 +112,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-15 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
-| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | especificação aceita para implementação; estabilização R1–R4 em andamento | 2026-09-13 |
+| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | especificação aceita para implementação; estabilização R1–R4 em andamento | 2026-09-19 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
 | [Edit — consulta de permissões](../features/edit-permissions.md) | identity/access + Edit | implementação candidata, somente leitura | 2026-09-07 |
 | [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado | 2026-09-15 |
@@ -197,7 +197,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-14 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
-| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato v0.3 em estabilização; CI técnica válida, aceite físico da 0.3.2 reprovado | 2026-09-13 |
+| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato 0.3.14 em validação; Stable bloqueada até aceite físico real | 2026-09-19 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 e mídia — runbook operacional](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-12 |
 | [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
