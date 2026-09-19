@@ -4,17 +4,7 @@
   let lastSnapshot = null;
   let allLogs = [];
   let refreshTimer = null;
-  let selectedSession = null;
-  let profileState = [];
-  let selectedProfileId = null;
-  let processBusy = false;
-  let submittedJobId = null;
-  let submittedJobStatus = null;
   let lastConnectionState = null;
-  let preparationTimer = null;
-  let preparationPollBusy = false;
-  let preparationLocalStartedAt = null;
-  let lastPreparationStatus = null;
 
   const FRIENDLY_ERRORS = {
     CRAIG_FILE_PICKER_UNAVAILABLE: "O seletor de arquivos do Windows não está disponível.",
@@ -51,7 +41,7 @@
     QWEN_ASR_AUDIO_BACKEND_MISSING: "O runtime Qwen não conseguiu abrir o áudio com o backend empacotado.",
     QWEN_AUDIO_DECODE_RUNTIME_FAILED: "O runtime Qwen instalado falhou no teste interno de decodificação de áudio e precisa ser atualizado.",
     QWEN_ACCEPTANCE_AUDIO_DECODE_FAILED: "O Qwen não conseguiu decodificar a amostra local de áudio para o gate físico.",
-    QWEN_ACCEPTANCE_GPU_NAME_MISMATCH: "O gate físico não foi executado na RTX 4070 esperada.",
+    QWEN_ACCEPTANCE_GPU_NAME_MISMATCH: "O gate físico não foi executado na GPU exigida por esta validação.",
     WHISPER_RUNTIME_UNAVAILABLE: "O runtime Whisper compatível ainda não está pronto.",
     WHISPER_MODEL_DOWNLOAD_FAILED: "Não foi possível baixar o modelo Whisper. Verifique a conexão e tente novamente; o download pode ser retomado no próximo preparo.",
     WHISPER_MODEL_DOWNLOAD_INCOMPLETE: "O download do modelo Whisper terminou incompleto e foi rejeitado.",
@@ -127,179 +117,6 @@
       node.classList.toggle("active", node.dataset.view === name);
     });
     if (name === "logs") refreshLogs(false);
-  }
-
-  function setProcessStatus(title, detail, state = "waiting") {
-    $("process-status-title").textContent = title;
-    $("process-status-detail").textContent = detail;
-    const pill = $("process-state-pill");
-    pill.classList.remove("success", "warning");
-    if (state === "success") pill.classList.add("success");
-    if (state === "warning" || state === "busy") pill.classList.add("warning");
-    pill.textContent = state === "success" ? "Pronto" : state === "busy" ? "Processando" : state === "warning" ? "Atenção" : "Aguardando sessão";
-  }
-
-  const PREPARATION_STAGES = {
-    whisper: [
-      ["runtime", "Runtime", "Baixar, verificar e instalar"],
-      ["whisper_model", "Modelo Whisper", "Baixar e verificar o modelo selecionado"],
-      ["verify", "Verificação", "Confirmar perfil no Agent"],
-      ["complete", "Pronto", "Liberar processamento"],
-    ],
-    qwen3: [
-      ["runtime", "Runtime", "Baixar e verificar dependências"],
-      ["qwen_probe", "GPU e CUDA", "Validar worker e GPU compatível"],
-      ["qwen_audio", "Amostra 60 s", "Escolher áudio local"],
-      ["qwen_model_download", "Modelo Qwen", "Baixar e verificar modelo"],
-      ["qwen_gpu_transcription", "Transcrição teste", "Executar 60 s na GPU"],
-      ["qwen_aligner_download", "Alinhador", "Preparar alinhamento por palavra"],
-      ["qwen_gpu_gate", "Gate físico", "Validar transcrição + alinhamento"],
-      ["verify", "Verificação", "Confirmar perfil no Agent"],
-      ["complete", "Pronto", "Liberar processamento"],
-    ],
-  };
-
-  const PREPARATION_EQUIVALENTS = {
-    starting: "runtime",
-    qwen_gate: "qwen_model_download",
-    failed: "failed",
-  };
-
-  function formatElapsed(seconds) {
-    const total = Math.max(0, Math.floor(Number(seconds) || 0));
-    const hours = Math.floor(total / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
-    const secs = total % 60;
-    if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
-    if (minutes) return `${minutes}m ${String(secs).padStart(2, "0")}s`;
-    return `${secs}s`;
-  }
-
-  function preparationStageRows(engine) {
-    return PREPARATION_STAGES[engine] || PREPARATION_STAGES.qwen3;
-  }
-
-  function renderPreparationProgress(status) {
-    if (!status) return;
-    lastPreparationStatus = status;
-    const panel = $("preparation-progress");
-    const state = status.state || "running";
-    panel.classList.remove("hidden", "completed", "failed");
-    if (state === "completed") panel.classList.add("completed");
-    if (state === "failed") panel.classList.add("failed");
-
-    $("preparation-title").textContent = status.title || "Preparando perfil…";
-    $("preparation-detail").textContent = status.detail || "A preparação continua localmente.";
-    const elapsed = Number(status.elapsed_seconds);
-    const localElapsed = preparationLocalStartedAt === null
-      ? 0
-      : (performance.now() - preparationLocalStartedAt) / 1000;
-    $("preparation-elapsed").textContent = `Tempo: ${formatElapsed(Number.isFinite(elapsed) ? elapsed : localElapsed)}`;
-
-    const bytes = Number(status.current_bytes);
-    $("preparation-bytes").textContent = Number.isFinite(bytes) && bytes > 0
-      ? `${formatBytes(bytes)} recebidos/preparados nesta etapa · downloads verificados antes do uso.`
-      : state === "running"
-        ? "A etapa atual continua localmente. O tempo pode variar no primeiro uso."
-        : state === "completed"
-          ? "Preparação concluída e registrada nos logs."
-          : status.error_code
-            ? `Falha registrada: ${status.error_code}`
-            : "Detalhes técnicos registrados nos logs.";
-
-    const rows = preparationStageRows(status.engine);
-    const target = $("preparation-stage-list");
-    target.replaceChildren();
-    const normalizedStage = PREPARATION_EQUIVALENTS[status.stage] || status.stage;
-    const failedStage = PREPARATION_EQUIVALENTS[status.failure_stage] || status.failure_stage;
-    let currentIndex = rows.findIndex(([id]) => id === normalizedStage);
-    if (state === "completed") currentIndex = rows.length - 1;
-    if (state === "failed") {
-      const failedIndex = rows.findIndex(([id]) => id === failedStage);
-      if (failedIndex >= 0) currentIndex = failedIndex;
-    }
-
-    rows.forEach(([id, label, description], index) => {
-      const item = document.createElement("li");
-      item.className = "preparation-stage";
-      const done = state === "completed" || (currentIndex >= 0 && index < currentIndex);
-      const active = state === "running" && index === currentIndex;
-      const failed = state === "failed" && index === currentIndex;
-      if (done) item.classList.add("done");
-      if (active) item.classList.add("active");
-      if (failed) item.classList.add("failed");
-      const title = document.createElement("b");
-      title.textContent = label;
-      const detail = document.createElement("span");
-      detail.textContent = done ? "Concluído" : active ? "Em andamento" : failed ? "Falhou aqui" : description;
-      item.append(title, detail);
-      target.append(item);
-    });
-
-    if (state === "running") {
-      setProcessStatus(status.title || "Preparando perfil…", status.detail || "A preparação continua localmente.", "busy");
-    }
-  }
-
-  async function pollPreparationStatus() {
-    if (!api || preparationPollBusy || !processBusy) return;
-    preparationPollBusy = true;
-    try {
-      const status = await api.preparation_status();
-      if (status && status.state !== "idle") renderPreparationProgress(status);
-    } catch {
-      // A chamada principal pode estar ocupando o bridge. O cronômetro visual continua
-      // e a próxima sondagem recupera o estágio sem interromper a preparação.
-    } finally {
-      preparationPollBusy = false;
-    }
-  }
-
-  function startPreparationProgress(profile) {
-    if (preparationTimer) window.clearInterval(preparationTimer);
-    preparationLocalStartedAt = performance.now();
-    renderPreparationProgress({
-      active: true,
-      state: "running",
-      engine: profile?.engine || "qwen3",
-      stage: "starting",
-      title: `Preparando ${profile?.label || profile?.id || "perfil"}…`,
-      detail: "Conferindo runtime, modelos e validações necessárias.",
-      elapsed_seconds: 0,
-    });
-    preparationTimer = window.setInterval(() => {
-      const status = lastPreparationStatus;
-      if (status && status.state === "running" && preparationLocalStartedAt !== null) {
-        renderPreparationProgress({
-          ...status,
-          elapsed_seconds: (performance.now() - preparationLocalStartedAt) / 1000,
-        });
-      }
-      pollPreparationStatus();
-    }, 800);
-    pollPreparationStatus();
-  }
-
-  async function finishPreparationProgress() {
-    if (preparationTimer) {
-      window.clearInterval(preparationTimer);
-      preparationTimer = null;
-    }
-    try {
-      const status = await api.preparation_status();
-      if (status && status.state !== "idle") renderPreparationProgress(status);
-    } catch {
-      // O resultado da chamada de preparação ainda será mostrado pelo fluxo principal.
-    }
-  }
-
-  function resetPreparationProgress() {
-    if (preparationTimer) window.clearInterval(preparationTimer);
-    preparationTimer = null;
-    preparationPollBusy = false;
-    preparationLocalStartedAt = null;
-    lastPreparationStatus = null;
-    $("preparation-progress")?.classList.add("hidden");
   }
 
   function formatLogContext(context) {
@@ -475,319 +292,6 @@
     }
   }
 
-  function profileById(profileId) {
-    return profileState.find((profile) => profile.id === profileId) || null;
-  }
-
-  function updateProcessControls() {
-    const button = $("start-processing");
-    const submittedActive = ["queued", "running"].includes(submittedJobStatus);
-    document.querySelectorAll('input[name="transcription-profile"]').forEach((input) => {
-      input.disabled = processBusy || submittedActive;
-    });
-    if (!selectedSession) {
-      button.disabled = true;
-      button.textContent = "Preparar e processar";
-      if (!processBusy) setProcessStatus("Selecione uma sessão para começar.", "O arquivo é processado localmente neste computador.");
-      return;
-    }
-    const profile = profileById(selectedProfileId);
-    if (!profile) {
-      button.disabled = true;
-      button.textContent = "Escolha a qualidade";
-      if (!processBusy) setProcessStatus("Escolha a qualidade da transcrição.", "O perfil recomendado prioriza precisão para sessões importantes.");
-      return;
-    }
-    button.disabled = processBusy || submittedActive;
-    button.textContent = submittedActive
-      ? submittedJobStatus === "queued" ? "Sessão na fila" : "Processando sessão"
-      : submittedJobStatus && ["succeeded", "failed", "interrupted", "cancelled"].includes(submittedJobStatus)
-        ? "Processar novamente"
-        : profile.ready ? "Processar sessão" : "Preparar e processar";
-    if (!processBusy && !submittedJobId) {
-      if (profile.ready) setProcessStatus("Tudo pronto para processar.", `${profile.label} está disponível nesta máquina.`, "success");
-      else setProcessStatus("O perfil será preparado no primeiro uso.", "Runtime, modelo e validações necessárias serão executados antes do job.", "warning");
-    }
-  }
-
-  function renderSession(session) {
-    if (!processBusy) resetPreparationProgress();
-    selectedSession = session;
-    submittedJobId = null;
-    submittedJobStatus = null;
-    const empty = $("source-empty");
-    const summary = $("session-summary");
-    const tracks = $("track-list");
-    tracks.replaceChildren();
-
-    if (!session) {
-      empty.classList.remove("hidden");
-      summary.classList.add("hidden");
-      profileState = [];
-      selectedProfileId = null;
-      $("profile-list").innerHTML = '<div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>';
-      updateProcessControls();
-      return;
-    }
-
-    empty.classList.add("hidden");
-    summary.classList.remove("hidden");
-    $("session-name").textContent = session.source_name || "Sessão Craig";
-    const metadata = [formatBytes(session.size_bytes), session.guild, session.channel, session.recording_id ? `gravação ${session.recording_id}` : null].filter(Boolean);
-    $("session-meta").textContent = metadata.join(" · ") || "ZIP Craig validado";
-    $("session-track-count").textContent = `${session.track_count || 0} faixa(s)`;
-
-    (Array.isArray(session.tracks) ? session.tracks : []).forEach((track) => {
-      const row = document.createElement("li");
-      row.className = "track-row";
-      const number = document.createElement("span");
-      number.className = "track-number";
-      number.textContent = `#${track.number ?? "—"}`;
-      const speaker = document.createElement("span");
-      speaker.className = "track-speaker";
-      speaker.textContent = track.speaker || "Participante";
-      const size = document.createElement("span");
-      size.className = "track-size";
-      size.textContent = formatBytes(track.size_bytes);
-      row.append(number, speaker, size);
-      tracks.append(row);
-    });
-    setProcessStatus("Sessão validada.", `${session.track_count || 0} faixa(s) encontradas. Verificando perfis disponíveis…`, "busy");
-  }
-
-  function renderProfiles(result) {
-    profileState = Array.isArray(result?.profiles) ? result.profiles : [];
-    const target = $("profile-list");
-    target.replaceChildren();
-    if (result?.unavailable) {
-      const unavailable = document.createElement("div");
-      unavailable.className = "profile-loading";
-      unavailable.textContent = `Sessão validada. ${errorText(result.error || "AGENT_CONNECTION_FAILED")} Os perfis serão verificados após a reconexão.`;
-      target.append(unavailable);
-      selectedProfileId = null;
-      updateProcessControls();
-      setProcessStatus(
-        "Sessão validada.",
-        `O ZIP continua pronto. ${errorText(result.error || "AGENT_CONNECTION_FAILED")}`,
-        "warning",
-      );
-      return;
-    }
-    if (!profileState.length) {
-      const empty = document.createElement("div");
-      empty.className = "profile-loading";
-      empty.textContent = "Nenhum perfil de transcrição disponível.";
-      target.append(empty);
-      selectedProfileId = null;
-      updateProcessControls();
-      return;
-    }
-
-    const preferred = profileState.some((profile) => profile.id === selectedProfileId)
-      ? selectedProfileId
-      : result?.recommended || profileState[0].id;
-    selectedProfileId = preferred;
-
-    profileState.forEach((profile) => {
-      const label = document.createElement("label");
-      label.className = "profile-option";
-      label.classList.toggle("selected", profile.id === selectedProfileId);
-
-      const input = document.createElement("input");
-      input.type = "radio";
-      input.name = "transcription-profile";
-      input.value = profile.id;
-      input.checked = profile.id === selectedProfileId;
-      input.addEventListener("change", () => {
-        if (processBusy) return;
-        resetPreparationProgress();
-        selectedProfileId = profile.id;
-        document.querySelectorAll(".profile-option").forEach((node) => {
-          node.classList.remove("selected");
-        });
-        label.classList.add("selected");
-        submittedJobId = null;
-        submittedJobStatus = null;
-        updateProcessControls();
-      });
-
-      const copy = document.createElement("div");
-      copy.className = "profile-copy";
-      const title = document.createElement("strong");
-      title.textContent = profile.label || profile.id;
-      if (profile.recommended) {
-        const tag = document.createElement("em");
-        tag.className = "recommended-tag";
-        tag.textContent = "Recomendado";
-        title.append(tag);
-      }
-      const description = document.createElement("span");
-      description.textContent = profile.description || "Perfil local de transcrição.";
-      copy.append(title, description);
-
-      const readiness = document.createElement("span");
-      readiness.className = `profile-readiness${profile.ready ? "" : " prepare"}`;
-      readiness.textContent = profile.ready ? "Pronto" : "Preparar no primeiro uso";
-      label.append(input, copy, readiness);
-      target.append(label);
-    });
-    updateProcessControls();
-  }
-
-  async function refreshProfiles() {
-    if (!api || !selectedSession) return null;
-    const result = await api.transcription_profiles();
-    renderProfiles(result);
-    return result;
-  }
-
-  async function selectCraigSession() {
-    if (!api || processBusy) return;
-    const button = $("select-craig");
-    button.disabled = true;
-    button.textContent = "Validando…";
-    setProcessStatus("Validando sessão…", "O Companion está conferindo o ZIP e as faixas localmente.", "busy");
-    let result = null;
-    try {
-      result = await api.select_craig_session();
-    } catch (error) {
-      setProcessStatus("Não foi possível validar esse ZIP.", errorText(error), "warning");
-      toast(`Sessão rejeitada: ${errorText(error)}`, true);
-      button.disabled = false;
-      button.textContent = selectedSession ? "Trocar ZIP" : "Selecionar ZIP";
-      return;
-    }
-
-    try {
-      if (!result?.selected) {
-        if (!selectedSession) setProcessStatus("Nenhuma sessão selecionada.", "Escolha o ZIP multitrack original do Craig.");
-        return;
-      }
-      renderSession(result);
-      try {
-        const profiles = await refreshProfiles();
-        if (profiles?.unavailable) {
-          toast(`${result.source_name || "Sessão"} validada; aguardando o Agent para verificar os perfis.`);
-        } else {
-          toast(`${result.source_name || "Sessão"} pronta para configurar.`);
-        }
-      } catch (error) {
-        renderProfiles({ profiles: [], unavailable: true, error: String(error || "AGENT_CONNECTION_FAILED").replace(/^Error:\s*/, "") });
-        toast(`${result.source_name || "Sessão"} foi validada, mas o Agent ainda não respondeu.`, true);
-      }
-    } finally {
-      button.disabled = false;
-      button.textContent = selectedSession ? "Trocar ZIP" : "Selecionar ZIP";
-    }
-  }
-
-  async function startProcessing() {
-    if (!api || processBusy || !selectedSession || !selectedProfileId) return;
-    processBusy = true;
-    submittedJobId = null;
-    updateProcessControls();
-    const profileId = selectedProfileId;
-    let profile = profileById(profileId);
-    try {
-      if (!profile?.ready) {
-        startPreparationProgress(profile);
-        const prepared = await api.prepare_transcription_profile(selectedSession.source_id, profileId);
-        await finishPreparationProgress();
-        const gpuDetail = prepared?.gpu_name ? ` Gate aprovado em ${prepared.gpu_name}.` : "";
-        setProcessStatus("Preparação concluída.", `Perfil validado.${gpuDetail}`, "success");
-        await refreshProfiles();
-        profile = profileById(profileId);
-        if (!profile?.ready) throw new Error("TRANSCRIPTION_PROFILE_NOT_READY");
-      }
-
-      setProcessStatus("Enviando para a fila local…", "Criando o job canônico do Agent.", "busy");
-      const result = await api.start_craig_transcription(
-        selectedSession.source_id,
-        profileId,
-        $("session-glossary").value || "",
-        $("session-context").value || "",
-      );
-      submittedJobId = result?.id || null;
-      const status = result?.status || "queued";
-      submittedJobStatus = status;
-      setProcessStatus(
-        status === "running" ? "Transcrição iniciada." : "Sessão adicionada à fila.",
-        submittedJobId ? `Job ${submittedJobId} · ${profile?.label || profileId}` : `${profile?.label || profileId} · aguardando o Agent`,
-        "busy",
-      );
-      toast("Sessão entregue ao processamento local.");
-      await refreshSnapshot();
-    } catch (error) {
-      submittedJobId = null;
-      await finishPreparationProgress();
-      setProcessStatus("Não foi possível iniciar o processamento.", errorText(error), "warning");
-      toast(`Processamento não iniciado: ${errorText(error)}`, true);
-    } finally {
-      if (preparationTimer) {
-        window.clearInterval(preparationTimer);
-        preparationTimer = null;
-      }
-      processBusy = false;
-      updateProcessControls();
-    }
-  }
-
-  function renderSubmittedJob(snapshot) {
-    if (!submittedJobId || processBusy) return;
-    const job = (snapshot.jobs || []).find((item) => item.id === submittedJobId);
-    if (!job) return;
-    const progress = job.progress || {};
-    submittedJobStatus = job.status;
-    updateProcessControls();
-    if (job.status === "queued") {
-      setProcessStatus("Sessão na fila local.", "O Agent iniciará assim que o slot de processamento estiver livre. O botão fica bloqueado para não criar uma cópia da mesma sessão.", "busy");
-      return;
-    }
-    if (job.status === "running") {
-      const stageDetails = {
-        runtime_validation: "Validando o runtime instalado e o gate físico selado sem reler gigabytes do modelo.",
-        source_validation: "Validando manifesto, faixas e tamanhos da sessão local sem reler todo o áudio.",
-        model_prepare: "Baixando ou verificando o modelo local. A GPU pode ficar em 0% nesta etapa.",
-        model_load: "Modelo pronto; carregando na GPU para iniciar a transcrição.",
-        transcription: "Transcrevendo as faixas da sessão na GPU.",
-        alignment: "Alinhando palavras e timestamps.",
-        cross_track_dedup: "Removendo falas duplicadas entre faixas.",
-        merge_timeline: "Montando a linha do tempo única da sessão.",
-        turn_building: "Organizando os turnos de fala.",
-        result_prepare: "Consolidando e gravando o resultado local.",
-      };
-      const stageDetail = stageDetails[job.stage];
-      const progressDetail = typeof progress.completed === "number"
-        ? `${progress.completed} de ${progress.total ?? "—"} ${progress.unit || "itens"}`
-        : null;
-      setProcessStatus(
-        job.stage === "runtime_validation"
-          ? "Validando runtime e gate físico…"
-          : job.stage === "source_validation"
-            ? "Validando sessão local…"
-            : job.stage === "model_prepare"
-            ? "Preparando modelo de transcrição…"
-            : "Transcrição em andamento.",
-        [stageDetail, progressDetail].filter(Boolean).join(" · ") || "O worker está processando a sessão.",
-        "busy",
-      );
-      return;
-    }
-    if (job.status === "succeeded") {
-      setProcessStatus("Transcrição concluída.", "O resultado local está pronto para o fluxo seguinte do TDA.", "success");
-      updateProcessControls();
-      return;
-    }
-    if (job.status === "failed" || job.status === "interrupted" || job.status === "cancelled") {
-      setProcessStatus(
-        job.status === "cancelled" ? "Processamento cancelado." : "O processamento precisa de atenção.",
-        job.error?.code || (job.status === "cancelled" ? "Você pode iniciar novamente quando quiser." : "Consulte os logs técnicos para detalhes."),
-        "warning",
-      );
-      updateProcessControls();
-    }
-  }
-
   function connectionFamily(state) {
     if (state === "ready") return "ready";
     if (state === "reconnecting" || state === "unavailable" || state === "starting") return "recovering";
@@ -927,26 +431,63 @@
     $("setting-close").value = settings.close_behavior || "hide";
     renderWhisperRuntime(value.whisper_runtime || { status: "missing" }, false);
     renderQwenRuntime(value.qwen_runtime || { status: "missing" }, false);
-    renderSubmittedJob(value);
+
+    const executionState = $("execution-state");
+    const executionTitle = $("execution-title");
+    const executionDetail = $("execution-detail");
+    if (active) {
+      const progress = active.progress || {};
+      const stages = {
+        runtime_validation: "Validando runtime e gate físico",
+        source_validation: "Validando sessão local",
+        model_prepare: "Preparando modelo",
+        model_load: "Carregando modelo na GPU",
+        transcription: "Transcrevendo áudio",
+        alignment: "Alinhando palavras",
+        cross_track_dedup: "Removendo duplicações",
+        merge_timeline: "Montando linha do tempo",
+        turn_building: "Organizando turnos",
+        result_prepare: "Gravando resultado",
+      };
+      const stage = stages[active.stage] || active.stage || "Worker ativo";
+      executionState.textContent = "Processando";
+      executionState.classList.add("warning");
+      executionTitle.textContent = stage;
+      const progressText =
+        typeof progress.completed === "number" && typeof progress.total === "number"
+          ? `${progress.completed} de ${progress.total} ${progress.unit || "itens"} · `
+          : "";
+      executionDetail.textContent =
+        `${progressText}última atividade ${timeOnly(active.updated_at)} · tentativa ${active.attempt || 1}`;
+    } else {
+      executionState.classList.remove("warning");
+      executionState.textContent = connectionState === "ready" ? "Livre" : "Indisponível";
+      executionTitle.textContent =
+        connectionState === "ready"
+          ? counts.queued
+            ? `${counts.queued} trabalho(s) aguardando na fila.`
+            : "Nenhum processamento em andamento."
+          : "Agent local indisponível.";
+      executionDetail.textContent =
+        connectionState === "ready"
+          ? "Novas sessões são iniciadas no TDA Web."
+          : "Os trabalhos persistidos permanecem no armazenamento local enquanto o Companion tenta recuperar o Agent.";
+    }
   }
 
   async function refreshSnapshot() {
     if (!api) return;
-    const previousState = lastConnectionState;
     try {
       const snapshot = await api.snapshot();
       renderSnapshot(snapshot);
-      const currentState = snapshot?.connection?.state || snapshot?.agent?.lifecycle || "ready";
-      if (previousState && previousState !== "ready" && currentState === "ready" && selectedSession) {
-        try {
-          await refreshProfiles();
-        } catch {
-          // The next background cycle will retry; do not turn recovery into toast spam.
-        }
-      }
     } catch {
       $("agent-pill").textContent = "● Agent indisponível";
       $("agent-pill").classList.add("warning");
+      $("execution-state").textContent = "Indisponível";
+      $("execution-state").classList.add("warning");
+      $("execution-title").textContent = "Agent local indisponível.";
+      $("execution-detail").textContent =
+        "Os trabalhos persistidos permanecem locais; consulte Logs ou Diagnóstico para investigar.";
     }
   }
 
@@ -1042,7 +583,6 @@
       toast(result.accepted ? `Qwen runtime ${result.version} instalado e verificado.` : "Runtime Qwen já está atualizado.");
       await refreshSnapshot();
       await checkQwenRuntime(false);
-      if (selectedSession) await refreshProfiles();
     } catch (error) {
       toast(`O runtime Qwen não foi instalado: ${errorText(error)}`, true);
     } finally {
@@ -1135,8 +675,7 @@
     });
     $("new-session").addEventListener("click", () => api.open_tda());
     $("open-processing-web").addEventListener("click", () => api.open_tda());
-    $("select-craig").addEventListener("click", selectCraigSession);
-    $("start-processing").addEventListener("click", startProcessing);
+    $("execution-open-logs").addEventListener("click", () => showView("logs"));
     $("open-tda").addEventListener("click", () => api.open_tda());
     $("open-local").addEventListener("click", () => api.open_local_folder());
     $("open-logs").addEventListener("click", () => api.open_logs_folder());
@@ -1172,11 +711,6 @@
       }
     });
     $("refresh-logs").addEventListener("click", () => refreshLogs(true));
-    $("preparation-open-logs").addEventListener("click", () => {
-      showView("logs");
-      $("log-search").value = "preparation";
-      refreshLogs(false);
-    });
     $("log-level").addEventListener("change", () => refreshLogs(true));
     $("log-search").addEventListener("input", () => renderLogRows($("full-logs"), allLogs, false));
     $("setting-startup").addEventListener("change", (event) => updateSetting("start_with_windows", event.target.checked));
@@ -1214,7 +748,6 @@
     api = window.pywebview?.api;
     if (!api) return;
     bindEvents();
-    renderSession(null);
     await refreshSnapshot();
     await refreshLogs(false);
     if (lastSnapshot?.settings?.check_updates) {
@@ -1231,6 +764,5 @@
   window.addEventListener("pywebviewready", boot, { once: true });
   window.addEventListener("beforeunload", () => {
     if (refreshTimer) window.clearInterval(refreshTimer);
-    if (preparationTimer) window.clearInterval(preparationTimer);
   });
 })();
