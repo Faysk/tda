@@ -41,6 +41,7 @@ from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 _PRODUCT_ID = "tda-companion"
 _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_WORKER_SHUTDOWN_FAST_SECONDS = 20.0
 
 _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
@@ -857,13 +858,23 @@ def create_app(
                     # native/CUDA code and then another bounded terminate/kill
                     # sequence. Keep the coroutine alive long enough for that
                     # fenced teardown to finish instead of abandoning its thread.
-                    await asyncio.wait_for(task, timeout=20.0)
+                    await asyncio.wait_for(
+                        asyncio.shield(task),
+                        timeout=_WORKER_SHUTDOWN_FAST_SECONDS,
+                    )
                 except TimeoutError:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+                    log(
+                        "warning",
+                        "worker",
+                        "WORKER_SHUTDOWN_TIMEOUT",
+                        "Worker did not stop within the fast shutdown window; keeping the data-root fence until it exits",
+                    )
+                    # Do not cancel the asyncio wrapper here: asyncio.to_thread()
+                    # cannot cancel the underlying supervisor thread. Returning
+                    # from lifespan would let AgentController release the sole
+                    # data-root lock while that worker could still own SQLite,
+                    # staged audio or a native/CUDA process.
+                    await task
             preparation_stopped = await asyncio.to_thread(
                 preparation_manager.wait,
                 8.0,
