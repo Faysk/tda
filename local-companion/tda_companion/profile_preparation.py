@@ -39,6 +39,13 @@ from .whisper_desktop_prepare import WhisperDesktopPrepareError, prepare_whisper
 
 _PROFILE_IDS = ("qwen-quality", "qwen-fast", "whisper-detailed", "whisper-turbo")
 _SOURCE_ID = re.compile(r"^craig-[0-9a-f]{64}$")
+_QWEN_RUNTIME_REPAIRABLE_PROBE_ERRORS = frozenset(
+    {
+        "QWEN_RUNTIME_LONG_GATE_REQUIRED",
+        "QWEN_AUDIO_DECODE_RUNTIME_FAILED",
+        "QWEN_RUNTIME_PROBE_FAILED",
+    }
+)
 
 
 class ProfilePreparationError(RuntimeError):
@@ -188,10 +195,11 @@ def _install_qwen_runtime(
                 "accepted": False,
                 "reused": True,
             }
-        except QwenDesktopPrepareError:
-            # A runtime can be structurally intact yet too old for the physical
-            # acceptance contract. Continue into the compatible update path.
-            pass
+        except QwenDesktopPrepareError as exc:
+            # Hardware/driver failures are not repaired by downloading the same
+            # runtime again. Only runtime-capability probe failures enter update.
+            if exc.code not in _QWEN_RUNTIME_REPAIRABLE_PROBE_ERRORS:
+                raise ProfilePreparationError(exc.code) from exc
 
     stable_error: BaseException | None = None
     try:
@@ -219,8 +227,9 @@ def _install_qwen_runtime(
                     "accepted": True,
                     "channel": "stable",
                 }
-            except QwenDesktopPrepareError:
-                pass
+            except QwenDesktopPrepareError as exc:
+                if exc.code not in _QWEN_RUNTIME_REPAIRABLE_PROBE_ERRORS:
+                    raise ProfilePreparationError(exc.code) from exc
     except (NetworkError, RuntimeError, OSError) as exc:
         stable_error = exc
 
