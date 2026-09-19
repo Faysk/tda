@@ -398,6 +398,52 @@ def test_agent_restart_does_not_recover_run_with_different_context(tmp_path: Pat
         }
 
 
+def test_api_preserves_progress_gap_contract_failure(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        kwargs["on_progress"](
+            WorkerMessage.create(
+                job_id=kwargs["job_id"],
+                attempt=kwargs["attempt"],
+                seq=1,
+                type="progress",
+                payload={
+                    "completed": 2,
+                    "total": 2,
+                    "unit": "tracks",
+                    "stage": "transcription",
+                },
+            )
+        )
+        raise AssertionError("progress callback must reject the gap")
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "progress-gap-contract"},
+            json=_body(),
+        ).json()
+        failed = _wait_for_job(client, queued["id"], "failed")
+        assert failed["error"] == {
+            "code": "WORKER_PROGRESS_GAP",
+            "recoverable": False,
+        }
+
+
 def test_api_preserves_incomplete_worker_contract_failure(monkeypatch, tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
