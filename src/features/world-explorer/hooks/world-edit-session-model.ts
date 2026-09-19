@@ -19,7 +19,7 @@ export function worldPublishFailureMessage(reason: string): string {
 		case "media_pending":
 			return "A publicação não aconteceu porque uma imagem ainda não pôde ser verificada. O rascunho e a sessão foram preservados; tente novamente depois da verificação.";
 		case "dependency_unavailable":
-			return "A publicação não pôde ser confirmada por uma falha de servidor ou rede. Nada foi publicado; o rascunho preservado não será descartado.";
+			return "Não foi possível confirmar o resultado da publicação por uma falha de servidor ou rede. O rascunho continua preservado; reabra o Mundo e confira a revisão publicada antes de tentar novamente.";
 		default:
 			return "A publicação não pôde ser confirmada. Nada foi publicado e o rascunho continua preservado.";
 	}
