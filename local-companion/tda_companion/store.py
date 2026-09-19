@@ -1,5 +1,6 @@
 """Transactional queue. Single supervisor owns recovery; claims are atomic."""
 import json
+import math
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -133,7 +134,9 @@ class Store:
         for key, value in payload.items():
             if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", key):
                 raise Conflict("WORKER_EVENT_DATA_INVALID")
-            if value is None or isinstance(value, (bool, int, float)):
+            if value is None or isinstance(value, (bool, int)):
+                clean[key] = value
+            elif isinstance(value, float) and math.isfinite(value):
                 clean[key] = value
             elif isinstance(value, str) and len(value) <= 256:
                 clean[key] = value
