@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import shutil
 import threading
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 from uuid import uuid4
 
 from fastapi import Request
@@ -149,6 +152,8 @@ def _repair_existing_staging(
     source_sha256: str,
     source_name: str | None,
     size_bytes: int,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
 ) -> dict[str, object]:
     existing = staging_root / source_id
     replacement = staging_root / f".{source_id}.repair-{uuid4().hex}.partial"
@@ -167,31 +172,39 @@ def _repair_existing_staging(
                 source_sha256=source_sha256,
             )
 
-        with _REPAIR_SWAP_LOCK:
-            try:
-                valid = _reuse_existing(
-                    staging_root,
-                    source_id=source_id,
-                    source_sha256=source_sha256,
-                    size_bytes=size_bytes,
-                    source_name=source_name,
+        gate = source_gate if source_gate is not None else nullcontext()
+        with gate:
+            if source_running is not None and source_running(source_id):
+                raise CraigUploadError(
+                    "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+                    409,
+                    True,
                 )
-            except CraigUploadError as exc:
-                if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
-                    raise
-                valid = None
-            if valid is not None:
-                return valid
-
-            if not existing.exists() and not existing.is_symlink():
-                os.replace(replacement, existing)
-            else:
-                os.replace(existing, backup)
+            with _REPAIR_SWAP_LOCK:
                 try:
+                    valid = _reuse_existing(
+                        staging_root,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                        size_bytes=size_bytes,
+                        source_name=source_name,
+                    )
+                except CraigUploadError as exc:
+                    if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
+                        raise
+                    valid = None
+                if valid is not None:
+                    return valid
+
+                if not existing.exists() and not existing.is_symlink():
                     os.replace(replacement, existing)
-                except BaseException:
-                    os.replace(backup, existing)
-                    raise
+                else:
+                    os.replace(existing, backup)
+                    try:
+                        os.replace(replacement, existing)
+                    except BaseException:
+                        os.replace(backup, existing)
+                        raise
 
         _refresh_compatibility_mirror(existing)
         _remove_path(backup)
@@ -218,6 +231,8 @@ def _finish_snapshot_ingest(
     source_sha256: str,
     size_bytes: int,
     source_name: str | None,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
 ) -> dict[str, object]:
     uploads_root = data_root / "uploads"
     staging_root = data_root / "staging"
@@ -240,6 +255,8 @@ def _finish_snapshot_ingest(
             source_sha256=source_sha256,
             source_name=source_name,
             size_bytes=size_bytes,
+            source_gate=source_gate,
+            source_running=source_running,
         )
     if existing is not None:
         return existing
@@ -343,7 +360,13 @@ def ingest_craig_file(source_zip: Path, data_root: Path) -> dict[str, object]:
         temporary.unlink(missing_ok=True)
 
 
-async def ingest_craig_request(request: Request, data_root: Path) -> dict[str, object]:
+async def ingest_craig_request(
+    request: Request,
+    data_root: Path,
+    *,
+    source_gate: Any | None = None,
+    source_running: Callable[[str], bool] | None = None,
+) -> dict[str, object]:
     """Stream a Craig ZIP from the browser into local staging without trusting a filesystem path."""
     root = data_root.resolve()
     uploads_root = root / "uploads"
@@ -370,12 +393,15 @@ async def ingest_craig_request(request: Request, data_root: Path) -> dict[str, o
         if written <= 0:
             raise CraigUploadError("CRAIG_UPLOAD_EMPTY", 422, False)
 
-        return _finish_snapshot_ingest(
+        return await asyncio.to_thread(
+            _finish_snapshot_ingest,
             temporary,
             data_root=root,
             source_sha256=digest.hexdigest(),
             size_bytes=written,
             source_name=None,
+            source_gate=source_gate,
+            source_running=source_running,
         )
     except CraigUploadError:
         raise
