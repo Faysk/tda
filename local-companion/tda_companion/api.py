@@ -296,6 +296,11 @@ def create_app(
             cancel.set()
         return cancel
 
+    def active_worker_is(job_id: str) -> bool:
+        with active_worker_lock:
+            return active_worker.get("job_id") == job_id
+
+
     def signal_active_worker_cancel(job_id: str) -> None:
         cancel: threading.Event | None = None
         with active_worker_lock:
@@ -1171,6 +1176,8 @@ def create_app(
     @app.post("/api/v1/jobs/{job_id}/{action}")
     async def action(job_id: str, action: Literal["cancel", "retry", "delete"]):
         if action == "delete":
+            if active_worker_is(job_id):
+                raise Conflict("JOB_ACTIVE")
             return store.remove(job_id)
         if action == "retry":
             body = store.body(job_id)
