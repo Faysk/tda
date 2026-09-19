@@ -613,7 +613,11 @@ export function ProcessingPanel() {
 							<div className={styles.resultSummary} role="status">
 								<span>Resultado local</span>
 								<strong>{state.result.sessionId}</strong>
-								<small>Pacote {state.result.publicationId.slice(0, 12)}…</small>
+								<small>
+									{state.result.runId
+										? `Run ${state.result.runId} · SHA ${state.result.transcriptSha256?.slice(0, 12) ?? "—"}…`
+										: `Pacote ${state.result.publicationId.slice(0, 12)}…`}
+								</small>
 							</div>
 						) : null}
 					</section>
