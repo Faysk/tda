@@ -1006,11 +1006,18 @@ def create_app(
     async def action(job_id: str, action: Literal["cancel", "retry", "delete"]):
         if action == "delete":
             return store.remove(job_id)
+        if action == "retry":
+            body = store.body(job_id)
+            if body.get("kind") == "transcription.craig":
+                async with dispatch_gate:
+                    value = store.action(job_id, action)
+            else:
+                value = store.action(job_id, action)
+            worker_wake.set()
+            return value
         value = store.action(job_id, action)
         if action == "cancel":
             signal_active_worker_cancel(job_id)
-        if action == "retry":
-            worker_wake.set()
         return value
 
     @app.get("/api/v1/jobs/{job_id}/events")
