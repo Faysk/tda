@@ -217,6 +217,9 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             emitter.emit("cancelled", {"stage": "result_prepare"})
             return 0
 
+        if document.source_sha256.lower() != package.source_sha256.lower():
+            raise TranscriptionRunError("TRANSCRIPTION_SOURCE_HASH_MISMATCH")
+
         manifest = write_completed_run(
             package_root,
             document,
