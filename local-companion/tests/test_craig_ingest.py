@@ -12,6 +12,7 @@ from starlette.requests import Request
 
 import tda_companion.craig as craig_module
 import tda_companion.craig_ingest as ingest_module
+import tda_companion.craig_runtime as runtime_module
 from tda_companion.craig_ingest import CraigUploadError, ingest_craig_file, ingest_craig_request
 from tda_companion.craig_runtime import load_craig_package
 from tda_companion.transcript import (
@@ -280,6 +281,28 @@ def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
         manifest["run_id"]
     }
     load_craig_package(package_root, verify_tracks=True)
+
+
+def test_reupload_of_sealed_source_does_not_rehash_all_tracks(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao.zip"
+    source.write_bytes(_zip_bytes())
+
+    first = ingest_craig_file(source, data_root)
+    assert first["reused"] is False
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("sealed source reuse must stay on the metadata fast path")
+        ),
+    )
+
+    second = ingest_craig_file(source, data_root)
+
+    assert second["source_id"] == first["source_id"]
+    assert second["reused"] is True
 
 
 def test_ingest_decouples_windows_unsafe_speaker_name_from_physical_filename(tmp_path: Path):
