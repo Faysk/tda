@@ -91,6 +91,33 @@ def test_probe_rejects_gpu_discovery_without_executable_cuda(monkeypatch, tmp_pa
         probe_qwen_long_track_gate(tmp_path / "Runtime", runner=runner)
 
 
+def test_qwen_explicit_preparation_resets_only_deep_verified_corrupt_model(
+    monkeypatch,
+    tmp_path: Path,
+):
+    profile = prepare.get_profile("qwen-fast")
+    observed = []
+
+    monkeypatch.setattr(
+        prepare,
+        "verify_and_upgrade_model_install",
+        lambda *_args, **_kwargs: {"status": "corrupt"},
+    )
+    monkeypatch.setattr(
+        prepare,
+        "reset_model_install",
+        lambda root, value: observed.append((root, value.id)),
+    )
+
+    prepare._verify_or_reset_qwen_model(
+        tmp_path / "Models",
+        profile,
+        corrupt_code="QWEN_MODEL_REPAIR_FAILED",
+    )
+
+    assert observed == [(tmp_path / "Models", "qwen-fast")]
+
+
 def test_prepare_qwen_uses_staged_track_and_returns_only_safe_gate_summary(monkeypatch, tmp_path: Path):
     runtime_root = tmp_path / "Runtime"
     worker = tmp_path / "TDAQwenWorker.exe"
