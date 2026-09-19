@@ -243,6 +243,18 @@ def create_app(
     active_worker: dict[str, object | None] = {"job_id": None, "cancel": None}
     source_gate = threading.RLock()
 
+    def claim_under_source_gate():
+        with source_gate:
+            return store.claim()
+
+    def start_preparation_under_source_gate(source_id: str, profile_id: str):
+        with source_gate:
+            return preparation_manager.start(source_id, profile_id)
+
+    def staged_package_under_source_gate(source_id: str):
+        with source_gate:
+            return staged_package(source_id, verify_tracks=False)
+
     def source_in_use(source_id: str) -> bool:
         if store.has_running_source(source_id):
             return True
@@ -458,8 +470,11 @@ def create_app(
                     preparation_active = (
                         preparation_manager.snapshot().get("active") is True
                     )
-                    with source_gate:
-                        claimed = None if preparation_active else store.claim()
+                    claimed = (
+                        None
+                        if preparation_active
+                        else await asyncio.to_thread(claim_under_source_gate)
+                    )
                 if preparation_active:
                     worker_healthy = True
                     await asyncio.sleep(0.25)
@@ -746,8 +761,8 @@ def create_app(
                 log("error", "storage", "QUEUE_RECOVERY_REQUIRED", "Queue storage temporarily unavailable")
                 await asyncio.sleep(1)
                 try:
-                    reconcile_completed_transcription_runs()
-                    store.recover()
+                    await asyncio.to_thread(reconcile_completed_transcription_runs)
+                    await asyncio.to_thread(store.recover)
                     worker_healthy = True
                 except Exception:
                     continue
@@ -787,8 +802,8 @@ def create_app(
                     "PREPARATION_SHUTDOWN_TIMEOUT",
                     "Profile preparation did not stop before Agent shutdown timeout",
                 )
-            reconcile_completed_transcription_runs()
-            store.recover()
+            await asyncio.to_thread(reconcile_completed_transcription_runs)
+            await asyncio.to_thread(store.recover)
             log("info", "agent", "API_STOPPED", "Local API stopped")
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -991,8 +1006,11 @@ def create_app(
                     True,
                 )
             try:
-                with source_gate:
-                    value = preparation_manager.start(body.source_id, body.profile_id)
+                value = await asyncio.to_thread(
+                    start_preparation_under_source_gate,
+                    body.source_id,
+                    body.profile_id,
+                )
             except ProfilePreparationError as exc:
                 status = (
                     409
@@ -1086,16 +1104,20 @@ def create_app(
                     if gate.get("ready") is not True:
                         raise Conflict("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
                     try:
-                        with source_gate:
-                            _, package = staged_package(body.source_id, verify_tracks=False)
+                        _, package = await asyncio.to_thread(
+                            staged_package_under_source_gate,
+                            body.source_id,
+                        )
                     except CraigPackageError as exc:
                         raise Conflict(str(exc)) from None
                 else:
                     # Whisper keeps source validation first so a missing/invalid Craig
                     # package is reported deterministically even on an unprepared PC.
                     try:
-                        with source_gate:
-                            _, package = staged_package(body.source_id, verify_tracks=False)
+                        _, package = await asyncio.to_thread(
+                            staged_package_under_source_gate,
+                            body.source_id,
+                        )
                     except CraigPackageError as exc:
                         raise Conflict(str(exc)) from None
                     whisper = inspect_whisper_runtime(
@@ -1130,7 +1152,7 @@ def create_app(
             body = store.body(job_id)
             if body.get("kind") == "transcription.craig":
                 async with dispatch_gate:
-                    reconcile_completed_transcription_runs()
+                    await asyncio.to_thread(reconcile_completed_transcription_runs)
                     current = store.get(job_id)
                     if current["status"] == "succeeded":
                         return current
