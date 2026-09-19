@@ -111,6 +111,48 @@ def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
     ]
 
 
+def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
+    package, root = _package(tmp_path)
+    align_calls = 0
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "   ", "Portuguese"
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            nonlocal align_calls
+            align_calls += 1
+            raise AssertionError("silent windows must not reach forced alignment")
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio="silence")]
+        ),
+        energy_reader=lambda *_args: -120.0,
+    )
+
+    assert align_calls == 0
+    assert len(document.tracks) == 1
+    assert document.tracks[0].segments == ()
+    assert document.stats.segment_count == 0
+    assert document.stats.word_count == 0
+
+
 def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path):
     package, root = _package(tmp_path)
 
