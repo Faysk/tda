@@ -324,6 +324,7 @@ def transcribe_craig_package_qwen_strict(
             asr_session.close()
 
     new_tracks: dict[int, TranscriptTrack] = {}
+    energy_by_segment: dict[tuple[int, str], float] = {}
     if pending_tracks:
         report({"type": "stage", "stage": "alignment", "profile": profile.id})
         aligner_root = aligner_prepare(models_root.resolve())
@@ -346,16 +347,22 @@ def transcribe_craig_package_qwen_strict(
                     if pending is None or not math.isclose(pending.start, window.start, abs_tol=0.001) or not math.isclose(pending.end, window.end, abs_tol=0.001):
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                     seen.add(window.index)
-                    segments.extend(
-                        _strict_alignment_segments(
-                            track.number,
-                            window,
-                            pending,
-                            aligner,
-                            first=window.index == expected[0].index,
-                            last=window.index == last_index,
-                        )
+                    window_segments = _strict_alignment_segments(
+                        track.number,
+                        window,
+                        pending,
+                        aligner,
+                        first=window.index == expected[0].index,
+                        last=window.index == last_index,
                     )
+                    segments.extend(window_segments)
+                    for segment in window_segments:
+                        key = (track.number, segment.id)
+                        value = energy_reader(window, segment.start, segment.end)
+                        energy_by_segment[key] = max(
+                            energy_by_segment.get(key, -120.0),
+                            value,
+                        )
                     duration = max(duration, window.end)
                 if seen != set(expected_by_index):
                     raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
@@ -405,25 +412,30 @@ def transcribe_craig_package_qwen_strict(
 
     transcript_tracks = tuple(cached_tracks.get(track.number) or new_tracks[track.number] for track in package.tracks)
 
-    report({"type": "stage", "stage": "energy_analysis", "profile": profile.id})
-    energy_by_segment: dict[tuple[int, str], float] = {}
-    tracks_by_number = {track.number: track for track in transcript_tracks}
-    for source_track in package.tracks:
-        source = _safe_track_path(package_root, source_track)
-        transcript_track = tracks_by_number[source_track.number]
-        remaining = list(transcript_track.segments)
-        for window in window_reader(source):
-            if is_cancelled():
-                raise QwenRuntimeError("ASR_CANCELLED")
-            next_remaining: list[TranscriptSegment] = []
-            for segment in remaining:
-                if segment.end <= window.start or segment.start >= window.end:
-                    next_remaining.append(segment)
-                    continue
-                key = (transcript_track.number, segment.id)
-                value = energy_reader(window, segment.start, segment.end)
-                energy_by_segment[key] = max(energy_by_segment.get(key, -120.0), value)
-            remaining = next_remaining
+    if cached_tracks:
+        report({"type": "stage", "stage": "energy_analysis", "profile": profile.id})
+        tracks_by_number = {track.number: track for track in transcript_tracks}
+        for source_track in package.tracks:
+            if source_track.number not in cached_tracks:
+                continue
+            source = _safe_track_path(package_root, source_track)
+            transcript_track = tracks_by_number[source_track.number]
+            remaining = list(transcript_track.segments)
+            for window in window_reader(source):
+                if is_cancelled():
+                    raise QwenRuntimeError("ASR_CANCELLED")
+                next_remaining: list[TranscriptSegment] = []
+                for segment in remaining:
+                    if segment.end <= window.start or segment.start >= window.end:
+                        next_remaining.append(segment)
+                        continue
+                    key = (transcript_track.number, segment.id)
+                    value = energy_reader(window, segment.start, segment.end)
+                    energy_by_segment[key] = max(
+                        energy_by_segment.get(key, -120.0),
+                        value,
+                    )
+                remaining = next_remaining
 
     report({"type": "stage", "stage": "cross_track_dedup", "profile": profile.id})
     flattened = flatten_tracks(transcript_tracks)
