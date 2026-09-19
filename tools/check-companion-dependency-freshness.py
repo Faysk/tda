@@ -6,7 +6,9 @@ import os
 import re
 import sys
 import tomllib
+import urllib.error
 import urllib.request
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,12 @@ EXACT = re.compile(r"^([A-Za-z0-9_.-]+)==([^;\s]+)$")
 PYTHON_312 = re.compile(r"^3\.12\.(\d+)$")
 UV_WORKFLOW_PIN = re.compile(r"^\s*version:\s*['\"](\d+\.\d+\.\d+)['\"]\s*$", re.MULTILINE)
 PYTHON_WORKFLOW_PIN = re.compile(r"uv venv --python (3\.12\.\d+)")
+_REGISTRY_ATTEMPTS = 4
+_RETRYABLE_HTTP = frozenset({429, 500, 502, 503, 504})
+
+
+class DependencyRegistryUnavailable(RuntimeError):
+    pass
 
 
 def canonical(name: str) -> str:
@@ -44,6 +52,12 @@ def parse_exact(spec: str) -> tuple[str, str] | None:
 
 
 def fetch_json(url: str) -> object:
+    """Fetch trusted public registry JSON with bounded transient retries.
+
+    Freshness remains fail-closed: a registry that is still unavailable after the
+    bounded retry window fails the workflow. Only transport resets/timeouts and
+    429/5xx responses are retried; permanent 4xx responses fail immediately.
+    """
     headers = {"User-Agent": "TDA-Companion-dependency-audit/1"}
     if url.startswith("https://api.github.com/"):
         token = os.environ.get("GITHUB_TOKEN", "").strip()
@@ -52,8 +66,27 @@ def fetch_json(url: str) -> object:
             headers["Accept"] = "application/vnd.github+json"
             headers["X-GitHub-Api-Version"] = "2022-11-28"
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 - fixed public registries
-        return json.load(response)
+    last_error: BaseException | None = None
+    for attempt in range(_REGISTRY_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(  # noqa: S310 - fixed public registries
+                request,
+                timeout=20,
+            ) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _RETRYABLE_HTTP:
+                raise
+            last_error = exc
+        except (urllib.error.URLError, TimeoutError, ConnectionResetError, OSError) as exc:
+            last_error = exc
+
+        if attempt + 1 < _REGISTRY_ATTEMPTS:
+            time.sleep(2**attempt)
+
+    raise DependencyRegistryUnavailable(
+        f"DEPENDENCY_REGISTRY_UNAVAILABLE:{url}"
+    ) from last_error
 
 
 def latest_pypi(name: str) -> str:
