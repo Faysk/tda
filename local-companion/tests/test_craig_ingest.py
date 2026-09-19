@@ -18,6 +18,7 @@ from tda_companion.craig_ingest import (
     ingest_craig_file,
     ingest_craig_request,
     recover_interrupted_craig_repairs,
+    remove_incomplete_craig_staging,
     remove_incomplete_craig_uploads,
 )
 from tda_companion.craig_runtime import load_craig_package
@@ -35,6 +36,29 @@ from tda_companion.transcription_runs import list_runs, write_completed_run
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+def test_startup_cleanup_removes_only_owned_extracted_staging(tmp_path: Path):
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    owned = staging / (
+        ".craig-" + "a" * 64 + "-" + "b" * 32 + ".partial"
+    )
+    unrelated = staging / ".keep.partial"
+    lookalike_file = staging / (
+        ".craig-" + "c" * 64 + "-" + "d" * 32 + ".partial"
+    )
+    owned.mkdir()
+    (owned / "tracks").mkdir()
+    (owned / "tracks" / "track-000001.flac").write_bytes(b"partial")
+    unrelated.mkdir()
+    lookalike_file.write_bytes(b"not-a-directory")
+
+    assert remove_incomplete_craig_staging(tmp_path) == 1
+
+    assert owned.exists() is False
+    assert unrelated.is_dir()
+    assert lookalike_file.read_bytes() == b"not-a-directory"
 
 
 def test_startup_cleanup_removes_only_craig_upload_partials(tmp_path: Path):
