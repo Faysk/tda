@@ -251,13 +251,6 @@ def _repair_existing_staging(
             source_sha256=source_sha256,
             source_name=source_name or f"{source_id}.zip",
         )
-        if existing.is_dir() and not existing.is_symlink():
-            _copy_run_history(
-                existing,
-                replacement,
-                source_sha256=source_sha256,
-            )
-
         gate = source_gate if source_gate is not None else nullcontext()
         with gate:
             if source_running is not None and source_running(source_id):
@@ -281,6 +274,16 @@ def _repair_existing_staging(
                     valid = None
                 if valid is not None:
                     return valid
+
+                # Preserve immutable runs only after source ownership is stable.
+                # Holding source_gate here prevents a new worker claim while we
+                # snapshot the run history immediately before the directory swap.
+                if existing.is_dir() and not existing.is_symlink():
+                    _copy_run_history(
+                        existing,
+                        replacement,
+                        source_sha256=source_sha256,
+                    )
 
                 if not existing.exists() and not existing.is_symlink():
                     os.replace(replacement, existing)
