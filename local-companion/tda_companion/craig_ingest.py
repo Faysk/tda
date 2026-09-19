@@ -156,12 +156,31 @@ def recover_interrupted_craig_repairs(
                 existing = staging_root / source_id
                 if existing.is_symlink():
                     continue
+
+                expected_sha256 = source_id.removeprefix("craig-")
                 if existing.exists():
-                    for candidate in candidates:
-                        _remove_path(candidate)
-                    for candidate in replacements:
-                        _remove_path(candidate)
-                    continue
+                    try:
+                        current = load_craig_package(existing, verify_tracks=True)
+                        existing_valid = current.source_sha256 == expected_sha256
+                    except CraigPackageError:
+                        existing_valid = False
+                    if existing_valid:
+                        for candidate in candidates:
+                            _remove_path(candidate)
+                        for candidate in replacements:
+                            _remove_path(candidate)
+                        continue
+
+                    displaced = (
+                        staging_root / f".{source_id}.backup-{uuid4().hex}"
+                    )
+                    try:
+                        os.replace(existing, displaced)
+                    except OSError:
+                        # Do not destroy leftovers if the invalid current source
+                        # could not be moved out of the way safely.
+                        continue
+                    candidates.append(displaced)
 
                 def modified(path: Path) -> int:
                     try:
@@ -173,7 +192,6 @@ def recover_interrupted_craig_repairs(
                 # backup because the backup may be the corrupt source that caused
                 # the repair in the first place. Prove replacement bytes before
                 # promoting it.
-                expected_sha256 = source_id.removeprefix("craig-")
                 promoted = False
                 for replacement in sorted(replacements, key=modified, reverse=True):
                     if replacement.is_symlink() or not replacement.is_dir():
@@ -194,9 +212,22 @@ def recover_interrupted_craig_repairs(
 
                 if not promoted:
                     ordered = sorted(candidates, key=modified, reverse=True)
+                    verified_backups: list[Path] = []
+                    fallback_backups: list[Path] = []
                     for candidate in ordered:
                         if candidate.is_symlink() or not candidate.is_dir():
                             continue
+                        try:
+                            package = load_craig_package(candidate, verify_tracks=True)
+                        except CraigPackageError:
+                            fallback_backups.append(candidate)
+                            continue
+                        if package.source_sha256 == expected_sha256:
+                            verified_backups.append(candidate)
+                        else:
+                            fallback_backups.append(candidate)
+
+                    for candidate in verified_backups + fallback_backups:
                         try:
                             os.replace(candidate, existing)
                         except OSError:
