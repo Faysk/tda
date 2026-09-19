@@ -230,6 +230,11 @@ def _install_qwen_runtime(
             except QwenDesktopPrepareError as exc:
                 if exc.code not in _QWEN_RUNTIME_REPAIRABLE_PROBE_ERRORS:
                     raise ProfilePreparationError(exc.code) from exc
+    except ProfilePreparationError:
+        # Hardware/GPU failures discovered after a freshly installed Stable
+        # runtime are authoritative. Falling back to another runtime build would
+        # hide the real machine error and waste a multi-gigabyte download.
+        raise
     except (NetworkError, RuntimeError, OSError) as exc:
         stable_error = exc
 
