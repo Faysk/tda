@@ -241,6 +241,28 @@ def remove_incomplete_run(package_root: Path, run_id: str) -> bool:
     return not destination.exists()
 
 
+def remove_incomplete_runs(package_root: Path) -> int:
+    """Remove only orphan run directories that never reached the run.json commit marker."""
+    root = _runs_root(package_root)
+    if not root.is_dir():
+        return 0
+    removed = 0
+    for candidate in root.iterdir():
+        if (
+            candidate.is_dir()
+            and not candidate.is_symlink()
+            and _RUN_ID.fullmatch(candidate.name)
+            and not (candidate / "run.json").exists()
+        ):
+            try:
+                shutil.rmtree(candidate)
+            except OSError:
+                continue
+            if not candidate.exists():
+                removed += 1
+    return removed
+
+
 def write_compatibility_mirror(package_root: Path, run_id: str) -> str:
     """Update legacy <source>/transcript.json without making it the source of truth."""
     source = run_root(package_root, run_id) / "transcript.json"
