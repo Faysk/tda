@@ -293,7 +293,7 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         info_present=False,
         raw_dat_present=False,
     )
-    calls = {"transcribe": 0}
+    calls = {"transcribe": 0, "load": 0}
 
     class FakeModel:
         def transcribe(self, _path: str, **_options):
@@ -305,6 +305,7 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
             return iter(segments), SimpleNamespace(duration=2.0)
 
     def loader(_path, plan):
+        calls["load"] += 1
         return FakeModel(), plan.compute_type, False
 
     common = {
@@ -332,10 +333,15 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
     )
 
     assert calls["transcribe"] == 1
+    assert calls["load"] == 1
     assert second.as_dict()["tracks"] == first.as_dict()["tracks"]
     assert second.as_dict()["turns"] == first.as_dict()["turns"]
     assert any(item.get("code") == "ASR_CHECKPOINT_SAVED" for item in first_reports)
     assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in second_reports)
+    assert any(item.get("code") == "ASR_CHECKPOINT_FAST_PATH" for item in second_reports)
+    assert "model_load" not in [
+        item.get("stage") for item in second_reports if item.get("type") == "stage"
+    ]
 
     transcribe_craig_package(
         package,
@@ -348,3 +354,4 @@ def test_craig_whisper_reuses_exact_track_checkpoint(tmp_path: Path):
         model_loader=loader,
     )
     assert calls["transcribe"] == 2
+    assert calls["load"] == 2
