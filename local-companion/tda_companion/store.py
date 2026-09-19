@@ -378,9 +378,10 @@ class Store:
                         ):
                             raise Conflict("TRANSCRIPTION_WORK_ALREADY_ACTIVE")
                 status = "queued"
-                # Queue progress restarts from zero. Engine-level checkpoints are
-                # reused independently and must report fresh sequential progress
-                # for this new attempt instead of inheriting stale counters.
+                # Queue progress restarts from zero for the new attempt.
+                # Engines may reuse validated per-track checkpoints, but every
+                # reused track must be replayed as fresh sequential progress before
+                # this attempt can commit its own immutable result.
                 if body["kind"] == "transcription.craig":
                     completed = 0
             db.execute(
