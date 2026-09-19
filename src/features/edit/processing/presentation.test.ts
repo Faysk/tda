@@ -39,6 +39,15 @@ describe("processing presentation", () => {
 		);
 	});
 
+	it("explains physical ASR execution failures", () => {
+		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toContain("alinhamento");
+		expect(presentJobError("QWEN_MODEL_NOT_GPU_RESIDENT")).toContain("GPU");
+		expect(presentJobError("WHISPER_CUDA_UNAVAILABLE")).toContain("CUDA");
+		expect(presentJobError("WHISPER_RUNTIME_NOT_INSTALLED")).toContain(
+			"runtime Whisper",
+		);
+	});
+
 	it("explains new integrity and worker-contract failures", () => {
 		expect(presentJobError("AGENT_BUSY")).toContain("ocupado");
 		expect(presentJobError("RESULT_ARTIFACT_UNAVAILABLE")).toContain(
