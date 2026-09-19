@@ -10,7 +10,10 @@ from tda_companion.profile_preparation import (
     ProfilePreparationError,
     ProfilePreparationManager,
 )
-from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+from tda_companion.runtime_compat import (
+    MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+)
 
 
 def _manager(tmp_path: Path) -> ProfilePreparationManager:
@@ -145,6 +148,94 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
         manager.start(source_b, "whisper-turbo")
 
     release = True
+
+
+def test_whisper_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypatch):
+    calls = {"inspect": 0, "stable_download": 0, "rc": 0}
+
+    def inspect(_root, verify_worker=True):
+        calls["inspect"] += 1
+        if calls["inspect"] < 3:
+            return {"status": "missing", "version": None}
+        return {"status": "ready", "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION}
+
+    class Manifest:
+        version = "0.0.0"
+        sha256 = "a" * 64
+
+    monkeypatch.setattr(preparation, "inspect_whisper_runtime", inspect)
+    monkeypatch.setattr(preparation, "fetch_whisper_runtime_manifest", lambda: Manifest())
+    monkeypatch.setattr(preparation, "whisper_runtime_update_available", lambda *_args: True)
+
+    def forbidden_download(*_args, **_kwargs):
+        calls["stable_download"] += 1
+        raise AssertionError("incompatible Stable runtime must not be downloaded")
+
+    monkeypatch.setattr(preparation, "download_whisper_runtime", forbidden_download)
+
+    def rc(*_args, **_kwargs):
+        calls["rc"] += 1
+        return {
+            "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+            "channel": "rc",
+        }
+
+    monkeypatch.setattr(preparation, "install_published_runtime_rc", rc)
+
+    result = preparation._install_whisper_runtime(
+        tmp_path / "Runtime",
+        tmp_path / "Cache",
+    )
+
+    assert calls["stable_download"] == 0
+    assert calls["rc"] == 1
+    assert result["version"] == MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+
+
+def test_qwen_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypatch):
+    calls = {"inspect": 0, "stable_download": 0, "rc": 0}
+
+    def inspect(_root, verify_worker=True):
+        calls["inspect"] += 1
+        if calls["inspect"] < 3:
+            return {"status": "missing", "version": None}
+        return {"status": "ready", "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION}
+
+    class Bundle:
+        archive_sha256 = "a" * 64
+
+    class Manifest:
+        version = "0.0.0"
+        bundle = Bundle()
+
+    monkeypatch.setattr(preparation, "inspect_qwen_runtime", inspect)
+    monkeypatch.setattr(preparation, "fetch_qwen_runtime_manifest", lambda: Manifest())
+    monkeypatch.setattr(preparation, "qwen_runtime_update_available", lambda *_args: True)
+
+    def forbidden_download(*_args, **_kwargs):
+        calls["stable_download"] += 1
+        raise AssertionError("incompatible Stable runtime must not be downloaded")
+
+    monkeypatch.setattr(preparation, "download_qwen_runtime", forbidden_download)
+    monkeypatch.setattr(preparation, "probe_qwen_long_track_gate", lambda _root: None)
+
+    def rc(*_args, **_kwargs):
+        calls["rc"] += 1
+        return {
+            "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+            "channel": "rc",
+        }
+
+    monkeypatch.setattr(preparation, "install_published_runtime_rc", rc)
+
+    result = preparation._install_qwen_runtime(
+        tmp_path / "Runtime",
+        tmp_path / "Cache",
+    )
+
+    assert calls["stable_download"] == 0
+    assert calls["rc"] == 1
+    assert result["version"] == MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
 
 
 def test_qwen_hardware_failure_after_stable_install_does_not_fall_back_to_rc(
