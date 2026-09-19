@@ -16,8 +16,10 @@ import {
 	saveWorldLayoutSessionDraftAction,
 } from "../world-layout-session-actions";
 import {
+	worldDraftSaveFailureMessage,
 	worldEditFailureMessage,
 	worldLayoutPositionsEqual,
+	worldPublishFailureMessage,
 } from "./world-edit-session-model";
 
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
@@ -182,7 +184,7 @@ export function useWorldEditSession({
 					markLeaseLost(result.reason);
 					return;
 				}
-				setFeedback(worldEditFailureMessage(result.reason));
+				setFeedback(worldDraftSaveFailureMessage(result.reason));
 			});
 		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
 	}
@@ -207,7 +209,7 @@ export function useWorldEditSession({
 					markLeaseLost(result.reason);
 					return;
 				}
-				setFeedback(worldEditFailureMessage(result.reason));
+				setFeedback(worldDraftSaveFailureMessage(result.reason));
 			});
 		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
 	}
@@ -319,7 +321,7 @@ export function useWorldEditSession({
 		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
 		if (!layoutCandidate) {
 			setState("editing");
-			setFeedback(worldEditFailureMessage("invalid_payload"));
+			setFeedback(worldPublishFailureMessage("invalid_payload"));
 			return;
 		}
 		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
@@ -329,7 +331,7 @@ export function useWorldEditSession({
 				markLeaseLost(layoutResult.reason);
 			} else {
 				setState("editing");
-				setFeedback(worldEditFailureMessage(layoutResult.reason));
+				setFeedback(worldPublishFailureMessage(layoutResult.reason));
 			}
 			return;
 		}
@@ -348,7 +350,7 @@ export function useWorldEditSession({
 					markLeaseLost(graphResult.reason);
 				} else {
 					setState("editing");
-					setFeedback(worldEditFailureMessage(graphResult.reason));
+					setFeedback(worldPublishFailureMessage(graphResult.reason));
 				}
 				return;
 			}
@@ -361,14 +363,14 @@ export function useWorldEditSession({
 					markLeaseLost(publishResult.reason);
 				} else {
 					setState("editing");
-					setFeedback(worldEditFailureMessage(publishResult.reason));
+					setFeedback(worldPublishFailureMessage(publishResult.reason));
 				}
 				return;
 			}
 			completePublishedEdit(
 				publishResult.status === "unchanged"
-					? "Nenhuma alteração precisava ser publicada."
-					: "Mundo publicado. Cada pessoa vê somente o que sua visibilidade permite.",
+					? `Publicação confirmada. Nenhuma alteração nova era necessária · revisão ${publishResult.graphRevision}.`
+					: `Mundo publicado com sucesso · revisão ${publishResult.graphRevision}. Cada pessoa vê somente o que sua visibilidade permite.`,
 			);
 			return;
 		}
@@ -381,7 +383,7 @@ export function useWorldEditSession({
 				markLeaseLost(publishResult.reason);
 			} else {
 				setState("editing");
-				setFeedback(worldEditFailureMessage(publishResult.reason));
+				setFeedback(worldPublishFailureMessage(publishResult.reason));
 			}
 			return;
 		}
