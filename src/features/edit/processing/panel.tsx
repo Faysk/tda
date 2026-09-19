@@ -228,10 +228,12 @@ export function ProcessingPanel() {
 		controller.serverSnapshot,
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-	const token = useRef<HTMLInputElement>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
-	useEffect(() => () => controller.disconnect(), [controller]);
+	useEffect(() => {
+		void controller.connect();
+		return () => controller.disconnect();
+	}, [controller]);
 	useEffect(() => {
 		if (state.connection !== "connected" || state.busy) return;
 		const timer = setTimeout(() => {
@@ -355,50 +357,41 @@ export function ProcessingPanel() {
 									Pausar novas execuções
 								</Button>
 							) : null}
-							<Button
-								size="sm"
-								variant="tertiary"
-								onClick={() => {
-									setConfirmation(null);
-									controller.disconnect();
-								}}
-							>
-								Desconectar esta aba
-							</Button>
 						</div>
 					</>
 				) : (
-					<form
-						className={styles.pairing}
-						onSubmit={(event) => {
-							event.preventDefault();
-							const value = token.current?.value ?? "";
-							if (token.current) token.current.value = "";
-							void controller.connect(value.trim());
-						}}
-					>
-						<label htmlFor="pair-token">Token de pareamento do aplicativo local</label>
+					<div className={styles.pairing}>
+						<strong>
+							{state.connection === "connecting"
+								? "Conectando ao TDA Companion…"
+								: "TDA Companion não está conectado."}
+						</strong>
+						<p className={styles.pairingHelp}>
+							Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente.
+						</p>
 						<div className={styles.pairingControls}>
-							<input
-								ref={token}
-								id="pair-token"
-								type="password"
-								autoComplete="off"
-								spellCheck={false}
-								required
-								minLength={32}
-								maxLength={256}
+							<Button
+								type="button"
+								size="sm"
 								disabled={state.busy}
-								aria-describedby="pair-help"
-							/>
-							<Button type="submit" size="sm" disabled={state.busy}>
-								Conectar neste computador
+								onClick={() => {
+									window.location.href = "tda-companion://open";
+									window.setTimeout(() => void controller.connect(), 1500);
+								}}
+							>
+								Abrir TDA Companion
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={state.busy}
+								onClick={() => void controller.connect()}
+							>
+								Tentar novamente
 							</Button>
 						</div>
-						<p id="pair-help" className={styles.pairingHelp}>
-							O token fica apenas na memória desta aba. Recarregar exige novo pareamento.
-						</p>
-					</form>
+					</div>
 				)}
 				{state.error ? (
 					<p className={styles.connectionError} role="alert">
