@@ -415,7 +415,7 @@ export function parseJobEvents(value: unknown): JobEvent[] {
 		}
 		return {
 			seq: nonNegativeInteger(row.seq),
-			code: text(row.code, 80),
+			code: text(row.code, 96),
 			at: isoDate(row.at),
 			level: level as JobEventLevel,
 			data,
