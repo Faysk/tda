@@ -416,7 +416,9 @@ reset role;
 -- The exclusive draft is authoritative when it replaces an existing semantic
 -- relation. A new active edge may appear before the archived predecessor in the
 -- JSON array; publication must still retire the predecessor first instead of
--- raising "duplicate active relation".
+-- raising "duplicate active relation". Keep the regression isolated so the
+-- provenance suite that follows still starts from the canonical revision-1 fixture.
+begin;
 set role service_role;
 do $$
 declare
@@ -509,6 +511,7 @@ begin
 end;
 $$;
 reset role;
+rollback;
 
 -- Recovery keeps a private factual draft for the same editor after lease expiry.
 set role service_role;
@@ -528,8 +531,8 @@ begin
     '33333333-3333-4333-8333-333333333333',
     'synthetic-campaign', token_a
   );
-  if (result->>'baseRevision')::bigint <> 2 then
-    raise exception 'fresh factual draft should start at graph revision 2: %', result;
+  if (result->>'baseRevision')::bigint <> 1 then
+    raise exception 'fresh factual draft should start at graph revision 1: %', result;
   end if;
 end;
 $$;
@@ -561,7 +564,7 @@ begin
     '33333333-3333-4333-8333-333333333333',
     'synthetic-campaign', token_b
   );
-  if result->>'ok' <> 'true' or (result->>'baseRevision')::bigint <> 2 then
+  if result->>'ok' <> 'true' or (result->>'baseRevision')::bigint <> 1 then
     raise exception 'same editor graph draft recovery failed: %', result;
   end if;
 
