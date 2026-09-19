@@ -32,6 +32,8 @@ def _client(tmp_path: Path) -> TestClient:
         origins=frozenset({ORIGIN}),
         port=8765,
         browser_sessions=api.state.browser_sessions,
+        source_gate=api.state.source_gate,
+        source_running=api.state.store.has_running_source,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -106,6 +108,62 @@ def test_boundary_accepts_origin_bound_browser_session_for_zip_ingest(tmp_path: 
         )
         assert no_origin.status_code == 403
         assert no_origin.json()["error"]["code"] == "ORIGIN_REQUIRED"
+
+
+def test_boundary_blocks_repair_while_same_source_is_running(tmp_path: Path):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        track = package_root / "tracks" / "track-000001.flac"
+        original = track.read_bytes()
+        replacement = b"fLaC-ALICE"
+        assert len(replacement) == len(original)
+        track.write_bytes(replacement)
+
+        store = client.app.app.state.store
+        job = store.submit(
+            "running-source-repair-guard",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign",
+                "session_id": "session",
+                "source_id": source_id,
+                "profile_id": "whisper-turbo",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "units": 1,
+            },
+        )
+        claimed = store.claim()
+        assert claimed is not None
+        assert claimed[0] == job["id"]
+        assert store.has_running_source(source_id) is True
+
+        blocked = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+
+        assert blocked.status_code == 409
+        assert blocked.json()["error"] == {
+            "code": "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            "recoverable": True,
+        }
+        assert track.read_bytes() == replacement
 
 
 def test_boundary_preflight_is_narrow_and_private_network_aware(tmp_path: Path):
