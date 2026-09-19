@@ -16,7 +16,7 @@
       </div>
       <nav aria-label="Navegação do Companion">
         <button type="button" class="nav-item active" data-view="overview"><span>⌂</span>Visão geral</button>
-        <button type="button" class="nav-item" data-view="process"><span>▶</span>Processar sessão</button>
+        <button type="button" class="nav-item" data-view="process"><span>▶</span>Execução local</button>
         <button type="button" class="nav-item" data-view="logs"><span>▤</span>Logs</button>
         <button type="button" class="nav-item" data-view="diagnostics"><span>◌</span>Diagnóstico</button>
         <button type="button" class="nav-item" data-view="settings"><span>⚙</span>Configurações</button>
@@ -32,7 +32,7 @@
         <header class="page-head">
           <div>
             <h1>Tudo certo por aqui.</h1>
-            <p>Controle o processamento local desta máquina e envie novas sessões sem sair do Companion.</p>
+            <p>Monitore o Agent, a fila e os recursos desta máquina. Novas sessões são iniciadas no TDA Web.</p>
           </div>
           <div class="head-actions">
             <span class="pill success" id="agent-pill">● Agente local</span>
@@ -73,10 +73,10 @@
             <div class="empty-work" id="work-summary">
               <div class="empty-icon">▤</div>
               <h3>Nenhum processamento em andamento.</h3>
-              <p>A fila está livre. Selecione um ZIP do Craig para iniciar uma transcrição local.</p>
+              <p>A fila está livre. Inicie uma nova sessão pela tela de Processamento no TDA Web.</p>
             </div>
             <div class="action-row">
-              <button type="button" class="primary" id="new-session">Processar sessão</button>
+              <button type="button" class="primary" id="new-session">Abrir Processamento no TDA</button>
               <button type="button" id="open-tda">Abrir TDA</button>
               <button type="button" id="toggle-queue">Pausar fila</button>
               <button type="button" id="restart-agent">Reiniciar Agent</button>
@@ -107,13 +107,42 @@
       <section class="view" id="view-process">
         <header class="sub-head process-head">
           <div>
-            <h1>Processar sessão</h1>
-            <p>Selecione o ZIP multitrack do Craig. Cada participante continua em sua própria faixa e o Companion monta a linha do tempo depois da transcrição.</p>
+            <h1>Execução local</h1>
+            <p>O TDA Web define a sessão, o perfil e o contexto. O Companion executa os trabalhos localmente e mantém o Agent observável.</p>
           </div>
-          <span class="pill" id="process-state-pill">Aguardando sessão</span>
+          <span class="pill success">Gerenciado pelo TDA</span>
         </header>
 
         <div class="process-layout">
+          <section class="panel process-workspace">
+            <div class="workflow-step">
+              <div class="step-head">
+                <div class="step-title">
+                  <span class="step-number">↗</span>
+                  <div>
+                    <h2>Inicie sessões no TDA Web</h2>
+                    <p>Existe uma única porta de entrada para processamento. Escolha ZIP, perfil, contexto e glossário no site; este aplicativo cuida da execução, fila, logs, runtimes e diagnóstico.</p>
+                  </div>
+                </div>
+                <button type="button" class="primary" id="open-processing-web">Abrir Processamento no TDA</button>
+              </div>
+              <div class="notice">Fechar esta janela não interrompe o Agent. Trabalhos ativos continuam em segundo plano e podem ser acompanhados na Visão geral ou no próprio TDA.</div>
+            </div>
+          </section>
+          <aside class="process-guide">
+            <section>
+              <h2>Divisão de responsabilidade</h2>
+              <ol class="process-steps">
+                <li><b>TDA Web</b><span>Seleciona a sessão, configura a transcrição, cria/cancela trabalhos e apresenta resultados.</span></li>
+                <li><b>Companion</b><span>Executa a fila local, usa CPU/GPU, mantém runtimes/modelos e expõe telemetria.</span></li>
+                <li><b>Diagnóstico</b><span>Logs e ferramentas técnicas ficam neste aplicativo, sem duplicar o fluxo editorial.</span></li>
+              </ol>
+            </section>
+          </aside>
+        </div>
+
+        <div class="process-layout hidden" aria-hidden="true">
+          <span class="pill hidden" id="process-state-pill">Aguardando sessão</span>
           <section class="panel process-workspace">
             <div class="workflow-step">
               <div class="step-head">
@@ -233,9 +262,13 @@
             <label>Ao fechar<select id="setting-close"><option value="hide">Ocultar a interface</option><option value="close_ui">Fechar somente a interface</option></select></label>
           </section>
           <section class="panel setting-group">
-            <h2>Pareamento</h2>
-            <p>O token fica neste computador e é usado apenas para autorizar a aba do TDA.</p>
-            <div class="action-row"><button type="button" id="copy-token">Copiar token</button><span class="feedback" id="token-feedback"></span></div>
+            <h2>Conexão com o TDA</h2>
+            <p>O site conecta automaticamente ao Agent quando o Companion está aberto. Não é necessário copiar ou colar token no uso normal.</p>
+            <details class="advanced-options">
+              <summary>Diagnóstico avançado</summary>
+              <p>O token mestre existe apenas para suporte técnico e clientes locais compatíveis. Sessões do navegador usam credenciais temporárias em memória.</p>
+              <div class="action-row"><button type="button" id="copy-token">Copiar token técnico</button><span class="feedback" id="token-feedback"></span></div>
+            </details>
           </section>
           <section class="panel setting-group runtime-settings">
             <h2>Runtimes de transcrição</h2>
