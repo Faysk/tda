@@ -198,6 +198,46 @@ def test_security_and_validation(client):
     assert client.get("/api/v1/jobs/", headers=HEADERS).status_code == 404
 
 
+def test_conflict_recoverability_matches_whether_repeating_can_help(client):
+    first = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "conflict-contract"},
+        json=BODY,
+    )
+    assert first.status_code == 200
+    job_id = first.json()["id"]
+
+    idem_conflict = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "conflict-contract"},
+        json={**BODY, "units": 4},
+    )
+    assert idem_conflict.status_code == 409
+    assert idem_conflict.json() == {
+        "error": {"code": "IDEMPOTENCY_CONFLICT", "recoverable": False}
+    }
+
+    retry_queued = client.post(
+        f"/api/v1/jobs/{job_id}/retry",
+        headers=HEADERS,
+        json={},
+    )
+    assert retry_queued.status_code == 409
+    assert retry_queued.json() == {
+        "error": {"code": "JOB_NOT_RETRYABLE", "recoverable": False}
+    }
+
+    delete_active = client.post(
+        f"/api/v1/jobs/{job_id}/delete",
+        headers=HEADERS,
+        json={},
+    )
+    assert delete_active.status_code == 409
+    assert delete_active.json() == {
+        "error": {"code": "JOB_ACTIVE", "recoverable": True}
+    }
+
+
 def test_browser_session_bootstraps_without_exposing_master_token(client):
     response = client.post(
         "/api/v1/session",
