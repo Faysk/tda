@@ -31,6 +31,8 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0013](0013-companion-agent-desktop-asr.md) | accepted | Companion separa Agent/UI, permanece per-user e adota runtime ASR multi-engine para Craig/português |
 | [0014](0014-r2-media-storage-and-publishing.md) | accepted | R2 é o boundary da mídia pública e a publicação usa integridade/read-back antes de promover referências |
 | [0015](0015-recovery-oriented-delivery.md) | accepted | entrega web evolui para main-only, Preview por PR, gates proporcionais e rollback como recuperação normal |
+| [0016](0016-transcript-runs-review-publication.md) | accepted | runs locais são imutáveis; revisão/publicação são etapas explícitas e versionadas |
+| [0017](0017-web-single-entry-loopback-session.md) | accepted | Web é a entrada única de processamento; Companion executa/observa e o browser recebe sessão loopback temporária automática |
 
 ## Quando criar ADR
 
