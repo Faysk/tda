@@ -35,6 +35,7 @@ _REPAIR_BACKUP = re.compile(
 _REPAIR_PARTIAL = re.compile(
     r"^\.(?P<source_id>craig-[0-9a-f]{64})\.repair-[0-9a-f]{32}\.partial$"
 )
+_UPLOAD_PARTIAL = re.compile(r"^\.[0-9a-f]{32}\.zip\.partial$")
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,32 @@ def _remove_path(path: Path) -> None:
             shutil.rmtree(path)
     except OSError:
         pass
+
+
+def remove_incomplete_craig_uploads(data_root: Path) -> int:
+    """Remove browser/local upload snapshots that cannot be resumed after restart."""
+    uploads_root = data_root.resolve() / "uploads"
+    if not uploads_root.is_dir():
+        return 0
+    removed = 0
+    try:
+        entries = list(uploads_root.iterdir())
+    except OSError:
+        return 0
+    for candidate in entries:
+        if _UPLOAD_PARTIAL.fullmatch(candidate.name) is None:
+            continue
+        try:
+            # Never recurse here. A directory with a matching-looking name is not
+            # an upload snapshot, while a symlink can be safely unlinked without
+            # touching its target.
+            if candidate.is_symlink() or candidate.is_file():
+                candidate.unlink(missing_ok=True)
+                if not candidate.exists() and not candidate.is_symlink():
+                    removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def recover_interrupted_craig_repairs(
