@@ -128,6 +128,57 @@ def test_supervisor_cancels_child_cooperatively():
     assert seen < 100
 
 
+def test_supervisor_force_stops_unresponsive_cancel_as_cancelled(tmp_path):
+    script = tmp_path / "ignore_cancel_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+seq = 0
+
+def emit(kind, payload=None):
+    global seq
+    message = WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=seq,
+        type=kind,
+        payload=payload,
+    )
+    seq += 1
+    sys.stdout.write(message.encode())
+    sys.stdout.flush()
+
+emit("ready", {"kind": command.kind})
+while True:
+    emit("heartbeat", {"stage": "native-busy"})
+    time.sleep(0.02)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+        cancel_grace=0.1,
+    )
+
+    outcome = supervisor.run_fixture(
+        job_id="forced-cancel",
+        attempt=1,
+        units=10,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: True,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload == {"stage": "forced_termination", "forced": True}
+
+
 def test_supervisor_rejects_worker_protocol_corruption(tmp_path):
     script = tmp_path / "bad_worker.py"
     script.write_text(
