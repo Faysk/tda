@@ -136,6 +136,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: `Qwen concluiu uma janela de áudio${track !== null ? ` da faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
 			};
 		}
+		case "ASR_CHECKPOINT_FAST_PATH":
+			return {
+				title: "Todas as faixas foram recuperadas de checkpoints compatíveis.",
+				detail: "O modelo não precisou ser carregado novamente.",
+			};
 		case "ASR_CHECKPOINT_REUSED":
 			return { title: "Checkpoint local reutilizado; esta faixa não precisa ser refeita." };
 		case "ASR_CHECKPOINT_SAVED":
