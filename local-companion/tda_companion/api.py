@@ -489,9 +489,10 @@ def create_app(
         nonlocal worker_healthy
         log("info", "worker", "QUEUE_WORKER_STARTED", "Queue worker started")
         while not worker_stop.is_set():
+            claimed: tuple[str, int] | None = None
+            job_cancel: threading.Event | None = None
             try:
                 preparation_active = False
-                job_cancel: threading.Event | None = None
                 async with dispatch_gate:
                     preparation_active = (
                         preparation_manager.snapshot().get("active") is True
@@ -789,8 +790,12 @@ def create_app(
                 worker_healthy = True
                 await wait_for_work()
             except asyncio.CancelledError:
+                if claimed is not None and job_cancel is not None:
+                    clear_active_worker(claimed[0], job_cancel)
                 raise
             except Exception:
+                if claimed is not None and job_cancel is not None:
+                    clear_active_worker(claimed[0], job_cancel)
                 worker_healthy = False
                 log("error", "storage", "QUEUE_RECOVERY_REQUIRED", "Queue storage temporarily unavailable")
                 await asyncio.sleep(1)
