@@ -17,7 +17,10 @@ import {
 	parseSystemSnapshot,
 } from "./protocol";
 
+type PairingMode = "none" | "legacy" | "browser";
+
 let pairedToken = "";
+let pairingMode: PairingMode = "none";
 const pairingListeners = new Set<() => void>();
 
 function notifyPairing() {
@@ -62,11 +65,16 @@ export class LocalBridge {
 			fetch(input, init),
 	) {}
 
-	pair(token: string) {
+	private setPairing(token: string, mode: Exclude<PairingMode, "none">) {
 		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
 			throw new BridgeError("unauthorized");
 		pairedToken = token;
+		pairingMode = mode;
 		notifyPairing();
+	}
+
+	pair(token: string) {
+		this.setPairing(token, "legacy");
 	}
 
 	async bootstrap(signal: AbortSignal) {
@@ -89,12 +97,13 @@ export class LocalBridge {
 			value.expires_in_seconds < 60
 		)
 			throw new BridgeError("invalid_response");
-		this.pair(token);
+		this.setPairing(token, "browser");
 	}
 
 	disconnect() {
-		if (!pairedToken) return;
+		if (!pairedToken && pairingMode === "none") return;
 		pairedToken = "";
+		pairingMode = "none";
 		notifyPairing();
 	}
 
@@ -155,12 +164,12 @@ export class LocalBridge {
 		key?: string,
 		publicRequest = false,
 	) {
-		const headers: Record<string, string> = { Accept: "application/json" };
-		if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
-		if (body !== undefined) headers["Content-Type"] = "application/json";
-		if (key) headers["Idempotency-Key"] = identifier(key);
 		const timeout = AbortSignal.timeout(8000);
-		try {
+		const requestOnce = async () => {
+			const headers: Record<string, string> = { Accept: "application/json" };
+			if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
+			if (body !== undefined) headers["Content-Type"] = "application/json";
+			if (key) headers["Idempotency-Key"] = identifier(key);
 			const response = await this.request(`${LOCAL_API}${path}`, {
 				method: body === undefined ? "GET" : "POST",
 				headers,
@@ -173,7 +182,22 @@ export class LocalBridge {
 				signal: AbortSignal.any([signal, timeout]),
 			});
 			return await this.responseJson(response);
+		};
+
+		try {
+			return await requestOnce();
 		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				!publicRequest &&
+				pairingMode === "browser" &&
+				!signal.aborted &&
+				!timeout.aborted
+			) {
+				await this.bootstrap(signal);
+				return await requestOnce();
+			}
 			if (error instanceof BridgeError) throw error;
 			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
 		}
@@ -231,7 +255,7 @@ export class LocalBridge {
 		if (!(file instanceof Blob) || file.size <= 0)
 			throw new BridgeError("invalid_response");
 		const timeout = AbortSignal.timeout(15 * 60 * 1000);
-		try {
+		const uploadOnce = async () => {
 			const response = await this.request(`${LOCAL_API}/sources/craig`, {
 				method: "POST",
 				headers: {
@@ -248,7 +272,20 @@ export class LocalBridge {
 				signal: AbortSignal.any([signal, timeout]),
 			});
 			return parseCraigSource(await this.responseJson(response));
+		};
+		try {
+			return await uploadOnce();
 		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				pairingMode === "browser" &&
+				!signal.aborted &&
+				!timeout.aborted
+			) {
+				await this.bootstrap(signal);
+				return await uploadOnce();
+			}
 			if (error instanceof BridgeError) throw error;
 			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
 		}
