@@ -260,6 +260,22 @@ def create_app(
             return staged_package(source_id, verify_tracks=False)
 
     def source_in_use(source_id: str) -> bool:
+        # Queue status changes to cancelled before the isolated worker necessarily
+        # exits. Keep the Craig source owned until clear_active_worker() proves the
+        # native/CUDA process is no longer using its staged tracks.
+        with active_worker_lock:
+            active_job_id = active_worker.get("job_id")
+        if isinstance(active_job_id, str):
+            try:
+                active_body = store.body(active_job_id)
+            except KeyError:
+                active_body = {}
+            if (
+                active_body.get("kind") == "transcription.craig"
+                and active_body.get("source_id") == source_id
+            ):
+                return True
+
         if store.has_running_source(source_id):
             return True
         preparation = preparation_manager.snapshot()
