@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { LocalBridge, localBridgePaired } from "./bridge";
+import {
+	LocalBridge,
+	localBridgePaired,
+	subscribeLocalBridgePairing,
+} from "./bridge";
 import { ProcessingController } from "./controller";
 const token = "synthetic_test_token_12345678901234567890";
 const health = {
@@ -148,13 +152,19 @@ describe("processing state", () => {
 		await controller.connect();
 		expect(controller.snapshot().connection).toBe("connected");
 		expect(sessionNumber).toBe(1);
+		const pairingStates: boolean[] = [];
+		const unsubscribe = subscribeLocalBridgePairing(() => {
+			pairingStates.push(localBridgePaired());
+		});
 
 		await controller.refresh();
 
+		unsubscribe();
 		expect(controller.snapshot().connection).toBe("connected");
 		expect(controller.snapshot().error).toBeNull();
 		expect(sessionNumber).toBe(2);
 		expect(jobsReads).toBe(3);
+		expect(pairingStates).not.toContain(false);
 	});
 
 	it("does not send token to an incompatible service", async () => {
