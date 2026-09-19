@@ -41,6 +41,7 @@ class CraigTrack:
     size_bytes: int
     sha256: str
     identity: CraigIdentity | None
+    staged_mtime_ns: int | None = None
     timeline_offset_seconds: float = 0.0
 
 
@@ -323,6 +324,7 @@ def ingest_craig_zip(
                         size_bytes=member.file_size,
                         sha256=digest,
                         identity=identity,
+                        staged_mtime_ns=target.stat().st_mtime_ns,
                     )
                 )
 
