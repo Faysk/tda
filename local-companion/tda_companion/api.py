@@ -34,6 +34,38 @@ _PRODUCT_ID = "tda-companion"
 _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
+_BROWSER_JOB_PATH = re.compile(
+    r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
+)
+
+
+def _browser_route_allowed(method: str, path: str) -> bool:
+    """Scope ephemeral browser credentials to the Web product surface only."""
+    if path in {
+        "/api/v1/capabilities",
+        "/api/v1/preparation",
+        "/api/v1/system",
+        "/api/v1/lifecycle",
+        "/api/v1/jobs",
+    }:
+        return (
+            method == "GET"
+            or (method == "POST" and path in {
+                "/api/v1/preparation",
+                "/api/v1/lifecycle",
+                "/api/v1/jobs",
+            })
+        )
+    match = _BROWSER_JOB_PATH.fullmatch(path)
+    if match is None:
+        return False
+    if path.endswith(("/events", "/result")):
+        return method == "GET"
+    if path.endswith(("/cancel", "/retry", "/delete")):
+        return method == "POST"
+    return method == "GET"
+
+
 
 class SyntheticJobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -491,6 +523,13 @@ def create_app(
         response = None
         if not public and not (master_authorized or browser_authorized):
             response = error("UNAUTHORIZED", 401)
+        elif (
+            not public
+            and not master_authorized
+            and browser_authorized
+            and not _browser_route_allowed(request.method, request.url.path)
+        ):
+            response = error("BROWSER_SESSION_SCOPE_REJECTED", 403)
         elif request.method == "POST":
             if not origin:
                 response = error("ORIGIN_REQUIRED", 403)
