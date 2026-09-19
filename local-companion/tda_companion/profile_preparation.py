@@ -303,11 +303,15 @@ class ProfilePreparationManager:
 
     def _snapshot_locked(self) -> dict[str, object]:
         value = dict(self._state)
-        value["elapsed_seconds"] = (
-            round(max(0.0, time.monotonic() - self._started_at), 1)
-            if self._started_at is not None
-            else 0.0
-        )
+        if self._state.get("active") is True and self._started_at is not None:
+            value["elapsed_seconds"] = round(
+                max(0.0, time.monotonic() - self._started_at),
+                1,
+            )
+        else:
+            value["elapsed_seconds"] = float(
+                self._state.get("elapsed_seconds") or 0.0
+            )
         return value
 
     def snapshot(self) -> dict[str, object]:
@@ -330,6 +334,11 @@ class ProfilePreparationManager:
             )
             if changed:
                 self._state["sequence"] = int(self._state.get("sequence") or 0) + 1
+            terminal_elapsed = (
+                round(max(0.0, time.monotonic() - self._started_at), 1)
+                if state != "running" and self._started_at is not None
+                else None
+            )
             self._state.update(
                 {
                     "state": state,
@@ -339,6 +348,8 @@ class ProfilePreparationManager:
                     "detail": detail,
                 }
             )
+            if terminal_elapsed is not None:
+                self._state["elapsed_seconds"] = terminal_elapsed
             profile_id = str(self._state.get("profile_id") or "")
             operation_id = str(self._state.get("operation_id") or "")
             sequence = int(self._state.get("sequence") or 0)
