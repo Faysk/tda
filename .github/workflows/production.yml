@@ -164,27 +164,6 @@ jobs:
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-      - name: Pull Production media credentials
-        if: ${{ steps.plan.outputs.media_publish == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          MEDIA_ENV="$RUNNER_TEMP/tda-media-production.env"
-          vercel env pull "$MEDIA_ENV" --yes --environment=production --token="$VERCEL_TOKEN"
-          chmod 600 "$MEDIA_ENV"
-          node --env-file="$MEDIA_ENV" --input-type=module - <<'NODE'
-          const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
-          const missing = required.filter((name) => !process.env[name]?.trim());
-          if (missing.length) {
-            throw new Error(`Production media credentials missing from Vercel environment: ${missing.join(", ")}`);
-          }
-          if (process.env.R2_PUBLIC_BUCKET?.trim() !== "tda-media-public") {
-            throw new Error("Production media bucket is not the canonical tda-media-public bucket");
-          }
-          console.log("Production media credentials loaded from Vercel environment");
-          NODE
-          echo "TDA_MEDIA_ENV=$MEDIA_ENV" >> "$GITHUB_ENV"
-
       - name: Build Production artifact
         env:
           APP_ENV: production
@@ -234,7 +213,9 @@ jobs:
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
           MEDIA_RANGE: ${{ steps.plan.outputs.current_range }}
-        run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE" "$TDA_MEDIA_ENV"
+        run: >-
+          vercel env run --environment=production --token="$VERCEL_TOKEN" --
+          bash tools/ci/publish-production-media.sh "$MEDIA_RANGE"
 
       - name: Smoke staged Production artifact
         shell: bash
