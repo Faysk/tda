@@ -297,6 +297,23 @@ class Store:
         with self.read() as db:
             return [self.dto(r) for r in db.execute("SELECT * FROM jobs ORDER BY updated DESC LIMIT 100")]
 
+    def has_running_source(self, source_id: str) -> bool:
+        with self.read() as db:
+            rows = db.execute(
+                "SELECT body FROM jobs WHERE status='running'"
+            ).fetchall()
+            for row in rows:
+                try:
+                    body = json.loads(row["body"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if (
+                    body.get("kind") == "transcription.craig"
+                    and body.get("source_id") == source_id
+                ):
+                    return True
+            return False
+
     def reconciliation_candidates(self):
         with self.read() as db:
             rows = db.execute(
