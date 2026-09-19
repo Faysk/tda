@@ -123,6 +123,83 @@ def test_worker_process_emits_real_progress_and_result():
     assert messages[-1].payload == {"kind": "synthetic.fixture", "units": 3}
 
 
+def test_supervisor_rejects_terminal_before_ready(tmp_path):
+    script = tmp_path / "result_without_ready.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdout.write(
+    WorkerMessage.create(
+        job_id=command.job_id,
+        attempt=command.attempt,
+        seq=0,
+        type="result",
+        payload={"kind": command.kind, "units": 1},
+    ).encode()
+)
+sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_READY_REQUIRED") as failure:
+        supervisor.run_fixture(
+            job_id="missing-ready",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.recoverable is False
+
+
+def test_supervisor_fails_fast_on_invalid_utf8_stdout(tmp_path):
+    script = tmp_path / "invalid_utf8_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stdout.buffer.write(b"\\xff\\xfe\\n")
+sys.stdout.buffer.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=30,
+    )
+    started = time.monotonic()
+
+    with pytest.raises(
+        WorkerProcessError,
+        match="WORKER_STDOUT_ENCODING_INVALID",
+    ) as failure:
+        supervisor.run_fixture(
+            job_id="bad-encoding",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.recoverable is False
+    assert time.monotonic() - started < 3.0
+
+
 def test_supervisor_rejects_protocol_sequence_gap(tmp_path):
     script = tmp_path / "sequence_gap_worker.py"
     script.write_text(
