@@ -284,6 +284,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: "Run concluído; o espelho legado não pôde ser atualizado.",
 				detail: "O resultado imutável continua válido e é a fonte de verdade.",
 			};
+		case "WORKER_RESULT_TEARDOWN_FORCED":
+			return {
+				title: "O worker terminou o trabalho, mas precisou ser encerrado à força.",
+				detail: "O TDA ainda valida o run imutável antes de concluir o job.",
+			};
 		case "INCOMPLETE_RUNS_CLEANED": {
 			const count = numberData(event, "count");
 			return {
@@ -308,6 +313,6 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 		case "FIXTURE_EXECUTION_FAILED":
 			return { title: "O ensaio sintético encontrou uma falha." };
 		default:
-			return { title: event.code.replaceAll("_", " ").toLocaleLowerCase("pt-BR") };
+			return { title: presentJobError(event.code) };
 	}
 }
