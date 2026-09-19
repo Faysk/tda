@@ -262,6 +262,15 @@ def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Pat
     )
     assert any(
         item.get("type") == "event"
+        and item.get("code") == "WHISPER_SEGMENT_TRANSCRIBED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        and item.get("segment") == 1
+        for item in reports
+    )
+    assert any(
+        item.get("type") == "event"
         and item.get("code") == "TRACK_COMPLETED"
         and item.get("track") == 1
         and item.get("total_tracks") == 1
