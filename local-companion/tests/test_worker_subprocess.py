@@ -180,6 +180,48 @@ while True:
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
 
 
+def test_supervisor_preserves_non_recoverable_worker_error(tmp_path):
+    script = tmp_path / "fatal_worker.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "error", {"code": "CRAIG_MANIFEST_INVALID", "recoverable": False}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+    )
+
+    with pytest.raises(WorkerProcessError, match="CRAIG_MANIFEST_INVALID") as exc:
+        supervisor.run_fixture(
+            job_id="fatal-worker",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert exc.value.recoverable is False
+
+
 def test_supervisor_rejects_worker_protocol_corruption(tmp_path):
     script = tmp_path / "bad_worker.py"
     script.write_text(
