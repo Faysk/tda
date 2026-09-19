@@ -138,6 +138,96 @@ def test_structured_events_keep_facts_and_job_context(tmp_path):
         assert all(set(event) == {"seq", "code", "at", "level", "data"} for event in events)
 
 
+def test_high_frequency_worker_events_are_throttled_before_sqlite(monkeypatch, tmp_path):
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, completed, is_cancelled
+        assert on_event is not None
+        on_event(
+            WorkerMessage.create(
+                job_id=job_id,
+                attempt=attempt,
+                seq=0,
+                type="ready",
+                payload={"kind": "synthetic.fixture"},
+            )
+        )
+        seq = 1
+        for window in range(10):
+            on_event(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=seq,
+                    type="event",
+                    payload={
+                        "code": "QWEN_WINDOW_TRANSCRIBED",
+                        "stage": "transcription",
+                        "track": 1,
+                        "total_tracks": units,
+                        "window": window,
+                    },
+                )
+            )
+            seq += 1
+        for current in range(1, units + 1):
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=seq,
+                    type="progress",
+                    payload={
+                        "completed": current,
+                        "total": units,
+                        "unit": "items",
+                        "stage": "fixture",
+                    },
+                )
+            )
+            seq += 1
+        return WorkerOutcome(
+            terminal="result",
+            payload={"kind": "synthetic.fixture", "units": units},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        job = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "throttled-worker-events"},
+            json=BODY,
+        ).json()
+
+        deadline = __import__("time").monotonic() + 3.0
+        state = job
+        while __import__("time").monotonic() < deadline:
+            state = client.get(f"/api/v1/jobs/{job['id']}", headers=HEADERS).json()
+            if state["status"] == "succeeded":
+                break
+            __import__("time").sleep(0.02)
+
+        assert state["status"] == "succeeded"
+        events = client.get(
+            f"/api/v1/jobs/{job['id']}/events",
+            headers=HEADERS,
+        ).json()["events"]
+        noisy = [event for event in events if event["code"] == "QWEN_WINDOW_TRANSCRIBED"]
+        assert len(noisy) == 1
+        assert any(event["code"] == "SUCCEEDED" for event in events)
+
+
 def test_worker_diagnostics_do_not_log_speaker_identity(monkeypatch, tmp_path):
     system_log = SystemLog(tmp_path / "logs")
 
