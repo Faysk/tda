@@ -80,6 +80,7 @@ describe("processing state", () => {
 		expect(controller.snapshot()).toMatchObject({
 			connection: "connected",
 			error: "conflict",
+			serverError: "AGENT_BUSY",
 			jobs: [job],
 			busy: false,
 		});
