@@ -282,11 +282,6 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
     first = ingest_craig_file(source, data_root)
     package_root = data_root / "staging" / first["source_id"]
     track = package_root / "tracks" / "track-000001.flac"
-    original = track.read_bytes()
-    replacement = b"fLaC-ALICE"
-    assert len(replacement) == len(original)
-    track.write_bytes(replacement)
-
     package = load_craig_package(package_root, verify_tracks=True)
     manifest = write_completed_run(
         package_root,
@@ -294,6 +289,11 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
         job_id="repair-valid-run",
         attempt=1,
     )
+
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
     invalid_run = package_root / "runs" / "run-invalid-a1"
     invalid_run.mkdir(parents=True)
     (invalid_run / "keep.txt").write_text("must-not-survive", encoding="utf-8")
@@ -324,11 +324,6 @@ def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
     first = ingest_craig_file(source, data_root)
     package_root = data_root / "staging" / first["source_id"]
     track = package_root / "tracks" / "track-000001.flac"
-    original = track.read_bytes()
-    replacement = b"fLaC-ALICE"
-    assert len(replacement) == len(original)
-    track.write_bytes(replacement)
-
     package = load_craig_package(package_root, verify_tracks=True)
     manifest = write_completed_run(
         package_root,
@@ -336,6 +331,11 @@ def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
         job_id="concurrent-valid-run",
         attempt=1,
     )
+
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
