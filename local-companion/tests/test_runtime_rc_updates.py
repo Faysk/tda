@@ -164,6 +164,41 @@ def test_runtime_asset_release_digest_must_be_sha256_and_match_candidate(monkeyp
     assert exc.value.code == "RUNTIME_RC_RELEASE_ASSET_MISMATCH"
 
 
+def test_candidate_cache_cleanup_preserves_only_declared_assets_and_partials(tmp_path: Path):
+    target = tmp_path / "cache"
+    target.mkdir()
+    declared = "TDAQwenRuntimeBundle-1.0.7-windows-x64.json"
+    for name in (
+        "TDARuntime-candidate.json",
+        declared,
+        declared + ".partial",
+        "unexpected.bin",
+    ):
+        (target / name).write_bytes(b"x")
+    junk = target / "nested-junk"
+    junk.mkdir()
+    (junk / "old.bin").write_bytes(b"x")
+
+    runtime_rc._sanitize_candidate_cache(
+        target,
+        {
+            "assets": [
+                {
+                    "name": declared,
+                    "size": 1,
+                    "sha256": "a" * 64,
+                }
+            ]
+        },
+    )
+
+    assert (target / "TDARuntime-candidate.json").is_file()
+    assert (target / declared).is_file()
+    assert (target / (declared + ".partial")).is_file()
+    assert not (target / "unexpected.bin").exists()
+    assert not junk.exists()
+
+
 def test_install_runtime_candidate_path_is_automatic_and_uses_verified_release(monkeypatch, tmp_path: Path):
     source = "7" * 40
     release = _release("qwen", RC_QWEN_VERSION, source, release_id=50)
