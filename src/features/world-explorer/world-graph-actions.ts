@@ -146,7 +146,7 @@ export async function acquireWorldGraphDraftAction(
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World graph draft acquisition failed", error.message);
-		return failPublish("dependency_unavailable");
+		return { ok: false, reason: "dependency_unavailable" };
 	}
 	const payload = data as RpcPayload;
 	if (payload.ok === true) {
@@ -353,7 +353,7 @@ export async function publishWorldEditStateAction(
 		: await client.rpc("publish_world_edit_state_atomic", rpcArgs);
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World combined publish failed", error.message);
-		return { ok: false, reason: "dependency_unavailable" };
+		return failPublish("dependency_unavailable");
 	}
 	const payload = data as RpcPayload;
 	if (payload.ok === true && (payload.status === "saved" || payload.status === "unchanged")) {
