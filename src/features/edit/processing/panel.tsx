@@ -121,11 +121,17 @@ function eventTrackContext(events: readonly JobEvent[]) {
 		const track = event.data.track;
 		const total = event.data.total_tracks;
 		const speaker = event.data.speaker;
-		if (typeof track === "number" || typeof speaker === "string") {
+		const window = event.data.window;
+		if (
+			typeof track === "number" ||
+			typeof speaker === "string" ||
+			typeof window === "number"
+		) {
 			return {
 				track: typeof track === "number" ? track : null,
 				total: typeof total === "number" ? total : null,
 				speaker: typeof speaker === "string" ? speaker : null,
+				window: typeof window === "number" ? window : null,
 			};
 		}
 	}
@@ -463,6 +469,7 @@ export function ProcessingPanel() {
 												<span>Arquivo {trackContext.track} de {trackContext.total}</span>
 											) : null}
 											{trackContext?.speaker ? <span>Voz: {trackContext.speaker}</span> : null}
+											{trackContext?.window != null ? <span>Janela {trackContext.window}</span> : null}
 											{activeJob.attempt > 0 ? <span>Tentativa {activeJob.attempt}</span> : null}
 											<span>Worker ativo · {formatTime(activeJob.updated_at)}</span>
 										</div>
