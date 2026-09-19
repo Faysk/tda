@@ -31,6 +31,7 @@ export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 
 export function presentJobError(code: string): string {
 	const known: Record<string, string> = {
+		AGENT_BUSY: "O Companion está ocupado com um processamento ou preparação local; aguarde a operação atual terminar.",
 		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
 		WORKER_START_TIMEOUT: "O worker local não iniciou dentro do tempo esperado.",
 		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
