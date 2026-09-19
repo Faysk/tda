@@ -128,6 +128,7 @@ def test_overlap_ownership_assigns_boundary_words_once():
 
 
 def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: Path):
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.6")
     package, root = _package(tmp_path)
     reads = 0
     align_calls: list[str] = []
@@ -210,7 +211,10 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
     assert document.warnings == ()
 
 
-def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(tmp_path: Path):
+def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(
+    monkeypatch,
+    tmp_path: Path,
+):
     package, root = _package(tmp_path)
     reads = 0
 
@@ -282,3 +286,22 @@ def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(tmp_pa
     assert "model_load" not in stages
     assert "alignment" not in stages
     assert "energy_analysis" in stages
+
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.7")
+    before_upgrade = reads
+    upgraded = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+
+    assert reads - before_upgrade == 2
+    assert upgraded.as_dict()["tracks"] == first.as_dict()["tracks"]
