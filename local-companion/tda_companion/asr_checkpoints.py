@@ -169,9 +169,12 @@ def save_track_checkpoint(
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     if len(encoded.encode("utf-8")) > MAX_CHECKPOINT_BYTES:
         raise ValueError("CHECKPOINT_SIZE_LIMIT")
-    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(encoded)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temporary, path)
-    return path
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        return path
+    finally:
+        temporary.unlink(missing_ok=True)
