@@ -349,7 +349,7 @@ begin
     raise exception 'explicit discard must tombstone the draft and release the lease: %', result;
   end if;
 end;
-$;
+$$;
 reset role;
 
 set role service_role;
