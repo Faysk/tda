@@ -19,9 +19,9 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 	invalid_response:
 		"O serviço retornou dados inválidos para este contrato. Confira sua versão e consulte o suporte com o código invalid_response.",
 	conflict:
-		"O estado do trabalho mudou. Conecte novamente para consultar a fila antes de tentar outra ação.",
+		"O estado local mudou e esta ação não pôde ser aplicada. A conexão continua ativa; atualize a fila e confira o trabalho antes de repetir.",
 	service_error:
-		"O serviço não concluiu a solicitação. Confira o diagnóstico no aplicativo local e conecte novamente.",
+		"O Companion não concluiu esta solicitação. A conexão continua ativa; confira os eventos/diagnóstico local antes de repetir.",
 };
 export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
@@ -37,10 +37,17 @@ export function presentJobError(code: string): string {
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
 		WORKER_RESULT_RUN_INVALID: "O run local falhou na validação de integridade.",
 		WORKER_RESULT_RUN_MISMATCH: "O run local não corresponde a este job e tentativa.",
+		WORKER_RESULT_INCOMPLETE: "O worker terminou sem concluir todas as unidades exigidas pela fila.",
+		WORKER_PROGRESS_GAP: "O worker informou progresso fora de ordem; o job foi interrompido para proteger o estado local.",
+		TRANSCRIPT_VALIDATION_FAILED: "O engine produziu uma transcrição que não passou pela validação estrutural.",
 		TRANSCRIPTION_SOURCE_HASH_MISMATCH: "A transcrição não corresponde à fonte Craig esperada.",
+		RESULT_ARTIFACT_UNAVAILABLE: "O run concluído está registrado, mas o artefato imutável não está mais disponível no disco.",
+		RESULT_ARTIFACT_MISMATCH: "O artefato local não corresponde mais à identidade registrada para este resultado.",
 		CRAIG_MANIFEST_INVALID: "A fonte Craig local está inválida; reimporte o ZIP original.",
 		CRAIG_MANIFEST_TRACK_HASH_MISMATCH: "Uma faixa Craig foi alterada; reimporte o ZIP original.",
 		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH: "Uma faixa Craig mudou de tamanho; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_METADATA_MISMATCH: "Uma faixa Craig mudou no disco; reimporte o ZIP original para reparar a fonte local.",
+		CRAIG_STAGING_REPAIR_FAILED: "O TDA tentou reparar a fonte Craig local, mas não conseguiu concluir a troca segura.",
 		QWEN_ASR_GPU_MEMORY_EXHAUSTED: "O Qwen ficou sem VRAM durante a execução.",
 		WHISPER_MODEL_LOAD_FAILED: "O Whisper não conseguiu carregar o modelo local.",
 	};
@@ -246,6 +253,18 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: "Run concluído; o espelho legado não pôde ser atualizado.",
 				detail: "O resultado imutável continua válido e é a fonte de verdade.",
 			};
+		case "INCOMPLETE_RUNS_CLEANED": {
+			const count = numberData(event, "count");
+			return {
+				title:
+					count === 1
+						? "Um run incompleto de uma execução interrompida foi limpo."
+						: count !== null
+							? `${count} runs incompletos de execuções interrompidas foram limpos.`
+							: "Runs incompletos de uma execução interrompida foram limpos.",
+				detail: "Runs com commit válido nunca são removidos por esta limpeza.",
+			};
+		}
 		case "WORKER_RESULT_RUN_INVALID":
 		case "WORKER_RESULT_RUN_MISMATCH":
 		case "TRANSCRIPTION_SOURCE_HASH_MISMATCH":
