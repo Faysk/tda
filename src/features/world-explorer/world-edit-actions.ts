@@ -231,11 +231,6 @@ export async function renewWorldEditLeaseAction(
 		};
 	}
 	if (payload.ok === false && payload.reason === "lease_lost") {
-		const receipt = await confirmedReceipt();
-		if (receipt?.ok) {
-			revalidatePath("/mundo");
-			return receipt;
-		}
 		return { ok: false, reason: "lease_lost" };
 	}
 	if (payload.ok === false && payload.reason === "forbidden") {
@@ -362,6 +357,11 @@ export async function publishWorldEditLayoutAction(
 		};
 	}
 	if (payload.ok === false && payload.reason === "lease_lost") {
+		const receipt = await confirmedReceipt();
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
+		}
 		return { ok: false, reason: "lease_lost" };
 	}
 	if (payload.ok === false && payload.reason === "forbidden") {
