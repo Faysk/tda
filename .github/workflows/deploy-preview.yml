@@ -112,7 +112,7 @@ jobs:
           PR_NUMBER: ${{ steps.source.outputs.pr_number }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=pull_request&head_sha=$SOURCE_SHA&status=completed&per_page=100" > ci-runs.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?event=pull_request&head_sha=$SOURCE_SHA&status=completed&per_page=100" > ci-runs.json
           python - <<'PY'
           import json, os
           value = json.load(open("ci-runs.json", encoding="utf-8"))
