@@ -823,7 +823,7 @@ class SessionDesktopBridge(DesktopBridge):
         self._require_selected_source(source_id)
         if profile_id not in _PROFILE_ORDER:
             raise RuntimeError("TRANSCRIPTION_PROFILE_INVALID")
-        if self._has_running_job():
+        if self._has_active_job():
             raise RuntimeError("TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB")
 
         current = self.transcription_profiles()
