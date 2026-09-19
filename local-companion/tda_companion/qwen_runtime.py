@@ -24,7 +24,7 @@ _RUNTIME_BACKUP = re.compile(
     r"^\.(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]{32}\.backup$"
 )
 _RUNTIME_PARTIAL = re.compile(
-    r"^\.[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]{32}\.partial$"
+    r"^\.(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]{32}\.partial$"
 )
 
 
@@ -38,6 +38,33 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _valid_recovery_runtime_directory(path: Path, version: str) -> bool:
+    if path.is_symlink() or not path.is_dir():
+        return False
+    marker_path = path / ".tda-runtime.json"
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if (
+        not isinstance(marker, dict)
+        or marker.get("schema") != RUNTIME_SCHEMA
+        or marker.get("runtime_id") != QWEN_RUNTIME_ID
+        or marker.get("version") != version
+        or marker.get("worker") != QWEN_WORKER_EXE
+        or not isinstance(marker.get("worker_sha256"), str)
+        or not _SHA256.fullmatch(marker["worker_sha256"])
+    ):
+        return False
+    worker = path / QWEN_WORKER_EXE
+    if not worker.is_file():
+        return False
+    try:
+        return _sha256_file(worker) == marker["worker_sha256"]
+    except OSError:
+        return False
 
 
 def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
@@ -61,33 +88,36 @@ def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
         return []
 
     backups: dict[str, list[Path]] = {}
-    partials: list[Path] = []
+    partials: dict[str, list[Path]] = {}
     for candidate in entries:
         backup = _RUNTIME_BACKUP.fullmatch(candidate.name)
         if backup is not None:
             backups.setdefault(backup.group("version"), []).append(candidate)
-        elif _RUNTIME_PARTIAL.fullmatch(candidate.name):
-            partials.append(candidate)
-
-    # Startup happens before runtime preparation can begin, so these partials
-    # necessarily belong to a previous process and are never authoritative.
-    for candidate in partials:
-        if candidate.is_dir() and not candidate.is_symlink():
-            shutil.rmtree(candidate, ignore_errors=True)
-        else:
-            candidate.unlink(missing_ok=True)
+            continue
+        partial = _RUNTIME_PARTIAL.fullmatch(candidate.name)
+        if partial is not None:
+            partials.setdefault(partial.group("version"), []).append(candidate)
 
     recovered: list[str] = []
-    for version, candidates in backups.items():
+    for version in set(backups) | set(partials):
+        candidates = backups.get(version, [])
+        replacements = partials.get(version, [])
         target = parent / version
         if target.exists() and not target.is_symlink():
-            for candidate in candidates:
+            for candidate in candidates + replacements:
                 if candidate.is_dir() and not candidate.is_symlink():
                     shutil.rmtree(candidate, ignore_errors=True)
                 else:
                     candidate.unlink(missing_ok=True)
             continue
         if selector_version != version:
+            # Inactive-version leftovers are not authoritative. They can be
+            # removed without changing the selected runtime.
+            for candidate in replacements:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
             continue
 
         def modified(path: Path) -> int:
@@ -96,23 +126,43 @@ def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
             except OSError:
                 return -1
 
-        ordered = sorted(candidates, key=modified, reverse=True)
-        for candidate in ordered:
-            if candidate.is_symlink() or not candidate.is_dir():
+        promoted = False
+        for replacement in sorted(replacements, key=modified, reverse=True):
+            if not _valid_recovery_runtime_directory(replacement, version):
                 continue
             try:
-                os.replace(candidate, target)
+                os.replace(replacement, target)
             except OSError:
                 continue
             recovered.append(version)
+            promoted = True
             break
-        if target.is_dir() and not target.is_symlink():
-            for candidate in candidates:
+
+        if not promoted:
+            for candidate in sorted(candidates, key=modified, reverse=True):
+                if candidate.is_symlink() or not candidate.is_dir():
+                    continue
+                try:
+                    os.replace(candidate, target)
+                except OSError:
+                    continue
+                recovered.append(version)
+                promoted = True
+                break
+
+        if promoted:
+            for candidate in candidates + replacements:
                 if candidate.exists():
                     if candidate.is_dir() and not candidate.is_symlink():
                         shutil.rmtree(candidate, ignore_errors=True)
                     else:
                         candidate.unlink(missing_ok=True)
+        else:
+            for candidate in replacements:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
 
     return recovered
 
