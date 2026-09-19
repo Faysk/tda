@@ -93,6 +93,38 @@ def test_model_prepare_uses_tda_marker_and_no_fake_percent(tmp_path: Path):
     assert all("percent" not in item for item in reports)
 
 
+def test_whisper_reports_runtime_validation_before_cuda_probe(monkeypatch, tmp_path: Path):
+    reports: list[dict] = []
+    package, package_root = _package(tmp_path)
+
+    def resolve(*_args, **_kwargs):
+        assert reports[-1] == {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": "whisper-turbo",
+        }
+        raise WhisperRuntimeError("TEST_STOP_AFTER_RUNTIME_VALIDATION")
+
+    monkeypatch.setattr(asr_whisper, "resolve_whisper_plan", resolve)
+
+    with pytest.raises(WhisperRuntimeError, match="TEST_STOP_AFTER_RUNTIME_VALIDATION"):
+        transcribe_craig_package(
+            package,
+            package_root,
+            tmp_path / "Models",
+            profile_id="whisper-turbo",
+            report=reports.append,
+        )
+
+    assert reports == [
+        {
+            "type": "stage",
+            "stage": "runtime_validation",
+            "profile": "whisper-turbo",
+        }
+    ]
+
+
 def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Path):
     models_root = tmp_path / "Models"
     _install_whisper_fixture(models_root)
