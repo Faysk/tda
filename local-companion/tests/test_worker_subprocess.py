@@ -100,6 +100,7 @@ def test_supervisor_runs_fixture_without_loading_worker_in_agent():
     )
     assert outcome.terminal == "result"
     assert progress == [2, 3, 4]
+    assert "ready" in events
     assert "stage" in events
     assert "heartbeat" in events
 
