@@ -66,6 +66,57 @@ def _prepare_whisper(tmp_path: Path, profile_id: str = "whisper-turbo") -> None:
     write_install_marker(target, profile)
 
 
+def _document(package: CraigPackage, profile_id: str = "whisper-turbo") -> TranscriptDocument:
+    tracks = []
+    for source in package.tracks:
+        word = TranscriptWord(text="teste", start=0.0, end=0.4, confidence=0.9)
+        segment = TranscriptSegment(
+            id=f"{source.number}-0",
+            start=0.0,
+            end=0.4,
+            text="teste",
+            words=(word,),
+        )
+        tracks.append(
+            TranscriptTrack(
+                number=source.number,
+                speaker=source.speaker,
+                source_filename=source.filename,
+                source_sha256=source.sha256,
+                duration_seconds=1.0,
+                segments=(segment,),
+                timeline_offset_seconds=source.timeline_offset_seconds,
+            )
+        )
+    transcript_tracks = tuple(tracks)
+    return TranscriptDocument(
+        recording_id=package.recording_id,
+        source_sha256=package.source_sha256,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="whisper",
+            model="test-model",
+            profile=profile_id,
+            device="cuda",
+            compute_type="float16",
+            alignment="native",
+            model_revision="test",
+        ),
+        tracks=transcript_tracks,
+        stats=stats_for_tracks(transcript_tracks, processing_seconds=1.0),
+    )
+
+
+def _wait_for_job(client: TestClient, job_id: str, status: str) -> dict:
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        value = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        if value["status"] == status:
+            return value
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not reach {status}")
+
+
 def _body(source_id: str = "craig-source") -> dict:
     return {
         "kind": "transcription.craig",
