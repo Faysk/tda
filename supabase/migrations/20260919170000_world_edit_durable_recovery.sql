@@ -109,6 +109,33 @@ revoke all on function public.checkpoint_world_edit_draft_from_lease()
 grant execute on function public.checkpoint_world_edit_draft_from_lease()
   to service_role;
 
+-- Graph-only autosaves historically refreshed the lease heartbeat without moving
+-- draft_updated_at, which meant a durability trigger could not distinguish them.
+-- Preserve the current RPC definition and add the missing draft timestamp update.
+do $migration$
+declare
+  v_definition text;
+  v_old text := E'set draft_graph = p_draft,\n      heartbeat_at = v_now,';
+  v_new text := E'set draft_graph = p_draft,\n      draft_updated_at = v_now,\n      heartbeat_at = v_now,';
+begin
+  select pg_get_functiondef(
+    'public.save_world_graph_draft_atomic(uuid,uuid,text,uuid,jsonb)'::regprocedure
+  ) into v_definition;
+
+  if v_definition is null then
+    raise exception 'save_world_graph_draft_atomic is missing';
+  end if;
+
+  if strpos(v_definition, 'draft_updated_at = v_now') = 0 then
+    if strpos(v_definition, v_old) = 0 then
+      raise exception 'unexpected World graph draft save definition';
+    end if;
+    v_definition := replace(v_definition, v_old, v_new);
+    execute v_definition;
+  end if;
+end;
+$migration$;
+
 create or replace function public.acquire_world_edit_lease_atomic(
   p_auth_user_id uuid,
   p_actor_profile_id uuid,
