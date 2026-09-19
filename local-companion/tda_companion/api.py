@@ -454,6 +454,8 @@ def create_app(
                         )
 
                     job_cancel = register_active_worker(job_id)
+                    noisy_event_last_at: dict[str, float] = {}
+                    noisy_event_interval = 5.0
 
                     def is_cancelled() -> bool:
                         return worker_stop.is_set() or job_cancel.is_set()
@@ -520,6 +522,12 @@ def create_app(
                                 for key, value in message.payload.items()
                                 if key != "code"
                             }
+                            if code in {"QWEN_WINDOW_TRANSCRIBED", "MODEL_DOWNLOAD_PROGRESS"}:
+                                now = time.monotonic()
+                                last = noisy_event_last_at.get(code)
+                                if last is not None and now - last < noisy_event_interval:
+                                    return
+                                noisy_event_last_at[code] = now
                             store.record_worker_event(
                                 job_id,
                                 attempt,
