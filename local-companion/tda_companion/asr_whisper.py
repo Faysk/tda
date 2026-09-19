@@ -362,6 +362,7 @@ def _whisper_runtime_fingerprint() -> str:
     return ";".join(
         (
             "checkpoint=whisper-track-v2",
+            f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
             f"faster-whisper={_distribution_version('faster-whisper')}",
             f"ctranslate2={_distribution_version('ctranslate2')}",
         )
