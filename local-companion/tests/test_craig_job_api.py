@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 import zipfile
 from pathlib import Path
 
@@ -9,9 +10,21 @@ from fastapi.testclient import TestClient
 from tda_companion.api import create_app
 from tda_companion.asr_models import get_profile, model_path, write_install_marker
 from tda_companion.asr_runtime import install_whisper_runtime_archive
-from tda_companion.craig import ingest_craig_zip
+from tda_companion.craig import CraigPackage, ingest_craig_zip
+from tda_companion.craig_runtime import load_craig_package
 from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
 from tda_companion.store import Store
+from tda_companion.transcript import (
+    TranscriptDocument,
+    TranscriptEngine,
+    TranscriptSegment,
+    TranscriptTrack,
+    TranscriptWord,
+    stats_for_tracks,
+)
+from tda_companion.transcription_runs import write_completed_run
+from tda_companion.worker_protocol import WorkerMessage
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
 
 TOKEN = "c" * 43
 ORIGIN = "https://dnd.faysk.dev"
