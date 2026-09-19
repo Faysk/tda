@@ -199,3 +199,77 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
     assert align_calls == ["pass-2-one", "pass-2-two"]
     assert "strict-overlap-v2" in document.engine.alignment
     assert document.warnings == ()
+
+
+def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reads = 0
+
+    def reader(_path: Path):
+        nonlocal reads
+        reads += 1
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=f"pass-{reads}")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "texto", "Portuguese"
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.5}]
+        def close(self):
+            pass
+
+    first = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+    assert reads == 2
+
+    second_reports: list[dict] = []
+    before = reads
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("checkpoint reuse must not load Qwen model or aligner")
+
+    second = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=forbidden,
+        asr_session_factory=forbidden,
+        aligner_session_factory=forbidden,
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+        report=second_reports.append,
+    )
+
+    assert reads - before == 1
+    assert second.as_dict()["tracks"] == first.as_dict()["tracks"]
+    assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in second_reports)
+    assert {
+        "type": "progress",
+        "completed": 1,
+        "total": 1,
+        "unit": "tracks",
+        "stage": "source_validation",
+    } in second_reports
+    stages = [item.get("stage") for item in second_reports if item.get("type") == "stage"]
+    assert "model_prepare" not in stages
+    assert "model_load" not in stages
+    assert "alignment" not in stages
+    assert "energy_analysis" in stages
