@@ -33,12 +33,7 @@ function jobTitle(job: LocalJob): string {
 
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
-	const measurable =
-		job.progress.completed > 0 ||
-		processingStages.has(job.stage) ||
-		consolidationStages.has(job.stage) ||
-		job.status === "succeeded";
-	if (!measurable) return null;
+	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
 	return Math.round((job.progress.completed / job.progress.total) * 100);
 }
 
@@ -465,7 +460,9 @@ export function ProcessingPanel() {
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
-											<p className={styles.noProgress}>Sem medida de progresso nesta etapa.</p>
+											<p className={styles.noProgress}>
+												Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados.
+											</p>
 										)}
 										<section className={styles.pipeline} aria-label="Etapa atual do processamento">
 											<span data-state={pipelineState(activeJob.stage, "preparation")}>Preparação</span>
