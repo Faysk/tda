@@ -164,24 +164,30 @@ export class LocalBridge {
 		key?: string,
 		publicRequest = false,
 	) {
-		const timeout = AbortSignal.timeout(8000);
+		let timedOut = false;
 		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(8000);
 			const headers: Record<string, string> = { Accept: "application/json" };
 			if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
 			if (body !== undefined) headers["Content-Type"] = "application/json";
 			if (key) headers["Idempotency-Key"] = identifier(key);
-			const response = await this.request(`${LOCAL_API}${path}`, {
-				method: body === undefined ? "GET" : "POST",
-				headers,
-				body: body === undefined ? undefined : JSON.stringify(body),
-				mode: "cors",
-				credentials: "omit",
-				redirect: "error",
-				cache: "no-store",
-				referrerPolicy: "no-referrer",
-				signal: AbortSignal.any([signal, timeout]),
-			});
-			return await this.responseJson(response);
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: body === undefined ? "GET" : "POST",
+					headers,
+					body: body === undefined ? undefined : JSON.stringify(body),
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return await this.responseJson(response);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
 		};
 
 		try {
@@ -192,14 +198,14 @@ export class LocalBridge {
 				error.code === "unauthorized" &&
 				!publicRequest &&
 				pairingMode === "browser" &&
-				!signal.aborted &&
-				!timeout.aborted
+				!signal.aborted
 			) {
 				await this.bootstrap(signal);
+				timedOut = false;
 				return await requestOnce();
 			}
 			if (error instanceof BridgeError) throw error;
-			throw new BridgeError(timeout.aborted ? "timeout" : "unreachable");
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
 		}
 	}
 
