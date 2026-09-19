@@ -189,6 +189,10 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(tmp_path: P
         for item in reports
     )
 
+    stages = [item.get("stage") for item in reports if item.get("type") == "stage"]
+    assert "energy_analysis" in stages
+    assert stages.index("energy_analysis") < stages.index("cross_track_dedup")
+
     # ASR pass + alignment replay + energy replay. Production alignment consumes
     # each replayed window immediately instead of building {index: AudioWindow}.
     assert reads == 3
