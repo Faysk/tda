@@ -40,13 +40,17 @@ def _validate_payload(value: Any) -> dict[str, Any]:
     return value
 
 
+def _reject_json_constant(_value: str) -> None:
+    raise ValueError("NON_FINITE_JSON_NUMBER")
+
+
 def _decode_json_line(line: str | bytes) -> dict[str, Any]:
     raw = line.encode("utf-8") if isinstance(line, str) else bytes(line)
     if not raw or len(raw) > MAX_LINE_BYTES:
         raise WorkerProtocolError("WORKER_LINE_SIZE_INVALID")
     try:
         text = raw.decode("utf-8")
-        value = json.loads(text)
+        value = json.loads(text, parse_constant=_reject_json_constant)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkerProtocolError("WORKER_JSON_INVALID") from exc
     if not isinstance(value, dict):
