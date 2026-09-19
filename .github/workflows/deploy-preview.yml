@@ -185,15 +185,22 @@ jobs:
           RELEASE_ID: ${{ steps.source.outputs.release }}
         run: |
           set -euo pipefail
-          vercel curl /api/health --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" > health.json
-          vercel curl /api/version --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" > version.json
-          vercel curl / --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" --fail --silent --show-error --output /dev/null
-          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" --fail --silent --show-error --output /dev/null
-          vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --token="$VERCEL_TOKEN" --fail --silent --show-error --output /dev/null
+          # VERCEL_TOKEN is a documented global auth environment variable.
+          # Do not append --token after `vercel curl`: curl subcommands use native
+          # curl option parsing and would forward it to curl itself.
+          vercel curl /api/health --deployment "$DEPLOYMENT_URL" > health.json
+          vercel curl /api/version --deployment "$DEPLOYMENT_URL" > version.json
+          vercel curl "/api/downloads/companion/windows/manifest?channel=rc" --deployment "$DEPLOYMENT_URL" > companion-rc.json
+          vercel curl "/api/downloads/companion/windows/manifest?channel=stable" --deployment "$DEPLOYMENT_URL" > companion-stable.json
+          vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           node --input-type=module -e '
             import fs from "node:fs";
             const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
             const version = JSON.parse(fs.readFileSync("version.json", "utf8"));
+            const rc = JSON.parse(fs.readFileSync("companion-rc.json", "utf8"));
+            const stable = JSON.parse(fs.readFileSync("companion-stable.json", "utf8"));
             const expected = process.env.SOURCE_SHA;
             const release = process.env.RELEASE_ID;
             if (health.ok !== true) throw new Error("Preview health is not ok");
@@ -201,6 +208,12 @@ jobs:
             if (health.commit !== expected) throw new Error("Preview health commit mismatch");
             if (version.commit !== expected) throw new Error("Preview version commit mismatch");
             if (version.release !== release) throw new Error("Preview release mismatch");
+            if (rc.channel !== "rc" || !/^companion-rc-v/.test(rc.tag ?? "")) {
+              throw new Error("Preview Companion RC manifest mismatch");
+            }
+            if (stable.channel !== "stable" || !/^companion-v/.test(stable.tag ?? "")) {
+              throw new Error("Preview Companion Stable manifest mismatch");
+            }
           '
 
       - name: Preview summary
