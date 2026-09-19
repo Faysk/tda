@@ -1,24 +1,50 @@
-export function worldEditFailureMessage(reason: string): string {
+export function worldPublishFailureMessage(reason: string): string {
 	switch (reason) {
 		case "unauthenticated":
-			return "Sua sessão expirou. Entre novamente antes de editar o Mundo.";
+			return "A publicação não aconteceu: sua sessão expirou. O rascunho continua preservado; entre novamente antes de publicar.";
 		case "profile_unresolved":
-			return "Sua conta ainda não está vinculada a um perfil que possa editar o Mundo.";
+			return "A publicação não aconteceu: sua conta ainda não está vinculada a um perfil autorizado. O rascunho continua preservado.";
 		case "forbidden":
-			return "Sua conta não possui permissão para esta edição do Mundo.";
+			return "A publicação não aconteceu: sua conta não possui permissão para esta edição. O rascunho continua preservado.";
 		case "conflict":
-			return "O Mundo publicado mudou enquanto este rascunho estava aberto. O rascunho foi preservado; recarregue antes de publicar.";
+			return "A publicação não aconteceu porque o Mundo publicado mudou desde o início desta edição. Seu rascunho foi preservado para reconciliação.";
 		case "lease_lost":
-			return "A sessão exclusiva de edição expirou. Seu rascunho foi preservado para recuperação, mas precisa de uma nova sessão antes de publicar.";
+			return "A publicação não aconteceu porque a sessão exclusiva expirou. Seu rascunho foi preservado; reabra a condução para recuperá-lo.";
 		case "invalid_payload":
-			return "Há um campo inválido no rascunho. Corrija-o antes de publicar.";
+			return "A publicação não aconteceu porque existe um campo inválido no rascunho. Nada foi publicado e o rascunho continua preservado.";
 		case "duplicate":
-			return "Já existe um elemento, slug ou ligação incompatível com esta alteração. Ajuste o rascunho e tente novamente.";
+			return "A publicação não aconteceu porque ainda existe um nome, slug ou ligação incompatível/duplicada. Nada foi publicado e o rascunho continua preservado.";
+		case "review_required":
+			return "A publicação não aconteceu: há conteúdo marcado para campanha/web sem a revisão ou fonte canônica exigida. O rascunho continua preservado.";
 		case "media_pending":
-			return "A imagem ainda não pôde ser verificada para publicação. O rascunho e a sessão de edição foram preservados; tente publicar novamente.";
+			return "A publicação não aconteceu porque uma imagem ainda não pôde ser verificada. O rascunho e a sessão foram preservados; tente novamente depois da verificação.";
+		case "dependency_unavailable":
+			return "A publicação não pôde ser confirmada por uma falha de servidor ou rede. Nada foi publicado; o rascunho preservado não será descartado.";
 		default:
-			return "Não foi possível confirmar a edição agora. Nenhuma alteração foi publicada.";
+			return "A publicação não pôde ser confirmada. Nada foi publicado e o rascunho continua preservado.";
 	}
+}
+
+export function worldDraftSaveFailureMessage(reason: string): string {
+	switch (reason) {
+		case "lease_lost":
+			return "A sessão exclusiva expirou. O último rascunho confirmado continua preservado; reabra a condução antes de continuar.";
+		case "conflict":
+			return "O Mundo publicado mudou e este rascunho ficou desatualizado. Ele continua preservado e precisa ser reconciliado antes de publicar.";
+		case "forbidden":
+			return "Não foi possível salvar o rascunho porque sua permissão mudou. Mantenha esta aba aberta até recuperar a sessão.";
+		case "invalid_payload":
+			return "O rascunho contém um campo inválido e não pôde ser salvo. Corrija a alteração antes de sair desta página.";
+		case "duplicate":
+			return "O rascunho contém um conflito de nome, slug ou ligação e ainda não pôde ser salvo. Corrija-o antes de sair desta página.";
+		default:
+			return "Não foi possível confirmar o salvamento do rascunho. Mantenha esta aba aberta e tente novamente antes de sair.";
+	}
+}
+
+/** Backward-compatible generic mapping for callers that do not know the phase yet. */
+export function worldEditFailureMessage(reason: string): string {
+	return worldPublishFailureMessage(reason);
 }
 
 export function worldLayoutPositionsEqual(
