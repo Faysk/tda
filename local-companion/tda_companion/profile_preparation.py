@@ -70,7 +70,7 @@ def _check_cancelled(is_cancelled: Callable[[], bool] | None) -> None:
 
 
 _BACKGROUND_DOWNLOAD_CODE = "DOWNLOAD_CONTINUES_IN_BACKGROUND"
-_BACKGROUND_DOWNLOAD_MAX_SECONDS = 2 * 60 * 60
+_PREPARATION_MAX_SECONDS = 2 * 60 * 60
 
 
 def _finish_resumable_download(
@@ -84,7 +84,7 @@ def _finish_resumable_download(
     deterministic BITS destination lets the next call resume/acknowledge the
     same transfer without duplicating multi-gigabyte runtime downloads.
     """
-    deadline = time.monotonic() + _BACKGROUND_DOWNLOAD_MAX_SECONDS
+    deadline = time.monotonic() + _PREPARATION_MAX_SECONDS
     while True:
         _check_cancelled(is_cancelled)
         try:
@@ -439,7 +439,7 @@ class ProfilePreparationManager:
         started = self._started_at
         return (
             started is not None
-            and time.monotonic() - started >= _BACKGROUND_DOWNLOAD_MAX_SECONDS
+            and time.monotonic() - started >= _PREPARATION_MAX_SECONDS
         )
 
     def _should_stop(self) -> bool:
