@@ -17,9 +17,10 @@ from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolE
 
 
 class WorkerProcessError(RuntimeError):
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, recoverable: bool = True):
         super().__init__(code)
         self.code = code
+        self.recoverable = recoverable
 
 
 @dataclass(frozen=True)
@@ -233,7 +234,8 @@ class WorkerSupervisor:
                         on_event(message)
                 elif message.type == "error":
                     code = str(message.payload.get("code") or "WORKER_EXECUTION_FAILED")
-                    raise WorkerProcessError(code)
+                    recoverable = message.payload.get("recoverable", True)
+                    raise WorkerProcessError(code, recoverable=bool(recoverable))
                 elif message.type in {"result", "cancelled"}:
                     terminal = message
 
