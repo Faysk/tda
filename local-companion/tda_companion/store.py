@@ -57,8 +57,18 @@ class Store:
         finally:
             db.close()
 
+    @contextmanager
+    def read(self):
+        db = sqlite3.connect(self.path, timeout=10)
+        db.row_factory = sqlite3.Row
+        try:
+            db.execute("PRAGMA query_only=ON")
+            yield db
+        finally:
+            db.close()
+
     def setting(self, key):
-        with self.tx() as db:
+        with self.read() as db:
             return db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()[0]
 
     def pause(self, paused):
@@ -66,7 +76,7 @@ class Store:
             db.execute("UPDATE settings SET value=? WHERE key='paused'", (json.dumps(paused),))
 
     def has_running_jobs(self):
-        with self.tx() as db:
+        with self.read() as db:
             return db.execute("SELECT 1 FROM jobs WHERE status='running' LIMIT 1").fetchone() is not None
 
     def event(self, db, job_id, code, data=None, level="info"):
@@ -220,26 +230,27 @@ class Store:
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
     def get(self, job_id):
-        with self.tx() as db:
+        with self.read() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             if not row:
                 raise KeyError(job_id)
             return self.dto(row)
 
     def body(self, job_id):
-        with self.tx() as db:
+        with self.read() as db:
             row = db.execute("SELECT body FROM jobs WHERE id=?", (job_id,)).fetchone()
             if not row:
                 raise KeyError(job_id)
             return json.loads(row["body"])
 
     def jobs(self):
-        with self.tx() as db:
+        with self.read() as db:
             return [self.dto(r) for r in db.execute("SELECT * FROM jobs ORDER BY updated DESC LIMIT 100")]
 
     def events(self, job_id):
-        self.get(job_id)
-        with self.tx() as db:
+        with self.read() as db:
+            if not db.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
+                raise KeyError(job_id)
             rows = db.execute(
                 "SELECT seq,code,at,level,data FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100",
                 (job_id,),
@@ -455,9 +466,11 @@ class Store:
             return not done
 
     def result(self, job_id):
-        self.get(job_id)
-        with self.tx() as db:
-            value = db.execute("SELECT result FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
+        with self.read() as db:
+            row = db.execute("SELECT result FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row:
+                raise KeyError(job_id)
+            value = row["result"]
             if value is None:
                 raise Conflict("RESULT_NOT_READY")
             return json.loads(value)
