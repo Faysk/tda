@@ -274,7 +274,12 @@ export function ProcessingPanel() {
 				? "Versão incompatível"
 				: "Serviço desconectado";
 	const running = state.jobs.filter((job) => job.status === "running");
-	const queued = state.jobs.filter((job) => job.status === "queued");
+	const queued = state.jobs
+		.filter((job) => job.status === "queued")
+		.sort(
+			(left, right) =>
+				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
+		);
 	const succeeded = state.jobs.filter((job) => job.status === "succeeded");
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
