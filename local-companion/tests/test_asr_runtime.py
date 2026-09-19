@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import zipfile
 from pathlib import Path
 
 import pytest
 
+import tda_companion.asr_runtime as runtime_module
 from tda_companion.asr_runtime import (
     AsrRuntimeError,
     current_whisper_worker,
@@ -166,6 +168,59 @@ def test_runtime_archive_rejects_path_traversal_and_symlink_like_entries(tmp_pat
         )
 
 
+def test_whisper_runtime_metadata_drift_is_verified_once_and_resealed(
+    monkeypatch,
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive)
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+    worker = runtime_root / "whisper" / version / "TDAWhisperWorker.exe"
+    marker_path = runtime_root / "whisper" / version / ".tda-runtime.json"
+    before_marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    before = worker.stat()
+    os.utime(
+        worker,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    original = runtime_module._sha256_file
+    calls = 0
+
+    def counted(path: Path) -> str:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(runtime_module, "_sha256_file", counted)
+    state = inspect_whisper_runtime(runtime_root, verify_worker=False)
+
+    assert state["status"] == "ready"
+    assert calls == 1
+    resealed = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert resealed["worker_sha256"] == before_marker["worker_sha256"]
+    assert (
+        resealed["worker_metadata_sha256"]
+        != before_marker["worker_metadata_sha256"]
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("resealed Whisper runtime must return to metadata fast path")
+        ),
+    )
+    assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "ready"
+
+
 def test_legacy_whisper_runtime_marker_without_metadata_seal_remains_compatible(tmp_path: Path):
     archive = tmp_path / "legacy.zip"
     digest = _runtime_zip(archive)
@@ -187,7 +242,12 @@ def test_legacy_whisper_runtime_marker_without_metadata_seal_remains_compatible(
     )
 
     assert inspect_whisper_runtime(runtime_root, verify_worker=False)["status"] == "ready"
+    assert "worker_metadata_sha256" not in json.loads(
+        marker_path.read_text(encoding="utf-8")
+    )
     assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+    upgraded = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert len(upgraded["worker_metadata_sha256"]) == 64
 
 
 def test_runtime_requires_expected_worker_and_detects_worker_tamper(tmp_path: Path):
