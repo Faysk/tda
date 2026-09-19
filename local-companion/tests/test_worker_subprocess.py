@@ -9,6 +9,7 @@ import pytest
 
 import tda_companion.worker_supervisor as supervisor_module
 from tda_companion.worker_protocol import (
+    MAX_LINE_BYTES,
     WorkerCancelCommand,
     WorkerMessage,
     WorkerProtocolError,
@@ -43,6 +44,40 @@ def test_protocol_roundtrip_and_sequence_fence():
     assert value.payload["completed"] == 2
     with pytest.raises(WorkerProtocolError, match="WORKER_SEQUENCE_REPLAY"):
         WorkerMessage.decode(message.encode(), previous_seq=4)
+
+
+def test_protocol_wire_line_limit_is_symmetric():
+    def encoded(size: int) -> str:
+        return WorkerMessage.create(
+            job_id="wire-limit",
+            attempt=1,
+            seq=0,
+            type="event",
+            payload={"code": "TEST_EVENT", "value": "x" * size},
+        ).encode()
+
+    low = 0
+    high = MAX_LINE_BYTES
+    while low < high:
+        middle = (low + high + 1) // 2
+        try:
+            encoded(middle)
+        except WorkerProtocolError:
+            high = middle - 1
+        else:
+            low = middle
+
+    line = encoded(low)
+    assert len(line.encode("utf-8")) <= MAX_LINE_BYTES
+    decoded = WorkerMessage.decode(
+        line,
+        expected_job_id="wire-limit",
+        expected_attempt=1,
+    )
+    assert decoded.payload["value"] == "x" * low
+
+    with pytest.raises(WorkerProtocolError, match="WORKER_LINE_TOO_LARGE"):
+        encoded(low + 1)
 
 
 def test_protocol_rejects_cross_job_and_oversized_input():
