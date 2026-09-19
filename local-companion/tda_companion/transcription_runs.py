@@ -414,50 +414,60 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
         try:
             return load_run(package_root, run_id, verify_content=True)
         except TranscriptionRunError:
-            return None
+            # A directory without run.json is only an interrupted migration, not
+            # an immutable commit. Rebuild it from the still-valid root legacy
+            # transcript instead of permanently abandoning migration.
+            if not remove_incomplete_run(package_root, run_id):
+                return None
+
     destination.mkdir(parents=True, exist_ok=False)
-    _atomic_bytes(destination / "transcript.json", payload)
-    manifest = {
-        "schema_version": RUN_SCHEMA_VERSION,
-        "run_id": run_id,
-        "origin": "legacy_transcript_v1",
-        "status": "completed",
-        "source_id": _source_id(package_root, source_id),
-        "source_sha256": source_sha256,
-        "job_id": None,
-        "attempt": None,
-        "profile_id": profile_id,
-        "engine": engine.get("engine"),
-        "model": engine.get("model"),
-        "model_revision": engine.get("model_revision"),
-        "device": engine.get("device"),
-        "compute_type": engine.get("compute_type"),
-        "alignment": engine.get("alignment"),
-        "language": value.get("language"),
-        "context_sha256": None,
-        "glossary_sha256": None,
-        "transcript_schema_version": "tda_transcript_v1",
-        "artifact": "transcript.json",
-        "transcript_sha256": digest,
-        "transcript_size_bytes": len(payload),
-        "created_at": value.get("created_at"),
-        "completed_at": value.get("created_at") or utc_now(),
-        "stats": {
-            key: stats.get(key)
-            for key in (
-                "processing_seconds",
-                "rtf",
-                "word_count",
-                "segment_count",
-                "track_count",
-                "turn_count",
-                "deduplicated_segment_count",
-            )
-            if key in stats
-        },
-    }
-    _atomic_json(destination / "run.json", manifest)
-    return manifest
+    try:
+        _atomic_bytes(destination / "transcript.json", payload)
+        manifest = {
+            "schema_version": RUN_SCHEMA_VERSION,
+            "run_id": run_id,
+            "origin": "legacy_transcript_v1",
+            "status": "completed",
+            "source_id": _source_id(package_root, source_id),
+            "source_sha256": source_sha256,
+            "job_id": None,
+            "attempt": None,
+            "profile_id": profile_id,
+            "engine": engine.get("engine"),
+            "model": engine.get("model"),
+            "model_revision": engine.get("model_revision"),
+            "device": engine.get("device"),
+            "compute_type": engine.get("compute_type"),
+            "alignment": engine.get("alignment"),
+            "language": value.get("language"),
+            "context_sha256": None,
+            "glossary_sha256": None,
+            "transcript_schema_version": "tda_transcript_v1",
+            "artifact": "transcript.json",
+            "transcript_sha256": digest,
+            "transcript_size_bytes": len(payload),
+            "created_at": value.get("created_at"),
+            "completed_at": value.get("created_at") or utc_now(),
+            "stats": {
+                key: stats.get(key)
+                for key in (
+                    "processing_seconds",
+                    "rtf",
+                    "word_count",
+                    "segment_count",
+                    "track_count",
+                    "turn_count",
+                    "deduplicated_segment_count",
+                )
+                if key in stats
+            },
+        }
+        _atomic_json(destination / "run.json", manifest)
+        return manifest
+    except BaseException:
+        if not (destination / "run.json").is_file():
+            shutil.rmtree(destination, ignore_errors=True)
+        raise
 
 
 def ensure_legacy_and_list(
