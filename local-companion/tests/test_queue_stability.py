@@ -16,7 +16,7 @@ BODY = dict(
 )
 
 
-def test_v2_database_migrates_error_recoverability_without_losing_jobs(tmp_path):
+def test_v2_database_migrates_queue_metadata_without_losing_jobs(tmp_path):
     database = tmp_path / 'jobs.sqlite3'
     db = sqlite3.connect(database)
     try:
@@ -70,9 +70,14 @@ def test_v2_database_migrates_error_recoverability_without_losing_jobs(tmp_path)
         'recoverable': True,
     }
     with sqlite3.connect(database) as check:
-        assert check.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert check.execute('PRAGMA user_version').fetchone()[0] == 4
         columns = {row[1] for row in check.execute('PRAGMA table_info(jobs)').fetchall()}
         assert 'error_recoverable' in columns
+        alias = check.execute(
+            'SELECT job_id,signature FROM idempotency_keys WHERE key=?',
+            ('legacy-idem',),
+        ).fetchone()
+        assert alias == ('legacy-job', 'legacy-signature')
 
 
 def test_polling_reads_never_open_immediate_write_transactions(tmp_path, monkeypatch):
@@ -234,6 +239,42 @@ def test_active_job_cannot_be_removed(tmp_path):
     assert claim is not None
     with pytest.raises(Conflict, match='JOB_ACTIVE'):
         store.remove(queued['id'])
+
+
+def test_reused_idempotency_key_remains_bound_after_original_job_finishes(tmp_path):
+    store = Store(tmp_path)
+    body = {
+        'kind': 'transcription.craig',
+        'campaign_id': 'campaign',
+        'session_id': 'session',
+        'source_id': 'craig-' + 'e' * 64,
+        'profile_id': 'whisper-turbo',
+        'glossary': '',
+        'context': '',
+        'cpu': False,
+        'units': 1,
+    }
+
+    first = store.submit('request-a', body)
+    reused = store.submit('request-b', body)
+    assert reused['id'] == first['id']
+
+    claim = store.claim()
+    assert claim is not None
+    store.progress(
+        first['id'],
+        claim[1],
+        completed=1,
+        total=1,
+        stage='transcription',
+    )
+    assert store.complete(first['id'], claim[1], {'ok': True}) is True
+
+    retried_b = store.submit('request-b', body)
+
+    assert retried_b['id'] == first['id']
+    assert retried_b['status'] == 'succeeded'
+    assert len(store.jobs()) == 1
 
 
 def test_identical_active_transcription_is_reused_across_different_idempotency_keys(tmp_path):
