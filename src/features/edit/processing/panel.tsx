@@ -33,6 +33,12 @@ function jobTitle(job: LocalJob): string {
 
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
+	const measurable =
+		job.progress.completed > 0 ||
+		processingStages.has(job.stage) ||
+		consolidationStages.has(job.stage) ||
+		job.status === "succeeded";
+	if (!measurable) return null;
 	return Math.round((job.progress.completed / job.progress.total) * 100);
 }
 
@@ -178,7 +184,7 @@ function JobRow({
 				</span>
 			</div>
 			<div className={styles.jobRowProgress}>
-				{job.progress ? (
+				{job.progress && percent !== null ? (
 					<>
 						<progress
 							aria-label={`Progresso do trabalho ${job.id}`}
@@ -273,6 +279,7 @@ export function ProcessingPanel() {
 		["succeeded", "cancelled"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
+	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const gpu = state.system?.gpus[0] ?? null;
 	const trackContext = eventTrackContext(state.events);
@@ -447,14 +454,14 @@ export function ProcessingPanel() {
 											{activeJob.attempt > 0 ? <span>Tentativa {activeJob.attempt}</span> : null}
 											<span>Worker ativo · {formatTime(activeJob.updated_at)}</span>
 										</div>
-										{activeJob.progress ? (
+										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
 												<progress
 													aria-label={`Progresso do trabalho ${activeJob.id}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
 												/>
-												<strong>{progressPercent(activeJob)}%</strong>
+												<strong>{activePercent}%</strong>
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
