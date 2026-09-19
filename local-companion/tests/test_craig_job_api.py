@@ -325,6 +325,66 @@ def test_agent_restart_does_not_recover_run_with_different_context(tmp_path: Pat
         }
 
 
+def test_api_preserves_incomplete_worker_contract_failure(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        job_id = kwargs["job_id"]
+        attempt = kwargs["attempt"]
+        source_id = kwargs["source_id"]
+        profile_id = kwargs["profile_id"]
+        package_root = data_root / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        manifest = write_completed_run(
+            package_root,
+            _document(package, profile_id),
+            job_id=job_id,
+            attempt=attempt,
+            glossary=kwargs["glossary"],
+            context=kwargs["context"],
+        )
+        # Intentionally violate the queue contract: the worker returns a valid
+        # immutable result without committing any track progress first.
+        return WorkerOutcome(
+            terminal="result",
+            payload={
+                "kind": "transcription.craig",
+                "schema_version": "tda_transcript_v1",
+                "source_id": source_id,
+                "profile_id": profile_id,
+                "artifact": "transcript.json",
+                "run_id": manifest["run_id"],
+                "sha256": manifest["transcript_sha256"],
+            },
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "incomplete-worker-contract"},
+            json=_body(),
+        ).json()
+        failed = _wait_for_job(client, queued["id"], "failed")
+        assert failed["error"] == {
+            "code": "WORKER_RESULT_INCOMPLETE",
+            "recoverable": False,
+        }
+
+
 def test_api_rejects_completed_run_with_wrong_track_count(monkeypatch, tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
