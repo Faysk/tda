@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 MODEL_MARKER = ".tda-model.json"
 MODEL_MARKER_SCHEMA = "tda_model_install_v1"
@@ -226,7 +227,7 @@ def _refresh_metadata_marker(
 ) -> None:
     updated = dict(marker)
     updated["metadata_sha256"] = metadata_sha256
-    temporary = directory / f"{MODEL_MARKER}.metadata.partial"
+    temporary = directory / f"{MODEL_MARKER}.metadata.{uuid4().hex}.partial"
     try:
         with temporary.open("w", encoding="utf-8", newline="\n") as handle:
             json.dump(
