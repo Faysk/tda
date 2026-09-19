@@ -163,10 +163,11 @@ export class ProcessingController {
 	refresh = async () => {
 		if (this.#state.connection !== "connected") return;
 		await this.run((signal) => this.read(signal));
-		// Browser sessions are deliberately ephemeral. If the Agent restarted or
-		// the 8h lease expired, recover transparently instead of asking the user to
-		// perform a pairing ritual.
-		if (this.#state.connection === "error" && this.#state.error === "unauthorized")
+		// Browser sessions are deliberately ephemeral. Re-read through the public
+		// snapshot after the awaited operation because run() may have transitioned
+		// the controller from connected to error.
+		const current = this.snapshot();
+		if (current.connection === "error" && current.error === "unauthorized")
 			await this.connect();
 	};
 
