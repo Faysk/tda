@@ -143,6 +143,16 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         stat = candidate.stat()
         if stat.st_size != size_bytes:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
+        staged_mtime_ns = item.get("staged_mtime_ns")
+        if staged_mtime_ns is not None:
+            if (
+                isinstance(staged_mtime_ns, bool)
+                or not isinstance(staged_mtime_ns, int)
+                or staged_mtime_ns <= 0
+            ):
+                raise CraigPackageError("CRAIG_MANIFEST_TRACK_METADATA_INVALID")
+            if stat.st_mtime_ns != staged_mtime_ns:
+                raise CraigPackageError("CRAIG_MANIFEST_TRACK_METADATA_MISMATCH")
         if verify_tracks and _sha256_file(candidate) != digest:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
 
@@ -155,6 +165,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 size_bytes=size_bytes,
                 sha256=digest,
                 identity=_identity(item.get("identity")),
+                staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
             )
         )
