@@ -4,6 +4,7 @@ import {
 	LOCAL_API,
 	parseCapabilities,
 	parseJob,
+	parseJobEvents,
 	parseJobs,
 	parsePreparationStatus,
 	parseResultSummary,
@@ -20,6 +21,25 @@ const job = {
 	result_available: false,
 	updated_at: "2026-09-07T12:00:00Z",
 };
+describe("processing protocol contract", () => {
+	it("accepts the Agent's full 96-character worker event code budget", () => {
+		const code = "A".repeat(96);
+		expect(
+			parseJobEvents({
+				events: [
+					{
+						seq: 1,
+						code,
+						at: "2026-09-19T12:00:00Z",
+						level: "info",
+						data: {},
+					},
+				],
+			})[0]?.code,
+		).toBe(code);
+	});
+});
+
 describe("loopback bridge", () => {
 	it("keeps credentials off health and only sends bearer to fixed loopback", async () => {
 		const request = vi
