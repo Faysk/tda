@@ -438,10 +438,24 @@ def create_app(
 
                         final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
-                            result = finalize_transcription_result(job_id, attempt, body, outcome.payload)
-                            if not store.complete(job_id, attempt, result):
-                                raise WorkerProcessError("WORKER_STALE_ATTEMPT")
-                            final_state = store.get(job_id)
+                            if final_state["status"] == "cancelled":
+                                log(
+                                    "info",
+                                    "worker",
+                                    "WORKER_RESULT_DISCARDED_AFTER_CANCEL",
+                                    "Worker finished after the operator cancelled the job; queue result was discarded",
+                                    {"job_id": job_id, "attempt": attempt},
+                                )
+                            else:
+                                result = finalize_transcription_result(
+                                    job_id,
+                                    attempt,
+                                    body,
+                                    outcome.payload,
+                                )
+                                if not store.complete(job_id, attempt, result):
+                                    raise WorkerProcessError("WORKER_STALE_ATTEMPT")
+                                final_state = store.get(job_id)
                         if (
                             outcome.terminal == "cancelled"
                             and final_state["status"] == "running"
