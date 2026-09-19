@@ -39,6 +39,25 @@ def client(tmp_path):
         yield client
 
 
+def test_shutdown_waits_past_fast_window_until_preparation_thread_exits(
+    monkeypatch,
+    tmp_path,
+):
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=False)
+    calls: list[float | None] = []
+
+    def fake_wait(timeout=None):
+        calls.append(timeout)
+        return len(calls) > 1
+
+    monkeypatch.setattr(app.state.preparation_manager, "wait", fake_wait)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765"):
+        pass
+
+    assert calls == [8.0, None]
+
+
 def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, tmp_path):
     started = threading.Event()
     cancel_seen = threading.Event()
