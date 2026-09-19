@@ -71,8 +71,10 @@ def test_tda_model_marker_records_identity_and_integrity(tmp_path: Path):
     assert marker["alignment"] == profile.alignment
     assert marker["alignment_revision"] == profile.alignment_revision
     assert len(str(marker["content_sha256"])) == 64
+    assert len(str(marker["metadata_sha256"])) == 64
     assert state["status"] == "ready"
     assert state["content_sha256"] == marker["content_sha256"]
+    assert state["metadata_sha256"] == marker["metadata_sha256"]
 
 
 def test_qwen_native_checkpoint_marker_is_reproducible(tmp_path: Path):
@@ -85,6 +87,18 @@ def test_qwen_native_checkpoint_marker_is_reproducible(tmp_path: Path):
     assert marker["alignment"] == QWEN_FORCED_ALIGNER_MODEL_ID
     assert marker["alignment_revision"] == QWEN_FORCED_ALIGNER_REVISION
     assert state["status"] == "ready"
+
+
+def test_model_metadata_fingerprint_detects_tampering_without_full_hash(tmp_path: Path):
+    profile = get_profile("qwen-fast")
+    directory = _write_model_fixture(tmp_path, profile.id)
+    write_install_marker(directory, profile)
+    assert inspect_model_install(tmp_path, profile, verify_hash=False)["status"] == "ready"
+
+    model = directory / "model.safetensors"
+    model.write_bytes(model.read_bytes() + b"-tampered")
+
+    assert inspect_model_install(tmp_path, profile, verify_hash=False)["status"] == "corrupt"
 
 
 def test_model_integrity_detects_tampering(tmp_path: Path):
