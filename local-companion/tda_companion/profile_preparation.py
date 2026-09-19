@@ -558,12 +558,17 @@ class ProfilePreparationManager:
             raise ProfilePreparationError(str(exc)) from exc
 
         with self._lock:
-            if self._state.get("active") is True:
+            thread_alive = self._thread is not None and self._thread.is_alive()
+            if self._state.get("active") is True or thread_alive:
                 if (
-                    self._state.get("source_id") == source_id
+                    self._state.get("active") is True
+                    and self._state.get("source_id") == source_id
                     and self._state.get("profile_id") == profile_id
                 ):
                     return self._snapshot_locked()
+                # Terminal state is published just before _run() unwinds. Fence
+                # that tiny interval with the physical thread state so a second
+                # preparation cannot overlap model/runtime cleanup.
                 raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_ALREADY_RUNNING")
 
             operation_id = uuid4().hex
