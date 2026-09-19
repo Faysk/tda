@@ -322,6 +322,16 @@ export async function publishWorldEditStateAction(
 		.maybeSingle();
 	if (leaseError || !lease) {
 		if (leaseError) console.error("World publication draft lookup failed", leaseError.message);
+		const receipt = await confirmedGraphPublishReceipt({
+			client,
+			campaignId: campaign.id,
+			profileId: contentAccess.profileId,
+			leaseToken,
+		});
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
+		}
 		return failPublish(leaseError ? "dependency_unavailable" : "lease_lost");
 	}
 
@@ -444,9 +454,21 @@ export async function publishWorldEditStateAction(
 	if (payload.reason === "media_not_verified" || payload.reason === "media_invalid") {
 		return failPublish("media_pending");
 	}
+	if (payload.reason === "lease_lost") {
+		const receipt = await confirmedGraphPublishReceipt({
+			client,
+			campaignId: campaign.id,
+			profileId: contentAccess.profileId,
+			leaseToken,
+		});
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
+		}
+		return failPublish("lease_lost");
+	}
 	if (
 		payload.reason === "forbidden" ||
-		payload.reason === "lease_lost" ||
 		payload.reason === "invalid_payload" ||
 		payload.reason === "duplicate" ||
 		payload.reason === "review_required"
