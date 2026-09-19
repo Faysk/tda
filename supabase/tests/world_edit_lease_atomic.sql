@@ -232,8 +232,17 @@ begin
      or (select revision from public.world_layout_snapshots) <> 3
      or (select positions from public.world_layout_snapshots) <>
         '{"node-a":{"x":260,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb
-     or (select count(*) from public.audit_log where action = 'world_layout.update') <> 3 then
-    raise exception 'publish must update snapshot/audit and release the lease atomically';
+     or (select count(*) from public.audit_log where action = 'world_layout.update') <> 3
+     or not exists (
+       select 1
+       from public.world_edit_drafts
+       where owner_profile_id = '33333333-3333-4333-8333-333333333333'
+         and lease_token = token_a
+         and status = 'published'
+         and published_layout_revision = 3
+         and last_publish_error is null
+     ) then
+    raise exception 'publish must update snapshot/audit, persist its receipt and release the lease atomically';
   end if;
 end;
 $$;
