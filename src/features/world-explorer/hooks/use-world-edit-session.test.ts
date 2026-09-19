@@ -28,6 +28,7 @@ describe("World edit session helpers", () => {
 		expect(worldDraftSaveFailureMessage("dependency_unavailable")).toContain("Mantenha esta aba aberta");
 		expect(worldPublishFailureMessage("media_pending")).toContain("publicação não aconteceu");
 		expect(worldPublishFailureMessage("review_required")).toContain("fonte canônica");
-		expect(worldPublishFailureMessage("dependency_unavailable")).toContain("Nada foi publicado");
+		expect(worldPublishFailureMessage("dependency_unavailable")).toContain("Não foi possível confirmar");
+		expect(worldPublishFailureMessage("dependency_unavailable")).toContain("rascunho continua preservado");
 	});
 });
