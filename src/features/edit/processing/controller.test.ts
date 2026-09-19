@@ -65,6 +65,26 @@ describe("processing state", () => {
 			busy: false,
 		});
 	});
+	it("preserves connected state when a local operation returns conflict", async () => {
+		const { request, controller } = fixture();
+		await controller.connect(token);
+		request.mockImplementationOnce(async () =>
+			Response.json(
+				{ error: { code: "AGENT_BUSY", recoverable: true } },
+				{ status: 409 },
+			),
+		);
+
+		await controller.lifecycle("pause");
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			error: "conflict",
+			jobs: [job],
+			busy: false,
+		});
+	});
+
 	it("keeps the shared pairing alive on transient refresh failure", async () => {
 		const { request, controller } = fixture();
 		await controller.connect(token);
