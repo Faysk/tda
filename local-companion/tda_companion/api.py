@@ -617,7 +617,11 @@ def create_app(
                                 for key, value in message.payload.items()
                                 if key != "code"
                             }
-                            if code in {"QWEN_WINDOW_TRANSCRIBED", "MODEL_DOWNLOAD_PROGRESS"}:
+                            if code in {
+                                "QWEN_WINDOW_TRANSCRIBED",
+                                "WHISPER_SEGMENT_TRANSCRIBED",
+                                "MODEL_DOWNLOAD_PROGRESS",
+                            }:
                                 now = time.monotonic()
                                 last = noisy_event_last_at.get(code)
                                 if last is not None and now - last < noisy_event_interval:
@@ -645,6 +649,7 @@ def create_app(
                             if code in {
                                 "MODEL_DOWNLOAD_PROGRESS",
                                 "QWEN_WINDOW_TRANSCRIBED",
+                                "WHISPER_SEGMENT_TRANSCRIBED",
                                 "ASR_CHECKPOINT_REUSED",
                                 "ASR_CHECKPOINT_SAVED",
                             }:
@@ -657,6 +662,7 @@ def create_app(
                                         "track",
                                         "total_tracks",
                                         "window",
+                                        "segment",
                                         "downloaded_bytes",
                                         "total_bytes",
                                         "profile_id",
