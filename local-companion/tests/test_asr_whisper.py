@@ -28,6 +28,25 @@ def _install_whisper_fixture(models_root: Path, profile_id: str = "whisper-turbo
     return directory
 
 
+def test_whisper_resumable_staging_ignores_redirected_partial(tmp_path: Path):
+    downloads = tmp_path / ".downloads"
+    downloads.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    redirected = downloads / "whisper-small-redirect.partial"
+    try:
+        redirected.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this runner")
+
+    chosen = asr_whisper._resumable_model_staging(downloads, "whisper-small")
+
+    assert chosen != redirected
+    assert chosen.parent == downloads
+    assert chosen.name.startswith("whisper-small-")
+    assert chosen.name.endswith(".partial")
+
+
 def test_whisper_checkpoint_pipeline_revision_is_explicit():
     assert "checkpoint=whisper-track-v2" in _whisper_runtime_fingerprint()
 
