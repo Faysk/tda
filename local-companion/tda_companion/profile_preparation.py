@@ -196,6 +196,8 @@ def _install_whisper_runtime(
                 "accepted": True,
                 "channel": "stable",
             }
+    except ProfilePreparationError:
+        raise
     except (NetworkError, RuntimeError, OSError) as exc:
         stable_error = exc
 
