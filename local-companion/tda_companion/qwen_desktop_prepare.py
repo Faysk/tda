@@ -6,8 +6,15 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from .asr_models import (
+    ModelRegistryError,
+    get_profile,
+    reset_model_install,
+    verify_and_upgrade_model_install,
+)
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .qwen_acceptance import ALIGNER_PROFILE
 from .qwen_acceptance_window import QWEN_GATE_WINDOW_SECONDS
 from .qwen_runtime import current_qwen_worker
 
@@ -99,6 +106,21 @@ def probe_qwen_long_track_gate(
     return value
 
 
+def _verify_or_reset_qwen_model(
+    models_root: Path,
+    profile,
+    *,
+    corrupt_code: str,
+) -> None:
+    state = verify_and_upgrade_model_install(models_root, profile)
+    if state.get("status") != "corrupt":
+        return
+    try:
+        reset_model_install(models_root, profile)
+    except ModelRegistryError as exc:
+        raise QwenDesktopPrepareError(corrupt_code) from exc
+
+
 def prepare_qwen_profile_from_craig(
     *,
     data_root: Path,
@@ -115,6 +137,17 @@ def prepare_qwen_profile_from_craig(
     if profile_id not in {"qwen-fast", "qwen-quality"}:
         raise QwenDesktopPrepareError("QWEN_PROFILE_REQUIRED")
     report = progress or (lambda _stage, _context: None)
+    profile = get_profile(profile_id)
+    _verify_or_reset_qwen_model(
+        models_root,
+        profile,
+        corrupt_code="QWEN_MODEL_REPAIR_FAILED",
+    )
+    _verify_or_reset_qwen_model(
+        models_root,
+        ALIGNER_PROFILE,
+        corrupt_code="QWEN_ALIGNER_REPAIR_FAILED",
+    )
     worker = current_qwen_worker(runtime_root)
     if worker is None:
         raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
