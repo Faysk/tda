@@ -199,6 +199,7 @@ def create_app(
     worker_stop = threading.Event()
     active_worker_lock = threading.Lock()
     active_worker: dict[str, object | None] = {"job_id": None, "cancel": None}
+    source_gate = threading.RLock()
 
     def register_active_worker(job_id: str) -> threading.Event:
         cancel = threading.Event()
@@ -393,7 +394,8 @@ def create_app(
                     preparation_active = (
                         preparation_manager.snapshot().get("active") is True
                     )
-                    claimed = None if preparation_active else store.claim()
+                    with source_gate:
+                        claimed = None if preparation_active else store.claim()
                 if preparation_active:
                     worker_healthy = True
                     await asyncio.sleep(0.25)
@@ -712,6 +714,7 @@ def create_app(
     app.state.preparation_manager = preparation_manager
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
+    app.state.source_gate = source_gate
     app.state.data_root = data_root
     app.state.models_root = resolved_models_root
     app.state.state_root = resolved_state_root
@@ -993,14 +996,16 @@ def create_app(
                     if gate.get("ready") is not True:
                         raise Conflict("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
                     try:
-                        _, package = staged_package(body.source_id, verify_tracks=False)
+                        with source_gate:
+                            _, package = staged_package(body.source_id, verify_tracks=False)
                     except CraigPackageError as exc:
                         raise Conflict(str(exc)) from None
                 else:
                     # Whisper keeps source validation first so a missing/invalid Craig
                     # package is reported deterministically even on an unprepared PC.
                     try:
-                        _, package = staged_package(body.source_id, verify_tracks=False)
+                        with source_gate:
+                            _, package = staged_package(body.source_id, verify_tracks=False)
                     except CraigPackageError as exc:
                         raise Conflict(str(exc)) from None
                     whisper = inspect_whisper_runtime(
