@@ -100,6 +100,15 @@ type PendingSubmission = {
 	signature: string;
 };
 
+function sourceMustBeRestaged(code: string | null): boolean {
+	if (!code) return false;
+	return (
+		code.startsWith("CRAIG_MANIFEST_") ||
+		code === "CRAIG_STAGING_EXISTING_INVALID" ||
+		code === "CRAIG_STAGING_REPAIR_FAILED"
+	);
+}
+
 export function ProcessingSubmission() {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
@@ -227,17 +236,37 @@ export function ProcessingSubmission() {
 		request.current = controller;
 		setBusy(true);
 		setError(null);
-		setStatus("Enviando o ZIP diretamente para o Companion local…");
+		setStatus(
+			source
+				? "Reutilizando a fonte já verificada neste Companion…"
+				: "Enviando o ZIP diretamente para o Companion local…",
+		);
 		try {
-			const staged = await bridge.craigSource(file, controller.signal);
-			setSource(staged);
+			const staged = source ?? (await bridge.craigSource(file, controller.signal));
+			if (!source) setSource(staged);
 			setStatus(
-				staged.reused
-					? `Fonte local já verificada · ${staged.trackCount} tracks. Enfileirando…`
-					: `ZIP verificado · ${staged.trackCount} tracks. Enfileirando…`,
+				staged.reused || source
+					? `Fonte local já verificada · ${staged.trackCount} tracks.`
+					: `ZIP verificado · ${staged.trackCount} tracks.`,
 			);
 
-			const selectedProfile = availableProfiles.find((item) => item.id === profile);
+			// Uploads grandes can take long enough for runtime/model readiness to
+			// change. Decide preparation from a fresh Agent snapshot, not from the
+			// render that existed when the user clicked submit.
+			const currentCapabilities = await bridge.capabilities(controller.signal);
+			setCapabilities(currentCapabilities);
+			const currentProfiles = currentCapabilities.transcription.catalog.length
+				? currentCapabilities.transcription.catalog
+				: currentCapabilities.transcription.profiles.map((id) => ({
+						id,
+						engine: id.startsWith("qwen-")
+							? ("qwen3" as const)
+							: ("whisper" as const),
+						ready: true,
+						preparationRequired: false,
+						reason: null,
+					}));
+			const selectedProfile = currentProfiles.find((item) => item.id === profile);
 			if (!selectedProfile) {
 				setError("O perfil selecionado não está disponível neste Companion.");
 				return;
@@ -305,6 +334,7 @@ export function ProcessingSubmission() {
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
+				if (sourceMustBeRestaged(cause.serverCode)) setSource(null);
 				setError(
 					cause.serverCode
 						? localOperationMessage(cause.serverCode)
