@@ -315,6 +315,9 @@
       audio_window_seconds: "amostra",
       downloaded_bytes: "baixado",
       error_code: "erro",
+      worker_code: "código do worker",
+      job_id: "job",
+      terminal: "terminal",
       failure_stage: "etapa da falha",
       sequence: "#",
     };
