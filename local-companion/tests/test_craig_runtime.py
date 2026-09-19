@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.craig_runtime as runtime_module
 from tda_companion.craig import CraigPackageError, ingest_craig_zip
 from tda_companion.craig_runtime import load_craig_package
 
@@ -79,18 +80,41 @@ def test_cheap_load_hashes_only_after_metadata_drift_and_detects_same_size_tampe
         load_craig_package(root, verify_tracks=False)
 
 
-def test_metadata_only_drift_does_not_false_positive_as_corruption(tmp_path: Path):
+def test_metadata_only_drift_self_heals_after_one_verified_hash(monkeypatch, tmp_path: Path):
     root = _stage_package(tmp_path)
     track = root / "tracks" / "track-000001.flac"
+    manifest_path = root / "manifest.json"
     before = track.stat()
     os.utime(
         track,
         ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
     )
 
+    original = runtime_module._sha256_file
+    calls = 0
+
+    def counted(path: Path) -> str:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(runtime_module, "_sha256_file", counted)
     package = load_craig_package(root, verify_tracks=False)
 
-    assert package.tracks[0].sha256
+    assert calls == 1
+    assert package.tracks[0].staged_mtime_ns == track.stat().st_mtime_ns
+    refreshed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert refreshed["tracks"][0]["staged_mtime_ns"] == track.stat().st_mtime_ns
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("healed metadata seal must keep later cheap loads hash-free")
+        ),
+    )
+    second = load_craig_package(root, verify_tracks=False)
+    assert second.tracks[0].staged_mtime_ns == track.stat().st_mtime_ns
 
 
 def test_legacy_manifest_without_metadata_seal_remains_readable(tmp_path: Path):
