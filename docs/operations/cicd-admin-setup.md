@@ -74,7 +74,7 @@ SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Credenciais R2 não ficam duplicadas no GitHub Environment. Quando o merge atual contém manifest canônico que deve ser publicado, a Production CD usa o `VERCEL_TOKEN` para puxar o Environment `production` do projeto Vercel e lê dali, em arquivo temporário protegido:
+Credenciais R2 não ficam duplicadas no GitHub Environment. Quando o merge atual contém manifest canônico que deve ser publicado, a Production CD usa o `VERCEL_TOKEN` para executar o publisher dentro do Environment `production` do projeto Vercel com `vercel env run`:
 
 ```text
 R2_ACCOUNT_ID
@@ -202,7 +202,7 @@ Não resetar a senha apenas para descobrir seu valor. Rotação deve considerar 
 
 ### R2
 
-As credenciais S3 do R2 usadas pelo publisher canônico ficam no Environment `production` do projeto Vercel, com privilégio mínimo sobre o bucket público canônico. A Production CD não replica esses valores em inputs nem em logs: quando `media_publish=true`, usa o `VERCEL_TOKEN` para executar `vercel env pull` para um arquivo temporário com permissão restrita e passa esse arquivo ao publisher.
+As credenciais S3 do R2 usadas pelo publisher canônico ficam no Environment `production` do projeto Vercel, com privilégio mínimo sobre o bucket público canônico. A Production CD não replica esses valores em inputs, arquivos ou logs: quando `media_publish=true`, usa o `VERCEL_TOKEN` para executar o publisher por `vercel env run --environment=production`, que injeta as variáveis diretamente no subprocesso.
 
 Manter no Environment `production` da Vercel:
 
@@ -234,7 +234,7 @@ Banco não sofre rollback automático.
 
 Para `VERCEL_TOKEN` ou credenciais Supabase, verificar primeiro se o release plan realmente marcou o domínio como necessário e corrigir o GitHub Environment `production`; não passar secret por workflow input.
 
-Para mídia R2, o erro esperado é de configuração ausente no env temporário puxado da Vercel. Confirmar que `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` existem no Environment `production` do projeto Vercel canônico e que o `VERCEL_TOKEN` possui acesso a esse projeto.
+Para mídia R2, confirmar que `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` existem no Environment `production` do projeto Vercel canônico e que o `VERCEL_TOKEN` possui acesso a esse projeto. Variáveis marcadas como Sensitive não devem ser recuperadas por `vercel env pull`; o publisher usa `vercel env run` justamente para mantê-las somente no processo.
 
 ### `SUPABASE_ACCESS_TOKEN must be ... sbp_`
 
