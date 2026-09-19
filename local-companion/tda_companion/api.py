@@ -19,6 +19,7 @@ from .asr_models import get_profile, inspect_model_install
 from .asr_runtime import inspect_whisper_runtime
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
+from .craig_ingest import recover_interrupted_craig_repairs
 from .craig_runtime import load_craig_package
 from .profile_preparation import (
     ProfilePreparationError,
@@ -242,6 +243,18 @@ def create_app(
     def log(level: str, component: str, code: str, message: str, context=None) -> None:
         if system_log is not None:
             system_log.write(level, component, code, message, context)
+
+    for recovered_source in recover_interrupted_craig_repairs(
+        data_root,
+        source_gate=source_gate,
+    ):
+        log(
+            "warning",
+            "ingest",
+            "CRAIG_STAGING_REPAIR_RECOVERED",
+            "Recovered Craig staging after an interrupted repair swap",
+            {"source_id": recovered_source},
+        )
 
     def staged_package(source_id: str, *, verify_tracks: bool = False):
         staging = (data_root / "staging").resolve()
