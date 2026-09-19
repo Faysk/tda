@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -74,6 +75,37 @@ def test_startup_recovery_restores_interrupted_qwen_runtime_swap(tmp_path: Path)
     assert target.is_dir()
     assert not backup.exists()
     assert not partial.exists()
+    assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
+
+
+def test_startup_recovery_prefers_verified_qwen_partial_over_corrupt_backup(
+    tmp_path: Path,
+):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"fresh-worker")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
+    install_qwen_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "qwen"
+    target = parent / version
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    shutil.copytree(target, partial)
+    target.rename(backup)
+    (backup / "TDAQwenWorker.exe").write_bytes(b"corrupt-backup")
+
+    recovered = recover_interrupted_qwen_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert not backup.exists()
+    assert not partial.exists()
+    assert (target / "TDAQwenWorker.exe").read_bytes() == b"fresh-worker"
     assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
 
 
