@@ -117,7 +117,47 @@ def test_metadata_only_drift_self_heals_after_one_verified_hash(monkeypatch, tmp
     assert second.tracks[0].staged_mtime_ns == track.stat().st_mtime_ns
 
 
-def test_legacy_manifest_without_metadata_seal_remains_readable(tmp_path: Path):
+def test_legacy_manifest_without_metadata_seal_hashes_once_and_seals(
+    monkeypatch,
+    tmp_path: Path,
+):
+    root = _stage_package(tmp_path)
+    manifest_path = root / "manifest.json"
+    value = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for track in value["tracks"]:
+        track.pop("staged_mtime_ns", None)
+    manifest_path.write_text(json.dumps(value), encoding="utf-8")
+
+    original = runtime_module._sha256_file
+    calls = 0
+
+    def counted(path: Path) -> str:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(runtime_module, "_sha256_file", counted)
+    package = load_craig_package(root, verify_tracks=False)
+
+    assert calls == len(package.tracks)
+    refreshed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert all(
+        isinstance(item.get("staged_mtime_ns"), int)
+        for item in refreshed["tracks"]
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_sha256_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("sealed legacy package must keep later cheap loads hash-free")
+        ),
+    )
+    second = load_craig_package(root, verify_tracks=False)
+    assert all(track.staged_mtime_ns is not None for track in second.tracks)
+
+
+def test_legacy_manifest_without_metadata_seal_rejects_same_size_tamper(tmp_path: Path):
     root = _stage_package(tmp_path)
     manifest_path = root / "manifest.json"
     value = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -135,10 +175,8 @@ def test_legacy_manifest_without_metadata_seal_remains_readable(tmp_path: Path):
         ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
     )
 
-    package = load_craig_package(root, verify_tracks=False)
-    assert package.tracks[0].staged_mtime_ns is None
     with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_HASH_MISMATCH"):
-        load_craig_package(root, verify_tracks=True)
+        load_craig_package(root, verify_tracks=False)
 
 
 def test_load_staged_package_rejects_manifest_source_path(tmp_path: Path):
