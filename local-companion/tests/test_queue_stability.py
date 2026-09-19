@@ -16,6 +16,65 @@ BODY = dict(
 )
 
 
+def test_v2_database_migrates_error_recoverability_without_losing_jobs(tmp_path):
+    database = tmp_path / 'jobs.sqlite3'
+    db = sqlite3.connect(database)
+    try:
+        db.executescript(
+            """
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY, idem TEXT UNIQUE NOT NULL, signature TEXT NOT NULL,
+                body TEXT NOT NULL, status TEXT NOT NULL, stage TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0, attempt INTEGER NOT NULL DEFAULT 0,
+                error TEXT, result TEXT, updated TEXT NOT NULL
+            );
+            CREATE TABLE events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+                code TEXT NOT NULL, at TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'info', data TEXT
+            );
+            CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            PRAGMA user_version=2;
+            """
+        )
+        body = {
+            **BODY,
+        }
+        db.execute(
+            "INSERT INTO jobs(id,idem,signature,body,status,stage,completed,attempt,error,result,updated) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                'legacy-job',
+                'legacy-idem',
+                'legacy-signature',
+                __import__('json').dumps(body),
+                'failed',
+                'failed',
+                1,
+                1,
+                'WORKER_EXECUTION_FAILED',
+                None,
+                '2026-09-19T12:00:00Z',
+            ),
+        )
+        db.execute("INSERT INTO settings VALUES ('device','legacy-device')")
+        db.execute("INSERT INTO settings VALUES ('paused','false')")
+        db.commit()
+    finally:
+        db.close()
+
+    store = Store(tmp_path)
+
+    assert store.get('legacy-job')['error'] == {
+        'code': 'WORKER_EXECUTION_FAILED',
+        'recoverable': True,
+    }
+    with sqlite3.connect(database) as check:
+        assert check.execute('PRAGMA user_version').fetchone()[0] == 3
+        columns = {row[1] for row in check.execute('PRAGMA table_info(jobs)').fetchall()}
+        assert 'error_recoverable' in columns
+
+
 def test_polling_reads_never_open_immediate_write_transactions(tmp_path, monkeypatch):
     store = Store(tmp_path)
     job = store.submit('read-only-polling', BODY)
