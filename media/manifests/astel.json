@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
   "project": "astel-lore",
+  "schemaVersion": 1,
   "namespace": "lore/astel",
   "bucket": "tda-media-public",
   "publicOrigin": "https://media.dnd.faysk.dev",

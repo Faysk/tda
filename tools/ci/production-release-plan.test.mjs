@@ -35,13 +35,13 @@ test("current canonical manifest requires Production media publication", () => {
 	assert.equal(plan.migrations, false);
 });
 
-test("historical manifest does not make a later unrelated web release demand R2 credentials", () => {
+test("unpublished historical manifest keeps Production media publication cumulative", () => {
 	const plan = planProductionPaths(
 		["media/manifests/yllith.json", ".github/workflows/production.yml"],
 		[".github/workflows/production.yml"],
 	);
 	assert.equal(plan.media, true);
-	assert.equal(plan.mediaPublish, false);
+	assert.equal(plan.mediaPublish, true);
 });
 
 test("media tooling change is relevant but does not republish old manifests", () => {

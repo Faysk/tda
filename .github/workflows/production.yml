@@ -222,7 +222,7 @@ jobs:
       - name: Publish and read back changed canonical media
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
-          MEDIA_RANGE: ${{ steps.plan.outputs.current_range }}
+          MEDIA_RANGE: ${{ steps.baseline.outputs.range }}
         run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE"
 
       - name: Smoke staged Production artifact
