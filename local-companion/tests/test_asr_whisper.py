@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import tda_companion.asr_whisper as asr_whisper
 from tda_companion.asr_models import get_profile, model_path, write_install_marker
 from tda_companion.asr_whisper import (
     WhisperRuntimeError,
