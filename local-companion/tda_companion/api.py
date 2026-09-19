@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import hmac
 import os
 import re
@@ -243,6 +244,9 @@ def create_app(
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         return package_root, load_craig_package(package_root, verify_tracks=verify_tracks)
 
+    def _sha256_text(value: object) -> str:
+        return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+
     def local_transcription_result(
         job_id: str,
         body: dict,
@@ -303,6 +307,11 @@ def create_app(
             or manifest.get("profile_id") != body["profile_id"]
             or manifest.get("artifact") != "transcript.json"
             or manifest.get("transcript_sha256") != digest
+            or manifest.get("context_sha256") != _sha256_text(body.get("context"))
+            or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+            or not isinstance(manifest.get("stats"), dict)
+            or manifest["stats"].get("track_count") != body.get("units")
+            or len(package.tracks) != body.get("units")
         ):
             raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
@@ -337,6 +346,11 @@ def create_app(
                 or manifest.get("source_sha256") != package.source_sha256
                 or manifest.get("profile_id") != body.get("profile_id")
                 or manifest.get("artifact") != "transcript.json"
+                or manifest.get("context_sha256") != _sha256_text(body.get("context"))
+                or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+                or not isinstance(manifest.get("stats"), dict)
+                or manifest["stats"].get("track_count") != body.get("units")
+                or len(package.tracks) != body.get("units")
                 or not isinstance(digest, str)
                 or not _SHA256_PATTERN.fullmatch(digest)
             ):
