@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { LocalBridge } from "./bridge";
+import { LocalBridge, localBridgePaired } from "./bridge";
 import { ProcessingController } from "./controller";
 const token = "synthetic_test_token_12345678901234567890";
 const health = {
@@ -61,6 +61,22 @@ describe("processing state", () => {
 			busy: false,
 		});
 	});
+	it("keeps the shared pairing alive on transient refresh failure", async () => {
+		const { request, controller } = fixture();
+		await controller.connect(token);
+		expect(localBridgePaired()).toBe(true);
+
+		request.mockRejectedValue(new TypeError("temporary transport loss"));
+		await controller.refresh();
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "error",
+			error: "unreachable",
+		});
+		expect(localBridgePaired()).toBe(true);
+		controller.disconnect();
+	});
+
 	it("connects automatically when the Companion is already open", async () => {
 		const sessionToken = "browser_session_token_123456789012345678901234";
 		const autoSessionHealth = { ...health, service_version: "0.3.14" };
