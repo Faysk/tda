@@ -28,6 +28,34 @@ def _manager(tmp_path: Path) -> ProfilePreparationManager:
     )
 
 
+def test_preparation_global_deadline_is_distinct_from_manual_cancel(
+    monkeypatch,
+    tmp_path: Path,
+):
+    manager = _manager(tmp_path)
+    manager._started_at = 100.0
+    monkeypatch.setattr(
+        preparation.time,
+        "monotonic",
+        lambda: 100.0 + preparation._PREPARATION_MAX_SECONDS + 0.1,
+    )
+
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_TIMEOUT",
+    ):
+        manager._ensure_not_cancelled()
+
+    manager._started_at = 100.0
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: 101.0)
+    manager._cancel.set()
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_CANCELLED",
+    ):
+        manager._ensure_not_cancelled()
+
+
 def test_terminal_preparation_elapsed_time_is_frozen(monkeypatch, tmp_path: Path):
     manager = _manager(tmp_path)
     manager._started_at = 100.0
