@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "project": "astel-lore",
   "namespace": "lore/astel",
-  "bucket": "tda-media-public",
   "publicOrigin": "https://media.dnd.faysk.dev",
+  "bucket": "tda-media-public",
   "assets": [
     {
       "file": "01_origem_shadowfell.webp",

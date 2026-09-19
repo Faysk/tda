@@ -44,9 +44,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -151,7 +148,6 @@ jobs:
         shell: bash
         env:
           MIGRATIONS_REQUIRED: ${{ steps.plan.outputs.migrations }}
-          MEDIA_PUBLISH_REQUIRED: ${{ steps.plan.outputs.media_publish }}
         run: |
           set -euo pipefail
           [[ -n "${VERCEL_TOKEN:-}" ]] || { echo "::error::Missing production secret VERCEL_TOKEN"; exit 1; }
@@ -162,17 +158,32 @@ jobs:
             [[ "$SUPABASE_ACCESS_TOKEN" == sbp_* ]] || { echo "::error::SUPABASE_ACCESS_TOKEN must be a Supabase personal access token"; exit 1; }
           fi
 
-          if [[ "$MEDIA_PUBLISH_REQUIRED" == "true" ]]; then
-            [[ -n "${R2_ACCOUNT_ID:-}" ]] || { echo "::error::Missing R2_ACCOUNT_ID for media release"; exit 1; }
-            [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_ACCESS_KEY_ID for media release"; exit 1; }
-            [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for media release"; exit 1; }
-          fi
-
       - name: Install pinned Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Pull Production media credentials
+        if: ${{ steps.plan.outputs.media_publish == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MEDIA_ENV="$RUNNER_TEMP/tda-media-production.env"
+          vercel env pull "$MEDIA_ENV" --yes --environment=production --token="$VERCEL_TOKEN"
+          chmod 600 "$MEDIA_ENV"
+          node --env-file="$MEDIA_ENV" --input-type=module - <<'NODE'
+          const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
+          const missing = required.filter((name) => !process.env[name]?.trim());
+          if (missing.length) {
+            throw new Error(`Production media credentials missing from Vercel environment: ${missing.join(", ")}`);
+          }
+          if (process.env.R2_PUBLIC_BUCKET?.trim() !== "tda-media-public") {
+            throw new Error("Production media bucket is not the canonical tda-media-public bucket");
+          }
+          console.log("Production media credentials loaded from Vercel environment");
+          NODE
+          echo "TDA_MEDIA_ENV=$MEDIA_ENV" >> "$GITHUB_ENV"
 
       - name: Build Production artifact
         env:
@@ -223,7 +234,7 @@ jobs:
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
           MEDIA_RANGE: ${{ steps.plan.outputs.current_range }}
-        run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE"
+        run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE" "$TDA_MEDIA_ENV"
 
       - name: Smoke staged Production artifact
         shell: bash
