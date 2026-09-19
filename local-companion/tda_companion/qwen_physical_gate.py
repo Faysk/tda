@@ -14,6 +14,7 @@ from .asr_models import (
     get_profile,
     inspect_model_install,
     model_path,
+    verify_and_upgrade_model_install,
 )
 from .qwen_acceptance import (
     ACCEPTANCE_SCHEMA,
@@ -408,6 +409,48 @@ def inspect_qwen_physical_gate(
                 "profile_id": profile_id,
                 "reason": "QWEN_GATE_BINDING_CHANGED",
             }
+        # Legacy v1 did not seal cheap file metadata. Before promoting it
+        # to v2, prove the current runtime/model/aligner bytes still match the
+        # accepted identities. This is intentionally a one-time deep verification,
+        # never part of normal dispatch.
+        try:
+            runtime = _runtime_identity(runtime_root, verify_worker=True)
+            model_state = verify_and_upgrade_model_install(models_root, profile_id)
+            aligner_state = verify_and_upgrade_model_install(models_root, ALIGNER_PROFILE)
+            if model_state.get("status") != "ready":
+                raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+            if aligner_state.get("status") != "ready":
+                raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+            model = _model_identity(models_root, profile_id, verify_hash=False)
+            aligner = _aligner_identity(models_root, verify_hash=False)
+        except (ModelRegistryError, OSError, QwenPhysicalGateError):
+            return {
+                "status": "stale",
+                "ready": False,
+                "profile_id": profile_id,
+                "reason": "QWEN_GATE_BINDING_CHANGED",
+            }
+
+        deep_legacy_binding = _binding_payload(
+            profile_id,
+            _legacy_identity(runtime),
+            _legacy_identity(model),
+            _legacy_identity(aligner),
+            schema=LEGACY_GATE_SCHEMA,
+        )
+        if (
+            value.get("runtime") != _legacy_identity(runtime)
+            or value.get("model") != _legacy_identity(model)
+            or value.get("aligner") != _legacy_identity(aligner)
+            or value.get("binding_sha256") != _canonical_sha256(deep_legacy_binding)
+        ):
+            return {
+                "status": "stale",
+                "ready": False,
+                "profile_id": profile_id,
+                "reason": "QWEN_GATE_BINDING_CHANGED",
+            }
+
         binding = _binding_payload(profile_id, runtime, model, aligner)
         value = {
             **value,
