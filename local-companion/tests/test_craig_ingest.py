@@ -13,6 +13,15 @@ import tda_companion.craig as craig_module
 import tda_companion.craig_ingest as ingest_module
 from tda_companion.craig_ingest import CraigUploadError, ingest_craig_file, ingest_craig_request
 from tda_companion.craig_runtime import load_craig_package
+from tda_companion.transcript import (
+    TranscriptDocument,
+    TranscriptEngine,
+    TranscriptSegment,
+    TranscriptTrack,
+    TranscriptWord,
+    stats_for_tracks,
+)
+from tda_companion.transcription_runs import list_runs, write_completed_run
 
 
 @pytest.fixture
@@ -26,6 +35,47 @@ def _zip_bytes() -> bytes:
         archive.writestr("1-Alice.flac", b"fLaC-alice")
         archive.writestr("2-Bob.flac", b"fLaC-bob")
     return buffer.getvalue()
+
+
+def _document(package) -> TranscriptDocument:
+    tracks = []
+    for source in package.tracks:
+        word = TranscriptWord(text="teste", start=0.0, end=0.5, confidence=0.9)
+        segment = TranscriptSegment(
+            id=f"{source.number}-0",
+            start=0.0,
+            end=0.5,
+            text="teste",
+            words=(word,),
+        )
+        tracks.append(
+            TranscriptTrack(
+                number=source.number,
+                speaker=source.speaker,
+                source_filename=source.filename,
+                source_sha256=source.sha256,
+                duration_seconds=1.0,
+                segments=(segment,),
+                timeline_offset_seconds=source.timeline_offset_seconds,
+            )
+        )
+    value = tuple(tracks)
+    return TranscriptDocument(
+        recording_id=package.recording_id,
+        source_sha256=package.source_sha256,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="faster-whisper",
+            model="test",
+            profile="whisper-turbo",
+            device="cuda",
+            compute_type="float16",
+            alignment="native",
+            model_revision="test",
+        ),
+        tracks=value,
+        stats=stats_for_tracks(value, processing_seconds=1.0),
+    )
 
 
 def _request(payload: bytes) -> Request:
@@ -144,9 +194,16 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
     assert len(replacement) == len(original)
     track.write_bytes(replacement)
 
-    evidence = package_root / "runs" / "run-evidence"
-    evidence.mkdir(parents=True)
-    (evidence / "keep.txt").write_text("preserve-me", encoding="utf-8")
+    package = load_craig_package(package_root, verify_tracks=True)
+    manifest = write_completed_run(
+        package_root,
+        _document(package),
+        job_id="repair-valid-run",
+        attempt=1,
+    )
+    invalid_run = package_root / "runs" / "run-invalid-a1"
+    invalid_run.mkdir(parents=True)
+    (invalid_run / "keep.txt").write_text("must-not-survive", encoding="utf-8")
     stale_checkpoint = package_root / ".checkpoints" / "stale"
     stale_checkpoint.mkdir(parents=True)
     (stale_checkpoint / "track.json").write_text("stale", encoding="utf-8")
@@ -156,9 +213,11 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
     assert repaired["source_id"] == first["source_id"]
     assert repaired["reused"] is False
     assert track.read_bytes() == original
-    assert (package_root / "runs" / "run-evidence" / "keep.txt").read_text(
-        encoding="utf-8"
-    ) == "preserve-me"
+    assert (package_root / "runs" / manifest["run_id"] / "run.json").is_file()
+    assert not (package_root / "runs" / "run-invalid-a1").exists()
+    assert {run["run_id"] for run in list_runs(package_root, verify_content=True)} == {
+        manifest["run_id"]
+    }
     assert not (package_root / ".checkpoints").exists()
     package = load_craig_package(package_root, verify_tracks=True)
     assert package.source_sha256 == first["source_sha256"]
@@ -177,9 +236,13 @@ def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
     assert len(replacement) == len(original)
     track.write_bytes(replacement)
 
-    evidence = package_root / "runs" / "run-evidence"
-    evidence.mkdir(parents=True)
-    (evidence / "keep.txt").write_text("preserve-me", encoding="utf-8")
+    package = load_craig_package(package_root, verify_tracks=True)
+    manifest = write_completed_run(
+        package_root,
+        _document(package),
+        job_id="concurrent-valid-run",
+        attempt=1,
+    )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -191,9 +254,10 @@ def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
     assert {result["source_id"] for result in results} == {first["source_id"]}
     assert sorted(result["reused"] for result in results) == [False, True]
     assert track.read_bytes() == original
-    assert (package_root / "runs" / "run-evidence" / "keep.txt").read_text(
-        encoding="utf-8"
-    ) == "preserve-me"
+    assert (package_root / "runs" / manifest["run_id"] / "run.json").is_file()
+    assert {run["run_id"] for run in list_runs(package_root, verify_content=True)} == {
+        manifest["run_id"]
+    }
     load_craig_package(package_root, verify_tracks=True)
 
 
