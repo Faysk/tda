@@ -294,6 +294,36 @@ describe("processing state", () => {
 		finish?.(Response.json(health));
 		await pending;
 	});
+	it("observes the oldest queued job because that is the next one executed", async () => {
+		const newer = {
+			...job,
+			id: "queued-newer",
+			status: "queued",
+			stage: "queued",
+			progress: { completed: 0, total: 3, unit: "items" },
+			updated_at: "2026-09-19T12:01:00Z",
+		};
+		const older = {
+			...job,
+			id: "queued-older",
+			status: "queued",
+			stage: "queued",
+			progress: { completed: 0, total: 3, unit: "items" },
+			updated_at: "2026-09-19T12:00:00Z",
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			return Response.json({ jobs: [newer, older] });
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+
+		expect(controller.snapshot().observedJobId).toBe("queued-older");
+	});
+
 	it("deletes only terminal jobs and refreshes them out of local history", async () => {
 		let jobs: Array<Record<string, unknown>> = [job];
 		const deleteHealth = { ...health, service_version: "0.3.11" };
