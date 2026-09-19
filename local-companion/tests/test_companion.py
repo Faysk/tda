@@ -120,6 +120,23 @@ def test_browser_session_bootstraps_without_exposing_master_token(client):
         headers={**browser_headers, "Origin": "https://evil.example"},
     ).status_code == 403
 
+    # The temporary browser credential is intentionally narrower than the
+    # master token: Web processing endpoints are allowed, local administration is not.
+    logs = client.get("/api/v1/logs", headers=browser_headers)
+    assert logs.status_code == 403
+    assert logs.json() == {
+        "error": {"code": "BROWSER_SESSION_SCOPE_REJECTED", "recoverable": False}
+    }
+    agent = client.get("/api/v1/agent", headers=browser_headers)
+    assert agent.status_code == 403
+    control = client.post(
+        "/api/v1/agent/control",
+        headers={**browser_headers, "Content-Type": "application/json"},
+        json={"action": "shutdown", "force": False},
+    )
+    assert control.status_code == 403
+    assert client.get("/api/v1/logs", headers=HEADERS).status_code == 200
+
     assert client.post(
         "/api/v1/session",
         headers={"Content-Type": "application/json"},
