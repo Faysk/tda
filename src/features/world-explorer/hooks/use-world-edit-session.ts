@@ -528,7 +528,7 @@ export function useWorldEditSession({
 	}
 
 	async function finish() {
-		await release("Edição encerrada sem alterações publicadas.");
+		await release("Edição encerrada sem publicar. O rascunho confirmado foi preservado.");
 	}
 
 	async function discard() {
