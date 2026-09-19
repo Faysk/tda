@@ -612,6 +612,94 @@ def test_api_finalizes_from_immutable_run_not_legacy_mirror(monkeypatch, tmp_pat
         assert result["transcription"]["run_id"] == f"run-{queued['id']}-a1"
 
 
+def test_result_endpoint_rejects_missing_immutable_artifact(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        job_id = kwargs["job_id"]
+        attempt = kwargs["attempt"]
+        source_id = kwargs["source_id"]
+        profile_id = kwargs["profile_id"]
+        package_root = data_root / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        manifest = write_completed_run(
+            package_root,
+            _document(package, profile_id),
+            job_id=job_id,
+            attempt=attempt,
+            glossary=kwargs["glossary"],
+            context=kwargs["context"],
+        )
+        for completed in range(1, len(package.tracks) + 1):
+            kwargs["on_progress"](
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=completed,
+                    type="progress",
+                    payload={
+                        "completed": completed,
+                        "total": len(package.tracks),
+                        "unit": "tracks",
+                        "stage": "transcription",
+                    },
+                )
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload={
+                "kind": "transcription.craig",
+                "schema_version": "tda_transcript_v1",
+                "source_id": source_id,
+                "profile_id": profile_id,
+                "artifact": "transcript.json",
+                "run_id": manifest["run_id"],
+                "sha256": manifest["transcript_sha256"],
+            },
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "missing-result-artifact"},
+            json=_body(),
+        ).json()
+        _wait_for_job(client, queued["id"], "succeeded")
+
+        result = client.get(f"/api/v1/jobs/{queued['id']}/result", headers=HEADERS).json()
+        run_id = result["transcription"]["run_id"]
+        transcript = (
+            data_root
+            / "staging"
+            / "craig-source"
+            / "runs"
+            / run_id
+            / "transcript.json"
+        )
+        transcript.unlink()
+
+        missing = client.get(f"/api/v1/jobs/{queued['id']}/result", headers=HEADERS)
+        assert missing.status_code == 409
+        assert missing.json()["error"] == {
+            "code": "RESULT_ARTIFACT_UNAVAILABLE",
+            "recoverable": False,
+        }
+
+
 def test_api_rejects_worker_result_bound_to_other_run_identity(monkeypatch, tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
