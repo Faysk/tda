@@ -88,6 +88,50 @@ def test_security_and_validation(client):
     assert client.get("/api/v1/jobs/", headers=HEADERS).status_code == 404
 
 
+def test_browser_session_bootstraps_without_exposing_master_token(client):
+    response = client.post(
+        "/api/v1/session",
+        headers={"Origin": ORIGIN, "Content-Type": "application/json"},
+        json={},
+    )
+    assert response.status_code == 200
+    value = response.json()
+    assert value["schema"] == "tda_loopback_session_v1"
+    assert isinstance(value["token"], str) and len(value["token"]) >= 32
+    assert value["token"] != TOKEN
+    assert value["expires_in_seconds"] >= 60
+    assert TOKEN not in response.text
+
+    browser_headers = {
+        "Authorization": f"Bearer {value['token']}",
+        "Origin": ORIGIN,
+    }
+    jobs = client.get("/api/v1/jobs", headers=browser_headers)
+    assert jobs.status_code == 200
+    assert jobs.json() == {"jobs": []}
+
+    # Browser-scoped credentials require the exact issuing Origin.
+    assert client.get(
+        "/api/v1/jobs",
+        headers={"Authorization": f"Bearer {value['token']}"},
+    ).status_code == 401
+    assert client.get(
+        "/api/v1/jobs",
+        headers={**browser_headers, "Origin": "https://evil.example"},
+    ).status_code == 403
+
+    assert client.post(
+        "/api/v1/session",
+        headers={"Content-Type": "application/json"},
+        json={},
+    ).status_code == 403
+    assert client.post(
+        "/api/v1/session",
+        headers={"Origin": "https://evil.example", "Content-Type": "application/json"},
+        json={},
+    ).status_code == 403
+
+
 def test_api_lifecycle_result(client):
     headers = {**HEADERS, "Idempotency-Key": "fixture-1"}
     job = client.post("/api/v1/jobs", headers=headers, json=BODY).json()
