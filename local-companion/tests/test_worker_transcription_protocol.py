@@ -8,7 +8,24 @@ import pytest
 
 import tda_companion.asr_worker as asr_worker
 from tda_companion.craig import CraigPackageError
-from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
+from tda_companion.worker_protocol import (
+    WorkerMessage,
+    WorkerProtocolError,
+    WorkerRunCommand,
+)
+
+
+def test_worker_wire_rejects_non_finite_numbers():
+    message = WorkerMessage.create(
+        job_id="job",
+        attempt=1,
+        seq=1,
+        type="event",
+        payload={"code": "GPU_SAMPLE", "percent": float("nan")},
+    )
+
+    with pytest.raises(WorkerProtocolError, match="WORKER_JSON_ENCODE_FAILED"):
+        message.encode()
 
 
 def test_craig_worker_command_roundtrip_uses_opaque_source_id_only():
