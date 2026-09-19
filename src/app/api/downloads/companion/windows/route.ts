@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 		const versions = requestUrl.searchParams.getAll("version");
 		const tags = requestUrl.searchParams.getAll("tag");
 		const unexpectedQuery = Array.from(requestUrl.searchParams.keys()).some(
-			(key) => key !== "version" && key !== "tag",
+			(key) => key !== "version" && key !== "tag" && key !== "_vercel_share",
 		);
 		if (
 			versions.length > 1 ||
