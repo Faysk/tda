@@ -111,6 +111,88 @@ def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, t
     assert persisted["error"] is None
 
 
+def test_cancelled_craig_source_stays_owned_until_worker_exits(monkeypatch, tmp_path):
+    started = threading.Event()
+    cancel_seen = threading.Event()
+    release = threading.Event()
+
+    def fake_run_craig(
+        self,
+        *,
+        job_id,
+        attempt,
+        source_id,
+        profile_id,
+        glossary,
+        context,
+        cpu,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del (
+            self,
+            job_id,
+            attempt,
+            source_id,
+            profile_id,
+            glossary,
+            context,
+            cpu,
+            on_progress,
+            on_event,
+        )
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        cancel_seen.set()
+        assert release.wait(2.0)
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "user_cancel", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+    source_id = "craig-" + "a" * 64
+    job = app.state.store.submit(
+        "cancelled-craig-source-owner",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "whisper-turbo",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 1,
+        },
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        assert started.wait(2.0)
+        cancelled = live.post(
+            f"/api/v1/jobs/{job['id']}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert cancelled.status_code == 200
+        assert cancel_seen.wait(1.0)
+        assert app.state.store.get(job["id"])["status"] == "cancelled"
+        assert app.state.source_in_use(source_id) is True
+
+        release.set()
+        deadline = time.monotonic() + 2.0
+        while app.state.source_in_use(source_id) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert app.state.source_in_use(source_id) is False
+
+
 def test_agent_shutdown_stops_active_worker_and_leaves_job_retryable(monkeypatch, tmp_path):
     started = threading.Event()
     stopped = threading.Event()
