@@ -273,6 +273,44 @@ def test_interrupted_repair_backup_is_restored_and_partial_is_cleaned(tmp_path: 
     assert package.source_sha256 == first["source_sha256"]
 
 
+def test_interrupted_repair_prefers_verified_replacement_over_corrupt_backup(
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+
+    staging = data_root / "staging"
+    package_root = staging / first["source_id"]
+    backup = staging / f".{first['source_id']}.backup-{'a' * 32}"
+    partial = staging / f".{first['source_id']}.repair-{'b' * 32}.partial"
+
+    ingest_module.ingest_craig_zip(
+        source,
+        partial,
+        source_sha256=first["source_sha256"],
+        source_name=source.name,
+    )
+    package_root.rename(backup)
+
+    corrupt_track = backup / "tracks" / "track-000001.flac"
+    original = corrupt_track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    corrupt_track.write_bytes(replacement)
+
+    recovered = recover_interrupted_craig_repairs(data_root)
+
+    assert recovered == [first["source_id"]]
+    assert package_root.is_dir()
+    assert not backup.exists()
+    assert not partial.exists()
+    package = load_craig_package(package_root, verify_tracks=True)
+    assert package.source_sha256 == first["source_sha256"]
+    assert (package_root / "tracks" / "track-000001.flac").read_bytes() == original
+
+
 def test_repair_promotes_and_preserves_valid_legacy_transcript(tmp_path: Path):
     data_root = tmp_path / "Data"
     source = tmp_path / "sessao-legada.zip"
