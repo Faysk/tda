@@ -66,10 +66,14 @@ export class ProcessingController {
 		for (const listener of this.#listeners) listener();
 	}
 
-	disconnect = () => {
+	private resetRequest() {
 		this.#epoch++;
 		this.#request.abort();
 		this.#request = new AbortController();
+	}
+
+	disconnect = () => {
+		this.resetRequest();
 		this.bridge.disconnect();
 		// Retain the idempotency key in memory after an ambiguous submission.
 		this.update({
@@ -97,7 +101,7 @@ export class ProcessingController {
 			if (epoch === this.#epoch) {
 				const code =
 					error instanceof BridgeError ? error.code : "service_error";
-				if (["unauthorized", "forbidden", "incompatible"].includes(code))
+				if (["forbidden", "incompatible"].includes(code))
 					this.bridge.disconnect();
 				this.update({
 					...initial,
@@ -163,6 +167,19 @@ export class ProcessingController {
 		});
 	};
 
+	private renewBrowserSession = async () => {
+		this.resetRequest();
+		this.update({ connection: "connecting" });
+		await this.run(async (signal) => {
+			// Bootstrap is public. Keep the previous bearer alive until pair() swaps in
+			// the replacement so sibling local operations never observe a false
+			// unpaired gap during normal session renewal.
+			await this.bridge.bootstrap(signal);
+			if (signal.aborted) return;
+			await this.read(signal);
+		});
+	};
+
 	refresh = async () => {
 		if (this.#state.connection !== "connected") return;
 		await this.run((signal) => this.read(signal));
@@ -171,7 +188,7 @@ export class ProcessingController {
 		// the controller from connected to error.
 		const current = this.snapshot();
 		if (current.connection === "error" && current.error === "unauthorized")
-			await this.connect();
+			await this.renewBrowserSession();
 	};
 
 	lifecycle = async (action: "pause" | "resume") => {
