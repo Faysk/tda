@@ -31,6 +31,7 @@ def _client(tmp_path: Path) -> TestClient:
         token=TOKEN,
         origins=frozenset({ORIGIN}),
         port=8765,
+        browser_sessions=api.state.browser_sessions,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -58,6 +59,53 @@ def test_boundary_accepts_zip_and_rejects_bad_credentials_or_media(tmp_path: Pat
         )
         assert wrong_media.status_code == 415
         assert wrong_media.json()["error"]["code"] == "CRAIG_ZIP_REQUIRED"
+
+
+def test_boundary_accepts_origin_bound_browser_session_for_zip_ingest(tmp_path: Path):
+    payload = _payload()
+    with _client(tmp_path) as client:
+        session = client.post(
+            "/api/v1/session",
+            headers={"Origin": ORIGIN, "Content-Type": "application/json"},
+            json={},
+        )
+        assert session.status_code == 200
+        browser_token = session.json()["token"]
+
+        response = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Origin": ORIGIN,
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert response.status_code == 200
+        assert response.json()["schema_version"] == "tda_craig_ingest_v1"
+
+        wrong_origin = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Origin": "https://evil.example",
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert wrong_origin.status_code == 403
+        assert wrong_origin.json()["error"]["code"] == "ORIGIN_REJECTED"
+
+        no_origin = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert no_origin.status_code == 403
+        assert no_origin.json()["error"]["code"] == "ORIGIN_REQUIRED"
 
 
 def test_boundary_preflight_is_narrow_and_private_network_aware(tmp_path: Path):
