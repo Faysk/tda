@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tda_companion.agent import AgentController
+from tda_companion.desktop import DesktopBridge
 from tda_companion.desktop_runtime import DesktopExitCoordinator, DesktopUiApi
 
 
@@ -151,3 +152,11 @@ def test_agent_releases_retained_lock_after_timed_out_thread_later_exits(tmp_pat
     assert controller.lock is None
     assert controller.thread is None
     assert controller.server is None
+
+
+def test_desktop_maintenance_treats_queued_job_as_active():
+    bridge = object.__new__(DesktopBridge)
+    bridge._jobs = lambda: [{"status": "queued"}]  # type: ignore[method-assign]
+
+    assert bridge._has_running_job() is False
+    assert bridge._has_active_job() is True
