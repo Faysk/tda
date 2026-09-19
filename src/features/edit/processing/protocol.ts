@@ -10,11 +10,36 @@ export type Health = {
 	service_version: string;
 	lifecycle: Lifecycle;
 };
+export type TranscriptionProfileState = {
+	id: TranscriptionProfileId;
+	engine: "whisper" | "qwen3";
+	ready: boolean;
+	preparationRequired: boolean;
+	reason: string | null;
+};
 export type Capabilities = {
 	capabilities: string[];
 	sync: boolean;
 	device: { id: string; label: string };
-	transcription: { profiles: TranscriptionProfileId[] };
+	transcription: {
+		profiles: TranscriptionProfileId[];
+		catalog: TranscriptionProfileState[];
+	};
+};
+export type PreparationStatus = {
+	schema: "tda_profile_preparation_v1";
+	state: "idle" | "running" | "completed" | "failed";
+	active: boolean;
+	operationId: string | null;
+	sourceId: string | null;
+	profileId: TranscriptionProfileId | null;
+	engine: "whisper" | "qwen3" | null;
+	stage: string;
+	title: string;
+	detail: string;
+	sequence: number;
+	elapsedSeconds: number;
+	errorCode: string | null;
 };
 export type CraigSource = {
 	schemaVersion: "tda_craig_ingest_v1";
@@ -193,18 +218,88 @@ export function parseCapabilities(value: unknown): Capabilities {
 	if (!Array.isArray(row.capabilities) || row.capabilities.length > 100)
 		return invalid();
 	let profiles: TranscriptionProfileId[] = [];
+	let catalog: TranscriptionProfileState[] = [];
 	if (row.transcription !== undefined && row.transcription !== null) {
 		const transcription = record(row.transcription);
 		if (!Array.isArray(transcription.profiles) || transcription.profiles.length > 8)
 			return invalid();
 		profiles = transcription.profiles.map(transcriptionProfile);
 		if (new Set(profiles).size !== profiles.length) return invalid();
+
+		if (transcription.catalog !== undefined) {
+			if (!Array.isArray(transcription.catalog) || transcription.catalog.length > 8)
+				return invalid();
+			catalog = transcription.catalog.map((raw) => {
+				const item = record(raw);
+				const engine = text(item.engine, 16);
+				if (engine !== "whisper" && engine !== "qwen3") return invalid();
+				const reason =
+					item.reason === null || item.reason === undefined
+						? null
+						: text(item.reason, 96);
+				return {
+					id: transcriptionProfile(item.id),
+					engine,
+					ready: boolean(item.ready),
+					preparationRequired: boolean(item.preparation_required),
+					reason,
+				};
+			});
+			if (new Set(catalog.map((item) => item.id)).size !== catalog.length)
+				return invalid();
+		} else {
+			catalog = profiles.map((id) => ({
+				id,
+				engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
+				ready: true,
+				preparationRequired: false,
+				reason: null,
+			}));
+		}
 	}
 	return {
 		capabilities: row.capabilities.map((value) => text(value)),
 		sync: boolean(row.sync),
 		device: { id: identifier(device.id), label: text(device.label) },
-		transcription: { profiles },
+		transcription: { profiles, catalog },
+	};
+}
+
+export function parsePreparationStatus(value: unknown): PreparationStatus {
+	const row = record(value);
+	if (row.schema !== "tda_profile_preparation_v1") return invalid();
+	if (!["idle", "running", "completed", "failed"].includes(String(row.state)))
+		return invalid();
+	const nullableText = (raw: unknown, limit = 128) =>
+		raw === null || raw === undefined ? null : text(raw, limit);
+	const profile =
+		row.profile_id === null || row.profile_id === undefined
+			? null
+			: transcriptionProfile(row.profile_id);
+	const engine =
+		row.engine === null || row.engine === undefined ? null : text(row.engine, 16);
+	if (engine !== null && engine !== "whisper" && engine !== "qwen3")
+		return invalid();
+	const elapsed =
+		typeof row.elapsed_seconds === "number" &&
+		Number.isFinite(row.elapsed_seconds) &&
+		row.elapsed_seconds >= 0
+			? row.elapsed_seconds
+			: invalid();
+	return {
+		schema: "tda_profile_preparation_v1",
+		state: row.state as PreparationStatus["state"],
+		active: boolean(row.active),
+		operationId: nullableText(row.operation_id, 64),
+		sourceId: nullableText(row.source_id, 80),
+		profileId: profile,
+		engine,
+		stage: text(row.stage, 64),
+		title: text(row.title, 240),
+		detail: text(row.detail, 500),
+		sequence: nonNegativeInteger(row.sequence),
+		elapsedSeconds: elapsed,
+		errorCode: nullableText(row.error_code, 96),
 	};
 }
 export function parseCraigSource(value: unknown): CraigSource {
