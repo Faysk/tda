@@ -234,6 +234,13 @@ def _repair_existing_staging(
     source_gate: Any | None = None,
     source_running: Callable[[str], bool] | None = None,
 ) -> dict[str, object]:
+    if source_running is not None and source_running(source_id):
+        raise CraigUploadError(
+            "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            409,
+            True,
+        )
+
     existing = staging_root / source_id
     replacement = staging_root / f".{source_id}.repair-{uuid4().hex}.partial"
     backup = staging_root / f".{source_id}.backup-{uuid4().hex}"
