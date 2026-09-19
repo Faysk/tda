@@ -6,6 +6,8 @@ import {
 	parseCapabilities,
 	parseCraigSource,
 	parseHealth,
+	record,
+	text,
 	parseJob,
 	parseJobEvents,
 	parseJobs,
