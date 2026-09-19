@@ -145,6 +145,8 @@ def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) ->
     if profile.engine != "qwen3" or profile.id not in QWEN_PROFILES:
         raise QwenPhysicalGateError("QWEN_GATE_PROFILE_INVALID")
     state = inspect_model_install(models_root, profile, verify_hash=verify_hash)
+    if state.get("status") == "corrupt":
+        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
         raise QwenPhysicalGateError("QWEN_GATE_MODEL_NOT_READY")
     try:
@@ -162,6 +164,8 @@ def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) ->
 
 def _aligner_identity(models_root: Path, *, verify_hash: bool) -> dict[str, str]:
     state = inspect_model_install(models_root, ALIGNER_PROFILE, verify_hash=verify_hash)
+    if state.get("status") == "corrupt":
+        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
         raise QwenPhysicalGateError("QWEN_GATE_ALIGNER_NOT_READY")
     try:
