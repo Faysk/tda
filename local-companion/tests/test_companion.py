@@ -41,6 +41,8 @@ def client(tmp_path):
 
 def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, tmp_path):
     started = threading.Event()
+    cancel_seen = threading.Event()
+    release = threading.Event()
     stopped = threading.Event()
 
     def fake_run_fixture(
@@ -61,6 +63,8 @@ def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, t
         while time.monotonic() < deadline and not is_cancelled():
             time.sleep(0.01)
         assert is_cancelled()
+        cancel_seen.set()
+        assert release.wait(2.0)
         stopped.set()
         return WorkerOutcome(
             terminal="cancelled",
@@ -88,6 +92,17 @@ def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, t
         )
         assert cancelled.status_code == 200
         assert cancelled.json()["status"] == "cancelled"
+        assert cancel_seen.wait(1.0)
+
+        blocked_delete = live.post(
+            f"/api/v1/jobs/{job_id}/delete",
+            headers=HEADERS,
+            json={},
+        )
+        assert blocked_delete.status_code == 409
+        assert blocked_delete.json()["error"]["code"] == "JOB_ACTIVE"
+
+        release.set()
         assert stopped.wait(2.0)
         assert live.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()["status"] == "cancelled"
 
