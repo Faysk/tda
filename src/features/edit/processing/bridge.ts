@@ -33,7 +33,7 @@ export function subscribeLocalBridgePairing(listener: () => void) {
 	return () => pairingListeners.delete(listener);
 }
 
-function mapStatus(status: number): BridgeError {
+function mapStatus(status: number, serverCode: string | null = null): BridgeError {
 	return new BridgeError(
 		status === 401
 			? "unauthorized"
@@ -42,7 +42,18 @@ function mapStatus(status: number): BridgeError {
 				: status === 409
 					? "conflict"
 					: "service_error",
+		serverCode,
 	);
+}
+
+function sanitizedServerCode(value: unknown): string | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	const error = (value as Record<string, unknown>).error;
+	if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+	const code = (error as Record<string, unknown>).code;
+	return typeof code === "string" && /^[A-Z0-9_]{1,96}$/u.test(code)
+		? code
+		: null;
 }
 
 export class LocalBridge {
@@ -93,11 +104,14 @@ export class LocalBridge {
 	}
 
 	private async responseJson(response: Response) {
-		if (!response.ok) throw mapStatus(response.status);
-		if (!response.headers.get("content-type")?.includes("application/json"))
-			throw new BridgeError("invalid_response");
+		const isJson =
+			response.headers.get("content-type")?.includes("application/json") ?? false;
 		const reader = response.body?.getReader();
-		if (!reader) throw new BridgeError("invalid_response");
+		if (!reader) {
+			if (!response.ok) throw mapStatus(response.status);
+			throw new BridgeError("invalid_response");
+		}
+
 		let size = 0;
 		let data = "";
 		const decoder = new TextDecoder();
@@ -108,18 +122,30 @@ export class LocalBridge {
 				size += value.byteLength;
 				if (size > 1024 * 1024) {
 					await reader.cancel();
+					if (!response.ok) throw mapStatus(response.status);
 					throw new BridgeError("invalid_response");
 				}
-				data += decoder.decode(value, { stream: true });
+				if (isJson) data += decoder.decode(value, { stream: true });
 			}
 		} finally {
 			reader.releaseLock();
 		}
-		try {
-			return JSON.parse(data + decoder.decode()) as unknown;
-		} catch {
+
+		if (!isJson) {
+			if (!response.ok) throw mapStatus(response.status);
 			throw new BridgeError("invalid_response");
 		}
+
+		let value: unknown;
+		try {
+			value = JSON.parse(data + decoder.decode()) as unknown;
+		} catch {
+			if (!response.ok) throw mapStatus(response.status);
+			throw new BridgeError("invalid_response");
+		}
+		if (!response.ok)
+			throw mapStatus(response.status, sanitizedServerCode(value));
+		return value;
 	}
 
 	private async json(
