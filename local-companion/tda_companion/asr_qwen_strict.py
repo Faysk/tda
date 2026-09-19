@@ -172,6 +172,11 @@ def _strict_alignment_segments(
     first: bool,
     last: bool,
 ) -> tuple[TranscriptSegment, ...]:
+    # Silence is a valid ASR outcome. Forced alignment is mandatory for actual
+    # transcript text, but an empty/whitespace-only window has nothing to align
+    # and must contribute zero segments instead of failing the whole session.
+    if not pending.text.strip():
+        return ()
     try:
         aligned = aligner.align(window.audio, pending.text, pending.language)
         words = _validated_words(aligned, window)
