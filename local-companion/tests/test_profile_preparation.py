@@ -203,6 +203,85 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
     release = True
 
 
+def test_pending_bits_download_reconnects_instead_of_falling_back_to_rc(
+    tmp_path: Path,
+    monkeypatch,
+):
+    calls = {"inspect": 0, "download": 0, "rc": 0, "install": 0}
+
+    def inspect(_root, verify_worker=True):
+        del verify_worker
+        calls["inspect"] += 1
+        return (
+            {"status": "missing", "version": None}
+            if calls["inspect"] == 1
+            else {
+                "status": "ready",
+                "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+            }
+        )
+
+    class Manifest:
+        version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+        sha256 = "a" * 64
+
+    def download(*_args, **_kwargs):
+        calls["download"] += 1
+        if calls["download"] == 1:
+            raise preparation.NetworkError("DOWNLOAD_CONTINUES_IN_BACKGROUND")
+        return tmp_path / "runtime.zip"
+
+    monkeypatch.setattr(preparation, "inspect_whisper_runtime", inspect)
+    monkeypatch.setattr(preparation, "fetch_whisper_runtime_manifest", lambda: Manifest())
+    monkeypatch.setattr(preparation, "whisper_runtime_update_available", lambda *_args: True)
+    monkeypatch.setattr(preparation, "download_whisper_runtime", download)
+    monkeypatch.setattr(preparation.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        preparation,
+        "install_whisper_runtime_archive",
+        lambda *_args, **_kwargs: calls.__setitem__("install", calls["install"] + 1),
+    )
+    monkeypatch.setattr(
+        preparation,
+        "install_published_runtime_rc",
+        lambda *_args, **_kwargs: calls.__setitem__("rc", calls["rc"] + 1),
+    )
+
+    result = preparation._install_whisper_runtime(
+        tmp_path / "Runtime",
+        tmp_path / "Cache",
+    )
+
+    assert result["channel"] == "stable"
+    assert calls["download"] == 2
+    assert calls["install"] == 1
+    assert calls["rc"] == 0
+
+
+def test_resumable_download_stops_when_preparation_is_cancelled(monkeypatch):
+    calls = 0
+    cancelled = False
+
+    def operation():
+        nonlocal calls, cancelled
+        calls += 1
+        cancelled = True
+        raise preparation.NetworkError("DOWNLOAD_CONTINUES_IN_BACKGROUND")
+
+    monkeypatch.setattr(preparation.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(
+        ProfilePreparationError,
+        match="TRANSCRIPTION_PREPARATION_CANCELLED",
+    ):
+        preparation._finish_resumable_download(
+            operation,
+            is_cancelled=lambda: cancelled,
+        )
+
+    assert calls == 1
+
+
 def test_whisper_cancellation_arriving_during_stable_install_is_not_reported_ready(
     tmp_path: Path,
     monkeypatch,
