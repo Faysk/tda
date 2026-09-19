@@ -13,7 +13,8 @@ describe("processing presentation", () => {
 		expect(presentJobTitle({ kind: "custom.kind" })).toBe("custom.kind");
 	});
 
-	it("labels the canonical transcription stage", () => {
+	it("labels canonical processing stages", () => {
 		expect(stageLabels.transcription).toBe("Transcrição");
+		expect(stageLabels.energy_analysis).toBe("Analisando energia entre faixas");
 	});
 });
