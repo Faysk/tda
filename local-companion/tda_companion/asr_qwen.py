@@ -104,7 +104,7 @@ def _distribution_version(name: str) -> str:
 def _runtime_fingerprint() -> str:
     return ";".join(
         (
-            "checkpoint=qwen-track-v1",
+            "checkpoint=qwen-track-v2",
             f"torch={_distribution_version('torch')}",
             f"transformers={_distribution_version('transformers')}",
             f"accelerate={_distribution_version('accelerate')}",
