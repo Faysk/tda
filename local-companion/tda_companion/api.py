@@ -16,7 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
 from .asr_models import get_profile, inspect_model_install
-from .asr_runtime import inspect_whisper_runtime
+from .asr_runtime import (
+    inspect_whisper_runtime,
+    recover_interrupted_whisper_runtime_install,
+)
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_ingest import recover_interrupted_craig_repairs
@@ -28,6 +31,7 @@ from .profile_preparation import (
     whisper_model_ready,
 )
 from .qwen_physical_gate import inspect_qwen_physical_gate
+from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -179,6 +183,31 @@ def create_app(
     resolved_state_root = data_root.parent / "State"
     resolved_runtime_root = data_root.parent / "Runtime"
     resolved_cache_root = data_root.parent / "Cache"
+
+    recovered_whisper = recover_interrupted_whisper_runtime_install(
+        resolved_runtime_root
+    )
+    recovered_qwen = recover_interrupted_qwen_runtime_install(
+        resolved_runtime_root
+    )
+    if system_log is not None:
+        for version in recovered_whisper:
+            system_log.write(
+                "warning",
+                "runtime",
+                "WHISPER_RUNTIME_SWAP_RECOVERED",
+                "Recovered Whisper runtime after an interrupted install swap",
+                {"version": version},
+            )
+        for version in recovered_qwen:
+            system_log.write(
+                "warning",
+                "runtime",
+                "QWEN_RUNTIME_SWAP_RECOVERED",
+                "Recovered Qwen runtime after an interrupted install swap",
+                {"version": version},
+            )
+
     store = Store(data_root)
     telemetry = SystemTelemetry()
     browser_sessions = BrowserSessionManager()
