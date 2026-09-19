@@ -501,12 +501,27 @@ def transcribe_craig_package(
                 raise WhisperRuntimeError("WHISPER_MODEL_NOT_LOADED")
             segments_iter, info = model.transcribe(str(source), **options)
             segments: list[TranscriptSegment] = []
+            activity_last_at = 0.0
             for segment in segments_iter:
                 if is_cancelled():
                     raise WhisperRuntimeError("ASR_CANCELLED")
                 value = _segment_from_engine(track.number, segment)
                 if value.text:
                     segments.append(value)
+                    now = time.monotonic()
+                    if len(segments) == 1 or now - activity_last_at >= 5.0:
+                        activity_last_at = now
+                        report(
+                            {
+                                "type": "event",
+                                "code": "WHISPER_SEGMENT_TRANSCRIBED",
+                                "stage": "transcription",
+                                "track": track.number,
+                                "total_tracks": total_tracks,
+                                "speaker": track.speaker,
+                                "segment": len(segments),
+                            }
+                        )
 
             identity = asdict(track.identity) if track.identity is not None else None
             duration = round(float(getattr(info, "duration", 0.0) or 0.0), 3)
