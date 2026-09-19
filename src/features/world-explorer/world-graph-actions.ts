@@ -79,18 +79,25 @@ async function recordWorldDraftPublishFailure(input: {
 	leaseToken: string;
 	reason: WorldGraphFailure;
 }) {
-	const now = new Date().toISOString();
-	const { error } = await input.client
-		.from("world_edit_drafts")
-		.update({
-			last_publish_attempt_at: now,
-			last_publish_error: input.reason,
-			updated_at: now,
-		})
-		.eq("campaign_id", input.campaignId)
-		.eq("owner_profile_id", input.profileId)
-		.eq("lease_token", input.leaseToken);
-	if (error) console.error("World draft publish failure receipt failed", error.message);
+	try {
+		const now = new Date().toISOString();
+		const { error } = await input.client
+			.from("world_edit_drafts")
+			.update({
+				last_publish_attempt_at: now,
+				last_publish_error: input.reason,
+				updated_at: now,
+			})
+			.eq("campaign_id", input.campaignId)
+			.eq("owner_profile_id", input.profileId)
+			.eq("lease_token", input.leaseToken);
+		if (error) console.error("World draft publish failure receipt failed", error.message);
+	} catch (error) {
+		console.error(
+			"World draft publish failure receipt crashed",
+			error instanceof Error ? error.message : "unknown_error",
+		);
+	}
 }
 
 async function recordWorldDraftPublishSuccess(input: {
@@ -101,32 +108,41 @@ async function recordWorldDraftPublishSuccess(input: {
 	graphRevision: number;
 	layoutRevision: number;
 }) {
-	const now = new Date().toISOString();
-	const { error: supersedeError } = await input.client
-		.from("world_edit_drafts")
-		.update({ status: "superseded", updated_at: now })
-		.eq("campaign_id", input.campaignId)
-		.eq("owner_profile_id", input.profileId)
-		.eq("status", "active")
-		.neq("lease_token", input.leaseToken);
-	if (supersedeError) {
-		console.error("World older draft supersede receipt failed", supersedeError.message);
-	}
+	try {
+		const now = new Date().toISOString();
+		const { error: supersedeError } = await input.client
+			.from("world_edit_drafts")
+			.update({ status: "superseded", updated_at: now })
+			.eq("campaign_id", input.campaignId)
+			.eq("owner_profile_id", input.profileId)
+			.eq("status", "active")
+			.neq("lease_token", input.leaseToken);
+		if (supersedeError) {
+			console.error("World older draft supersede receipt failed", supersedeError.message);
+		}
 
-	const { error } = await input.client
-		.from("world_edit_drafts")
-		.update({
-			status: "published",
-			last_publish_attempt_at: now,
-			last_publish_error: null,
-			published_graph_revision: input.graphRevision,
-			published_layout_revision: input.layoutRevision,
-			updated_at: now,
-		})
-		.eq("campaign_id", input.campaignId)
-		.eq("owner_profile_id", input.profileId)
-		.eq("lease_token", input.leaseToken);
-	if (error) console.error("World draft publish success receipt failed", error.message);
+		const { error } = await input.client
+			.from("world_edit_drafts")
+			.update({
+				status: "published",
+				last_publish_attempt_at: now,
+				last_publish_error: null,
+				published_graph_revision: input.graphRevision,
+				published_layout_revision: input.layoutRevision,
+				updated_at: now,
+			})
+			.eq("campaign_id", input.campaignId)
+			.eq("owner_profile_id", input.profileId)
+			.eq("lease_token", input.leaseToken);
+		if (error) console.error("World draft publish success receipt failed", error.message);
+	} catch (error) {
+		// The canonical publish already succeeded. A receipt failure must never turn
+		// that success into an apparent publish failure for the editor.
+		console.error(
+			"World draft publish success receipt crashed",
+			error instanceof Error ? error.message : "unknown_error",
+		);
+	}
 }
 
 export async function acquireWorldGraphDraftAction(
