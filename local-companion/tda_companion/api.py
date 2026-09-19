@@ -233,13 +233,13 @@ def create_app(
             or worker_payload.get("schema_version") != "tda_transcript_v1"
             or worker_payload.get("artifact") != "transcript.json"
         ):
-            raise WorkerProcessError("WORKER_RESULT_INVALID")
+            raise WorkerProcessError("WORKER_RESULT_INVALID", recoverable=False)
         digest = worker_payload.get("sha256")
         run_id = worker_payload.get("run_id")
         if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
-            raise WorkerProcessError("WORKER_RESULT_HASH_INVALID")
+            raise WorkerProcessError("WORKER_RESULT_HASH_INVALID", recoverable=False)
         if not isinstance(run_id, str):
-            raise WorkerProcessError("WORKER_RESULT_RUN_INVALID")
+            raise WorkerProcessError("WORKER_RESULT_RUN_INVALID", recoverable=False)
 
         package_root, package = staged_package(body["source_id"], verify_tracks=False)
         try:
@@ -255,7 +255,7 @@ def create_app(
             or manifest.get("artifact") != "transcript.json"
             or manifest.get("transcript_sha256") != digest
         ):
-            raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH")
+            raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
         return {
             "schema_version": "tda_local_result_v1",
@@ -497,7 +497,12 @@ def create_app(
                         )
                     except WorkerProcessError as exc:
                         code = exc.code if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
-                        store.fail(job_id, attempt, code)
+                        store.fail(
+                            job_id,
+                            attempt,
+                            code,
+                            recoverable=exc.recoverable,
+                        )
                         log(
                             "error",
                             "worker",
