@@ -164,6 +164,65 @@ describe("loopback bridge", () => {
 		});
 	});
 
+	it("renews an expired browser session before retrying a Craig upload", async () => {
+		const firstToken = "browser_session_token_333333333333333333333333";
+		const secondToken = "browser_session_token_44444444444444444444444";
+		let sessionCount = 0;
+		let uploadCount = 0;
+		const sourceId = `craig-${"a".repeat(64)}`;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session")) {
+				sessionCount += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionCount === 1 ? firstToken : secondToken,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/sources/craig")) {
+				uploadCount += 1;
+				if (uploadCount === 1)
+					return Response.json(
+						{ error: { code: "SESSION_EXPIRED", recoverable: true } },
+						{ status: 401 },
+					);
+				expect(init?.headers).toMatchObject({
+					Authorization: `Bearer ${secondToken}`,
+				});
+				return Response.json({
+					schema: "tda_craig_source_v1",
+					source_id: sourceId,
+					source_sha256: "a".repeat(64),
+					size_bytes: 3,
+					track_count: 1,
+					reused: false,
+					source_name: "session.zip",
+				});
+			}
+			throw new Error("unexpected request");
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		const staged = await bridge.craigSource(
+			new File([new Uint8Array([1, 2, 3])], "session.zip", {
+				type: "application/zip",
+			}),
+			signal(),
+		);
+
+		expect(staged.sourceId).toBe(sourceId);
+		expect(sessionCount).toBe(2);
+		expect(uploadCount).toBe(2);
+	});
+
 	it("fails as incompatible before requesting a session from Companion 0.3.13", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
