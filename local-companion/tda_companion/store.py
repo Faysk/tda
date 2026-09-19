@@ -18,7 +18,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2):
+            if version not in (0, 1, 2, 3):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -38,7 +38,14 @@ class Store:
                 db.execute("ALTER TABLE events ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")
             if "data" not in event_columns:
                 db.execute("ALTER TABLE events ADD COLUMN data TEXT")
-            db.execute("PRAGMA user_version=2")
+            job_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()
+            }
+            if "error_recoverable" not in job_columns:
+                db.execute(
+                    "ALTER TABLE jobs ADD COLUMN error_recoverable INTEGER NOT NULL DEFAULT 1"
+                )
+            db.execute("PRAGMA user_version=3")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -128,7 +135,7 @@ class Store:
         with self.tx() as db:
             for row in db.execute("SELECT id FROM jobs WHERE status='running'").fetchall():
                 db.execute(
-                    "UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',updated=? WHERE id=?",
+                    "UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',error_recoverable=1,updated=? WHERE id=?",
                     (utc_now(), row["id"]),
                 )
                 self.event(db, row["id"], "PROCESS_INTERRUPTED", level="warning")
@@ -154,7 +161,14 @@ class Store:
                 total=body["units"],
                 unit="tracks" if body["kind"] == "transcription.craig" else "items",
             ),
-            error=dict(code=row["error"], recoverable=True) if row["error"] else None,
+            error=(
+                dict(
+                    code=row["error"],
+                    recoverable=bool(row["error_recoverable"]),
+                )
+                if row["error"]
+                else None
+            ),
             result_available=row["result"] is not None,
             updated_at=row["updated"],
             attempt=row["attempt"],
@@ -292,7 +306,10 @@ class Store:
                     raise Conflict("JOB_TERMINAL")
                 status = "cancelled"
             else:
-                if status not in ("failed", "interrupted"):
+                if (
+                    status not in ("failed", "interrupted")
+                    or not bool(row["error_recoverable"])
+                ):
                     raise Conflict("JOB_NOT_RETRYABLE")
                 if body["kind"] == "transcription.craig":
                     requested_work = self._transcription_work_signature(body)
@@ -315,7 +332,7 @@ class Store:
                 if body["kind"] == "transcription.craig":
                     completed = 0
             db.execute(
-                "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,updated=? WHERE id=?",
+                "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
                 (status, status, completed, utc_now(), job_id),
             )
             self.event(
@@ -475,13 +492,22 @@ class Store:
                 raise Conflict("RESULT_NOT_READY")
             return json.loads(value)
 
-    def fail(self, job_id, attempt, error_code="FIXTURE_EXECUTION_FAILED"):
+    def fail(
+        self,
+        job_id,
+        attempt,
+        error_code="FIXTURE_EXECUTION_FAILED",
+        *,
+        recoverable=True,
+    ):
         if not isinstance(error_code, str) or not re.fullmatch(r"[A-Z0-9_]{1,96}", error_code):
             error_code = "WORKER_EXECUTION_FAILED"
+        if not isinstance(recoverable, bool):
+            recoverable = True
         with self.tx() as db:
             changed = db.execute(
-                "UPDATE jobs SET status='failed',stage='failed',error=?,updated=? WHERE id=? AND status='running' AND attempt=?",
-                (error_code, utc_now(), job_id, attempt),
+                "UPDATE jobs SET status='failed',stage='failed',error=?,error_recoverable=?,updated=? WHERE id=? AND status='running' AND attempt=?",
+                (error_code, int(recoverable), utc_now(), job_id, attempt),
             ).rowcount
             if changed:
                 self.event(db, job_id, error_code, level="error")
