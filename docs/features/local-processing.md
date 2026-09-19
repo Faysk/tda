@@ -2,7 +2,7 @@
 
 > Status: ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-19
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/processamento` é a superfície operacional para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -14,7 +14,7 @@ O contrato editorial pós-processamento é definido em [Transcrição — runs l
 A base vigente e o candidato 0.3.5 desta entrega cobrem:
 
 - workbench próprio do Edit;
-- conexão explícita com `http://127.0.0.1:8765/api/v1`;
+- conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
 - fila local persistida;
 - eventos estruturados para log;
 - telemetria best-effort de CPU, RAM, GPU e VRAM;
@@ -133,13 +133,15 @@ Quando a biblioteca de runs entrar na UI, **fila operacional** e **resultados ed
 
 O título é compacto. A navegação própria do Edit é restrita a destinos de trabalho; o logo TDA é a saída intencional para a superfície pública.
 
-O estado desconectado não deve inventar dados. Métricas desconhecidas usam `—`/estado vazio e o pareamento fica disponível. Quando conectado, o campo de pareamento deixa de dominar a tela e a faixa do computador passa a mostrar dados operacionais.
+O estado desconectado não deve inventar dados. Métricas desconhecidas usam `—`/estado vazio. A página tenta conectar automaticamente ao Agent; se ele não estiver aberto, mostra uma ação direta **Abrir TDA Companion** e uma ação **Tentar novamente**. Credenciais não fazem parte da UX normal. Quando conectado, a faixa do computador mostra dados operacionais.
 
 ## Ingest Craig e perfis
 
 A superfície Web envia o ZIP Craig somente para o Agent em loopback. O Companion cria um snapshot local, calcula identidade por conteúdo e reutiliza staging existente quando seguro. O frontend recebe apenas metadados necessários ao trabalho; caminho absoluto do disco não deve ser exposto ao JavaScript.
 
-O Desktop usa o mesmo pipeline canônico: escolhe o ZIP por picker nativo, mostra participantes/faixas e submete `transcription.craig`. Não existe um transcriber legado paralelo.
+O hash integral das faixas pertence ao ingest/deep verification. No dispatch normal, o worker revalida manifesto, path e tamanho sem reler todos os bytes (`verify_tracks=false`). Isso evita que sessões grandes fiquem minutos em I/O antes da primeira etapa de ASR. O stage `source_validation` e heartbeats atualizam liveness real enquanto o pipeline entra em execução.
+
+O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não replica esse formulário; ele monitora execução/fila/telemetria e concentra logs, diagnóstico, runtimes e manutenção. O backend nativo pode manter ferramentas manuais internas para suporte, mas elas não formam um segundo fluxo editorial.
 
 Os perfis executáveis vêm de `capabilities`:
 
@@ -179,15 +181,23 @@ Quando `system.telemetry` é anunciado, a UI consulta `GET /api/v1/system` e rec
 
 Ausência de GPU NVIDIA, driver incompatível ou falha do sensor resulta em telemetria parcial e não desconecta a fila.
 
-## Pareamento e segurança
+## Conexão local e segurança
 
-O painel começa desconectado e não sonda portas automaticamente. Após ação explícita, consulta health público mínimo, exige versão compatível e então usa o Bearer do pareamento em endpoints privados.
+A página consulta primeiro o health público mínimo para confirmar que existe um Agent compatível em `127.0.0.1:8765`. Em seguida chama `POST /api/v1/session` e recebe uma credencial temporária criada pelo próprio Agent. Não existe cópia/cola de token na UX normal.
 
-O token fica somente na memória da aba. Não há cookie, storage, query string, log ou envio cloud. Requests mantêm CORS, `credentials: omit`, `redirect: error`, `cache: no-store`, `referrerPolicy: no-referrer` e limites de payload/resposta.
+A sessão do navegador:
 
-O Companion escuta somente loopback, exige Host correto, restringe Origin e não descobre outros PCs.
+- é aleatória e vive somente em memória;
+- é armazenada no Agent apenas pelo digest SHA-256;
+- é vinculada à Origin exata que fez o bootstrap;
+- expira e some quando o Agent reinicia;
+- não revela o token mestre persistido do Companion.
 
-Antes de enviar Bearer para um Agent encontrado no loopback, o Desktop empacotado também valida ownership local de porta/PID/executável conforme o hardening vigente.
+Não há cookie, localStorage, sessionStorage, query string, log ou envio cloud. Requests mantêm CORS, `credentials: omit`, `redirect: error`, `cache: no-store`, `referrerPolicy: no-referrer` e limites de payload/resposta.
+
+O Companion escuta somente loopback, exige Host correto, restringe Origin e não descobre outros PCs. Se estiver fechado, a Web oferece `tda-companion://open` por ação explícita do usuário e tenta a conexão novamente; o site continua funcional mesmo sem o PC.
+
+O token mestre continua disponível apenas como mecanismo técnico/nativo e não deve voltar a ser requisito de uso normal.
 
 Áudio Craig e artefatos de preparação permanecem locais. O resultado Web não transporta transcript integral para frontend/cloud como efeito colateral do processamento.
 
