@@ -543,6 +543,104 @@ $$;
 reset role;
 rollback;
 
+-- Ordinary release must free the writer lock without destroying a factual draft.
+-- A later token from the same editor recovers the server-side checkpoint.
+begin;
+set role service_role;
+do $
+declare
+  result jsonb;
+  token_a uuid := '23232323-2323-4323-8323-232323232323';
+  token_b uuid := '24242424-2424-4424-8424-242424242424';
+  draft jsonb;
+begin
+  result := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_a
+  );
+  if result->>'status' <> 'acquired' or (result->>'baseRevision')::bigint <> 1 then
+    raise exception 'durable factual release fixture must acquire revision 1: %', result;
+  end if;
+
+  result := public.acquire_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_a
+  );
+  draft := jsonb_set(
+    result->'draftGraph',
+    '{nodes,0,summary}',
+    to_jsonb('Rascunho factual preservado após release.'::text),
+    true
+  );
+
+  result := public.save_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_a,
+    draft
+  );
+  if result->>'status' <> 'draft_saved' then
+    raise exception 'durable factual release fixture must save first: %', result;
+  end if;
+
+  result := public.release_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_a
+  );
+  if result->>'status' <> 'released'
+     or exists (select 1 from public.world_edit_leases)
+     or not exists (
+       select 1
+       from public.world_edit_drafts
+       where owner_profile_id='33333333-3333-4333-8333-333333333333'
+         and lease_token=token_a
+         and status='active'
+     ) then
+    raise exception 'ordinary release must keep factual durable checkpoint: %', result;
+  end if;
+
+  result := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_b
+  );
+  if result->>'status' <> 'recovered' or result->>'recoverySource' <> 'durable' then
+    raise exception 'same editor must recover factual checkpoint after release: %', result;
+  end if;
+
+  result := public.acquire_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_b
+  );
+  if result->>'ok' <> 'true'
+     or result->'draftGraph'->'nodes'->0->>'summary' <> 'Rascunho factual preservado após release.' then
+    raise exception 'recovered factual graph must contain the saved checkpoint: %', result;
+  end if;
+
+  result := public.discard_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_b
+  );
+  if result->>'status' <> 'discarded' then
+    raise exception 'durable factual release fixture cleanup must discard explicitly: %', result;
+  end if;
+end;
+$;
+reset role;
+rollback;
+
 -- Recovery keeps a private factual draft for the same editor after lease expiry.
 set role service_role;
 do $$
