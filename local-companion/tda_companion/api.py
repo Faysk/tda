@@ -174,6 +174,11 @@ def create_app(
     )
     worker_healthy = True
     worker_wake = asyncio.Event()
+    # Serializes the instant where a queued job becomes running with the instant
+    # where first-use preparation becomes active. Without this gate, the API and
+    # queue worker could race between "no running job" and Store.claim(), allowing
+    # a model/runtime preparation to contend with a freshly claimed GPU job.
+    dispatch_gate = asyncio.Lock()
     started_at = time.time()
 
     def log(level: str, component: str, code: str, message: str, context=None) -> None:
@@ -233,11 +238,16 @@ def create_app(
         log("info", "worker", "QUEUE_WORKER_STARTED", "Queue worker started")
         while True:
             try:
-                if preparation_manager.snapshot().get("active") is True:
+                preparation_active = False
+                async with dispatch_gate:
+                    preparation_active = (
+                        preparation_manager.snapshot().get("active") is True
+                    )
+                    claimed = None if preparation_active else store.claim()
+                if preparation_active:
                     worker_healthy = True
                     await asyncio.sleep(0.25)
                     continue
-                claimed = store.claim()
                 if claimed:
                     job_id, attempt = claimed
                     state = store.get(job_id)
@@ -648,22 +658,23 @@ def create_app(
         return preparation_manager.snapshot()
 
     @app.post("/api/v1/preparation")
-    def prepare_profile(body: ProfilePreparationRequest):
-        if store.has_running_jobs():
-            return error(
-                "TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB",
-                409,
-                True,
-            )
-        try:
-            value = preparation_manager.start(body.source_id, body.profile_id)
-        except ProfilePreparationError as exc:
-            status = (
-                409
-                if exc.code == "TRANSCRIPTION_PREPARATION_ALREADY_RUNNING"
-                else 400
-            )
-            return error(exc.code, status, True)
+    async def prepare_profile(body: ProfilePreparationRequest):
+        async with dispatch_gate:
+            if store.has_running_jobs():
+                return error(
+                    "TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB",
+                    409,
+                    True,
+                )
+            try:
+                value = preparation_manager.start(body.source_id, body.profile_id)
+            except ProfilePreparationError as exc:
+                status = (
+                    409
+                    if exc.code == "TRANSCRIPTION_PREPARATION_ALREADY_RUNNING"
+                    else 400
+                )
+                return error(exc.code, status, True)
         worker_wake.set()
         return value
 
