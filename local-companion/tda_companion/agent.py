@@ -100,7 +100,7 @@ class AgentController:
                 system_log=self.system_log,
                 browser_sessions=api.state.browser_sessions,
                 source_gate=api.state.source_gate,
-                source_running=api.state.store.has_running_source,
+                source_running=api.state.source_in_use,
             )
             config = uvicorn.Config(
                 app,
