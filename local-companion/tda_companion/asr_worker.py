@@ -17,6 +17,7 @@ from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
     migrate_legacy_transcript,
+    remove_incomplete_runs,
     write_compatibility_mirror,
     write_completed_run,
 )
@@ -152,6 +153,16 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             },
         )
         package = load_craig_package(package_root, verify_tracks=False)
+        removed_runs = remove_incomplete_runs(package_root)
+        if removed_runs:
+            emitter.emit(
+                "event",
+                {
+                    "code": "INCOMPLETE_RUNS_CLEANED",
+                    "stage": "source_validation",
+                    "count": removed_runs,
+                },
+            )
         emitter.emit(
             "event",
             {
