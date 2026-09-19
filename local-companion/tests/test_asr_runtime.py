@@ -14,6 +14,7 @@ from tda_companion.asr_runtime import (
     current_whisper_worker,
     inspect_whisper_runtime,
     install_whisper_runtime_archive,
+    recover_interrupted_whisper_runtime_install,
 )
 from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
 
@@ -47,6 +48,35 @@ def test_verified_runtime_installs_versioned_and_switches_current_atomically(tmp
     assert current_whisper_worker(runtime_root) == worker.resolve()
     selector = json.loads((runtime_root / "whisper" / "current.json").read_text(encoding="utf-8"))
     assert selector["version"] == version
+
+
+def test_startup_recovery_restores_interrupted_whisper_runtime_swap(tmp_path: Path):
+    archive = tmp_path / "runtime.zip"
+    digest = _runtime_zip(archive, payload=b"stable")
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version=version,
+        expected_sha256=digest,
+    )
+
+    parent = runtime_root / "whisper"
+    target = parent / version
+    backup = parent / f".{version}-{'a' * 32}.backup"
+    partial = parent / f".{version}-{'b' * 32}.partial"
+    target.rename(backup)
+    partial.mkdir()
+    (partial / "junk").write_text("partial", encoding="utf-8")
+
+    recovered = recover_interrupted_whisper_runtime_install(runtime_root)
+
+    assert recovered == [version]
+    assert target.is_dir()
+    assert not backup.exists()
+    assert not partial.exists()
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["status"] == "ready"
 
 
 def test_corrupt_current_version_can_be_repaired_transactionally(tmp_path: Path):
