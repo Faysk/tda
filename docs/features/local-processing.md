@@ -203,9 +203,9 @@ O token mestre continua disponível apenas como mecanismo técnico/nativo e não
 
 ## Fila e ações
 
-Falha recuperável/interrupção permite **Repetir trabalho**, sem prometer checkpoint exato. Cancelar exige confirmação. Retomar fila confirma que trabalhos pendentes podem voltar a executar; pausar impede novos claims sem interromper o trabalho já ativo.
+Falha recuperável/interrupção permite **Repetir trabalho**. O retry cria uma nova `attempt`, mas os engines podem reutilizar checkpoints locais por faixa quando a assinatura de source/profile/context/glossary/runtime continua compatível. Cada faixa reutilizada reaparece como progresso da nova tentativa; o checkpoint não reativa a tentativa anterior. Cancelar exige confirmação. Retomar fila confirma que trabalhos pendentes podem voltar a executar; pausar impede novos claims sem interromper o trabalho já ativo.
 
-No Slice 1, retry terminalizado cria nova `attempt` e, portanto, identidade de run distinta. Continuar o mesmo run só poderá ser introduzido quando a semântica de checkpoint do engine for explicitamente segura. Resultado concluído anterior nunca é substituído por uma tentativa nova.
+Retry terminalizado cria nova `attempt` e, portanto, identidade de run distinta. Checkpoints seguros podem evitar retranscrever faixas já concluídas, mas **não continuam nem mutam o run anterior**: a nova tentativa reconstrói o próprio progresso e, se concluir, grava um novo run imutável. Resultado concluído anterior nunca é substituído por uma tentativa nova.
 
 O ensaio sintético existe apenas quando `synthetic.fixture` é anunciado e não usa áudio/modelo/GPU para produzir transcrição.
 
