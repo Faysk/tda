@@ -138,9 +138,17 @@ export class ProcessingController {
 		const health = await this.bridge.health(signal);
 		const capabilities = await this.bridge.capabilities(signal);
 		const jobs = await this.bridge.jobs(signal);
+		const nextQueued =
+			jobs
+				.filter((job) => job.status === "queued")
+				.sort(
+					(left, right) =>
+						new Date(left.updated_at).getTime() -
+						new Date(right.updated_at).getTime(),
+				)[0] ?? null;
 		const observedJob =
 			jobs.find((job) => job.status === "running") ??
-			jobs.find((job) => job.status === "queued") ??
+			nextQueued ??
 			jobs[0] ??
 			null;
 
