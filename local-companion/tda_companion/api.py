@@ -24,6 +24,7 @@ from .profile_preparation import (
     ProfilePreparationError,
     ProfilePreparationManager,
     profile_catalog,
+    whisper_model_ready,
 )
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .store import Conflict, Store
@@ -1007,7 +1008,7 @@ def create_app(
                         get_profile(body.profile_id),
                         verify_hash=False,
                     )
-                    if model.get("status") != "ready":
+                    if not whisper_model_ready(model):
                         raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
                 payload["units"] = len(package.tracks)
                 value = store.submit(idempotency_key, payload)
