@@ -130,6 +130,29 @@ def error(code, status, recoverable=False):
     return JSONResponse({"error": {"code": code, "recoverable": recoverable}}, status_code=status)
 
 
+_NON_RECOVERABLE_CONFLICTS = frozenset(
+    {
+        "IDEMPOTENCY_CONFLICT",
+        "IDEMPOTENCY_STATE_INVALID",
+        "JOB_TERMINAL",
+        "JOB_NOT_RETRYABLE",
+        "QWEN_CPU_UNSUPPORTED",
+        "AGENT_CONTROL_UNAVAILABLE",
+        "JOB_STEP_KIND_INVALID",
+        "JOB_STAGE_INVALID",
+        "WORKER_PROGRESS_MISMATCH",
+        "WORKER_EVENT_CODE_INVALID",
+        "WORKER_EVENT_LEVEL_INVALID",
+        "WORKER_EVENT_DATA_INVALID",
+        "RECOVERED_RESULT_KIND_INVALID",
+    }
+)
+
+
+def conflict_recoverable(code: str) -> bool:
+    return code not in _NON_RECOVERABLE_CONFLICTS
+
+
 def create_app(
     root,
     token,
@@ -721,7 +744,8 @@ def create_app(
 
     @app.exception_handler(Conflict)
     async def conflict(_, exc):
-        return error(str(exc), 409, True)
+        code = str(exc)
+        return error(code, 409, conflict_recoverable(code))
 
     @app.exception_handler(KeyError)
     async def missing(_, exc):
