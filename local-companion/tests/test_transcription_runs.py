@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -13,6 +15,7 @@ from tda_companion.transcript import (
     stats_for_tracks,
 )
 from tda_companion.transcription_runs import (
+    TranscriptionRunError,
     ensure_legacy_and_list,
     list_runs,
     load_run,
@@ -217,6 +220,30 @@ def test_tampered_run_is_excluded_when_content_verification_is_requested(tmp_pat
     transcript.write_bytes(encoded)
 
     assert list_runs(package_root, verify_content=False) != []
+    assert list_runs(package_root, verify_content=True) == []
+
+
+def test_symlinked_run_transcript_is_rejected(tmp_path: Path):
+    source_sha = "3" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    run = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-detailed", "original"),
+        job_id="job-symlink",
+        attempt=1,
+    )
+    transcript = package_root / "runs" / run["run_id"] / "transcript.json"
+    external = tmp_path / "external-transcript.json"
+    external.write_bytes(transcript.read_bytes())
+    transcript.unlink()
+    try:
+        transcript.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+
+    with pytest.raises(TranscriptionRunError, match="TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK"):
+        load_run(package_root, run["run_id"], verify_content=True)
     assert list_runs(package_root, verify_content=True) == []
 
 
