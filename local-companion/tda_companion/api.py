@@ -28,7 +28,7 @@ from .qwen_physical_gate import inspect_qwen_physical_gate
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
-from .transcription_runs import TranscriptionRunError, load_run
+from .transcription_runs import TranscriptionRunError, load_run, run_id_for
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -220,6 +220,29 @@ def create_app(
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         return package_root, load_craig_package(package_root, verify_tracks=verify_tracks)
 
+    def local_transcription_result(
+        job_id: str,
+        body: dict,
+        *,
+        run_id: str,
+        digest: str,
+    ) -> dict:
+        return {
+            "schema_version": "tda_local_result_v1",
+            "campaign_id": body["campaign_id"],
+            "session_id": body["session_id"],
+            "source_id": body["source_id"],
+            "job_id": job_id,
+            "transcription": {
+                "schema_version": "tda_transcript_v1",
+                "profile_id": body["profile_id"],
+                "artifact": "transcript.json",
+                "run_id": run_id,
+                "sha256": digest,
+            },
+            "sync": {"status": "not_configured"},
+        }
+
     def finalize_transcription_result(
         job_id: str,
         attempt: int,
@@ -245,7 +268,10 @@ def create_app(
         try:
             manifest = load_run(package_root, run_id, verify_content=True)
         except TranscriptionRunError as exc:
-            raise WorkerProcessError("WORKER_RESULT_RUN_INVALID") from exc
+            raise WorkerProcessError(
+                "WORKER_RESULT_RUN_INVALID",
+                recoverable=False,
+            ) from exc
         if (
             manifest.get("job_id") != job_id
             or manifest.get("attempt") != attempt
@@ -257,21 +283,55 @@ def create_app(
         ):
             raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
-        return {
-            "schema_version": "tda_local_result_v1",
-            "campaign_id": body["campaign_id"],
-            "session_id": body["session_id"],
-            "source_id": body["source_id"],
-            "job_id": job_id,
-            "transcription": {
-                "schema_version": "tda_transcript_v1",
-                "profile_id": body["profile_id"],
-                "artifact": "transcript.json",
-                "run_id": run_id,
-                "sha256": digest,
-            },
-            "sync": {"status": "not_configured"},
-        }
+        return local_transcription_result(
+            job_id,
+            body,
+            run_id=run_id,
+            digest=digest,
+        )
+
+    def reconcile_completed_transcription_runs() -> None:
+        for active in store.running_attempts():
+            job_id = str(active["id"])
+            attempt = int(active["attempt"])
+            body = active["body"]
+            if body.get("kind") != "transcription.craig" or attempt < 1:
+                continue
+            try:
+                package_root, package = staged_package(
+                    body["source_id"],
+                    verify_tracks=False,
+                )
+                run_id = run_id_for(job_id, attempt)
+                manifest = load_run(package_root, run_id, verify_content=True)
+            except (KeyError, CraigPackageError, TranscriptionRunError, ValueError):
+                continue
+            digest = manifest.get("transcript_sha256")
+            if (
+                manifest.get("job_id") != job_id
+                or manifest.get("attempt") != attempt
+                or manifest.get("source_id") != body.get("source_id")
+                or manifest.get("source_sha256") != package.source_sha256
+                or manifest.get("profile_id") != body.get("profile_id")
+                or manifest.get("artifact") != "transcript.json"
+                or not isinstance(digest, str)
+                or not _SHA256_PATTERN.fullmatch(digest)
+            ):
+                continue
+            result = local_transcription_result(
+                job_id,
+                body,
+                run_id=run_id,
+                digest=digest,
+            )
+            if store.complete_recovered(job_id, attempt, result):
+                log(
+                    "warning",
+                    "worker",
+                    "JOB_RECOVERED_FROM_IMMUTABLE_RUN",
+                    "Recovered a completed transcription run after Agent interruption",
+                    {"job_id": job_id, "attempt": attempt, "run_id": run_id},
+                )
 
     async def wait_for_work() -> None:
         try:
@@ -533,6 +593,7 @@ def create_app(
                 log("error", "storage", "QUEUE_RECOVERY_REQUIRED", "Queue storage temporarily unavailable")
                 await asyncio.sleep(1)
                 try:
+                    reconcile_completed_transcription_runs()
                     store.recover()
                     worker_healthy = True
                 except Exception:
@@ -540,6 +601,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_):
+        reconcile_completed_transcription_runs()
         store.recover()
         log("info", "agent", "API_STARTING", "Local API starting", {"port": port, "pid": os.getpid()})
         task = asyncio.create_task(worker()) if run_worker else None
@@ -560,6 +622,7 @@ def create_app(
                         await task
                     except asyncio.CancelledError:
                         pass
+            reconcile_completed_transcription_runs()
             store.recover()
             log("info", "agent", "API_STOPPED", "Local API stopped")
 
