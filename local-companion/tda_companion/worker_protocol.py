@@ -56,7 +56,13 @@ def _decode_json_line(line: str | bytes) -> dict[str, Any]:
 
 def _encode(value: dict[str, Any]) -> str:
     try:
-        line = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        line = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
     except (TypeError, ValueError) as exc:
         raise WorkerProtocolError("WORKER_JSON_ENCODE_FAILED") from exc
     # MAX_LINE_BYTES is the wire-line budget, including the newline that
