@@ -189,6 +189,7 @@ declare
   v_campaign_id uuid;
   v_existing public.world_edit_leases%rowtype;
   v_recovery public.world_edit_drafts%rowtype;
+  v_previous_receipt public.world_edit_drafts%rowtype;
   v_layout_revision bigint := 0;
   v_layout_positions jsonb := '{}'::jsonb;
   v_graph_revision bigint := 0;
@@ -418,6 +419,16 @@ begin
     end if;
   end if;
 
+  select draft.*
+  into v_previous_receipt
+  from public.world_edit_drafts draft
+  where draft.campaign_id = v_campaign_id
+    and draft.owner_profile_id = p_actor_profile_id
+    and draft.lease_token = p_lease_token
+    and draft.status = 'published'
+  order by draft.updated_at desc
+  limit 1;
+
   return jsonb_build_object(
     'ok', true,
     'status', case when v_recovered then 'recovered' else 'acquired' end,
@@ -425,7 +436,10 @@ begin
     'draftPositions', v_existing.draft_positions,
     'expiresAt', v_existing.expires_at,
     'recoverySource', case when v_recovered then 'durable' else null end,
-    'staleRecovery', v_stale_recovery
+    'staleRecovery', v_stale_recovery,
+    'previousPublishConfirmed', found,
+    'previousPublishedGraphRevision', case when found then v_previous_receipt.published_graph_revision else null end,
+    'previousPublishedLayoutRevision', case when found then v_previous_receipt.published_layout_revision else null end
   );
 end;
 $$;
