@@ -42,6 +42,8 @@ function preparationMessage(code: string | null): string {
 	return {
 		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
 			"Já existe outra preparação em andamento neste computador.",
+		TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB:
+			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro perfil.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
 			"Espere o trabalho atual terminar antes de preparar outro perfil.",
 		QWEN_CUDA_UNAVAILABLE:
