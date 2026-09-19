@@ -141,11 +141,22 @@ def _runtime_identity(runtime_root: Path, *, verify_worker: bool) -> dict[str, s
     }
 
 
-def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) -> dict[str, str]:
+def _model_identity(
+    models_root: Path,
+    profile_id: str,
+    *,
+    verify_hash: bool,
+    verification: dict[str, bool] | None = None,
+) -> dict[str, str]:
     profile = get_profile(profile_id)
     if profile.engine != "qwen3" or profile.id not in QWEN_PROFILES:
         raise QwenPhysicalGateError("QWEN_GATE_PROFILE_INVALID")
-    state = inspect_model_install(models_root, profile, verify_hash=verify_hash)
+    state = inspect_model_install(
+        models_root,
+        profile,
+        verify_hash=verify_hash,
+        verification=verification,
+    )
     if state.get("status") == "corrupt":
         raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
@@ -163,8 +174,18 @@ def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) ->
     }
 
 
-def _aligner_identity(models_root: Path, *, verify_hash: bool) -> dict[str, str]:
-    state = inspect_model_install(models_root, ALIGNER_PROFILE, verify_hash=verify_hash)
+def _aligner_identity(
+    models_root: Path,
+    *,
+    verify_hash: bool,
+    verification: dict[str, bool] | None = None,
+) -> dict[str, str]:
+    state = inspect_model_install(
+        models_root,
+        ALIGNER_PROFILE,
+        verify_hash=verify_hash,
+        verification=verification,
+    )
     if state.get("status") == "corrupt":
         raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
@@ -373,10 +394,21 @@ def inspect_qwen_physical_gate(
             "reason": "QWEN_GATE_AUDIO_TOO_SHORT",
         }
 
+    model_verification: dict[str, bool] = {}
+    aligner_verification: dict[str, bool] = {}
     try:
         runtime = _runtime_identity(runtime_root, verify_worker=verify_model_content)
-        model = _model_identity(models_root, profile_id, verify_hash=verify_model_content)
-        aligner = _aligner_identity(models_root, verify_hash=verify_model_content)
+        model = _model_identity(
+            models_root,
+            profile_id,
+            verify_hash=verify_model_content,
+            verification=model_verification,
+        )
+        aligner = _aligner_identity(
+            models_root,
+            verify_hash=verify_model_content,
+            verification=aligner_verification,
+        )
     except QwenPhysicalGateError as exc:
         return {
             "status": "stale",
@@ -490,12 +522,17 @@ def inspect_qwen_physical_gate(
             # Prove current bytes once before resealing the cheap metadata binding.
             try:
                 runtime = _runtime_identity(runtime_root, verify_worker=True)
-                model_state = verify_and_upgrade_model_install(models_root, profile_id)
-                aligner_state = verify_and_upgrade_model_install(models_root, ALIGNER_PROFILE)
-                if model_state.get("status") != "ready":
-                    raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
-                if aligner_state.get("status") != "ready":
-                    raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+                if not model_verification.get("content_verified"):
+                    model_state = verify_and_upgrade_model_install(models_root, profile_id)
+                    if model_state.get("status") != "ready":
+                        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+                if not aligner_verification.get("content_verified"):
+                    aligner_state = verify_and_upgrade_model_install(
+                        models_root,
+                        ALIGNER_PROFILE,
+                    )
+                    if aligner_state.get("status") != "ready":
+                        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
                 model = _model_identity(models_root, profile_id, verify_hash=False)
                 aligner = _aligner_identity(models_root, verify_hash=False)
             except (ModelRegistryError, OSError, QwenPhysicalGateError):
