@@ -101,15 +101,27 @@ export class ProcessingController {
 			if (epoch === this.#epoch) {
 				const code =
 					error instanceof BridgeError ? error.code : "service_error";
+				const bridgeFailure = [
+					"unreachable",
+					"unauthorized",
+					"forbidden",
+					"incompatible",
+					"invalid_response",
+					"timeout",
+				].includes(code);
 				if (["forbidden", "incompatible"].includes(code))
 					this.bridge.disconnect();
-				this.update({
-					...initial,
-					connection: "error",
-					busy: true,
-					error: code,
-					uncertainSubmission: this.#submissionKey !== null,
-				});
+				if (bridgeFailure) {
+					this.update({
+						...initial,
+						connection: "error",
+						busy: true,
+						error: code,
+						uncertainSubmission: this.#submissionKey !== null,
+					});
+				} else {
+					this.update({ error: code });
+				}
 			}
 		} finally {
 			if (epoch === this.#epoch) this.update({ busy: false });
