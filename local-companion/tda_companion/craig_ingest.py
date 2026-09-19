@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -10,11 +12,17 @@ from fastapi import Request
 
 from .craig import CraigPackage, CraigPackageError, ingest_craig_zip
 from .craig_runtime import load_craig_package
+from .transcription_runs import (
+    TranscriptionRunError,
+    list_runs,
+    write_compatibility_mirror,
+)
 
 CRAIG_UPLOAD_SCHEMA = "tda_craig_ingest_v1"
 CRAIG_UPLOAD_MAX_BYTES = 64 * 1024**3
 CRAIG_UPLOAD_MEDIA_TYPES = frozenset({"application/zip", "application/octet-stream"})
 _COPY_CHUNK = 1024 * 1024
+_REPAIR_SWAP_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -86,6 +94,100 @@ def _reuse_existing(
     )
 
 
+def _remove_path(path: Path) -> None:
+    try:
+        if path.is_symlink() or path.is_file():
+            path.unlink(missing_ok=True)
+        elif path.is_dir():
+            shutil.rmtree(path)
+    except OSError:
+        pass
+
+
+def _copy_run_history(existing: Path, replacement: Path) -> None:
+    runs = existing / "runs"
+    if not runs.is_dir() or runs.is_symlink():
+        return
+    target = replacement / "runs"
+    shutil.copytree(runs, target)
+
+
+def _refresh_compatibility_mirror(package_root: Path) -> None:
+    runs = list_runs(package_root, verify_content=True)
+    if not runs:
+        return
+    try:
+        write_compatibility_mirror(package_root, str(runs[0]["run_id"]))
+    except (OSError, TranscriptionRunError):
+        pass
+
+
+def _repair_existing_staging(
+    snapshot: Path,
+    *,
+    staging_root: Path,
+    source_id: str,
+    source_sha256: str,
+    source_name: str | None,
+    size_bytes: int,
+) -> dict[str, object]:
+    existing = staging_root / source_id
+    replacement = staging_root / f".{source_id}.repair-{uuid4().hex}.partial"
+    backup = staging_root / f".{source_id}.backup-{uuid4().hex}"
+    try:
+        package = ingest_craig_zip(
+            snapshot,
+            replacement,
+            source_sha256=source_sha256,
+            source_name=source_name or f"{source_id}.zip",
+        )
+        if existing.is_dir() and not existing.is_symlink():
+            _copy_run_history(existing, replacement)
+
+        with _REPAIR_SWAP_LOCK:
+            try:
+                valid = _reuse_existing(
+                    staging_root,
+                    source_id=source_id,
+                    source_sha256=source_sha256,
+                    size_bytes=size_bytes,
+                    source_name=source_name,
+                )
+            except CraigUploadError as exc:
+                if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
+                    raise
+                valid = None
+            if valid is not None:
+                return valid
+
+            if not existing.exists() and not existing.is_symlink():
+                os.replace(replacement, existing)
+            else:
+                os.replace(existing, backup)
+                try:
+                    os.replace(replacement, existing)
+                except BaseException:
+                    os.replace(backup, existing)
+                    raise
+
+        _refresh_compatibility_mirror(existing)
+        _remove_path(backup)
+        return _summary(
+            package,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            size_bytes=size_bytes,
+            reused=False,
+            source_name=source_name,
+        )
+    except CraigUploadError:
+        raise
+    except (CraigPackageError, OSError, shutil.Error) as exc:
+        raise CraigUploadError("CRAIG_STAGING_REPAIR_FAILED", 503, True) from exc
+    finally:
+        _remove_path(replacement)
+
+
 def _finish_snapshot_ingest(
     snapshot: Path,
     *,
@@ -97,13 +199,25 @@ def _finish_snapshot_ingest(
     uploads_root = data_root / "uploads"
     staging_root = data_root / "staging"
     source_id = f"craig-{source_sha256}"
-    existing = _reuse_existing(
-        staging_root,
-        source_id=source_id,
-        source_sha256=source_sha256,
-        size_bytes=size_bytes,
-        source_name=source_name,
-    )
+    try:
+        existing = _reuse_existing(
+            staging_root,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            size_bytes=size_bytes,
+            source_name=source_name,
+        )
+    except CraigUploadError as exc:
+        if exc.code != "CRAIG_STAGING_EXISTING_INVALID":
+            raise
+        return _repair_existing_staging(
+            snapshot,
+            staging_root=staging_root,
+            source_id=source_id,
+            source_sha256=source_sha256,
+            source_name=source_name,
+            size_bytes=size_bytes,
+        )
     if existing is not None:
         return existing
 
@@ -121,13 +235,25 @@ def _finish_snapshot_ingest(
         )
     except CraigPackageError as exc:
         if str(exc) == "CRAIG_DESTINATION_EXISTS":
-            existing = _reuse_existing(
-                staging_root,
-                source_id=source_id,
-                source_sha256=source_sha256,
-                size_bytes=size_bytes,
-                source_name=source_name,
-            )
+            try:
+                existing = _reuse_existing(
+                    staging_root,
+                    source_id=source_id,
+                    source_sha256=source_sha256,
+                    size_bytes=size_bytes,
+                    source_name=source_name,
+                )
+            except CraigUploadError as reuse_exc:
+                if reuse_exc.code == "CRAIG_STAGING_EXISTING_INVALID":
+                    return _repair_existing_staging(
+                        snapshot,
+                        staging_root=staging_root,
+                        source_id=source_id,
+                        source_sha256=source_sha256,
+                        source_name=source_name,
+                        size_bytes=size_bytes,
+                    )
+                raise
             if existing is not None:
                 return existing
         raise CraigUploadError(str(exc), 422, False) from exc
