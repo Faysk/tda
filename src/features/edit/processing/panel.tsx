@@ -30,7 +30,12 @@ function jobTone(status: LocalJob["status"]): StatusTone {
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
 	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
-	if (job.status === "running" && consolidationStages.has(job.stage)) return null;
+	if (
+		job.status === "running" &&
+		(job.progress.completed >= job.progress.total ||
+			consolidationStages.has(job.stage))
+	)
+		return null;
 	return Math.round((job.progress.completed / job.progress.total) * 100);
 }
 
