@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from tda_companion.store import Conflict, Store
@@ -12,6 +14,38 @@ BODY = dict(
     source_id='synthetic-source',
     units=3,
 )
+
+
+def test_polling_reads_never_open_immediate_write_transactions(tmp_path, monkeypatch):
+    store = Store(tmp_path)
+    job = store.submit('read-only-polling', BODY)
+    claim = store.claim()
+    assert claim is not None
+    while store.step(*claim):
+        pass
+
+    def forbidden_tx():
+        raise AssertionError('read path must not reserve a writer transaction')
+
+    monkeypatch.setattr(store, 'tx', forbidden_tx)
+
+    assert store.setting('paused') == 'false'
+    assert store.has_running_jobs() is False
+    assert store.get(job['id'])['status'] == 'succeeded'
+    assert store.body(job['id'])['source_id'] == BODY['source_id']
+    assert store.jobs()[0]['id'] == job['id']
+    assert store.events(job['id'])
+    assert store.result(job['id'])['job_id'] == job['id']
+
+
+def test_read_connection_is_query_only(tmp_path):
+    store = Store(tmp_path)
+    store.submit('query-only', BODY)
+
+    with store.read() as db:
+        assert db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0] == 1
+        with pytest.raises(sqlite3.OperationalError):
+            db.execute('DELETE FROM jobs')
 
 
 def test_pause_persists_after_store_reopen(tmp_path):
