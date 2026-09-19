@@ -418,7 +418,7 @@ reset role;
 -- JSON array; publication must still retire the predecessor first instead of
 -- raising "duplicate active relation".
 set role service_role;
-do $
+do $$
 declare
   result jsonb;
   token uuid := '21212121-2121-4212-8212-212121212121';
@@ -507,7 +507,7 @@ begin
     raise exception 'authoritative replacement did not leave exactly one active relation';
   end if;
 end;
-$;
+$$;
 reset role;
 
 -- Recovery keeps a private factual draft for the same editor after lease expiry.
