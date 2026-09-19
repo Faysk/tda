@@ -1,3 +1,4 @@
+import { supportsAutomaticLoopbackSession } from "./compatibility";
 import {
 	BridgeError,
 	type CraigTranscriptionInput,
@@ -59,7 +60,9 @@ export class LocalBridge {
 	async bootstrap(signal: AbortSignal) {
 		// Health is intentionally public so we confirm the expected loopback
 		// protocol before asking the local Agent for a browser-scoped credential.
-		await this.health(signal);
+		const health = await this.health(signal);
+		if (!supportsAutomaticLoopbackSession(health.service_version))
+			throw new BridgeError("incompatible");
 		const value = record(
 			await this.json("/session", signal, {}, undefined, true),
 		);
