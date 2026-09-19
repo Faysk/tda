@@ -396,8 +396,14 @@
     $("restart-agent").disabled = connectionState === "port_conflict" || connectionState === "incompatible";
 
     const active = (value.jobs || []).find((job) => job.status === "running");
+    const preparation = value.preparation || {};
+    const preparationActive = preparation.active === true || preparation.state === "running";
     const summary = $("work-summary");
-    if (active) {
+    if (preparationActive) {
+      summary.querySelector("h3").textContent = "Preparação de perfil em andamento";
+      summary.querySelector("p").textContent =
+        `${preparation.title || "Preparando runtime/modelo…"} ${preparation.detail || ""} · ${Math.round(Number(preparation.elapsed_seconds || 0))} s`.trim();
+    } else if (active) {
       summary.querySelector("h3").textContent = "Processamento em andamento";
       const progress = active.progress || {};
       const stages = {
@@ -437,7 +443,13 @@
     const executionState = $("execution-state");
     const executionTitle = $("execution-title");
     const executionDetail = $("execution-detail");
-    if (active) {
+    if (preparationActive) {
+      executionState.textContent = "Preparando";
+      executionState.classList.add("warning");
+      executionTitle.textContent = preparation.title || "Preparando perfil de transcrição";
+      executionDetail.textContent =
+        `${preparation.detail || "Runtime, modelo e validações locais em andamento."} · ${Math.round(Number(preparation.elapsed_seconds || 0))} s`;
+    } else if (active) {
       const progress = active.progress || {};
       const stages = {
         runtime_validation: "Validando runtime e gate físico",
