@@ -103,6 +103,41 @@ jobs:
           print("deploy=" + ("true" if deploy else "false"))
           PY
 
+      - name: Require successful CI for exact current PR head
+        if: steps.current.outputs.deploy == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          PR_NUMBER: ${{ steps.source.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=pull_request&head_sha=$SOURCE_SHA&status=completed&per_page=100" > ci-runs.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open("ci-runs.json", encoding="utf-8"))
+          source = os.environ["SOURCE_SHA"]
+          pr_number = int(os.environ["PR_NUMBER"])
+          matches = []
+          for run in value.get("workflow_runs", []):
+              prs = run.get("pull_requests") or []
+              if (
+                  run.get("name") == "CI"
+                  and run.get("event") == "pull_request"
+                  and run.get("head_sha") == source
+                  and run.get("status") == "completed"
+                  and run.get("conclusion") == "success"
+                  and any(int(pr.get("number") or 0) == pr_number for pr in prs)
+              ):
+                  matches.append(run)
+          if not matches:
+              raise SystemExit("PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED")
+          print(
+              "PREVIEW_CI_PROVEN "
+              f"pr={pr_number} source={source} run={matches[-1].get('id')}"
+          )
+          PY
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         if: steps.current.outputs.deploy == 'true'
         with:
