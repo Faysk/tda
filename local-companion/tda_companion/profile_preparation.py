@@ -263,10 +263,7 @@ def _install_qwen_runtime(
         state = inspect_qwen_runtime(runtime_root, verify_worker=True)
         if _runtime_ready(state, "qwen"):
             try:
-                probe_qwen_long_track_gate(
-                    runtime_root,
-                    is_cancelled=is_cancelled,
-                )
+                _probe_qwen_runtime(runtime_root, is_cancelled)
                 return {
                     "status": "ready",
                     "version": state.get("version"),
