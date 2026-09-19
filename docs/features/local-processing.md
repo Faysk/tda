@@ -23,7 +23,7 @@ A base vigente e o candidato 0.3.5 desta entrega cobrem:
 - link controlado pelo próprio TDA para baixar a versão instalável mais recente do Companion;
 - ingest seguro de ZIP Craig pelo loopback local, com staging content-addressed e metadados sanitizados;
 - submissão real de `transcription.craig` ao pipeline canônico do Companion;
-- fluxo Desktop equivalente, com picker nativo, participantes, perfis de qualidade e acompanhamento do job;
+- Desktop de execução local sem fluxo editorial duplicado: fila/stage/liveness, telemetria, logs, diagnóstico e manutenção;
 - perfis atuais `qwen-quality`, `qwen-fast`, `whisper-detailed` e `whisper-turbo`, derivados das capabilities anunciadas pelo Agent;
 - escrita local atômica de transcript somente após conclusão/validação do worker;
 - **múltiplos runs concluídos imutáveis por source**, identificados por job + attempt;
@@ -33,7 +33,7 @@ A base vigente e o candidato 0.3.5 desta entrega cobrem:
 - endpoint local autenticado `GET /api/v1/sources/<source_id>/runs` com apenas metadados sanitizados;
 - resultado do job com `sync.status = "not_configured"`.
 
-O processamento Craig já é ASR real ponta a ponta no Web e no Desktop. `synthetic.fixture` continua existindo somente como ensaio sintético quando anunciado. Sincronização/publicação cloud permanece desativada: conclusão local não implica importação, revisão, canon ou publicação.
+O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web e acompanhado tanto na Web quanto no Desktop. `synthetic.fixture` continua existindo somente como ensaio sintético quando anunciado. Sincronização/publicação cloud permanece desativada: conclusão local não implica importação, revisão, canon ou publicação.
 
 ### Versão instalável versus candidato de código
 
@@ -141,7 +141,7 @@ A superfície Web envia o ZIP Craig somente para o Agent em loopback. O Companio
 
 O hash integral das faixas pertence ao ingest/deep verification. No dispatch normal, o worker revalida manifesto, path e tamanho sem reler todos os bytes (`verify_tracks=false`). Isso evita que sessões grandes fiquem minutos em I/O antes da primeira etapa de ASR. O stage `source_validation` e heartbeats atualizam liveness real enquanto o pipeline entra em execução.
 
-O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não replica esse formulário; ele monitora execução/fila/telemetria e concentra logs, diagnóstico, runtimes e manutenção. O backend nativo pode manter ferramentas manuais internas para suporte, mas elas não formam um segundo fluxo editorial.
+O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não possui mais o formulário concorrente; **Execução local** monitora fila/stage/liveness e concentra logs, diagnóstico, runtimes e manutenção.
 
 Os perfis executáveis vêm de `capabilities`:
 
