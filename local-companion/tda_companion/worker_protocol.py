@@ -51,7 +51,7 @@ def _decode_json_line(line: str | bytes) -> dict[str, Any]:
     try:
         text = raw.decode("utf-8")
         value = json.loads(text, parse_constant=_reject_json_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, ValueError) as exc:
         raise WorkerProtocolError("WORKER_JSON_INVALID") from exc
     if not isinstance(value, dict):
         raise WorkerProtocolError("WORKER_OBJECT_REQUIRED")
