@@ -129,6 +129,40 @@ def test_ingest_local_file_snapshots_reuses_and_returns_safe_session_metadata(tm
     assert not list((data_root / "uploads").iterdir())
 
 
+def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoints(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao.zip"
+    payload = _zip_bytes()
+    source.write_bytes(payload)
+
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    track = package_root / "tracks" / "track-000001.flac"
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
+
+    evidence = package_root / "runs" / "run-evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "keep.txt").write_text("preserve-me", encoding="utf-8")
+    stale_checkpoint = package_root / ".checkpoints" / "stale"
+    stale_checkpoint.mkdir(parents=True)
+    (stale_checkpoint / "track.json").write_text("stale", encoding="utf-8")
+
+    repaired = ingest_craig_file(source, data_root)
+
+    assert repaired["source_id"] == first["source_id"]
+    assert repaired["reused"] is False
+    assert track.read_bytes() == original
+    assert (package_root / "runs" / "run-evidence" / "keep.txt").read_text(
+        encoding="utf-8"
+    ) == "preserve-me"
+    assert not (package_root / ".checkpoints").exists()
+    package = load_craig_package(package_root, verify_tracks=True)
+    assert package.source_sha256 == first["source_sha256"]
+
+
 def test_ingest_decouples_windows_unsafe_speaker_name_from_physical_filename(tmp_path: Path):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
