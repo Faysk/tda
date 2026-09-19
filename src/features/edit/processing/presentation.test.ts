@@ -76,3 +76,26 @@ describe("processing presentation", () => {
 		expect(stageLabels.energy_analysis).toBe("Analisando energia entre faixas");
 	});
 });
+
+
+test("presents Qwen post-ASR track context truthfully", () => {
+	expect(
+		presentJobEvent({
+			seq: 41,
+			code: "TRACK_ALIGNMENT_STARTED",
+			at: "2026-09-19T00:00:00.000Z",
+			level: "info",
+			data: { track: 1, total_tracks: 4, speaker: "Alice", stage: "alignment" },
+		}),
+	).toEqual({ title: "Alinhando arquivo 1 de 4 — Alice." });
+
+	expect(
+		presentJobEvent({
+			seq: 42,
+			code: "TRACK_ENERGY_STARTED",
+			at: "2026-09-19T00:00:01.000Z",
+			level: "info",
+			data: { track: 2, total_tracks: 4, speaker: "Bob", stage: "energy_analysis" },
+		}),
+	).toEqual({ title: "Analisando energia do arquivo 2 de 4 — Bob." });
+});
