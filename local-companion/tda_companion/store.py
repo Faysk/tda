@@ -297,16 +297,23 @@ class Store:
         with self.read() as db:
             return [self.dto(r) for r in db.execute("SELECT * FROM jobs ORDER BY updated DESC LIMIT 100")]
 
-    def running_attempts(self):
+    def reconciliation_candidates(self):
         with self.read() as db:
             rows = db.execute(
-                "SELECT id,attempt,body FROM jobs WHERE status='running' ORDER BY updated"
+                """
+                SELECT id,attempt,body,status FROM jobs
+                WHERE status IN ('running','interrupted','failed')
+                  AND result IS NULL
+                  AND attempt > 0
+                ORDER BY updated
+                """
             ).fetchall()
             return [
                 {
                     "id": row["id"],
                     "attempt": row["attempt"],
                     "body": json.loads(row["body"]),
+                    "status": row["status"],
                 }
                 for row in rows
             ]
@@ -477,7 +484,12 @@ class Store:
         encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         with self.tx() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-            if not row or row["status"] != "running" or row["attempt"] != attempt:
+            if (
+                not row
+                or row["status"] not in ("running", "interrupted", "failed")
+                or row["attempt"] != attempt
+                or row["result"] is not None
+            ):
                 return False
             body = json.loads(row["body"])
             if body.get("kind") != "transcription.craig":
