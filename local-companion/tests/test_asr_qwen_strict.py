@@ -215,6 +215,7 @@ def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(
     monkeypatch,
     tmp_path: Path,
 ):
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.6")
     package, root = _package(tmp_path)
     reads = 0
 
