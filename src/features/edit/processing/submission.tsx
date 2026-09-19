@@ -12,6 +12,7 @@ import {
 	BridgeError,
 	type Capabilities,
 	type CraigSource,
+	type PreparationStatus,
 	type TranscriptionProfileId,
 } from "./protocol";
 import styles from "./submission.module.css";
@@ -82,10 +83,15 @@ export function ProcessingSubmission() {
 				const value = await bridge.capabilities(controller.signal);
 				if (stopped || controller.signal.aborted) return;
 				setCapabilities(value);
+				const choices = value.transcription.catalog.length
+					? value.transcription.catalog.map((item) => item.id)
+					: value.transcription.profiles;
 				setProfile((current) =>
-					current && value.transcription.profiles.includes(current)
+					current && choices.includes(current)
 						? current
-						: (value.transcription.profiles[0] ?? ""),
+						: choices.includes("qwen-quality")
+							? "qwen-quality"
+							: (choices[0] ?? ""),
 				);
 				setCapabilityError(null);
 			} catch (cause) {
@@ -126,7 +132,7 @@ export function ProcessingSubmission() {
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canTranscribe) return;
+		if (busy || !file || !profile || !canSubmit) return;
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
@@ -150,6 +156,48 @@ export function ProcessingSubmission() {
 					? `Fonte local já verificada · ${staged.trackCount} tracks. Enfileirando…`
 					: `ZIP verificado · ${staged.trackCount} tracks. Enfileirando…`,
 			);
+
+			const selectedProfile = availableProfiles.find((item) => item.id === profile);
+			if (!selectedProfile) {
+				setError("O perfil selecionado não está disponível neste Companion.");
+				return;
+			}
+			if (!selectedProfile.ready) {
+				setStatus("Preparando o perfil no Agent local…");
+				let preparation: PreparationStatus = await bridge.prepareProfile(
+					staged.sourceId,
+					profile,
+					controller.signal,
+				);
+				const preparationDeadline = Date.now() + 2 * 60 * 60 * 1000;
+				while (preparation.state === "running") {
+					setStatus(
+						`${preparation.title} ${preparation.detail} · ${Math.round(preparation.elapsedSeconds)} s`,
+					);
+					if (Date.now() >= preparationDeadline) {
+						setError("A preparação excedeu o limite de 2 horas.");
+						return;
+					}
+					await new Promise((resolve) => window.setTimeout(resolve, 1500));
+					if (controller.signal.aborted) return;
+					preparation = await bridge.preparation(controller.signal);
+				}
+				if (preparation.state !== "completed") {
+					setError(
+						preparation.errorCode
+							? `Preparação não concluída · ${preparation.errorCode}`
+							: "A preparação local não foi concluída.",
+					);
+					return;
+				}
+				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
+				const refreshed = await bridge.capabilities(controller.signal);
+				setCapabilities(refreshed);
+				if (!refreshed.transcription.profiles.includes(profile)) {
+					setError("O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.");
+					return;
+				}
+			}
 
 			const signature = JSON.stringify([
 				CAMPAIGN_SLUG,
@@ -202,9 +250,13 @@ export function ProcessingSubmission() {
 				<small>ZIP → loopback → GPU local</small>
 			</div>
 
-			{!canTranscribe ? (
+			{!capabilities ? (
 				<p className={styles.notice} role="status">
-					Nenhum perfil ASR está pronto ainda. Se a preparação foi iniciada no Companion, acompanhe lá as etapas de runtime, modelo e validação da GPU. Esta tela verifica novamente a cada 3 segundos e libera o formulário automaticamente assim que o perfil ficar pronto.
+					Lendo os perfis disponíveis no Companion…
+				</p>
+			) : !canSubmit ? (
+				<p className={styles.notice} role="status">
+					Este Companion não anunciou um fluxo de transcrição/preparação compatível. Atualize o aplicativo local.
 				</p>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
@@ -228,8 +280,10 @@ export function ProcessingSubmission() {
 							disabled={busy}
 							required
 						>
-							{capabilities?.transcription.profiles.map((id) => (
-								<option key={id} value={id}>{profileLabels[id]}</option>
+							{availableProfiles.map((item) => (
+								<option key={item.id} value={item.id}>
+									{profileLabels[item.id]}{item.ready ? "" : " · preparar no primeiro uso"}
+								</option>
 							))}
 						</select>
 					</label>
@@ -269,6 +323,11 @@ export function ProcessingSubmission() {
 							placeholder="Personagens, NPCs, lugares e termos difíceis."
 						/>
 					</label>
+					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
+						<p className={styles.notice} role="status">
+							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
+						</p>
+					) : null}
 					<div className={styles.actions}>
 						<Button type="submit" variant="primary" disabled={busy || !file || !profile}>
 							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
