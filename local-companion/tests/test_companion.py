@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,7 @@ from fastapi.testclient import TestClient
 from tda_companion.api import create_app
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
 
 TOKEN = "s" * 43
 ORIGIN = "https://panel.example"
@@ -34,6 +37,56 @@ def client(tmp_path):
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=False)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         yield client
+
+
+def test_agent_shutdown_stops_active_worker_and_leaves_job_retryable(monkeypatch, tmp_path):
+    started = threading.Event()
+    stopped = threading.Event()
+
+    def fake_run_fixture(
+        self,
+        *,
+        job_id,
+        attempt,
+        units,
+        completed,
+        on_progress,
+        on_event=None,
+        is_cancelled=None,
+    ):
+        del self, job_id, attempt, units, completed, on_progress, on_event
+        assert is_cancelled is not None
+        started.set()
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and not is_cancelled():
+            time.sleep(0.01)
+        assert is_cancelled()
+        stopped.set()
+        return WorkerOutcome(
+            terminal="cancelled",
+            payload={"stage": "shutdown", "forced": False},
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_fixture", fake_run_fixture)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        response = live.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "shutdown-job"},
+            json={**BODY, "units": 10},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        assert started.wait(2.0)
+
+    assert stopped.wait(2.0)
+    recovered = Store(tmp_path).get(job_id)
+    assert recovered["status"] == "interrupted"
+    assert recovered["stage"] == "interrupted"
+    assert recovered["error"] == {"code": "PROCESS_INTERRUPTED", "recoverable": True}
+    assert recovered["attempt"] == 1
 
 
 def test_security_and_validation(client):
