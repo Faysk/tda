@@ -22,7 +22,11 @@ from .asr_runtime import (
 )
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
-from .craig_ingest import recover_interrupted_craig_repairs, remove_incomplete_craig_uploads
+from .craig_ingest import (
+    recover_interrupted_craig_repairs,
+    remove_incomplete_craig_staging,
+    remove_incomplete_craig_uploads,
+)
 from .craig_runtime import load_craig_package
 from .profile_preparation import (
     ProfilePreparationError,
@@ -340,6 +344,16 @@ def create_app(
             "CRAIG_UPLOAD_PARTIALS_CLEANED",
             "Removed non-resumable Craig upload snapshots left by an interrupted process",
             {"count": removed_uploads},
+        )
+
+    removed_staging = remove_incomplete_craig_staging(data_root)
+    if removed_staging:
+        log(
+            "warning",
+            "ingest",
+            "CRAIG_STAGING_PARTIALS_CLEANED",
+            "Removed extracted Craig staging left by an interrupted ingest",
+            {"count": removed_staging},
         )
 
     for recovered_source in recover_interrupted_craig_repairs(
