@@ -300,16 +300,21 @@ class WorkerSupervisor:
             try:
                 returncode = process.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                if terminal is not None and terminal.type == "cancelled":
-                    # The worker already acknowledged the operator's cancellation.
-                    # A native/CUDA teardown hang after that acknowledgement must
-                    # not rewrite the terminal state into a failure.
+                if terminal is not None and terminal.type in {"cancelled", "result"}:
+                    # A terminal message is emitted only after the worker has
+                    # completed its durable work for that outcome. Native/CUDA or
+                    # interpreter teardown can still hang afterwards; force-stop
+                    # the isolated process without rewriting a confirmed result
+                    # or cancellation into a false failure.
                     self._stop_process(process)
                     payload = dict(terminal.payload)
-                    payload["forced"] = True
-                    payload.setdefault("stage", "forced_termination_after_ack")
+                    if terminal.type == "cancelled":
+                        payload["forced"] = True
+                        payload.setdefault("stage", "forced_termination_after_ack")
+                    else:
+                        payload["forced_teardown"] = True
                     return WorkerOutcome(
-                        terminal="cancelled",
+                        terminal=terminal.type,
                         payload=payload,
                         returncode=process.returncode if process.returncode is not None else -1,
                     )
