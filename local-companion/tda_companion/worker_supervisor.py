@@ -274,6 +274,12 @@ class WorkerSupervisor:
                         str(exc),
                         recoverable=False,
                     ) from None
+                expected_seq = 0 if previous_seq is None else previous_seq + 1
+                if message.seq != expected_seq:
+                    raise WorkerProcessError(
+                        "WORKER_SEQUENCE_GAP",
+                        recoverable=False,
+                    )
                 previous_seq = message.seq
                 last_message = time.monotonic()
 
