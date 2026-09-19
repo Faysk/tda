@@ -368,8 +368,9 @@ class Store:
                         ):
                             raise Conflict("TRANSCRIPTION_WORK_ALREADY_ACTIVE")
                 status = "queued"
-                # Real ASR checkpoint reuse is not wired yet. Reset progress instead
-                # of pretending that a partial transcript can resume safely.
+                # Queue progress restarts from zero. Engine-level checkpoints are
+                # reused independently and must report fresh sequential progress
+                # for this new attempt instead of inheriting stale counters.
                 if body["kind"] == "transcription.craig":
                     completed = 0
             db.execute(
