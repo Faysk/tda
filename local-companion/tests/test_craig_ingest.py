@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import threading
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -147,6 +148,26 @@ async def test_streamed_ingest_reuses_digest_without_rehashing_full_zip(monkeypa
     assert package.source_sha256 == digest
     assert package.source_zip == f"craig-{digest}.zip"
     assert not list((data_root / "uploads").iterdir())
+
+
+@pytest.mark.anyio
+async def test_browser_ingest_finishes_heavy_staging_off_event_loop(monkeypatch, tmp_path: Path):
+    data_root = tmp_path / "Data"
+    payload = _zip_bytes()
+    event_loop_thread = threading.get_ident()
+    observed: dict[str, int] = {}
+    original = ingest_module._finish_snapshot_ingest
+
+    def wrapped(*args, **kwargs):
+        observed["thread"] = threading.get_ident()
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(ingest_module, "_finish_snapshot_ingest", wrapped)
+
+    result = await ingest_craig_request(_request(payload), data_root)
+
+    assert result["track_count"] == 2
+    assert observed["thread"] != event_loop_thread
 
 
 @pytest.mark.anyio
