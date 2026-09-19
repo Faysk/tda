@@ -104,6 +104,43 @@ describe("processing state", () => {
 		});
 	});
 
+	it("renews an expired automatic browser session during refresh", async () => {
+		let sessionNumber = 0;
+		let jobsReads = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({ ...health, service_version: "0.3.14" });
+			if (value.endsWith("/session")) {
+				sessionNumber += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: `browser_session_token_12345678901234567890123${sessionNumber}`,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/jobs")) {
+				jobsReads += 1;
+				if (jobsReads === 2) return new Response(null, { status: 401 });
+				return Response.json({ jobs: [job] });
+			}
+			return Response.json({ jobs: [job] });
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect();
+		expect(controller.snapshot().connection).toBe("connected");
+		expect(sessionNumber).toBe(1);
+
+		await controller.refresh();
+
+		expect(controller.snapshot().connection).toBe("connected");
+		expect(controller.snapshot().error).toBeNull();
+		expect(sessionNumber).toBe(2);
+		expect(jobsReads).toBe(3);
+	});
+
 	it("does not send token to an incompatible service", async () => {
 		const { request, controller } = fixture();
 		request.mockResolvedValue(Response.json({ api_version: "99" }));
