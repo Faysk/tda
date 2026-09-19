@@ -273,6 +273,35 @@ def test_interrupted_repair_backup_is_restored_and_partial_is_cleaned(tmp_path: 
     assert package.source_sha256 == first["source_sha256"]
 
 
+def test_repair_promotes_and_preserves_valid_legacy_transcript(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao-legada.zip"
+    source.write_bytes(_zip_bytes())
+
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    package = load_craig_package(package_root, verify_tracks=True)
+    legacy = package_root / "transcript.json"
+    _document(package).write_atomic(legacy)
+    legacy_bytes = legacy.read_bytes()
+
+    track = package_root / "tracks" / "track-000001.flac"
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
+
+    repaired = ingest_craig_file(source, data_root)
+
+    assert repaired["reused"] is False
+    assert track.read_bytes() == original
+    runs = list_runs(package_root, verify_content=True)
+    assert len(runs) == 1
+    assert runs[0]["origin"] == "legacy_transcript_v1"
+    assert (package_root / "runs" / runs[0]["run_id"] / "transcript.json").read_bytes() == legacy_bytes
+    assert legacy.read_bytes() == legacy_bytes
+
+
 def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoints(tmp_path: Path):
     data_root = tmp_path / "Data"
     source = tmp_path / "sessao.zip"
