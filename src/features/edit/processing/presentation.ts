@@ -33,6 +33,7 @@ export const jobLabels: Record<JobStatus, string> = {
 export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
 	runtime_validation: "Validando runtime e gate físico",
+	source_validation: "Validando sessão local",
 	fixture: "Ensaio sintético",
 	checking_model: "Verificando modelo",
 	downloading_model: "Baixando modelo",
@@ -144,6 +145,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						? `Unidade ${completed} de ${total} concluída.`
 						: "Unidade de trabalho concluída.",
 				detail: choose(genericProgressJokes, event.seq),
+			};
+		case "SOURCE_VALIDATED":
+			return {
+				title: "Sessão local validada.",
+				detail: "Manifesto, faixas e tamanhos conferidos; iniciando o pipeline de ASR.",
 			};
 		case "WORKER_DISPATCH_PREPARING":
 			return {
