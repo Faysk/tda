@@ -339,6 +339,56 @@ while True:
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
 
 
+def test_supervisor_preserves_result_when_child_hangs_after_terminal(tmp_path):
+    script = tmp_path / "result_then_hang_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "progress", {"completed": 1, "total": 1, "unit": "items", "stage": "fixture"}),
+    (2, "result", {"kind": command.kind, "units": 1}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    progress: list[int] = []
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    outcome = supervisor.run_fixture(
+        job_id="result-ack-hang",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda message: progress.append(int(message.payload["completed"])),
+    )
+
+    assert progress == [1]
+    assert outcome.terminal == "result"
+    assert outcome.payload["kind"] == "synthetic.fixture"
+    assert outcome.payload["units"] == 1
+    assert outcome.payload["forced_teardown"] is True
+
+
 def test_supervisor_cancel_outranks_startup_timeout(tmp_path):
     script = tmp_path / "never_ready_worker.py"
     script.write_text(
