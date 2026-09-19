@@ -761,6 +761,7 @@ def create_app(
         try:
             yield
         finally:
+            preparation_manager.request_cancel()
             worker_stop.set()
             worker_wake.set()
             if task:
@@ -775,6 +776,17 @@ def create_app(
                         await task
                     except asyncio.CancelledError:
                         pass
+            preparation_stopped = await asyncio.to_thread(
+                preparation_manager.wait,
+                8.0,
+            )
+            if not preparation_stopped:
+                log(
+                    "warning",
+                    "preparation",
+                    "PREPARATION_SHUTDOWN_TIMEOUT",
+                    "Profile preparation did not stop before Agent shutdown timeout",
+                )
             reconcile_completed_transcription_runs()
             store.recover()
             log("info", "agent", "API_STOPPED", "Local API stopped")
