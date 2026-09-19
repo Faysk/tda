@@ -31,6 +31,19 @@ def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publishe
     assert "gh release create" not in package
 
 
+def test_whisper_runtime_workflow_tracks_worker_dependency_closure():
+    value = _workflow("whisper-runtime.yml")
+    required = {
+        "local-companion/tda_companion/asr_checkpoints.py",
+        "local-companion/tda_companion/asr_timeline.py",
+        "local-companion/tda_companion/craig_runtime.py",
+        "local-companion/tda_companion/transcript.py",
+        "local-companion/tda_companion/transcription_runs.py",
+    }
+    for path in required:
+        assert value.count(path) == 2, f"whisper-runtime.yml must watch {path} on PR and push"
+
+
 def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
     required = {
         "local-companion/tda_companion/asr_checkpoints.py",
