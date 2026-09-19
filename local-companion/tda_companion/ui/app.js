@@ -743,6 +743,7 @@
     if (job.status === "running") {
       const stageDetails = {
         runtime_validation: "Validando o runtime instalado e o gate físico selado sem reler gigabytes do modelo.",
+        source_validation: "Validando manifesto, faixas e tamanhos da sessão local sem reler todo o áudio.",
         model_prepare: "Baixando ou verificando o modelo local. A GPU pode ficar em 0% nesta etapa.",
         model_load: "Modelo pronto; carregando na GPU para iniciar a transcrição.",
         transcription: "Transcrevendo as faixas da sessão na GPU.",
@@ -759,7 +760,9 @@
       setProcessStatus(
         job.stage === "runtime_validation"
           ? "Validando runtime e gate físico…"
-          : job.stage === "model_prepare"
+          : job.stage === "source_validation"
+            ? "Validando sessão local…"
+            : job.stage === "model_prepare"
             ? "Preparando modelo de transcrição…"
             : "Transcrição em andamento.",
         [stageDetail, progressDetail].filter(Boolean).join(" · ") || "O worker está processando a sessão.",
