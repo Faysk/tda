@@ -27,6 +27,19 @@ describe("processing presentation", () => {
 		);
 	});
 
+	it("explains new integrity and worker-contract failures", () => {
+		expect(presentJobError("RESULT_ARTIFACT_UNAVAILABLE")).toContain(
+			"não está mais disponível",
+		);
+		expect(presentJobError("WORKER_PROGRESS_GAP")).toContain("fora de ordem");
+		expect(presentJobError("TRANSCRIPT_VALIDATION_FAILED")).toContain(
+			"validação estrutural",
+		);
+		expect(presentJobError("CRAIG_MANIFEST_TRACK_METADATA_MISMATCH")).toContain(
+			"reimporte",
+		);
+	});
+
 	it("explains recovery and legacy mirror degradation", () => {
 		expect(
 			presentJobEvent({
@@ -46,6 +59,15 @@ describe("processing presentation", () => {
 				data: {},
 			}).detail,
 		).toContain("fonte de verdade");
+		expect(
+			presentJobEvent({
+				seq: 3,
+				code: "INCOMPLETE_RUNS_CLEANED",
+				at: "2026-09-19T12:00:02Z",
+				level: "info",
+				data: { count: 2 },
+			}).title,
+		).toContain("2 runs incompletos");
 	});
 
 	it("labels canonical processing stages", () => {
