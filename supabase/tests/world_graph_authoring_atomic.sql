@@ -547,7 +547,7 @@ rollback;
 -- A later token from the same editor recovers the server-side checkpoint.
 begin;
 set role service_role;
-do $
+do $$
 declare
   result jsonb;
   token_a uuid := '23232323-2323-4323-8323-232323232323';
@@ -637,7 +637,7 @@ begin
     raise exception 'durable factual release fixture cleanup must discard explicitly: %', result;
   end if;
 end;
-$;
+$$;
 reset role;
 rollback;
 
