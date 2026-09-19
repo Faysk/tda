@@ -77,6 +77,8 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def _bounded_json(path: Path) -> dict[str, Any]:
+    if path.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_MANIFEST_SYMLINK")
     try:
         size = path.stat().st_size
     except OSError as exc:
@@ -93,6 +95,8 @@ def _bounded_json(path: Path) -> dict[str, Any]:
 
 
 def _bounded_transcript(path: Path) -> bytes:
+    if path.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK")
     try:
         size = path.stat().st_size
     except OSError as exc:
@@ -304,6 +308,8 @@ def _validate_manifest(
         raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SIZE_INVALID")
     root = run_root(package_root, run_id)
     transcript = root / "transcript.json"
+    if transcript.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRANSCRIPT_SYMLINK")
     try:
         actual_size = transcript.stat().st_size
     except OSError as exc:
