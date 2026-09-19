@@ -281,9 +281,10 @@ set acquired_at = acquired_at - interval '2 minutes',
     expires_at = clock_timestamp() - interval '1 second';
 
 set role service_role;
-do $$
+do $
 declare
   result jsonb;
+  token_a uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   token_b uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 begin
   result := public.acquire_world_edit_lease_atomic(
