@@ -18,7 +18,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3):
+            if version not in (0, 1, 2, 3, 4):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -30,6 +30,11 @@ class Store:
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
                     code TEXT NOT NULL, at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS idempotency_keys (
+                    key TEXT PRIMARY KEY,
+                    job_id TEXT NOT NULL,
+                    signature TEXT NOT NULL
+                );
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -45,7 +50,11 @@ class Store:
                 db.execute(
                     "ALTER TABLE jobs ADD COLUMN error_recoverable INTEGER NOT NULL DEFAULT 1"
                 )
-            db.execute("PRAGMA user_version=3")
+            db.execute(
+                "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
+                "SELECT idem,id,signature FROM jobs"
+            )
+            db.execute("PRAGMA user_version=4")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -194,10 +203,19 @@ class Store:
     def submit(self, key, body):
         signature = sha256_json(body)
         with self.tx() as db:
-            row = db.execute("SELECT * FROM jobs WHERE idem=?", (key,)).fetchone()
-            if row:
-                if row["signature"] != signature:
+            alias = db.execute(
+                "SELECT job_id,signature FROM idempotency_keys WHERE key=?",
+                (key,),
+            ).fetchone()
+            if alias:
+                if alias["signature"] != signature:
                     raise Conflict("IDEMPOTENCY_CONFLICT")
+                row = db.execute(
+                    "SELECT * FROM jobs WHERE id=?",
+                    (alias["job_id"],),
+                ).fetchone()
+                if not row:
+                    raise Conflict("IDEMPOTENCY_STATE_INVALID")
                 return self.dto(row)
             if body.get("kind") == "transcription.craig":
                 active = db.execute(
@@ -210,6 +228,10 @@ class Store:
                     (signature,),
                 ).fetchone()
                 if active:
+                    db.execute(
+                        "INSERT INTO idempotency_keys(key,job_id,signature) VALUES (?,?,?)",
+                        (key, active["id"], signature),
+                    )
                     self.event(
                         db,
                         active["id"],
@@ -239,6 +261,10 @@ class Store:
             db.execute(
                 "INSERT INTO jobs(id,idem,signature,body,status,stage,updated) VALUES (?,?,?,?,'queued','queued',?)",
                 (job_id, key, signature, json.dumps(body), utc_now()),
+            )
+            db.execute(
+                "INSERT INTO idempotency_keys(key,job_id,signature) VALUES (?,?,?)",
+                (key, job_id, signature),
             )
             self.event(db, job_id, "QUEUED", {"total": units})
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
@@ -302,6 +328,7 @@ class Store:
             if row["status"] not in ("succeeded", "failed", "interrupted", "cancelled"):
                 raise Conflict("JOB_ACTIVE")
             db.execute("DELETE FROM events WHERE job_id=?", (job_id,))
+            db.execute("DELETE FROM idempotency_keys WHERE job_id=?", (job_id,))
             db.execute("DELETE FROM jobs WHERE id=?", (job_id,))
             return {"deleted": True, "id": job_id}
 
