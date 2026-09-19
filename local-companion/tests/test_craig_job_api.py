@@ -13,7 +13,7 @@ from tda_companion.asr_runtime import install_whisper_runtime_archive
 from tda_companion.craig import CraigPackage, ingest_craig_zip
 from tda_companion.craig_runtime import load_craig_package
 from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
-from tda_companion.store import Store
+from tda_companion.store import Conflict, Store
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -194,8 +194,7 @@ def test_cancel_cannot_rewrite_failed_or_interrupted_terminal_state(tmp_path: Pa
 
     try:
         store.action(failed_id, "cancel")
-    except Exception as exc:
-        assert isinstance(exc, Exception)
+    except Conflict as exc:
         assert str(exc) == "JOB_TERMINAL"
     else:
         raise AssertionError("failed job must remain terminal")
@@ -213,7 +212,7 @@ def test_cancel_cannot_rewrite_failed_or_interrupted_terminal_state(tmp_path: Pa
 
     try:
         store.action(interrupted_id, "cancel")
-    except Exception as exc:
+    except Conflict as exc:
         assert str(exc) == "JOB_TERMINAL"
     else:
         raise AssertionError("interrupted job must remain terminal")
