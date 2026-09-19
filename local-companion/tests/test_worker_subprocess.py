@@ -123,6 +123,49 @@ def test_worker_process_emits_real_progress_and_result():
     assert messages[-1].payload == {"kind": "synthetic.fixture", "units": 3}
 
 
+def test_supervisor_rejects_protocol_sequence_gap(tmp_path):
+    script = tmp_path / "sequence_gap_worker.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (2, "result", {"kind": command.kind, "units": 1}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_SEQUENCE_GAP") as failure:
+        supervisor.run_fixture(
+            job_id="sequence-gap",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.recoverable is False
+
+
 def test_supervisor_runs_fixture_without_loading_worker_in_agent():
     progress: list[int] = []
     events: list[str] = []
