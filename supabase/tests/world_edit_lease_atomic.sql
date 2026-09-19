@@ -263,8 +263,11 @@ begin
     'synthetic-campaign',
     token_a
   );
-  if result->>'status' <> 'acquired' or (result->>'baseRevision')::bigint <> 3 then
-    raise exception 'fresh lease must observe revision 3: %', result;
+  if result->>'status' <> 'acquired'
+     or (result->>'baseRevision')::bigint <> 3
+     or result->>'previousPublishConfirmed' <> 'true'
+     or (result->>'previousPublishedLayoutRevision')::bigint <> 3 then
+    raise exception 'fresh lease must observe revision 3 and reconcile the previous publish receipt: %', result;
   end if;
 
   result := public.save_world_edit_layout_draft_atomic(
