@@ -158,6 +158,8 @@ def test_v1_local_database_migrates_events_without_losing_jobs(tmp_path):
     Store(tmp_path)
     with sqlite3.connect(path) as db:
         version = db.execute("PRAGMA user_version").fetchone()[0]
-        columns = {row[1] for row in db.execute("PRAGMA table_info(events)").fetchall()}
-    assert version == 2
-    assert {"level", "data"} <= columns
+        event_columns = {row[1] for row in db.execute("PRAGMA table_info(events)").fetchall()}
+        job_columns = {row[1] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
+    assert version == 3
+    assert {"level", "data"} <= event_columns
+    assert "error_recoverable" in job_columns
