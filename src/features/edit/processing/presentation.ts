@@ -2,6 +2,7 @@ import type {
 	BridgeErrorCode,
 	JobEvent,
 	JobStatus,
+	LocalJob,
 } from "./protocol";
 
 export const connectionHelp: Record<BridgeErrorCode, string> = {
@@ -22,6 +23,12 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 	service_error:
 		"O serviço não concluiu a solicitação. Confira o diagnóstico no aplicativo local e conecte novamente.",
 };
+export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
+	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
+	if (job.kind === "transcription.craig") return "Transcrição de sessão";
+	return job.kind;
+}
+
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
 	running: "Processando",
