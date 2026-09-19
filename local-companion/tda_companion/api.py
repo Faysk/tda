@@ -840,9 +840,9 @@ def create_app(
     @app.post("/api/v1/preparation")
     async def prepare_profile(body: ProfilePreparationRequest):
         async with dispatch_gate:
-            if store.has_running_jobs():
+            if store.has_active_jobs():
                 return error(
-                    "TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB",
+                    "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
                     409,
                     True,
                 )
