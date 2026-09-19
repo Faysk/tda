@@ -10,6 +10,67 @@ from .settings import SettingsStore
 from .tray import TrayController
 
 
+class DesktopUiApi:
+    """Narrow pywebview API: machine control only, never editorial ingest or secrets."""
+
+    def __init__(self, bridge: SessionDesktopBridge) -> None:
+        self._bridge = bridge
+
+    def snapshot(self):
+        return self._bridge.snapshot()
+
+    def logs(self, level=None, component=None, limit=200):
+        return self._bridge.logs(level, component, limit)
+
+    def set_queue_paused(self, paused: bool):
+        return self._bridge.set_queue_paused(paused)
+
+    def open_tda(self):
+        return self._bridge.open_tda()
+
+    def open_local_folder(self):
+        return self._bridge.open_local_folder()
+
+    def open_logs_folder(self):
+        return self._bridge.open_logs_folder()
+
+    def update_settings(self, changes):
+        return self._bridge.update_settings(changes)
+
+    def diagnostics(self):
+        return self._bridge.diagnostics()
+
+    def export_diagnostics(self):
+        return self._bridge.export_diagnostics()
+
+    def check_update(self):
+        return self._bridge.check_update()
+
+    def install_update(self):
+        return self._bridge.install_update()
+
+    def check_whisper_runtime(self):
+        return self._bridge.check_whisper_runtime()
+
+    def install_whisper_runtime(self):
+        return self._bridge.install_whisper_runtime()
+
+    def check_qwen_runtime(self):
+        return self._bridge.check_qwen_runtime()
+
+    def install_qwen_runtime(self):
+        return self._bridge.install_qwen_runtime()
+
+    def uninstall(self, purge: bool = False):
+        return self._bridge.uninstall(purge)
+
+    def restart_agent(self):
+        return self._bridge.restart_agent()
+
+    def close_desktop(self):
+        return self._bridge.close_desktop()
+
+
 class DesktopExitCoordinator:
     """Separate a user's close gesture from an intentional product shutdown."""
 
@@ -58,10 +119,11 @@ def run_desktop(
         executable=executable,
         start_agent=start_agent,
     )
+    ui_api = DesktopUiApi(bridge)
     window = webview.create_window(
         "TDA Companion",
         ui_entry().as_uri(),
-        js_api=bridge,
+        js_api=ui_api,
         width=1240,
         height=780,
         min_size=(900, 640),
@@ -71,21 +133,6 @@ def run_desktop(
     )
     exit_coordinator = DesktopExitCoordinator()
     bridge.bind_close_desktop(lambda: exit_coordinator.request_exit(window.destroy))
-
-    def select_craig_zip() -> str | None:
-        selected = window.create_file_dialog(
-            webview.FileDialog.OPEN,
-            allow_multiple=False,
-            file_types=("Craig ZIP (*.zip)",),
-        )
-        if not selected:
-            return None
-        if isinstance(selected, str):
-            return selected
-        first = selected[0] if isinstance(selected, (list, tuple)) and selected else None
-        return str(first) if first else None
-
-    bridge.bind_select_craig_zip(select_craig_zip)
 
     tray: TrayController | None = None
     if settings.snapshot().get("show_tray"):

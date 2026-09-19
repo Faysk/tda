@@ -28,7 +28,7 @@ def _bridge(tmp_path: Path) -> SessionDesktopBridge:
         executable=tmp_path / "TDACompanion.exe",
         start_agent=lambda: None,
     )
-    bridge._has_running_job = lambda: False  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
     return bridge
 
 
@@ -182,7 +182,7 @@ def test_prepare_blocks_while_transcription_is_running(tmp_path: Path):
     bridge = _bridge(tmp_path)
     source_id = _source_id()
     bridge._selected_sources.add(source_id)
-    bridge._has_running_job = lambda: True  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: True  # type: ignore[method-assign]
 
     with pytest.raises(RuntimeError, match="TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB"):
         bridge.prepare_transcription_profile(source_id, "qwen-quality")

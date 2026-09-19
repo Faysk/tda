@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,42 @@ def _validate_candidate_release_identity(
         _raise("RUNTIME_RC_RELEASE_INCOMPLETE")
 
 
+def _sanitize_candidate_cache(
+    target_root: Path,
+    candidate: dict[str, Any],
+) -> None:
+    assets = candidate.get("assets")
+    if not isinstance(assets, list):
+        _raise("RUNTIME_RC_CANDIDATE_INVALID")
+    allowed = {_CANDIDATE_ASSET, _CANDIDATE_ASSET + ".partial"}
+    for item in assets:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            _raise("RUNTIME_RC_CANDIDATE_INVALID")
+        name = str(item["name"])
+        if Path(name).name != name:
+            _raise("RUNTIME_RC_CANDIDATE_INVALID")
+        allowed.add(name)
+        allowed.add(name + ".partial")
+
+    try:
+        entries = list(target_root.iterdir())
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise RuntimeRcUpdateError("RUNTIME_RC_CACHE_READ_FAILED") from exc
+
+    for entry in entries:
+        if entry.name in allowed and not entry.is_symlink():
+            continue
+        try:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink(missing_ok=True)
+        except OSError as exc:
+            raise RuntimeRcUpdateError("RUNTIME_RC_CACHE_CLEANUP_FAILED") from exc
+
+
 def _download_candidate_assets(
     release: dict[str, Any],
     candidate: dict[str, Any],
@@ -327,6 +364,7 @@ def install_published_runtime_rc(
     version = _VERSIONS[family]
     target_root = cache_root.resolve() / "runtime-rc" / family / version / tag
     target_root.mkdir(parents=True, exist_ok=True)
+    _sanitize_candidate_cache(target_root, candidate)
     candidate_path = target_root / _CANDIDATE_ASSET
     temporary = candidate_path.with_name(candidate_path.name + ".partial")
     try:

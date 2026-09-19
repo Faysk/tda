@@ -97,3 +97,16 @@ def test_cached_old_product_uninstall_cannot_touch_new_package_guard():
     install_commit = 'NOT (REMOVE="ALL") AND (NOT UPGRADINGPRODUCTCODE)'
     assert direct_uninstall in source
     assert install_commit in source
+
+
+def test_installer_registers_per_user_tda_companion_url_protocol():
+    source = _wxs()
+
+    assert 'Id="UrlProtocolRegistration"' in source
+    assert 'Root="HKCU"' in source
+    assert 'Key="Software\\Classes\\tda-companion"' in source
+    assert 'Name="URL Protocol"' in source
+    assert 'Value="URL:TDA Companion Protocol"' in source
+    assert 'Key="Software\\Classes\\tda-companion\\shell\\open\\command"' in source
+    assert 'Value="&quot;[#TDACompanionExe]&quot; --ui"' in source
+    assert '<ComponentRef Id="UrlProtocolRegistration" />' in source

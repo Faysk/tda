@@ -14,6 +14,7 @@ from .asr_models import (
     get_profile,
     inspect_model_install,
     model_path,
+    verify_and_upgrade_model_install,
 )
 from .qwen_acceptance import (
     ACCEPTANCE_SCHEMA,
@@ -140,11 +141,24 @@ def _runtime_identity(runtime_root: Path, *, verify_worker: bool) -> dict[str, s
     }
 
 
-def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) -> dict[str, str]:
+def _model_identity(
+    models_root: Path,
+    profile_id: str,
+    *,
+    verify_hash: bool,
+    verification: dict[str, bool] | None = None,
+) -> dict[str, str]:
     profile = get_profile(profile_id)
     if profile.engine != "qwen3" or profile.id not in QWEN_PROFILES:
         raise QwenPhysicalGateError("QWEN_GATE_PROFILE_INVALID")
-    state = inspect_model_install(models_root, profile, verify_hash=verify_hash)
+    state = inspect_model_install(
+        models_root,
+        profile,
+        verify_hash=verify_hash,
+        verification=verification,
+    )
+    if state.get("status") == "corrupt":
+        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
         raise QwenPhysicalGateError("QWEN_GATE_MODEL_NOT_READY")
     try:
@@ -160,8 +174,20 @@ def _model_identity(models_root: Path, profile_id: str, *, verify_hash: bool) ->
     }
 
 
-def _aligner_identity(models_root: Path, *, verify_hash: bool) -> dict[str, str]:
-    state = inspect_model_install(models_root, ALIGNER_PROFILE, verify_hash=verify_hash)
+def _aligner_identity(
+    models_root: Path,
+    *,
+    verify_hash: bool,
+    verification: dict[str, bool] | None = None,
+) -> dict[str, str]:
+    state = inspect_model_install(
+        models_root,
+        ALIGNER_PROFILE,
+        verify_hash=verify_hash,
+        verification=verification,
+    )
+    if state.get("status") == "corrupt":
+        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
     if state.get("status") != "ready" or not _is_sha256(state.get("content_sha256")):
         raise QwenPhysicalGateError("QWEN_GATE_ALIGNER_NOT_READY")
     try:
@@ -368,10 +394,21 @@ def inspect_qwen_physical_gate(
             "reason": "QWEN_GATE_AUDIO_TOO_SHORT",
         }
 
+    model_verification: dict[str, bool] = {}
+    aligner_verification: dict[str, bool] = {}
     try:
         runtime = _runtime_identity(runtime_root, verify_worker=verify_model_content)
-        model = _model_identity(models_root, profile_id, verify_hash=verify_model_content)
-        aligner = _aligner_identity(models_root, verify_hash=verify_model_content)
+        model = _model_identity(
+            models_root,
+            profile_id,
+            verify_hash=verify_model_content,
+            verification=model_verification,
+        )
+        aligner = _aligner_identity(
+            models_root,
+            verify_hash=verify_model_content,
+            verification=aligner_verification,
+        )
     except QwenPhysicalGateError as exc:
         return {
             "status": "stale",
@@ -404,6 +441,48 @@ def inspect_qwen_physical_gate(
                 "profile_id": profile_id,
                 "reason": "QWEN_GATE_BINDING_CHANGED",
             }
+        # Legacy v1 did not seal cheap file metadata. Before promoting it
+        # to v2, prove the current runtime/model/aligner bytes still match the
+        # accepted identities. This is intentionally a one-time deep verification,
+        # never part of normal dispatch.
+        try:
+            runtime = _runtime_identity(runtime_root, verify_worker=True)
+            model_state = verify_and_upgrade_model_install(models_root, profile_id)
+            aligner_state = verify_and_upgrade_model_install(models_root, ALIGNER_PROFILE)
+            if model_state.get("status") != "ready":
+                raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+            if aligner_state.get("status") != "ready":
+                raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+            model = _model_identity(models_root, profile_id, verify_hash=False)
+            aligner = _aligner_identity(models_root, verify_hash=False)
+        except (ModelRegistryError, OSError, QwenPhysicalGateError):
+            return {
+                "status": "stale",
+                "ready": False,
+                "profile_id": profile_id,
+                "reason": "QWEN_GATE_BINDING_CHANGED",
+            }
+
+        deep_legacy_binding = _binding_payload(
+            profile_id,
+            _legacy_identity(runtime),
+            _legacy_identity(model),
+            _legacy_identity(aligner),
+            schema=LEGACY_GATE_SCHEMA,
+        )
+        if (
+            value.get("runtime") != _legacy_identity(runtime)
+            or value.get("model") != _legacy_identity(model)
+            or value.get("aligner") != _legacy_identity(aligner)
+            or value.get("binding_sha256") != _canonical_sha256(deep_legacy_binding)
+        ):
+            return {
+                "status": "stale",
+                "ready": False,
+                "profile_id": profile_id,
+                "reason": "QWEN_GATE_BINDING_CHANGED",
+            }
+
         binding = _binding_payload(profile_id, runtime, model, aligner)
         value = {
             **value,
@@ -414,19 +493,82 @@ def inspect_qwen_physical_gate(
         _atomic_json(path, value)
     else:
         binding = _binding_payload(profile_id, runtime, model, aligner)
-        if (
-            value.get("runtime") != runtime
-            or value.get("model") != model
-            or value.get("aligner") != aligner
-            or value.get("binding_sha256") != _canonical_sha256(binding)
-            or not _is_sha256(value.get("acceptance_sha256"))
-        ):
-            return {
-                "status": "stale",
-                "ready": False,
-                "profile_id": profile_id,
-                "reason": "QWEN_GATE_BINDING_CHANGED",
+        binding_matches = (
+            value.get("runtime") == runtime
+            and value.get("model") == model
+            and value.get("aligner") == aligner
+            and value.get("binding_sha256") == _canonical_sha256(binding)
+            and _is_sha256(value.get("acceptance_sha256"))
+        )
+        if not binding_matches:
+            stored_runtime = value.get("runtime") if isinstance(value.get("runtime"), dict) else {}
+            stored_model = value.get("model") if isinstance(value.get("model"), dict) else {}
+            stored_aligner = value.get("aligner") if isinstance(value.get("aligner"), dict) else {}
+            metadata_only_drift = (
+                _is_sha256(value.get("acceptance_sha256"))
+                and _legacy_identity(stored_runtime) == _legacy_identity(runtime)
+                and _legacy_identity(stored_model) == _legacy_identity(model)
+                and _legacy_identity(stored_aligner) == _legacy_identity(aligner)
+            )
+            if not metadata_only_drift:
+                return {
+                    "status": "stale",
+                    "ready": False,
+                    "profile_id": profile_id,
+                    "reason": "QWEN_GATE_BINDING_CHANGED",
+                }
+
+            # A metadata-only difference can come from copy/backup/AV activity.
+            # Deep-verify only the components whose sealed metadata actually
+            # changed. Unchanged component bindings already match the accepted v2
+            # receipt and must not trigger unrelated multi-GB reads.
+            runtime_drift = stored_runtime != runtime
+            model_drift = stored_model != model
+            aligner_drift = stored_aligner != aligner
+            try:
+                if runtime_drift:
+                    runtime = _runtime_identity(runtime_root, verify_worker=True)
+                if model_drift and not model_verification.get("content_verified"):
+                    model_state = verify_and_upgrade_model_install(models_root, profile_id)
+                    if model_state.get("status") != "ready":
+                        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+                    model = _model_identity(models_root, profile_id, verify_hash=False)
+                if aligner_drift and not aligner_verification.get("content_verified"):
+                    aligner_state = verify_and_upgrade_model_install(
+                        models_root,
+                        ALIGNER_PROFILE,
+                    )
+                    if aligner_state.get("status") != "ready":
+                        raise QwenPhysicalGateError("QWEN_GATE_BINDING_CHANGED")
+                    aligner = _aligner_identity(models_root, verify_hash=False)
+            except (ModelRegistryError, OSError, QwenPhysicalGateError):
+                return {
+                    "status": "stale",
+                    "ready": False,
+                    "profile_id": profile_id,
+                    "reason": "QWEN_GATE_BINDING_CHANGED",
+                }
+
+            if (
+                _legacy_identity(stored_runtime) != _legacy_identity(runtime)
+                or _legacy_identity(stored_model) != _legacy_identity(model)
+                or _legacy_identity(stored_aligner) != _legacy_identity(aligner)
+            ):
+                return {
+                    "status": "stale",
+                    "ready": False,
+                    "profile_id": profile_id,
+                    "reason": "QWEN_GATE_BINDING_CHANGED",
+                }
+
+            binding = _binding_payload(profile_id, runtime, model, aligner)
+            value = {
+                **value,
+                **binding,
+                "binding_sha256": _canonical_sha256(binding),
+                "metadata_sealed_at": _utc_now(),
             }
+            _atomic_json(path, value)
 
     gpu = value.get("gpu") if isinstance(value.get("gpu"), dict) else {}
     required = str(value.get("required_gpu_name") or "").strip()

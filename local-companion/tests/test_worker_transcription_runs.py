@@ -17,6 +17,7 @@ from tda_companion.transcript import (
     TranscriptWord,
     stats_for_tracks,
 )
+from tda_companion.transcript import TranscriptValidationError
 from tda_companion.transcription_runs import list_runs
 from tda_companion.worker_protocol import WorkerRunCommand
 
@@ -87,6 +88,131 @@ def _run(command: WorkerRunCommand) -> tuple[int, list[dict]]:
     code = worker._run_craig(command, emitter, threading.Event())
     messages = [json.loads(line) for line in stream.getvalue().splitlines() if line]
     return code, messages
+
+
+def test_worker_cleans_only_uncommitted_crash_runs_before_asr(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "recuperado"),
+    )
+
+    orphan = package_root / "runs" / "run-crashed-a1"
+    orphan.mkdir(parents=True)
+    (orphan / "transcript.json.partial").write_text("partial", encoding="utf-8")
+
+    committed = package_root / "runs" / "run-preserve-a1"
+    committed.mkdir(parents=True)
+    (committed / "run.json").write_text("keep-even-if-invalid", encoding="utf-8")
+
+    code, messages = _run(_command("job-clean-orphan", source_id))
+
+    assert code == 0
+    assert not orphan.exists()
+    assert committed.is_dir()
+    event = next(
+        message
+        for message in messages
+        if message["type"] == "event"
+        and message["payload"].get("code") == "INCOMPLETE_RUNS_CLEANED"
+    )
+    assert event["payload"]["count"] == 1
+
+
+def test_worker_marks_invalid_transcript_output_non_retryable(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, _package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "resultado inválido"),
+    )
+    monkeypatch.setattr(
+        worker,
+        "write_completed_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            TranscriptValidationError("segment:INVALID")
+        ),
+    )
+
+    code, messages = _run(_command("job-invalid-transcript", source_id))
+
+    assert code == 66
+    error = next(message for message in messages if message["type"] == "error")
+    assert error["payload"] == {
+        "code": "TRANSCRIPT_VALIDATION_FAILED",
+        "recoverable": False,
+    }
+
+
+def test_worker_rejects_transcript_bound_to_a_different_source(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, _source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document("f" * 64, "fonte errada"),
+    )
+
+    code, messages = _run(_command("job-wrong-source", source_id))
+
+    assert code == 66
+    error = next(message for message in messages if message["type"] == "error")
+    assert error["payload"]["code"] == "TRANSCRIPTION_SOURCE_HASH_MISMATCH"
+    assert list_runs(package_root, verify_content=True) == []
+
+
+def test_worker_succeeds_when_legacy_mirror_write_fails(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "resultado autoritativo"),
+    )
+    monkeypatch.setattr(
+        worker,
+        "write_compatibility_mirror",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("locked")),
+    )
+
+    code, messages = _run(_command("job-mirror-locked", source_id))
+
+    assert code == 0
+    result = next(message for message in messages if message["type"] == "result")
+    run_id = result["payload"]["run_id"]
+    assert (package_root / "runs" / run_id / "run.json").is_file()
+    warning = next(
+        message
+        for message in messages
+        if message["type"] == "event"
+        and message["payload"].get("code") == "COMPATIBILITY_MIRROR_WRITE_FAILED"
+    )
+    assert warning["payload"]["reason"] == "write_failed"
+    assert len(list_runs(package_root, verify_content=True)) == 1
 
 
 def test_worker_keeps_previous_run_and_uses_root_only_as_latest_compatibility_mirror(

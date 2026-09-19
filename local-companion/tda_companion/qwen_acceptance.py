@@ -267,9 +267,15 @@ def _download_snapshot(
 def _resumable_model_staging(downloads: Path, directory: str) -> Path:
     candidates: list[tuple[float, Path]] = []
     for candidate in downloads.glob(f"{directory}-*.partial"):
-        if not candidate.is_dir():
-            continue
         try:
+            # Resumable staging is writable input. Never follow a symlink or
+            # Windows junction left in .downloads, otherwise model preparation
+            # could write outside the configured Models root.
+            is_junction = bool(
+                getattr(candidate, "is_junction", lambda: False)()
+            )
+            if candidate.is_symlink() or is_junction or not candidate.is_dir():
+                continue
             modified = candidate.stat().st_mtime
         except OSError:
             continue

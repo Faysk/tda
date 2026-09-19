@@ -3,11 +3,19 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable
 
+from .asr_models import (
+    ModelRegistryError,
+    get_profile,
+    reset_model_install,
+    verify_and_upgrade_model_install,
+)
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .qwen_acceptance import ALIGNER_PROFILE
 from .qwen_acceptance_window import QWEN_GATE_WINDOW_SECONDS
 from .qwen_runtime import current_qwen_worker
 
@@ -55,33 +63,88 @@ def _run(
     *,
     timeout: float,
     runner: Callable[..., Any],
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> Any:
+    if is_cancelled is not None and is_cancelled():
+        raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
+
+    # Tests and explicit callers can still inject a simple subprocess.run-like
+    # runner. Production uses Popen so cancellation can stop native/CUDA work.
+    if runner is not subprocess.run:
+        try:
+            result = runner(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=timeout,
+                check=False,
+                creationflags=_creationflags(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise QwenDesktopPrepareError("QWEN_PREPARATION_TIMEOUT") from exc
+        except OSError as exc:
+            raise QwenDesktopPrepareError("QWEN_RUNTIME_EXEC_FAILED") from exc
+        if is_cancelled is not None and is_cancelled():
+            raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
+        return result
+
     try:
-        return runner(
+        process = subprocess.Popen(
             command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
-            timeout=timeout,
-            check=False,
             creationflags=_creationflags(),
         )
-    except subprocess.TimeoutExpired as exc:
-        raise QwenDesktopPrepareError("QWEN_PREPARATION_TIMEOUT") from exc
     except OSError as exc:
         raise QwenDesktopPrepareError("QWEN_RUNTIME_EXEC_FAILED") from exc
+
+    deadline = time.monotonic() + timeout
+    while True:
+        if is_cancelled is not None and is_cancelled():
+            process.terminate()
+            try:
+                process.communicate(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+            raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            process.kill()
+            process.communicate()
+            raise QwenDesktopPrepareError("QWEN_PREPARATION_TIMEOUT")
+        try:
+            stdout, _ = process.communicate(timeout=min(0.25, remaining))
+            return subprocess.CompletedProcess(
+                command,
+                process.returncode,
+                stdout=stdout,
+                stderr=None,
+            )
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def probe_qwen_long_track_gate(
     runtime_root: Path,
     *,
     runner: Callable[..., Any] = subprocess.run,
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     worker = current_qwen_worker(runtime_root)
     if worker is None:
         raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
-    result = _run([str(worker), "--probe"], timeout=30.0, runner=runner)
+    result = _run(
+        [str(worker), "--probe"],
+        timeout=30.0,
+        runner=runner,
+        is_cancelled=is_cancelled,
+    )
     value = _parse_json_stdout(result, schema="tda_qwen_runtime_probe_v1")
     if value.get("audio_decode_ready") is not True:
         raise QwenDesktopPrepareError("QWEN_AUDIO_DECODE_RUNTIME_FAILED")
@@ -99,6 +162,21 @@ def probe_qwen_long_track_gate(
     return value
 
 
+def _verify_or_reset_qwen_model(
+    models_root: Path,
+    profile,
+    *,
+    corrupt_code: str,
+) -> None:
+    state = verify_and_upgrade_model_install(models_root, profile)
+    if state.get("status") != "corrupt":
+        return
+    try:
+        reset_model_install(models_root, profile)
+    except ModelRegistryError as exc:
+        raise QwenDesktopPrepareError(corrupt_code) from exc
+
+
 def prepare_qwen_profile_from_craig(
     *,
     data_root: Path,
@@ -111,15 +189,33 @@ def prepare_qwen_profile_from_craig(
     required_gpu_name: str = "",
     runner: Callable[..., Any] = subprocess.run,
     progress: ProgressCallback | None = None,
+    is_cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     if profile_id not in {"qwen-fast", "qwen-quality"}:
         raise QwenDesktopPrepareError("QWEN_PROFILE_REQUIRED")
+    if is_cancelled is not None and is_cancelled():
+        raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
     report = progress or (lambda _stage, _context: None)
     worker = current_qwen_worker(runtime_root)
     if worker is None:
         raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
+    profile = get_profile(profile_id)
+    _verify_or_reset_qwen_model(
+        models_root,
+        profile,
+        corrupt_code="QWEN_MODEL_REPAIR_FAILED",
+    )
+    _verify_or_reset_qwen_model(
+        models_root,
+        ALIGNER_PROFILE,
+        corrupt_code="QWEN_ALIGNER_REPAIR_FAILED",
+    )
     report("runtime_probe", {"profile_id": profile_id})
-    probe = probe_qwen_long_track_gate(runtime_root, runner=runner)
+    probe = probe_qwen_long_track_gate(
+        runtime_root,
+        runner=runner,
+        is_cancelled=is_cancelled,
+    )
     report(
         "runtime_probe_ready",
         {
@@ -131,9 +227,15 @@ def prepare_qwen_profile_from_craig(
 
     package_root = data_root.resolve() / "staging" / source_id
     try:
-        package = load_craig_package(package_root, verify_tracks=True)
+        package = load_craig_package(package_root, verify_tracks=False)
+        if any(track.staged_mtime_ns is None for track in package.tracks):
+            # Legacy packages predate the cheap metadata seal. Deep-verify once;
+            # load_craig_package backfills the seal after successful hashes.
+            package = load_craig_package(package_root, verify_tracks=True)
     except CraigPackageError as exc:
         raise QwenDesktopPrepareError(str(exc)) from exc
+    if is_cancelled is not None and is_cancelled():
+        raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
     if not package.tracks:
         raise QwenDesktopPrepareError("CRAIG_TRACKS_EMPTY")
     report(
@@ -146,6 +248,8 @@ def prepare_qwen_profile_from_craig(
     last_retryable: str | None = None
     candidates = sorted(package.tracks, key=lambda track: (-track.size_bytes, track.number))
     for track in candidates:
+        if is_cancelled is not None and is_cancelled():
+            raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
         source = (package_root / track.path).resolve()
         if package_root.resolve() not in source.parents or not source.is_file():
             last_retryable = "CRAIG_TRACK_PATH_INVALID"
@@ -178,7 +282,12 @@ def prepare_qwen_profile_from_craig(
         ]
         if required_gpu_name.strip():
             command.extend(["--require-gpu-name", required_gpu_name.strip()])
-        result = _run(command, timeout=_GATE_TIMEOUT_SECONDS, runner=runner)
+        result = _run(
+            command,
+            timeout=_GATE_TIMEOUT_SECONDS,
+            runner=runner,
+            is_cancelled=is_cancelled,
+        )
         value = _parse_json_stdout(result, schema="tda_qwen_gpu_acceptance_v1")
         if int(getattr(result, "returncode", 1)) != 0 or value.get("pass") is not True:
             code = str(value.get("error") or "QWEN_PHYSICAL_ACCEPTANCE_FAILED")

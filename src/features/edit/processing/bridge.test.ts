@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { LocalBridge } from "./bridge";
-import { LOCAL_API, parseJob, parseJobs, parseResultSummary } from "./protocol";
+import {
+	LOCAL_API,
+	parseCapabilities,
+	parseJob,
+	parseJobEvents,
+	parseJobs,
+	parsePreparationStatus,
+	parseResultSummary,
+} from "./protocol";
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
 const job = {
@@ -13,6 +21,25 @@ const job = {
 	result_available: false,
 	updated_at: "2026-09-07T12:00:00Z",
 };
+describe("processing protocol contract", () => {
+	it("accepts the Agent's full 96-character worker event code budget", () => {
+		const code = "A".repeat(96);
+		expect(
+			parseJobEvents({
+				events: [
+					{
+						seq: 1,
+						code,
+						at: "2026-09-19T12:00:00Z",
+						level: "info",
+						data: {},
+					},
+				],
+			})[0]?.code,
+		).toBe(code);
+	});
+});
+
 describe("loopback bridge", () => {
 	it("keeps credentials off health and only sends bearer to fixed loopback", async () => {
 		const request = vi
@@ -59,6 +86,205 @@ describe("loopback bridge", () => {
 		});
 		expect(request).toHaveBeenCalledTimes(2);
 	});
+	it("bootstraps an ephemeral browser credential without a copied master token", async () => {
+		const sessionToken = "browser_session_token_123456789012345678901234";
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session"))
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionToken,
+					expires_in_seconds: 28_800,
+				});
+			return Response.json({ jobs: [] });
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		await bridge.jobs(signal());
+
+		expect(request).toHaveBeenCalledTimes(3);
+		expect(request.mock.calls[0][1]?.headers).not.toHaveProperty("Authorization");
+		expect(request.mock.calls[1][1]?.headers).not.toHaveProperty("Authorization");
+		expect(request.mock.calls[1][0]).toBe(`${LOCAL_API}/session`);
+		expect(request.mock.calls[2][1]?.headers).toMatchObject({
+			Authorization: `Bearer ${sessionToken}`,
+		});
+	});
+
+	it("renews an expired browser session and retries with the replacement bearer", async () => {
+		const firstToken = "browser_session_token_111111111111111111111111";
+		const secondToken = "browser_session_token_22222222222222222222222";
+		let sessionCount = 0;
+		let jobsCount = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session")) {
+				sessionCount += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionCount === 1 ? firstToken : secondToken,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/jobs")) {
+				jobsCount += 1;
+				if (jobsCount === 1)
+					return Response.json(
+						{ error: { code: "SESSION_EXPIRED", recoverable: true } },
+						{ status: 401 },
+					);
+				return Response.json({ jobs: [] });
+			}
+			throw new Error("unexpected request");
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		const jobs = await bridge.jobs(signal());
+
+		expect(jobs).toEqual([]);
+		expect(sessionCount).toBe(2);
+		expect(jobsCount).toBe(2);
+		const retriedJobs = request.mock.calls.at(-1);
+		expect(retriedJobs?.[1]?.headers).toMatchObject({
+			Authorization: `Bearer ${secondToken}`,
+		});
+	});
+
+	it("renews an expired browser session before retrying a Craig upload", async () => {
+		const firstToken = "browser_session_token_333333333333333333333333";
+		const secondToken = "browser_session_token_44444444444444444444444";
+		let sessionCount = 0;
+		let uploadCount = 0;
+		const sourceId = `craig-${"a".repeat(64)}`;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session")) {
+				sessionCount += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionCount === 1 ? firstToken : secondToken,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/sources/craig")) {
+				uploadCount += 1;
+				if (uploadCount === 1)
+					return Response.json(
+						{ error: { code: "SESSION_EXPIRED", recoverable: true } },
+						{ status: 401 },
+					);
+				expect(init?.headers).toMatchObject({
+					Authorization: `Bearer ${secondToken}`,
+				});
+				return Response.json({
+					schema_version: "tda_craig_ingest_v1",
+					source_id: sourceId,
+					source_sha256: "a".repeat(64),
+					size_bytes: 3,
+					track_count: 1,
+					reused: false,
+					source_name: "session.zip",
+				});
+			}
+			throw new Error("unexpected request");
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		const staged = await bridge.craigSource(
+			new File([new Uint8Array([1, 2, 3])], "session.zip", {
+				type: "application/zip",
+			}),
+			signal(),
+		);
+
+		expect(staged.sourceId).toBe(sourceId);
+		expect(sessionCount).toBe(2);
+		expect(uploadCount).toBe(2);
+	});
+
+	it("fails as incompatible before requesting a session from Companion 0.3.13", async () => {
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({
+				api_version: "1",
+				service_version: "0.3.13",
+				lifecycle: "ready",
+			}),
+		);
+		const bridge = new LocalBridge(request);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "incompatible",
+		});
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/health`);
+	});
+
+	it("starts and observes Agent-owned profile preparation", async () => {
+		const sourceId = `craig-${"a".repeat(64)}`;
+		const preparation = {
+			schema: "tda_profile_preparation_v1",
+			state: "running",
+			active: true,
+			operation_id: "op123",
+			source_id: sourceId,
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			stage: "qwen_probe",
+			title: "Verificando CUDA e runtime…",
+			detail: "Validação local.",
+			sequence: 2,
+			elapsed_seconds: 1.5,
+			error_code: null,
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async () =>
+			Response.json(preparation),
+		);
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		const started = await bridge.prepareProfile(
+			sourceId,
+			"qwen-quality",
+			signal(),
+		);
+		const observed = await bridge.preparation(signal());
+
+		expect(started).toMatchObject({
+			state: "running",
+			profileId: "qwen-quality",
+			stage: "qwen_probe",
+		});
+		expect(observed.operationId).toBe("op123");
+		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/preparation`);
+		expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+			source_id: sourceId,
+			profile_id: "qwen-quality",
+		});
+		expect(request.mock.calls[1][1]?.method).toBe("GET");
+		bridge.disconnect();
+	});
+
 	it("deletes a terminal job through the authenticated local action endpoint", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({ deleted: true, id: "test-job" }),
@@ -154,6 +380,55 @@ describe("loopback bridge", () => {
 		});
 	});
 });
+describe("preparation wire validation", () => {
+	it("parses the full profile catalog and preparation status", () => {
+		const capabilities = parseCapabilities({
+			capabilities: ["transcription.prepare"],
+			sync: false,
+			device: { id: "device-1", label: "TDA local" },
+			transcription: {
+				profiles: [],
+				catalog: [
+					{
+						id: "qwen-quality",
+						engine: "qwen3",
+						ready: false,
+						preparation_required: true,
+						reason: "QWEN_RUNTIME_REQUIRED",
+					},
+				],
+			},
+		});
+		expect(capabilities.transcription.catalog[0]).toMatchObject({
+			id: "qwen-quality",
+			ready: false,
+			preparationRequired: true,
+		});
+
+		expect(
+			parsePreparationStatus({
+				schema: "tda_profile_preparation_v1",
+				state: "completed",
+				active: false,
+				operation_id: "op123",
+				source_id: `craig-${"a".repeat(64)}`,
+				profile_id: "qwen-quality",
+				engine: "qwen3",
+				stage: "complete",
+				title: "Preparação concluída.",
+				detail: "Pronto.",
+				sequence: 8,
+				elapsed_seconds: 42.5,
+				error_code: null,
+			}),
+		).toMatchObject({
+			state: "completed",
+			profileId: "qwen-quality",
+			elapsedSeconds: 42.5,
+		});
+	});
+});
+
 describe("wire validation", () => {
 	it.each([
 		{ completed: 4, total: 3, unit: "items" },
@@ -167,6 +442,43 @@ describe("wire validation", () => {
 		expect(parseJob({ ...job, progress: null }).progress).toBeNull();
 		expect(() => parseJobs({ jobs: [job, job] })).toThrow();
 	});
+	it("retains immutable run identity for transcription results", () => {
+		const value = {
+			schema_version: "tda_local_result_v1",
+			campaign_id: "campaign",
+			session_id: "session",
+			source_id: "source",
+			job_id: "job-transcription",
+			transcription: {
+				schema_version: "tda_transcript_v1",
+				profile_id: "qwen-quality",
+				artifact: "transcript.json",
+				run_id: "run-job-transcription-a2",
+				sha256: "b".repeat(64),
+			},
+			sync: { status: "not_configured" },
+		};
+		expect(parseResultSummary(value, "job-transcription")).toEqual({
+			campaignId: "campaign",
+			sessionId: "session",
+			sourceId: "source",
+			jobId: "job-transcription",
+			publicationId: "b".repeat(64),
+			profileId: "qwen-quality",
+			transcriptSha256: "b".repeat(64),
+			runId: "run-job-transcription-a2",
+		});
+		expect(() =>
+			parseResultSummary(
+				{
+					...value,
+					transcription: { ...value.transcription, run_id: "../outside" },
+				},
+				"job-transcription",
+			),
+		).toThrow();
+	});
+
 	it("retains only result identity bound to the requested job", () => {
 		const value = {
 			schema_version: "tda_local_result_v1",

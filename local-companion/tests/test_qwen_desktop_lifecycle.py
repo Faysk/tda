@@ -72,7 +72,7 @@ def test_check_qwen_runtime_reports_download_shape(monkeypatch, tmp_path: Path):
 
 def test_install_qwen_runtime_downloads_installs_and_verifies(monkeypatch, tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_running_job = lambda: False  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
     manifest = _manifest()
     archive = tmp_path / "runtime.zip"
     archive.write_bytes(b"runtime")
@@ -103,7 +103,7 @@ def test_install_qwen_runtime_downloads_installs_and_verifies(monkeypatch, tmp_p
 
 def test_install_qwen_runtime_repairs_same_corrupt_version(monkeypatch, tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_running_job = lambda: False  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
     manifest = _manifest()
     archive = tmp_path / "runtime.zip"
     archive.write_bytes(b"runtime")
@@ -131,7 +131,7 @@ def test_install_qwen_runtime_repairs_same_corrupt_version(monkeypatch, tmp_path
 
 def test_install_qwen_runtime_is_blocked_while_job_runs(monkeypatch, tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_running_job = lambda: True  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: True  # type: ignore[method-assign]
     monkeypatch.setattr(
         desktop,
         "fetch_qwen_runtime_manifest",
@@ -143,7 +143,7 @@ def test_install_qwen_runtime_is_blocked_while_job_runs(monkeypatch, tmp_path: P
 
 def test_install_qwen_runtime_noops_when_current_version_is_ready(monkeypatch, tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_running_job = lambda: False  # type: ignore[method-assign]
+    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
     manifest = _manifest()
     monkeypatch.setattr(
         desktop,

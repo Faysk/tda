@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import re
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -10,6 +12,7 @@ from starlette.responses import JSONResponse, Response
 
 from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
+from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
 from .system_log import SystemLog
 from .transcription_runs import TranscriptionRunError, ensure_legacy_and_list
@@ -55,6 +58,9 @@ class CraigIngestBoundary:
         origins: frozenset[str],
         port: int,
         system_log: SystemLog | None = None,
+        browser_sessions: BrowserSessionManager | None = None,
+        source_gate: object | None = None,
+        source_running: Callable[[str], bool] | None = None,
     ) -> None:
         self.app = app
         self.data_root = data_root.resolve()
@@ -62,6 +68,9 @@ class CraigIngestBoundary:
         self.origins = origins
         self.port = port
         self.system_log = system_log
+        self.browser_sessions = browser_sessions
+        self.source_gate = source_gate
+        self.source_running = source_running
 
     def _log(self, code: str, message: str, context: dict[str, object] | None = None) -> None:
         if self.system_log is not None:
@@ -71,10 +80,22 @@ class CraigIngestBoundary:
         response.headers.update(_cors_headers(origin))
         await response(scope, receive, send)
 
-    def _authorized(self, request: Request) -> bool:
-        return hmac.compare_digest(
-            request.headers.get("authorization", "").encode("utf-8"),
+    def _authorized(self, request: Request, origin: str | None) -> bool:
+        authorization = request.headers.get("authorization", "")
+        if hmac.compare_digest(
+            authorization.encode("utf-8"),
             f"Bearer {self.token}".encode("ascii"),
+        ):
+            return True
+        if (
+            self.browser_sessions is None
+            or origin is None
+            or not authorization.startswith("Bearer ")
+        ):
+            return False
+        return self.browser_sessions.validate(
+            authorization[len("Bearer "):],
+            origin,
         )
 
     async def _common_guard(self, request: Request, scope, receive, send) -> tuple[str | None, bool]:
@@ -87,6 +108,21 @@ class CraigIngestBoundary:
             await self._send_response(_error("ORIGIN_REJECTED", 403), scope, receive, send, origin)
             return origin, False
         return origin, True
+
+    def _run_listing(self, source_id: str) -> dict[str, object]:
+        staging_root = (self.data_root / "staging").resolve()
+        package_root = (staging_root / source_id).resolve()
+        if package_root.parent != staging_root:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        with gate:
+            package = load_craig_package(package_root, verify_tracks=False)
+            return ensure_legacy_and_list(
+                package_root,
+                source_id=source_id,
+                source_sha256=package.source_sha256,
+                verify_content=False,
+            )
 
     async def _runs(self, request: Request, source_id: str, scope, receive, send) -> None:
         origin, allowed = await self._common_guard(request, scope, receive, send)
@@ -121,23 +157,12 @@ class CraigIngestBoundary:
         if request.method != "GET":
             await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
             return
-        if not self._authorized(request):
+        if not self._authorized(request, origin):
             await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
             return
 
-        staging_root = (self.data_root / "staging").resolve()
-        package_root = (staging_root / source_id).resolve()
-        if package_root.parent != staging_root:
-            await self._send_response(_error("CRAIG_STAGING_PATH_INVALID", 409, True), scope, receive, send, origin)
-            return
         try:
-            package = load_craig_package(package_root, verify_tracks=False)
-            value = ensure_legacy_and_list(
-                package_root,
-                source_id=source_id,
-                source_sha256=package.source_sha256,
-                verify_content=False,
-            )
+            value = await asyncio.to_thread(self._run_listing, source_id)
             response = JSONResponse(value)
         except CraigPackageError as exc:
             response = _error(str(exc), 404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409, True)
@@ -197,7 +222,7 @@ class CraigIngestBoundary:
         if not origin:
             await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
             return
-        if not self._authorized(request):
+        if not self._authorized(request, origin):
             await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
             return
 
@@ -207,7 +232,12 @@ class CraigIngestBoundary:
             return
 
         try:
-            value = await ingest_craig_request(request, self.data_root)
+            value = await ingest_craig_request(
+                request,
+                self.data_root,
+                source_gate=self.source_gate,
+                source_running=self.source_running,
+            )
             response = JSONResponse(value)
             self._log(
                 "CRAIG_SOURCE_REUSED" if value.get("reused") else "CRAIG_SOURCE_STAGED",

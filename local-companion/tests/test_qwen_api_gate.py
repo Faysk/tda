@@ -66,8 +66,37 @@ def test_qwen_cpu_mode_is_rejected_without_touching_source_package(tmp_path: Pat
 def test_capabilities_advertise_only_profiles_with_ready_physical_gate(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         api_module,
-        "ready_qwen_profiles",
-        lambda *_args, **_kwargs: ["qwen-fast"],
+        "profile_catalog",
+        lambda *_args, **_kwargs: [
+            {
+                "id": "qwen-fast",
+                "engine": "qwen3",
+                "ready": True,
+                "preparation_required": False,
+                "reason": None,
+            },
+            {
+                "id": "qwen-quality",
+                "engine": "qwen3",
+                "ready": False,
+                "preparation_required": True,
+                "reason": "QWEN_GATE_MISSING",
+            },
+            {
+                "id": "whisper-detailed",
+                "engine": "whisper",
+                "ready": False,
+                "preparation_required": True,
+                "reason": "WHISPER_RUNTIME_REQUIRED",
+            },
+            {
+                "id": "whisper-turbo",
+                "engine": "whisper",
+                "ready": False,
+                "preparation_required": True,
+                "reason": "WHISPER_RUNTIME_REQUIRED",
+            },
+        ],
     )
     monkeypatch.setattr(
         api_module,

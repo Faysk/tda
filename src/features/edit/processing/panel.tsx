@@ -8,7 +8,9 @@ import { ProcessingController } from "./controller";
 import {
 	connectionHelp,
 	jobLabels,
+	presentJobError,
 	presentJobEvent,
+	presentJobTitle,
 	stageLabels,
 } from "./presentation";
 import type { JobEvent, LocalJob, SystemGpu } from "./protocol";
@@ -25,14 +27,15 @@ function jobTone(status: LocalJob["status"]): StatusTone {
 	return "neutral";
 }
 
-function jobTitle(job: LocalJob): string {
-	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
-	if (job.kind === "transcription.session") return "Transcrição de sessão";
-	return job.kind;
-}
-
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
+	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
+	if (
+		job.status === "running" &&
+		(job.progress.completed >= job.progress.total ||
+			consolidationStages.has(job.stage))
+	)
+		return null;
 	return Math.round((job.progress.completed / job.progress.total) * 100);
 }
 
@@ -73,6 +76,7 @@ const preparationStages = new Set([
 	"queued",
 	"preparing",
 	"runtime_validation",
+	"source_validation",
 	"checking_model",
 	"downloading_model",
 	"model_prepare",
@@ -91,6 +95,7 @@ const processingStages = new Set([
 	"alignment",
 ]);
 const consolidationStages = new Set([
+	"energy_analysis",
 	"cross_track_dedup",
 	"merge_timeline",
 	"turn_building",
@@ -116,11 +121,20 @@ function eventTrackContext(events: readonly JobEvent[]) {
 		const track = event.data.track;
 		const total = event.data.total_tracks;
 		const speaker = event.data.speaker;
-		if (typeof track === "number" || typeof speaker === "string") {
+		const window = event.data.window;
+		const segment = event.data.segment;
+		if (
+			typeof track === "number" ||
+			typeof speaker === "string" ||
+			typeof window === "number" ||
+			typeof segment === "number"
+		) {
 			return {
 				track: typeof track === "number" ? track : null,
 				total: typeof total === "number" ? total : null,
 				speaker: typeof speaker === "string" ? speaker : null,
+				window: typeof window === "number" ? window : null,
+				segment: typeof segment === "number" ? segment : null,
 			};
 		}
 	}
@@ -170,14 +184,16 @@ function JobRow({
 	return (
 		<li className={styles.jobRow} data-status={job.status}>
 			<div className={styles.jobRowMain}>
-				<strong>{jobTitle(job)}</strong>
+				<strong>{presentJobTitle(job)}</strong>
 				<span>
 					{job.context?.sessionId ? `Sessão ${job.context.sessionId} · ` : ""}
-					{stageLabels[job.stage] ?? job.stage}
+					{job.error
+						? presentJobError(job.error.code)
+						: (stageLabels[job.stage] ?? job.stage)}
 				</span>
 			</div>
 			<div className={styles.jobRowProgress}>
-				{job.progress ? (
+				{job.progress && percent !== null ? (
 					<>
 						<progress
 							aria-label={`Progresso do trabalho ${job.id}`}
@@ -187,7 +203,11 @@ function JobRow({
 						<span>{percent}%</span>
 					</>
 				) : (
-					<span>Sem medida de progresso nesta etapa.</span>
+					<span>
+						{job.progress && job.progress.completed > 0
+							? progressCopy(job)
+							: "Sem medida de progresso nesta etapa."}
+					</span>
 				)}
 			</div>
 			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
@@ -227,10 +247,12 @@ export function ProcessingPanel() {
 		controller.serverSnapshot,
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-	const token = useRef<HTMLInputElement>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
-	useEffect(() => () => controller.disconnect(), [controller]);
+	useEffect(() => {
+		void controller.connect();
+		return () => controller.disconnect();
+	}, [controller]);
 	useEffect(() => {
 		if (state.connection !== "connected" || state.busy) return;
 		const timer = setTimeout(() => {
@@ -261,7 +283,12 @@ export function ProcessingPanel() {
 				? "Versão incompatível"
 				: "Serviço desconectado";
 	const running = state.jobs.filter((job) => job.status === "running");
-	const queued = state.jobs.filter((job) => job.status === "queued");
+	const queued = state.jobs
+		.filter((job) => job.status === "queued")
+		.sort(
+			(left, right) =>
+				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
+		);
 	const succeeded = state.jobs.filter((job) => job.status === "succeeded");
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
@@ -270,6 +297,7 @@ export function ProcessingPanel() {
 		["succeeded", "cancelled"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
+	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const gpu = state.system?.gpus[0] ?? null;
 	const trackContext = eventTrackContext(state.events);
@@ -354,54 +382,57 @@ export function ProcessingPanel() {
 									Pausar novas execuções
 								</Button>
 							) : null}
-							<Button
-								size="sm"
-								variant="tertiary"
-								onClick={() => {
-									setConfirmation(null);
-									controller.disconnect();
-								}}
-							>
-								Desconectar esta aba
-							</Button>
 						</div>
 					</>
 				) : (
-					<form
-						className={styles.pairing}
-						onSubmit={(event) => {
-							event.preventDefault();
-							const value = token.current?.value ?? "";
-							if (token.current) token.current.value = "";
-							void controller.connect(value.trim());
-						}}
-					>
-						<label htmlFor="pair-token">Token de pareamento do aplicativo local</label>
+					<div className={styles.pairing}>
+						<strong>
+							{state.connection === "connecting"
+								? "Conectando ao TDA Companion…"
+								: "TDA Companion não está conectado."}
+						</strong>
+						<p className={styles.pairingHelp}>
+							Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente.
+						</p>
 						<div className={styles.pairingControls}>
-							<input
-								ref={token}
-								id="pair-token"
-								type="password"
-								autoComplete="off"
-								spellCheck={false}
-								required
-								minLength={32}
-								maxLength={256}
+							<Button
+								type="button"
+								size="sm"
 								disabled={state.busy}
-								aria-describedby="pair-help"
-							/>
-							<Button type="submit" size="sm" disabled={state.busy}>
-								Conectar neste computador
+								onClick={() => {
+									window.location.href = "tda-companion://open";
+									void (async () => {
+										// Cold-starting WebView/Agent can take more than a single
+										// fixed delay. Retry a few bounded times; stop as soon as
+										// the loopback session is healthy.
+										for (const delay of [1200, 2200, 3500]) {
+											await new Promise((resolve) => window.setTimeout(resolve, delay));
+											await controller.connect();
+											if (controller.snapshot().connection === "connected") break;
+										}
+									})();
+								}}
+							>
+								Abrir TDA Companion
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={state.busy}
+								onClick={() => void controller.connect()}
+							>
+								Tentar novamente
 							</Button>
 						</div>
-						<p id="pair-help" className={styles.pairingHelp}>
-							O token fica apenas na memória desta aba. Recarregar exige novo pareamento.
-						</p>
-					</form>
+					</div>
 				)}
 				{state.error ? (
 					<p className={styles.connectionError} role="alert">
-						{connectionHelp[state.error]} <small>Código: {state.error}</small>
+						{state.serverError
+							? presentJobError(state.serverError)
+							: connectionHelp[state.error]}{" "}
+						<small>Código: {state.serverError ?? state.error}</small>
 					</p>
 				) : null}
 			</section>
@@ -431,7 +462,7 @@ export function ProcessingPanel() {
 										<div className={styles.activeHeader}>
 											<div>
 												<span className={styles.overline}>{activeJob.context?.sessionId ? `Sessão ${activeJob.context.sessionId}` : "Trabalho local"}</span>
-												<h3>{jobTitle(activeJob)}</h3>
+												<h3>{presentJobTitle(activeJob)}</h3>
 											</div>
 											<StatusPill tone="accent">Processando</StatusPill>
 										</div>
@@ -441,20 +472,27 @@ export function ProcessingPanel() {
 												<span>Arquivo {trackContext.track} de {trackContext.total}</span>
 											) : null}
 											{trackContext?.speaker ? <span>Voz: {trackContext.speaker}</span> : null}
+											{trackContext?.window != null ? <span>Janela {trackContext.window}</span> : null}
+											{trackContext?.segment != null ? <span>Segmento {trackContext.segment}</span> : null}
 											{activeJob.attempt > 0 ? <span>Tentativa {activeJob.attempt}</span> : null}
+											<span>Worker ativo · {formatTime(activeJob.updated_at)}</span>
 										</div>
-										{activeJob.progress ? (
+										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
 												<progress
 													aria-label={`Progresso do trabalho ${activeJob.id}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
 												/>
-												<strong>{progressPercent(activeJob)}%</strong>
+												<strong>{activePercent}%</strong>
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
-											<p className={styles.noProgress}>Sem medida de progresso nesta etapa.</p>
+											<p className={styles.noProgress}>
+												{activeJob.progress && activeJob.progress.completed > 0
+													? `${progressCopy(activeJob)} concluídos · ${stageLabels[activeJob.stage] ?? activeJob.stage}.`
+													: "Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados."}
+											</p>
 										)}
 										<section className={styles.pipeline} aria-label="Etapa atual do processamento">
 											<span data-state={pipelineState(activeJob.stage, "preparation")}>Preparação</span>
@@ -519,7 +557,7 @@ export function ProcessingPanel() {
 							</div>
 							{observedJob ? (
 								<dl className={styles.jobDetails}>
-									<div><dt>Trabalho</dt><dd>{jobTitle(observedJob)}</dd></div>
+									<div><dt>Trabalho</dt><dd>{presentJobTitle(observedJob)}</dd></div>
 									<div><dt>Estado</dt><dd>{jobLabels[observedJob.status]}</dd></div>
 									<div><dt>Etapa</dt><dd>{stageLabels[observedJob.stage] ?? observedJob.stage}</dd></div>
 									{observedJob.context?.sessionId ? <div><dt>Sessão</dt><dd>{observedJob.context.sessionId}</dd></div> : null}
@@ -591,7 +629,11 @@ export function ProcessingPanel() {
 							<div className={styles.resultSummary} role="status">
 								<span>Resultado local</span>
 								<strong>{state.result.sessionId}</strong>
-								<small>Pacote {state.result.publicationId.slice(0, 12)}…</small>
+								<small>
+									{state.result.runId
+										? `Run ${state.result.runId} · SHA ${state.result.transcriptSha256?.slice(0, 12) ?? "—"}…`
+										: `Pacote ${state.result.publicationId.slice(0, 12)}…`}
+								</small>
 							</div>
 						) : null}
 					</section>

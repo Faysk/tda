@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from tda_companion.store import Conflict, Store
@@ -12,6 +14,102 @@ BODY = dict(
     source_id='synthetic-source',
     units=3,
 )
+
+
+def test_v2_database_migrates_queue_metadata_without_losing_jobs(tmp_path):
+    database = tmp_path / 'jobs.sqlite3'
+    db = sqlite3.connect(database)
+    try:
+        db.executescript(
+            """
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY, idem TEXT UNIQUE NOT NULL, signature TEXT NOT NULL,
+                body TEXT NOT NULL, status TEXT NOT NULL, stage TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0, attempt INTEGER NOT NULL DEFAULT 0,
+                error TEXT, result TEXT, updated TEXT NOT NULL
+            );
+            CREATE TABLE events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+                code TEXT NOT NULL, at TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'info', data TEXT
+            );
+            CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            PRAGMA user_version=2;
+            """
+        )
+        body = {
+            **BODY,
+        }
+        db.execute(
+            "INSERT INTO jobs(id,idem,signature,body,status,stage,completed,attempt,error,result,updated) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                'legacy-job',
+                'legacy-idem',
+                'legacy-signature',
+                __import__('json').dumps(body),
+                'failed',
+                'failed',
+                1,
+                1,
+                'WORKER_EXECUTION_FAILED',
+                None,
+                '2026-09-19T12:00:00Z',
+            ),
+        )
+        db.execute("INSERT INTO settings VALUES ('device','legacy-device')")
+        db.execute("INSERT INTO settings VALUES ('paused','false')")
+        db.commit()
+    finally:
+        db.close()
+
+    store = Store(tmp_path)
+
+    assert store.get('legacy-job')['error'] == {
+        'code': 'WORKER_EXECUTION_FAILED',
+        'recoverable': True,
+    }
+    with sqlite3.connect(database) as check:
+        assert check.execute('PRAGMA user_version').fetchone()[0] == 4
+        columns = {row[1] for row in check.execute('PRAGMA table_info(jobs)').fetchall()}
+        assert 'error_recoverable' in columns
+        alias = check.execute(
+            'SELECT job_id,signature FROM idempotency_keys WHERE key=?',
+            ('legacy-idem',),
+        ).fetchone()
+        assert alias == ('legacy-job', 'legacy-signature')
+
+
+def test_polling_reads_never_open_immediate_write_transactions(tmp_path, monkeypatch):
+    store = Store(tmp_path)
+    job = store.submit('read-only-polling', BODY)
+    claim = store.claim()
+    assert claim is not None
+    while store.step(*claim):
+        pass
+
+    def forbidden_tx():
+        raise AssertionError('read path must not reserve a writer transaction')
+
+    monkeypatch.setattr(store, 'tx', forbidden_tx)
+
+    assert store.setting('paused') == 'false'
+    assert store.has_running_jobs() is False
+    assert store.get(job['id'])['status'] == 'succeeded'
+    assert store.body(job['id'])['source_id'] == BODY['source_id']
+    assert store.jobs()[0]['id'] == job['id']
+    assert store.events(job['id'])
+    assert store.result(job['id'])['job_id'] == job['id']
+
+
+def test_read_connection_is_query_only(tmp_path):
+    store = Store(tmp_path)
+    store.submit('query-only', BODY)
+
+    with store.read() as db:
+        assert db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0] == 1
+        with pytest.raises(sqlite3.OperationalError):
+            db.execute('DELETE FROM jobs')
 
 
 def test_pause_persists_after_store_reopen(tmp_path):
@@ -27,6 +125,23 @@ def test_pause_persists_after_store_reopen(tmp_path):
     reopened.pause(False)
     claim = reopened.claim()
     assert claim is not None
+
+
+def test_non_recoverable_failure_is_exposed_and_cannot_retry(tmp_path):
+    store = Store(tmp_path)
+    job = store.submit('fatal-job', BODY)
+    claim = store.claim()
+    assert claim is not None
+
+    store.fail(*claim, 'WORKER_RESULT_RUN_MISMATCH', recoverable=False)
+
+    failed = store.get(job['id'])
+    assert failed['error'] == {
+        'code': 'WORKER_RESULT_RUN_MISMATCH',
+        'recoverable': False,
+    }
+    with pytest.raises(Conflict, match='JOB_NOT_RETRYABLE'):
+        store.action(job['id'], 'retry')
 
 
 def test_stale_fail_cannot_overwrite_cancelled_job(tmp_path):
@@ -124,6 +239,42 @@ def test_active_job_cannot_be_removed(tmp_path):
     assert claim is not None
     with pytest.raises(Conflict, match='JOB_ACTIVE'):
         store.remove(queued['id'])
+
+
+def test_reused_idempotency_key_remains_bound_after_original_job_finishes(tmp_path):
+    store = Store(tmp_path)
+    body = {
+        'kind': 'transcription.craig',
+        'campaign_id': 'campaign',
+        'session_id': 'session',
+        'source_id': 'craig-' + 'e' * 64,
+        'profile_id': 'whisper-turbo',
+        'glossary': '',
+        'context': '',
+        'cpu': False,
+        'units': 1,
+    }
+
+    first = store.submit('request-a', body)
+    reused = store.submit('request-b', body)
+    assert reused['id'] == first['id']
+
+    claim = store.claim()
+    assert claim is not None
+    store.progress(
+        first['id'],
+        claim[1],
+        completed=1,
+        total=1,
+        stage='transcription',
+    )
+    assert store.complete(first['id'], claim[1], {'ok': True}) is True
+
+    retried_b = store.submit('request-b', body)
+
+    assert retried_b['id'] == first['id']
+    assert retried_b['status'] == 'succeeded'
+    assert len(store.jobs()) == 1
 
 
 def test_identical_active_transcription_is_reused_across_different_idempotency_keys(tmp_path):

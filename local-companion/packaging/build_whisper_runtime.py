@@ -149,6 +149,8 @@ def main() -> int:
             "--collect-all", "ctranslate2",
             "--collect-all", "av",
             "--hidden-import", "pynvml",
+            "--hidden-import", "tda_companion.asr_worker",
+            "--hidden-import", "tda_companion.asr_whisper",
             str(ENTRY),
         )
         built = dist / "TDAWhisperWorker"

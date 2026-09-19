@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 MODEL_MARKER = ".tda-model.json"
 MODEL_MARKER_SCHEMA = "tda_model_install_v1"
@@ -199,6 +200,7 @@ def write_install_marker(directory: Path, profile: AsrProfile) -> dict[str, obje
         "alignment": profile.alignment,
         "alignment_revision": profile.alignment_revision,
         "content_sha256": compute_model_content_sha256(root),
+        "metadata_sha256": compute_model_metadata_sha256(root),
         "installed_at": _utc_now(),
     }
     temporary = root / f"{MODEL_MARKER}.partial"
@@ -216,6 +218,73 @@ def _read_marker(path: Path) -> dict[str, object] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _refresh_metadata_marker(
+    directory: Path,
+    marker: dict[str, object],
+    metadata_sha256: str,
+) -> None:
+    updated = dict(marker)
+    updated["metadata_sha256"] = metadata_sha256
+    temporary = directory / f"{MODEL_MARKER}.metadata.{uuid4().hex}.partial"
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(
+                updated,
+                handle,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, directory / MODEL_MARKER)
+    except OSError:
+        # The content was already cryptographically verified. Failure to refresh
+        # the cheap seal must not turn a healthy model into a false corruption.
+        pass
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def verify_and_upgrade_model_install(
+    models_root: Path,
+    profile: AsrProfile | str,
+) -> dict[str, object]:
+    """Deep-verify an installed model and backfill the cheap metadata fingerprint.
+
+    This belongs to explicit preparation/maintenance paths, never hot job dispatch.
+    Legacy markers are upgraded only after their stored content hash has been
+    recomputed and proven to match the bytes currently on disk.
+    """
+    value = get_profile(profile) if isinstance(profile, str) else profile
+    state = inspect_model_install(models_root, value, verify_hash=True)
+    if state.get("status") != "ready" or state.get("metadata_sha256") is not None:
+        return state
+
+    directory = model_path(models_root, value)
+    marker_path = directory / MODEL_MARKER
+    marker_value = _read_marker(marker_path)
+    if marker_value is None:
+        return {
+            "profile": value.public_dict(),
+            "status": "corrupt",
+            "path": str(directory),
+        }
+    marker_value["metadata_sha256"] = compute_model_metadata_sha256(directory)
+    temporary = directory / f"{MODEL_MARKER}.partial"
+    temporary.write_text(
+        json.dumps(
+            marker_value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    os.replace(temporary, marker_path)
+    return inspect_model_install(models_root, value, verify_hash=False)
 
 
 def reset_model_install(models_root: Path, profile: AsrProfile | str) -> None:
@@ -238,7 +307,10 @@ def inspect_model_install(
     profile: AsrProfile | str,
     *,
     verify_hash: bool = False,
+    verification: dict[str, bool] | None = None,
 ) -> dict[str, object]:
+    if verification is not None:
+        verification["content_verified"] = False
     value = get_profile(profile) if isinstance(profile, str) else profile
     directory = model_path(models_root, value)
     if not directory.is_dir():
@@ -268,13 +340,33 @@ def inspect_model_install(
     if not expected_identity:
         return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
 
-    if verify_hash:
+    metadata_sha256 = marker.get("metadata_sha256")
+    metadata_drift = False
+    if metadata_sha256 is not None:
+        if not isinstance(metadata_sha256, str) or len(metadata_sha256) != 64:
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        try:
+            actual_metadata = compute_model_metadata_sha256(directory)
+        except (ModelRegistryError, OSError):
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        metadata_drift = actual_metadata != metadata_sha256
+
+    if verify_hash or metadata_drift:
         try:
             actual = compute_model_content_sha256(directory)
         except ModelRegistryError:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
         if actual != marker["content_sha256"]:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        if verification is not None:
+            verification["content_verified"] = True
+
+    if metadata_drift:
+        try:
+            metadata_sha256 = compute_model_metadata_sha256(directory)
+        except (ModelRegistryError, OSError):
+            return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        _refresh_metadata_marker(directory, marker, metadata_sha256)
 
     return {
         "profile": value.public_dict(),
@@ -284,5 +376,6 @@ def inspect_model_install(
         "alignment": value.alignment,
         "alignment_revision": value.alignment_revision,
         "content_sha256": marker["content_sha256"],
+        "metadata_sha256": metadata_sha256,
         "installed_at": marker.get("installed_at"),
     }

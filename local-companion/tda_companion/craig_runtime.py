@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .craig import (
     CraigIdentity,
@@ -49,6 +51,30 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _refresh_manifest_metadata(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(encoded) > _MANIFEST_MAX_BYTES:
+            return
+        with temporary.open("xb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except OSError:
+        # Metadata sealing is an optimization. A verified package remains usable
+        # even if Windows/AV temporarily prevents refreshing the manifest.
+        pass
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _identity(value: Any) -> CraigIdentity | None:
@@ -106,6 +132,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
 
     tracks: list[CraigTrack] = []
     seen_numbers: set[int] = set()
+    metadata_refresh = False
     for item in tracks_value:
         if not isinstance(item, dict):
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_INVALID")
@@ -143,8 +170,32 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         stat = candidate.stat()
         if stat.st_size != size_bytes:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
-        if verify_tracks and _sha256_file(candidate) != digest:
-            raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
+        staged_mtime_ns = item.get("staged_mtime_ns")
+        metadata_drift = False
+        if staged_mtime_ns is not None:
+            if (
+                isinstance(staged_mtime_ns, bool)
+                or not isinstance(staged_mtime_ns, int)
+                or staged_mtime_ns <= 0
+            ):
+                raise CraigPackageError("CRAIG_MANIFEST_TRACK_METADATA_INVALID")
+            metadata_drift = stat.st_mtime_ns != staged_mtime_ns
+
+        # Metadata is only a cheap drift detector, never the source of truth.
+        # If a copy/backup/antivirus changed mtime, hash just that track once;
+        # unchanged metadata keeps the normal dispatch path hash-free.
+        # A legacy manifest without a metadata seal must pay the full hash cost
+        # once before it can enter the cheap path. Otherwise a same-size modified
+        # track could be accepted indefinitely merely because there is no baseline
+        # mtime to compare against.
+        needs_hash = verify_tracks or metadata_drift or staged_mtime_ns is None
+        if needs_hash:
+            if _sha256_file(candidate) != digest:
+                raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
+            if metadata_drift or staged_mtime_ns is None:
+                staged_mtime_ns = stat.st_mtime_ns
+                item["staged_mtime_ns"] = staged_mtime_ns
+                metadata_refresh = True
 
         tracks.append(
             CraigTrack(
@@ -155,9 +206,13 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 size_bytes=size_bytes,
                 sha256=digest,
                 identity=_identity(item.get("identity")),
+                staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
             )
         )
+
+    if metadata_refresh:
+        _refresh_manifest_metadata(manifest_path, value)
 
     tracks.sort(key=lambda item: item.number)
     return CraigPackage(

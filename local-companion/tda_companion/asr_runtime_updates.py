@@ -123,9 +123,9 @@ def whisper_runtime_update_available(
     current_version: str | None,
     manifest: WhisperRuntimeManifest,
 ) -> bool:
-    # Companion 0.3.5 must never install an older stable worker just because no
-    # compatible runtime is currently selected. RC runtimes use the dedicated
-    # physical-acceptance path until these versions are promoted to Stable.
+    # Never install a Stable worker below the Companion's current minimum
+    # compatibility just because no compatible runtime is selected. RC runtimes
+    # use the dedicated verified fallback until that version reaches Stable.
     if not whisper_runtime_version_compatible(manifest.version):
         return False
     if current_version is None:

@@ -20,7 +20,7 @@ def _result(payload: dict, returncode: int = 0):
 def test_prepare_whisper_reuses_verified_model_without_starting_worker(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         prepare,
-        "inspect_model_install",
+        "verify_and_upgrade_model_install",
         lambda *_args, **_kwargs: {
             "status": "ready",
             "content_sha256": "a" * 64,
@@ -59,7 +59,7 @@ def test_prepare_whisper_invokes_isolated_worker_and_verifies_result(monkeypatch
     )
     monkeypatch.setattr(
         prepare,
-        "inspect_model_install",
+        "verify_and_upgrade_model_install",
         lambda *_args, **_kwargs: next(states),
     )
     seen: dict[str, object] = {}
@@ -101,7 +101,7 @@ def test_prepare_whisper_preserves_worker_failure_code(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(prepare, "current_whisper_worker", lambda _root: worker)
     monkeypatch.setattr(
         prepare,
-        "inspect_model_install",
+        "verify_and_upgrade_model_install",
         lambda *_args, **_kwargs: {"status": "missing"},
     )
 

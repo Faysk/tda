@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 import zipfile
 from pathlib import Path
 
@@ -31,6 +32,9 @@ def _client(tmp_path: Path) -> TestClient:
         token=TOKEN,
         origins=frozenset({ORIGIN}),
         port=8765,
+        browser_sessions=api.state.browser_sessions,
+        source_gate=api.state.source_gate,
+        source_running=api.state.source_in_use,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -58,6 +62,159 @@ def test_boundary_accepts_zip_and_rejects_bad_credentials_or_media(tmp_path: Pat
         )
         assert wrong_media.status_code == 415
         assert wrong_media.json()["error"]["code"] == "CRAIG_ZIP_REQUIRED"
+
+
+def test_boundary_accepts_origin_bound_browser_session_for_zip_ingest(tmp_path: Path):
+    payload = _payload()
+    with _client(tmp_path) as client:
+        session = client.post(
+            "/api/v1/session",
+            headers={"Origin": ORIGIN, "Content-Type": "application/json"},
+            json={},
+        )
+        assert session.status_code == 200
+        browser_token = session.json()["token"]
+
+        response = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Origin": ORIGIN,
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert response.status_code == 200
+        assert response.json()["schema_version"] == "tda_craig_ingest_v1"
+
+        wrong_origin = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Origin": "https://evil.example",
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert wrong_origin.status_code == 403
+        assert wrong_origin.json()["error"]["code"] == "ORIGIN_REJECTED"
+
+        no_origin = client.post(
+            "/api/v1/sources/craig",
+            headers={
+                "Authorization": f"Bearer {browser_token}",
+                "Content-Type": "application/zip",
+            },
+            content=payload,
+        )
+        assert no_origin.status_code == 403
+        assert no_origin.json()["error"]["code"] == "ORIGIN_REQUIRED"
+
+
+def test_boundary_blocks_repair_while_same_source_is_running(tmp_path: Path):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        track = package_root / "tracks" / "track-000001.flac"
+        original = track.read_bytes()
+        replacement = b"fLaC-ALICE"
+        assert len(replacement) == len(original)
+        track.write_bytes(replacement)
+
+        store = client.app.app.state.store
+        job = store.submit(
+            "running-source-repair-guard",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign",
+                "session_id": "session",
+                "source_id": source_id,
+                "profile_id": "whisper-turbo",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "units": 1,
+            },
+        )
+        claimed = store.claim()
+        assert claimed is not None
+        assert claimed[0] == job["id"]
+        assert store.has_running_source(source_id) is True
+
+        blocked = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+
+        assert blocked.status_code == 409
+        assert blocked.json()["error"] == {
+            "code": "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            "recoverable": True,
+        }
+        assert track.read_bytes() == replacement
+
+
+def test_boundary_blocks_repair_while_preparation_owns_same_source(
+    monkeypatch,
+    tmp_path: Path,
+):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        track = package_root / "tracks" / "track-000001.flac"
+        replacement = b"fLaC-ALICE"
+        assert len(replacement) == track.stat().st_size
+        track.write_bytes(replacement)
+
+        manager = client.app.app.state.preparation_manager
+        monkeypatch.setattr(
+            manager,
+            "snapshot",
+            lambda: {
+                "active": True,
+                "source_id": source_id,
+                "profile_id": "qwen-quality",
+            },
+        )
+        assert client.app.app.state.source_in_use(source_id) is True
+
+        blocked = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+
+        assert blocked.status_code == 409
+        assert blocked.json()["error"] == {
+            "code": "CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB",
+            "recoverable": True,
+        }
+        assert track.read_bytes() == replacement
 
 
 def test_boundary_preflight_is_narrow_and_private_network_aware(tmp_path: Path):
@@ -148,6 +305,41 @@ def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_pa
         )
         assert unauthorized.status_code == 401
         assert unauthorized.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_run_discovery_runs_filesystem_work_off_event_loop(monkeypatch, tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    get_headers = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        source_id = staged.json()["source_id"]
+        boundary = client.app
+        original = boundary._run_listing
+        observed: dict[str, int] = {}
+        caller_thread = threading.get_ident()
+
+        def wrapped(value: str):
+            observed["thread"] = threading.get_ident()
+            return original(value)
+
+        monkeypatch.setattr(boundary, "_run_listing", wrapped)
+
+        response = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+
+        assert response.status_code == 200
+        assert observed["thread"] != caller_thread
 
 
 def test_run_discovery_preflight_allows_only_get_authorization(tmp_path: Path):
