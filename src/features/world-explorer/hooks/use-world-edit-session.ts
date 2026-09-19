@@ -11,6 +11,7 @@ import {
 import { publishWorldEditLayoutAction } from "../world-edit-actions";
 import {
 	acquireWorldLayoutSessionAction,
+	discardWorldLayoutSessionAction,
 	releaseWorldLayoutSessionAction,
 	renewWorldLayoutSessionAction,
 	saveWorldLayoutSessionDraftAction,
@@ -280,11 +281,15 @@ export function useWorldEditSession({
 		onEditingStarted?.();
 		setState("editing");
 		setFeedback(
-			result.status === "acquired"
-				? canEditContent
-					? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; só você vê o rascunho até publicar."
-					: "Edição exclusiva ativa. Alterações de posição ficam em rascunho até publicar."
-				: "Rascunho de edição recuperado. Revise antes de publicar.",
+			result.staleRecovery
+				? "Existe um rascunho anterior preservado, mas o Mundo publicado mudou desde então. Ele não foi apagado nem aplicado automaticamente; esta sessão começou do estado publicado atual."
+				: result.status === "acquired"
+					? canEditContent
+						? "Edição exclusiva ativa. Crie, conecte, organize e revise o Mundo; cada alteração confirmada fica preservada até publicar."
+						: "Edição exclusiva ativa. Cada alteração de posição confirmada fica preservada até publicar."
+					: result.recoverySource === "durable"
+						? "Rascunho durável recuperado de uma sessão anterior. Revise antes de publicar."
+						: "Rascunho de edição recuperado. Revise antes de publicar.",
 		);
 	}
 
@@ -421,7 +426,60 @@ export function useWorldEditSession({
 	}
 
 	async function discard() {
-		await release("Rascunho descartado. O Mundo publicado foi mantido.");
+		if (!leaseToken || state !== "editing") return;
+		const confirmed = window.confirm(
+			"Descartar este rascunho? O Mundo publicado será mantido. Uma cópia de recuperação ficará registrada para auditoria, mas esta sessão será encerrada.",
+		);
+		if (!confirmed) return;
+
+		cancelPendingDraftSaves();
+		const sequence = ++draftSequence.current;
+		setFeedback("Preservando uma cópia final antes de descartar o rascunho…");
+
+		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
+		if (!layoutCandidate) {
+			setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+			return;
+		}
+		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
+		if (sequence !== draftSequence.current) return;
+		if (!layoutResult.ok) {
+			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
+				markLeaseLost(layoutResult.reason);
+			} else {
+				setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
+			}
+			return;
+		}
+
+		if (canEditContent && graphDraftRef.current) {
+			const graphResult = await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+			if (sequence !== draftSequence.current) return;
+			if (!graphResult.ok) {
+				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
+					markLeaseLost(graphResult.reason);
+				} else {
+					setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+				}
+				return;
+			}
+		}
+
+		await saveQueue.current;
+		const result = await discardWorldLayoutSessionAction(leaseToken);
+		if (!result.ok) {
+			setFeedback(worldEditFailureMessage(result.reason));
+			return;
+		}
+		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		setLeaseToken(null);
+		setLayoutDirty(false);
+		setGraphDirty(false);
+		graphDraftRef.current = null;
+		setGraphDraft(null);
+		setState("view");
+		onReleaseLayout();
+		setFeedback("Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.");
 	}
 
 	return {
