@@ -15,6 +15,7 @@ class Conflict(Exception):
 
 class Store:
     def __init__(self, root):
+        root.mkdir(parents=True, exist_ok=True)
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
