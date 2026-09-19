@@ -325,7 +325,7 @@ def create_app(
         )
 
     def reconcile_completed_transcription_runs() -> None:
-        for active in store.running_attempts():
+        for active in store.reconciliation_candidates():
             job_id = str(active["id"])
             attempt = int(active["attempt"])
             body = active["body"]
