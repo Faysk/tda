@@ -44,6 +44,7 @@ $$;
 -- Leave the previous layout/lease suite behind and start a deterministic factual graph.
 reset role;
 delete from public.world_edit_leases;
+delete from public.world_edit_drafts;
 delete from public.entity_relation_sources;
 delete from public.entity_relations;
 delete from public.world_relation_styles;
@@ -357,6 +358,18 @@ begin
   );
   if result->>'status' <> 'draft_saved' then
     raise exception 'canonical graph draft must save privately: %', result;
+  end if;
+
+  if not exists (
+    select 1
+    from public.world_edit_drafts durable
+    where durable.owner_profile_id = '33333333-3333-4333-8333-333333333333'
+      and durable.lease_token = token
+      and durable.status = 'active'
+      and durable.graph_draft_initialized
+      and durable.draft_graph = draft
+  ) then
+    raise exception 'graph-only autosave must checkpoint the full draft outside the lease row';
   end if;
 
   result := public.save_world_edit_layout_draft_atomic(
