@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import re
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -150,13 +151,15 @@ class CraigIngestBoundary:
             await self._send_response(_error("CRAIG_STAGING_PATH_INVALID", 409, True), scope, receive, send, origin)
             return
         try:
-            package = load_craig_package(package_root, verify_tracks=False)
-            value = ensure_legacy_and_list(
-                package_root,
-                source_id=source_id,
-                source_sha256=package.source_sha256,
-                verify_content=False,
-            )
+            gate = self.source_gate if self.source_gate is not None else nullcontext()
+            with gate:
+                package = load_craig_package(package_root, verify_tracks=False)
+                value = ensure_legacy_and_list(
+                    package_root,
+                    source_id=source_id,
+                    source_sha256=package.source_sha256,
+                    verify_content=False,
+                )
             response = JSONResponse(value)
         except CraigPackageError as exc:
             response = _error(str(exc), 404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409, True)
