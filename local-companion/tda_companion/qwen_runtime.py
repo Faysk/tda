@@ -20,6 +20,12 @@ MAX_RUNTIME_UNCOMPRESSED_BYTES = 12 * 1024**3
 _COPY_CHUNK = 1024 * 1024
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_RUNTIME_BACKUP = re.compile(
+    r"^\.(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]{32}\.backup$"
+)
+_RUNTIME_PARTIAL = re.compile(
+    r"^\.[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]{32}\.partial$"
+)
 
 
 class QwenRuntimeInstallError(RuntimeError):
@@ -32,6 +38,83 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(_COPY_CHUNK), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
+    """Recover only a current runtime swap proven interrupted by a previous process."""
+    parent = qwen_root(runtime_root)
+    if not parent.is_dir():
+        return []
+
+    selector_version: str | None = None
+    try:
+        selector = json.loads((parent / "current.json").read_text(encoding="utf-8"))
+        value = selector.get("version") if isinstance(selector, dict) else None
+        if isinstance(value, str) and _VERSION.fullmatch(value):
+            selector_version = value
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    try:
+        entries = list(parent.iterdir())
+    except OSError:
+        return []
+
+    backups: dict[str, list[Path]] = {}
+    partials: list[Path] = []
+    for candidate in entries:
+        backup = _RUNTIME_BACKUP.fullmatch(candidate.name)
+        if backup is not None:
+            backups.setdefault(backup.group("version"), []).append(candidate)
+        elif _RUNTIME_PARTIAL.fullmatch(candidate.name):
+            partials.append(candidate)
+
+    # Startup happens before runtime preparation can begin, so these partials
+    # necessarily belong to a previous process and are never authoritative.
+    for candidate in partials:
+        if candidate.is_dir() and not candidate.is_symlink():
+            shutil.rmtree(candidate, ignore_errors=True)
+        else:
+            candidate.unlink(missing_ok=True)
+
+    recovered: list[str] = []
+    for version, candidates in backups.items():
+        target = parent / version
+        if target.exists() and not target.is_symlink():
+            for candidate in candidates:
+                if candidate.is_dir() and not candidate.is_symlink():
+                    shutil.rmtree(candidate, ignore_errors=True)
+                else:
+                    candidate.unlink(missing_ok=True)
+            continue
+        if selector_version != version:
+            continue
+
+        def modified(path: Path) -> int:
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                return -1
+
+        ordered = sorted(candidates, key=modified, reverse=True)
+        for candidate in ordered:
+            if candidate.is_symlink() or not candidate.is_dir():
+                continue
+            try:
+                os.replace(candidate, target)
+            except OSError:
+                continue
+            recovered.append(version)
+            break
+        if target.is_dir() and not target.is_symlink():
+            for candidate in candidates:
+                if candidate.exists():
+                    if candidate.is_dir() and not candidate.is_symlink():
+                        shutil.rmtree(candidate, ignore_errors=True)
+                    else:
+                        candidate.unlink(missing_ok=True)
+
+    return recovered
 
 
 def qwen_root(runtime_root: Path) -> Path:
