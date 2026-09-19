@@ -6,11 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from .asr_models import (
-    get_profile,
-    inspect_model_install,
-    verify_and_upgrade_model_install,
-)
+from .asr_models import get_profile, verify_and_upgrade_model_install
 from .asr_runtime import current_whisper_worker
 
 _MAX_STDOUT_BYTES = 64 * 1024
