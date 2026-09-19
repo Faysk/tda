@@ -17,6 +17,7 @@ from tda_companion.transcript import (
     TranscriptWord,
     stats_for_tracks,
 )
+from tda_companion.transcript import TranscriptValidationError
 from tda_companion.transcription_runs import list_runs
 from tda_companion.worker_protocol import WorkerRunCommand
 
@@ -87,6 +88,37 @@ def _run(command: WorkerRunCommand) -> tuple[int, list[dict]]:
     code = worker._run_craig(command, emitter, threading.Event())
     messages = [json.loads(line) for line in stream.getvalue().splitlines() if line]
     return code, messages
+
+
+def test_worker_marks_invalid_transcript_output_non_retryable(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    data_root.mkdir()
+    models_root.mkdir()
+    source_id, source_sha, _package_root = _stage(data_root)
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    monkeypatch.setattr(
+        worker,
+        "transcribe_craig_package",
+        lambda *_args, **_kwargs: _document(source_sha, "resultado inválido"),
+    )
+    monkeypatch.setattr(
+        worker,
+        "write_completed_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            TranscriptValidationError("segment:INVALID")
+        ),
+    )
+
+    code, messages = _run(_command("job-invalid-transcript", source_id))
+
+    assert code == 66
+    error = next(message for message in messages if message["type"] == "error")
+    assert error["payload"] == {
+        "code": "TRANSCRIPT_VALIDATION_FAILED",
+        "recoverable": False,
+    }
 
 
 def test_worker_rejects_transcript_bound_to_a_different_source(tmp_path: Path, monkeypatch):
