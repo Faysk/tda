@@ -128,3 +128,53 @@ def test_preparation_reuses_same_request_and_rejects_competing_work(
         manager.start(source_b, "whisper-turbo")
 
     release = True
+
+
+def test_qwen_hardware_failure_after_stable_install_does_not_fall_back_to_rc(
+    tmp_path: Path,
+    monkeypatch,
+):
+    calls = {"inspect": 0, "fallback": 0}
+
+    def inspect(_root, verify_worker=True):
+        calls["inspect"] += 1
+        if calls["inspect"] == 1:
+            return {"status": "missing", "version": None}
+        return {"status": "ready", "version": "1.0.6"}
+
+    class Bundle:
+        archive_sha256 = "a" * 64
+
+    class Manifest:
+        version = "1.0.6"
+        bundle = Bundle()
+
+    monkeypatch.setattr(preparation, "inspect_qwen_runtime", inspect)
+    monkeypatch.setattr(preparation, "fetch_qwen_runtime_manifest", lambda: Manifest())
+    monkeypatch.setattr(preparation, "qwen_runtime_update_available", lambda *_args: True)
+    monkeypatch.setattr(
+        preparation,
+        "download_qwen_runtime",
+        lambda *_args, **_kwargs: tmp_path / "qwen.zip",
+    )
+    monkeypatch.setattr(
+        preparation,
+        "install_qwen_runtime_archive",
+        lambda *_args, **_kwargs: {},
+    )
+
+    def hardware_failure(_root):
+        raise preparation.QwenDesktopPrepareError("QWEN_CUDA_UNAVAILABLE")
+
+    monkeypatch.setattr(preparation, "probe_qwen_long_track_gate", hardware_failure)
+
+    def fallback(*_args, **_kwargs):
+        calls["fallback"] += 1
+        return {"version": "1.0.6"}
+
+    monkeypatch.setattr(preparation, "install_published_runtime_rc", fallback)
+
+    with pytest.raises(ProfilePreparationError, match="QWEN_CUDA_UNAVAILABLE"):
+        preparation._install_qwen_runtime(tmp_path / "Runtime", tmp_path / "Cache")
+
+    assert calls["fallback"] == 0
