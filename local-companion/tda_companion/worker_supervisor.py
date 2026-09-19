@@ -44,7 +44,7 @@ class WorkerSupervisor:
         command_factory: Callable[[], list[str]] = default_worker_command,
         startup_timeout: float = 10.0,
         heartbeat_timeout: float = 30.0,
-        cancel_grace: float = 3.0,
+        cancel_grace: float = 5.0,
         data_root: Path | None = None,
         models_root: Path | None = None,
         runtime_root: Path | None = None,
@@ -188,7 +188,16 @@ class WorkerSupervisor:
                 if ready and now - last_message > self.heartbeat_timeout:
                     raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
                 if cancel_deadline is not None and now > cancel_deadline:
-                    raise WorkerProcessError("WORKER_CANCEL_TIMEOUT")
+                    # Cancellation is a user-requested terminal state, not a worker
+                    # failure. Heavy native/CUDA code may not return to Python in
+                    # time to acknowledge stdin, so force-stop the isolated worker
+                    # after a short grace period and preserve truthful cancellation.
+                    self._stop_process(process)
+                    return WorkerOutcome(
+                        terminal="cancelled",
+                        payload={"stage": "forced_termination", "forced": True},
+                        returncode=process.returncode if process.returncode is not None else -1,
+                    )
 
                 try:
                     line = lines.get(timeout=0.1)
@@ -236,6 +245,12 @@ class WorkerSupervisor:
                 raise WorkerProcessError("WORKER_EXIT_TIMEOUT") from None
 
             if terminal is None:
+                if cancel_sent:
+                    return WorkerOutcome(
+                        terminal="cancelled",
+                        payload={"stage": "worker_exit_after_cancel", "forced": False},
+                        returncode=returncode,
+                    )
                 raise WorkerProcessError("WORKER_EXITED_WITHOUT_RESULT")
             if terminal.type == "result" and returncode != 0:
                 raise WorkerProcessError("WORKER_NONZERO_EXIT")
