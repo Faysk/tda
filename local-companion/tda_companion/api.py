@@ -834,7 +834,11 @@ def create_app(
                     # asyncio.to_thread does not cancel the underlying worker
                     # thread. Give the supervisor time to deliver cancellation to
                     # the isolated native/CUDA process and return cleanly.
-                    await asyncio.wait_for(task, timeout=12.0)
+                    # Supervisor cancellation can spend the grace period in
+                    # native/CUDA code and then another bounded terminate/kill
+                    # sequence. Keep the coroutine alive long enough for that
+                    # fenced teardown to finish instead of abandoning its thread.
+                    await asyncio.wait_for(task, timeout=20.0)
                 except TimeoutError:
                     task.cancel()
                     try:
@@ -850,8 +854,15 @@ def create_app(
                     "warning",
                     "preparation",
                     "PREPARATION_SHUTDOWN_TIMEOUT",
-                    "Profile preparation did not stop before Agent shutdown timeout",
+                    "Profile preparation did not stop within the fast shutdown window; keeping the data-root fence until it exits",
                 )
+                # Preparation runs in-process and may still be mutating Runtime,
+                # Models or gate receipts. Returning from lifespan here would let
+                # AgentController release the sole data-root lock while that
+                # thread remained alive. Wait fail-closed; AgentController has its
+                # own bounded stop timeout and deliberately retains the lock when
+                # this teardown takes too long.
+                await asyncio.to_thread(preparation_manager.wait)
             await asyncio.to_thread(reconcile_completed_transcription_runs)
             await asyncio.to_thread(store.recover)
             log("info", "agent", "API_STOPPED", "Local API stopped")
