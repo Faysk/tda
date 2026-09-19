@@ -108,7 +108,7 @@
         <header class="sub-head process-head">
           <div>
             <h1>Execução local</h1>
-            <p>O TDA Web define a sessão, o perfil e o contexto. O Companion executa os trabalhos localmente e mantém o Agent observável.</p>
+            <p>O TDA Web define o trabalho. O Companion executa, monitora e mantém a máquina pronta.</p>
           </div>
           <span class="pill success">Gerenciado pelo TDA</span>
         </header>
@@ -120,106 +120,47 @@
                 <div class="step-title">
                   <span class="step-number">↗</span>
                   <div>
-                    <h2>Inicie sessões no TDA Web</h2>
-                    <p>Existe uma única porta de entrada para processamento. Escolha ZIP, perfil, contexto e glossário no site; este aplicativo cuida da execução, fila, logs, runtimes e diagnóstico.</p>
+                    <h2>Nova sessão</h2>
+                    <p>ZIP, perfil, contexto e glossário possuem uma única porta de entrada: Processamento no TDA Web.</p>
                   </div>
                 </div>
                 <button type="button" class="primary" id="open-processing-web">Abrir Processamento no TDA</button>
               </div>
-              <div class="notice">Fechar esta janela não interrompe o Agent. Trabalhos ativos continuam em segundo plano e podem ser acompanhados na Visão geral ou no próprio TDA.</div>
             </div>
+
+            <div class="workflow-step">
+              <div class="step-head">
+                <div class="step-title">
+                  <span class="step-number">●</span>
+                  <div>
+                    <h2>Worker local</h2>
+                    <p id="execution-title">Aguardando estado do Agent…</p>
+                  </div>
+                </div>
+                <span class="pill" id="execution-state">Verificando</span>
+              </div>
+              <div class="notice" id="execution-detail">Fila, etapa e última atividade aparecem aqui quando houver processamento.</div>
+              <div class="action-row">
+                <button type="button" id="execution-open-logs">Ver logs</button>
+                <button type="button" data-go="diagnostics">Executar diagnóstico</button>
+              </div>
+            </div>
+
+            <div class="notice">Fechar esta janela não interrompe o Agent. Trabalhos ativos continuam em segundo plano e podem ser acompanhados aqui ou no TDA Web.</div>
           </section>
+
           <aside class="process-guide">
             <section>
               <h2>Divisão de responsabilidade</h2>
               <ol class="process-steps">
-                <li><b>TDA Web</b><span>Seleciona a sessão, configura a transcrição, cria/cancela trabalhos e apresenta resultados.</span></li>
-                <li><b>Companion</b><span>Executa a fila local, usa CPU/GPU, mantém runtimes/modelos e expõe telemetria.</span></li>
-                <li><b>Diagnóstico</b><span>Logs e ferramentas técnicas ficam neste aplicativo, sem duplicar o fluxo editorial.</span></li>
-              </ol>
-            </section>
-          </aside>
-        </div>
-
-        <div class="process-layout hidden" aria-hidden="true">
-          <span class="pill hidden" id="process-state-pill">Aguardando sessão</span>
-          <section class="panel process-workspace">
-            <div class="workflow-step">
-              <div class="step-head">
-                <div class="step-title">
-                  <span class="step-number">1</span>
-                  <div><h2>Sessão do Craig</h2><p>Escolha o arquivo <code>.zip</code> original. Não é preciso extrair nem mover para uma pasta especial.</p></div>
-                </div>
-                <button type="button" class="primary" id="select-craig">Selecionar ZIP</button>
-              </div>
-              <div class="source-empty" id="source-empty">Nenhuma sessão selecionada.</div>
-              <div class="session-summary hidden" id="session-summary">
-                <div class="session-file-row">
-                  <div><strong id="session-name">—</strong><span id="session-meta">—</span></div>
-                  <span class="pill success" id="session-track-count">— faixas</span>
-                </div>
-                <ul class="track-list" id="track-list" aria-label="Participantes encontrados"></ul>
-              </div>
-            </div>
-
-            <div class="workflow-step">
-              <div class="step-head">
-                <div class="step-title">
-                  <span class="step-number">2</span>
-                  <div><h2>Qualidade da transcrição</h2><p>Para sessões importantes, priorize precisão. O primeiro uso pode baixar runtime e modelos verificados.</p></div>
-                </div>
-              </div>
-              <div class="profile-list" id="profile-list" role="radiogroup" aria-label="Qualidade da transcrição">
-                <div class="profile-loading">Selecione uma sessão para verificar os perfis disponíveis.</div>
-              </div>
-            </div>
-
-            <details class="advanced-options">
-              <summary>Opções avançadas de reconhecimento</summary>
-              <div class="advanced-grid">
-                <label>Contexto da campanha<textarea id="session-context" maxlength="1200" rows="4" placeholder="Ex.: Sessão em Neverwinter, investigação do culto…"></textarea><small>Ajuda o modelo a interpretar o contexto; fica apenas no processamento local.</small></label>
-                <label>Nomes e termos importantes<textarea id="session-glossary" maxlength="1200" rows="4" placeholder="Ex.: Valindra, Neverwinter, Zhentarim…"></textarea><small>Use para nomes próprios, lugares, NPCs e termos de D&amp;D.</small></label>
-              </div>
-            </details>
-
-            <div class="preparation-progress hidden" id="preparation-progress" aria-live="polite">
-              <div class="preparation-progress-head">
-                <div>
-                  <span class="preparation-kicker">Preparação do primeiro uso</span>
-                  <strong id="preparation-title">Preparando perfil…</strong>
-                  <p id="preparation-detail">Conferindo o estado local.</p>
-                </div>
-                <span class="preparation-elapsed" id="preparation-elapsed">0 s</span>
-              </div>
-              <ol class="preparation-stage-list" id="preparation-stage-list"></ol>
-              <div class="preparation-progress-foot">
-                <span id="preparation-bytes">Cada etapa aparecerá aqui conforme avançar.</span>
-                <button type="button" class="quiet" id="preparation-open-logs">Ver logs da preparação</button>
-              </div>
-            </div>
-
-            <div class="process-action-bar">
-              <div class="process-status" aria-live="polite">
-                <strong id="process-status-title">Selecione uma sessão para começar.</strong>
-                <span id="process-status-detail">O arquivo é processado localmente neste computador.</span>
-              </div>
-              <button type="button" class="primary process-button" id="start-processing" disabled>Preparar e processar</button>
-            </div>
-          </section>
-
-          <aside class="process-guide">
-            <section>
-              <h2>O que acontece</h2>
-              <ol class="process-steps">
-                <li><b>Validação</b><span>O ZIP é conferido e cada faixa é identificada pelo participante.</span></li>
-                <li><b>Preparação</b><span>Runtime e modelo necessários são baixados e verificados automaticamente.</span></li>
-                <li><b>Transcrição</b><span>As faixas são processadas separadamente, com checkpoints para sessões longas.</span></li>
-                <li><b>Linha do tempo</b><span>Os turnos são alinhados e reunidos sem misturar as vozes de origem.</span></li>
+                <li><b>TDA Web</b><span>Seleciona sessão, perfil e contexto; cria/cancela trabalhos; apresenta resultados e revisão.</span></li>
+                <li><b>Companion</b><span>Executa fila e workers locais, usa CPU/GPU e mantém runtimes/modelos.</span></li>
+                <li><b>Agent</b><span>Persiste jobs, eventos e liveness; expõe telemetria e diagnóstico via loopback.</span></li>
               </ol>
             </section>
             <section class="privacy-note">
               <h2>Local por padrão</h2>
-              <p>Áudio e transcrição integral não são enviados para logs. A preparação Qwen usa uma janela temporária local de 60 s para validar a GPU e a remove ao terminar.</p>
+              <p>Áudio e transcrição integral permanecem no computador. Logs registram fatos técnicos, não o conteúdo das falas.</p>
             </section>
           </aside>
         </div>
