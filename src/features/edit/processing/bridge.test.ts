@@ -317,6 +317,43 @@ describe("wire validation", () => {
 		expect(parseJob({ ...job, progress: null }).progress).toBeNull();
 		expect(() => parseJobs({ jobs: [job, job] })).toThrow();
 	});
+	it("retains immutable run identity for transcription results", () => {
+		const value = {
+			schema_version: "tda_local_result_v1",
+			campaign_id: "campaign",
+			session_id: "session",
+			source_id: "source",
+			job_id: "job-transcription",
+			transcription: {
+				schema_version: "tda_transcript_v1",
+				profile_id: "qwen-quality",
+				artifact: "transcript.json",
+				run_id: "run-job-transcription-a2",
+				sha256: "b".repeat(64),
+			},
+			sync: { status: "not_configured" },
+		};
+		expect(parseResultSummary(value, "job-transcription")).toEqual({
+			campaignId: "campaign",
+			sessionId: "session",
+			sourceId: "source",
+			jobId: "job-transcription",
+			publicationId: "b".repeat(64),
+			profileId: "qwen-quality",
+			transcriptSha256: "b".repeat(64),
+			runId: "run-job-transcription-a2",
+		});
+		expect(() =>
+			parseResultSummary(
+				{
+					...value,
+					transcription: { ...value.transcription, run_id: "../outside" },
+				},
+				"job-transcription",
+			),
+		).toThrow();
+	});
+
 	it("retains only result identity bound to the requested job", () => {
 		const value = {
 			schema_version: "tda_local_result_v1",
