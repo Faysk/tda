@@ -718,6 +718,25 @@ def create_app(
                                     {"job_id": job_id, "attempt": attempt},
                                 )
                             else:
+                                if outcome.payload.get("forced_teardown") is True:
+                                    store.record_worker_event(
+                                        job_id,
+                                        attempt,
+                                        "WORKER_RESULT_TEARDOWN_FORCED",
+                                        {"returncode": outcome.returncode},
+                                        level="warning",
+                                    )
+                                    log(
+                                        "warning",
+                                        "worker",
+                                        "WORKER_RESULT_TEARDOWN_FORCED",
+                                        "Worker emitted a durable result but required forced process teardown afterwards",
+                                        {
+                                            "job_id": job_id,
+                                            "attempt": attempt,
+                                            "returncode": outcome.returncode,
+                                        },
+                                    )
                                 result = await asyncio.to_thread(
                                     finalize_transcription_result,
                                     job_id,
