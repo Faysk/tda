@@ -70,6 +70,65 @@ async function contentEditor() {
 	});
 }
 
+type WorldEditDataClient = NonNullable<ReturnType<typeof editDataClient>>;
+
+async function recordWorldDraftPublishFailure(input: {
+	client: WorldEditDataClient;
+	campaignId: string;
+	profileId: string;
+	leaseToken: string;
+	reason: WorldGraphFailure;
+}) {
+	const now = new Date().toISOString();
+	const { error } = await input.client
+		.from("world_edit_drafts")
+		.update({
+			last_publish_attempt_at: now,
+			last_publish_error: input.reason,
+			updated_at: now,
+		})
+		.eq("campaign_id", input.campaignId)
+		.eq("owner_profile_id", input.profileId)
+		.eq("lease_token", input.leaseToken);
+	if (error) console.error("World draft publish failure receipt failed", error.message);
+}
+
+async function recordWorldDraftPublishSuccess(input: {
+	client: WorldEditDataClient;
+	campaignId: string;
+	profileId: string;
+	leaseToken: string;
+	graphRevision: number;
+	layoutRevision: number;
+}) {
+	const now = new Date().toISOString();
+	const { error: supersedeError } = await input.client
+		.from("world_edit_drafts")
+		.update({ status: "superseded", updated_at: now })
+		.eq("campaign_id", input.campaignId)
+		.eq("owner_profile_id", input.profileId)
+		.eq("status", "active")
+		.neq("lease_token", input.leaseToken);
+	if (supersedeError) {
+		console.error("World older draft supersede receipt failed", supersedeError.message);
+	}
+
+	const { error } = await input.client
+		.from("world_edit_drafts")
+		.update({
+			status: "published",
+			last_publish_attempt_at: now,
+			last_publish_error: null,
+			published_graph_revision: input.graphRevision,
+			published_layout_revision: input.layoutRevision,
+			updated_at: now,
+		})
+		.eq("campaign_id", input.campaignId)
+		.eq("owner_profile_id", input.profileId)
+		.eq("lease_token", input.leaseToken);
+	if (error) console.error("World draft publish success receipt failed", error.message);
+}
+
 export async function acquireWorldGraphDraftAction(
 	leaseToken: string,
 ): Promise<AcquireWorldGraphDraftResult> {
@@ -87,7 +146,7 @@ export async function acquireWorldGraphDraftAction(
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World graph draft acquisition failed", error.message);
-		return { ok: false, reason: "dependency_unavailable" };
+		return failPublish("dependency_unavailable");
 	}
 	const payload = data as RpcPayload;
 	if (payload.ok === true) {
@@ -143,12 +202,12 @@ export async function saveWorldGraphDraftAction(
 		payload.reason === "invalid_payload" ||
 		payload.reason === "duplicate"
 	) {
-		return { ok: false, reason: payload.reason };
+		return failPublish(payload.reason);
 	}
 	if (payload.reason === "conflict") {
-		return { ok: false, reason: "conflict", revision: safeNumber(payload.revision) };
+		return failPublish("conflict", safeNumber(payload.revision));
 	}
-	return { ok: false, reason: "dependency_unavailable" };
+	return failPublish("dependency_unavailable");
 }
 
 export async function publishWorldEditStateAction(
@@ -187,6 +246,22 @@ export async function publishWorldEditStateAction(
 		return { ok: false, reason: "dependency_unavailable" };
 	}
 
+	const failPublish = async (
+		reason: WorldGraphFailure,
+		revision?: number,
+	): Promise<WorldGraphMutationResult> => {
+		await recordWorldDraftPublishFailure({
+			client,
+			campaignId: campaign.id,
+			profileId: contentAccess.profileId,
+			leaseToken,
+			reason,
+		});
+		return revision === undefined
+			? { ok: false, reason }
+			: { ok: false, reason, revision };
+	};
+
 	const { data: lease, error: leaseError } = await client
 		.from("world_edit_leases")
 		.select("draft_graph")
@@ -196,11 +271,11 @@ export async function publishWorldEditStateAction(
 		.maybeSingle();
 	if (leaseError || !lease) {
 		if (leaseError) console.error("World publication draft lookup failed", leaseError.message);
-		return { ok: false, reason: leaseError ? "dependency_unavailable" : "lease_lost" };
+		return failPublish(leaseError ? "dependency_unavailable" : "lease_lost");
 	}
 
 	const publicationDraft = sanitizeWorldGraphDraft(lease.draft_graph);
-	if (!publicationDraft) return { ok: false, reason: "invalid_payload" };
+	if (!publicationDraft) return failPublish("invalid_payload");
 	const publishedRelationIds = publicationDraft.edges
 		.filter(
 			(edge) =>
@@ -216,7 +291,7 @@ export async function publishWorldEditStateAction(
 			.in("relation_id", publishedRelationIds);
 		if (sourceError) {
 			console.error("World publication source lookup failed", sourceError.message);
-			return { ok: false, reason: "dependency_unavailable" };
+			return failPublish("dependency_unavailable");
 		}
 
 		const relationSources = (sources ?? []) as Array<{
@@ -226,7 +301,7 @@ export async function publishWorldEditStateAction(
 		const referencedCanonEntryIds = [
 			...new Set(relationSources.map((source) => source.canon_entry_id)),
 		];
-		if (!referencedCanonEntryIds.length) return { ok: false, reason: "review_required" };
+		if (!referencedCanonEntryIds.length) return failPublish("review_required");
 
 		const { data: canonEntries, error: canonError } = await client
 			.from("canon_entries")
@@ -236,7 +311,7 @@ export async function publishWorldEditStateAction(
 			.in("id", referencedCanonEntryIds);
 		if (canonError) {
 			console.error("World publication canon lookup failed", canonError.message);
-			return { ok: false, reason: "dependency_unavailable" };
+			return failPublish("dependency_unavailable");
 		}
 
 		const backedRelationIds = evidenceBackedRelationIds(
@@ -245,7 +320,7 @@ export async function publishWorldEditStateAction(
 			(canonEntries ?? []).map((entry) => entry.id),
 		);
 		if (publishedRelationIds.some((relationId) => !backedRelationIds.has(relationId))) {
-			return { ok: false, reason: "review_required" };
+			return failPublish("review_required");
 		}
 	}
 
@@ -254,14 +329,14 @@ export async function publishWorldEditStateAction(
 		// A flag can be disabled while an editor still owns a draft created when
 		// media was available. Never fall back to the legacy publisher in that
 		// state: it would consume the lease while silently dropping media intent.
-		return { ok: false, reason: "media_pending" };
+		return failPublish("media_pending");
 	}
 	const preparedMedia = await prepareWorldEntityMediaForPublish({
 		client,
 		draft: publicationDraft,
 	});
 	if (preparedMedia.status === "pending") {
-		return { ok: false, reason: "media_pending" };
+		return failPublish("media_pending");
 	}
 
 	const rpcArgs = {
@@ -285,8 +360,16 @@ export async function publishWorldEditStateAction(
 		const graphRevision = safeNumber(payload.graphRevision);
 		const layoutRevision = safeNumber(payload.layoutRevision);
 		if (graphRevision === undefined || layoutRevision === undefined) {
-			return { ok: false, reason: "dependency_unavailable" };
+			return failPublish("dependency_unavailable");
 		}
+		await recordWorldDraftPublishSuccess({
+			client,
+			campaignId: campaign.id,
+			profileId: contentAccess.profileId,
+			leaseToken,
+			graphRevision,
+			layoutRevision,
+		});
 		const mediaStatus = safeMediaStatus(payload.mediaStatus);
 		revalidatePath("/mundo");
 		return {
@@ -298,7 +381,7 @@ export async function publishWorldEditStateAction(
 		};
 	}
 	if (payload.reason === "media_not_verified" || payload.reason === "media_invalid") {
-		return { ok: false, reason: "media_pending" };
+		return failPublish("media_pending");
 	}
 	if (
 		payload.reason === "forbidden" ||
