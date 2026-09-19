@@ -197,7 +197,7 @@ describe("loopback bridge", () => {
 					Authorization: `Bearer ${secondToken}`,
 				});
 				return Response.json({
-					schema: "tda_craig_source_v1",
+					schema_version: "tda_craig_ingest_v1",
 					source_id: sourceId,
 					source_sha256: "a".repeat(64),
 					size_bytes: 3,
