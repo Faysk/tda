@@ -47,6 +47,7 @@ export const stageLabels: Record<string, string> = {
 	model_prepare: "Baixando/verificando modelo local",
 	model_load: "Carregando modelo na GPU",
 	alignment: "Alinhando palavras e timestamps",
+	energy_analysis: "Analisando energia entre faixas",
 	cross_track_dedup: "Removendo falas duplicadas",
 	merge_timeline: "Montando linha do tempo",
 	turn_building: "Organizando turnos de fala",
