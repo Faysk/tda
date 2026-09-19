@@ -303,6 +303,30 @@ export async function publishWorldEditLayoutAction(
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World edit publish failed", error.message);
+
+		const { data: campaign } = await client
+			.from("campaigns")
+			.select("id")
+			.eq("slug", CAMPAIGN_SLUG)
+			.maybeSingle();
+		if (campaign?.id) {
+			const { data: receipt, error: receiptError } = await client
+				.from("world_edit_drafts")
+				.select("status,published_layout_revision")
+				.eq("campaign_id", campaign.id)
+				.eq("owner_profile_id", access.profileId)
+				.eq("lease_token", leaseToken)
+				.maybeSingle();
+			if (receiptError) {
+				console.error("World layout publish receipt lookup failed", receiptError.message);
+			} else if (receipt?.status === "published") {
+				const revision = safeRevision(receipt.published_layout_revision);
+				if (revision !== undefined) {
+					revalidatePath("/mundo");
+					return { ok: true, status: "saved", revision };
+				}
+			}
+		}
 		return { ok: false, reason: "dependency_unavailable" };
 	}
 	const payload = data as RpcPayload;
