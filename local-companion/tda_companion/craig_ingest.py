@@ -83,7 +83,11 @@ def _reuse_existing(
     if not package_root.exists():
         return None
     try:
-        package = load_craig_package(package_root, verify_tracks=True)
+        package = load_craig_package(package_root, verify_tracks=False)
+        if any(track.staged_mtime_ns is None for track in package.tracks):
+            # Legacy staged packages predate the metadata seal. Pay the full
+            # verification cost once; the loader upgrades the seal on success.
+            package = load_craig_package(package_root, verify_tracks=True)
     except CraigPackageError as exc:
         raise CraigUploadError("CRAIG_STAGING_EXISTING_INVALID", 409, True) from exc
     if package.source_sha256 != source_sha256:
