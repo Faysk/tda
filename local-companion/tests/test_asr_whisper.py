@@ -200,6 +200,22 @@ def test_craig_whisper_adapter_emits_engine_independent_transcript(tmp_path: Pat
         }
         for item in reports
     )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_STARTED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        for item in reports
+    )
+    assert any(
+        item.get("type") == "event"
+        and item.get("code") == "TRACK_COMPLETED"
+        and item.get("track") == 1
+        and item.get("total_tracks") == 1
+        and item.get("speaker") == "Alice"
+        for item in reports
+    )
     stages = [item.get("stage") for item in reports if item.get("type") == "stage"]
     assert stages[-4:] == ["cross_track_dedup", "merge_timeline", "turn_building", "result_prepare"]
 
