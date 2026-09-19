@@ -69,6 +69,37 @@ def _check_cancelled(is_cancelled: Callable[[], bool] | None) -> None:
         raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_CANCELLED")
 
 
+_BACKGROUND_DOWNLOAD_CODE = "DOWNLOAD_CONTINUES_IN_BACKGROUND"
+_BACKGROUND_DOWNLOAD_MAX_SECONDS = 2 * 60 * 60
+
+
+def _finish_resumable_download(
+    operation: Callable[[], object],
+    *,
+    is_cancelled: Callable[[], bool] | None = None,
+) -> object:
+    """Reconnect to the same BITS-owned transfer instead of starting a fallback.
+
+    DOWNLOAD_CONTINUES_IN_BACKGROUND is progress, not a failed transport. The
+    deterministic BITS destination lets the next call resume/acknowledge the
+    same transfer without duplicating multi-gigabyte runtime downloads.
+    """
+    deadline = time.monotonic() + _BACKGROUND_DOWNLOAD_MAX_SECONDS
+    while True:
+        _check_cancelled(is_cancelled)
+        try:
+            return operation()
+        except NetworkError as exc:
+            if exc.code != _BACKGROUND_DOWNLOAD_CODE:
+                raise
+            _check_cancelled(is_cancelled)
+            if time.monotonic() >= deadline:
+                raise ProfilePreparationError(
+                    "TRANSCRIPTION_PREPARATION_TIMEOUT"
+                ) from exc
+            time.sleep(1.0)
+
+
 def _runtime_ready(state: dict, family: str) -> bool:
     version = state.get("version")
     if state.get("status") != "ready" or not isinstance(version, str):
@@ -179,7 +210,12 @@ def _install_whisper_runtime(
         ):
             target = runtime_root / "whisper" / manifest.version
             repairing = target.exists() or target.is_symlink()
-            archive = download_whisper_runtime(manifest, cache_root)
+            archive = _finish_resumable_download(
+                lambda: download_whisper_runtime(manifest, cache_root),
+                is_cancelled=is_cancelled,
+            )
+            if not isinstance(archive, Path):
+                raise ProfilePreparationError("WHISPER_RUNTIME_DOWNLOAD_INVALID")
             _check_cancelled(is_cancelled)
             install_whisper_runtime_archive(
                 archive,
@@ -204,11 +240,16 @@ def _install_whisper_runtime(
 
     try:
         _check_cancelled(is_cancelled)
-        result = install_published_runtime_rc(
-            "whisper",
-            runtime_root=runtime_root,
-            cache_root=cache_root,
+        result = _finish_resumable_download(
+            lambda: install_published_runtime_rc(
+                "whisper",
+                runtime_root=runtime_root,
+                cache_root=cache_root,
+            ),
+            is_cancelled=is_cancelled,
         )
+        if not isinstance(result, dict):
+            raise ProfilePreparationError("WHISPER_RUNTIME_INSTALL_FAILED")
         _check_cancelled(is_cancelled)
     except Exception as exc:
         if stable_error is not None:
@@ -255,7 +296,12 @@ def _install_qwen_runtime(
         ):
             target = runtime_root / "qwen" / manifest.version
             repairing = target.exists() or target.is_symlink()
-            archive = download_qwen_runtime(manifest, cache_root)
+            archive = _finish_resumable_download(
+                lambda: download_qwen_runtime(manifest, cache_root),
+                is_cancelled=is_cancelled,
+            )
+            if not isinstance(archive, Path):
+                raise ProfilePreparationError("QWEN_RUNTIME_DOWNLOAD_INVALID")
             _check_cancelled(is_cancelled)
             install_qwen_runtime_archive(
                 archive,
@@ -288,11 +334,16 @@ def _install_qwen_runtime(
 
     try:
         _check_cancelled(is_cancelled)
-        result = install_published_runtime_rc(
-            "qwen",
-            runtime_root=runtime_root,
-            cache_root=cache_root,
+        result = _finish_resumable_download(
+            lambda: install_published_runtime_rc(
+                "qwen",
+                runtime_root=runtime_root,
+                cache_root=cache_root,
+            ),
+            is_cancelled=is_cancelled,
         )
+        if not isinstance(result, dict):
+            raise ProfilePreparationError("QWEN_RUNTIME_INSTALL_FAILED")
         _check_cancelled(is_cancelled)
         _probe_qwen_runtime(runtime_root, is_cancelled)
     except Exception as exc:
