@@ -19,7 +19,12 @@ from .asr_runtime import inspect_whisper_runtime
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
-from .qwen_physical_gate import inspect_qwen_physical_gate, ready_qwen_profiles
+from .profile_preparation import (
+    ProfilePreparationError,
+    ProfilePreparationManager,
+    profile_catalog,
+)
+from .qwen_physical_gate import inspect_qwen_physical_gate
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -66,6 +71,17 @@ class BrowserSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
+class ProfilePreparationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    source_id: str = Field(pattern=r"^craig-[0-9a-f]{64}$")
+    profile_id: Literal[
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ]
+
+
 class LifecycleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: Literal["pause", "resume"]
@@ -107,9 +123,18 @@ def create_app(
     )
     resolved_state_root = data_root.parent / "State"
     resolved_runtime_root = data_root.parent / "Runtime"
+    resolved_cache_root = data_root.parent / "Cache"
     store = Store(data_root)
     telemetry = SystemTelemetry()
     browser_sessions = BrowserSessionManager()
+    preparation_manager = ProfilePreparationManager(
+        data_root=data_root,
+        models_root=resolved_models_root,
+        runtime_root=resolved_runtime_root,
+        state_root=resolved_state_root,
+        cache_root=resolved_cache_root,
+        system_log=system_log,
+    )
     worker_supervisor = WorkerSupervisor(
         data_root=data_root,
         models_root=resolved_models_root,
@@ -403,6 +428,7 @@ def create_app(
     app.state.store = store
     app.state.telemetry = telemetry
     app.state.browser_sessions = browser_sessions
+    app.state.preparation_manager = preparation_manager
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
     app.state.data_root = data_root
