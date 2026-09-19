@@ -346,7 +346,15 @@ def ingest_craig_zip(
         )
         if destination.exists():
             raise CraigPackageError("CRAIG_DESTINATION_EXISTS")
-        os.replace(staging, destination)
+        try:
+            os.replace(staging, destination)
+        except OSError as exc:
+            # Another ingest of the same content may win after the exists()
+            # check but before the atomic promotion. Surface that as the normal
+            # content-addressed reuse race instead of a generic storage failure.
+            if destination.is_dir():
+                raise CraigPackageError("CRAIG_DESTINATION_EXISTS") from exc
+            raise
         return package
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
