@@ -66,7 +66,22 @@ export function presentJobError(code: string): string {
 		CRAIG_MANIFEST_TRACK_METADATA_MISMATCH: "Uma faixa Craig mudou no disco; reimporte o ZIP original para reparar a fonte local.",
 		CRAIG_STAGING_REPAIR_FAILED: "O TDA tentou reparar a fonte Craig local, mas não conseguiu concluir a troca segura.",
 		QWEN_ASR_GPU_MEMORY_EXHAUSTED: "O Qwen ficou sem VRAM durante a execução.",
+		QWEN_ASR_CUDA_FAILED: "O Qwen encontrou uma falha CUDA durante a transcrição.",
+		QWEN_ASR_INFERENCE_FAILED: "O Qwen não conseguiu concluir a inferência desta faixa.",
+		QWEN_ALIGNMENT_REQUIRED: "O Qwen produziu texto, mas não conseguiu gerar o alinhamento obrigatório de palavras e timestamps.",
+		QWEN_ALIGNMENT_FAILED: "O alinhador do Qwen falhou ao sincronizar as palavras com o áudio.",
+		QWEN_AUDIO_DECODE_FAILED: "O Qwen não conseguiu decodificar uma das faixas de áudio.",
+		QWEN_AUDIO_EMPTY: "Uma das faixas chegou vazia ao pipeline de áudio do Qwen.",
+		QWEN_MODEL_NOT_GPU_RESIDENT: "O modelo Qwen não permaneceu carregado corretamente na GPU.",
+		QWEN_ALIGNER_NOT_GPU_RESIDENT: "O alinhador do Qwen não permaneceu carregado corretamente na GPU.",
+		QWEN_RUNTIME_NOT_INSTALLED: "O runtime Qwen necessário para esta execução não está instalado.",
+		QWEN_TRACK_PROGRESS_INCOMPLETE: "O Qwen encerrou uma faixa sem concluir todas as janelas esperadas.",
+		QWEN_WINDOW_REPLAY_MISMATCH: "Um checkpoint do Qwen não corresponde ao replay esperado; a execução foi interrompida para proteger o resultado.",
 		WHISPER_MODEL_LOAD_FAILED: "O Whisper não conseguiu carregar o modelo local.",
+		WHISPER_MODEL_NOT_LOADED: "O Whisper não manteve o modelo carregado para iniciar a transcrição.",
+		WHISPER_RUNTIME_NOT_INSTALLED: "O runtime Whisper necessário para esta execução não está instalado.",
+		WHISPER_CUDA_UNAVAILABLE: "O Whisper não encontrou CUDA disponível nesta máquina.",
+		WHISPER_CUDA_COMPUTE_UNSUPPORTED: "A GPU foi detectada, mas o runtime Whisper não oferece um modo de cálculo CUDA compatível.",
 	};
 	return known[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
 }
