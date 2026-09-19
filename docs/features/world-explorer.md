@@ -110,6 +110,7 @@ Login por si só não concede nenhuma dessas capacidades.
 O lease exclusivo serializa quem pode escrever, mas **não é o armazenamento durável do trabalho**. O rascunho salvo precisa sobreviver à expiração/remoção do lease, reload da página e falha de publicação.
 
 - autosave de layout ou grafo atualiza um checkpoint server-only separado do lease;
+- além do debounce normal, uma janela máxima de segurança força flush periódico do estado mais recente durante interação contínua, para que atividade sem pausa não adie o checkpoint indefinidamente;
 - release comum encerra o lock, mas não apaga o checkpoint;
 - descarte é uma operação explícita, confirmada pelo usuário, e preserva uma cópia tombstonada para auditoria/recuperação;
 - o mesmo editor recupera automaticamente o último checkpoint compatível quando volta a conduzir;
