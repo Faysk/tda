@@ -307,7 +307,10 @@ def inspect_model_install(
     profile: AsrProfile | str,
     *,
     verify_hash: bool = False,
+    verification: dict[str, bool] | None = None,
 ) -> dict[str, object]:
+    if verification is not None:
+        verification["content_verified"] = False
     value = get_profile(profile) if isinstance(profile, str) else profile
     directory = model_path(models_root, value)
     if not directory.is_dir():
@@ -355,6 +358,8 @@ def inspect_model_install(
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
         if actual != marker["content_sha256"]:
             return {"profile": value.public_dict(), "status": "corrupt", "path": str(directory)}
+        if verification is not None:
+            verification["content_verified"] = True
 
     if metadata_drift:
         try:
