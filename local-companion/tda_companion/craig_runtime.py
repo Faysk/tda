@@ -144,6 +144,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         if stat.st_size != size_bytes:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
         staged_mtime_ns = item.get("staged_mtime_ns")
+        metadata_drift = False
         if staged_mtime_ns is not None:
             if (
                 isinstance(staged_mtime_ns, bool)
@@ -151,10 +152,14 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 or staged_mtime_ns <= 0
             ):
                 raise CraigPackageError("CRAIG_MANIFEST_TRACK_METADATA_INVALID")
-            if stat.st_mtime_ns != staged_mtime_ns:
-                raise CraigPackageError("CRAIG_MANIFEST_TRACK_METADATA_MISMATCH")
-        if verify_tracks and _sha256_file(candidate) != digest:
-            raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
+            metadata_drift = stat.st_mtime_ns != staged_mtime_ns
+
+        # Metadata is only a cheap drift detector, never the source of truth.
+        # If a copy/backup/antivirus changed mtime, hash just that track once;
+        # unchanged metadata keeps the normal dispatch path hash-free.
+        if metadata_drift or verify_tracks:
+            if _sha256_file(candidate) != digest:
+                raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
 
         tracks.append(
             CraigTrack(
