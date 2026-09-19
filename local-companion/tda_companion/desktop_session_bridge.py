@@ -591,10 +591,25 @@ class SessionDesktopBridge(DesktopBridge):
             value = super().snapshot()
         except AgentConnectionError as exc:
             return self._offline_snapshot(exc.code)
+        try:
+            preparation = self.client.get("/preparation")
+        except (AgentConnectionError, RuntimeError):
+            preparation = {
+                "schema": "tda_profile_preparation_v1",
+                "state": "idle",
+                "active": False,
+                "stage": "idle",
+                "title": "Preparação indisponível.",
+                "detail": "",
+                "sequence": 0,
+                "elapsed_seconds": 0.0,
+                "error_code": None,
+            }
         return {
             **value,
             "connection": self.client.status(),
             "maintenance": self._maintenance_snapshot(),
+            "preparation": preparation,
         }
 
     def logs(
@@ -638,6 +653,8 @@ class SessionDesktopBridge(DesktopBridge):
         return isinstance(value, dict) and value.get("active") is True
 
     def restart_agent(self) -> bool:
+        if self._agent_preparation_active():
+            raise RuntimeError("AGENT_RESTART_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         return self.client.restart()
 
     def check_update(self) -> dict[str, object]:
