@@ -231,6 +231,11 @@ export async function renewWorldEditLeaseAction(
 		};
 	}
 	if (payload.ok === false && payload.reason === "lease_lost") {
+		const receipt = await confirmedReceipt();
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
+		}
 		return { ok: false, reason: "lease_lost" };
 	}
 	if (payload.ok === false && payload.reason === "forbidden") {
@@ -299,6 +304,34 @@ export async function publishWorldEditLayoutAction(
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
+	const confirmedReceipt = async (): Promise<WorldEditMutationResult | null> => {
+		const { data: campaign, error: campaignError } = await client
+			.from("campaigns")
+			.select("id")
+			.eq("slug", CAMPAIGN_SLUG)
+			.maybeSingle();
+		if (campaignError || !campaign?.id) {
+			if (campaignError)
+				console.error("World layout publish receipt campaign lookup failed", campaignError.message);
+			return null;
+		}
+		const { data: receipt, error: receiptError } = await client
+			.from("world_edit_drafts")
+			.select("status,published_layout_revision")
+			.eq("campaign_id", campaign.id)
+			.eq("owner_profile_id", access.profileId)
+			.eq("lease_token", leaseToken)
+			.maybeSingle();
+		if (receiptError) {
+			console.error("World layout publish receipt lookup failed", receiptError.message);
+			return null;
+		}
+		if (receipt?.status !== "published") return null;
+		const revision = safeRevision(receipt.published_layout_revision);
+		if (revision === undefined) return null;
+		return { ok: true, status: "saved", revision };
+	};
+
 	const { data, error } = await client.rpc("publish_world_edit_layout_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
@@ -307,29 +340,10 @@ export async function publishWorldEditLayoutAction(
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World edit publish failed", error.message);
-
-		const { data: campaign } = await client
-			.from("campaigns")
-			.select("id")
-			.eq("slug", CAMPAIGN_SLUG)
-			.maybeSingle();
-		if (campaign?.id) {
-			const { data: receipt, error: receiptError } = await client
-				.from("world_edit_drafts")
-				.select("status,published_layout_revision")
-				.eq("campaign_id", campaign.id)
-				.eq("owner_profile_id", access.profileId)
-				.eq("lease_token", leaseToken)
-				.maybeSingle();
-			if (receiptError) {
-				console.error("World layout publish receipt lookup failed", receiptError.message);
-			} else if (receipt?.status === "published") {
-				const revision = safeRevision(receipt.published_layout_revision);
-				if (revision !== undefined) {
-					revalidatePath("/mundo");
-					return { ok: true, status: "saved", revision };
-				}
-			}
+		const receipt = await confirmedReceipt();
+		if (receipt?.ok) {
+			revalidatePath("/mundo");
+			return receipt;
 		}
 		return { ok: false, reason: "dependency_unavailable" };
 	}
