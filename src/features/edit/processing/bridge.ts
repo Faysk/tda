@@ -54,6 +54,27 @@ export class LocalBridge {
 		notifyPairing();
 	}
 
+	async bootstrap(signal: AbortSignal) {
+		// Health is intentionally public so we confirm the expected loopback
+		// protocol before asking the local Agent for a browser-scoped credential.
+		await this.health(signal);
+		const value = record(
+			await this.json("/session", signal, {}, undefined, true),
+		);
+		if (value.schema !== "tda_loopback_session_v1")
+			throw new BridgeError("incompatible");
+		const token = text(value.token, 256);
+		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
+			throw new BridgeError("invalid_response");
+		if (
+			typeof value.expires_in_seconds !== "number" ||
+			!Number.isSafeInteger(value.expires_in_seconds) ||
+			value.expires_in_seconds < 60
+		)
+			throw new BridgeError("invalid_response");
+		this.pair(token);
+	}
+
 	disconnect() {
 		if (!pairedToken) return;
 		pairedToken = "";
