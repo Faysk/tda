@@ -29,6 +29,7 @@ function jobTone(status: LocalJob["status"]): StatusTone {
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
 	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
+	if (job.status === "running" && consolidationStages.has(job.stage)) return null;
 	return Math.round((job.progress.completed / job.progress.total) * 100);
 }
 
@@ -185,7 +186,11 @@ function JobRow({
 						<span>{percent}%</span>
 					</>
 				) : (
-					<span>Sem medida de progresso nesta etapa.</span>
+					<span>
+						{job.progress && job.progress.completed > 0
+							? progressCopy(job)
+							: "Sem medida de progresso nesta etapa."}
+					</span>
 				)}
 			</div>
 			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
@@ -457,7 +462,9 @@ export function ProcessingPanel() {
 											</div>
 										) : (
 											<p className={styles.noProgress}>
-												Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados.
+												{activeJob.progress && activeJob.progress.completed > 0
+													? `${progressCopy(activeJob)} concluídos · ${stageLabels[activeJob.stage] ?? activeJob.stage}.`
+													: "Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados."}
 											</p>
 										)}
 										<section className={styles.pipeline} aria-label="Etapa atual do processamento">
