@@ -98,6 +98,52 @@ describe("loopback bridge", () => {
 		});
 	});
 
+	it("renews an expired browser session and retries with the replacement bearer", async () => {
+		const firstToken = "browser_session_token_111111111111111111111111";
+		const secondToken = "browser_session_token_22222222222222222222222";
+		let sessionCount = 0;
+		let jobsCount = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health"))
+				return Response.json({
+					api_version: "1",
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				});
+			if (value.endsWith("/session")) {
+				sessionCount += 1;
+				return Response.json({
+					schema: "tda_loopback_session_v1",
+					token: sessionCount === 1 ? firstToken : secondToken,
+					expires_in_seconds: 28_800,
+				});
+			}
+			if (value.endsWith("/jobs")) {
+				jobsCount += 1;
+				if (jobsCount === 1)
+					return Response.json(
+						{ error: { code: "SESSION_EXPIRED", recoverable: true } },
+						{ status: 401 },
+					);
+				return Response.json({ jobs: [] });
+			}
+			throw new Error("unexpected request");
+		});
+		const bridge = new LocalBridge(request);
+
+		await bridge.bootstrap(signal());
+		const jobs = await bridge.jobs(signal());
+
+		expect(jobs).toEqual([]);
+		expect(sessionCount).toBe(2);
+		expect(jobsCount).toBe(2);
+		const retriedJobs = request.mock.calls.at(-1);
+		expect(retriedJobs?.[1]?.headers).toMatchObject({
+			Authorization: `Bearer ${secondToken}`,
+		});
+	});
+
 	it("fails as incompatible before requesting a session from Companion 0.3.13", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
