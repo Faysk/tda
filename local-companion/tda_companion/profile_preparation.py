@@ -435,7 +435,19 @@ class ProfilePreparationManager:
         thread.join(timeout=timeout)
         return not thread.is_alive()
 
+    def _deadline_expired(self) -> bool:
+        started = self._started_at
+        return (
+            started is not None
+            and time.monotonic() - started >= _BACKGROUND_DOWNLOAD_MAX_SECONDS
+        )
+
+    def _should_stop(self) -> bool:
+        return self._cancel.is_set() or self._deadline_expired()
+
     def _ensure_not_cancelled(self) -> None:
+        if self._deadline_expired():
+            raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_TIMEOUT")
         _check_cancelled(self._cancel.is_set)
 
     def _set(
@@ -605,7 +617,7 @@ class ProfilePreparationManager:
                 runtime = _install_whisper_runtime(
                     self.runtime_root,
                     self.cache_root,
-                    is_cancelled=self._cancel.is_set,
+                    is_cancelled=self._should_stop,
                 )
                 self._set(
                     "whisper_model",
@@ -618,7 +630,7 @@ class ProfilePreparationManager:
                         models_root=self.models_root,
                         runtime_root=self.runtime_root,
                         profile_id=profile_id,
-                        is_cancelled=self._cancel.is_set,
+                        is_cancelled=self._should_stop,
                     )
                 except WhisperDesktopPrepareError as exc:
                     raise ProfilePreparationError(exc.code) from exc
@@ -626,7 +638,7 @@ class ProfilePreparationManager:
                 runtime = _install_qwen_runtime(
                     self.runtime_root,
                     self.cache_root,
-                    is_cancelled=self._cancel.is_set,
+                    is_cancelled=self._should_stop,
                 )
                 self._set(
                     "qwen_probe",
@@ -644,7 +656,7 @@ class ProfilePreparationManager:
                         source_id=source_id,
                         profile_id=profile_id,
                         progress=self._qwen_progress,
-                        is_cancelled=self._cancel.is_set,
+                        is_cancelled=self._should_stop,
                     )
                 except QwenDesktopPrepareError as exc:
                     raise ProfilePreparationError(exc.code) from exc
@@ -666,6 +678,12 @@ class ProfilePreparationManager:
             )
         except Exception as exc:
             code = _error_code(exc)
+            if (
+                code == "TRANSCRIPTION_PREPARATION_CANCELLED"
+                and self._deadline_expired()
+                and not self._cancel.is_set()
+            ):
+                code = "TRANSCRIPTION_PREPARATION_TIMEOUT"
             with self._lock:
                 self._state["error_code"] = code
             self._set(
