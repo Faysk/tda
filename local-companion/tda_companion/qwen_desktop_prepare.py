@@ -227,9 +227,15 @@ def prepare_qwen_profile_from_craig(
 
     package_root = data_root.resolve() / "staging" / source_id
     try:
-        package = load_craig_package(package_root, verify_tracks=True)
+        package = load_craig_package(package_root, verify_tracks=False)
+        if any(track.staged_mtime_ns is None for track in package.tracks):
+            # Legacy packages predate the cheap metadata seal. Deep-verify once;
+            # load_craig_package backfills the seal after successful hashes.
+            package = load_craig_package(package_root, verify_tracks=True)
     except CraigPackageError as exc:
         raise QwenDesktopPrepareError(str(exc)) from exc
+    if is_cancelled is not None and is_cancelled():
+        raise QwenDesktopPrepareError("TRANSCRIPTION_PREPARATION_CANCELLED")
     if not package.tracks:
         raise QwenDesktopPrepareError("CRAIG_TRACKS_EMPTY")
     report(
