@@ -96,7 +96,21 @@ def test_model_prepare_uses_tda_marker_and_no_fake_percent(tmp_path: Path):
 
 def test_whisper_reports_runtime_validation_before_cuda_probe(monkeypatch, tmp_path: Path):
     reports: list[dict] = []
-    package, package_root = _package(tmp_path)
+    package_root = tmp_path / "Data" / "staging" / "runtime-stage"
+    package_root.mkdir(parents=True)
+    package = CraigPackage(
+        schema_version="tda_craig_package_v1",
+        source_zip="fixture.zip",
+        source_sha256="a" * 64,
+        recording_id="runtime-stage",
+        guild=None,
+        channel=None,
+        requester=None,
+        start_time=None,
+        tracks=(),
+        info_present=False,
+        raw_dat_present=False,
+    )
 
     def resolve(*_args, **_kwargs):
         assert reports[-1] == {
