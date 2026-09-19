@@ -29,6 +29,24 @@ export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 	return job.kind;
 }
 
+export function presentJobError(code: string): string {
+	const known: Record<string, string> = {
+		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
+		WORKER_START_TIMEOUT: "O worker local não iniciou dentro do tempo esperado.",
+		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
+		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
+		WORKER_RESULT_RUN_INVALID: "O run local falhou na validação de integridade.",
+		WORKER_RESULT_RUN_MISMATCH: "O run local não corresponde a este job e tentativa.",
+		TRANSCRIPTION_SOURCE_HASH_MISMATCH: "A transcrição não corresponde à fonte Craig esperada.",
+		CRAIG_MANIFEST_INVALID: "A fonte Craig local está inválida; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_HASH_MISMATCH: "Uma faixa Craig foi alterada; reimporte o ZIP original.",
+		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH: "Uma faixa Craig mudou de tamanho; reimporte o ZIP original.",
+		QWEN_ASR_GPU_MEMORY_EXHAUSTED: "O Qwen ficou sem VRAM durante a execução.",
+		WHISPER_MODEL_LOAD_FAILED: "O Whisper não conseguiu carregar o modelo local.",
+	};
+	return known[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
+}
+
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
 	running: "Processando",
@@ -217,6 +235,21 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: "Processamento concluído com sucesso.",
 				detail: "Sobreviveu todo mundo. Inclusive o PC.",
 			};
+		case "SUCCEEDED_RECOVERED":
+		case "JOB_RECOVERED_FROM_IMMUTABLE_RUN":
+			return {
+				title: "Resultado completo recuperado após reinício do Agent.",
+				detail: "O run imutável já estava íntegro no disco; nenhuma retranscrição foi necessária.",
+			};
+		case "COMPATIBILITY_MIRROR_WRITE_FAILED":
+			return {
+				title: "Run concluído; o espelho legado não pôde ser atualizado.",
+				detail: "O resultado imutável continua válido e é a fonte de verdade.",
+			};
+		case "WORKER_RESULT_RUN_INVALID":
+		case "WORKER_RESULT_RUN_MISMATCH":
+		case "TRANSCRIPTION_SOURCE_HASH_MISMATCH":
+			return { title: presentJobError(event.code) };
 		case "CANCELLED":
 			return { title: "Processamento cancelado pelo operador." };
 		case "INTERRUPTED":
