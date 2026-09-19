@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -161,6 +162,39 @@ def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoint
     assert not (package_root / ".checkpoints").exists()
     package = load_craig_package(package_root, verify_tracks=True)
     assert package.source_sha256 == first["source_sha256"]
+
+
+def test_concurrent_reupload_converges_on_one_repaired_source(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "sessao-concorrente.zip"
+    source.write_bytes(_zip_bytes())
+
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    track = package_root / "tracks" / "track-000001.flac"
+    original = track.read_bytes()
+    replacement = b"fLaC-ALICE"
+    assert len(replacement) == len(original)
+    track.write_bytes(replacement)
+
+    evidence = package_root / "runs" / "run-evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "keep.txt").write_text("preserve-me", encoding="utf-8")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(ingest_craig_file, source, data_root),
+            executor.submit(ingest_craig_file, source, data_root),
+        ]
+        results = [future.result(timeout=10) for future in futures]
+
+    assert {result["source_id"] for result in results} == {first["source_id"]}
+    assert sorted(result["reused"] for result in results) == [False, True]
+    assert track.read_bytes() == original
+    assert (package_root / "runs" / "run-evidence" / "keep.txt").read_text(
+        encoding="utf-8"
+    ) == "preserve-me"
+    load_craig_package(package_root, verify_tracks=True)
 
 
 def test_ingest_decouples_windows_unsafe_speaker_name_from_physical_filename(tmp_path: Path):
