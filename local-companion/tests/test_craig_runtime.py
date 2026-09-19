@@ -57,11 +57,13 @@ def test_load_staged_package_rejects_manifest_path_override(tmp_path: Path):
 def test_load_staged_package_rejects_track_tampering(tmp_path: Path):
     root = _stage_package(tmp_path)
     (root / "tracks" / "track-000001.flac").write_bytes(b"changed!!!")
-    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_(SIZE|METADATA|HASH)_MISMATCH"):
+    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_(SIZE|HASH)_MISMATCH"):
         load_craig_package(root)
 
 
-def test_cheap_load_detects_same_size_track_drift_from_metadata_seal(tmp_path: Path):
+def test_cheap_load_hashes_only_after_metadata_drift_and_detects_same_size_tamper(
+    tmp_path: Path,
+):
     root = _stage_package(tmp_path)
     track = root / "tracks" / "track-000001.flac"
     before = track.stat()
@@ -73,8 +75,22 @@ def test_cheap_load_detects_same_size_track_drift_from_metadata_seal(tmp_path: P
         ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
     )
 
-    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_METADATA_MISMATCH"):
+    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_HASH_MISMATCH"):
         load_craig_package(root, verify_tracks=False)
+
+
+def test_metadata_only_drift_does_not_false_positive_as_corruption(tmp_path: Path):
+    root = _stage_package(tmp_path)
+    track = root / "tracks" / "track-000001.flac"
+    before = track.stat()
+    os.utime(
+        track,
+        ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000),
+    )
+
+    package = load_craig_package(root, verify_tracks=False)
+
+    assert package.tracks[0].sha256
 
 
 def test_legacy_manifest_without_metadata_seal_remains_readable(tmp_path: Path):
