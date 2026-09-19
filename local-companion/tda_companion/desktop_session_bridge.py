@@ -630,6 +630,13 @@ class SessionDesktopBridge(DesktopBridge):
                 "connection": self.client.status(),
             }
 
+    def _agent_preparation_active(self) -> bool:
+        try:
+            value = self.client.get("/preparation")
+        except (AgentConnectionError, RuntimeError):
+            return False
+        return isinstance(value, dict) and value.get("active") is True
+
     def restart_agent(self) -> bool:
         return self.client.restart()
 
@@ -683,6 +690,8 @@ class SessionDesktopBridge(DesktopBridge):
         }
 
     def install_whisper_runtime(self) -> dict[str, object]:
+        if self._agent_preparation_active():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         try:
             result = super().install_whisper_runtime()
             if result.get("accepted") is True or result.get("status") == "ready":
@@ -698,6 +707,8 @@ class SessionDesktopBridge(DesktopBridge):
             raise self._friendly_network_error(exc) from None
 
     def install_qwen_runtime(self) -> dict[str, object]:
+        if self._agent_preparation_active():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         try:
             result = super().install_qwen_runtime()
             if result.get("accepted") is True or result.get("status") == "ready":
@@ -763,7 +774,7 @@ class SessionDesktopBridge(DesktopBridge):
             self._maintenance_handoff_process = None
 
     def install_update(self) -> dict[str, object]:
-        if self._preparation_public().get("active") is True:
+        if self._agent_preparation_active() or self._preparation_public().get("active") is True:
             raise RuntimeError("MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         self._last_maintenance_operation_id = None
         try:
@@ -776,7 +787,7 @@ class SessionDesktopBridge(DesktopBridge):
         return result
 
     def uninstall(self, purge: bool = False) -> dict[str, object]:
-        if self._preparation_public().get("active") is True:
+        if self._agent_preparation_active() or self._preparation_public().get("active") is True:
             raise RuntimeError("MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
         self._last_maintenance_operation_id = None
         result = super().uninstall(purge)
