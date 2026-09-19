@@ -148,7 +148,7 @@
     ],
     qwen3: [
       ["runtime", "Runtime", "Baixar e verificar dependências"],
-      ["qwen_probe", "GPU e CUDA", "Validar worker e RTX"],
+      ["qwen_probe", "GPU e CUDA", "Validar worker e GPU compatível"],
       ["qwen_audio", "Amostra 60 s", "Escolher áudio local"],
       ["qwen_model_download", "Modelo Qwen", "Baixar e verificar modelo"],
       ["qwen_gpu_transcription", "Transcrição teste", "Executar 60 s na GPU"],
@@ -891,13 +891,29 @@
     if (active) {
       summary.querySelector("h3").textContent = "Processamento em andamento";
       const progress = active.progress || {};
-      summary.querySelector("p").textContent = `${active.kind || "Trabalho local"} · ${progress.completed ?? 0} de ${progress.total ?? "—"} ${progress.unit || "itens"}`;
+      const stages = {
+        runtime_validation: "Validando runtime e gate físico",
+        source_validation: "Validando sessão local",
+        model_prepare: "Preparando modelo",
+        model_load: "Carregando modelo",
+        transcription: "Transcrevendo áudio",
+        alignment: "Alinhando palavras",
+        cross_track_dedup: "Removendo duplicações",
+        merge_timeline: "Montando linha do tempo",
+        turn_building: "Organizando turnos",
+        result_prepare: "Gravando resultado",
+      };
+      const stage = stages[active.stage] || active.stage || "Worker ativo";
+      const measure = typeof progress.completed === "number" && typeof progress.total === "number"
+        ? ` · ${progress.completed} de ${progress.total} ${progress.unit || "itens"}`
+        : "";
+      summary.querySelector("p").textContent = `${stage} · última atividade ${timeOnly(active.updated_at)}${measure}`;
     } else if (connectionState !== "ready") {
       summary.querySelector("h3").textContent = "Agent local indisponível.";
-      summary.querySelector("p").textContent = "A interface continua ativa. O Companion tentará recuperar o Agent sem descartar a sessão Craig já selecionada.";
+      summary.querySelector("p").textContent = "A interface continua ativa. O Companion tentará recuperar o Agent; os trabalhos persistidos permanecem no armazenamento local.";
     } else {
       summary.querySelector("h3").textContent = "Nenhum processamento em andamento.";
-      summary.querySelector("p").textContent = counts.queued ? `${counts.queued} trabalho(s) aguardando na fila.` : "A fila está livre. Selecione um ZIP do Craig para iniciar uma transcrição local.";
+      summary.querySelector("p").textContent = counts.queued ? `${counts.queued} trabalho(s) aguardando na fila.` : "A fila está livre. Inicie uma nova sessão pela tela de Processamento no TDA Web.";
     }
 
     const settings = value.settings || {};
@@ -1114,7 +1130,8 @@
     document.querySelectorAll("[data-go]").forEach((node) => {
       node.addEventListener("click", () => showView(node.dataset.go));
     });
-    $("new-session").addEventListener("click", () => showView("process"));
+    $("new-session").addEventListener("click", () => api.open_tda());
+    $("open-processing-web").addEventListener("click", () => api.open_tda());
     $("select-craig").addEventListener("click", selectCraigSession);
     $("start-processing").addEventListener("click", startProcessing);
     $("open-tda").addEventListener("click", () => api.open_tda());
