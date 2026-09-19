@@ -248,8 +248,15 @@ begin
      or exists (select 1 from public.world_layout_snapshots)
      or exists (select 1 from public.world_graph_revisions)
      or coalesce((select revision from public.world_graph_heads where campaign_id='11111111-1111-4111-8111-111111111111'), 0) <> 0
-     or exists (select 1 from public.audit_log where action in ('world_layout.update','world_graph.publish')) then
-    raise exception 'review_required must leave canonical graph/layout/audit unchanged';
+     or exists (select 1 from public.audit_log where action in ('world_layout.update','world_graph.publish'))
+     or not exists (
+       select 1
+       from public.world_edit_drafts
+       where owner_profile_id = '33333333-3333-4333-8333-333333333333'
+         and lease_token = token
+         and status = 'active'
+     ) then
+    raise exception 'review_required must leave canonical graph/layout/audit unchanged and preserve the durable draft';
   end if;
 
   result := public.release_world_edit_lease_atomic(
@@ -412,8 +419,18 @@ begin
      or (select count(*) from public.relation_types) <> 1
      or (select count(*) from public.entity_relations) <> 1
      or (select count(*) from public.audit_log where action='world_graph.publish') <> 1
-     or (select count(*) from public.audit_log where action='world_layout.update') <> 1 then
-    raise exception 'combined publish did not leave expected canonical/audit state';
+     or (select count(*) from public.audit_log where action='world_layout.update') <> 1
+     or not exists (
+       select 1
+       from public.world_edit_drafts
+       where owner_profile_id = '33333333-3333-4333-8333-333333333333'
+         and lease_token = token
+         and status = 'published'
+         and published_graph_revision = 1
+         and published_layout_revision = 1
+         and last_publish_error is null
+     ) then
+    raise exception 'combined publish did not leave expected canonical/audit/receipt state';
   end if;
 
   if (select source_entity_id::text from public.entity_relations limit 1)
