@@ -74,7 +74,7 @@ SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Necessários somente quando o merge atual contém manifest canônico que deve ser publicado pelo lifecycle de mídia do Production:
+Credenciais R2 não ficam duplicadas no GitHub Environment. Quando o merge atual contém manifest canônico que deve ser publicado, a Production CD usa o `VERCEL_TOKEN` para puxar o Environment `production` do projeto Vercel e lê dali, em arquivo temporário protegido:
 
 ```text
 R2_ACCOUNT_ID
@@ -82,14 +82,14 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-Uma release web comum não deve exigir Supabase nem R2. A ausência de credencial condicional só bloqueia a release quando o próprio plano de release determina que aquele domínio precisa ser executado.
+Uma release web comum não executa esse pull de mídia e não deve exigir Supabase nem R2. A ausência de credencial condicional só bloqueia a release quando o próprio plano de release determina que aquele domínio precisa ser executado.
 
 Finalidades:
 
 - `VERCEL_TOKEN`: autentica Vercel CLI para pull/build/deploy/curl/promote/rollback;
 - `SUPABASE_ACCESS_TOKEN`: Personal Access Token Supabase `sbp_...` para Supabase CLI/Management API;
 - `SUPABASE_DB_PASSWORD`: senha Postgres do projeto canônico usada por migration operations;
-- `R2_*`: escrita/readback do objeto canônico alterado, quando uma release de mídia realmente exige publicação.
+- `R2_*`: variáveis server-only do Environment `production` da Vercel, usadas para escrita/readback do objeto canônico alterado quando uma release de mídia realmente exige publicação.
 
 Não confundir:
 
@@ -202,9 +202,17 @@ Não resetar a senha apenas para descobrir seu valor. Rotação deve considerar 
 
 ### R2
 
-Se o Production for autorizado a publicar manifests canônicos, cadastrar as credenciais R2 no environment `production` com privilégio mínimo sobre o bucket público canônico.
+As credenciais S3 do R2 usadas pelo publisher canônico ficam no Environment `production` do projeto Vercel, com privilégio mínimo sobre o bucket público canônico. A Production CD não replica esses valores em inputs nem em logs: quando `media_publish=true`, usa o `VERCEL_TOKEN` para executar `vercel env pull` para um arquivo temporário com permissão restrita e passa esse arquivo ao publisher.
 
-Não adicionar essas credenciais apenas para fazer uma release web comum passar: se `media_publish=false`, elas não são necessárias.
+Manter no Environment `production` da Vercel:
+
+```text
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+```
+
+`R2_PUBLIC_BUCKET=tda-media-public` permanece pinado no workflow. Não puxar nem exigir as credenciais R2 em release web comum; se `media_publish=false`, o passo é ignorado.
 
 ## Rollback
 
@@ -224,7 +232,9 @@ Banco não sofre rollback automático.
 
 ### `Missing production secret ...`
 
-Verificar primeiro se o release plan realmente marcou o domínio como necessário. Se marcou, cadastrar/rotacionar a credencial correspondente no Environment `production`; não passar secret por workflow input.
+Para `VERCEL_TOKEN` ou credenciais Supabase, verificar primeiro se o release plan realmente marcou o domínio como necessário e corrigir o GitHub Environment `production`; não passar secret por workflow input.
+
+Para mídia R2, o erro esperado é de configuração ausente no env temporário puxado da Vercel. Confirmar que `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` existem no Environment `production` do projeto Vercel canônico e que o `VERCEL_TOKEN` possui acesso a esse projeto.
 
 ### `SUPABASE_ACCESS_TOKEN must be ... sbp_`
 
