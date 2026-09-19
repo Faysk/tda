@@ -259,14 +259,14 @@ begin
     raise exception 'review_required must leave canonical graph/layout/audit unchanged and preserve the durable draft';
   end if;
 
-  result := public.release_world_edit_lease_atomic(
+  result := public.discard_world_edit_lease_atomic(
     '44444444-4444-4444-8444-444444444444',
     '33333333-3333-4333-8333-333333333333',
     'synthetic-campaign',
     token
   );
-  if result->>'ok' <> 'true' then
-    raise exception 'provenance guard fixture cleanup failed: %', result;
+  if result->>'ok' <> 'true' or result->>'status' <> 'discarded' then
+    raise exception 'provenance guard fixture must explicitly discard its preserved draft: %', result;
   end if;
 end;
 $$;
