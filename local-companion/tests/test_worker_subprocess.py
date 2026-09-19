@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
 
+import tda_companion.worker_supervisor as supervisor_module
 from tda_companion.worker_protocol import (
     WorkerCancelCommand,
     WorkerMessage,
@@ -103,6 +105,70 @@ def test_supervisor_runs_fixture_without_loading_worker_in_agent():
     assert "ready" in events
     assert "stage" in events
     assert "heartbeat" in events
+
+
+def test_supervisor_waits_for_delayed_stdout_drain_after_worker_exit(
+    monkeypatch,
+    tmp_path,
+):
+    script = tmp_path / "fast_exit_worker.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "result", {"kind": command.kind, "units": 1}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+sys.stdout.flush()
+""",
+        encoding="utf-8",
+    )
+
+    original_thread = threading.Thread
+
+    def delayed_thread(*args, **kwargs):
+        if kwargs.get("name") != "tda-worker-stdout":
+            return original_thread(*args, **kwargs)
+        target = kwargs["target"]
+
+        def delayed_target():
+            time.sleep(0.25)
+            target()
+
+        copied = dict(kwargs)
+        copied["target"] = delayed_target
+        return original_thread(*args, **copied)
+
+    monkeypatch.setattr(supervisor_module.threading, "Thread", delayed_thread)
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=2,
+    )
+
+    outcome = supervisor.run_fixture(
+        job_id="fast-exit",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+    )
+
+    assert outcome.terminal == "result"
+    assert outcome.payload["units"] == 1
+    assert outcome.returncode == 0
 
 
 def test_supervisor_cancels_child_cooperatively():
