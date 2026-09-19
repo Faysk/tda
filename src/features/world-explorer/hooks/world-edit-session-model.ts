@@ -21,7 +21,7 @@ export function worldPublishFailureMessage(reason: string): string {
 		case "dependency_unavailable":
 			return "Não foi possível confirmar o resultado da publicação por uma falha de servidor ou rede. O rascunho continua preservado; reabra o Mundo e confira a revisão publicada antes de tentar novamente.";
 		default:
-			return "A publicação não pôde ser confirmada. Nada foi publicado e o rascunho continua preservado.";
+			return "Não foi possível confirmar o resultado da publicação. O rascunho continua preservado; confira a revisão publicada antes de tentar novamente.";
 	}
 }
 
