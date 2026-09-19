@@ -88,6 +88,7 @@ const processingStages = new Set([
 	"alignment",
 ]);
 const consolidationStages = new Set([
+	"energy_analysis",
 	"cross_track_dedup",
 	"merge_timeline",
 	"turn_building",
