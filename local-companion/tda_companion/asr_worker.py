@@ -13,6 +13,7 @@ from .asr_models import ModelRegistryError, get_profile
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
     migrate_legacy_transcript,
@@ -277,6 +278,14 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             emitter.emit("cancelled", {"stage": "transcription"})
             return 0
         emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": True})
+        return 66
+    except TranscriptValidationError:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit(
+            "error",
+            {"code": "TRANSCRIPT_VALIDATION_FAILED", "recoverable": False},
+        )
         return 66
     except (ModelRegistryError, CraigPackageError, TranscriptionRunError) as exc:
         heartbeat_stop.set()
