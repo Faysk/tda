@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import VERSION
 from .asr_models import get_profile, inspect_model_install
 from .asr_runtime import inspect_whisper_runtime
+from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
 from .qwen_physical_gate import inspect_qwen_physical_gate, ready_qwen_profiles
@@ -61,6 +62,10 @@ JobRequest = Annotated[
 ]
 
 
+class BrowserSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
 class LifecycleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: Literal["pause", "resume"]
@@ -104,6 +109,7 @@ def create_app(
     resolved_runtime_root = data_root.parent / "Runtime"
     store = Store(data_root)
     telemetry = SystemTelemetry()
+    browser_sessions = BrowserSessionManager()
     worker_supervisor = WorkerSupervisor(
         data_root=data_root,
         models_root=resolved_models_root,
@@ -372,6 +378,7 @@ def create_app(
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
     app.state.telemetry = telemetry
+    app.state.browser_sessions = browser_sessions
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
     app.state.data_root = data_root
@@ -411,12 +418,24 @@ def create_app(
                     "Access-Control-Max-Age": "60",
                 },
             )
-        public = request.method == "GET" and request.url.path == "/api/v1/health"
-        response = None
-        if not public and not hmac.compare_digest(
-            request.headers.get("authorization", "").encode("utf-8"),
+        public_health = request.method == "GET" and request.url.path == "/api/v1/health"
+        browser_bootstrap = (
+            request.method == "POST" and request.url.path == "/api/v1/session"
+        )
+        public = public_health or browser_bootstrap
+        authorization = request.headers.get("authorization", "")
+        master_authorized = hmac.compare_digest(
+            authorization.encode("utf-8"),
             f"Bearer {token}".encode("ascii"),
-        ):
+        )
+        browser_token = (
+            authorization[len("Bearer "):]
+            if authorization.startswith("Bearer ")
+            else ""
+        )
+        browser_authorized = browser_sessions.validate(browser_token, origin)
+        response = None
+        if not public and not (master_authorized or browser_authorized):
             response = error("UNAUTHORIZED", 401)
         elif request.method == "POST":
             if not origin:
@@ -470,6 +489,18 @@ def create_app(
     @app.get("/api/v1/health")
     def health():
         return health_value()
+
+    @app.post("/api/v1/session")
+    def browser_session(_: BrowserSessionRequest, request: Request):
+        origin = request.headers.get("origin")
+        if origin is None or origin not in origins:
+            return error("ORIGIN_REQUIRED", 403)
+        session = browser_sessions.issue(origin)
+        return {
+            "schema": "tda_loopback_session_v1",
+            "token": session.token,
+            "expires_in_seconds": session.expires_in_seconds,
+        }
 
     @app.get("/api/v1/version")
     def version():
