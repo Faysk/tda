@@ -534,7 +534,7 @@ def create_app(
             pid=os.getpid(),
             port=port,
             lifecycle="preparing"
-            if not worker_healthy
+            if (not worker_healthy or preparation_manager.snapshot().get("active") is True)
             else "paused"
             if store.setting("paused") == "true"
             else "ready",
@@ -643,7 +643,10 @@ def create_app(
     async def agent_control(body: AgentControlRequest):
         if shutdown_callback is None:
             raise Conflict("AGENT_CONTROL_UNAVAILABLE")
-        if store.has_running_jobs() and not body.force:
+        if (
+            (store.has_running_jobs() or preparation_manager.snapshot().get("active") is True)
+            and not body.force
+        ):
             raise Conflict("AGENT_BUSY")
         log(
             "warning",
