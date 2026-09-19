@@ -30,7 +30,7 @@ A responsabilidade fica explícita:
 | **Agent** | loopback API, fila persistida, workers, staging, runtimes/modelos, checkpoints, telemetria e resultado local |
 | **Companion Desktop** | saúde do Agent, execução local, fila/telemetria, logs, diagnóstico, runtimes, update/uninstall e configurações da máquina |
 
-O Desktop deixa de apresentar um segundo formulário editorial de ZIP/perfil como fluxo principal. Ferramentas manuais equivalentes podem existir apenas como diagnóstico técnico oculto, sem disputar a navegação do produto.
+O Desktop não apresenta um segundo formulário editorial de ZIP/perfil. A tela **Execução local** é somente observabilidade/controle da máquina e encaminha novas sessões ao TDA Web.
 
 Esta decisão reforça, e não substitui, a frase do ADR-0013: **a Web é o lugar principal para sessões e o Desktop não replica o Edit**.
 
@@ -117,7 +117,6 @@ Esse caso é terminal **cancelled**, com warning técnico `WORKER_CANCEL_FORCED`
 - browser session aumenta o contrato local e exige testes de Origin/TTL;
 - custom URL protocol adiciona uma integração de registro ao MSI;
 - metadata/path/size no fast path não substitui hash criptográfico contra um atacante local capaz de preservar metadata; deep verification continua sendo o mecanismo de confiança forte;
-- o formulário manual antigo pode permanecer temporariamente no bundle apenas como implementação interna não navegável até sua remoção completa.
 
 ## Não decisões
 
