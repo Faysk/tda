@@ -74,7 +74,7 @@ _PREPARATION_MAX_SECONDS = 2 * 60 * 60
 
 
 def _finish_resumable_download(
-    operation: Callable[[], object],
+    operation: Callable[[float], object],
     *,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> object:
@@ -87,8 +87,11 @@ def _finish_resumable_download(
     deadline = time.monotonic() + _PREPARATION_MAX_SECONDS
     while True:
         _check_cancelled(is_cancelled)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_TIMEOUT")
         try:
-            return operation()
+            return operation(remaining)
         except NetworkError as exc:
             if exc.code != _BACKGROUND_DOWNLOAD_CODE:
                 raise
@@ -97,7 +100,7 @@ def _finish_resumable_download(
                 raise ProfilePreparationError(
                     "TRANSCRIPTION_PREPARATION_TIMEOUT"
                 ) from exc
-            time.sleep(1.0)
+            time.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
 
 
 def _runtime_ready(state: dict, family: str) -> bool:
@@ -211,7 +214,11 @@ def _install_whisper_runtime(
             target = runtime_root / "whisper" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = _finish_resumable_download(
-                lambda: download_whisper_runtime(manifest, cache_root),
+                lambda remaining: download_whisper_runtime(
+                    manifest,
+                    cache_root,
+                    timeout=min(300.0, remaining),
+                ),
                 is_cancelled=is_cancelled,
             )
             if not isinstance(archive, Path):
@@ -241,10 +248,11 @@ def _install_whisper_runtime(
     try:
         _check_cancelled(is_cancelled)
         result = _finish_resumable_download(
-            lambda: install_published_runtime_rc(
+            lambda remaining: install_published_runtime_rc(
                 "whisper",
                 runtime_root=runtime_root,
                 cache_root=cache_root,
+                timeout=min(300.0, remaining),
             ),
             is_cancelled=is_cancelled,
         )
@@ -297,7 +305,11 @@ def _install_qwen_runtime(
             target = runtime_root / "qwen" / manifest.version
             repairing = target.exists() or target.is_symlink()
             archive = _finish_resumable_download(
-                lambda: download_qwen_runtime(manifest, cache_root),
+                lambda remaining: download_qwen_runtime(
+                    manifest,
+                    cache_root,
+                    timeout=min(300.0, remaining),
+                ),
                 is_cancelled=is_cancelled,
             )
             if not isinstance(archive, Path):
@@ -335,10 +347,11 @@ def _install_qwen_runtime(
     try:
         _check_cancelled(is_cancelled)
         result = _finish_resumable_download(
-            lambda: install_published_runtime_rc(
+            lambda remaining: install_published_runtime_rc(
                 "qwen",
                 runtime_root=runtime_root,
                 cache_root=cache_root,
+                timeout=min(300.0, remaining),
             ),
             is_cancelled=is_cancelled,
         )
