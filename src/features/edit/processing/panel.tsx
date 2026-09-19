@@ -73,6 +73,7 @@ const preparationStages = new Set([
 	"queued",
 	"preparing",
 	"runtime_validation",
+	"source_validation",
 	"checking_model",
 	"downloading_model",
 	"model_prepare",
@@ -442,6 +443,7 @@ export function ProcessingPanel() {
 											) : null}
 											{trackContext?.speaker ? <span>Voz: {trackContext.speaker}</span> : null}
 											{activeJob.attempt > 0 ? <span>Tentativa {activeJob.attempt}</span> : null}
+											<span>Worker ativo · {formatTime(activeJob.updated_at)}</span>
 										</div>
 										{activeJob.progress ? (
 											<div className={styles.activeProgress}>
