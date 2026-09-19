@@ -184,7 +184,12 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         # Metadata is only a cheap drift detector, never the source of truth.
         # If a copy/backup/antivirus changed mtime, hash just that track once;
         # unchanged metadata keeps the normal dispatch path hash-free.
-        if metadata_drift or verify_tracks:
+        # A legacy manifest without a metadata seal must pay the full hash cost
+        # once before it can enter the cheap path. Otherwise a same-size modified
+        # track could be accepted indefinitely merely because there is no baseline
+        # mtime to compare against.
+        needs_hash = verify_tracks or metadata_drift or staged_mtime_ns is None
+        if needs_hash:
             if _sha256_file(candidate) != digest:
                 raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
             if metadata_drift or staged_mtime_ns is None:
