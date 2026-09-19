@@ -376,7 +376,16 @@ export function ProcessingPanel() {
 								disabled={state.busy}
 								onClick={() => {
 									window.location.href = "tda-companion://open";
-									window.setTimeout(() => void controller.connect(), 1500);
+									void (async () => {
+										// Cold-starting WebView/Agent can take more than a single
+										// fixed delay. Retry a few bounded times; stop as soon as
+										// the loopback session is healthy.
+										for (const delay of [1200, 2200, 3500]) {
+											await new Promise((resolve) => window.setTimeout(resolve, delay));
+											await controller.connect();
+											if (controller.snapshot().connection === "connected") break;
+										}
+									})();
 								}}
 							>
 								Abrir TDA Companion
