@@ -13,7 +13,13 @@ from typing import Callable
 from .asr_runtime import current_whisper_worker
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import current_qwen_worker
-from .worker_protocol import WorkerCancelCommand, WorkerMessage, WorkerProtocolError, WorkerRunCommand
+from .worker_protocol import (
+    MAX_LINE_BYTES,
+    WorkerCancelCommand,
+    WorkerMessage,
+    WorkerProtocolError,
+    WorkerRunCommand,
+)
 
 
 class WorkerProcessError(RuntimeError):
@@ -147,12 +153,19 @@ class WorkerSupervisor:
         assert process.stdout is not None
         assert process.stderr is not None
 
-        lines: queue.Queue[str | None] = queue.Queue()
+        stdout_overflow = object()
+        lines: queue.Queue[object] = queue.Queue()
         stdout_done = threading.Event()
 
         def read_stdout() -> None:
             try:
-                for line in process.stdout:
+                while True:
+                    line = process.stdout.readline(MAX_LINE_BYTES + 1)
+                    if not line:
+                        break
+                    if len(line) > MAX_LINE_BYTES or not line.endswith("\n"):
+                        lines.put(stdout_overflow)
+                        return
                     lines.put(line)
             except (OSError, UnicodeError, ValueError):
                 pass
@@ -234,6 +247,16 @@ class WorkerSupervisor:
                     if process.poll() is not None:
                         break
                     continue
+                if line is stdout_overflow:
+                    raise WorkerProcessError(
+                        "WORKER_LINE_SIZE_INVALID",
+                        recoverable=False,
+                    )
+                if not isinstance(line, str):
+                    raise WorkerProcessError(
+                        "WORKER_PROTOCOL_INVALID",
+                        recoverable=False,
+                    )
 
                 try:
                     message = WorkerMessage.decode(
