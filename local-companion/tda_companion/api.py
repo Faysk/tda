@@ -164,6 +164,18 @@ def conflict_recoverable(code: str) -> bool:
     return code not in _NON_RECOVERABLE_CONFLICTS
 
 
+_NON_RECOVERABLE_PREPARATION_ERRORS = frozenset(
+    {
+        "CRAIG_SOURCE_INVALID",
+        "TRANSCRIPTION_PROFILE_INVALID",
+    }
+)
+
+
+def preparation_recoverable(code: str) -> bool:
+    return code not in _NON_RECOVERABLE_PREPARATION_ERRORS
+
+
 def create_app(
     root,
     token,
@@ -975,7 +987,11 @@ def create_app(
                     if exc.code == "TRANSCRIPTION_PREPARATION_ALREADY_RUNNING"
                     else 400
                 )
-                return error(exc.code, status, True)
+                return error(
+                    exc.code,
+                    status,
+                    preparation_recoverable(exc.code),
+                )
         worker_wake.set()
         return value
 
