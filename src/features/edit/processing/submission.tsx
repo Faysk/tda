@@ -37,8 +37,8 @@ function messageFor(code: string): string {
 	}[code] ?? "Falha local inesperada.";
 }
 
-function preparationMessage(code: string | null): string {
-	if (!code) return "A preparação local não foi concluída.";
+function localOperationMessage(code: string | null): string {
+	if (!code) return "A operação local não foi concluída.";
 	return {
 		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
 			"Já existe outra preparação em andamento neste computador.",
@@ -46,6 +46,28 @@ function preparationMessage(code: string | null): string {
 			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro perfil.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
 			"Espere o trabalho atual terminar antes de preparar outro perfil.",
+		TRANSCRIPTION_WORK_ALREADY_ACTIVE:
+			"Já existe uma transcrição equivalente na fila ou em execução.",
+		CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB:
+			"Essa fonte está em uso pelo processamento ou pela preparação local. Aguarde terminar antes de reimportar o ZIP.",
+		CRAIG_STAGING_REPAIR_FAILED:
+			"O Companion tentou reparar a cópia local da sessão, mas não conseguiu concluir a troca segura.",
+		CRAIG_STAGING_EXISTING_INVALID:
+			"A cópia local dessa sessão está inconsistente. Reenvie o ZIP original quando a fonte não estiver em uso.",
+		CRAIG_MANIFEST_TRACK_HASH_MISMATCH:
+			"Uma faixa da cópia local foi alterada. Reenvie o ZIP original para reparar a sessão.",
+		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH:
+			"Uma faixa da cópia local mudou de tamanho. Reenvie o ZIP original para reparar a sessão.",
+		CRAIG_UPLOAD_STORAGE_FAILED:
+			"O Companion não conseguiu gravar o ZIP no armazenamento local.",
+		CRAIG_UPLOAD_SIZE_LIMIT:
+			"O ZIP ultrapassa o limite aceito pelo Companion.",
+		CRAIG_ZIP_REQUIRED:
+			"Escolha um arquivo ZIP exportado pelo Craig.",
+		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
+			"O Qwen precisa ser preparado e validado novamente nesta GPU antes de entrar na fila.",
+		WHISPER_MODEL_PREPARATION_REQUIRED:
+			"O modelo Whisper precisa ser preparado novamente antes de entrar na fila.",
 		QWEN_CUDA_UNAVAILABLE:
 			"O Qwen não encontrou CUDA disponível nesta máquina.",
 		QWEN_CUDA_DRIVER_INCOMPATIBLE:
@@ -68,7 +90,7 @@ function preparationMessage(code: string | null): string {
 			"Não foi possível baixar o modelo Whisper.",
 		WHISPER_MODEL_PREPARATION_TIMEOUT:
 			"A preparação do modelo Whisper excedeu o limite de tempo.",
-	}[code] ?? `Preparação não concluída · ${code}`;
+	}[code] ?? `Operação local não concluída · ${code}`;
 }
 
 type PendingSubmission = {
@@ -239,7 +261,7 @@ export function ProcessingSubmission() {
 					preparation = await bridge.preparation(controller.signal);
 				}
 				if (preparation.state !== "completed") {
-					setError(preparationMessage(preparation.errorCode));
+					setError(localOperationMessage(preparation.errorCode));
 					return;
 				}
 				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
@@ -283,7 +305,7 @@ export function ProcessingSubmission() {
 			if (cause instanceof BridgeError) {
 				setError(
 					cause.serverCode
-						? preparationMessage(cause.serverCode)
+						? localOperationMessage(cause.serverCode)
 						: messageFor(cause.code),
 				);
 			} else {
