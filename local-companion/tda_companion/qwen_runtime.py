@@ -103,7 +103,7 @@ def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
         candidates = backups.get(version, [])
         replacements = partials.get(version, [])
         target = parent / version
-        if target.exists() and not target.is_symlink():
+        if _valid_recovery_runtime_directory(target, version):
             for candidate in candidates + replacements:
                 if candidate.is_dir() and not candidate.is_symlink():
                     shutil.rmtree(candidate, ignore_errors=True)
@@ -119,6 +119,17 @@ def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
                 else:
                     candidate.unlink(missing_ok=True)
             continue
+
+        # The selected target exists but failed verification. Move it aside so a
+        # fully verified replacement can be promoted atomically. If recovery
+        # cannot find anything better, this displaced target remains a fallback.
+        if target.exists() or target.is_symlink():
+            displaced = parent / f".{version}-{uuid4().hex}.backup"
+            try:
+                os.replace(target, displaced)
+            except OSError:
+                continue
+            candidates.append(displaced)
 
         def modified(path: Path) -> int:
             try:
@@ -139,7 +150,14 @@ def recover_interrupted_qwen_runtime_install(runtime_root: Path) -> list[str]:
             break
 
         if not promoted:
-            for candidate in sorted(candidates, key=modified, reverse=True):
+            ordered = sorted(candidates, key=modified, reverse=True)
+            verified = [
+                candidate
+                for candidate in ordered
+                if _valid_recovery_runtime_directory(candidate, version)
+            ]
+            fallback = [candidate for candidate in ordered if candidate not in verified]
+            for candidate in verified + fallback:
                 if candidate.is_symlink() or not candidate.is_dir():
                     continue
                 try:
