@@ -125,15 +125,27 @@ class AgentController:
                     raise RuntimeError(f"LOCAL_SERVICE_RUNTIME_FAILED:{type(error).__name__}")
                 raise RuntimeError("LOCAL_SERVICE_START_FAILED")
         except Exception:
-            if self.lock is not None:
-                self.lock.__exit__(None, None, None)
-                self.lock = None
+            # Never release the data-root lock while the HTTP/lifespan thread is
+            # still alive. That thread may still own SQLite state, staged audio or
+            # a native/CUDA worker during shutdown.
+            if self.thread is None or not self.thread.is_alive():
+                self.server = None
+                self.thread = None
+                if self.lock is not None:
+                    self.lock.__exit__(None, None, None)
+                    self.lock = None
             raise
 
     def stop(self) -> None:
         self.request_shutdown()
-        if self.thread is not None and self.thread.is_alive():
-            self.thread.join(timeout=8)
+        thread = self.thread
+        if thread is not None and thread.is_alive():
+            # FastAPI lifespan gives the isolated worker up to 12s to cancel and
+            # profile preparation up to 8s to stop. Leave margin for uvicorn and
+            # Windows scheduling, then fail closed if teardown is still alive.
+            thread.join(timeout=30)
+        if thread is not None and thread.is_alive():
+            raise RuntimeError("LOCAL_SERVICE_STOP_TIMEOUT")
         self.server = None
         self.thread = None
         if self.lock is not None:
