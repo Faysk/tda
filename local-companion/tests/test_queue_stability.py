@@ -63,6 +63,23 @@ def test_pause_persists_after_store_reopen(tmp_path):
     assert claim is not None
 
 
+def test_non_recoverable_failure_is_exposed_and_cannot_retry(tmp_path):
+    store = Store(tmp_path)
+    job = store.submit('fatal-job', BODY)
+    claim = store.claim()
+    assert claim is not None
+
+    store.fail(*claim, 'WORKER_RESULT_RUN_MISMATCH', recoverable=False)
+
+    failed = store.get(job['id'])
+    assert failed['error'] == {
+        'code': 'WORKER_RESULT_RUN_MISMATCH',
+        'recoverable': False,
+    }
+    with pytest.raises(Conflict, match='JOB_NOT_RETRYABLE'):
+        store.action(job['id'], 'retry')
+
+
 def test_stale_fail_cannot_overwrite_cancelled_job(tmp_path):
     store = Store(tmp_path)
     job = store.submit('cancel-fence', BODY)
