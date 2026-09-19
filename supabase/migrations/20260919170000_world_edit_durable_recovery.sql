@@ -372,6 +372,41 @@ begin
     returning * into v_existing;
   end if;
 
+  -- If this exact client token already committed successfully, that receipt
+  -- outranks any older active checkpoint. This is the lost-response case: the
+  -- client did not hear "success", but the database can prove the commit.
+  select draft.*
+  into v_previous_receipt
+  from public.world_edit_drafts draft
+  where draft.campaign_id = v_campaign_id
+    and draft.owner_profile_id = p_actor_profile_id
+    and draft.lease_token = p_lease_token
+    and draft.status = 'published'
+  order by draft.updated_at desc
+  limit 1;
+
+  if found then
+    update public.world_edit_drafts draft
+    set status = 'superseded',
+        updated_at = v_now
+    where draft.campaign_id = v_campaign_id
+      and draft.owner_profile_id = p_actor_profile_id
+      and draft.status = 'active';
+
+    return jsonb_build_object(
+      'ok', true,
+      'status', 'acquired',
+      'baseRevision', v_existing.base_layout_revision,
+      'draftPositions', v_existing.draft_positions,
+      'expiresAt', v_existing.expires_at,
+      'recoverySource', null,
+      'staleRecovery', false,
+      'previousPublishConfirmed', true,
+      'previousPublishedGraphRevision', v_previous_receipt.published_graph_revision,
+      'previousPublishedLayoutRevision', v_previous_receipt.published_layout_revision
+    );
+  end if;
+
   select draft.*
   into v_recovery
   from public.world_edit_drafts draft
@@ -419,16 +454,6 @@ begin
     end if;
   end if;
 
-  select draft.*
-  into v_previous_receipt
-  from public.world_edit_drafts draft
-  where draft.campaign_id = v_campaign_id
-    and draft.owner_profile_id = p_actor_profile_id
-    and draft.lease_token = p_lease_token
-    and draft.status = 'published'
-  order by draft.updated_at desc
-  limit 1;
-
   return jsonb_build_object(
     'ok', true,
     'status', case when v_recovered then 'recovered' else 'acquired' end,
@@ -437,9 +462,9 @@ begin
     'expiresAt', v_existing.expires_at,
     'recoverySource', case when v_recovered then 'durable' else null end,
     'staleRecovery', v_stale_recovery,
-    'previousPublishConfirmed', found,
-    'previousPublishedGraphRevision', case when found then v_previous_receipt.published_graph_revision else null end,
-    'previousPublishedLayoutRevision', case when found then v_previous_receipt.published_layout_revision else null end
+    'previousPublishConfirmed', false,
+    'previousPublishedGraphRevision', null,
+    'previousPublishedLayoutRevision', null
   );
 end;
 $$;
