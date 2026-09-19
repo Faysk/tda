@@ -63,6 +63,7 @@ export const stageLabels: Record<string, string> = {
 	transcription: "Transcrição",
 	consolidating: "Consolidação",
 	complete: "Resultado preparado",
+	failed: "Falha na execução",
 	cancelled: "Cancelado",
 	interrupted: "Execução interrompida",
 };
