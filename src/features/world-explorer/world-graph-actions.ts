@@ -202,12 +202,12 @@ export async function saveWorldGraphDraftAction(
 		payload.reason === "invalid_payload" ||
 		payload.reason === "duplicate"
 	) {
-		return failPublish(payload.reason);
+		return { ok: false, reason: payload.reason };
 	}
 	if (payload.reason === "conflict") {
-		return failPublish("conflict", safeNumber(payload.revision));
+		return { ok: false, reason: "conflict", revision: safeNumber(payload.revision) };
 	}
-	return failPublish("dependency_unavailable");
+	return { ok: false, reason: "dependency_unavailable" };
 }
 
 export async function publishWorldEditStateAction(
@@ -390,10 +390,10 @@ export async function publishWorldEditStateAction(
 		payload.reason === "duplicate" ||
 		payload.reason === "review_required"
 	) {
-		return { ok: false, reason: payload.reason };
+		return failPublish(payload.reason);
 	}
 	if (payload.reason === "conflict") {
-		return { ok: false, reason: "conflict", revision: safeNumber(payload.revision) };
+		return failPublish("conflict", safeNumber(payload.revision));
 	}
-	return { ok: false, reason: "dependency_unavailable" };
+	return failPublish("dependency_unavailable");
 }
