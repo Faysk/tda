@@ -134,26 +134,13 @@ R2_SECRET_ACCESS_KEY
 
 A credencial usada pelo publisher deve ter privilégio mínimo para o storage necessário. O browser nunca recebe esse par.
 
-## Drift conhecido — 2026-09-20
+## Estado do publisher de Media Storage
 
-A arquitetura aceita exige os secrets R2 do publisher no GitHub Environment `production`.
+O workflow de Production usa diretamente os secrets do GitHub Environment `production` para o provider R2 atual e valida sua presença somente quando existe mídia pendente.
 
-Entretanto, o `production.yml` atualmente integrado ainda tenta:
+`vercel env pull` e `vercel env run` não fazem parte desse boundary.
 
-```text
-vercel env run --environment=production
-```
-
-para fornecer as variáveis ao publisher.
-
-Esse caminho já falhou em Production por configuração R2 incompleta e **não é mais o contrato canônico**.
-
-Consequências operacionais:
-
-- não considerar a publicação automática de nova mídia saudável até a PR de convergência;
-- não usar `vercel env pull` ou `vercel env run` como solução definitiva para secrets operacionais do publisher;
-- não afirmar que os R2 secrets já existem no GitHub Environment sem verificação administrativa;
-- a próxima PR de implementação deve alinhar workflow + testes + documentação.
+A documentação dos nomes não prova que os valores existem administrativamente. A primeira Production CD que exigir mídia é a verificação fail-closed: se algum secret estiver ausente, a release para no gate de credenciais antes de build/stage e o domínio canônico não é promovido.
 
 ## Configuração/rotação
 
