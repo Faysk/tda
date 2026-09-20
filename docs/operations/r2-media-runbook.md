@@ -84,7 +84,9 @@ Nessa situação:
 5. esperar `reused` para objetos já íntegros e repetir a verificação pública;
 6. só promover Production quando o job inteiro concluir e o receipt final for registrado.
 
-Em 2026-09-20 a repair release de Astel/Noah publicou e verificou 24 assets, mas o wrapper Bash encerrou com código 1 ao ler um resumo sem newline terminal. Os objetos permaneceram válidos e o retry deve reutilizá-los; esse incidente não deve ser interpretado como falha de R2.
+Em 2026-09-20 a repair release de Astel/Noah publicou e verificou 24 assets, mas o wrapper Bash encerrou com código 1 ao ler um resumo sem newline terminal. Os objetos permaneceram válidos. Após a correção do wrapper, o retry reutilizou os 24 objetos, verificou os 24 publicamente e concluiu smoke/promote/canonical verification com sucesso.
+
+Evidência: [Astel/Noah media repair — 2026-09-20](../integrations/evidence/astel-noah-media-repair-2026-09-20.json).
 
 Relatório de entrega deve conter os campos e checks do [fluxo único](../integrations/r2/media-pipeline.md). Upload/read-back, teste no navegador e publicação possuem estados distintos. Uma implementação futura deve automatizar os gates técnicos; a revisão perceptiva continua explícita.
 
