@@ -9,7 +9,18 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from tda_companion.api import create_app
+from tda_companion.attempt_fence import claim_attempt_outcome
 from tda_companion.craig_ingest_http import CraigIngestBoundary
+from tda_companion.craig_runtime import load_craig_package
+from tda_companion.transcript import (
+    TranscriptDocument,
+    TranscriptEngine,
+    TranscriptSegment,
+    TranscriptTrack,
+    TranscriptWord,
+    stats_for_tracks,
+)
+from tda_companion.transcription_runs import write_completed_run
 
 TOKEN = "i" * 43
 ORIGIN = "https://dnd.faysk.dev"
@@ -20,6 +31,69 @@ def _payload() -> bytes:
     with zipfile.ZipFile(value, "w", compression=zipfile.ZIP_STORED) as archive:
         archive.writestr("1-Alice.flac", b"fLaC-alice")
     return value.getvalue()
+
+
+def _document(package, *, profile: str = "whisper-turbo") -> TranscriptDocument:
+    source = package.tracks[0]
+    word = TranscriptWord(
+        text="resultado",
+        start=0.1,
+        end=0.8,
+        confidence=0.95,
+    )
+    segment = TranscriptSegment(
+        id="1-0",
+        start=0.1,
+        end=0.8,
+        text="resultado",
+        words=(word,),
+    )
+    track = TranscriptTrack(
+        number=source.number,
+        speaker=source.speaker,
+        source_filename=source.filename,
+        source_sha256=source.sha256,
+        duration_seconds=1.0,
+        segments=(segment,),
+        timeline_offset_seconds=source.timeline_offset_seconds,
+        identity=None,
+    )
+    return TranscriptDocument(
+        recording_id=package.recording_id,
+        source_sha256=package.source_sha256,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="faster-whisper",
+            model="large-v3-turbo",
+            profile=profile,
+            device="cuda",
+            compute_type="float16",
+            alignment="native",
+            model_revision="test-revision",
+        ),
+        tracks=(track,),
+        stats=stats_for_tracks((track,), processing_seconds=1.0),
+    )
+
+
+def _running_job_for_source(client: TestClient, source_id: str, *, key: str):
+    store = client.app.app.state.store
+    job = store.submit(
+        key,
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "whisper-turbo",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 1,
+        },
+    )
+    assert store.claim() == (job["id"], 1)
+    return store, job
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -306,6 +380,164 @@ def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_pa
         )
         assert unauthorized.status_code == 401
         assert unauthorized.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_run_discovery_hides_historical_cancelled_attempt_even_if_run_exists(tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    get_headers = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
+
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=True)
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="historical-cancelled-run",
+        )
+
+        # Reproduce the pre-fence contradiction: durable run first, then the
+        # queue row is marked cancelled with no arbitration marker.
+        write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+        assert store.action(job["id"], "cancel")["status"] == "cancelled"
+
+        response = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["runs"] == []
+
+
+def test_run_discovery_shows_current_attempt_only_after_queue_success(tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    get_headers = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
+
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=True)
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="run-visible-after-success",
+        )
+        run = write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+
+        while_running = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+        assert while_running.status_code == 200
+        assert while_running.json()["runs"] == []
+
+        assert store.progress(
+            job["id"],
+            1,
+            completed=1,
+            total=1,
+            stage="alignment",
+        )
+        assert store.complete(
+            job["id"],
+            1,
+            {
+                "schema_version": "tda_local_result_v1",
+                "transcription": {
+                    "run_id": run["run_id"],
+                    "sha256": run["transcript_sha256"],
+                },
+            },
+        )
+
+        succeeded = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+        assert succeeded.status_code == 200
+        assert [item["run_id"] for item in succeeded.json()["runs"]] == [
+            run["run_id"]
+        ]
+
+
+def test_cancel_fence_keeps_attempt_hidden_after_job_cleanup(tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    get_headers = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
+
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=True)
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="cancel-fence-after-cleanup",
+        )
+
+        # Synthetic historical artifact: even if a committed run is present,
+        # the durable cancel decision remains authoritative after queue cleanup.
+        write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+        assert claim_attempt_outcome(
+            package_root,
+            job["id"],
+            1,
+            "cancel",
+        ) == "cancel"
+        assert store.action(job["id"], "cancel")["status"] == "cancelled"
+        assert store.remove(job["id"])["deleted"] is True
+
+        response = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=get_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["runs"] == []
 
 
 def test_run_discovery_runs_filesystem_work_off_event_loop(monkeypatch, tmp_path: Path):
