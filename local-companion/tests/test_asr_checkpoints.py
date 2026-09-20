@@ -102,6 +102,22 @@ def _signature(*, context: str = "mesa"):
     )
 
 
+def _qwen_signature(*, context: str = "mesa"):
+    track = _source_track()
+    return build_checkpoint_signature(
+        _package(track),
+        get_profile("qwen-fast"),
+        recipe={
+            "window_seconds": 60.0,
+            "window_overlap_seconds": 6.0,
+            "alignment_policy": "strict-overlap-v2",
+        },
+        context=context,
+        glossary="Yuhara",
+        runtime_fingerprint="qwen-runtime-a",
+    )
+
+
 def test_checkpoint_roundtrip_reuses_only_exact_source_and_signature(tmp_path: Path):
     track = _source_track()
     signature = _signature()
@@ -132,7 +148,7 @@ def test_corrupt_or_oversized_checkpoint_is_ignored(tmp_path: Path):
 
 def test_qwen_text_checkpoint_roundtrip_requires_exact_signature_and_track(tmp_path: Path):
     track = _source_track()
-    signature = _signature()
+    signature = _qwen_signature()
     expected = _text_windows()
 
     path = save_qwen_text_checkpoint(tmp_path, signature, track, expected)
@@ -141,7 +157,7 @@ def test_qwen_text_checkpoint_roundtrip_requires_exact_signature_and_track(tmp_p
 
     assert load_qwen_text_checkpoint(
         tmp_path,
-        _signature(context="outra mesa"),
+        _qwen_signature(context="outra mesa"),
         track,
     ) is None
     changed_track = CraigTrack(**{**track.__dict__, "sha256": "c" * 64})
@@ -150,7 +166,7 @@ def test_qwen_text_checkpoint_roundtrip_requires_exact_signature_and_track(tmp_p
 
 def test_qwen_text_checkpoint_rejects_corruption_tampering_and_partial_files(tmp_path: Path):
     track = _source_track()
-    signature = _signature()
+    signature = _qwen_signature()
     path = save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
 
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -172,7 +188,7 @@ def test_qwen_text_checkpoint_size_limit_fails_closed(
     tmp_path: Path,
 ):
     track = _source_track()
-    signature = _signature()
+    signature = _qwen_signature()
     monkeypatch.setattr(checkpoints_module, "MAX_CHECKPOINT_BYTES", 128)
 
     with pytest.raises(ValueError, match="CHECKPOINT_SIZE_LIMIT"):
@@ -189,7 +205,7 @@ def test_qwen_text_checkpoint_rejects_symlinked_checkpoint_root(tmp_path: Path):
         pytest.skip("symlink creation unavailable on this runner")
 
     track = _source_track()
-    signature = _signature()
+    signature = _qwen_signature()
     assert load_qwen_text_checkpoint(tmp_path, signature, track) is None
     with pytest.raises(ValueError, match="CHECKPOINT_PATH_SYMLINK"):
         save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
