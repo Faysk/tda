@@ -6,8 +6,8 @@ import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import {
-	connectionHelp,
 	jobLabels,
+	presentConnectionError,
 	presentJobError,
 	presentJobEvent,
 	presentJobTitle,
@@ -279,9 +279,13 @@ export function ProcessingPanel() {
 			]
 		: state.connection === "connecting"
 			? "Conectando"
-			: state.error === "incompatible"
-				? "Versão incompatível"
-				: "Serviço desconectado";
+			: state.error === "version_incompatible"
+				? "Atualização necessária"
+				: state.error === "api_incompatible"
+					? "API incompatível"
+					: state.error === "session_incompatible" || state.error === "incompatible"
+						? "Companion incompatível"
+						: "Serviço desconectado";
 	const running = state.jobs.filter((job) => job.status === "running");
 	const queued = state.jobs
 		.filter((job) => job.status === "queued")
@@ -389,10 +393,18 @@ export function ProcessingPanel() {
 						<strong>
 							{state.connection === "connecting"
 								? "Conectando ao TDA Companion…"
-								: "TDA Companion não está conectado."}
+								: state.error === "version_incompatible"
+									? "TDA Companion precisa ser atualizado."
+									: state.error === "api_incompatible" || state.error === "session_incompatible"
+										? "TDA Companion incompatível com esta tela."
+										: "TDA Companion não está conectado."}
 						</strong>
 						<p className={styles.pairingHelp}>
-							Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente.
+							{state.error === "version_incompatible"
+								? "Instale uma versão compatível e tente novamente."
+								: state.error === "api_incompatible" || state.error === "session_incompatible"
+									? "Atualize o aplicativo local antes de tentar conectar novamente."
+									: "Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente."}
 						</p>
 						<div className={styles.pairingControls}>
 							<Button
@@ -431,7 +443,7 @@ export function ProcessingPanel() {
 					<p className={styles.connectionError} role="alert">
 						{state.serverError
 							? presentJobError(state.serverError)
-							: connectionHelp[state.error]}{" "}
+							: presentConnectionError(state.error, state.errorDetails)}{" "}
 						<small>Código: {state.serverError ?? state.error}</small>
 					</p>
 				) : null}
