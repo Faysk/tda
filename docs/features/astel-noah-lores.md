@@ -1,8 +1,8 @@
 # Astel e Noah — recebimento e plano de integração
 
-> Status: candidato implementado e validado localmente; publicação pendente
+> Status: publicado em Production; rotas e 24 assets públicos verificados em 2026-09-20
 > Owner: frontend / integrations/media / editorial
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 
 ## Identificação e decisão editorial
 
@@ -46,7 +46,7 @@ Preloads, `src` e `data-full` da galeria apontam para as mesmas keys imutáveis 
 
 A branch atual passou a incluir o diário em `public/diario/astel`, seu catálogo e rewrite. A ligação usa essa rota implementada; não publica material adicional de `.local/livro-astel`.
 
-Por decisão do usuário em 2026-09-19, o título “Notas do DM” foi substituído por “Perguntas sem resposta” nos dois HTMLs locais, removendo o subtítulo “spoilers e perguntas em aberto”. As perguntas e o comportamento de expansão foram preservados. A alteração editorial está aplicada aos pacotes locais; publicação continua pendente.
+Por decisão do usuário em 2026-09-19, o título “Notas do DM” foi substituído por “Perguntas sem resposta” nos dois HTMLs locais, removendo o subtítulo “spoilers e perguntas em aberto”. As perguntas e o comportamento de expansão foram preservados. A alteração editorial foi integrada às páginas entregues e está contida na linha publicada.
 
 Revisão após o preview: os títulos de ganchos, que já vieram assim nos originais, foram trocados a pedido do usuário. Astel usa “Algumas perguntas ainda respiram no escuro.”; Noah usa “Algumas respostas ainda mordem.”. O card de Noah passou a consumir a arte vertical WebP já declarada no manifesto, com `contain` e sem zoom no hover, em vez da imagem social horizontal. A imagem social e suas URLs de compartilhamento permanecem próprias; não foi necessário gerar nem publicar novo asset.
 
@@ -57,11 +57,11 @@ Revisão após o preview: os títulos de ganchos, que já vieram assim nos origi
 - [x] Rotas pretendidas e decisão de listagem registradas; pontos de ligação inspecionados no código.
 - [ ] Masters preservados em R2 privado com read-back.
 - [x] Derivados preparados, pixels conferidos e inspeção visual local realizada.
-- [ ] Objetos públicos com read-back/GET/decode pela Production CD.
+- [x] Objetos públicos com read-back/GET/decode pela Production CD: 24/24 verificados no repair final de 2026-09-20.
 - [x] HTML/CSS/JS, catálogo, metadados e ligações editoriais implementados localmente.
 - [x] Desktop/mobile, capítulos, menu, galeria, teclado, redução de movimento e ausência de JS conferidos no navegador.
 - [x] `pnpm check`, `pnpm build` e testes de navegador pertinentes executados para o candidato.
-- [ ] PRs Preview/main, publicação deliberada, `/api/version` e consumidores públicos verificados.
+- [x] Integração em `main`, publicação deliberada, `/api/version`/canonical verification e smoke de `/lore`, `/lore/astel` e `/lore/noah` concluídos.
 
 Reavaliação em 2026-09-19 após a atualização para `41869cb` (PR #400): a ausência de credenciais locais **não bloqueia a contribuição**. Conforme `CONTRIBUTING.md` e o [runbook R2](../operations/r2-media-runbook.md), fontes públicas de entrega versionáveis entram em `media/sources/`, acompanhadas de manifestos em `media/manifests/`. A Production CD usa os secrets protegidos do ambiente `production`, publica os manifestos alterados, executa read-back e verificação pública, e só depois faz smoke e promove o artefato. Não solicitar credenciais de Production ao contribuidor nem executar publicação local para este fluxo.
 
@@ -69,7 +69,13 @@ Verificação local: `pnpm media:validate` passou para o manifesto existente (14
 
 ## Recibo e rollback
 
-Esta entrega é um candidato local, não um recibo de publicação. Ainda não há commit/PR/release de implementação nem validação de consumidor público a declarar. O operador de release deve registrar read-back/GET das novas URLs, preservação privada dos masters e versão pública.
+A implementação standalone foi integrada à `main` em `eb741c2def21bcbb74fb2242da81f14f36539137` e está contida no source promovido de Production `0e62540f4949ea8bed0d59984760bb39fdadb2e4`.
+
+A repair release de 2026-09-20 fechou a dívida de Media Storage: 2 manifests / 24 assets, primeira execução publicou e verificou os 24 objetos; o retry final reutilizou 24/24 e verificou publicamente 24/24 antes de smoke/promote. Release: `prod-0e62540f4949`; canonical verification: `CANONICAL_PRODUCTION_OK`. Evidência: [Astel/Noah media repair](../integrations/evidence/astel-noah-media-repair-2026-09-20.json).
+
+A preservação privada de masters/pacotes continua uma preocupação operacional separada quando aplicável e não é inferida do publisher público.
+
+Rollback da aplicação usa o deployment anterior saudável e remove as referências/rotas por release; objetos content-addressed no Media Storage não precisam ser apagados para desfazer consumo.
 
 Validação local: build concluído; check completo passou (inclui typecheck, lint, unitários, contratos de mídia, diário, design e documentação). A suíte existente possui sete testes ignorados; o teste editorial adicionado não introduz skips. Lint mantém avisos, incluindo especificidade do CSS autoral, sem erro. Testes Playwright de lores + diário: 21 passaram, sem skips, em 1920×1080, 2560×1440 e 390×844. O teste de mídia usa os bytes exatos de `media/sources` via interceptação de rede, explicitamente sem comprovar R2. Após CD, `TDA_VERIFY_PUBLIC_MEDIA=true` desativa a interceptação para validar entrega real.
 
