@@ -271,11 +271,17 @@ describe("processing state", () => {
 		});
 	});
 
-	it("does not send token to an incompatible service", async () => {
+	it("does not send token to an API-incompatible service", async () => {
 		const { request, controller } = fixture();
 		request.mockResolvedValue(Response.json({ api_version: "99" }));
 		await controller.connect(token);
-		expect(controller.snapshot().error).toBe("incompatible");
+		expect(controller.snapshot()).toMatchObject({
+			error: "api_incompatible",
+			errorDetails: {
+				detectedApiVersion: "99",
+				requiredApiVersion: "1",
+			},
+		});
 		expect(request).toHaveBeenCalledTimes(1);
 		expect(request.mock.calls[0][1]?.headers).not.toHaveProperty(
 			"Authorization",
