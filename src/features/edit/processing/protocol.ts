@@ -123,15 +123,25 @@ export type BridgeErrorCode =
 	| "unreachable"
 	| "unauthorized"
 	| "forbidden"
+	| "api_incompatible"
+	| "version_incompatible"
+	| "session_incompatible"
 	| "incompatible"
 	| "invalid_response"
 	| "timeout"
 	| "conflict"
 	| "service_error";
+export type BridgeErrorDetails = Readonly<{
+	detectedServiceVersion?: string;
+	minimumServiceVersion?: string;
+	detectedApiVersion?: string;
+	requiredApiVersion?: string;
+}>;
 export class BridgeError extends Error {
 	constructor(
 		public readonly code: BridgeErrorCode,
 		public readonly serverCode: string | null = null,
+		public readonly details: BridgeErrorDetails = {},
 	) {
 		super(serverCode ?? code);
 	}
@@ -207,7 +217,16 @@ export function transcriptionProfile(value: unknown): TranscriptionProfileId {
 }
 export function parseHealth(value: unknown): Health {
 	const row = record(value);
-	if (row.api_version !== "1") throw new BridgeError("incompatible");
+	if (row.api_version !== "1") {
+		const detectedApiVersion =
+			typeof row.api_version === "string" && row.api_version.length <= 16
+				? row.api_version
+				: undefined;
+		throw new BridgeError("api_incompatible", null, {
+			detectedApiVersion,
+			requiredApiVersion: "1",
+		});
+	}
 	if (!["preparing", "ready", "paused"].includes(String(row.lifecycle)))
 		return invalid();
 	return {
