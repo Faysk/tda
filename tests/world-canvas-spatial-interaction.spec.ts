@@ -84,3 +84,34 @@ test("World canvas switches presentation tiers instead of shrinking all detail f
 	).toBeVisible();
 });
 
+test("World canvas refits search results after controlled nodes reconcile", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop camera framing contract.");
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
+
+	const viewport = page.locator(".react-flow__viewport");
+	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
+	const scale = async () => {
+		const transform = await viewport.evaluate(
+			(element) => (element as HTMLElement).style.transform,
+		);
+		const match = /scale\(([-+0-9.eE]+)\)/u.exec(transform);
+		return match ? Number.parseFloat(match[1] ?? "0") : 0;
+	};
+
+	const initialScale = await scale();
+	expect(initialScale).toBeGreaterThan(0);
+
+	await search.fill("Raven Queen");
+	await expect(page.locator(".react-flow__node")).toHaveCount(2);
+	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="astel"]')).toBeVisible();
+
+	await expect.poll(scale).toBeGreaterThan(initialScale * 1.35);
+});
+
