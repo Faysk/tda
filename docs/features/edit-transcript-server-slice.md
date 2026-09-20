@@ -1,14 +1,14 @@
 # Edit — slice server-side de transcrição
 
-> Status: leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado
+> Status: leitura e mutation canônicas integradas; persistence atômica com revision/audit aplicada; bypass unsafe permanece compatibilidade separada
 > Owner: Edit / aplicação + dados
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-20
 
 ## Objetivo
 
 Entregar a primeira fronteira server-side do Edit para transcrição sem expor o banco como CRUD e sem aceitar lost update ou auditoria parcial.
 
-A leitura autorizada e o contrato da mutation canônica já existem. A PR #33 aplicou a coluna física de concorrência otimista e a PR #34 passou a entregar `revision` no boundary autorizado. Este slice prepara a menor persistence SQL necessária para `update + revision + audit` na mesma transação. A candidata foi validada em PostgreSQL isolado no SHA exato `f44a74c653d416a614bb3468ffc112d741bc4893`, mas permanece desligada até aplicação produtiva controlada e integração pelo Edit/Auth.
+A leitura autorizada, a mutation canônica e a persistence transacional estão integradas. `transcript_segments.revision` fornece optimistic concurrency; `persistTranscriptMutation` chama a RPC server-only `edit_transcript_segment_atomic`, que executa update + incremento de revision + audit na mesma transação. A validação sintética original continua preservada abaixo como evidência histórica do changeset antes da aplicação.
 
 Durante a construção da UI existe uma exceção deliberada e isolada em [modo temporário sem autenticação](edit-unsafe-development.md). Ela não altera os contratos descritos abaixo.
 
@@ -93,9 +93,9 @@ Revalidação read-only do Supabase `dmrqnbdvbkfqzctcerbx` nesta preparação co
 
 Não é necessária outra coluna de revision nem uma segunda tabela de auditoria.
 
-## Persistence SQL candidata
+## Persistence SQL aplicada
 
-A migration candidata `20260907115300_edit_transcript_segment_atomic` cria `public.edit_transcript_segment_atomic(...)` com estas propriedades:
+A migration aplicada/versionada como `20260908064257_edit_transcript_segment_atomic.sql` cria `public.edit_transcript_segment_atomic(...)` com estas propriedades:
 
 - `SECURITY INVOKER`;
 - `search_path = pg_catalog, public`;
@@ -184,19 +184,21 @@ Esses itens permanecem como validação operacional da aplicação produtiva, n�
 
 ## Estado de aplicação
 
-A migration `20260907115300_edit_transcript_segment_atomic` **não foi aplicada ao Supabase de produção**.
+A RPC está aplicada no Supabase canônico sob migration history `20260908064257 edit_transcript_segment_atomic`. A documentação de banco registra grants, read-back e testes; não existe mais gate de “aplicar a candidata”.
 
-A validação SQL isolada está concluída sem bug reproduzido. O próximo gate de banco é a aplicação controlada pelo database runbook no projeto canônico, seguida de verificação remota; até esse gate ser autorizado/executado, a função candidata permanece apenas na branch/PR.
+O caminho normal do Edit usa:
 
-Antes da aplicação produtiva ainda é obrigatório:
+```text
+editor.tsx
+  -> updateTranscriptSegmentAction
+  -> mutateTranscriptSegment
+  -> persistTranscriptMutation
+  -> RPC edit_transcript_segment_atomic
+```
 
-1. reconciliar a branch com a `main` vigente se necessário e exigir CI terminal do SHA exato que será integrado/aplicado;
-2. seguir o database runbook e aplicar a migration pelo fluxo oficial no projeto `dmrqnbdvbkfqzctcerbx`;
-3. validar função, grants e migration history remotamente;
-4. executar advisors de segurança/performance;
-5. registrar a aplicação em `docs/database/verification-log.md`;
-6. integrar repository/adapter do Edit à mutation canônica em recorte próprio;
-7. remover o caminho unsafe somente depois da troca canônica estar validada.
+O boundary deriva identidade do Auth server-side, revalida capability/scope, envia `expectedRevision` real e traduz `updated | conflict | not_found | dependency_unavailable` para a UX. O editor preserva rascunho local em erro/conflito e não trata resposta fora de ordem como sucesso.
+
+O antigo nome/timestamp candidato `20260907115300` permanece apenas como contexto histórico da validação pré-aplicação; o arquivo deployável vigente é `20260908064257_edit_transcript_segment_atomic.sql`.
 
 ## Exceção temporária para construir a UI
 
@@ -240,10 +242,11 @@ Cobertura existente/esperada no conjunto Auth/Edit + DB:
 
 ## Próxima etapa
 
-Depois da aplicação controlada e verificação remota do SQL transacional, Auth/Edit devem:
+O trabalho restante deste recorte não é criar outra persistence. É reduzir dívida de compatibilidade:
 
-1. implementar o `persist` da mutation canônica chamando o boundary server-only;
-2. manter `actorProfileId` vindo exclusivamente do contexto autorizado;
-3. validar conflito real ponta a ponta com a revision já entregue pela leitura;
-4. trocar a UI para a mutation canônica;
-5. remover `TDA_EDIT_UNSAFE` e `unsafe-mutation.ts` em recorte próprio, sem misturar essa remoção com a migration de banco.
+1. manter o caminho canônico como default e testar regressões de conflito/audit;
+2. remover `TDA_EDIT_UNSAFE` e `unsafe-mutation.ts` quando nenhum fluxo necessário depender do bypass;
+3. não confundir `transcript_segments.revision` com as futuras published revisions da transcrição completa;
+4. evoluir publicação/revisão completa somente pelo contrato de ADR-0016.
+
+Qualquer mudança de schema/RPC futura precisa de migration nova; nunca editar a migration já aplicada para reescrever a história.
