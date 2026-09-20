@@ -12,7 +12,7 @@ Integração é uma fronteira externa. Nenhum fornecedor deve redefinir o modelo
 
 - [Supabase](supabase.md) — provider atual de PostgreSQL/Auth.
 - [Cloudflare R2 / Media Storage](r2.md) — provider atual do boundary de mídia.
-- [R2 — governança](r2-governance.md) — ownership e separação entre política permanente e evidência operacional.
+- [R2 — governança (alias histórico)](r2-governance.md) — ponte de compatibilidade; não é fonte de verdade independente.
 - [R2 — índice detalhado](r2/README.md).
 - [R2 — placement](r2/placement.md).
 - [R2 — identidade e keys](r2/identity-and-keys.md).
