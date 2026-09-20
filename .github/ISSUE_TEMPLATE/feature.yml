@@ -1,0 +1,78 @@
+name: Feature / improvement
+description: Propose an approved or actionable product capability with measurable outcomes.
+title: "feat(<scope>): "
+labels:
+  - "type:feature"
+  - "triage:needed"
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      description: Triage will apply the matching area:* label.
+      options:
+        - processing
+        - processing-web
+        - companion
+        - transcripts
+        - auth
+        - database
+        - sessions
+        - world
+        - entities
+        - media
+        - lore
+        - design-system
+        - ux
+        - release
+        - governance
+        - stats
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / opportunity
+      description: What user or product problem is this solving?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observable outcome
+      description: What must become true when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract and owner documents
+      description: Relevant spec, domain, ADR, roadmap item or data contract.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / parent
+      description: Epic, blocked-by issues, consumers and prerequisites.
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What is intentionally outside this issue?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation / release evidence
+      description: Tests, UX checks, data validation, deployment or physical acceptance needed.
