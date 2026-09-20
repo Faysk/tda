@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-20
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -52,6 +52,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Contexto e limites do sistema](architecture/system-context.md)
 - [Fluxos ponta a ponta](architecture/data-flows.md)
 - [Princípios e invariantes](architecture/invariants.md)
+- [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
 - [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
 
 ### Design System e marca
@@ -109,10 +110,10 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 ### Integrações
 
 - [Integrações — índice](integrations/README.md)
-- [Supabase](integrations/supabase.md)
-- [Cloudflare R2](integrations/r2.md)
+- [Supabase](integrations/supabase.md) — provider atual da plataforma de dados; PostgreSQL é o contrato relacional principal.
+- [Cloudflare R2](integrations/r2.md) — provider atual do Media Storage; o boundary permanente é provider-neutral.
 - [Fluxo obrigatório de imagens](integrations/r2/media-pipeline.md) — preparação, upload, verificação, responsabilidades e aceite.
-- [Vercel](integrations/vercel.md)
+- [Vercel](integrations/vercel.md) — provider atual de runtime/deploy; GitHub permanece o control plane.
 - [Craig, Discord e Roll20](integrations/table-sources.md)
 - [Companion local](integrations/local-companion.md)
 
@@ -142,10 +143,11 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0011 — persistência física candidata do layout editorial](adr/0011-world-explorer-layout-physical-persistence.md)
 - [ADR-0012 — GitHub Actions controla a entrega](adr/0012-github-actions-controlled-delivery.md)
 - [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](adr/0013-companion-agent-desktop-asr.md)
-- [ADR-0014 — R2 como boundary de mídia publicada](adr/0014-r2-media-storage-and-publishing.md)
+- [ADR-0014 — R2 como boundary de mídia publicada](adr/0014-r2-media-storage-and-publishing.md) — superseded pela ADR-0018; preservado como histórico.
 - [ADR-0015 — entrega simples orientada a recuperação](adr/0015-recovery-oriented-delivery.md)
 - [ADR-0016 — runs locais imutáveis, revisão explícita e publicação versionada](adr/0016-transcript-runs-review-publication.md)
 - [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](adr/0017-web-single-entry-loopback-session.md)
+- [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
 
 ### Governança da própria documentação
 
@@ -187,20 +189,21 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Assets de marca não são redesenhados fora do Brand Pack oficial.
 - `pnpm docs:check` valida recursivamente links Markdown e falha se houver documento órfão fora da árvore deste índice.
 
-## Identidades e fontes fixas atuais
+## Identidades e providers atuais
 
 - Produto: `tda`.
 - Campanha principal: `yuhara-main`.
-- Supabase: `dmrqnbdvbkfqzctcerbx`.
+- Dados relacionais: PostgreSQL; provider atual Supabase, projeto `dmrqnbdvbkfqzctcerbx`.
 - Repositório vigente: `Faysk/tda`.
 - Legado: `Faysk/dnd-scribe`.
 - Design System oficial: `TDA Design System v1.0.0` fornecido em 2026-09-06.
 - Brand Pack oficial: `TDA — Tem Dado Aqui — Brand Pack` fornecido em 2026-09-06.
 - World Explorer: React Flow (`@xyflow/react`) como engine de visualização, domínio independente.
 - Transcrição pesada: local.
-- Binários cloud: Cloudflare R2, separados por visibilidade/ambiente.
-- Vercel correta para futuras operações: conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
+- Media Storage: provider atual Cloudflare R2, separado por visibilidade/ambiente. Mídia persistida/publicada não usa Git como storage canônico.
+- Runtime/deploy: provider atual Vercel, conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
+- Control plane: GitHub `Faysk/tda` + GitHub Actions. Providers externos são substituíveis e a infraestrutura é free-first.
 
-Última revisão estrutural: **2026-09-11**.
+Última revisão estrutural: **2026-09-20**.
 
 - [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.

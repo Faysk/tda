@@ -29,7 +29,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0011](0011-world-explorer-layout-physical-persistence.md) | accepted | snapshot físico fica em storage dedicado, com capability própria, optimistic concurrency e audit atômico |
 | [0012](0012-github-actions-controlled-delivery.md) | accepted | GitHub Actions é o único controlador de entrega; Vercel Git auto-deploy permanece desligado |
 | [0013](0013-companion-agent-desktop-asr.md) | accepted | Companion separa Agent/UI, permanece per-user e adota runtime ASR multi-engine para Craig/português |
-| [0014](0014-r2-media-storage-and-publishing.md) | accepted | R2 é o boundary da mídia pública e a publicação usa integridade/read-back antes de promover referências |
+| [0014](0014-r2-media-storage-and-publishing.md) | superseded | R2 consolidou o primeiro boundary de mídia; ADR-0018 generaliza para Media Storage substituível |
 | [0015](0015-recovery-oriented-delivery.md) | accepted | entrega web evolui para main-only, Preview por PR, gates proporcionais e rollback como recuperação normal |
 | [0016](0016-transcript-runs-review-publication.md) | accepted | runs locais são imutáveis; revisão/publicação são etapas explícitas e versionadas |
 | [0017](0017-web-single-entry-loopback-session.md) | accepted | Web é a entrada única de processamento; Companion executa/observa e o browser recebe sessão loopback temporária automática |
@@ -65,9 +65,11 @@ A entrega controlada recebeu ADR porque define um boundary operacional difícil 
 
 O TDA Companion v0.3 recebeu ADR porque separa lifecycle de Agent/UI, altera empacotamento e startup per-user, introduz update/uninstall verificáveis e define o boundary multi-engine do ASR local com ingest Craig e output canônico independente da engine.
 
-O R2 recebeu ADR porque mídia pública virou um boundary compartilhado entre lores e outras superfícies: storage, keys imutáveis, integridade, read-back e publicação não devem ser reinventados por feature.
+O R2 recebeu ADR porque mídia pública virou um boundary compartilhado entre lores e outras superfícies: storage, keys imutáveis, integridade, read-back e publicação não devem ser reinventados por feature. ADR-0018 posteriormente generalizou esse boundary para Media Storage provider-neutral sem remover essas garantias.
 
 A entrega orientada a recuperação recebeu ADR porque muda a filosofia da esteira web: preserva GitHub Actions como controlador, mas troca a branch permanente de Preview e os gates globais por Preview de PR, gates proporcionais ao domínio alterado e rollback simples como mecanismo normal de recuperação.
+
+A independência de providers recebeu ADR porque estabelece uma regra acima das integrações atuais: GitHub é o control plane, mídia pertence sempre ao Media Storage, PostgreSQL é o contrato relacional principal, providers atuais são substituíveis e custo gratuito é preferido enquanto cumprir os requisitos.
 
 ## Regra histórica
 

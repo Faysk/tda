@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: arquitetura
-> Última revisão: 2026-09-10
+> Última revisão: 2026-09-20
 
 Invariantes são regras que não devem ser quebradas silenciosamente por uma feature local. Se uma futura necessidade exigir violar uma delas, registrar ADR antes da mudança.
 
@@ -63,56 +63,61 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 
 ## Mídia
 
-38. R2 guarda binários; PostgreSQL guarda identidades/relações/metadados do domínio.
-39. Bucket chamado `public` não implica autorização automática de conteúdo.
-40. URL assinada é mecanismo de entrega, não decisão de permissão.
+38. Media Storage guarda os binários persistidos/publicados; PostgreSQL guarda identidades/relações/metadados do domínio.
+39. Toda mídia persistida pelo produto pertence ao Media Storage, não ao Git. Cloudflare R2 é o provider atual, não o contrato permanente.
+40. Bucket/container chamado `public` não implica autorização automática de conteúdo.
+41. URL assinada é mecanismo de entrega, não decisão de permissão.
 
 ## Operação
 
-41. Deploy é ação controlada após validação, não mecanismo de desenvolvimento.
-42. A Vercel correta precisa ser verificada antes de qualquer operação: `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
-43. Rollback deve ser definido antes de promover candidato importante.
-44. Mudança estrutural sem documentação correspondente não está completa.
+42. Deploy é ação controlada após validação, não mecanismo de desenvolvimento.
+43. GitHub é o control plane canônico: código, docs, manifests, migrations, workflows e configuração declarativa ficam versionados no repositório; GitHub Actions controla automações de entrega.
+44. Providers de runtime, dados e storage são substituíveis. Vercel, Supabase e Cloudflare R2 são os providers atuais.
+45. Secrets operacionais usados por GitHub Actions ficam preferencialmente em GitHub Environments; runtime providers mantêm somente secrets necessários em execução.
+46. A Vercel correta precisa ser verificada antes de qualquer operação enquanto ela for o provider atual: `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
+47. Rollback deve ser definido antes de promover candidato importante.
+48. Mudança estrutural sem documentação correspondente na mesma PR não está completa.
+49. A infraestrutura é free-first: serviço/tier pago exige necessidade comprovada e decisão documentada; custo zero nunca justifica enfraquecer segurança ou integridade.
 
 ## Memória e exploração
 
-45. Relations terão edge próprio com semântica, evidence e visibility; não serão escondidas em metadata.
-46. Knowledge/audience precisa distinguir jogador, personagem, público, rumor, mentira e segredo do mestre.
-47. Embedding/busca semântica nunca altera autoridade canônica do conteúdo indexado.
-48. Visualização não dita o modelo de dados.
-49. A própria existência de uma relation pode ser secreta; autorização ocorre antes da projection entregue ao browser.
-50. Mention/coocorrência não cria relation canônica automaticamente.
-51. Fixture visual ou screenshot de referência não é fonte de canon.
-52. World Explorer mostra vizinhança controlada por padrão; não carrega o grafo completo sem necessidade explícita.
-53. O grafo nunca é a única forma de consumir relations; existe representação textual/navegável alternativa.
+50. Relations terão edge próprio com semântica, evidence e visibility; não serão escondidas em metadata.
+51. Knowledge/audience precisa distinguir jogador, personagem, público, rumor, mentira e segredo do mestre.
+52. Embedding/busca semântica nunca altera autoridade canônica do conteúdo indexado.
+53. Visualização não dita o modelo de dados.
+54. A própria existência de uma relation pode ser secreta; autorização ocorre antes da projection entregue ao browser.
+55. Mention/coocorrência não cria relation canônica automaticamente.
+56. Fixture visual ou screenshot de referência não é fonte de canon.
+57. World Explorer mostra vizinhança controlada por padrão; não carrega o grafo completo sem necessidade explícita.
+58. O grafo nunca é a única forma de consumir relations; existe representação textual/navegável alternativa.
 
 ## Design System e marca
 
-54. `TDA Design System v1.0.0` é a direção visual oficial enquanto não for superseded por versão/ADR documentada.
-55. O Brand Pack oficial é autoridade da geometria de logo/pato/lockups; componentes não redesenham a marca.
-56. Componentes usam papel semântico/token antes de hexadecimal local quando o token existe.
-57. Light e dark preservam a mesma hierarquia, não dois produtos diferentes.
-58. Visitante vê história; editor vê estado editorial.
-59. Dourado é acento raro, não decoração indiscriminada.
-60. Mobile reorganiza a composição; não é desktop apenas comprimido.
-61. Uma tela visual não está pronta sem teclado, foco, contraste e `prefers-reduced-motion`.
+59. `TDA Design System v1.0.0` é a direção visual oficial enquanto não for superseded por versão/ADR documentada.
+60. O Brand Pack oficial é autoridade da geometria de logo/pato/lockups; componentes não redesenham a marca.
+61. Componentes usam papel semântico/token antes de hexadecimal local quando o token existe.
+62. Light e dark preservam a mesma hierarquia, não dois produtos diferentes.
+63. Visitante vê história; editor vê estado editorial.
+64. Dourado é acento raro, não decoração indiscriminada.
+65. Mobile reorganiza a composição; não é desktop apenas comprimido.
+66. Uma tela visual não está pronta sem teclado, foco, contraste e `prefers-reduced-motion`.
 
 ## React Flow
 
-62. React Flow (`@xyflow/react`) é engine de apresentação do World Explorer, não contrato de domínio.
-63. `nodes[]`/`edges[]`, posições, handles e tipos visuais são DTO/estado de UI, não rows de `entities`/relations por definição.
-64. O modo público do World Explorer não expõe criação/delete de edges/nodes.
-65. A primeira estratégia de layout é radial e própria; nova engine de layout exige necessidade observada e documentação.
-66. A adoção de React Flow não obriga páginas editoriais ou o restante do domínio a se tornarem Client Components.
+67. React Flow (`@xyflow/react`) é engine de apresentação do World Explorer, não contrato de domínio.
+68. `nodes[]`/`edges[]`, posições, handles e tipos visuais são DTO/estado de UI, não rows de `entities`/relations por definição.
+69. O modo público do World Explorer não expõe criação/delete de edges/nodes.
+70. A primeira estratégia de layout é radial e própria; nova engine de layout exige necessidade observada e documentação.
+71. A adoção de React Flow não obriga páginas editoriais ou o restante do domínio a se tornarem Client Components.
 
 ## Feedback de carregamento
 
-67. Espera bloqueante iniciada pelo usuário deve ter feedback visual global consistente; o loader oficial do TDA é o contrato padrão dessa espera.
-68. Navegação interna usa `PublicLink`/primitives que delegam a ele, para que o estado pendente do App Router participe do loader sem sacrificar prefetch.
-69. Operações de feature expõem espera bloqueante por `aria-busy="true"`, `data-global-loading="true"`, `useGlobalLoadingFlag()` ou `useGlobalLoading()`; o chamador que inicia a espera também é responsável por encerrá-la.
-70. Polling, heartbeat, prefetch, autosave silencioso e sincronização de fundo não acionam overlay global; quando necessário, um subtree pode declarar `data-global-loading="off"`.
-71. O loader não intercepta `fetch` globalmente e não deve alterar semântica HTTP. Em especial, preservar status reais como `404` vale mais do que obter um boundary de streaming genérico no layout raiz.
-72. Esperas instantâneas não devem piscar overlay: a infraestrutura aplica uma pequena janela antes de exibir o loader, exceto quando um fallback de rota precisa existir antes da hidratação.
-73. O loader preserva a geometria oficial da marca; halos, partículas, órbitas e motion são camadas de apresentação separadas e respeitam `prefers-reduced-motion`.
-74. O loader segue o tema ativo do TDA: dark preserva a versão aprovada; light deriva sua paleta dos tokens semânticos do Design System. Não existe tema paralelo específico do loader.
-75. Trocar light/dark altera apenas a paleta de apresentação do loader; timing, hierarquia, significado, tamanho e sequência de movimento permanecem equivalentes entre os temas.
+72. Espera bloqueante iniciada pelo usuário deve ter feedback visual global consistente; o loader oficial do TDA é o contrato padrão dessa espera.
+73. Navegação interna usa `PublicLink`/primitives que delegam a ele, para que o estado pendente do App Router participe do loader sem sacrificar prefetch.
+74. Operações de feature expõem espera bloqueante por `aria-busy="true"`, `data-global-loading="true"`, `useGlobalLoadingFlag()` ou `useGlobalLoading()`; o chamador que inicia a espera também é responsável por encerrá-la.
+75. Polling, heartbeat, prefetch, autosave silencioso e sincronização de fundo não acionam overlay global; quando necessário, um subtree pode declarar `data-global-loading="off"`.
+76. O loader não intercepta `fetch` globalmente e não deve alterar semântica HTTP. Em especial, preservar status reais como `404` vale mais do que obter um boundary de streaming genérico no layout raiz.
+77. Esperas instantâneas não devem piscar overlay: a infraestrutura aplica uma pequena janela antes de exibir o loader, exceto quando um fallback de rota precisa existir antes da hidratação.
+78. O loader preserva a geometria oficial da marca; halos, partículas, órbitas e motion são camadas de apresentação separadas e respeitam `prefers-reduced-motion`.
+79. O loader segue o tema ativo do TDA: dark preserva a versão aprovada; light deriva sua paleta dos tokens semânticos do Design System. Não existe tema paralelo específico do loader.
+80. Trocar light/dark altera apenas a paleta de apresentação do loader; timing, hierarquia, significado, tamanho e sequência de movimento permanecem equivalentes entre os temas.
