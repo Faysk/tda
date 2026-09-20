@@ -1,12 +1,12 @@
 # Edit — modo temporário sem autenticação
 
-> Status: compatibilidade temporária de desenvolvimento
+> Status: compatibilidade deprecated; caminho canônico ativo, remoção do bypass pendente
 > Owner: Edit / aplicação + segurança
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 
 ## Decisão
 
-Durante a construção inicial do Edit, o proprietário autorizou explicitamente usar a área administrativa antes da conclusão de Auth/profile/capabilities para acelerar validação de UX e paridade funcional.
+Durante a construção inicial do Edit, o proprietário autorizou explicitamente usar a área administrativa antes da conclusão de Auth/profile/capabilities. Esse motivo histórico foi superado: Auth, capability/scope, revision e mutation atômica já existem no caminho normal. A flag permanece apenas como compatibilidade técnica a remover.
 
 Isso **não substitui** a arquitetura definitiva. É um bypass concentrado, visível e removível.
 
@@ -52,13 +52,13 @@ O boundary canônico existente em `query.ts`/`mutation.ts` continua intacto:
 - `expectedRevision`;
 - resultado explícito de conflito.
 
-O bypass **não relaxa esse contrato**. Para permitir uso imediato sem esperar migration de revision/audit, o write temporário vive isolado em:
+O bypass **não altera o contrato canônico**, mas continua sendo menos seguro quando explicitamente habilitado. O write legado permanece isolado em:
 
 ```text
 src/features/edit/transcript/unsafe-mutation.ts
 ```
 
-Quando revision + auditoria + Auth estiverem prontos, a UI deve trocar sua Server Action para a mutation canônica e apagar o adapter unsafe.
+A UI normal já usa `updateTranscriptSegmentAction -> persistTranscriptMutation -> edit_transcript_segment_atomic`. Portanto `unsafe-mutation.ts` não deve receber novas features; a próxima mudança deste mecanismo é sua remoção depois de confirmar que nenhum fluxo necessário ainda depende da flag.
 
 ## Primeiro workbench funcional
 
@@ -95,13 +95,6 @@ Esses riscos são aceitos **somente como dívida transitória para acelerar cons
 
 ## Critério de remoção
 
-Remover o bypass quando:
+Pré-condições técnicas 1–5 já estão cumpridas no caminho canônico: identidade/profile, capabilities, revision, audit transacional e UI ligada à RPC. Antes da remoção física, confirmar por busca/testes que nenhum fluxo de desenvolvimento necessário depende da flag e repetir os smokes negativos relevantes.
 
-1. Auth resolve usuário e profile;
-2. `campaign.transcript.read` e `campaign.content.edit` funcionam no servidor;
-3. revision/version física protege mutation concorrente;
-4. audit old/new registra ator de forma confiável;
-5. a UI usa a mutation canônica;
-6. smoke/testes positivos e negativos cobrem cross-campaign e capability.
-
-Na remoção, apagar `TDA_EDIT_UNSAFE`, `unsafe-access.ts`, `unsafe-mutation.ts` e o banner da interface. O histórico da decisão permanece no Git.
+Na remoção, apagar `TDA_EDIT_UNSAFE`, `unsafe-access.ts`, `unsafe-mutation.ts` e qualquer banner/branch de UI ainda dependente. O histórico da decisão permanece neste documento/Git. Até lá, o default versionado continua `false` e a flag não deve ser usada como solução para problema de autorização.
