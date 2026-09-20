@@ -201,6 +201,7 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - World Explorer: React Flow (`@xyflow/react`) como engine de visualização, domínio independente.
 - Transcrição pesada: local.
 - Media Storage: provider atual Cloudflare R2, separado por visibilidade/ambiente. Mídia persistida/publicada não usa Git como storage canônico.
+- Dívida conhecida: a `main` ainda contém 73 artefatos de mídia legados/transitórios; inventário e ordem de retirada em [Dívida de mídia no Git — 2026-09-20](integrations/media-git-debt-2026-09-20.md). Nenhuma nova mídia deve aumentar essa contagem.
 - Runtime/deploy: provider atual Vercel, conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 - Control plane: GitHub `Faysk/tda` + GitHub Actions. Providers externos são substituíveis e a infraestrutura é free-first.
 
