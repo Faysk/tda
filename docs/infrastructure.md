@@ -94,7 +94,24 @@ Para recuperar essa dívida anterior ao novo planner, a repair release de 2026-0
 
 Esse reparo é excepcional e não vira mecanismo normal de retry: a partir da #414, manifests de uma release falha permanecem acumulados automaticamente até Production alcançá-los.
 
-Configuração documental não prova secret existente, e manifest não prova objeto publicado. O aceite do reparo exige receipt com contagens reais e verificação pública.
+Configuração documental não prova secret existente, e manifest não prova objeto publicado.
+
+### Reparação Astel/Noah concluída — 2026-09-20
+
+A reparação foi concluída e comprovada operacionalmente.
+
+- GitHub Environment `production` forneceu corretamente `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY`;
+- Astel: 16 assets;
+- Noah: 8 assets;
+- primeira execução com credenciais válidas publicou e verificou os 24 objetos, mas o wrapper falhou depois do upload ao ler um resumo sem newline terminal;
+- o retry idempotente reutilizou os 24 objetos e verificou publicamente os 24 novamente;
+- Production foi promovida para `0e62540f4949ea8bed0d59984760bb39fdadb2e4`;
+- release: `prod-0e62540f4949`;
+- staged + canonical smoke: PASS.
+
+Evidência estruturada: [Astel/Noah media repair — 2026-09-20](integrations/evidence/astel-noah-media-repair-2026-09-20.json).
+
+Com isso, o publisher por GitHub Environment, a recuperação cumulativa e o retry idempotente estão comprovados em operação real.
 
 ## Custos
 
