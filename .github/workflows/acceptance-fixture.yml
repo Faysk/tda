@@ -5,12 +5,14 @@ on:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+      - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+      - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
 permissions:
@@ -31,7 +33,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           foreach ($relative in @(
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
-            "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+            "tools/acceptance/run-recovery-candidate-018e1095.ps1",
+            "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
             $tokens = $null
@@ -84,6 +87,24 @@ jobs:
           }
           if ($value -notmatch '(?m)^\s*& \$pwshPath .* -File \$physicalScript') {
             throw "RECOVERY_LAUNCHER_PHYSICAL_CHILD_NOT_ISOLATED"
+          }
+          if (-not $value.Contains('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')) {
+            throw "RECOVERY_LAUNCHER_EXACT_INSTALL_MISSING"
+          }
+          $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
+          $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
+          if ($installIndex -lt 0 -or $installedPhaseIndex -lt 0 -or $installIndex -gt $installedPhaseIndex) {
+            throw "RECOVERY_LAUNCHER_INSTALL_ORDER_INVALID"
+          }
+
+          $installed = Get-Content -LiteralPath "local-companion/packaging/run-installed-acceptance.ps1" -Raw
+          foreach ($required in @(
+            "BITS job detected:",
+            "Do not click prepare/install again; BITS must resume the SAME job.",
+            "AGENT_RECOVERY_PID_NOT_REPLACED",
+            "CRAIG_RECOVERY_PID_NOT_REPLACED"
+          )) {
+            if (-not $installed.Contains($required)) { throw "RECOVERY_INSTALLED_FAIL_CLOSED_MISSING" }
           }
       - name: Generate synthetic speech and Craig fixture
         shell: powershell
