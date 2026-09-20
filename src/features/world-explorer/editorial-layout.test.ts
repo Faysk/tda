@@ -19,10 +19,11 @@ describe("World Explorer editorial layout candidate", () => {
 			},
 		};
 		const candidate = captureWorldLayoutCandidate(projection, {
-			astel: { x: -230, y: 74 },
+			astel: { x: 12_000, y: 74 },
 			dandelion: { x: 180, y: -90 },
 			"secret-node": { x: 5, y: 5 },
 			ivory: { x: Number.POSITIVE_INFINITY, y: 0 },
+			thalindra: { x: 20_001, y: 0 },
 		});
 
 		expect(candidate).toEqual({
@@ -30,7 +31,7 @@ describe("World Explorer editorial layout candidate", () => {
 			view: "overview",
 			revision: 8,
 			positions: {
-				astel: { x: -230, y: 74 },
+				astel: { x: 12_000, y: 74 },
 				dandelion: { x: 180, y: -90 },
 			},
 		});
