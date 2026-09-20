@@ -1,9 +1,11 @@
 # Reparo do site e entrega pública de imagens
 
-> Status: implementado parcialmente; promoção R2 pendente
+> Status: histórico — estado observado em 2026-09-07; promoção/arquitetura posterior supersede este snapshot
 > Owner: integrations/media
 > Última revisão: 2026-09-07
-> Fonte de verdade: SQL aplicado, HTML público, GET de imagens e Cloudflare
+> Fonte histórica desta operação: SQL aplicado, HTML público, GET de imagens e Cloudflare
+>
+> **Não usar como estado atual.** As afirmações de “consumo R2 pendente” abaixo descrevem 2026-09-07. O contrato vigente está em [Media Storage / R2](r2.md); a dívida atual de bytes no Git está em [media-git-debt-2026-09-20.md](media-git-debt-2026-09-20.md).
 
 ## Três estados distintos
 
