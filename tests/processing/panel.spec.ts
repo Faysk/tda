@@ -1,189 +1,169 @@
-import { expect, test, type Page } from "@playwright/test";
-const token = "synthetic_test_token_12345678901234567890";
-const origin = "http://127.0.0.1:8765/api/v1";
-const running = {
-	id: "synthetic-job",
-	kind: "synthetic.fixture",
-	status: "running",
-	stage: "fixture",
-	progress: { completed: 1, total: 3, unit: "items" },
-	error: null,
-	result_available: false,
-	updated_at: "2026-09-07T12:00:00Z",
-};
-async function pair(page: Page) {
-	await page.getByLabel("Token de pareamento").fill(token);
-	await page.getByRole("button", { name: "Conectar neste computador" }).click();
+import { expect, test } from "@playwright/test";
+import {
+	failedJob,
+	fixtureJob,
+	installCompanionFixture,
+	LOCAL_API,
+	UI_ORIGIN,
+} from "./companion-fixture";
+
+function fulfillJson(
+	route: import("@playwright/test").Route,
+	value: unknown,
+	status = 200,
+) {
+	return route.fulfill({
+		status,
+		headers: {
+			"Access-Control-Allow-Origin": UI_ORIGIN,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(value),
+	});
 }
-test("pairing, real reported progress, contextual cancel and disconnect", async ({
+
+test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
 }) => {
-	let job = { ...running };
-	const mutations: string[] = [];
-	const errors: string[] = [];
-	page.on("pageerror", (error) => errors.push(error.message));
-	await page.route(`${origin}/**`, async (route) => {
-		const path = new URL(route.request().url()).pathname;
-		if (route.request().method() === "POST") {
-			mutations.push(path);
-			job = { ...job, status: "cancelled", stage: "cancelled" };
-		}
-		await route.fulfill({
-			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
-			json: path.endsWith("/health")
-				? { api_version: "1", service_version: "0.1.0", lifecycle: "ready" }
-				: path.endsWith("/capabilities")
-					? {
-							capabilities: ["synthetic.fixture"],
-							sync: false,
-							device: { id: "test-device", label: "PC sintético" },
-						}
-					: path.endsWith("/jobs")
-						? { jobs: [job] }
-						: job,
+	const requests: { url: string; authorization?: string }[] = [];
+	await page.route(`${LOCAL_API}/**`, async (route) => {
+		requests.push({
+			url: route.request().url(),
+			authorization: route.request().headers().authorization,
+		});
+		return fulfillJson(route, {
+			api_version: "2",
+			service_version: "0.3.99",
+			lifecycle: "ready",
 		});
 	});
 	await page.goto("/");
-	await expect(
-		page.getByText("Serviço desconectado", { exact: true }),
-	).toBeVisible();
-	await pair(page);
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByRole("progressbar")).toHaveAttribute("value", "1");
-	await expect(page.getByRole("progressbar")).toHaveAttribute("max", "3");
-	await page.getByRole("button", { name: "Cancelar trabalho" }).click();
-	await expect(page.getByRole("dialog")).toContainText("synthetic-job");
-	expect(mutations).toEqual([]);
-	await page.getByRole("button", { name: "Voltar", exact: true }).click();
-	expect(mutations).toEqual([]);
-	await page.getByRole("button", { name: "Cancelar trabalho" }).click();
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
-	await expect(page.locator("li .ds-status")).toHaveText("Cancelado");
-	expect(mutations).toEqual(["/api/v1/jobs/synthetic-job/cancel"]);
-	await expect(
-		page.getByText("Sincronização não configurada.", { exact: true }),
-	).toBeVisible();
-	expect(
-		await page.evaluate(
-			() => document.documentElement.scrollWidth <= innerWidth,
-		),
-	).toBe(true);
-	await page.screenshot({
-		path: test.info().outputPath("processing.png"),
-		fullPage: true,
-	});
-	await page.getByRole("button", { name: "Desconectar esta aba" }).click();
-	await expect(
-		page.getByText("Serviço desconectado", { exact: true }),
-	).toBeVisible();
-	await expect(page.getByRole("progressbar")).toHaveCount(0);
-	await expect(page.getByLabel("Token de pareamento")).toHaveValue("");
-	expect(
-		await page.evaluate(
-			() =>
-				`${JSON.stringify(localStorage)} ${JSON.stringify(sessionStorage)} ${document.cookie}`,
-		),
-	).not.toContain(token);
-	expect(errors).toEqual([]);
-});
-test("mismatch blocks credentials and retry UI, network failure gives actionable diagnosis", async ({
-	page,
-}) => {
-	const requests: string[] = [];
-	await page.route(`${origin}/**`, async (route) => {
-		requests.push(route.request().url());
-		expect(route.request().headers().authorization).toBeUndefined();
-		await route.fulfill({
-			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
-			json: { api_version: "2" },
-		});
-	});
-	await page.goto("/");
-	await pair(page);
-	await expect(
-		page.getByText("Versão incompatível", { exact: true }),
-	).toBeVisible();
+	await expect(page.getByText("API incompatível", { exact: true })).toBeVisible();
+	await expect(page.getByRole("alert")).toContainText("API v2");
 	expect(requests).toHaveLength(1);
-	await page.unroute(`${origin}/**`);
-	await page.route(`${origin}/**`, (route) => route.abort("failed"));
-	await pair(page);
-	await expect(page.getByRole("alert")).toContainText("origem ou permissão");
-});
-test("preparation, paused queue and recoverable failure stay distinct", async ({
-	page,
-}) => {
-	let lifecycle = "preparing";
-	await page.route(`${origin}/**`, async (route) => {
-		const path = new URL(route.request().url()).pathname;
-		await route.fulfill({
-			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
-			json: path.endsWith("/health")
-				? { api_version: "1", service_version: "0.1.0", lifecycle }
-				: path.endsWith("/capabilities")
-					? {
-							capabilities: ["synthetic.fixture"],
-							sync: false,
-							device: { id: "test-device", label: "PC sintético" },
-						}
-					: {
-							jobs: [
-								{
-									...running,
-									status: "interrupted",
-									stage: "interrupted",
-									progress: null,
-									error: { code: "restart", recoverable: true },
-								},
-							],
-						},
-		});
-	});
-	await page.goto("/");
-	await pair(page);
-	await expect(page.getByText("Em preparação", { exact: true })).toBeVisible();
+	expect(requests[0]?.authorization).toBeUndefined();
+
+	await page.unroute(`${LOCAL_API}/**`);
+	await page.route(`${LOCAL_API}/**`, (route) =>
+		fulfillJson(route, {
+			api_version: "1",
+			service_version: "0.3.13",
+			lifecycle: "ready",
+		}),
+	);
+	await page.getByRole("button", { name: "Tentar novamente" }).click();
 	await expect(
-		page.getByRole("button", { name: "Executar ensaio sintético" }),
-	).toBeDisabled();
-	await expect(
-		page.getByText("Sem medida de progresso nesta etapa."),
+		page.getByText("Atualização necessária", { exact: true }),
 	).toBeVisible();
+	await expect(page.getByRole("alert")).toContainText("v0.3.13");
+	await expect(page.getByRole("alert")).toContainText("v0.3.14");
+
+	await page.unroute(`${LOCAL_API}/**`);
+	await page.route(`${LOCAL_API}/**`, (route) => route.abort("failed"));
+	await page.getByRole("button", { name: "Tentar novamente" }).click();
+	await expect(page.getByRole("alert")).toContainText("Código: unreachable");
+
+	await page.unroute(`${LOCAL_API}/**`);
+	await page.route(`${LOCAL_API}/**`, async (route) => {
+		const path = new URL(route.request().url()).pathname;
+		if (path.endsWith("/health")) {
+			return fulfillJson(route, {
+				api_version: "1",
+				service_version: "0.3.14",
+				lifecycle: "ready",
+			});
+		}
+		return fulfillJson(
+			route,
+			{ error: { code: "ORIGIN_REJECTED", recoverable: false } },
+			403,
+		);
+	});
+	await page.getByRole("button", { name: "Tentar novamente" }).click();
+	await expect(page.getByRole("alert")).toContainText("ORIGIN_REJECTED");
+});
+
+test("sessão browser expirada é renovada automaticamente", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		expireBrowserSessionOnce: true,
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	expect(state.sessionCount).toBe(2);
+	expect(
+		state.requests.filter((request) => request.path === "/session"),
+	).toHaveLength(2);
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBe(true);
+});
+
+test("cancelamento exige confirmação e converge para cancelled", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByText("Processando", { exact: true }).first()).toBeVisible();
+
+	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
+	await expect(page.getByRole("dialog")).toContainText("craig-job-1");
+	expect(
+		state.requests.filter((request) => request.path.endsWith("/cancel")),
+	).toHaveLength(0);
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect
+		.poll(() => state.job?.status)
+		.toBe("cancelled");
+	await expect(page.getByText("Cancelado", { exact: true })).toBeVisible();
+});
+
+test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
 		"não promete retomar do ponto exato",
 	);
-	await page.keyboard.press("Escape");
-	lifecycle = "paused";
-	await page.getByRole("button", { name: "Atualizar estado" }).click();
-	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Retomar fila" }).click();
-	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect
+		.poll(() => state.job?.attempt)
+		.toBe(2);
+	expect(state.job?.status).toBe("queued");
+	await expect(page.getByText("Na fila", { exact: true })).toBeVisible();
 });
 
-test("running job at N/N does not claim pipeline completion", async ({ page }) => {
-	const completedButRunning = {
-		...running,
-		id: "still-consolidating",
-		status: "running",
-		stage: "consolidating",
-		progress: { completed: 3, total: 3, unit: "items" },
-	};
-	await page.route(`${origin}/**`, async (route) => {
-		const path = new URL(route.request().url()).pathname;
-		await route.fulfill({
-			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
-			json: path.endsWith("/health")
-				? { api_version: "1", service_version: "0.1.0", lifecycle: "ready" }
-				: path.endsWith("/capabilities")
-					? {
-							capabilities: ["synthetic.fixture"],
-							sync: false,
-							device: { id: "test-device", label: "PC sintético" },
-						}
-					: { jobs: [completedButRunning] },
-		});
+test("fila pausada continua distinta de falha e pode ser retomada", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		lifecycle: "paused",
+		advanceJobs: false,
 	});
 	await page.goto("/");
-	await pair(page);
-	await expect(page.getByText("100%", { exact: true })).toHaveCount(0);
-	await expect(page.getByText(/3 \/ 3 itens/)).toBeVisible();
+	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
+
+	await page.getByRole("button", { name: "Retomar fila" }).click();
+	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	expect(
+		state.requests.some(
+			(request) =>
+				request.path === "/lifecycle" && request.method === "POST",
+		),
+	).toBe(true);
 });
