@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ from tda_companion.asr_qwen_strict import (
     _owned_words,
     transcribe_craig_package_qwen_strict,
 )
-from tda_companion.craig import CraigPackage, CraigTrack
+from tda_companion.craig import CraigPackage, CraigPackageError, CraigTrack
 from tda_companion.qwen_acceptance import QwenPlan
 from tda_companion.transcript import TranscriptWord
 
@@ -61,15 +62,16 @@ def _two_track_package(tmp_path: Path) -> tuple[CraigPackage, Path]:
     tracks = []
     for number, speaker in ((1, "Alice"), (2, "Bob")):
         filename = f"{number}-{speaker}.flac"
-        (tracks_root / filename).write_bytes(f"audio-{speaker}".encode("utf-8"))
+        payload = f"audio-{speaker}".encode("utf-8")
+        (tracks_root / filename).write_bytes(payload)
         tracks.append(
             CraigTrack(
                 number=number,
                 speaker=speaker,
                 filename=filename,
                 path=f"tracks/{filename}",
-                size_bytes=len(f"audio-{speaker}".encode("utf-8")),
-                sha256=str(number) * 64,
+                size_bytes=len(payload),
+                sha256=hashlib.sha256(payload).hexdigest(),
                 identity=None,
             )
         )
@@ -304,6 +306,64 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
     assert "model_load" not in stages
     assert "transcription" not in stages
     assert "alignment" in stages
+
+
+def test_strict_qwen_refuses_text_reuse_if_staged_track_bytes_changed(tmp_path: Path):
+    package, root = _two_track_package(tmp_path)
+
+    def reader(path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"texto {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+        )
+
+    changed = root / package.tracks[0].path
+    original = changed.read_bytes()
+    changed.write_bytes(b"X" + original[1:])
+    assert changed.stat().st_size == package.tracks[0].size_bytes
+
+    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_HASH_MISMATCH"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("changed source must fail before model load")
+            ),
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("changed source must not reach ASR")
+            ),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+        )
 
 
 def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
