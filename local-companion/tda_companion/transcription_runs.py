@@ -7,7 +7,7 @@ import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from .transcript import TranscriptDocument
@@ -195,6 +195,7 @@ def write_completed_run(
     source_id: str | None = None,
     glossary: str = "",
     context: str = "",
+    before_commit: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Persist one immutable completed ASR run.
 
@@ -223,6 +224,12 @@ def write_completed_run(
             glossary=glossary,
             context=context,
         )
+        # The caller may reserve the cross-process attempt outcome immediately
+        # before the immutable run.json commit marker is written. If cancellation
+        # already won, the callback raises and this uncommitted directory is
+        # removed by the existing fail-closed cleanup below.
+        if before_commit is not None:
+            before_commit()
         _atomic_json(destination / "run.json", manifest)
         return manifest
     except BaseException:

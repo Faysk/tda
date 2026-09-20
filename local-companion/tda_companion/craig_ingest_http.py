@@ -61,6 +61,7 @@ class CraigIngestBoundary:
         browser_sessions: BrowserSessionManager | None = None,
         source_gate: object | None = None,
         source_running: Callable[[str], bool] | None = None,
+        run_visible: Callable[[Path, dict[str, object]], bool] | None = None,
     ) -> None:
         self.app = app
         self.data_root = data_root.resolve()
@@ -71,6 +72,7 @@ class CraigIngestBoundary:
         self.browser_sessions = browser_sessions
         self.source_gate = source_gate
         self.source_running = source_running
+        self.run_visible = run_visible
 
     def _log(self, code: str, message: str, context: dict[str, object] | None = None) -> None:
         if self.system_log is not None:
@@ -117,12 +119,25 @@ class CraigIngestBoundary:
         gate = self.source_gate if self.source_gate is not None else nullcontext()
         with gate:
             package = load_craig_package(package_root, verify_tracks=False)
-            return ensure_legacy_and_list(
+            value = ensure_legacy_and_list(
                 package_root,
                 source_id=source_id,
                 source_sha256=package.source_sha256,
                 verify_content=False,
             )
+            if self.run_visible is None:
+                return value
+            runs = value.get("runs")
+            if not isinstance(runs, list):
+                return value
+            return {
+                **value,
+                "runs": [
+                    item
+                    for item in runs
+                    if isinstance(item, dict) and self.run_visible(package_root, item)
+                ],
+            }
 
     async def _runs(self, request: Request, source_id: str, scope, receive, send) -> None:
         origin, allowed = await self._common_guard(request, scope, receive, send)

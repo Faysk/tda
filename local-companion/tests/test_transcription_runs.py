@@ -94,6 +94,54 @@ def test_two_completed_runs_coexist_without_overwrite(tmp_path: Path):
     ).hexdigest()
 
 
+def test_before_commit_fence_runs_after_transcript_but_before_run_marker(tmp_path: Path):
+    source_sha = "9" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    run_id = run_id_for("job-fence", 1)
+    observed = {}
+
+    def before_commit():
+        run_root = package_root / "runs" / run_id
+        observed["transcript_exists"] = (run_root / "transcript.json").is_file()
+        observed["run_marker_exists"] = (run_root / "run.json").exists()
+
+    manifest = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-turbo", "fenced"),
+        job_id="job-fence",
+        attempt=1,
+        before_commit=before_commit,
+    )
+
+    assert observed == {
+        "transcript_exists": True,
+        "run_marker_exists": False,
+    }
+    assert (package_root / "runs" / manifest["run_id"] / "run.json").is_file()
+
+
+def test_failed_before_commit_fence_cleans_uncommitted_run(tmp_path: Path):
+    source_sha = "8" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+
+    def cancelled():
+        raise RuntimeError("cancel won")
+
+    with pytest.raises(RuntimeError, match="cancel won"):
+        write_completed_run(
+            package_root,
+            _document(source_sha, "qwen-fast", "never committed"),
+            job_id="job-cancel",
+            attempt=1,
+            before_commit=cancelled,
+        )
+
+    assert not (package_root / "runs" / run_id_for("job-cancel", 1)).exists()
+    assert list_runs(package_root, verify_content=True) == []
+
+
 def test_retry_attempt_gets_distinct_run_identity(tmp_path: Path):
     source_sha = "c" * 64
     package_root = tmp_path / f"craig-{source_sha}"
