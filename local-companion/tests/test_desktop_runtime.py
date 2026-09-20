@@ -1,10 +1,55 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 from tda_companion.agent import AgentController
+from tda_companion.agent_connection import AgentConnectionError
 from tda_companion.desktop import DesktopBridge
-from tda_companion.desktop_runtime import DesktopExitCoordinator, DesktopUiApi
+from tda_companion.desktop_runtime import (
+    DesktopAgentWatchdog,
+    DesktopExitCoordinator,
+    DesktopUiApi,
+)
+
+
+def test_native_watchdog_recovers_without_renderer_polling(tmp_path: Path):
+    recovered = threading.Event()
+
+    class Bridge:
+        def __init__(self):
+            self.paths = SimpleNamespace(logs_root=tmp_path / "Logs")
+            self.client = SimpleNamespace(
+                status=lambda: {"retry_after_seconds": 0.0}
+            )
+            self.calls = 0
+
+        def agent_watchdog_tick(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise AgentConnectionError("AGENT_CONNECTION_REFUSED")
+            recovered.set()
+            return {
+                "state": "ready",
+                "service_version": "0.3.14",
+                "pid": 4321,
+            }
+
+    bridge = Bridge()
+    watchdog = DesktopAgentWatchdog(bridge, interval_seconds=0.01)  # type: ignore[arg-type]
+    watchdog.start()
+    try:
+        assert recovered.wait(1.0) is True
+    finally:
+        watchdog.stop()
+
+    assert bridge.calls >= 2
+    rows = watchdog._log.tail(limit=20)
+    assert [row["code"] for row in rows][-2:] == [
+        "AGENT_WATCHDOG_RECOVERY_PENDING",
+        "AGENT_WATCHDOG_RECOVERED",
+    ]
 
 
 def test_user_close_can_hide_when_tray_is_available():
