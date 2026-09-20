@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,8 @@ import tda_companion.api as api_module
 from fastapi.testclient import TestClient
 
 from tda_companion.api import create_app
+from tda_companion.attempt_fence import claim_attempt_outcome, read_attempt_outcome
+from tda_companion.craig import ingest_craig_zip
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
@@ -32,6 +35,32 @@ HEADERS = {
     "Origin": ORIGIN,
     "Content-Type": "application/json",
 }
+
+
+def _running_transcription(client, *, key: str):
+    data_root = client.app.state.data_root
+    source = data_root.parent / f"{key}.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-attempt-fence")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    source_id = f"craig-{source_sha}"
+    package_root = data_root / "staging" / source_id
+    ingest_craig_zip(source, package_root)
+    body = {
+        "kind": "transcription.craig",
+        "campaign_id": "campaign",
+        "session_id": "session",
+        "source_id": source_id,
+        "profile_id": "whisper-turbo",
+        "glossary": "",
+        "context": "",
+        "cpu": False,
+        "units": 1,
+    }
+    job = client.app.state.store.submit(key, body)
+    claim = client.app.state.store.claim()
+    assert claim == (job["id"], 1)
+    return job, package_root
 
 
 @pytest.fixture
@@ -381,6 +410,61 @@ def test_security_and_validation(client):
     assert response.headers["access-control-allow-origin"] == ORIGIN
     assert "access-control-allow-credentials" not in response.headers
     assert client.get("/api/v1/jobs/", headers=HEADERS).status_code == 404
+
+
+def test_cancel_wins_fence_before_worker_commit_and_is_idempotent(client):
+    job, package_root = _running_transcription(client, key="cancel-wins-fence")
+
+    response = client.post(
+        f"/api/v1/jobs/{job['id']}/cancel",
+        headers=HEADERS,
+        json={},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert read_attempt_outcome(package_root, job["id"], 1) == "cancel"
+    assert claim_attempt_outcome(package_root, job["id"], 1, "commit") == "cancel"
+
+    repeated = client.post(
+        f"/api/v1/jobs/{job['id']}/cancel",
+        headers=HEADERS,
+        json={},
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["status"] == "cancelled"
+
+
+def test_commit_fence_rejects_late_cancel_without_reclassifying_job(client):
+    job, package_root = _running_transcription(client, key="commit-wins-fence")
+    assert claim_attempt_outcome(package_root, job["id"], 1, "commit") == "commit"
+
+    response = client.post(
+        f"/api/v1/jobs/{job['id']}/cancel",
+        headers=HEADERS,
+        json={},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "JOB_COMMIT_IN_PROGRESS",
+        "recoverable": True,
+    }
+    assert client.app.state.store.get(job["id"])["status"] == "running"
+    assert read_attempt_outcome(package_root, job["id"], 1) == "commit"
+
+
+def test_cancel_fence_survives_store_restart(client):
+    job, package_root = _running_transcription(client, key="cancel-fence-restart")
+    response = client.post(
+        f"/api/v1/jobs/{job['id']}/cancel",
+        headers=HEADERS,
+        json={},
+    )
+    assert response.status_code == 200
+
+    reopened = Store(client.app.state.data_root)
+    assert reopened.get(job["id"])["status"] == "cancelled"
+    assert read_attempt_outcome(package_root, job["id"], 1) == "cancel"
 
 
 def test_conflict_recoverability_matches_whether_repeating_can_help(client):
