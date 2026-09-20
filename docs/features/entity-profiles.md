@@ -2,7 +2,7 @@
 
 > Status: preparado; projection publicada pendente
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-20
 
 ## Valor
 
@@ -36,7 +36,7 @@ Ele compõe, conforme disponibilidade/autorização:
 - `canon_entries`;
 - `entity_mentions`;
 - `sessions`;
-- relations futuras;
+- relations first-class autorizadas;
 - publications;
 - mídia;
 - músicas/performances;
@@ -66,7 +66,7 @@ A [issue #99](https://github.com/Faysk/tda/issues/99) escolhe **Pipipi** como a 
 
 Esse alvo é **específico desta lore pioneira** e não cria automaticamente uma família genérica `/lore/[slug]` para todas as entities. As rotas tipadas acima continuam sendo o contrato geral dos perfis; qualquer generalização futura precisa ser decidida no owner de routing/perfis, não inferida deste slice.
 
-Pipipi deve reutilizar a mesma `LorePage`, Presentation Engine, tokens/primitives do TDA, filtro de audience e helper central de metadata. O conteúdo concluído e as sete imagens preparadas são dependências fornecidas para a rodada, mas sua existência fora da `main` não comprova implementação, CI, entrega pública ou publicação.
+Pipipi foi publicada como lore dedicada e acabou adotando uma composição editorial própria, conforme [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) e a decisão de [lores independentes](independent-lores.md). O planejamento abaixo permanece como histórico dos critérios que separaram conteúdo aprovado, integração e publicação; ele não é contrato visual para futuras lores.
 
 Critérios específicos antes de chamar a lore de pronta/publicada:
 
@@ -444,9 +444,9 @@ O repository público permanece deliberadamente vazio até existir projection au
 
 Validação de suporte em 2026-09-07: `pnpm check` (64 testes unitários), build e 30 E2E passaram localmente com Node 24.20.0/pnpm 12.3.4. O player gera uma faixa WebVTT nativa a partir dos mesmos beats das legendas visíveis. Uma montagem local temporária, removida antes do commit, validou carregamento de dois cues, play/pause, seek, troca de cenas com o mesmo preset, parallax, reduced motion e viewport de 390 px. Essa montagem usou artwork sintético e oito segundos de silêncio: não comprova sincronização/acurácia com narração editorial real nem publicação do slice.
 
-## Lore pioneira da rodada #99
+## Lore pioneira da rodada #99 — resultado histórico
 
-Pipipi substitui Dandelion como **primeiro alvo de conteúdo real completo desta rodada**, porque a #99 fornece uma lore concluída e sete imagens preparadas para adaptação. Isso não declara que os bytes estão no runtime, que a rota existe na `main` ou que a lore está publicada.
+Pipipi foi o primeiro alvo de conteúdo real completo da rodada e **já está publicada**. A implementação final, QA, assets e recibo de Production pertencem a [pipipi-lore.md](pipipi-lore.md). Os critérios abaixo ficam preservados como histórico de aceite, não como pendência corrente.
 
 O slice deve validar:
 
@@ -462,7 +462,7 @@ O slice deve validar:
 
 Dandelion continua um candidato válido para o primeiro **perfil tipado de entity** quando houver fonte autorizada; não precisa ser reaberto nem removido para que Pipipi prove a lore pioneira.
 
-## Assets pendentes para o slice real
+## Assets considerados no slice histórico
 
 - conteúdo concluído de Pipipi disponível ao implementador com classificação de publicação clara;
 - sete imagens preparadas, com bytes/URLs de runtime e eligibility pública verificáveis;
@@ -470,7 +470,7 @@ Dandelion continua um candidato válido para o primeiro **perfil tipado de entit
 - narração editorial somente se fornecida/aprovada;
 - timestamps finais dos beats somente depois de áudio real existir.
 
-Esses assets são dependências de conteúdo, não prova de integração.
+Esses itens eram dependências do corte de planejamento. A prova de integração/publicação posterior está no documento dono de Pipipi; não usar esta lista histórica para reabrir gates já cumpridos.
 
 ## Critério de pronto
 
