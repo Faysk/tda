@@ -77,7 +77,7 @@ describe("World Explorer editorial layout contract", () => {
 			positions: {
 				dandelion: { x: 120, y: -80 },
 				astel: { x: Number.POSITIVE_INFINITY, y: 20 },
-				ivory: { x: 7_000, y: 0 },
+				ivory: { x: 25_000, y: 0 },
 				"secret-node": { x: 15, y: 15 },
 			},
 		};
