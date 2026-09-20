@@ -1,5 +1,10 @@
 # Modelo de dados canônico
 
+> Status: vigente
+> Owner: dados + arquitetura + domínios
+> Última revisão: 2026-09-20
+> Fonte de verdade física: PostgreSQL/Supabase `dmrqnbdvbkfqzctcerbx`; semântica: este contrato + documentos donos de cada domínio
+
 Este documento é o contrato vigente do reboot TDA. O repositório `Faysk/dnd-scribe` continua sendo fonte histórica, mas seus nomes, estados de conclusão e arquitetura não são importados automaticamente.
 
 ## Identidades canônicas
@@ -44,7 +49,7 @@ PC e NPC pertencem, portanto, ao mesmo universo de entidades. O que muda é o ti
 `participants` representa a participação em uma sessão específica. É ocorrência operacional, não identidade canônica. Quando possível aponta para a entidade do personagem representado naquela sessão.
 
 ### Transcript segment
-`transcript_segments` é evidência bruta/derivada de uma sessão. Texto transcrito não é canon por si só.
+`transcript_segments` é evidência bruta/derivada de uma sessão. Texto transcrito não é canon por si só. `revision` é o contador de concorrência otimista por linha; `review_status` é a fonte canônica do estado editorial de leitura e `needs_review` permanece projeção de compatibilidade para novas escritas.
 
 ### Entity mention
 `entity_mentions` liga uma entidade a evidências onde ela foi mencionada: sessão, segmento ou evento Roll20. Uma menção não afirma que o conteúdo é verdadeiro/canônico.
@@ -54,6 +59,15 @@ PC e NPC pertencem, portanto, ao mesmo universo de entidades. O que muda é o ti
 
 ### Canon entry
 `canon_entries` é a memória consolidada. Só deve ser produzida a partir de decisão aprovada e mantém referência ao candidato/fonte. Pode estar associada a uma entidade e possui status para supersession/retcon/arquivamento.
+
+### Entity relation
+`entity_relations` representa relações first-class entre duas `entities`. Tipo e semântica vêm de `relation_types`; apresentação default pode vir de `world_relation_styles`; provenance revisada pode ser ligada por `entity_relation_sources`. Menção/coocorrência não vira relation automaticamente.
+
+### World layout, graph revision e draft
+`world_layout_snapshots` guarda composição editorial do canvas separada dos fatos. `world_graph_heads` e `world_graph_revisions` versionam publicações factuais do grafo. `world_edit_leases` serializa a sessão ativa de edição; `world_edit_drafts` preserva checkpoints duráveis para recuperação. Layout não define canon e lease não é armazenamento durável.
+
+### Media asset e binding
+`media_assets` registra identidade e integridade de mídia vinculada ao domínio sem guardar os bytes no PostgreSQL. `entity_media_bindings` liga uma entity a um asset por role (hoje `portrait`) e focal point. Os bytes pertencem ao Media Storage; URL/provider não é identidade canônica do asset.
 
 ## Pipeline conceitual
 
@@ -111,6 +125,21 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 - `publications`
 - `audit_log`
 
+### Relações e autoria do World
+- `relation_types`
+- `world_relation_styles`
+- `entity_relations`
+- `entity_relation_sources`
+- `world_graph_heads`
+- `world_graph_revisions`
+- `world_layout_snapshots`
+- `world_edit_leases`
+- `world_edit_drafts`
+
+### Mídia de entities
+- `media_assets`
+- `entity_media_bindings`
+
 ### Processamento local/cloud metadata
 - `processing_jobs`
 - `processing_job_steps`
@@ -141,9 +170,11 @@ A base canônica é `entities`. PCs recebem vínculo com `profile_characters`; N
 Já são tipos previstos em `entities`. Não criar tabelas independentes apenas para distinguir o tipo sem necessidade de dados estruturados específicos.
 
 ### Relações / grafo
-O roadmap prevê relações e possível visualização com React Flow. Relações devem ser first-class edges entre entidades, com direção quando aplicável, visibilidade, estado e evidência/canon. O schema definitivo de relações ainda **não está aprovado**; não criar JSON solto em `entities.metadata` nem uma tabela prematura antes de fechar a semântica.
+A fundação física está aplicada. `relation_types` define a semântica por campanha; `entity_relations` guarda edges first-class; `entity_relation_sources` liga relações a `canon_entries` quando a provenance revisada exige isso; `world_relation_styles` mantém apresentação separada do fato.
 
-Exemplos históricos que a modelagem deverá comportar: aliança, dívida, traição, família, segredo, conhecimento e conflito.
+Publicação factual usa `world_graph_heads` + `world_graph_revisions` e optimistic concurrency. Edição usa lease exclusivo e draft durável. Isso **não** autoriza inferir relações por coocorrência nem promover automaticamente material privado/review para público.
+
+Conhecimento, rumor, mentira e segredo continuam conceitos distintos de relation e podem exigir modelo próprio de knowledge/audience.
 
 ### Conhecimento e audiência
 O histórico prevê separar conhecimento do jogador, personagem, público, rumor, mentira e segredo do mestre. Os campos de `visibility` existentes são uma base de audiência, mas um modelo de knowledge claims ainda precisa ser desenhado quando essa feature entrar no roadmap executável.
@@ -164,4 +195,4 @@ Não foi encontrado um conceito canônico chamado `intent`/`intents` no schema a
 6. RLS sem policy pode ser deliberadamente fechado; não adicionar policies genéricas só para eliminar lint.
 7. `SECURITY DEFINER` exposto deve ter autorização interna revisada e grants explícitos.
 8. Canon exige fonte e revisão humana.
-9. Features futuras entram primeiro neste contrato e só depois no schema.
+9. Mudança estrutural nova entra primeiro no contrato dono e só depois no schema; estrutura já aplicada deve ser refletida aqui na mesma entrega.
