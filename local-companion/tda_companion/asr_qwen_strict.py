@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import time
 from dataclasses import asdict
@@ -42,12 +43,31 @@ from .asr_qwen import (
     _window_energy_db,
 )
 from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
-from .craig import CraigPackage
+from .craig import CraigPackage, CraigPackageError, CraigTrack
 from .qwen_acceptance import QwenPlan
 from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment, TranscriptTrack, TranscriptWord, stats_for_tracks
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
+_CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
+
+
+def _verify_checkpoint_source_bytes(path: Path, track: CraigTrack) -> None:
+    try:
+        stat = path.stat()
+    except OSError as exc:
+        raise CraigPackageError("CRAIG_MANIFEST_TRACK_MISSING") from exc
+    if stat.st_size != track.size_bytes:
+        raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(_CHECKPOINT_HASH_CHUNK_BYTES), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise CraigPackageError("CRAIG_MANIFEST_TRACK_READ_FAILED") from exc
+    if digest.hexdigest().lower() != track.sha256.lower():
+        raise CraigPackageError("CRAIG_MANIFEST_TRACK_HASH_MISMATCH")
 
 
 def iter_audio_windows_overlap(
@@ -304,6 +324,10 @@ def transcribe_craig_package_qwen_strict(
         if cached_text is None:
             asr_tracks.append(track)
             continue
+        # Reusing ASR text is much cheaper than retranscription, so pay one
+        # cryptographic read only on the reuse path. This proves the staged FLAC
+        # still matches the manifest even if filesystem metadata was preserved.
+        _verify_checkpoint_source_bytes(_safe_track_path(package_root, track), track)
         pending_text[track.number] = [
             QwenWindowTranscript(
                 index=item.index,
