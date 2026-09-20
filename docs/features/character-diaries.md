@@ -1,8 +1,8 @@
 # Diários dos personagens
 
-> Status: implementado em branch local; publicação pendente
+> Status: integrado à main e incluído em Production; smoke público específico do diário ainda não registrado
 > Owner: narrativa / frontend
-> Última revisão: 2026-09-18
+> Última revisão: 2026-09-20
 
 ## Contrato
 
@@ -24,7 +24,7 @@ Após editar capítulos, executar `pnpm diary:generate`. O formato aceito preser
 
 Não copiar diretórios de trabalho inteiros para `public`. Não criar CMS, banco, upload ou sistema de contas para este catálogo.
 
-## Astel — entrega local
+## Astel — implementação integrada
 
 - Fonte: pasta fornecida pelo usuário em `.local/livro-astel`, preservada sem alteração; sem ZIP recebido.
 - URL: `/diario/astel`; listagem apenas no catálogo de diários.
@@ -35,7 +35,7 @@ Não copiar diretórios de trabalho inteiros para `public`. Não criar CMS, banc
 - Adaptações: caminhos absolutos, XI e demais numerais romanos, links para catálogo e leitura contínua, fallback de paginação, semântica acessível e metadata específica. Largura mínima do body/capa ajustada para não gerar rolagem horizontal em 320px com scrollbar.
 - `leitura.html` contém os mesmos capítulos, com âncoras, texto selecionável, impressão e funcionamento sem JavaScript. Canonical aponta para o livro para evitar duplicar a identidade da obra.
 - Compartilhamento usa título/descrição próprios e o fallback de marca `/og/default`, pois não foi fornecida arte social dedicada.
-- Indexação permitida nesta versão pública candidata, seguindo o comportamento padrão do site; não há controle de acesso ou `noindex` implícito.
+- Indexação segue o comportamento público padrão do site; não há controle de acesso ou `noindex` implícito.
 
 ## Validação e publicação
 
@@ -53,6 +53,8 @@ Evidências locais em 2026-09-18, branch `arthur/livro-astel`:
 
 Limitações deliberadas: marcador apenas local; texto depende de regeneração após edição; arte social usa fallback de marca. O total de páginas varia com fonte e viewport.
 
-Nenhum upload, PR, merge ou deploy faz parte desta integração local. O fluxo remoto deve seguir [CI/CD vigente](../operations/ci-cd.md); criar PR já pode gerar Preview, e merge aprovado em main pode publicar Production. Publicado exige evidência do domínio/SHA, não apenas build local.
+A implementação foi integrada pela PR #394, merge `88acedb2d46bf800946e8c0a616ea53232a98806`. Esse merge é ancestral do source de Production `0e62540f4949ea8bed0d59984760bb39fdadb2e4`, portanto os bytes do diário fazem parte da aplicação publicada. A release canônica possui smoke geral, mas esta auditoria não encontrou um recibo de smoke **específico** para `/diario` e `/diario/astel`; não transformar inclusão no artifact em uma verificação de rota que não foi registrada.
+
+As evidências locais acima continuam válidas como QA da feature antes da integração; não devem ser lidas como estado remoto atual.
 
 Rollback: reverter a entrega de catálogo, rewrite, leitor e fontes pelo fluxo de release; não há migration ou objetos R2 a desfazer. O material original local permanece disponível.
