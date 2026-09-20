@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-const token = "synthetic_test_token_12345678901234567890";
-const origin = "http://127.0.0.1:8765/api/v1";
+import {
+	BROWSER_TOKEN,
+	LOCAL_API,
+	UI_ORIGIN,
+} from "./companion-fixture";
 
 const job = {
 	id: "synthetic-job",
@@ -11,7 +13,7 @@ const job = {
 	progress: { completed: 2, total: 3, unit: "items" },
 	error: null,
 	result_available: false,
-	updated_at: "2026-09-10T19:20:00Z",
+	updated_at: "2026-09-20T19:20:00Z",
 	attempt: 1,
 	context: {
 		campaign_id: "synthetic-campaign",
@@ -20,20 +22,43 @@ const job = {
 	},
 };
 
-test("renders local resource telemetry and jokes only from factual events", async ({ page }) => {
-	await page.route(`${origin}/**`, async (route) => {
+test("renders local resource telemetry and factual worker events after automatic session", async ({
+	page,
+}) => {
+	await page.route(`${LOCAL_API}/**`, async (route) => {
 		const path = new URL(route.request().url()).pathname;
-		const value = path.endsWith("/health")
-			? { api_version: "1", service_version: "0.1.0", lifecycle: "ready" }
-			: path.endsWith("/capabilities")
+		const authorization = route.request().headers().authorization;
+		let value: unknown;
+
+		if (path.endsWith("/health")) {
+			value = {
+				api_version: "1",
+				service_version: "0.3.14",
+				lifecycle: "ready",
+			};
+		} else if (path.endsWith("/session")) {
+			expect(authorization).toBeUndefined();
+			value = {
+				schema: "tda_loopback_session_v1",
+				token: BROWSER_TOKEN,
+				expires_in_seconds: 300,
+			};
+		} else {
+			expect(authorization).toBe(`Bearer ${BROWSER_TOKEN}`);
+			value = path.endsWith("/capabilities")
 				? {
-						capabilities: ["synthetic.fixture", "job.events", "system.telemetry"],
+						capabilities: [
+							"synthetic.fixture",
+							"job.events",
+							"system.telemetry",
+						],
 						sync: false,
 						device: { id: "test-device", label: "Acer Predator" },
+						transcription: { profiles: [], catalog: [] },
 					}
 				: path.endsWith("/system")
 					? {
-							sampled_at: "2026-09-10T19:20:00Z",
+							sampled_at: "2026-09-20T19:20:00Z",
 							host: { os: "Windows 11", cpu: "Intel Core i7-14700HX" },
 							cpu: { utilization_percent: 32 },
 							memory: {
@@ -57,7 +82,7 @@ test("renders local resource telemetry and jokes only from factual events", asyn
 									{
 										seq: 9,
 										code: "TRACK_PROGRESS",
-										at: "2026-09-10T19:20:00Z",
+										at: "2026-09-20T19:20:00Z",
 										level: "info",
 										data: {
 											track: 1,
@@ -71,22 +96,28 @@ test("renders local resource telemetry and jokes only from factual events", asyn
 						: path.endsWith("/jobs")
 							? { jobs: [job] }
 							: job;
+		}
+
 		await route.fulfill({
-			headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3102" },
-			json: value,
+			headers: {
+				"Access-Control-Allow-Origin": UI_ORIGIN,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(value),
 		});
 	});
 
 	await page.goto("/");
-	await page.getByLabel("Token de pareamento").fill(token);
-	await page.getByRole("button", { name: "Conectar neste computador" }).click();
-
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByText("Windows 11", { exact: false })).toBeVisible();
 	await expect(page.getByText("78%", { exact: true })).toBeVisible();
-	await expect(page.getByText("6.4 GB / 8.0 GB VRAM", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText("6.4 GB / 8.0 GB VRAM", { exact: true }),
+	).toBeVisible();
 	await expect(page.getByText("Arquivo 1 de 4", { exact: true })).toBeVisible();
 	await expect(page.getByText("Voz: Yuhara", { exact: true })).toBeVisible();
-	await expect(page.getByRole("log")).toContainText("Processando voz — Yuhara · 82%.");
-	await expect(page.getByRole("log")).toContainText("Yuhara");
+	await expect(page.getByRole("log")).toContainText(
+		"Processando voz — Yuhara · 82%.",
+	);
 	await expect(page.getByRole("log")).not.toContainText("cachorro");
 });
