@@ -205,6 +205,17 @@ Falha recuperável/interrupção permite **Repetir trabalho**. O retry cria uma 
 
 Retry terminalizado cria nova `attempt` e, portanto, identidade de run distinta. Checkpoints seguros podem evitar retranscrever faixas já concluídas, mas **não continuam nem mutam o run anterior**: a nova tentativa reconstrói o próprio progresso e, se concluir, grava um novo run imutável. Resultado concluído anterior nunca é substituído por uma tentativa nova.
 
+### Precedência entre cancelamento e commit do run
+
+Cada attempt de transcrição possui um fence local persistente em `.attempt-fences/`. Cancelamento e commit competem pelo **mesmo winner marker**, gravado com criação exclusiva no filesystem:
+
+- **cancel vence** quando a API reserva o fence antes da fase de commit; o job passa a `cancelled`, o worker não pode criar `run.json` para aquele attempt e qualquer diretório de run ainda não commitado é removido fail-closed;
+- **commit vence** quando o worker reserva o fence depois de escrever/validar `transcript.json` e imediatamente antes do commit atômico de `run.json`; cancelamento tardio não reclassifica o attempt e responde conflito enquanto o commit termina ou `JOB_TERMINAL` depois do sucesso;
+- se o Agent cair depois de `run.json` e antes de atualizar a fila, o startup reconcilia o run íntegro e conclui o mesmo attempt como `succeeded`;
+- o fence inclui `job_id + attempt`, portanto decisões de uma tentativa não alteram runs de tentativas anteriores nem bloqueiam um retry posterior.
+
+A decisão do fence não transforma partial/checkpoint em resultado. **Somente `run.json` válido continua sendo o commit marker do run concluído.**
+
 O ensaio sintético existe apenas quando `synthetic.fixture` é anunciado e não usa áudio/modelo/GPU para produzir transcrição.
 
 ## Resultado, revisão e publicação
