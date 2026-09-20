@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react";
 import {
 	Controls,
 	MiniMap,
@@ -66,6 +72,7 @@ type WorldCanvasProps = Readonly<{
 	onConnectNodes?: (sourceId: string, targetId: string) => void;
 	onReconnectEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
 	isConnectionValid?: (sourceId: string, targetId: string, edgeId?: string) => boolean;
+	cameraScopeKey?: string;
 	overlay?: ReactNode;
 }>;
 
@@ -82,6 +89,7 @@ export function WorldCanvas({
 	onConnectNodes,
 	onReconnectEdge,
 	isConnectionValid,
+	cameraScopeKey = "",
 	overlay,
 }: WorldCanvasProps) {
 	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
@@ -96,6 +104,24 @@ export function WorldCanvas({
 			String(worldLabelCounterScale(zoom)),
 		);
 	}, []);
+
+	const lastCameraScopeKey = useRef(cameraScopeKey);
+	useEffect(() => {
+		if (lastCameraScopeKey.current === cameraScopeKey) return;
+		lastCameraScopeKey.current = cameraScopeKey;
+		if (!flowInstance.current || nodes.length === 0) return;
+
+		const timer = window.setTimeout(() => {
+			void flowInstance.current?.fitView({
+				nodes: nodes.map((node) => ({ id: node.id })),
+				padding: 0.22,
+				minZoom: WORLD_CANVAS_MIN_ZOOM,
+				maxZoom: 1.05,
+				duration: 220,
+			});
+		}, 120);
+		return () => window.clearTimeout(timer);
+	}, [cameraScopeKey, nodes]);
 
 	return (
 		<div
