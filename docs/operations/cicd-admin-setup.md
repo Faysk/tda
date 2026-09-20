@@ -154,6 +154,8 @@ Matriz administrativa atual:
 
 Cada token é bucket-scoped e possui somente Bucket Item Read + Write. O browser nunca recebe credenciais permanentes.
 
+Evidência administrativa sem valores: [R2 credential boundaries — 2026-09-20](../integrations/evidence/r2-credential-boundaries-2026-09-20.json).
+
 ## Estado do publisher de Media Storage
 
 O workflow de Production usa diretamente os secrets do GitHub Environment `production` para o provider R2 atual e valida sua presença somente quando existe mídia pendente.
