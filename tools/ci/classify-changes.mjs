@@ -19,6 +19,12 @@ const EXACT = {
 		"tools/check-relation-migration-safety.py",
 	]),
 	companion: new Set([".github/workflows/companion.yml"]),
+	processing: new Set([
+		".github/workflows/ci.yml",
+		"playwright.processing.config.ts",
+		"playwright.processing-integration.config.ts",
+		"tools/processing-ui-fixture.mjs",
+	]),
 	media: new Set([
 		"tools/media-pipeline.py",
 		"tools/check-canonical-media-usage.py",
@@ -31,6 +37,14 @@ const EXACT = {
 const PREFIX = {
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
+	processing: [
+		"src/features/edit/processing/",
+		"src/app/edit/processamento/",
+		"tests/processing/",
+		"tests/processing-integration/",
+		"tests/processing-fixture/",
+		"local-companion/",
+	],
 	media: ["media/", "tools/media/"],
 };
 
@@ -53,6 +67,7 @@ export function classifyPaths(inputPaths) {
 		web: files.length > 0,
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
+		processing: files.some((path) => matches(path, "processing")),
 		media: files.some((path) => matches(path, "media")),
 	};
 	return { files, ...classes };
@@ -71,7 +86,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "db", "companion", "media"])
+	for (const key of ["web", "db", "companion", "processing", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -89,6 +104,7 @@ function writeSummary(range, result) {
 			`- web: \`${result.web}\``,
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
+			`- processing: \`${result.processing}\``,
 			`- media: \`${result.media}\``,
 			`- Files (${result.files.length}): ${result.files.map((file) => `\`${file}\``).join(", ") || "none"}`,
 			"",
