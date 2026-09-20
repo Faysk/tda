@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-20
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -21,7 +21,7 @@ Estados:
 | --- | --- | --- |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
-| Runs/revisão/publicação de transcrição | arquitetura aprovada; implementação pendente | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016: runs imutáveis, comparação A/B, revisão derivada, publish explícito, revisions cloud, restore/unpublish/delete |
+| Runs/revisão/publicação de transcrição | core de runs locais imutáveis integrado; revisão/comparação/publicação revisionada pendentes | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016; múltiplos runs/listagem/migração legada já existem, slices editoriais seguintes continuam abertos |
 | Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; maturidade do schema não implica que todo recorte de acesso administrativo esteja concluído |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |
@@ -31,7 +31,9 @@ Estados:
 | Facções | preparado | `entities(type=faction)` |
 | Arcos | preparado | `entities(type=arc)` |
 | Conceitos/lore | preparado | `entities(type=concept)` + canon revisado |
-| Lore editorial Pipipi | publicada em production | rota dedicada `/lore/pipipi`, texto editorial versionado, cinematic progressivo e QA concluído; publicação observada em 2026-09-11 sem criar entity/canon por conveniência |
+| Lore editorial Pipipi | publicada em Production | rota dedicada `/lore/pipipi`, texto editorial versionado, cinematic progressivo e QA concluído; publicação observada em 2026-09-11 sem criar entity/canon por conveniência |
+| Lores standalone Astel/Noah | publicadas em Production | catálogo/rotas integrados; source da implementação contido no Production de 2026-09-20 e 24/24 assets públicos verificados pela Media Pipeline |
+| Diários de personagens | Astel integrado e incluído em Production; smoke específico ainda não registrado | catálogo `/diario`, leitor estático e 11 capítulos versionados; merge #394 é ancestral do source de Production de 2026-09-20 |
 | Músicas/performances | preparado | `entities(type=song)`; performances específicas continuam em desenho |
 | Quests/ganchos | preparado | `entities(type=quest)`; estados narrativos precisam ser definidos quando a feature entrar |
 | Menções de entidades | implementado no schema | `entity_mentions` liga entity a sessão/segmento/evento; tabela ainda vazia |
@@ -40,9 +42,10 @@ Estados:
 | Citações/outtakes | implementado no schema | candidatos e review flow já existem |
 | Publicações | implementado no schema | `publications`; conteúdo publicado atual já existe |
 | Perfis editoriais de entities | scaffold integrado; projection pendente | shells compartilhados, scenes e narração opcional; conteúdo real depende de projection autorizada |
-| Relações entre entities | fundação física aplicada; provenance/review em evolução | `relation_types`, `entity_relations`, `entity_relation_sources` e `world_relation_styles` aplicados; relações reais revisadas/publicadas e fluxo completo de provenance continuam pendentes |
-| World Explorer / Ecos da Jornada | fundação multi-hub e roteamento implementados; dados reais pendentes | React Flow, layout editorial e roteamento existem; fixtures continuam demonstrativas até projections autorizadas |
-| Grafo visual | slice visual integrado | `@xyflow/react` integrado; não define schema nem autorização |
+| Relações entre entities | schema, autoria factual e provenance/review integrados; projeção pública sob gate | `relation_types`, `entity_relations`, `entity_relation_sources`, `world_relation_styles`, revision/audit e guards de provenance aplicados; Production observada com 103 relações |
+| World Explorer / Ecos da Jornada | multi-hub + autoria canônica + audience + recuperação durável integrados; público canônico sob gate | React Flow consome projection autorizada; editor usa lease/draft/revisions; público cai para demo quando `TDA_WORLD_CANONICAL_ENABLED` não está ativo |
+| Mídia de entities do World | schema aplicado e implementação integrada; rollout fail-closed | `media_assets`, `entity_media_bindings`, upload presigned/read-back/preview/binding transacional; ativação separada por `TDA_WORLD_ENTITY_MEDIA_ENABLED` |
+| Grafo visual | visualização e authoring autorizado integrados | `@xyflow/react` é renderer; facts/layout/audience continuam server-side e independentes da biblioteca |
 | Timeline por entidade | preparado | sessions/participants/mentions/canon já dão a base; UI/query ainda futuras |
 | Conhecimento por audiência | documentado, precisa de desenho | distinguir jogador, personagem, público, rumor, mentira e segredo do mestre; não esconder em JSON genérico |
 | Busca semântica | documentado, precisa de desenho | embeddings futuros devem manter referência a fonte/entity e nunca alterar canon |
@@ -75,7 +78,7 @@ A decisão de visualização foi fechada em [ADR-0006](adr/0006-react-flow-world
 - sem edição de relations no modo público;
 - sem modelar o banco com conceitos da biblioteca.
 
-A fundação física de relations foi aplicada no Supabase canônico em 2026-09-10, conforme [contrato de dados para relações](features/relations-data-contract.md). Isso não significa que relações reais estejam publicadas: fixtures continuam explicitamente demonstrativas até fonte/canon, provenance/review, visibility e autorização permitirem projections reais.
+A fundação física de relations foi aplicada no Supabase canônico e evoluiu para autoria factual, provenance/review, revisions e recuperação durável. Em 2026-09-20 o banco observado possui 103 `entity_relations` e 9 `world_graph_revisions`. O código já consegue carregar o dataset canônico por audience; para público anônimo, `TDA_WORLD_CANONICAL_ENABLED` continua sendo o gate deliberado e o fallback demonstrativo permanece explícito. Existência de rows não equivale a afirmar que o gate público está habilitado.
 
 ## Edit Workbench
 
@@ -134,16 +137,16 @@ A candidata de transcript import existente continua desativada até ser adaptada
 
 Esses documentos são evidência histórica. A decisão vigente sempre é este catálogo, `data-model.md`, ADRs e o roadmap do repositório TDA.
 
-## Ordem recomendada de evolução
+## Prioridade e evolução
 
-1. consolidar **Home/sessões públicas** e superfícies narrativas já publicadas: origem canônica, metadata comum, mídia pública verificável e release/smoke deliberados;
-2. fechar **operação local + revisão de transcrição**: runs imutáveis, biblioteca local, comparação, revisão derivada e UX clara de resultado não publicado;
-3. fechar **Auth/capabilities + publicação revisionada**: persistence atômica, receipt/readback, published revisions, current revision, conflito, restore/unpublish e retirada posterior dos bypasses temporários;
-4. popular **memória estruturada** (`entities`, mentions, canon) somente a partir de fontes revisadas/autorizadas;
-5. integrar **perfis editoriais e World Explorer** sobre contratos compartilhados, fixtures não-canônicas isoladas e projections públicas autorizadas;
-6. completar **relations first-class** com sources/audience/provenance e então ligar o World Explorer a dados reais;
-7. expandir perfis com timeline/wiki e demais superfícies derivadas;
-8. fechar modelo de **knowledge/audience**;
-9. evoluir busca semântica, mapas, músicas/performances, quests e consultas narrativas.
+Este catálogo **não mantém uma segunda fila de prioridade**. O [roadmap](roadmap.md) é dono da ordem/dependências futuras; este arquivo responde apenas o estado canônico das capabilities na `main`.
 
-Essa ordem preserva primeiro o produto público que já existe, depois transforma o ASR local em uma fonte editorial realmente confiável e só então aumenta a superfície narrativa. Design System, documentação viva, segurança proporcional, cloud gratuita/Hobby quando possível e processamento pesado local permanecem transversais a todas as etapas.
+Ao planejar próximos slices, preservar os gates já decididos:
+
+- processamento concluído não publica transcrição;
+- dataset/relations existentes não ativam automaticamente a projection pública do World;
+- schema aplicado de mídia não ativa upload/runtime sem feature flag e storage validado;
+- merge não equivale a Production publicada;
+- conteúdo narrativo continua exigindo source/review/audience apropriados.
+
+Design System, documentação viva, segurança proporcional, arquitetura free-first e processamento pesado local permanecem transversais.
