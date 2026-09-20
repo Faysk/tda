@@ -38,6 +38,16 @@
 	background: color-mix(in srgb, var(--ds-accent-muted) 78%, var(--ds-surface-hover));
 }
 
+.companionDownload[aria-disabled="true"] {
+	cursor: not-allowed;
+	opacity: 0.72;
+}
+
+.companionDownload[aria-disabled="true"]:hover {
+	border-color: color-mix(in srgb, var(--ds-accent) 44%, var(--ds-control-border));
+	background: var(--ds-accent-muted);
+}
+
 .companionDownload:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
