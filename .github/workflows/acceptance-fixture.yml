@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
-      - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
-      - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -33,7 +33,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           foreach ($relative in @(
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
-            "tools/acceptance/run-recovery-candidate-018e1095.ps1",
+            "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -62,18 +62,18 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $value = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-018e1095.ps1" -Raw
+          $value = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-1585a932.ps1" -Raw
           foreach ($required in @(
-            'companion-rc-v0.3.14-018e109530ba',
-            '018e109530ba2306bfb686ade182fbd93156604a',
-            '87de762282f3626944d96bb49d8253692b64c3fa0c2db3c26482b30c93858ffa',
-            '6b7c1476adc3142f5532fae4bd6a95aef935a18d4bd3b207ed4027f28ed80d62',
-            '1613c822fa5d173b66c38fff590329e181a897e4b1664e2329bf4874364d15fe'
+            'companion-rc-v0.3.14-1585a93235ba',
+            '1585a93235ba2fe7c2c093ef1683f0beca5d1605',
+            '83c267ae14f10fda950413cab74394fc7b875225fa0e13f5123c8901f609f8c3',
+            'bc6ac20dbac3e0d9a31ff1cc3ff8a09e8e5b455cb644bcea00fe45f80bd34312',
+            '344f4d8f7c8d353699a35bd182edd1c202585affe4d6f69d257d78793bee065e'
           )) {
             if (-not $value.Contains($required)) { throw "RECOVERY_LAUNCHER_IDENTITY_MISSING" }
           }
           if ($value -match '(?i)-WriteTranscripts') { throw "RECOVERY_LAUNCHER_TRANSCRIPT_MODE_FORBIDDEN" }
-          if ($value -match '(?i)companion-rc-v0\.3\.14-(?!018e109530ba)[a-f0-9]{12}') {
+          if ($value -match '(?i)companion-rc-v0\.3\.14-(?!1585a93235ba)[a-f0-9]{12}') {
             throw "RECOVERY_LAUNCHER_MULTIPLE_RC_FORBIDDEN"
           }
           if (-not $value.Contains("function Require-PowerShell7")) {
