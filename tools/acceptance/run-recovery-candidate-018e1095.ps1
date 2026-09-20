@@ -49,7 +49,7 @@ function Download-ExactAsset(
 function Read-Json([string]$Path, [string]$Code) {
     try {
         return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 |
-            ConvertFrom-Json -Depth 32 -ErrorAction Stop
+            ConvertFrom-Json -ErrorAction Stop
     } catch {
         throw $Code
     }
