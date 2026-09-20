@@ -51,7 +51,7 @@ function Get-AgentHealth {
     }
 }
 
-function Wait-AgentReplacement([int]$PreviousPid, [int]$TimeoutSeconds = 30) {
+function Wait-AgentReplacement([int]$PreviousPid, [int]$TimeoutSeconds = 60) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $health = Get-AgentHealth
@@ -110,48 +110,91 @@ function Get-TdaBitsSnapshot([object]$Job) {
 
 function Capture-BitsResumeEvidence([string]$Destination) {
     Write-Host ""
-    Write-Host "[background_download_resume — prova medida]" -ForegroundColor Cyan
-    Write-Host "Inicie pelo Companion um download GRANDE que ainda não exista localmente (prefira Qwen)."
-    Write-Host "Durante a transferência, desligue temporariamente a Internet até a UI informar que o download continua em segundo plano."
-    [void](Read-Host "Quando esse estado aparecer, pressione ENTER; não religue a Internet ainda")
+    Write-Host "[background_download_resume - measured evidence]" -ForegroundColor Cyan
+    Write-Host "Keep the Internet ON and start one LARGE download from Companion (prefer Qwen runtime/model)."
+    Write-Host "The acceptance harness will not continue until it can see exactly one real TDA BITS job."
+
+    $online = $null
+    for ($attempt = 1; $attempt -le 3 -and $null -eq $online; $attempt++) {
+        [void](Read-Host "After clicking prepare/install in Companion, press ENTER")
+        $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+        while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -eq $online) {
+            $jobs = @(Get-TdaBitsJobs)
+            if ($jobs.Count -gt 1) { throw "BITS_EVIDENCE_JOB_AMBIGUOUS" }
+            if ($jobs.Count -eq 1) {
+                $candidate = Get-TdaBitsSnapshot $jobs[0]
+                if ($candidate.BytesTransferred -lt $candidate.BytesTotal) {
+                    $online = $candidate
+                }
+            }
+            if ($null -eq $online) { Start-Sleep -Milliseconds 250 }
+        }
+        if ($null -eq $online -and $attempt -lt 3) {
+            Write-Warning "No pending TDA BITS job was detected. Start a download that is not already cached, then try again."
+        }
+    }
+    if ($null -eq $online) { throw "BITS_EVIDENCE_PENDING_JOB_NOT_FOUND" }
+
+    Write-Host "BITS job detected: $($online.BytesTransferred)/$($online.BytesTotal) bytes, state $($online.State)." -ForegroundColor Green
+    Write-Host "Now disconnect the Internet. Do not start another download."
+    [void](Read-Host "When Windows is offline, press ENTER")
 
     $before = $null
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+    $stableBytes = -1L
+    $stableCount = 0
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(45)
     while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -eq $before) {
-        $jobs = @(Get-TdaBitsJobs)
-        if ($jobs.Count -gt 1) { throw "BITS_EVIDENCE_JOB_AMBIGUOUS" }
-        if ($jobs.Count -eq 1) {
-            try {
-                $candidate = Get-TdaBitsSnapshot $jobs[0]
-                if ($candidate.BytesTransferred -lt $candidate.BytesTotal) { $before = $candidate }
-            } catch {
-                if ($_.Exception.Message -notmatch '^BITS_EVIDENCE_') { throw }
-                throw
+        try {
+            $job = Get-BitsTransfer -JobId ([Guid]$online.JobId) -ErrorAction Stop
+            $candidate = Get-TdaBitsSnapshot $job
+            if ($candidate.JobId -ne $online.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
+            if ($candidate.BytesTotal -ne $online.BytesTotal) { throw "BITS_EVIDENCE_TOTAL_CHANGED" }
+            if ($candidate.BytesTransferred -ge $candidate.BytesTotal) {
+                throw "BITS_EVIDENCE_DOWNLOAD_COMPLETED_TOO_EARLY"
             }
-        }
-        if ($null -eq $before) { Start-Sleep -Milliseconds 250 }
-    }
-    if ($null -eq $before) { throw "BITS_EVIDENCE_PENDING_JOB_NOT_FOUND" }
 
-    Write-Host "Job BITS pendente capturado. Bytes: $($before.BytesTransferred)/$($before.BytesTotal)" -ForegroundColor DarkYellow
-    Write-Host "Religue a Internet e acione novamente a instalação/download no Companion."
-    [void](Read-Host "Logo após acionar novamente, pressione ENTER para observar a retomada do mesmo job")
+            if ($candidate.BytesTransferred -eq $stableBytes) {
+                $stableCount += 1
+            } else {
+                $stableBytes = $candidate.BytesTransferred
+                $stableCount = 0
+            }
+
+            if (
+                $candidate.State -in @("Suspended", "TransientError", "Queued", "Connecting") -or
+                $stableCount -ge 3
+            ) {
+                $before = $candidate
+            }
+        } catch {
+            if ($_.Exception.Message -match '^BITS_EVIDENCE_') { throw }
+        }
+        if ($null -eq $before) { Start-Sleep -Seconds 1 }
+    }
+    if ($null -eq $before) { throw "BITS_EVIDENCE_OFFLINE_STATE_NOT_OBSERVED" }
+
+    Write-Host "Offline state captured on the same job: $($before.BytesTransferred)/$($before.BytesTotal), $($before.State)." -ForegroundColor DarkYellow
+    Write-Host "Reconnect the Internet. Do not click prepare/install again; BITS must resume the SAME job."
+    [void](Read-Host "When the Internet is back, press ENTER")
 
     $after = $null
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
     while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -eq $after) {
         try {
             $job = Get-BitsTransfer -JobId ([Guid]$before.JobId) -ErrorAction Stop
             $candidate = Get-TdaBitsSnapshot $job
             if ($candidate.JobId -ne $before.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
             if ($candidate.BytesTotal -ne $before.BytesTotal) { throw "BITS_EVIDENCE_TOTAL_CHANGED" }
-            if ($candidate.BytesTransferred -gt $before.BytesTransferred -and $candidate.State -in @("Connecting", "Transferring", "Transferred")) {
+            if (
+                $candidate.BytesTransferred -gt $before.BytesTransferred -and
+                $candidate.State -in @("Connecting", "Transferring", "Transferred")
+            ) {
                 $after = $candidate
             }
         } catch {
             if ($_.Exception.Message -match '^BITS_EVIDENCE_') { throw }
         }
-        if ($null -eq $after) { Start-Sleep -Milliseconds 200 }
+        if ($null -eq $after) { Start-Sleep -Milliseconds 250 }
     }
     if ($null -eq $after) { throw "BITS_EVIDENCE_SAME_JOB_PROGRESS_NOT_OBSERVED" }
 
@@ -220,16 +263,13 @@ Com a UI do Companion aberta, finalize manualmente SOMENTE o processo Agent no G
 A interface deve mostrar recovery/reconexão e voltar a Ready sem abrir uma segunda UI, sem loop de erro e sem você reiniciar o aplicativo.
 "@
 $recoveryObserved = Confirm-Observation "agent_recovery" $recoveryPrompt
-if ($recoveryObserved) {
-    $replacement = Wait-AgentReplacement $initialPid
-    if ($null -eq $replacement) {
-        Write-Warning "O /health não confirmou um novo Agent exato/PID. A observação não será aceita."
-        $recoveryObserved = $false
-    } else {
-        Write-Host "Novo Agent exato confirmado: PID $([int]$replacement.pid)" -ForegroundColor Green
-    }
+if (-not $recoveryObserved) { throw "AGENT_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
+$replacement = Wait-AgentReplacement $initialPid
+if ($null -eq $replacement) {
+    throw "AGENT_RECOVERY_PID_NOT_REPLACED"
 }
-if ($recoveryObserved) { $observations.Add("agent_recovery") }
+Write-Host "Novo Agent exato confirmado: PID $([int]$replacement.pid)" -ForegroundColor Green
+$observations.Add("agent_recovery")
 
 $portPrompt = @"
 Teste manualmente o conflito da porta 8765: com o Agent parado, ocupe 127.0.0.1:8765 com um listener que NÃO seja TDA, mantenha a UI aberta e tente/aguarde o recovery.
@@ -271,14 +311,12 @@ $craigRecoveryPrompt = @"
 Sem remover a sessão Craig da tela, finalize manualmente SOMENTE o Agent. Após o recovery, a sessão Craig deve continuar selecionada e válida; a UI não pode dizer que o ZIP é inválido/rejeitado só porque o Agent caiu.
 "@
 $craigRecoveryObserved = Confirm-Observation "craig_survives_agent_loss" $craigRecoveryPrompt
-if ($craigRecoveryObserved) {
-    $replacement = Wait-AgentReplacement $craigPid
-    if ($null -eq $replacement) {
-        Write-Warning "O /health não confirmou recovery exato do Agent após o teste Craig."
-        $craigRecoveryObserved = $false
-    }
+if (-not $craigRecoveryObserved) { throw "CRAIG_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
+$replacement = Wait-AgentReplacement $craigPid
+if ($null -eq $replacement) {
+    throw "CRAIG_RECOVERY_PID_NOT_REPLACED"
 }
-if ($craigRecoveryObserved) { $observations.Add("craig_survives_agent_loss") }
+$observations.Add("craig_survives_agent_loss")
 
 $arguments = @(
     "--installed-acceptance",
