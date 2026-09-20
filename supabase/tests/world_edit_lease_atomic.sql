@@ -187,14 +187,14 @@ begin
     '33333333-3333-4333-8333-333333333333',
     'synthetic-campaign',
     token_a,
-    '{"node-a":{"x":260,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb
+    '{"node-a":{"x":9000,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb
   );
   if result->>'ok' <> 'true' or result->>'status' <> 'draft_saved' then
     raise exception 'valid private draft must save: %', result;
   end if;
   if (select revision from public.world_layout_snapshots) <> 2
      or (select draft_positions from public.world_edit_leases) <>
-        '{"node-a":{"x":260,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb then
+        '{"node-a":{"x":9000,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb then
     raise exception 'draft save must not mutate the published snapshot';
   end if;
 
@@ -203,7 +203,7 @@ begin
     '33333333-3333-4333-8333-333333333333',
     'synthetic-campaign',
     token_a,
-    '{"node-a":{"x":9000,"y":0}}'::jsonb
+    '{"node-a":{"x":25000,"y":0}}'::jsonb
   );
   if result <> '{"ok":false,"reason":"invalid_payload"}'::jsonb then
     raise exception 'invalid draft coordinates must fail closed: %', result;
@@ -231,7 +231,7 @@ begin
   if exists (select 1 from public.world_edit_leases)
      or (select revision from public.world_layout_snapshots) <> 3
      or (select positions from public.world_layout_snapshots) <>
-        '{"node-a":{"x":260,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb
+        '{"node-a":{"x":9000,"y":-40},"node-b":{"x":-300,"y":90}}'::jsonb
      or (select count(*) from public.audit_log where action = 'world_layout.update') <> 3
      or not exists (
        select 1
