@@ -110,6 +110,29 @@ values (
   now() - interval '1 minute'
 );
 
+-- A map-scale layout must be able to use substantially more room than the
+-- legacy ±5k envelope without changing the persisted revision fixture below.
+begin;
+set role service_role;
+do $
+declare
+  result jsonb;
+begin
+  result := public.save_world_layout_snapshot_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    0,
+    '{"node-wide":{"x":12000,"y":-8500}}'::jsonb
+  );
+  if result <> '{"ok":true,"status":"saved","revision":1}'::jsonb then
+    raise exception 'expanded World coordinate envelope must accept map-scale positions: %', result;
+  end if;
+end;
+$;
+reset role;
+rollback;
+
 set role service_role;
 do $$
 declare
@@ -147,7 +170,7 @@ begin
     )
     from (values
       ('[]'::jsonb),
-      ('{"node-a":{"x":6000,"y":0}}'::jsonb),
+      ('{"node-a":{"x":25000,"y":0}}'::jsonb),
       ('{"node-a":{"x":0}}'::jsonb),
       ('{"node-a":{"x":0,"y":0,"z":1}}'::jsonb),
       ('{"bad node":{"x":0,"y":0}}'::jsonb)
