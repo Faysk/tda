@@ -8,8 +8,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-12 |
-| [Arquitetura](../architecture.md) | Não declarado | Não declarado | Não declarado |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-20 |
+| [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-15 |
@@ -34,10 +34,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0011 — persistência física candidata do layout editorial do World Explorer](../adr/0011-world-explorer-layout-physical-persistence.md) | frontend / narrative-memory / dados / identity-access | accepted | Não declarado |
 | [ADR-0012 — GitHub Actions controla a entrega; Vercel Git auto-deploy permanece desligado](../adr/0012-github-actions-controlled-delivery.md) | operations / arquitetura / dados | accepted | Não declarado |
 | [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](../adr/0013-companion-agent-desktop-asr.md) | local-companion / processing | accepted | Não declarado |
-| [ADR-0014 — R2 como boundary de mídia publicada](../adr/0014-r2-media-storage-and-publishing.md) | Não declarado | Não declarado | Não declarado |
+| [ADR-0014 — R2 como boundary de mídia publicada](../adr/0014-r2-media-storage-and-publishing.md) | architecture / integrations-media / operations | superseded | 2026-09-20 |
 | [ADR-0015 — Entrega simples orientada a recuperação](../adr/0015-recovery-oriented-delivery.md) | operations / architecture | accepted | 2026-09-14 |
 | [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-09-15 |
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
+| [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-20 |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -47,7 +48,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura — índice detalhado](../architecture/README.md) | arquitetura do TDA | vigente | 2026-09-07 |
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-06 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
-| [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-10 |
+| [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-20 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-06 |
 
 ## docs/database
@@ -213,4 +214,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-137 páginas inventariadas, além deste catálogo gerado. 14 sem Owner e 24 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+138 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
