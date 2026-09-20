@@ -1,32 +1,30 @@
-# Mídia — autorização compartilhada de staging
+# Mídia — autorização de staging (registro superseded)
 
-> Status: decisão aprovada
+> Status: superseded; proposta genérica não ativada como contrato runtime
 > Owner: integrations/media + operations
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
+> Substituído por: autenticação/capabilities normais do TDA + autorização temporária e restrita do Media Storage
+> Fonte de verdade: [ADR-0018](../../adr/0018-portable-core-github-control-plane.md), [fluxo de mídia](media-pipeline.md) e contratos da feature consumidora
 
-## Objetivo
+## Contexto histórico
 
-Evitar autorização específica por lore, sessão ou projeto. Toda operação manual/assistida de staging de mídia usa uma única capacidade compartilhada do TDA.
+Este documento registrou a intenção de evitar segredos/endpoints específicos por lore durante a migração inicial de mídia. Essa intenção permanece válida, mas o identificador sugerido `TDA_MEDIA_STAGING_AUTH` **não é configuração canônica atual do produto** e não deve ser introduzido apenas para materializar esta proposta antiga.
 
-## Contrato
+A implementação corrente segue uma fronteira mais simples:
 
-- a autorização pertence à plataforma de mídia, não a uma lore;
-- ela protege o serviço compartilhado de intake/staging, não concede acesso direto ao bucket;
-- permanece somente no backend;
-- pode ser rotacionada sem trocar as credenciais do storage;
-- cobre apenas operações aditivas de staging, finalização e verificação;
-- não inclui delete, listagem total ou escrita arbitrária por padrão;
-- o deploy normal não depende dela: a Media Pipeline continua sendo o caminho canônico de publicação automática;
-- uma futura UI usa a autenticação normal do TDA e recebe apenas autorização temporária e restrita para o lote/objeto necessário.
+- o usuário se autentica pelo TDA normal;
+- o servidor valida capability/scope da ação;
+- quando upload direto é necessário, o browser recebe somente autorização temporária e restrita ao objeto/lote necessário;
+- credenciais permanentes do storage permanecem server-side;
+- publicação pública versionada continua na Media Pipeline/CI compartilhada;
+- nenhuma lore ganha secret, endpoint ou uploader próprio.
 
-## Naming
+O primeiro consumidor concreto desse padrão é a mídia de entities do World: o servidor valida editor + lease e emite presigned PUT curto para uma pending key; a finalização faz read-back/validação antes de registrar o asset. O rollout continua sujeito ao feature flag e aos gates do ambiente.
 
-A configuração operacional genérica deve usar um nome de plataforma, e não de lore. O identificador recomendado é `TDA_MEDIA_STAGING_AUTH`.
+## Regra preservada
 
-A configuração específica criada durante a migração da Yllith é temporária e deve ser removida após o cutover. Novas lores não criam segredo ou endpoint próprios.
+Autorização da aplicação e credencial do storage são conceitos distintos. Uma capability do TDA nunca equivale a acesso direto ao bucket.
 
-## Relação com storage
+Se surgir no futuro um serviço genérico de intake/staging que precise de uma credencial própria de aplicação, isso exige necessidade real, naming atual e documentação nova; não reativar automaticamente `TDA_MEDIA_STAGING_AUTH`.
 
-A credencial do storage e a autorização da aplicação são coisas diferentes. A primeira fica no ambiente da automação que publica pelo R2; a segunda apenas autoriza uma operação server-side controlada quando isso ainda for necessário.
-
-Ver também [ADR-0014](../../adr/0014-r2-media-storage-and-publishing.md) e [Mídia — fluxo único](media-pipeline.md).
+Ver também [segurança e custos](security-and-costs.md) e [World entity media](../../features/world-entity-media-foundation.md).
