@@ -1,105 +1,128 @@
 # Infraestrutura e estado
 
-> Status: vigente; production ativa
+> Status: vigente
 > Owner: infraestrutura/operação
-> Última revisão: 2026-09-07
-> Fonte de verdade: documentos donos de Vercel/R2/Supabase e `operations/deployments.md`
+> Última revisão: 2026-09-20
+> Fonte de verdade: ADR-0018, runbooks operacionais, providers observados e evidências datadas
 
-Este documento resume o **estado operacional comprovado**. Código integrado, branch em andamento ou CI verde não altera sozinho este inventário: mudança externa só entra aqui depois de publicação/aplicação com evidência no documento dono.
+Este documento resume **quem faz o quê** na infraestrutura atual. Ele não congela número de Production, deployment ID ou SHA corrente: esses valores mudam com frequência e devem ser verificados no ambiente/receipt correspondente.
 
-## Snapshot operacional vigente
+## Modelo atual
 
-| Recurso | Estado comprovado |
+| Capability | Contrato do TDA | Provider atual | Política |
+| --- | --- | --- | --- |
+| control plane | Git + configuração declarativa + CI/CD | GitHub / GitHub Actions | canônico |
+| runtime/deploy web | runtime web substituível | Vercel Hobby | provider atual |
+| dados relacionais | PostgreSQL + migrations versionadas | Supabase Free | provider atual |
+| Media Storage | object/blob storage | Cloudflare R2 Standard | provider atual |
+| processamento pesado | execução local recuperável | TDA Companion | local |
+
+A direção estrutural está em [ADR-0018](adr/0018-portable-core-github-control-plane.md): providers são substituíveis e a infraestrutura é free-first.
+
+## GitHub
+
+`Faysk/tda` é a fonte de verdade do reboot.
+
+- `main` é a linha canônica de código aceita para Production;
+- GitHub Actions é o controlador de entrega;
+- Vercel Git auto-deploy permanece desligado;
+- manifests, migrations, ADRs, workflows e documentação ficam versionados;
+- secrets operacionais usados por Actions ficam preferencialmente em GitHub Environments;
+- merge e publicação são eventos distintos.
+
+O fluxo atual está em [CI/CD — operação, promoção e recuperação](operations/ci-cd.md).
+
+## Runtime/deploy — Vercel
+
+Provider atual: Vercel.
+
+Recursos pinados pela operação:
+
+```text
+team:    team_9wuTfarCQ3L63xtufPKUDzi0
+project: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+domain:  https://dnd.faysk.dev
+```
+
+A versão efetivamente publicada deve ser comprovada pelo domínio canônico (`/api/version`, `/api/health`) e pelo receipt/histórico da release. Não manter neste arquivo um “Production #N atual” que se torna falso no próximo deploy.
+
+Histórico append-only: [deployments](operations/deployments.md).
+
+## Dados — PostgreSQL / Supabase
+
+Contrato principal: PostgreSQL e migrations versionadas.
+
+Provider atual:
+
+```text
+Supabase project: dmrqnbdvbkfqzctcerbx
+```
+
+ADR-0002 continua válido para reutilizar a base existente enquanto ela atende ao TDA. Supabase não é identidade permanente da arquitetura.
+
+Migration integrada no Git não prova aplicação remota. Estado de schema e aplicação deve ser confrontado com:
+
+- [migrations](database/migrations.md);
+- [segurança](database/security.md);
+- [verification log](database/verification-log.md);
+- [runbook de banco](operations/database-runbook.md).
+
+## Media Storage — Cloudflare R2
+
+Provider atual: Cloudflare R2.
+
+```text
+public:  tda-media-public
+private: tda-media-private
+preview: tda-media-preview
+origin:  https://media.dnd.faysk.dev
+```
+
+Evidências históricas comprovam uso real do bucket público e entrega por `media.dnd.faysk.dev`. Private/preview permanecem boundaries restritos e não são fallback público.
+
+A regra permanente é **Media Storage**, não “R2 para sempre”. Ver [integração atual](integrations/r2.md) e [ADR-0018](adr/0018-portable-core-github-control-plane.md).
+
+### Drift operacional conhecido — 2026-09-20
+
+A arquitetura aprovada exige que secrets operacionais usados pelo publisher de mídia do GitHub Actions pertençam ao GitHub Environment `production`.
+
+O `production.yml` integrado antes desta decisão ainda tenta executar a publicação por `vercel env run`. Runs recentes comprovaram que esse caminho não fornece configuração R2 completa ao publisher. Portanto:
+
+- não tratar `vercel env run` como fonte canônica de credenciais R2;
+- a publicação automática de mídia permanece **não saudável** até a PR de convergência da esteira;
+- manifests/bytes presentes no Git não provam publicação no Media Storage;
+- uma release com mídia pendente não deve ser declarada publicada apenas porque build/stage web passaram.
+
+A correção de implementação deve acontecer separadamente e atualizar estes runbooks na mesma PR.
+
+## Custos
+
+Política: **free-first**.
+
+Hoje os providers/tier atuais foram escolhidos porque atendem o uso observado sem custo recorrente necessário. Não habilitar serviço/tier pago por conveniência.
+
+Quando um limite real aparecer:
+
+1. medir a necessidade;
+2. tentar otimização;
+3. comparar alternativa gratuita/self-host/novo provider;
+4. comparar upgrade;
+5. documentar a decisão antes de criar custo recorrente.
+
+Custo zero nunca justifica enfraquecer segurança, integridade, backup necessário ou autorização.
+
+## Como descobrir o estado real
+
+Use a fonte apropriada:
+
+| Pergunta | Fonte |
 | --- | --- |
-| GitHub `Faysk/tda` | repositório canônico; `main` é linha aceita; push não dispara deployment |
-| Vercel `tda` | Hobby, Node 24; production ativa; publicação manual/controlada |
-| Production vigente | **Production #006**, source SHA `7dd4b06d1a246ad924230530c2a0424e830aa46d`, deployment `dpl_8cS1DGKStTdmos27wYoa747JRZ6a` |
-| Site/domínio | `https://dnd.faysk.dev` ativo sobre o projeto `tda` |
-| Metadata pública | 11 sessões verificadas com título/resumo/artwork próprios no crawler; registry runtime real promovido desde Production #003 e preservado na linha publicada da #006 |
-| R2 `tda-media-public` | 22 imagens de sessão publicadas e verificadas em `https://media.dnd.faysk.dev`; `r2.dev` desativado |
-| R2 `tda-media-private` | privado |
-| R2 `tda-media-preview` | privado e isolado de production |
-| Referências de sessão no banco | continuam nas origens funcionais atuais; promoção CAS para R2 **não executada** |
-| Supabase `dmrqnbdvbkfqzctcerbx` | base única existente; nenhuma migration/grant/escrita de DB fez parte da Production #006 |
-| Discord Auth | OAuth real, conta autorizada, navegação e logout verificados em Production #006 |
-| Vercel legado `DND/dnd-scribe` | retirado; não é rollback do reboot |
+| qual código está aceito? | `main` |
+| qual versão está servindo? | `dnd.faysk.dev/api/version` + release receipt |
+| qual deployment foi promovido? | Vercel + `operations/deployments.md` |
+| migration foi aplicada? | verification log/runbook do banco |
+| objeto de mídia foi publicado? | receipt/read-back/GET público da operação |
+| qual provider devemos usar hoje? | este documento + ADR-0018 |
+| qual era o estado numa data antiga? | auditoria/evidência datada |
 
-O histórico detalhado e append-only de cada release está em [deployments](operations/deployments.md). Production #006 é a referência publicada, mesmo que a `main` receba commits posteriores de documentação ou candidatos: **source publicado e head do Git são identidades distintas**.
-
-## Publicação e evidências históricas
-
-A Production #006 adicionou `TDA_READ_EDIT_DATA=true` somente no ambiente Production para o resolvedor server-only consultar perfis e permissões existentes. Não habilitou unsafe nem concedeu roles. OAuth real, conta, estatísticas, consulta de permissões, painel desconectado e logout foram verificados.
-
-Os recibos append-only das Productions #003, #004, #005 e #006 permanecem em [deployments](operations/deployments.md), incluindo source, configuração, limitações e rollback. Os ensaios incompletos das releases anteriores são históricos e não substituem o resultado posterior da #006.
-
-## Cloudflare R2
-
-O owner técnico é [Integração Cloudflare R2](integrations/r2.md); a operação das 22 imagens está em [Reparo do site e entrega pública de imagens](integrations/media-public-delivery-2026-09-07.md).
-
-Estado atual:
-
-- `tda-media-public` contém o conjunto revisado das 22 imagens de sessão;
-- `media.dnd.faysk.dev` possui entrega HTTPS pública verificada para esse conjunto;
-- private/preview não possuem entrega pública;
-- o registry de metadata pode usar esses assets porque a evidência `verified-public` foi promovida ao runtime;
-- isso **não significa** que `sessions.metadata.coverImageUrl`/`heroImageUrl` já apontem para R2;
-- troca das referências continua uma operação CAS/transacional separada, com snapshot e rollback próprios;
-- nova mídia de entities/lore deve passar pelo mesmo boundary de integridade, audience e entrega pública antes de virar arte social elegível.
-
-Balde mantém a operação de mídia/R2 após a integração da preparação #54. Ela não cria outro metadata builder e não refaz a promoção runtime já comprovada da Production #003.
-
-## Supabase e migrations
-
-O projeto `dmrqnbdvbkfqzctcerbx` continua sendo a única base.
-
-Migrations do reboot comprovadamente aplicadas anteriormente incluem:
-
-- `20260906210333_align_tda_domain_identity`;
-- `20260906210427_backfill_narrative_entity_links`;
-- `20260906211040_relax_reboot_entity_name_lookup`;
-- `20260907084234_add_transcript_segment_revision`.
-
-As migrations de importação `20260907193704_transcript_import_capability` e `20260907193705_transcript_import_atomic` também estão integradas, sem aplicação remota; endpoints permanecem negados conforme o [contrato de importação](integrations/transcript-import.md).
-
-A migration `20260907115300_edit_transcript_segment_atomic` está versionada na linha integrada, mas **integração no Git não prova aplicação remota**. Enquanto não houver execução deliberada + verificação no runbook de banco, documentação e UX não devem tratar a RPC como persistence disponível em production.
-
-A Production #006 não alterou migrations, grants, RLS, RPCs, profiles nem dados. A inclusão de uma publishable key no ambiente Vercel não concede capability de aplicação e não muda autorização do banco.
-
-O domínio Edit continua deny-by-default fora dos boundaries server-side autorizados. Parafuso coordena a convergência Auth/capability + adapter + optimistic concurrency/audit; migration e retirada de bypass são gates separados.
-
-## Discord Auth
-
-O contrato canônico está em [Identidade, Auth e autorização](domains/identity-access.md), e a configuração operacional em [Login Discord](operations/discord-auth.md).
-
-Estado comprovado na Production #006:
-
-- Supabase Auth é o boundary de autenticação;
-- provider Discord foi observado habilitado no GoTrue em verificação read-only anterior;
-- código SSR/PKCE, sessão server-side e guards fazem parte da linha integrada;
-- `SUPABASE_PUBLISHABLE_KEY` e `TDA_AUTH_ORIGIN=https://dnd.faysk.dev` estão configurados no target Production conforme evidência operacional desta rodada;
-- `/entrar` está habilitado e o início do fluxo redireciona até `discord.com`;
-- `/api/auth/me` preserva o estado anônimo sem capabilities para visitante não autenticado;
-- **OAuth real, consentimento, retorno, conta autorizada, navegação e logout foram verificados; o nome do aplicativo Discord ainda é DND-SCRIBE**.
-
-Secrets de Discord/Supabase não pertencem ao Git, chat, screenshot ou bundle do browser. A publishable key é pública por natureza, mas seu valor não precisa ser duplicado em documentação.
-
-## Ambientes e deployment
-
-A política permanece:
-
-- `git.deploymentEnabled=false`;
-- merge/push não publica;
-- Preview não recebe credencial/configuração de production por conveniência;
-- cada deployment registra source SHA, target, smoke e rollback em `operations/deployments.md`;
-- migrations, CAS, DNS, provider configuration e deploy são operações independentes;
-- uma rodada paralela de desenvolvimento pode integrar código coordenadamente sem transformar todas essas operações em uma única publicação.
-
-As prioridades estão no [Roadmap](roadmap.md); PRs e evidências correntes ficam no [inventário de entregas](delivery/inventory.md). O detalhe continua nos owners de cada área.
-
-## Custos e processamento
-
-Somente franquias gratuitas/Hobby quando possível; nenhum serviço pago deve ser habilitado por conveniência. R2 Standard possui franquia, não gratuidade ilimitada. O projeto não deve assumir que excedentes são bloqueados automaticamente.
-
-Processamento pesado e áudio bruto permanecem locais conforme ADR-0003. R2 pode receber binários públicos/revisados e derivados autorizados, mas não vira arquivo obrigatório de áudio bruto nem substitui o companion local.
-
-O consumidor cloud de sync/bundles coordenado por Carteiro deve preservar idempotência, receipt e retry seguro sem mover processamento pesado para a cloud por conveniência; os owners atuais são [Companion local](integrations/local-companion.md), [Processing](domains/processing.md) e [Fluxos ponta a ponta](architecture/data-flows.md).
+**CI verde, manifest versionado ou merge em `main` não substituem evidência de mutação remota.**
