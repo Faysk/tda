@@ -1,12 +1,12 @@
 # Mídia — fluxo único de preparação e entrega
 
-> Status: arquitetura aprovada
+> Status: vigente; pipeline pública compartilhada implementada, intake administrativo incremental
 > Owner: integrations/media + frontend + operations
 > Última revisão: 2026-09-20
 
 ## Escopo e fonte de verdade
 
-Este é o contrato de trabalho para qualquer frente que prepare, envie ou consuma mídia: sessões, lores, personagens, grafo, marca e social. Define o comportamento exigido; não afirma que existe hoje uma ferramenta única ou uma tela de upload completa. Implementações existentes devem convergir para ele, sem criar um uploader por lore.
+Este é o contrato de trabalho para qualquer frente que prepare, envie ou consuma mídia: sessões, lores, personagens, grafo, marca e social. Define o comportamento exigido. A publicação pública versionada já possui pipeline compartilhada (`tools/media/pipeline.mjs` + publisher de Production); intake administrativo e uploads interativos continuam incrementais e não formam uma única tela genérica. Implementações existentes devem convergir para este boundary, sem criar uploader por lore.
 
 Ler também [placement](placement.md), [identidade e keys](identity-and-keys.md), [qualidade e proporções](variants-and-crops.md) e o [runbook operacional](../../operations/r2-media-runbook.md). A [liberdade visual das lores](../../features/independent-lores.md) permanece; o contrato de mídia não impõe template visual.
 
@@ -62,11 +62,13 @@ Testar a URL usada pelo consumidor, inclusive redirects e proxies existentes. Pr
 
 CORS é configurado conforme o consumidor: upload no browser e leitura de pixels em canvas exigem avaliação específica. Não usar configuração CORS ampla como solução para objeto ausente. Credenciais permanentes nunca chegam ao browser; upload futuro pelo Edit usa autorização server-side e acesso temporário restrito quando necessário.
 
-## UX de upload no Edit — planejada
+## UX de upload no Edit — primeira implementação existente
 
-O usuário seleciona a imagem, vê prévia e acompanha recebimento, preparação e verificação. O sistema preenche o endereço e só apresenta “pronta para usar” após os gates correspondentes. Falha deve explicar o próximo passo e permitir repetir sem perder a imagem anterior.
+O padrão de produto é: o usuário seleciona a imagem, vê prévia e acompanha recebimento, preparação e verificação. O sistema só apresenta o asset como utilizável depois dos gates correspondentes; falha deve explicar o próximo passo e permitir retry sem perder a imagem anterior.
 
-Essa tela ainda precisa ser implementada/validada. Enquanto isso, a operação manual segue os mesmos gates e produz o mesmo tipo de evidência; não declarar automação pronta porque a documentação existe.
+O World já implementa o primeiro consumidor desse padrão em `WorldEntityMediaEditor`: autenticação/capability normal do TDA, lease do editor, presigned PUT curto para pending key, finalização server-side, read-back e persistência do asset verificado. Essa implementação continua protegida por feature flag e rollout do ambiente; existência do código/schema não prova ativação pública.
+
+Ainda **não existe uma UI genérica de intake para toda mídia do TDA**. Lores, sessões, marca e demais superfícies continuam usando manifests/pipeline e procedimentos próprios do mesmo boundary quando aplicável. Não generalizar a implementação específica do World em uploader universal sem necessidade.
 
 ## Responsabilidades e entrega entre frentes
 
