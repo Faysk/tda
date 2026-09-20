@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	supportsAutomaticLoopbackSession,
+} from "./compatibility";
 
 const DEFAULT_URL = "/api/downloads/companion/windows";
 const MANIFEST_URL = "/api/downloads/companion/windows/manifest";
@@ -15,6 +19,8 @@ export type CompanionDownloadInfo = {
 	channel: CompanionDownloadChannel;
 	tag: string;
 	url: string;
+	minimumServiceVersion: string;
+	compatible: boolean;
 };
 
 export function companionManifestUrl(channel: CompanionDownloadChannel): string {
@@ -27,6 +33,8 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 		version?: unknown;
 		channel?: unknown;
 		tag?: unknown;
+		minimum_api?: unknown;
+		minimum_service_version?: unknown;
 		asset?: unknown;
 	};
 	if (typeof manifest.version !== "string" || !VERSION_PATTERN.test(manifest.version)) {
@@ -34,6 +42,12 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 	}
 	if (manifest.channel !== "stable" && manifest.channel !== "rc") return null;
 	if (typeof manifest.tag !== "string") return null;
+	if (manifest.minimum_api !== "1") return null;
+	if (
+		manifest.minimum_service_version !==
+		AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION
+	)
+		return null;
 
 	const tagMatch =
 		manifest.channel === "stable"
@@ -50,6 +64,8 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 		channel: manifest.channel,
 		tag: manifest.tag,
 		url: expectedUrl,
+		minimumServiceVersion: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+		compatible: supportsAutomaticLoopbackSession(manifest.version),
 	};
 }
 
@@ -75,31 +91,51 @@ export function CompanionDownload({
 				return value?.channel === channel ? value : null;
 			})
 			.then((value) => {
-				if (value) setDownload(value);
+				if (value?.channel === channel) setDownload(value);
 			})
 			.catch(() => undefined);
 		return () => controller.abort();
 	}, [channel]);
 
 	// RC is never a fallback/default download. It only appears after the explicit
-	// RC manifest resolves to a pinned prerelease tag.
-	if (channel === "rc" && !download) return null;
+	// RC manifest resolves to a pinned, compatible prerelease tag.
+	if (channel === "rc" && (!download || !download.compatible)) return null;
 
-	const channelLabel = download?.channel === "rc" ? "RC" : "Stable";
-	const subtitle = download
-		? `v${download.version} ${channelLabel} · Windows x64 · .msi`
-		: "Windows x64 · .msi";
-	const title = download
-		? `TDA Companion v${download.version} ${channelLabel} · Windows x64`
-		: "Windows x64 · versão stable mais recente disponível";
+	if (!download) {
+		return (
+			<span
+				className={className}
+				aria-disabled="true"
+				title="Não foi possível verificar um instalador Stable compatível."
+			>
+				<span>Stable compatível indisponível</span>
+				<small>Windows x64 · verificação necessária</small>
+			</span>
+		);
+	}
+
+	if (!download.compatible) {
+		return (
+			<span
+				className={className}
+				aria-disabled="true"
+				title={`Stable v${download.version} está abaixo do mínimo v${download.minimumServiceVersion} exigido por esta tela.`}
+			>
+				<span>Atualização do Companion necessária</span>
+				<small>
+					Stable v{download.version} · requer v{download.minimumServiceVersion}+
+				</small>
+			</span>
+		);
+	}
+
+	const channelLabel = download.channel === "rc" ? "RC" : "Stable";
+	const subtitle = `v${download.version} ${channelLabel} · Windows x64 · .msi`;
+	const title = `TDA Companion v${download.version} ${channelLabel} · Windows x64`;
 	const label = channel === "rc" ? "Testar TDA Companion RC" : "Baixar TDA Companion";
 
 	return (
-		<a
-			className={className}
-			href={download?.url ?? DEFAULT_URL}
-			title={title}
-		>
+		<a className={className} href={download.url} title={title}>
 			<span>{label}</span>
 			<small>{subtitle}</small>
 		</a>
