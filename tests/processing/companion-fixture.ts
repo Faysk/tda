@@ -87,6 +87,23 @@ function json(route: Route, value: unknown, status = 200) {
 	});
 }
 
+
+function invalidRequest(route: Route, code = "INVALID_REQUEST") {
+	return json(route, { error: { code, recoverable: false } }, 422);
+}
+
+function exactObject(
+	value: unknown,
+	expected: Readonly<Record<string, unknown>>,
+): boolean {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const row = value as Record<string, unknown>;
+	const expectedKeys = Object.keys(expected).sort();
+	const actualKeys = Object.keys(row).sort();
+	if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) return false;
+	return expectedKeys.every((key) => row[key] === expected[key]);
+}
+
 export async function installCompanionFixture(
 	page: Page,
 	options: CompanionFixtureOptions = {},
@@ -205,6 +222,16 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
+			const contentType = request.headers()["content-type"] ?? "";
+			if (!contentType.startsWith("application/zip"))
+				return json(
+					route,
+					{ error: { code: "CRAIG_ZIP_REQUIRED", recoverable: false } },
+					415,
+				);
+			const body = request.postDataBuffer();
+			if (!body || body.length === 0)
+				return invalidRequest(route, "CRAIG_UPLOAD_EMPTY");
 			state.uploadCount += 1;
 			return json(route, {
 				schema_version: "tda_craig_ingest_v1",
@@ -216,6 +243,19 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/preparation" && request.method() === "POST") {
+			let payload: unknown;
+			try {
+				payload = request.postDataJSON();
+			} catch {
+				return invalidRequest(route);
+			}
+			if (
+				!exactObject(payload, {
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: "qwen-quality",
+				})
+			)
+				return invalidRequest(route);
 			state.preparationPostCount += 1;
 			preparationReads = 0;
 			return json(route, {
@@ -254,8 +294,29 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
+			let payload: unknown;
+			try {
+				payload = request.postDataJSON();
+			} catch {
+				return invalidRequest(route);
+			}
+			if (
+				!idempotencyKey ||
+				!/^[A-Za-z0-9_-]{1,128}$/u.test(idempotencyKey) ||
+				!exactObject(payload, {
+					kind: "transcription.craig",
+					campaign_id: "yuhara-main",
+					session_id: "sessao-42",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: "qwen-quality",
+					glossary: "",
+					context: "",
+					cpu: false,
+				})
+			)
+				return invalidRequest(route);
 			state.jobPostCount += 1;
-			if (idempotencyKey) state.idempotencyKeys.push(idempotencyKey);
+			state.idempotencyKeys.push(idempotencyKey);
 			state.job = fixtureJob("queued");
 			submittedJob = true;
 			jobsReads = 0;
