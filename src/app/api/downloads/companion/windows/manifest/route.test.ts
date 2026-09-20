@@ -56,6 +56,7 @@ describe("Companion Windows manifest route", () => {
       version: "0.3.9",
       tag: "companion-v0.3.9",
       minimum_api: "1",
+      minimum_service_version: "0.3.14",
       asset: {
         url: "/api/downloads/companion/windows?tag=companion-v0.3.9",
         sha256: "a".repeat(64),
@@ -79,6 +80,7 @@ describe("Companion Windows manifest route", () => {
       channel: "rc",
       version: "0.3.10",
       tag: "companion-rc-v0.3.10-0123456789ab",
+      minimum_service_version: "0.3.14",
       asset: {
         url:
           "/api/downloads/companion/windows?tag=companion-rc-v0.3.10-0123456789ab",
