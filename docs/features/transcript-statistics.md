@@ -1,8 +1,8 @@
 # Estatísticas privadas de transcrições
 
-> Status: implementação candidata em branch; não publicada
+> Status: implementado e publicado em Production; leitura privada por capability
 > Owner: transcrições / leitura e estatísticas
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 > Fonte de verdade: `src/features/transcripts/statistics` e `public.sessions` / `public.transcript_segments`
 
 ## Superfície e conjunto
@@ -57,12 +57,12 @@ Inspeção read-only do Supabase canônico em 2026-09-07 confirmou tipos de colu
 - `src/features/transcripts/statistics/*.test.ts`: tokens vazios/acentos/pontuação; ausências/zero; duração sobreposta; source duplicado; sessão divergente; paginação de sessões e segmentos; falha tardia/cursor repetido; autorização antes da consulta; revogação sem resultado reaproveitado.
 - `playwright.statistics.config.ts` + `tests/statistics`: Next de produção local com endpoints Auth/PostgREST **sintéticos**, 205 segmentos, paginação artificial menor que o solicitado, campanha diferente e leitor sem edição. Verifica HTML/RSC sem texto, anônimo/sem grants negados, no-store, totais completos, cobertura, atualização no reload, desktop/mobile sem overflow e captura de tela.
 - `pnpm check`, `pnpm build`, `pnpm test:e2e` (suíte habitual e suíte estatísticas). O provedor sintético escuta somente loopback; não injeta bypass na aplicação e não usa credenciais reais.
-- CI deve terminar verde no SHA final da PR. Isso não significa publicação, login Discord real ou validação de políticas PostgREST/RLS de produção.
+- CI continua sendo gate por mudança, mas a entrega inicial já foi integrada pela #64 e publicada na Production #006. O recibo operacional registrou OAuth real, renderização das estatísticas para usuário autorizado e negação após logout; isso não transforma a leitura server-side em enforcement RLS nativo.
 
 ## Dependências e rollback
 
 Validação local concluída em 2026-09-07: `pnpm check` (173 Vitest + 24 testes Node), build otimizado, 75 testes E2E habituais e 8 E2E de estatísticas passaram. Capturas de desktop 1440px e mobile 390px inspecionadas, sem overflow/erro de página. A suíte habitual usou porta local isolada 3117 porque 3101 já estava ocupada por outro processo; nenhum processo alheio foi encerrado. CI permanece gate separado do commit final.
 
-Base sincronizada com `main@5f6be2e`, incluindo Auth #48. Não alterar permissões para fazer os testes passarem. Configuração real de Auth/claim e o fluxo de edição continuam com seus donos. Login OAuth real não foi exercitado nesta entrega.
+A evidência acima descreve a validação local histórica da implementação. Depois disso, a feature foi integrada na #64 e publicada na Production #006 (`7dd4b06d1a246ad924230530c2a0424e830aa46d`): OAuth real reconheceu a conta, `/transcricoes` renderizou sessões/totais com o aviso de duração ausente, e após logout a rota negou acesso sem expor métricas.
 
-Rollback de aplicação: retirar a rota/link/matcher e os módulos de estatísticas. Sem schema/dados a reverter. Não houve merge, deploy, DDL ou mutation de produção nesta rodada.
+Rollback de aplicação continua simples: retirar rota/link/matcher e módulos de estatísticas em nova release. A feature não introduziu schema próprio nem mutation de dados.
