@@ -20,6 +20,7 @@ from .asr_runtime import (
     inspect_whisper_runtime,
     recover_interrupted_whisper_runtime_install,
 )
+from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_ingest import (
@@ -263,6 +264,23 @@ def create_app(
     def staged_package_under_source_gate(source_id: str):
         with source_gate:
             return staged_package(source_id, verify_tracks=False)
+
+    def claim_cancel_under_source_gate(
+        source_id: str,
+        job_id: str,
+        attempt: int,
+    ) -> str:
+        with source_gate:
+            package_root, _package = staged_package(source_id, verify_tracks=False)
+            try:
+                return claim_attempt_outcome(
+                    package_root,
+                    job_id,
+                    attempt,
+                    "cancel",
+                )
+            except AttemptFenceError as exc:
+                raise Conflict(str(exc)) from None
 
     def source_in_use(source_id: str) -> bool:
         # Queue status changes to cancelled before the isolated worker necessarily
@@ -1300,10 +1318,33 @@ def create_app(
                 value = store.action(job_id, action)
             worker_wake.set()
             return value
-        value = store.action(job_id, action)
         if action == "cancel":
+            current = store.get(job_id)
+            if current["status"] == "cancelled":
+                return current
+            body = store.body(job_id)
+            if (
+                current["status"] == "running"
+                and body.get("kind") == "transcription.craig"
+            ):
+                attempt = current.get("attempt")
+                if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+                    raise Conflict("ATTEMPT_FENCE_ATTEMPT_INVALID")
+                winner = await asyncio.to_thread(
+                    claim_cancel_under_source_gate,
+                    str(body["source_id"]),
+                    job_id,
+                    attempt,
+                )
+                if winner == "commit":
+                    latest = store.get(job_id)
+                    if latest["status"] == "succeeded":
+                        raise Conflict("JOB_TERMINAL")
+                    raise Conflict("JOB_COMMIT_IN_PROGRESS")
+            value = store.action(job_id, action)
             signal_active_worker_cancel(job_id)
-        return value
+            return value
+        return store.action(job_id, action)
 
     @app.get("/api/v1/jobs/{job_id}/events")
     def events(job_id: str):
