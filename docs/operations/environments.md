@@ -60,7 +60,12 @@ GitHub Environment:
 ```text
 preview:
   VERCEL_TOKEN
+  R2_ACCOUNT_ID
+  R2_ACCESS_KEY_ID
+  R2_SECRET_ACCESS_KEY
 ```
+
+O par R2 de Preview é dedicado ao token `tda-github-preview-media-publisher` e ao bucket `tda-media-preview`. Está provisionado administrativamente, mas ainda não é consumido automaticamente pela CI/Preview; conexão futura exige implementação + teste + atualização documental.
 
 ## Production
 
@@ -104,13 +109,22 @@ SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Quando publicação de Media Storage está pendente:
+Quando publicação pública de Media Storage está pendente:
 
 ```text
 R2_ACCOUNT_ID
 R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
+
+Para acesso futuro explicitamente autorizado ao bucket privado:
+
+```text
+R2_PRIVATE_ACCESS_KEY_ID
+R2_PRIVATE_SECRET_ACCESS_KEY
+```
+
+O par privado é dedicado ao token `tda-github-production-private-media-storage` e a `tda-media-private`; está provisionado, mas ainda não é consumido por workflow/runtime.
 
 Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 
