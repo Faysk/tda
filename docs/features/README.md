@@ -17,7 +17,7 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — core de múltiplos runs imutáveis já integrado; revisão derivada, comparação e publicação revisionada continuam nos slices seguintes.
 
-Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
+[Estatísticas privadas de transcrições](transcript-statistics.md) — leitura por capability publicada desde Production #006, com totais por sessão e sem exposição de texto ao browser.
 
 [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — implementação, QA e publicação em Production concluídos; composição própria não é template obrigatório para outras lores.
 
@@ -25,11 +25,12 @@ Candidato em revisão: [Estatísticas privadas de transcrições](transcript-sta
 
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
-| Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
-| Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
+| Edit Workbench / administração | implementação incremental integrada; transcript canônico e módulos administrativos ativos | [Edit Workbench](edit-workbench.md) |
+| Edit / permissões | consulta read-only publicada; grant/revoke não implementados | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
+| Estatísticas privadas de transcrições | publicadas; leitura server-side autorizada | [Estatísticas](transcript-statistics.md) |
 | Edit / revisão e publicação de transcrição | core de runs locais imutáveis integrado; revisão/comparação/publicação cloud pendentes | [Runs, revisão e publicação](transcript-review-publication.md) |
-| Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
+| Edit / transcript server-side | leitura + mutation canônicas integradas; RPC atômica com revision/audit aplicada | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
