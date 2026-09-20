@@ -64,6 +64,15 @@ jobs:
           if ($value -match '(?i)companion-rc-v0\.3\.14-(?!018e109530ba)[a-f0-9]{12}') {
             throw "RECOVERY_LAUNCHER_MULTIPLE_RC_FORBIDDEN"
           }
+          if (-not $value.Contains("function Resolve-Pwsh")) {
+            throw "RECOVERY_LAUNCHER_POWERSHELL7_GUARD_MISSING"
+          }
+          if (-not $value.Contains("function Invoke-PwshScript")) {
+            throw "RECOVERY_LAUNCHER_POWERSHELL7_ISOLATION_MISSING"
+          }
+          if ($value.Contains("& $installedScript") -or $value.Contains("& $physicalScript")) {
+            throw "RECOVERY_LAUNCHER_CHILD_SCRIPT_NOT_ISOLATED"
+          }
       - name: Generate synthetic speech and Craig fixture
         shell: powershell
         run: |
