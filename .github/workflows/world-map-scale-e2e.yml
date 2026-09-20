@@ -1,0 +1,51 @@
+name: World Map Scale E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/world-map-scale-e2e.yml"
+      - "playwright.config.ts"
+      - "tests/world-canvas-spatial-interaction.spec.ts"
+      - "tests/world-explorer-first-viewport.spec.ts"
+      - "tests/world-edge-style.spec.ts"
+      - "src/features/world-explorer/world-semantic-zoom.ts"
+      - "src/features/world-explorer/world-neighborhoods.ts"
+      - "src/features/world-explorer/components/world-canvas.tsx"
+      - "src/features/world-explorer/components/world-semantic-zoom-context.tsx"
+      - "src/features/world-explorer/components/world-neighborhood-overlay.tsx"
+      - "src/features/world-explorer/components/world-neighborhoods.module.css"
+      - "src/features/world-explorer/components/entity-node.tsx"
+      - "src/features/world-explorer/components/entity-node-v2.module.css"
+      - "src/features/world-explorer/components/relation-edge.tsx"
+      - "src/features/world-explorer/components/world-explorer-client.tsx"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run map scale and viewport contracts
+        run: >-
+          pnpm exec playwright test
+          tests/world-canvas-spatial-interaction.spec.ts
+          tests/world-explorer-first-viewport.spec.ts
+          tests/world-edge-style.spec.ts
+          --project=desktop-1080p
