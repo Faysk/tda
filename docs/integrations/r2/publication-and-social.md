@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-20
 
 Antes de uma imagem ser tratada como pública, o TDA exige audience aprovada, hash/MIME/bytes/dimensões validados, upload sem overwrite silencioso, read-back, URL HTTPS final, GET anônimo, decode e confirmação de integridade.
 
@@ -12,4 +12,4 @@ Para metadata social, a ordem desejada é `social -> hero -> cover -> /og/defaul
 
 Cada link compartilhável deve emitir título, descrição, canonical e imagem próprios quando houver mídia específica válida.
 
-Objetos hashados são imutáveis: conteúdo novo recebe nova key. Custom domain é o caminho de Production; `r2.dev` fica reservado a desenvolvimento. Cache e CORS são coordenados com Nuvem.
+Objetos hashados são imutáveis: conteúdo novo recebe nova key. O custom domain `media.dnd.faysk.dev` é o caminho público de Production. `r2.dev` **não faz parte do contrato do TDA e está desabilitado nos buckets atuais**; Preview/Development não devem depender de uma URL pública de desenvolvimento por conveniência. Cache e CORS são configurados conforme o consumer real.
