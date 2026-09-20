@@ -128,6 +128,7 @@ export type BridgeErrorCode =
 	| "session_incompatible"
 	| "incompatible"
 	| "invalid_response"
+	| "payload_too_large"
 	| "timeout"
 	| "conflict"
 	| "service_error";
