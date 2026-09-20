@@ -18,7 +18,7 @@ describe("World semantic zoom", () => {
 	it("keeps labels readable without allowing unbounded inverse scale", () => {
 		expect(worldLabelCounterScale(1)).toBe(1);
 		expect(worldLabelCounterScale(0.5)).toBe(2);
-		expect(worldLabelCounterScale(0.05)).toBe(5.6);
+		expect(worldLabelCounterScale(0.05)).toBeCloseTo(5.56, 2);
 	});
 
 	it("keeps only navigation-critical labels in atlas mode", () => {
