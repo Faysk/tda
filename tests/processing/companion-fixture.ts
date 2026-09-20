@@ -66,7 +66,7 @@ export function fixtureJob(
 		updated_at: "2026-09-20T18:00:00Z",
 		attempt: 1,
 		context: {
-			campaign_id: "yuhara",
+			campaign_id: "yuhara-main",
 			session_id: "sessao-42",
 			source_id: CRAIG_SOURCE_ID,
 			profile_id: "qwen-quality",
@@ -305,7 +305,7 @@ export async function installCompanionFixture(
 		if (path === "/jobs/craig-job-1/result") {
 			return json(route, {
 				schema_version: "tda_local_result_v1",
-				campaign_id: "yuhara",
+				campaign_id: "yuhara-main",
 				session_id: "sessao-42",
 				source_id: CRAIG_SOURCE_ID,
 				job_id: "craig-job-1",
