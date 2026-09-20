@@ -207,26 +207,16 @@ Retry terminalizado cria nova `attempt` e, portanto, identidade de run distinta.
 
 ### Precedência entre cancelamento e commit do run
 
-Para `transcription.craig`, cancelamento e conclusão disputam uma decisão persistida por `job_id + attempt` antes do commit terminal. A regra é **first-writer-wins**:
-
-- se a API reservar `cancel` primeiro, o worker não pode criar `run.json`; qualquer diretório ainda sem commit marker é removido e o attempt permanece cancelado;
-- se o worker reservar `commit` primeiro, cancelamento tardio retorna conflito e não reclassifica o attempt; depois que `run.json` existe, restart/reconciliação converte o mesmo attempt para `succeeded`;
-- a decisão vive em `.attempt-fences` no package root e é separada dos bytes do transcript/run;
-- a listagem de runs correlaciona `job_id/attempt` com o estado da fila e com o fence: attempt cancelado não é exposto como run concluído, inclusive para contradições históricas anteriores ao fence;
-- runs válidos de outras identidades/attempts não são apagados para resolver a corrida.
-
-O ponto de reserva de `commit` ocorre depois de `transcript.json` estar materializado e imediatamente antes de `run.json`, que continua sendo o commit marker autoritativo do run imutável. Partials e checkpoints continuam não listáveis.
-
-### Precedência entre cancelamento e commit do run
-
-Cada attempt de transcrição possui um fence local persistente em `.attempt-fences/`. Cancelamento e commit competem pelo **mesmo winner marker**, gravado com criação exclusiva no filesystem:
+Para `transcription.craig`, cada `job_id + attempt` possui um fence local persistente em `.attempt-fences/`. Cancelamento e commit competem pelo **mesmo winner marker** com regra first-writer-wins:
 
 - **cancel vence** quando a API reserva o fence antes da fase de commit; o job passa a `cancelled`, o worker não pode criar `run.json` para aquele attempt e qualquer diretório de run ainda não commitado é removido fail-closed;
 - **commit vence** quando o worker reserva o fence depois de escrever/validar `transcript.json` e imediatamente antes do commit atômico de `run.json`; cancelamento tardio não reclassifica o attempt e responde conflito enquanto o commit termina ou `JOB_TERMINAL` depois do sucesso;
 - se o Agent cair depois de `run.json` e antes de atualizar a fila, o startup reconcilia o run íntegro e conclui o mesmo attempt como `succeeded`;
-- o fence inclui `job_id + attempt`, portanto decisões de uma tentativa não alteram runs de tentativas anteriores nem bloqueiam um retry posterior.
+- a listagem de runs correlaciona `job_id/attempt`, fence e estado da fila: attempt cancelado não é exposto como run concluído, inclusive para contradições históricas anteriores ao fence;
+- o fence é scoped por attempt, portanto decisões de uma tentativa não alteram runs de tentativas anteriores nem bloqueiam um retry posterior;
+- runs válidos de outras identidades/attempts não são apagados para resolver a corrida.
 
-A decisão do fence não transforma partial/checkpoint em resultado. **Somente `run.json` válido continua sendo o commit marker do run concluído.**
+A decisão do fence não transforma partial/checkpoint em resultado. **Somente `run.json` válido continua sendo o commit marker autoritativo do run imutável.** Partials e checkpoints continuam não listáveis.
 
 O ensaio sintético existe apenas quando `synthetic.fixture` é anunciado e não usa áudio/modelo/GPU para produzir transcrição.
 
