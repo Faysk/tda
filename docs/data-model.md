@@ -164,7 +164,7 @@ Essas tabelas registram pipeline e retenção. O reboot não deve reativar reten
 ## Features futuras já sustentadas pelo modelo
 
 ### Personagens e NPCs
-A base canônica é `entities`. PCs recebem vínculo com `profile_characters`; NPCs não precisam de profile humano. Ambos podem receber mentions, canon e relações futuras.
+A base canônica é `entities`. PCs recebem vínculo com `profile_characters`; NPCs não precisam de profile humano. Ambos podem receber mentions, canon e relações first-class.
 
 ### Lugares, itens, facções, organizações, arcos, conceitos, músicas e quests
 Já são tipos previstos em `entities`. Não criar tabelas independentes apenas para distinguir o tipo sem necessidade de dados estruturados específicos.
