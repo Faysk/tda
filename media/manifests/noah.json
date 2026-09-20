@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "noah-lore",
-  "namespace": "lore/noah",
   "bucket": "tda-media-public",
+  "namespace": "lore/noah",
   "publicOrigin": "https://media.dnd.faysk.dev",
   "assets": [
     {
