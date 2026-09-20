@@ -1,8 +1,8 @@
 # Transcrição — runs locais, revisão, comparação e publicação versionada
 
-> Status: arquitetura aprovada; implementação pendente
+> Status: implementação incremental; core de runs locais imutáveis integrado, revisão/comparação/publicação revisionada pendentes
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-20
 > Fonte de verdade: esta spec, ADR-0016, `local-companion/tda_companion`, `src/features/transcript-sync` e contratos do Edit
 
 ## Objetivo
@@ -35,9 +35,11 @@ Na `main` vigente nesta revisão:
 - o resultado atual declara `sync.status = "not_configured"`;
 - o endpoint cloud de importação continua deliberadamente negado em produção;
 - concluir um job **não publica** e não envia transcript integral como efeito colateral;
+- múltiplos runs locais concluídos e imutáveis por source já estão implementados, com `run.json`, lineage, hashes e endpoint sanitizado de listagem;
+- o `transcript.json` na raiz de staging é somente mirror de compatibilidade 0.3.x; runs concluídos vivem em diretórios próprios;
 - existe fundação server-side para leitura/edição de segmentos e existe uma candidata de importação atômica, mas ela não está ativada como fluxo produtivo.
 
-Esta spec define o **contrato-alvo aprovado** para evoluir esse estado. Ela não declara que runs versionados, comparação A/B, revisions cloud ou lixeira já estão implementados. Nenhuma migration é autorizada apenas por este documento.
+Esta spec define o **contrato-alvo aprovado** para evoluir esse estado. O núcleo do Slice 1 — múltiplos runs imutáveis, listagem e migração segura do transcript legado — já está integrado; comparação A/B, revision derivada editável, Trash completo e revisions cloud continuam posteriores. Nenhuma migration é autorizada apenas por este documento.
 
 ## Princípios de produto
 
@@ -917,14 +919,14 @@ Os pipelines de evidence/canon continuam separados.
 
 ## Fases de implementação recomendadas
 
-### Slice 1 — runs locais imutáveis
+### Slice 1 — runs locais imutáveis — fundação integrada
 
 - diretório/index de runs;
 - migrar `transcript.json` único para identidade de run;
 - preservar resultado anterior;
 - listar runs;
 - reprocessar sem overwrite;
-- cleanup/trash local básico.
+- cleanup/trash local básico — ainda pendente como polish do slice.
 
 ### Slice 2 — revisão local
 
@@ -971,7 +973,7 @@ Não misturar todos esses slices em uma migration/PR gigante.
 
 ## Migração do estado local atual
 
-Quando runs versionados forem implementados, um `transcript.json` legado existente e válido pode ser importado como um run histórico local com metadata conhecida.
+Na implementação atual de runs versionados, um `transcript.json` legado existente e válido é migrável para um run histórico local preservando o original e apenas metadata comprovável.
 
 Não inventar engine/model/revision que não puder ser comprovada. Campos desconhecidos ficam `unknown`/null conforme o schema alvo permitir.
 
