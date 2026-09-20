@@ -3,13 +3,14 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, media } = classifyPaths(files);
-	return { web, db, companion, media };
+	const { web, processing, db, companion, media } = classifyPaths(files);
+	return { web, processing, db, companion, media };
 }
 
 test("docs-only stays on fast CI only", () => {
 	assert.deepEqual(flags(["docs/operations/cicd-simplification-plan.md"]), {
 		web: true,
+		processing: false,
 		db: false,
 		companion: false,
 		media: false,
@@ -19,7 +20,7 @@ test("docs-only stays on fast CI only", () => {
 test("ordinary web and lore files do not activate heavy domains", () => {
 	assert.deepEqual(
 		flags(["src/app/page.tsx", "public/lore/yllith/yllith.css", "public/lore/yllith/historia.md"]),
-		{ web: true, db: false, companion: false, media: false },
+		{ web: true, processing: false, db: false, companion: false, media: false },
 	);
 });
 
@@ -33,6 +34,20 @@ test("specialized runtime workflows do not build the generic MSI by themselves",
 	assert.equal(flags([".github/workflows/qwen-runtime-package.yml"]).companion, false);
 	assert.equal(flags([".github/workflows/runtime-promote.yml"]).companion, false);
 	assert.equal(flags([".github/workflows/whisper-runtime.yml"]).companion, false);
+});
+
+test("processing Web, harness and Companion changes activate the required journey", () => {
+	assert.equal(
+		flags(["src/features/edit/processing/bridge.ts"]).processing,
+		true,
+	);
+	assert.equal(
+		flags(["src/app/edit/processamento/page.tsx"]).processing,
+		true,
+	);
+	assert.equal(flags(["tests/processing/journey.spec.ts"]).processing, true);
+	assert.equal(flags(["local-companion/tda_companion/api.py"]).processing, true);
+	assert.equal(flags(["src/app/page.tsx"]).processing, false);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -54,6 +69,7 @@ test("media manifests and tooling activate media domain", () => {
 test("classifier contract changes fail safe into every heavy domain", () => {
 	assert.deepEqual(flags(["tools/ci/classify-changes.mjs"]), {
 		web: true,
+		processing: true,
 		db: true,
 		companion: true,
 		media: true,
@@ -74,7 +90,7 @@ test("mixed changes activate each relevant domain", () => {
 			"local-companion/tda_companion/app.py",
 			"media/yllith/manifest.json",
 		]),
-		{ web: true, db: true, companion: true, media: true },
+		{ web: true, processing: true, db: true, companion: true, media: true },
 	);
 });
 
