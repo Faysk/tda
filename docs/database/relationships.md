@@ -228,7 +228,7 @@ world_edit_drafts ── checkpoint durável por editor/token
 world_layout_snapshots ── composição visual/versionada
 ```
 
-`world_edit_leases` impede writers concorrentes; não substitui persistência. `world_edit_drafts` preserva trabalho recuperável quando a lease expira ou a sessão é interrompida. `world_graph_revisions` é histórico de publicação factual; `world_layout_snapshots` é composição e não altera fatos narrativos.
+`world_edit_leases` impede writers concorrentes; não substitui persistência. `world_edit_drafts` preserva trabalho recuperável quando a lease expira ou a sessão é interrompida. `world_graph_heads` mantém o ponteiro da revision factual corrente; `world_graph_revisions` preserva o histórico de publicações factuais. `world_layout_snapshots` é composição e não altera fatos narrativos.
 
 ## Mídia de entities
 
@@ -236,7 +236,7 @@ world_layout_snapshots ── composição visual/versionada
 entities ──> entity_media_bindings ──> media_assets ──> Media Storage bytes
 ```
 
-O vínculo canônico usa asset UUID/role/focal point. PostgreSQL guarda identidade, integridade e estado de publicação; o object storage guarda bytes. URL/provider não é FK lógica permanente.
+`media_assets` é dono da identidade/integridade do asset e `entity_media_bindings` é dono do vínculo entity → asset/role/focal point. PostgreSQL guarda identidade, integridade e estado de publicação; o object storage guarda bytes. URL/provider não é FK lógica permanente.
 
 ## Anti-patterns
 
