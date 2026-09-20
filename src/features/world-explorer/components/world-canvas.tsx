@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import {
 	Controls,
 	MiniMap,
@@ -14,14 +14,26 @@ import {
 	type XYPosition,
 } from "@xyflow/react";
 import type { WorldFlowEdge, WorldFlowNode } from "../adapters/react-flow";
+import {
+	WORLD_CANVAS_MAX_ZOOM,
+	WORLD_CANVAS_MIN_ZOOM,
+	worldLabelCounterScale,
+	worldSemanticZoomTier,
+	type WorldSemanticZoomTier,
+} from "../world-semantic-zoom";
 import { WorldEntityNode } from "./entity-node";
 import { WorldRelationEdge } from "./relation-edge";
+import { WorldSemanticZoomProvider } from "./world-semantic-zoom-context";
 import styles from "./world-explorer.module.css";
 
 const NODE_TYPES = { worldEntity: WorldEntityNode } satisfies NodeTypes;
 const EDGE_TYPES = { worldRelation: WorldRelationEdge } satisfies EdgeTypes;
 const NODE_ORIGIN: [number, number] = [0.5, 0.5];
-const FIT_VIEW_OPTIONS = { padding: 0.18, maxZoom: 1.05 } as const;
+const FIT_VIEW_OPTIONS = {
+	padding: 0.16,
+	minZoom: WORLD_CANVAS_MIN_ZOOM,
+	maxZoom: 1.05,
+} as const;
 const WORLD_ARIA_LABELS: Partial<AriaLabelConfig> = {
 	"node.a11yDescription.default":
 		"Pressione Enter ou Espaço para selecionar este elemento. Pressione Escape para limpar a seleção.",
@@ -72,15 +84,29 @@ export function WorldCanvas({
 	overlay,
 }: WorldCanvasProps) {
 	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
+	const canvasRef = useRef<HTMLDivElement | null>(null);
+	const [semanticZoom, setSemanticZoom] = useState<WorldSemanticZoomTier>("detail");
+
+	const syncSemanticZoom = useCallback((zoom: number) => {
+		const nextTier = worldSemanticZoomTier(zoom);
+		setSemanticZoom((current) => (current === nextTier ? current : nextTier));
+		canvasRef.current?.style.setProperty(
+			"--world-label-counter-scale",
+			String(worldLabelCounterScale(zoom)),
+		);
+	}, []);
 
 	return (
 		<div
+			ref={canvasRef}
 			className={styles.canvas}
 			style={{ position: "relative" }}
 			data-testid="world-canvas"
 			data-world-placement-active={placementActive ? "true" : "false"}
 			data-world-connection-active={connectionActive ? "true" : "false"}
+			data-world-semantic-zoom={semanticZoom}
 		>
+			<WorldSemanticZoomProvider tier={semanticZoom}>
 			<ReactFlow<WorldFlowNode, WorldFlowEdge>
 				nodes={nodes}
 				edges={edges}
@@ -105,14 +131,31 @@ export function WorldCanvas({
 				onlyRenderVisibleElements
 				fitView
 				fitViewOptions={FIT_VIEW_OPTIONS}
-				minZoom={0.28}
-				maxZoom={1.8}
+				minZoom={WORLD_CANVAS_MIN_ZOOM}
+				maxZoom={WORLD_CANVAS_MAX_ZOOM}
 				onInit={(instance) => {
 					flowInstance.current = instance;
+					syncSemanticZoom(instance.getViewport().zoom);
 				}}
+				onMove={(_, viewport) => syncSemanticZoom(viewport.zoom)}
 				onNodesChange={onNodesChange}
 				onEdgesChange={onEdgesChange}
-				onNodeClick={(_, node) => onNodeSelect(node)}
+				onNodeClick={(_, node) => {
+					onNodeSelect(node);
+					if (
+						semanticZoom === "atlas" &&
+						!placementActive &&
+						!connectionActive
+					) {
+						void flowInstance.current?.fitView({
+							nodes: [{ id: node.id }],
+							padding: 0.64,
+							minZoom: 0.72,
+							maxZoom: 0.9,
+							duration: 280,
+						});
+					}
+				}}
 				onNodeDragStop={(_, node) => onNodeDragStop(node)}
 				onConnect={(connection) => {
 					if (!connection.source || !connection.target) return;
@@ -135,9 +178,14 @@ export function WorldCanvas({
 					);
 				}}
 			>
-				<Controls showInteractive={false} position="bottom-left" />
+				<Controls
+					showInteractive={false}
+					position="bottom-left"
+					fitViewOptions={FIT_VIEW_OPTIONS}
+				/>
 				<MiniMap position="bottom-right" pannable zoomable />
 			</ReactFlow>
+			</WorldSemanticZoomProvider>
 			{overlay}
 		</div>
 	);
