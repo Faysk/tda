@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ from tda_companion.asr_qwen_strict import (
     _owned_words,
     transcribe_craig_package_qwen_strict,
 )
-from tda_companion.craig import CraigPackage, CraigTrack
+from tda_companion.craig import CraigPackage, CraigPackageError, CraigTrack
 from tda_companion.qwen_acceptance import QwenPlan
 from tda_companion.transcript import TranscriptWord
 
@@ -26,14 +27,15 @@ def _package(tmp_path: Path) -> tuple[CraigPackage, Path]:
     tracks = root / "tracks"
     tracks.mkdir(parents=True)
     source = tracks / "1-Alice.flac"
-    source.write_bytes(b"audio")
+    payload = b"audio"
+    source.write_bytes(payload)
     track = CraigTrack(
         number=1,
         speaker="Alice",
         filename="1-Alice.flac",
         path="tracks/1-Alice.flac",
-        size_bytes=5,
-        sha256="1" * 64,
+        size_bytes=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
         identity=None,
     )
     return (
@@ -47,6 +49,44 @@ def _package(tmp_path: Path) -> tuple[CraigPackage, Path]:
             requester=None,
             start_time=None,
             tracks=(track,),
+            info_present=False,
+            raw_dat_present=False,
+        ),
+        root,
+    )
+
+
+def _two_track_package(tmp_path: Path) -> tuple[CraigPackage, Path]:
+    root = tmp_path / "Data" / "staging" / "strict-two"
+    tracks_root = root / "tracks"
+    tracks_root.mkdir(parents=True)
+    tracks = []
+    for number, speaker in ((1, "Alice"), (2, "Bob")):
+        filename = f"{number}-{speaker}.flac"
+        payload = f"audio-{speaker}".encode("utf-8")
+        (tracks_root / filename).write_bytes(payload)
+        tracks.append(
+            CraigTrack(
+                number=number,
+                speaker=speaker,
+                filename=filename,
+                path=f"tracks/{filename}",
+                size_bytes=len(payload),
+                sha256=hashlib.sha256(payload).hexdigest(),
+                identity=None,
+            )
+        )
+    return (
+        CraigPackage(
+            schema_version="tda_craig_package_v1",
+            source_zip="fixture-two.zip",
+            source_sha256="b" * 64,
+            recording_id="strict-two",
+            guild=None,
+            channel=None,
+            requester=None,
+            start_time=None,
+            tracks=tuple(tracks),
             info_present=False,
             raw_dat_present=False,
         ),
@@ -182,6 +222,332 @@ def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path)
             aligner_session_factory=lambda _root, _plan: BrokenAligner(),
             window_reader=_two_windows,
         )
+
+
+def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Path):
+    package, root = _two_track_package(tmp_path)
+    asr_calls = 0
+    first_reports: list[dict] = []
+    second_reports: list[dict] = []
+
+    def reader(path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return f"texto {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+            report=first_reports.append,
+        )
+
+    assert asr_calls == 2
+    text_checkpoints = list(
+        root.glob(".checkpoints/*/qwen-text-v1/track-*.json")
+    )
+    assert len(text_checkpoints) == 2
+    assert list(root.glob(".checkpoints/*/track-*.json")) == []
+    assert sum(
+        item.get("code") == "ASR_TEXT_CHECKPOINT_SAVED"
+        for item in first_reports
+    ) == 2
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry must reuse durable Qwen text instead of loading ASR")
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=forbidden,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=forbidden,
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+            report=second_reports.append,
+        )
+
+    assert asr_calls == 2
+    assert sum(
+        item.get("code") == "ASR_TEXT_CHECKPOINT_REUSED"
+        for item in second_reports
+    ) == 2
+    stages = [
+        item.get("stage")
+        for item in second_reports
+        if item.get("type") == "stage"
+    ]
+    assert "model_prepare" not in stages
+    assert "model_load" not in stages
+    assert "transcription" not in stages
+    assert "alignment" in stages
+
+
+def test_strict_qwen_cancel_after_text_save_preserves_reusable_checkpoint(tmp_path: Path):
+    package, root = _package(tmp_path)
+    cancelled = False
+    asr_calls = 0
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.6}]
+
+        def close(self):
+            pass
+
+    def report(value: dict):
+        nonlocal cancelled
+        if value.get("code") == "ASR_TEXT_CHECKPOINT_SAVED":
+            cancelled = True
+
+    with pytest.raises(QwenRuntimeError, match="ASR_CANCELLED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=reader,
+            report=report,
+            is_cancelled=lambda: cancelled,
+        )
+
+    assert asr_calls == 1
+    assert len(list(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))) == 1
+    assert list(root.glob(".checkpoints/*/track-*.json")) == []
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry after cancel must reuse Qwen text")
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=forbidden,
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+    assert asr_calls == 1
+    assert document.tracks[0].segments[0].text == "texto"
+    assert len(list(root.glob(".checkpoints/*/track-*.json"))) == 1
+
+
+def test_strict_qwen_crash_before_alignment_preserves_reusable_checkpoint(tmp_path: Path):
+    package, root = _package(tmp_path)
+    asr_calls = 0
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.6}]
+
+        def close(self):
+            pass
+
+    with pytest.raises(RuntimeError, match="synthetic crash"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                RuntimeError("synthetic crash")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=reader,
+        )
+
+    assert asr_calls == 1
+    assert len(list(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))) == 1
+    assert not list(root.glob(".checkpoints/**/*.partial"))
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry after crash must reuse Qwen text")
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=forbidden,
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+    assert asr_calls == 1
+    assert document.tracks[0].segments[0].text == "texto"
+
+
+def test_strict_qwen_refuses_text_reuse_if_staged_track_bytes_changed(tmp_path: Path):
+    package, root = _two_track_package(tmp_path)
+
+    def reader(path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"texto {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+        )
+
+    changed = root / package.tracks[0].path
+    original = changed.read_bytes()
+    changed.write_bytes(b"X" + original[1:])
+    assert changed.stat().st_size == package.tracks[0].size_bytes
+
+    with pytest.raises(CraigPackageError, match="CRAIG_MANIFEST_TRACK_HASH_MISMATCH"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("changed source must fail before model load")
+            ),
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("changed source must not reach ASR")
+            ),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+        )
+
+
+def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
+    tmp_path: Path,
+):
+    package, root = _two_track_package(tmp_path)
+    asr_calls = 0
+
+    def reader(path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return f"texto {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    def attempt():
+        with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+            transcribe_craig_package_qwen_strict(
+                package,
+                root,
+                tmp_path / "Models",
+                profile_id="qwen-fast",
+                plan_resolver=_plan,
+                model_prepare=_model_prepare,
+                aligner_prepare=_aligner_prepare,
+                asr_session_factory=lambda _root, _plan: Asr(),
+                aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+                window_reader=reader,
+            )
+
+    attempt()
+    assert asr_calls == 2
+    checkpoints = sorted(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))
+    assert len(checkpoints) == 2
+    checkpoints[0].write_text("{broken", encoding="utf-8")
+
+    attempt()
+    assert asr_calls == 3
 
 
 def test_overlap_ownership_assigns_boundary_words_once():
