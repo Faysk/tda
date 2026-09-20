@@ -53,15 +53,17 @@ Preview é deployment de PR, não branch.
 11. Mudança estrutural exige atualização documental na mesma PR.
 12. Serviço/tier pago exige necessidade comprovada e decisão documentada.
 
-## Drift conhecido
+## Media Storage na esteira
 
-Em 2026-09-20 a documentação arquitetural já convergiu para ADR-0018, mas a implementação de publicação de mídia ainda precisa convergir:
+A implementação segue ADR-0018:
 
-- secrets R2 do publisher devem vir do GitHub Environment `production`;
-- `vercel env run` não é o boundary canônico;
-- publicação pendente deve ser calculada desde o baseline de Production, não esquecida após um merge seguinte.
+- secrets R2 do publisher vêm do GitHub Environment `production`;
+- Vercel não é cofre intermediário para essa operação;
+- publicação pendente é acumulativa desde o baseline de Production;
+- não existe publisher específico por lore;
+- credenciais ausentes falham antes de build/stage.
 
-Enquanto isso não estiver implementado e comprovado, releases com nova mídia podem falhar antes do promote e não devem ser contornadas manualmente.
+O sucesso operacional de uma publicação continua dependendo do run real e de seu receipt; documentação/código não provam que um secret remoto está configurado.
 
 ## Runbooks
 
