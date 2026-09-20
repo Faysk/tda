@@ -2,7 +2,7 @@
 
 > Status: multi-hub, autoria canônica, audience de campanha e recuperação durável em implementação integrada
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 
 ## Valor
 
@@ -120,7 +120,31 @@ O lease exclusivo serializa quem pode escrever, mas **não é o armazenamento du
 - o banco persiste um receipt de publicação no mesmo commit do estado canônico antes de remover o lease, permitindo reconciliar uma resposta HTTP perdida sem adivinhar se o commit ocorreu;
 - erro de transporte é apresentado como resultado **não confirmado**, não como certeza de sucesso ou fracasso;
 - falha de autosave fica visível durante a condução e orienta o editor a manter a aba aberta/reestabelecer a sessão;
-- undo visual de posição não sugere rollback factual.
+- undo visual de posição não sugere rollback factual;
+- autosave de layout e autosave factual possuem receipts independentes: sucesso de um nunca apaga/oculta falha do outro;
+- campos obrigatórios de texto mantêm o valor transitório no controle até commit, evitando transformar o draft canônico em inválido apenas porque o editor apagou o texto para redigitá-lo;
+- o preflight factual identifica campo/caminho inválido de forma acionável antes de publicar, em vez de reduzir toda falha a `invalid_payload` genérico.
+
+### Identidade visual da publicação
+
+O Mundo canônico expõe uma identificação visual discreta da combinação efetivamente publicada:
+
+```text
+vGGG·LLL
+```
+
+onde `GGG` é a revision factual de `world_graph_heads` e `LLL` é a revision do snapshot editorial de layout.
+
+A combinação é deliberada: uma publicação factual pode mudar sem mover o layout e uma publicação apenas de composição pode mudar sem alterar o grafo. Um único dos dois contadores isoladamente não identifica com segurança o estado visual/canônico que o usuário está vendo.
+
+Contrato de UI:
+
+- o receipt fica sutil no chrome do World e não compete com busca/filtros;
+- clicar/tocar expande graph revision, layout revision, data/hora e, para audience autenticada de campanha/editor, o nome de quem fez a publicação mais recente;
+- audience pública não recebe nome de profile apenas para preencher esse receipt;
+- após publicação combinada bem-sucedida, o feedback usa o mesmo identificador retornado pelas revisions confirmadas;
+- a metadata vem dos heads/snapshot canônicos server-side; não é inferida do browser nem de timestamp local;
+- ausência da metadata não deve impedir a leitura do Mundo.
 
 ### Gate operacional atual
 
