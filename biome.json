@@ -2,16 +2,18 @@
 	"$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
 	"files": {
 		"includes": [
-			"src/**",
-			"tests/**",
-			"tools/**",
-			".github/**",
-			"*.ts",
-			"*.tsx",
-			"*.js",
-			"*.mjs",
-			"*.cjs",
-			"!next-env.d.ts"
+			"src/app/mundo/page.tsx",
+			"src/features/world-explorer/model.ts",
+			"src/features/world-explorer/world-publication.ts",
+			"src/features/world-explorer/world-publication.test.ts",
+			"src/features/world-explorer/world-publication-repository.ts",
+			"src/features/world-explorer/graph-validation.ts",
+			"src/features/world-explorer/graph-validation.test.ts",
+			"src/features/world-explorer/hooks/use-world-edit-session.ts",
+			"src/features/world-explorer/components/world-content-editor-base.tsx",
+			"src/features/world-explorer/components/world-explorer-client.tsx",
+			"src/features/world-explorer/components/world-floating-chrome.tsx",
+			"src/features/world-explorer/components/world-floating-chrome.module.css"
 		]
 	},
 	"formatter": {
