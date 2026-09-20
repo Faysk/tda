@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -210,6 +211,44 @@ def test_qwen_text_checkpoint_rejects_symlinked_checkpoint_root(tmp_path: Path):
     with pytest.raises(ValueError, match="CHECKPOINT_PATH_SYMLINK"):
         save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
     assert list(outside.iterdir()) == []
+
+
+def test_qwen_text_signature_invalidates_every_reuse_lineage_input():
+    package = _package(_source_track())
+    profile = get_profile("qwen-fast")
+
+    def digest(
+        *,
+        candidate=profile,
+        recipe=None,
+        context="mesa",
+        glossary="Yuhara",
+        runtime="runtime-a",
+    ):
+        return build_checkpoint_signature(
+            package,
+            candidate,
+            recipe=recipe or {"window_seconds": 60, "alignment_policy": "strict-overlap-v2"},
+            context=context,
+            glossary=glossary,
+            runtime_fingerprint=runtime,
+        ).digest()
+
+    baseline = digest()
+    variants = {
+        digest(candidate=replace(profile, id="qwen-fast-v2")),
+        digest(candidate=replace(profile, model_id="Qwen/changed-model")),
+        digest(candidate=replace(profile, revision="changed-revision")),
+        digest(candidate=replace(profile, alignment="Qwen/changed-aligner")),
+        digest(candidate=replace(profile, alignment_revision="changed-aligner-revision")),
+        digest(recipe={"window_seconds": 61, "alignment_policy": "strict-overlap-v2"}),
+        digest(context="outra mesa"),
+        digest(glossary="Outro nome"),
+        digest(runtime="runtime-b"),
+    }
+
+    assert baseline not in variants
+    assert len(variants) == 9
 
 
 def test_signature_changes_for_runtime_recipe_model_inputs():
