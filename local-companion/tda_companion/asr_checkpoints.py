@@ -237,6 +237,8 @@ def load_qwen_text_checkpoint(
     signature: CheckpointSignature,
     track: CraigTrack,
 ) -> tuple[QwenTextCheckpointWindow, ...] | None:
+    if signature.engine != "qwen3":
+        return None
     try:
         path = _qwen_text_checkpoint_path(package_root, signature, track.number)
     except ValueError:
@@ -276,6 +278,8 @@ def save_qwen_text_checkpoint(
     source_track: CraigTrack,
     windows: Iterable[QwenTextCheckpointWindow],
 ) -> Path:
+    if signature.engine != "qwen3":
+        raise ValueError("QWEN_TEXT_CHECKPOINT_SIGNATURE_INVALID")
     values = tuple(windows)
     if not values:
         raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOWS_INVALID")
