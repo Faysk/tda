@@ -1,4 +1,7 @@
-import { supportsAutomaticLoopbackSession } from "./compatibility";
+import {
+	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	supportsAutomaticLoopbackSession,
+} from "./compatibility";
 import {
 	BridgeError,
 	type CraigTranscriptionInput,
@@ -82,12 +85,18 @@ export class LocalBridge {
 		// protocol before asking the local Agent for a browser-scoped credential.
 		const health = await this.health(signal);
 		if (!supportsAutomaticLoopbackSession(health.service_version))
-			throw new BridgeError("incompatible");
+			throw new BridgeError("version_incompatible", null, {
+				detectedServiceVersion: health.service_version,
+				minimumServiceVersion: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+			});
 		const value = record(
 			await this.json("/session", signal, {}, undefined, true),
 		);
 		if (value.schema !== "tda_loopback_session_v1")
-			throw new BridgeError("incompatible");
+			throw new BridgeError("session_incompatible", null, {
+				detectedServiceVersion: health.service_version,
+				minimumServiceVersion: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+			});
 		const token = text(value.token, 256);
 		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
 			throw new BridgeError("invalid_response");
