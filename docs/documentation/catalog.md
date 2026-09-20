@@ -152,7 +152,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
-| [Media Storage — governança (provider atual: R2)](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-20 |
+| [Media Storage — ponte de compatibilidade da governança R2](../integrations/r2-governance.md) | integrations/media + operations | alias documental; sem autoridade independente | 2026-09-20 |
 | [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-20 |
 | [Integração Supabase — provider atual de PostgreSQL e Auth](../integrations/supabase.md) | dados / identity-access | vigente; provider atual | 2026-09-20 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
@@ -164,14 +164,14 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Media Storage — documentação do provider atual R2](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-20 |
-| [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-11 |
-| [Mídia — autorização compartilhada de staging](../integrations/r2/media-access-contract.md) | integrations/media + operations | decisão aprovada | 2026-09-14 |
-| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-20 |
+| [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-20 |
+| [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-20 |
+| [Mídia — autorização de staging (registro superseded)](../integrations/r2/media-access-contract.md) | integrations/media + operations | superseded; proposta genérica não ativada como contrato runtime | 2026-09-20 |
+| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | vigente; pipeline pública compartilhada implementada, intake administrativo incremental | 2026-09-20 |
 | [Media Storage — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-20 |
-| [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-12 |
-| [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-12 |
+| [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-20 |
+| [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-20 |
+| [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-20 |
 
 ## docs/legacy
 
@@ -200,7 +200,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-20 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato 0.3.14 em validação; Stable bloqueada até aceite físico real | 2026-09-19 |
-| [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
+| [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-20 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-20 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-20 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-19 |
