@@ -79,10 +79,10 @@ jobs:
           if (-not $value.Contains("& $pwshPath")) {
             throw "RECOVERY_LAUNCHER_POWERSHELL7_ISOLATION_MISSING"
           }
-          if ($value -notmatch '(?m)^\s*& \$pwshPath .*run-installed-acceptance') {
+          if ($value -notmatch '(?m)^\s*& \$pwshPath .* -File \$installedScript') {
             throw "RECOVERY_LAUNCHER_INSTALLED_CHILD_NOT_ISOLATED"
           }
-          if ($value -notmatch '(?m)^\s*& \$pwshPath .*run-physical-acceptance') {
+          if ($value -notmatch '(?m)^\s*& \$pwshPath .* -File \$physicalScript') {
             throw "RECOVERY_LAUNCHER_PHYSICAL_CHILD_NOT_ISOLATED"
           }
       - name: Generate synthetic speech and Craig fixture
