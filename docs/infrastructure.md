@@ -82,18 +82,13 @@ Evidências históricas comprovam uso real do bucket público e entrega por `med
 
 A regra permanente é **Media Storage**, não “R2 para sempre”. Ver [integração atual](integrations/r2.md) e [ADR-0018](adr/0018-portable-core-github-control-plane.md).
 
-### Drift operacional conhecido — 2026-09-20
+### Controle operacional do publisher
 
-A arquitetura aprovada exige que secrets operacionais usados pelo publisher de mídia do GitHub Actions pertençam ao GitHub Environment `production`.
+A Production CD usa GitHub Environment `production` como boundary dos secrets operacionais do provider R2 e calcula mídia pendente desde o SHA realmente publicado até o novo `main`.
 
-O `production.yml` integrado antes desta decisão ainda tenta executar a publicação por `vercel env run`. Runs recentes comprovaram que esse caminho não fornece configuração R2 completa ao publisher. Portanto:
+O workflow valida as credenciais somente quando esse lifecycle é necessário e falha antes de build/stage quando alguma estiver ausente.
 
-- não tratar `vercel env run` como fonte canônica de credenciais R2;
-- a publicação automática de mídia permanece **não saudável** até a PR de convergência da esteira;
-- manifests/bytes presentes no Git não provam publicação no Media Storage;
-- uma release com mídia pendente não deve ser declarada publicada apenas porque build/stage web passaram.
-
-A correção de implementação deve acontecer separadamente e atualizar estes runbooks na mesma PR.
+Isso alinha a implementação à ADR-0018, mas não transforma configuração documental em prova de secret existente nem manifest em prova de objeto publicado. Publicação continua exigindo receipt/read-back/entrega pública.
 
 ## Custos
 
