@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from uuid import uuid4
 
 from .asr_models import AsrProfile
@@ -13,7 +14,18 @@ from .craig import CraigPackage, CraigTrack
 from .transcript import TranscriptSegment, TranscriptTrack, TranscriptValidationError
 
 CHECKPOINT_SCHEMA = "tda_asr_track_checkpoint_v1"
+QWEN_TEXT_CHECKPOINT_SCHEMA = "tda_qwen_text_checkpoint_v1"
+QWEN_TEXT_CHECKPOINT_NAMESPACE = "qwen-text-v1"
 MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class QwenTextCheckpointWindow:
+    index: int
+    start: float
+    end: float
+    text: str
+    language: str
 
 
 @dataclass(frozen=True)
@@ -76,6 +88,79 @@ def _checkpoint_path(package_root: Path, signature: CheckpointSignature, track_n
         raise ValueError("CHECKPOINT_TRACK_NUMBER_INVALID")
     root = package_root.resolve() / ".checkpoints" / signature.digest()
     return root / f"track-{track_number:04d}.json"
+
+
+def _qwen_text_checkpoint_path(
+    package_root: Path,
+    signature: CheckpointSignature,
+    track_number: int,
+) -> Path:
+    if track_number < 1:
+        raise ValueError("CHECKPOINT_TRACK_NUMBER_INVALID")
+    package = package_root.resolve()
+    base = package / ".checkpoints"
+    signature_root = base / signature.digest()
+    namespace = signature_root / QWEN_TEXT_CHECKPOINT_NAMESPACE
+    for candidate in (base, signature_root, namespace):
+        if candidate.is_symlink():
+            raise ValueError("CHECKPOINT_PATH_SYMLINK")
+        if candidate.exists() and not candidate.is_dir():
+            raise ValueError("CHECKPOINT_PATH_INVALID")
+    return namespace / f"track-{track_number:04d}.json"
+
+
+def _track_descriptor(track: CraigTrack) -> dict[str, object]:
+    return {
+        "number": track.number,
+        "speaker": track.speaker,
+        "source_filename": track.filename,
+        "source_sha256": track.sha256.lower(),
+        "timeline_offset_seconds": float(track.timeline_offset_seconds),
+        "identity": asdict(track.identity) if track.identity is not None else None,
+    }
+
+
+def _qwen_text_window_from_dict(value: Any) -> QwenTextCheckpointWindow:
+    if not isinstance(value, dict) or set(value) != {"index", "start", "end", "text", "language"}:
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    index = value.get("index")
+    start = value.get("start")
+    end = value.get("end")
+    text = value.get("text")
+    language = value.get("language")
+    if isinstance(index, bool) or not isinstance(index, int) or index < 1:
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if isinstance(start, bool) or not isinstance(start, (int, float)):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if isinstance(end, bool) or not isinstance(end, (int, float)):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if not math.isfinite(float(start)) or not math.isfinite(float(end)):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if float(start) < 0 or float(end) <= float(start):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if not isinstance(text, str) or not isinstance(language, str):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    if not language or len(language) > 64:
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
+    return QwenTextCheckpointWindow(
+        index=index,
+        start=float(start),
+        end=float(end),
+        text=text,
+        language=language,
+    )
+
+
+def _validated_qwen_text_windows(value: Any) -> tuple[QwenTextCheckpointWindow, ...]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOWS_INVALID")
+    windows = tuple(_qwen_text_window_from_dict(item) for item in value)
+    for expected_index, window in enumerate(windows, start=1):
+        if window.index != expected_index:
+            raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOWS_INVALID")
+        if expected_index > 1 and window.start < windows[expected_index - 2].start:
+            raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOWS_INVALID")
+    return windows
 
 
 def _track_from_dict(value: Any) -> TranscriptTrack:
@@ -145,6 +230,85 @@ def load_track_checkpoint(
     except (TypeError, ValueError, TranscriptValidationError):
         return None
     return transcript if _matches_source(transcript, track) else None
+
+
+def load_qwen_text_checkpoint(
+    package_root: Path,
+    signature: CheckpointSignature,
+    track: CraigTrack,
+) -> tuple[QwenTextCheckpointWindow, ...] | None:
+    try:
+        path = _qwen_text_checkpoint_path(package_root, signature, track.number)
+    except ValueError:
+        return None
+    try:
+        if path.is_symlink():
+            return None
+        stat = path.stat()
+    except (FileNotFoundError, OSError):
+        return None
+    if stat.st_size <= 0 or stat.st_size > MAX_CHECKPOINT_BYTES:
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, dict) or value.get("schema") != QWEN_TEXT_CHECKPOINT_SCHEMA:
+        return None
+    if value.get("signature") != signature.as_dict() or value.get("signature_sha256") != signature.digest():
+        return None
+    descriptor = _track_descriptor(track)
+    if value.get("track") != descriptor:
+        return None
+    windows_value = value.get("windows")
+    content = {"track": descriptor, "windows": windows_value}
+    if value.get("content_sha256") != _canonical_json_hash(content):
+        return None
+    try:
+        return _validated_qwen_text_windows(windows_value)
+    except (TypeError, ValueError):
+        return None
+
+
+def save_qwen_text_checkpoint(
+    package_root: Path,
+    signature: CheckpointSignature,
+    source_track: CraigTrack,
+    windows: Iterable[QwenTextCheckpointWindow],
+) -> Path:
+    values = tuple(windows)
+    if not values:
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOWS_INVALID")
+    windows_value = [asdict(window) for window in values]
+    _validated_qwen_text_windows(windows_value)
+    descriptor = _track_descriptor(source_track)
+    content = {"track": descriptor, "windows": windows_value}
+    payload = {
+        "schema": QWEN_TEXT_CHECKPOINT_SCHEMA,
+        "signature": signature.as_dict(),
+        "signature_sha256": signature.digest(),
+        "content_sha256": _canonical_json_hash(content),
+        **content,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    if len(encoded.encode("utf-8")) > MAX_CHECKPOINT_BYTES:
+        raise ValueError("CHECKPOINT_SIZE_LIMIT")
+
+    path = _qwen_text_checkpoint_path(package_root, signature, source_track.number)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Re-evaluate after mkdir so a pre-existing symlinked checkpoint namespace
+    # cannot turn the atomic write into an escape from the package root.
+    path = _qwen_text_checkpoint_path(package_root, signature, source_track.number)
+    temporary = path.with_name(path.name + f".{uuid4().hex}.partial")
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        return path
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def save_track_checkpoint(
