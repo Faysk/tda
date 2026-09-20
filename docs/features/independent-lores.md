@@ -1,8 +1,8 @@
 # Lores independentes — publicação, liberdade visual e catálogo
 
-> Status: arquitetura aprovada; decisão editorial, não comprovação de implementação
+> Status: vigente; decisão editorial aplicada em múltiplas lores, sem impor template visual único
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-13
+> Última revisão: 2026-09-20
 
 ## Decisão
 
@@ -31,7 +31,7 @@ Estado editorial definido para o momento:
 | Lore | Listagem em `/lore` | Vínculo com campanha principal |
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
-| Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
+| Astel e Noah | Listadas e publicadas | Ligações editoriais por slug de personagem, sem criar dados narrativos |
 | D | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
 | Seika | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
 | Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
