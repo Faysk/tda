@@ -2,7 +2,8 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-20
+> Fonte de verdade: [fluxo único de mídia](../integrations/r2/media-pipeline.md); este arquivo é uma checklist operacional derivada, não contrato concorrente
 
 ## Antes do upload
 
