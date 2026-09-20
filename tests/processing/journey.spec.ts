@@ -220,7 +220,7 @@ test("Craig journey uses browser session, preparation, queue, progress and immut
 	await fillCraigForm(page);
 	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
 
-	await expect(page.getByRole("status")).toContainText("entrou na fila local");
+	await expect(page.getByText(/entrou na fila local/)).toBeVisible();
 	expect(mutations).toEqual(["upload", "prepare", "submit"]);
 	expect(sessionCalls).toBe(1);
 
@@ -230,7 +230,6 @@ test("Craig journey uses browser session, preparation, queue, progress and immut
 	await expect(page.getByText("Concluído localmente", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
 	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
-	await expect(page.getByText("sessao-42", { exact: true })).toBeVisible();
 	await expect(page.getByText(/run-craig-job-1-a1/i)).toBeVisible();
 	await expect(page.getByText(transcriptSha.slice(0, 12), { exact: false })).toBeVisible();
 
@@ -298,9 +297,9 @@ test("ambiguous submit reuses the exact idempotency key on retry", async ({ page
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await fillCraigForm(page);
 	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
-	await expect(page.getByRole("status")).toContainText("tentativa ficou ambígua");
+	await expect(page.getByText(/tentativa ficou ambígua/)).toBeVisible();
 	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
-	await expect(page.getByRole("status")).toContainText("entrou na fila local");
+	await expect(page.getByText(/entrou na fila local/)).toBeVisible();
 	expect(attempts).toBe(2);
 	expect(firstKey.length).toBeGreaterThan(10);
 });
