@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import BinaryIO, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
+from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
@@ -232,6 +233,24 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
         if document.source_sha256.lower() != package.source_sha256.lower():
             raise TranscriptionRunError("TRANSCRIPTION_SOURCE_HASH_MISMATCH")
 
+        def reserve_run_commit() -> None:
+            winner = claim_attempt_outcome(
+                package_root,
+                command.job_id,
+                command.attempt,
+                "commit",
+            )
+            if winner != "commit":
+                raise AttemptFenceError("ATTEMPT_CANCELLED")
+            emitter.emit(
+                "event",
+                {
+                    "code": "RUN_COMMIT_FENCE_WON",
+                    "stage": "result_prepare",
+                    "attempt": command.attempt,
+                },
+            )
+
         manifest = write_completed_run(
             package_root,
             document,
@@ -239,6 +258,7 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             attempt=command.attempt,
             glossary=str(command.payload.get("glossary") or ""),
             context=str(command.payload.get("context") or ""),
+            before_commit=reserve_run_commit,
         )
         run_id = str(manifest["run_id"])
         digest = str(manifest["transcript_sha256"])
@@ -282,6 +302,16 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
             },
         )
         return 0
+    except AttemptFenceError as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        code = str(exc)
+        if code == "ATTEMPT_CANCELLED":
+            emitter.emit("cancelled", {"stage": "result_prepare", "fence": "cancel"})
+            return 0
+        safe_code = code if re.fullmatch(r"[A-Z0-9_]{1,96}", code) else "ATTEMPT_FENCE_FAILED"
+        emitter.emit("error", {"code": safe_code, "recoverable": True})
+        return 66
     except WhisperRuntimeError as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
