@@ -88,7 +88,13 @@ A Production CD usa GitHub Environment `production` como boundary dos secrets op
 
 O workflow valida as credenciais somente quando esse lifecycle é necessário e falha antes de build/stage quando alguma estiver ausente.
 
-Isso alinha a implementação à ADR-0018, mas não transforma configuração documental em prova de secret existente nem manifest em prova de objeto publicado. Publicação continua exigindo receipt/read-back/entrega pública.
+A PR #414 integrou esse contrato e a Production CD subsequente foi promovida com o lifecycle de mídia corretamente `skipped`, porque o baseline já havia ultrapassado Astel/Noah durante o comportamento antigo.
+
+Para recuperar essa dívida anterior ao novo planner, a repair release de 2026-09-20 altera somente a ordenação JSON dos manifests `astel.json` e `noah.json`, sem mudar assets, hashes, bytes, MIME, keys ou URLs. O objetivo é recolocar explicitamente esses dois manifests no range não publicado e obrigar a pipeline compartilhada a publicar/reutilizar + read-back + public verification.
+
+Esse reparo é excepcional e não vira mecanismo normal de retry: a partir da #414, manifests de uma release falha permanecem acumulados automaticamente até Production alcançá-los.
+
+Configuração documental não prova secret existente, e manifest não prova objeto publicado. O aceite do reparo exige receipt com contagens reais e verificação pública.
 
 ## Custos
 
