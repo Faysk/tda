@@ -114,7 +114,7 @@ values (
 -- legacy ±5k envelope without changing the persisted revision fixture below.
 begin;
 set role service_role;
-do $
+do $wide$
 declare
   result jsonb;
 begin
@@ -129,7 +129,7 @@ begin
     raise exception 'expanded World coordinate envelope must accept map-scale positions: %', result;
   end if;
 end;
-$;
+$wide$;
 reset role;
 rollback;
 
