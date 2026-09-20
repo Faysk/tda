@@ -42,7 +42,16 @@ jobs:
               [ref]$errors
             )
             if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error "$relative :: $($_.Message)" }
+              $errors | ForEach-Object {
+                Write-Host ("PARSE_ERROR file={0} id={1} line={2} col={3} extent=[{4}] message={5}" -f
+                  $relative,
+                  $_.ErrorId,
+                  $_.Extent.StartLineNumber,
+                  $_.Extent.StartColumnNumber,
+                  $_.Extent.Text,
+                  $_.Message
+                )
+              }
               exit 1
             }
           }
