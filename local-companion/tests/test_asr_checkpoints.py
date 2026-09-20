@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import pytest
+import tda_companion.asr_checkpoints as checkpoints_module
 from tda_companion.asr_checkpoints import (
+    QwenTextCheckpointWindow,
     build_checkpoint_signature,
+    load_qwen_text_checkpoint,
     load_track_checkpoint,
+    save_qwen_text_checkpoint,
     save_track_checkpoint,
 )
 from tda_companion.asr_models import get_profile
@@ -65,6 +71,25 @@ def _transcript_track(track: CraigTrack) -> TranscriptTrack:
     )
 
 
+def _text_windows() -> tuple[QwenTextCheckpointWindow, ...]:
+    return (
+        QwenTextCheckpointWindow(
+            index=1,
+            start=0.0,
+            end=2.0,
+            text="Olá mesa",
+            language="Portuguese",
+        ),
+        QwenTextCheckpointWindow(
+            index=2,
+            start=1.5,
+            end=3.0,
+            text="Segunda janela",
+            language="Portuguese",
+        ),
+    )
+
+
 def _signature(*, context: str = "mesa"):
     track = _source_track()
     return build_checkpoint_signature(
@@ -103,6 +128,72 @@ def test_corrupt_or_oversized_checkpoint_is_ignored(tmp_path: Path):
 
     path.write_text("{not-json", encoding="utf-8")
     assert load_track_checkpoint(tmp_path, signature, track) is None
+
+
+def test_qwen_text_checkpoint_roundtrip_requires_exact_signature_and_track(tmp_path: Path):
+    track = _source_track()
+    signature = _signature()
+    expected = _text_windows()
+
+    path = save_qwen_text_checkpoint(tmp_path, signature, track, expected)
+    assert path.is_file()
+    assert load_qwen_text_checkpoint(tmp_path, signature, track) == expected
+
+    assert load_qwen_text_checkpoint(
+        tmp_path,
+        _signature(context="outra mesa"),
+        track,
+    ) is None
+    changed_track = CraigTrack(**{**track.__dict__, "sha256": "c" * 64})
+    assert load_qwen_text_checkpoint(tmp_path, signature, changed_track) is None
+
+
+def test_qwen_text_checkpoint_rejects_corruption_tampering_and_partial_files(tmp_path: Path):
+    track = _source_track()
+    signature = _signature()
+    path = save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
+
+    value = json.loads(path.read_text(encoding="utf-8"))
+    value["windows"][0]["text"] = "tampered"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    assert load_qwen_text_checkpoint(tmp_path, signature, track) is None
+
+    path.write_text("{not-json", encoding="utf-8")
+    assert load_qwen_text_checkpoint(tmp_path, signature, track) is None
+
+    path.unlink()
+    partial = path.with_name(path.name + ".interrupted.partial")
+    partial.write_text("{}", encoding="utf-8")
+    assert load_qwen_text_checkpoint(tmp_path, signature, track) is None
+
+
+def test_qwen_text_checkpoint_size_limit_fails_closed(
+    monkeypatch,
+    tmp_path: Path,
+):
+    track = _source_track()
+    signature = _signature()
+    monkeypatch.setattr(checkpoints_module, "MAX_CHECKPOINT_BYTES", 128)
+
+    with pytest.raises(ValueError, match="CHECKPOINT_SIZE_LIMIT"):
+        save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
+
+
+def test_qwen_text_checkpoint_rejects_symlinked_checkpoint_root(tmp_path: Path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    checkpoint_root = tmp_path / ".checkpoints"
+    try:
+        checkpoint_root.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation unavailable on this runner")
+
+    track = _source_track()
+    signature = _signature()
+    assert load_qwen_text_checkpoint(tmp_path, signature, track) is None
+    with pytest.raises(ValueError, match="CHECKPOINT_PATH_SYMLINK"):
+        save_qwen_text_checkpoint(tmp_path, signature, track, _text_windows())
+    assert list(outside.iterdir()) == []
 
 
 def test_signature_changes_for_runtime_recipe_model_inputs():
