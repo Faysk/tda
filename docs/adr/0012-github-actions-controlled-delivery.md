@@ -5,6 +5,8 @@
 > Owner: operations / arquitetura / dados
 > Relacionado: ADR-0002, docs/operations/ci-cd.md, docs/operations/environments.md, docs/operations/cicd-admin-setup.md
 
+> **Nota de leitura atual — 2026-09-20:** a decisão permanente desta ADR continua válida: GitHub Actions controla a entrega e Vercel Git auto-deploy permanece desligado. A **topologia** descrita abaixo com branch permanente `Preview`, promoção `Preview -> main` e `promotion-source` foi substituída por [ADR-0015](0015-recovery-oriented-delivery.md). O texto antigo é preservado como histórico e não deve ser usado como runbook atual. Para operar hoje, usar `docs/operations/ci-cd.md`.
+
 ## Contexto
 
 O TDA precisa publicar Preview e Production de forma rastreável, reproduzível e deliberada. O projeto Vercel canônico já existe, o domínio oficial `dnd.faysk.dev` está em uso e o Supabase canônico contém migration history anterior ao reboot TDA.
