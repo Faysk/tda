@@ -2,7 +2,7 @@
 
 > Status: canônico para marca; integração runtime parcial e verificável
 > Owner: brand / design-system
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-20
 
 Este documento registra o **TDA Brand Pack (official)** fornecido para o reboot.
 
@@ -40,7 +40,11 @@ Checksums de referência:
 
 ## Estado da integração no reboot
 
-A fundação visual integra primeiro os assets SVG que podem permanecer byte-for-byte e ser auditados automaticamente.
+A geometria e os checksums abaixo continuam canônicos para a marca.
+
+Por ADR-0018, **Media Storage é o destino canônico de toda mídia persistida/publicada**, inclusive assets de marca. Os arquivos atualmente presentes em `public/brand/` são uma compatibilidade de bootstrap anterior e permanecem somente até uma migração deliberada preservar consumidores, hashes e fallback.
+
+A fundação visual integrou primeiro SVGs byte-for-byte e ainda os valida automaticamente no Git; isso descreve o estado atual, não o destino arquitetural final.
 
 Assets runtime atualmente esperados em `public/brand/`:
 
@@ -56,7 +60,7 @@ Assets runtime atualmente esperados em `public/brand/`:
 
 O header do reboot usa o **mark oficial** com variante black/white real conforme tema. Não usa `filter: invert()` como substituto permanente de master.
 
-### Binários ainda não integrados nesta fase
+### Binários ainda não migrados para o boundary final
 
 Permanecem pendentes para uma entrega própria de assets binários:
 
@@ -139,31 +143,36 @@ Favicons, ícones do pato, Apple Touch, Android/PWA, Safari e tiles.
 
 ## Destino no reboot
 
-O próprio pacote recomenda copiar a estrutura para `public/brand/`. Esse continua sendo o destino alvo do TDA.
+O pacote original recomenda `public/brand/`, e essa estrutura foi usada no bootstrap inicial. No TDA atual, porém, o destino arquitetural final dos **bytes de marca** é Media Storage; o Git mantém checksums, manifests, documentação e consumers.
 
-Estrutura esperada no estado final:
+`public/brand/` é compatibilidade transitória enquanto a migração não estiver concluída.
+
+Estrutura lógica esperada no estado final:
 
 ```text
-public/brand/
-  source/
-  logos/
-  icons/
-  social/
-  pwa/
-  docs/        # opcional no runtime; masters/docs permanecem preservados na origem
+Media Storage
+  brand/
+    source/   # privado
+    logos/
+    icons/
+    social/
+    pwa/
+
+Git
+  manifests/checksums
+  docs
+  consumers
 ```
 
-Durante a migração incremental, alguns SVGs estão temporariamente no primeiro nível de `public/brand/` para não quebrar consumidores existentes. A reorganização física deve ocorrer junto da importação binária completa, com ajustes de paths na mesma PR.
+Durante a migração, os SVGs existentes em `public/brand/` permanecem para não quebrar bootstrap/consumidores. A retirada física só ocorre depois de URLs/resolução, cache e rollback estarem comprovados.
 
-Para produção, podemos manter apenas assets usados pelo site em `public/brand`, desde que o pacote oficial original e seus checksums permaneçam preservados como fonte de auditoria fora do bundle público.
+## Migração do bootstrap Git para Media Storage
 
-## Migração para `Faysk/tda`
-
-A importação física completa é uma entrega separada porque contém assets binários.
+A migração física completa é uma entrega separada porque muda o boundary dos assets binários.
 
 Critérios:
 
-- cópia byte-for-byte dos arquivos escolhidos;
+- upload/cópia byte-for-byte para Media Storage;
 - verificação SHA-256 contra o pack oficial;
 - atualização de metadata/favicon/manifest/OG;
 - nenhuma otimização destrutiva nos masters;
