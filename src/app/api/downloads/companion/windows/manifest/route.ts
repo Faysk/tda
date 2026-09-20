@@ -7,7 +7,6 @@ export const revalidate = 0;
 const RELEASES_URL = "https://api.github.com/repos/Faysk/tda/releases";
 const RELEASES_PER_PAGE = 100;
 const MAX_RELEASE_PAGES = 5;
-const RELEASE_LOOKUP_REVALIDATE_SECONDS = 60;
 const GITHUB_HEADERS = {
 	Accept: "application/vnd.github+json",
 	"X-GitHub-Api-Version": "2022-11-28",
@@ -42,7 +41,7 @@ async function fetchReleaseCatalog(): Promise<unknown[]> {
 			`${RELEASES_URL}?per_page=${RELEASES_PER_PAGE}&page=${page}`,
 			{
 				headers: GITHUB_HEADERS,
-				next: { revalidate: RELEASE_LOOKUP_REVALIDATE_SECONDS },
+				cache: "no-store",
 			},
 		);
 		if (!response.ok) throw new Error("COMPANION_RELEASE_LOOKUP_FAILED");
