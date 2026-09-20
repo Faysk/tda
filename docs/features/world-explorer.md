@@ -316,6 +316,31 @@ Contrato inicial:
 
 O contrato versionado local e o estado físico remoto de layout estão em reconciliação operacional pela issue #95. Até essa reconciliação concluir, não reaplicar DDL nem declarar o fluxo editorial persistente pronto apenas porque tabela/RPC remotas foram observadas.
 
+## Escala semântica do canvas
+
+O overview precisa continuar utilizável mesmo quando o layout editorial ocupa milhares de unidades de coordenada. O canvas portanto usa escala de mapa, sem reescrever a posição publicada e sem transformar proximidade visual em canon.
+
+A câmera suporta três níveis de apresentação:
+
+- **Atlas** — enquadramento distante para orientação geral; hubs permanecem identificáveis, labels de apoio e efeitos de aresta são reduzidos e vizinhanças visuais ajudam a ler a composição;
+- **Região** — escala intermediária; hubs e elementos primários mantêm prioridade, enquanto relações continuam legíveis sem desenhar toda a ornamentação;
+- **Detalhe** — restaura labels, subtítulos e tratamento completo das relações.
+
+As transições são derivadas do zoom atual e são estritamente presentation-only. O conjunto de nodes/edges autorizado não muda por causa da câmera.
+
+Regras operacionais:
+
+- o `minZoom` deve permitir enquadrar o layout editorial completo dentro do canvas suportado;
+- labels essenciais usam compensação de escala limitada para não desaparecerem no overview nem crescerem indefinidamente;
+- selecionar um node no nível Atlas pode aproximar a câmera para inspeção, mas não altera `?foco=` nem o layout persistido;
+- busca e filtros podem reenquadrar o recorte visível; isso muda somente a câmera;
+- vizinhanças visuais são derivadas da geometria atual e dos hubs já autorizados, não são entidades, factions, relations ou conhecimento persistido;
+- um elemento espacialmente compartilhado entre hubs não deve ser forçado a uma única vizinhança apenas para completar a composição;
+- arestas diminuem progressivamente ruído visual em Atlas/Região, mas seleção explícita continua revelando a relação relevante;
+- nenhum mecanismo de zoom semântico substitui a representação textual acessível do grafo.
+
+`mapa geográfico` continua fora do escopo V1: esta escala de mapa é uma estratégia de navegação do grafo narrativo, não latitude/longitude nem cartografia do cenário.
+
 ## Profundidade
 
 ### Overview
