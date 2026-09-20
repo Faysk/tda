@@ -10,8 +10,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-20 |
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
-| [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
-| [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
+| [Modelo de dados canônico](../data-model.md) | dados + arquitetura + domínios | vigente | 2026-09-20 |
+| [Auditoria do banco de produção](../database-audit.md) | dados/Supabase | snapshot histórico | 2026-09-20 |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-15 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
@@ -55,14 +55,14 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
-| [Reconciliações do migration history](../database/migration-reconciliations.md) | dados/Supabase + operations | vigente | 2026-09-10 |
-| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-19 |
-| [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-06 |
+| [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-20 |
+| [Reconciliações do migration history](../database/migration-reconciliations.md) | dados/Supabase + operations | vigente | 2026-09-20 |
+| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-20 |
+| [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-20 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
-| [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-06 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-19 |
-| [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
+| [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-20 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-20 |
+| [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | 2026-09-20 |
 
 ## docs/delivery
 
