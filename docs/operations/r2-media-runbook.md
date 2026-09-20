@@ -71,6 +71,21 @@ Para pacotes completos, seguir [ZIP à produção](zip-to-production.md), inclui
 
 Registrar resultado por arquivo a cada fase. Após interrupção, revalidar os objetos já enviados e retomar apenas o que falta; não sobrescrever por nome. Colisão ou hash divergente interrompe o item. Manter fonte, master e referência anterior até o aceite.
 
+### Falha após publicação bem-sucedida
+
+O lifecycle é idempotente por key imutável. Um job pode falhar **depois** de o upload/read-back/GET público já terem terminado, por exemplo em parsing de receipt, escrita de output ou etapa posterior da release.
+
+Nessa situação:
+
+1. não apagar nem reenviar objetos às cegas;
+2. usar os logs/receipt para confirmar quais assets chegaram a `published/reused/verified`;
+3. corrigir o wrapper/etapa posterior;
+4. executar novamente o mesmo range;
+5. esperar `reused` para objetos já íntegros e repetir a verificação pública;
+6. só promover Production quando o job inteiro concluir e o receipt final for registrado.
+
+Em 2026-09-20 a repair release de Astel/Noah publicou e verificou 24 assets, mas o wrapper Bash encerrou com código 1 ao ler um resumo sem newline terminal. Os objetos permaneceram válidos e o retry deve reutilizá-los; esse incidente não deve ser interpretado como falha de R2.
+
 Relatório de entrega deve conter os campos e checks do [fluxo único](../integrations/r2/media-pipeline.md). Upload/read-back, teste no navegador e publicação possuem estados distintos. Uma implementação futura deve automatizar os gates técnicos; a revisão perceptiva continua explícita.
 
 ## Preparação de imagem
