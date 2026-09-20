@@ -1,6 +1,7 @@
 // Isolated browser harness. Never included in the Next app or used as an auth bypass.
 import { createRoot } from "react-dom/client";
 import { ProcessingPanel } from "../../src/features/edit/processing/panel";
+import { ProcessingSubmission } from "../../src/features/edit/processing/submission";
 import "../../src/app/design-tokens.css";
 import "../../src/app/design-system.css";
 
@@ -22,5 +23,6 @@ createRoot(root).render(
 		<h1>Processamento local</h1>
 		<p>Ambiente isolado de testes sintéticos. Não é uma rota pública do TDA.</p>
 		<ProcessingPanel />
+		<ProcessingSubmission />
 	</main>,
 );
