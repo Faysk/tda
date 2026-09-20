@@ -1,0 +1,33 @@
+name: Label Governance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/delivery/issue-governance.md
+      - tools/github/sync-issue-labels.mjs
+      - .github/workflows/label-governance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: label-governance
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: sync-labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+      - name: Synchronize canonical issue labels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node tools/github/sync-issue-labels.mjs
