@@ -4,9 +4,11 @@ import type { CSSProperties, Ref } from "react";
 import { Select } from "@/components/ui";
 import type {
 	WorldFilter,
+	WorldPublicationMeta,
 	WorldRelationFilter,
 	WorldRelationTypeDTO,
 } from "../model";
+import { worldPublicationVersionLabel } from "../world-publication-repository";
 import chrome from "./world-floating-chrome.module.css";
 import styles from "./world-explorer.module.css";
 
@@ -50,6 +52,7 @@ type WorldFloatingChromeProps = Readonly<{
 	demo: boolean;
 	activeRelationTypes: WorldRelationTypeDTO[];
 	searchInputRef?: Ref<HTMLInputElement>;
+	publication?: WorldPublicationMeta;
 }>;
 
 function filterClass(active: boolean) {
@@ -77,6 +80,7 @@ export function WorldFloatingChrome({
 	demo,
 	activeRelationTypes,
 	searchInputRef,
+	publication,
 }: WorldFloatingChromeProps) {
 	return (
 		<div className={chrome.root} data-testid="world-floating-chrome">
@@ -188,6 +192,30 @@ export function WorldFloatingChrome({
 					</fieldset>
 				) : null}
 			</div>
+
+			{publication ? (
+				<details className={chrome.versionDetails} data-testid="world-published-version">
+					<summary
+						aria-label={`Versão publicada ${worldPublicationVersionLabel(publication)}`}
+						title="Detalhes da versão publicada"
+					>
+						{worldPublicationVersionLabel(publication)}
+					</summary>
+					<div className={chrome.versionPopover}>
+						<strong>Versão publicada</strong>
+						<span>
+							Grafo r{publication.graphRevision} · Layout r{publication.layoutRevision}
+						</span>
+						<span>
+							{new Intl.DateTimeFormat("pt-BR", {
+								dateStyle: "short",
+								timeStyle: "short",
+							}).format(new Date(publication.publishedAt))}
+						</span>
+						{publication.publishedBy ? <span>por {publication.publishedBy}</span> : null}
+					</div>
+				</details>
+			) : null}
 		</div>
 	);
 }
