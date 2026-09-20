@@ -1,10 +1,10 @@
 # World entity media foundation
 
 > Owner: narrative-memory / integrations-media / frontend
-> Status: implementação candidata; schema remoto não aplicado
-> Última revisão: 2026-09-13
+> Status: schema aplicado e implementação integrada; rollout da mídia de entities permanece fail-closed por feature flag
+> Última revisão: 2026-09-20
 
-> Contrato de implementação para a primeira imagem canônica de cada elemento do Mundo. Este documento não autoriza migration em Production.
+> Contrato da primeira imagem canônica de cada elemento do Mundo. A migration `world_entity_media_foundation_v2` já foi aplicada no Supabase canônico; isso não ativa por si só upload/runtime público nem autoriza novas mutações.
 
 ## Objetivo
 
@@ -144,5 +144,5 @@ PNG e WebP; de 24 bytes até 8 MiB; dimensões entre 1 e 16384 pixels por eixo. 
 - edição destrutiva do original;
 - URLs externas arbitrárias;
 - alteração do modelo de auth/canon/audience;
-- aplicação automática do SQL candidato em Production;
+- reaplicação automática ou ad-hoc do schema já versionado em Production;
 - configurar lifecycle/CORS remoto como efeito colateral de build ou deploy.
