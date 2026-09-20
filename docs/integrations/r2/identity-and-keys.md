@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-20
 
 ## Quatro identidades
 
