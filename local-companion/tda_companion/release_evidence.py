@@ -13,9 +13,13 @@ from . import VERSION
 from .bits_resume_evidence import BitsResumeEvidenceError, validate_bits_resume_evidence
 from .installed_acceptance import INSTALLED_ACCEPTANCE_SCHEMA, REQUIRED_OBSERVATIONS
 from .payload_evidence import PayloadEvidenceError, load_payload_manifest
+from .physical_acceptance_suite import (
+    PhysicalAcceptanceSuiteError,
+    verify_physical_acceptance_suite,
+)
 
 CANDIDATE_SCHEMA = "tda_companion_candidate_v2"
-PROMOTION_SCHEMA = "tda_companion_promotion_v2"
+PROMOTION_SCHEMA = "tda_companion_promotion_v3"
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _SOURCE_SHA = re.compile(r"^[a-f0-9]{40}$")
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -386,12 +390,21 @@ def build_promotion_evidence(
     *,
     candidate_manifest_path: Path,
     acceptance_receipt_path: Path,
+    physical_acceptance_receipt_path: Path,
     assets_root: Path,
 ) -> dict[str, object]:
     candidate = _load_json(candidate_manifest_path, "RELEASE_CANDIDATE_JSON_INVALID")
     verify_candidate_files(candidate, assets_root)
     receipt = _load_json(acceptance_receipt_path, "RELEASE_ACCEPTANCE_JSON_INVALID")
     verify_acceptance_receipt(receipt, candidate)
+    physical = _load_json(
+        physical_acceptance_receipt_path,
+        "RELEASE_PHYSICAL_ACCEPTANCE_JSON_INVALID",
+    )
+    try:
+        verify_physical_acceptance_suite(physical, candidate)
+    except PhysicalAcceptanceSuiteError as exc:
+        raise ReleaseEvidenceError(exc.code) from exc
     version = str(candidate["version"])
     return {
         "schema": PROMOTION_SCHEMA,
@@ -402,7 +415,12 @@ def build_promotion_evidence(
         "source_tree_sha": candidate["source_tree_sha"],
         "workflow_run_id": candidate["workflow_run_id"],
         "candidate_manifest_sha256": sha256_file(candidate_manifest_path),
-        "acceptance_receipt_sha256": sha256_file(acceptance_receipt_path),
+        "installed_acceptance_receipt_sha256": sha256_file(
+            acceptance_receipt_path
+        ),
+        "physical_acceptance_receipt_sha256": sha256_file(
+            physical_acceptance_receipt_path
+        ),
         "assets": candidate["assets"],
     }
 
@@ -422,6 +440,11 @@ def _parser() -> argparse.ArgumentParser:
     promote = sub.add_parser("verify-promotion")
     promote.add_argument("--candidate-manifest", required=True, type=Path)
     promote.add_argument("--acceptance-receipt", required=True, type=Path)
+    promote.add_argument(
+        "--physical-acceptance-receipt",
+        required=True,
+        type=Path,
+    )
     promote.add_argument("--assets-root", required=True, type=Path)
     promote.add_argument("--output", required=True, type=Path)
     return parser
@@ -446,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         evidence = build_promotion_evidence(
             candidate_manifest_path=args.candidate_manifest,
             acceptance_receipt_path=args.acceptance_receipt,
+            physical_acceptance_receipt_path=args.physical_acceptance_receipt,
             assets_root=args.assets_root,
         )
         _atomic_json(args.output, evidence)
