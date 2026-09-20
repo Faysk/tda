@@ -6,7 +6,7 @@ import type {
 } from "./model";
 
 export const WORLD_LAYOUT_SCHEMA_VERSION = 1 as const;
-export const WORLD_LAYOUT_COORDINATE_LIMIT = 5_000;
+export const WORLD_LAYOUT_COORDINATE_LIMIT = 20_000;
 
 function isWorldPosition(value: unknown): value is WorldPositionHint {
 	if (!value || typeof value !== "object") return false;
