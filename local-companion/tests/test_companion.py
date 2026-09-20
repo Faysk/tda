@@ -13,7 +13,11 @@ import pytest
 import tda_companion.api as api_module
 from fastapi.testclient import TestClient
 
-from tda_companion.api import create_app
+from tda_companion.api import (
+    LOCAL_JSON_BODY_MAX_BYTES,
+    TRANSCRIPTION_TEXT_MAX_CHARS,
+    create_app,
+)
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
@@ -360,7 +364,14 @@ def test_security_and_validation(client):
         json={**BODY, "private": "secret-content"},
     )
     assert response.status_code == 422 and "secret-content" not in response.text
-    assert client.post("/api/v1/jobs", headers=HEADERS, content="x" * 4097).status_code == 413
+    assert (
+        client.post(
+            "/api/v1/jobs",
+            headers=HEADERS,
+            content="x" * (LOCAL_JSON_BODY_MAX_BYTES + 1),
+        ).status_code
+        == 413
+    )
     assert (
         client.post(
             "/api/v1/jobs",
@@ -381,6 +392,49 @@ def test_security_and_validation(client):
     assert response.headers["access-control-allow-origin"] == ORIGIN
     assert "access-control-allow-credentials" not in response.headers
     assert client.get("/api/v1/jobs/", headers=HEADERS).status_code == 404
+
+
+def test_json_body_budget_accepts_exact_utf8_boundary_and_rejects_next_byte(client):
+    headers = {
+        "Origin": ORIGIN,
+        "Content-Type": "application/json",
+    }
+    exact = b"{}" + b" " * (LOCAL_JSON_BODY_MAX_BYTES - 2)
+    assert len(exact) == LOCAL_JSON_BODY_MAX_BYTES
+
+    accepted = client.post("/api/v1/session", headers=headers, content=exact)
+    assert accepted.status_code == 200
+
+    rejected = client.post("/api/v1/session", headers=headers, content=exact + b" ")
+    assert rejected.status_code == 413
+    assert rejected.json() == {
+        "error": {"code": "BODY_TOO_LARGE", "recoverable": False}
+    }
+
+
+def test_transcription_text_limit_remains_a_semantic_guard_below_byte_limit(client):
+    payload = {
+        "kind": "transcription.craig",
+        "campaign_id": "campaign",
+        "session_id": "session",
+        "source_id": "craig-" + "a" * 64,
+        "profile_id": "whisper-turbo",
+        "glossary": "",
+        "context": "a" * (TRANSCRIPTION_TEXT_MAX_CHARS + 1),
+        "cpu": False,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    assert len(encoded) < LOCAL_JSON_BODY_MAX_BYTES
+
+    response = client.post(
+        "/api/v1/jobs",
+        headers={**HEADERS, "Idempotency-Key": "text-char-limit"},
+        content=encoded,
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {"code": "INVALID_REQUEST", "recoverable": False}
+    }
 
 
 def test_conflict_recoverability_matches_whether_repeating_can_help(client):
