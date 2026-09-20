@@ -2,13 +2,25 @@
 
 > Status: vigente
 > Owner: operations / release / dados
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
+> Fonte de verdade: workflows versionados + ADR-0015 + ADR-0018
 
 ## Objetivo
 
-Este é o runbook canônico da entrega web do TDA. A arquitetura atual segue a direção recovery-oriented da [ADR-0015](../adr/0015-recovery-oriented-delivery.md): CI rápido, Preview imutável por PR, `main` como fonte de Production, gates pesados condicionais e rollback como mecanismo normal de recuperação.
+Este é o contrato operacional da entrega web do TDA.
 
-Contrato atual:
+Princípios:
+
+- GitHub Actions é o controlador;
+- `main` é a linha canônica de Production;
+- Preview é deployment do SHA da PR;
+- providers são substituíveis;
+- gates pesados só participam quando necessários;
+- trabalho remoto pendente não pode ser esquecido após falha;
+- Production é staged antes de receber tráfego;
+- rollback é mecanismo normal de recuperação.
+
+## Fluxo
 
 ```text
 branch temporária
@@ -16,281 +28,130 @@ branch temporária
       v
     PR -> main
       |
-      +-- workflow-contract / actionlint
-      +-- validate rápido
-      +-- DB somente se relevante
-      +-- Companion somente se relevante
-      +-- mídia local somente se relevante
-      +-- Preview Vercel do SHA exato
-      +-- smoke
+      +--> workflow-contract
+      +--> validate
+      +--> DB somente se relevante
+      +--> Companion somente se relevante
+      +--> mídia somente se relevante
+      +--> Preview do SHA exato
+      +--> smoke
       |
       v
   required-ci
       |
       v
- merge main
+  merge main
       |
       v
  Production CD
       |
-      +-- prova SHA atual + PR mergeada em main
-      +-- calcula baseline Production real
-      +-- migrations pendentes? executa lifecycle Supabase
-      +-- manifest canônico no merge atual? executa lifecycle de mídia
-      +-- build
-      +-- stage sem tráfego
-      +-- smoke
-      +-- promote mesmo artifact
-      +-- canonical health/version
-      +-- receipt
+      +--> prova HEAD + PR mergeada
+      +--> descobre SHA realmente publicado
+      +--> migration pendente? lifecycle DB
+      +--> mídia pendente? lifecycle Media Storage
+      +--> build uma vez
+      +--> stage sem tráfego
+      +--> smoke
+      +--> promote do mesmo artifact
+      +--> canonical health/version
+      +--> receipt
 ```
 
 ## Fonte e controle
 
-GitHub Actions é o único controlador da entrega. Vercel Git auto-deploy permanece desligado.
+GitHub é o control plane canônico.
 
-Fonte canônica de Production:
+Vercel é o provider atual de runtime/deploy; Vercel Git auto-deploy permanece desligado.
 
-```text
-main
-```
+Supabase é o provider atual do PostgreSQL.
 
-Uma release automática só nasce depois de CI verde no push de `main`. O workflow de Production confirma em runtime que o SHA atual é resultado de uma PR realmente mergeada em `main` e recusa SHA stale/arbitrário.
+Cloudflare R2 é o provider atual do Media Storage.
 
-A antiga branch Git `Preview` foi aposentada da entrega web. Preview agora significa exclusivamente o deployment Vercel imutável criado para uma PR.
+A troca futura de provider não muda o ownership da esteira: GitHub Actions continua executando a operação até nova ADR.
 
-## CI de pull request
+## Pull requests
 
-Workflow: `.github/workflows/ci.yml`.
+Toda PR executa o núcleo comum definido em `.github/workflows/ci.yml`.
 
-Toda PR executa o núcleo comum:
+Checks pesados são condicionais ao domínio alterado. Um job irrelevante pode ser `skipped`; um domínio relevante precisa terminar em sucesso para `required-ci`.
 
-- `classify-changes`;
-- `workflow-contract` com `actionlint` e testes dos classificadores;
-- `validate` com migration safety policy, `pnpm check` e `pnpm build`;
-- `ci-gate`;
-- Vercel Preview do SHA exato da PR;
-- `required-ci`.
+Preview:
 
-Jobs pesados são condicionais:
+- usa o SHA exato da PR;
+- não é branch;
+- não aplica migration em Production;
+- não recebe credencial irrestrita de Production;
+- precisa provar health/version e superfícies relevantes.
 
-```text
-DB relevante        -> synthetic PostgreSQL
-Companion relevante -> synthetics + MSI
-mídia relevante     -> contratos locais de publicação
-irrelevante         -> skipped legítimo
-```
+## Baseline real de Production
 
-`required-ci` aceita `skipped` apenas quando o classificador marcou o domínio como irrelevante. Se o domínio é relevante, somente `success` satisfaz o agregador.
+Antes de qualquer mutação remota, Production consulta:
 
-## Preview por PR
+`https://dnd.faysk.dev/api/version`
 
-Workflow reutilizável: `.github/workflows/deploy-preview.yml`.
+O commit retornado é o baseline publicado.
 
-Preview não é uma branch. Cada PR recebe um deployment Vercel construído do SHA exato informado pelo evento.
+Ele precisa:
 
-O workflow confirma o SHA antes do deploy e injeta:
+1. ser SHA válido conhecido pelo repo;
+2. ser ancestral do novo HEAD;
+3. representar o ponto a partir do qual trabalho remoto ainda pode estar pendente.
+
+## Migrations
+
+Migration remota é acumulativa.
 
 ```text
-APP_ENV=preview
-APP_COMMIT_SHA=<sha real da PR>
-TDA_RELEASE_ID=pr-<numero>-<sha curto>
+baseline Production -> novo main
+          |
+          +-> supabase/migrations/*.sql pendente?
 ```
-
-Smoke mínimo:
-
-- `/api/health`;
-- `/api/version`;
-- `/`;
-- `/sessoes`;
-- `/lore/yllith`.
-
-`required-ci` só fica verde em PR depois que esse Preview passa. Em push, `preview-deployment=skipped` é o resultado esperado.
-
-## Production v3
-
-Workflow: `.github/workflows/production.yml`.
-
-### Identidade da release
-
-O workflow aceita apenas o SHA que é atualmente o HEAD de `main`. `workflow_dispatch` existe para redeploy controlado do HEAD atual; não serve para publicar commit arbitrário antigo.
-
-Depois, a API do GitHub precisa confirmar:
-
-```text
-PR mergeada
-base = main
-merge_commit_sha = SHA da release
-```
-
-Não existe requisito `head=Preview`.
-
-### Baseline real de Production
-
-Antes de decidir trabalho destrutivo, o workflow consulta:
-
-```text
-https://dnd.faysk.dev/api/version
-```
-
-O `commit` retornado é o baseline canônico. Ele precisa existir no repositório e ser ancestral do novo SHA.
-
-Isso permite calcular:
-
-```text
-SHA realmente publicado .. novo main
-```
-
-Uma release que falhou antes do promote não faz o pipeline esquecer migrations ainda pendentes.
-
-### Migrations
-
-Migration de Production só é acionada quando existe SQL em:
-
-```text
-supabase/migrations/*.sql
-```
-
-no intervalo ainda não publicado.
 
 Sem migration pendente:
 
-- Supabase CLI não é instalado;
-- `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD` não são necessários para aquela release;
-- nenhum link/dry-run/apply é executado.
+- Supabase CLI não precisa participar;
+- secrets de migration não são exigidos;
+- deploy web não toca banco.
 
-Com migration pendente, o lifecycle continua fail-closed em `tools/ci/apply-production-migrations.sh`:
+Com migration pendente, o lifecycle permanece fail-closed.
 
-```text
-migration policy
--> link/fetch remoto
--> valida boundary/histórico
--> dry-run
--> apply
--> fetch novamente
--> compara histórico TDA exato
-```
+## Media Storage
 
-Falha em qualquer etapa impede o promote.
+Mídia e deploy web são ciclos relacionados, mas não equivalentes.
 
-### Mídia
+O deploy web comum **não** faz full audit global de todo o storage.
 
-Mídia e deploy web possuem ciclos independentes.
+O lifecycle automático deve responder:
 
-O web deploy comum não faz full public audit de todo o R2.
-
-O Production workflow só tenta lifecycle de publicação quando **o merge atual** altera manifest canônico em:
+> existe manifest canônico no intervalo ainda não publicado?
 
 ```text
-media/manifests/*.json
+baseline Production -> novo main
+          |
+          +-> media/manifests/*.json pendente?
+                |
+                +-> publica/reusa
+                +-> read-back
+                +-> verifica entrega pública
+                +-> receipt
 ```
 
-Isso evita que asset histórico não relacionado bloqueie release web futura.
+A distinção importante é:
 
-Quando o merge realmente altera manifest, o caminho permanece fail-closed e exige credenciais R2. `tools/ci/publish-production-media.sh` seleciona somente os manifests alterados e chama `tools/media/pipeline.mjs publish`, que valida integridade, publica objeto imutável quando ausente, faz readback e valida entrega pública.
+- objeto/manifest que já pertence a uma Production comprovada = histórico; não bloqueia release web futura;
+- manifest depois do baseline cuja publicação falhou = **pendente**; não pode desaparecer só porque o merge seguinte não tocou mídia.
 
-Mudança apenas no tooling de mídia continua coberta pelo CI local, mas não republica automaticamente manifests antigos.
+O publisher atual é:
 
-## Staged deploy
+`tools/ci/publish-production-media.sh`
 
-O artefato é construído uma vez com Vercel Production config:
+e usa:
 
-```text
-APP_ENV=production
-APP_COMMIT_SHA=<sha main>
-TDA_RELEASE_ID=prod-<sha curto>
-```
+`tools/media/pipeline.mjs publish`.
 
-Depois:
+### Secrets do publisher
 
-```text
-vercel build --prod
-vercel deploy --prebuilt --prod --skip-domain
-```
-
-O staged deployment ainda não recebe tráfego do domínio oficial.
-
-O smoke verifica `health`, `version` e rotas principais. SHA e release retornados precisam corresponder exatamente ao esperado.
-
-Somente então:
-
-```text
-vercel promote <deployment staged>
-```
-
-O mesmo artifact testado é o promovido.
-
-## Verificação canônica
-
-Depois do promote, `tools/ci/verify-production-canonical.mjs` consulta o domínio oficial até confirmar convergência de:
-
-- `health.ok=true`;
-- `health.environment=production`;
-- `health.commit=<SHA esperado>`;
-- `version.commit=<SHA esperado>`;
-- `version.release=<release esperado>`.
-
-A raiz do site também precisa responder.
-
-## Receipt
-
-Uma release GitHub pequena registra:
-
-- SHA Production anterior;
-- SHA novo;
-- PR mergeada em `main`;
-- release id;
-- staged/tested deployment;
-- canonical origin;
-- se migrations foram executadas;
-- se lifecycle de mídia foi executado;
-- staged + canonical smoke PASS.
-
-O receipt é histórico útil, não mecanismo de autorização.
-
-## Rollback
-
-Workflow: `.github/workflows/rollback.yml`.
-
-Rollback é o mecanismo normal para falha recuperável depois de Production.
-
-```text
-identificar deployment anterior saudável
--> rollback/promote anterior
--> verificar canonical health/version
--> corrigir em nova branch
--> PR -> main
--> novo Production v3
-```
-
-Não se tenta criar uma arquitetura que impossibilite todo incidente recuperável. O objetivo é detectar cedo quando barato e recuperar rápido quando algo escapar.
-
-## Secrets mínimos
-
-### Preview
-
-GitHub Environment `preview`:
-
-```text
-VERCEL_TOKEN
-```
-
-### Production web comum
-
-GitHub Environment `production`:
-
-```text
-VERCEL_TOKEN
-```
-
-Quando existe migration:
-
-```text
-SUPABASE_ACCESS_TOKEN
-SUPABASE_DB_PASSWORD
-```
-
-Quando o merge atual exige publicação canônica de mídia:
+Para o provider R2 atual, o GitHub Environment `production` é o boundary canônico:
 
 ```text
 R2_ACCOUNT_ID
@@ -298,40 +159,126 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-Credencial condicional não deve ser adicionada apenas para fazer uma release não relacionada passar.
+`R2_PUBLIC_BUCKET=tda-media-public` é configuração não secreta.
 
-## Evidência do desenho atual
+Não usar Vercel como cofre intermediário para uma operação executada pelo GitHub Actions.
 
-O Production legado `34896656582` instalou/autenticou Supabase mesmo sem migration nova e morreu antes do build ao fazer full public audit de asset antigo com HTTP 403.
+### Drift conhecido — 2026-09-20
 
-O primeiro Production v3 `34899700811` falhou de forma segura no gate de credenciais antes de qualquer mutação porque o desenho inicial confundia manifest histórico no backlog com mídia do merge atual. A PR #345 separou os escopos.
+O código integrado antes da ADR-0018 ainda possui duas divergências:
 
-Primeiro aceite main-only completo:
+1. `production-release-plan.mjs` decide publicação de mídia usando o merge atual, em vez do intervalo ainda não publicado;
+2. `production.yml` tenta fornecer R2 ao publisher por `vercel env run`.
+
+Runs recentes provaram que o segundo caminho não fornece configuração R2 completa. A PR #407 já registrou a correção candidata do primeiro problema, mas não está integrada.
+
+Até a convergência:
+
+- publicação de nova mídia em Production não deve ser considerada saudável;
+- não fazer bypass manual para “destravar” release;
+- preservar manifest/fontes para retry;
+- atualização de implementação deve atualizar estes docs na mesma PR.
+
+## Staged deploy
+
+O artefato de Production é construído uma vez com identidade explícita:
 
 ```text
-PR:             #345
-main SHA:       a8a9253e13c159263fc1f4a4672d8690f4c62e33
-CI:             34900494222 success
-Production CD:  34900630352 success
-Supabase:       skipped
-mídia publish:  skipped
-stage/smoke:    success
-promote:        success
-canonical:      success
-receipt:        success
+APP_ENV=production
+APP_COMMIT_SHA=<sha main>
+TDA_RELEASE_ID=prod-<sha-curto>
 ```
 
-Aceite após limpeza da antiga branch web:
+Fluxo do provider atual:
 
 ```text
-PR:             #347
-main SHA:       a46e8292eaed7e1cff32addd181668d83fd76be4
-CI:             34902095910 success
-Production CD:  34902180398 success
-Supabase:       skipped
-mídia publish:  skipped
-stage/smoke:    success
-promote:        success
-canonical:      success
-receipt:        success
+vercel build --prod
+vercel deploy --prebuilt --prod --skip-domain
+smoke
+vercel promote <deployment>
 ```
+
+O staged deployment não recebe tráfego do domínio oficial antes do smoke.
+
+## Verificação canônica
+
+Após promote:
+
+- `health.ok=true`;
+- `health.environment=production`;
+- `health.commit=<SHA esperado>`;
+- `version.commit=<SHA esperado>`;
+- `version.release=<release esperado>`;
+- raiz responde.
+
+## Receipt
+
+Uma release registra pelo menos:
+
+- baseline anterior;
+- SHA novo;
+- PR de origem;
+- release id;
+- deployment staged/testado;
+- canonical origin;
+- migrations executadas ou skipped;
+- Media Storage executado ou skipped;
+- smoke staged/canonical.
+
+Para mídia, `step success` não prova publicação. O receipt deve distinguir zero assets de publicação/reuso/verificação real.
+
+## Secrets
+
+### preview
+
+```text
+VERCEL_TOKEN
+```
+
+### production web
+
+```text
+VERCEL_TOKEN
+```
+
+### migration pendente
+
+```text
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+```
+
+### Media Storage pendente — provider atual R2
+
+```text
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+```
+
+Secrets condicionais só são exigidos quando seu lifecycle é necessário.
+
+## Rollback
+
+Rollback da aplicação:
+
+```text
+identificar deployment anterior saudável
+ -> promover/rollback
+ -> verificar canonical health/version
+ -> corrigir em branch
+ -> PR main
+ -> nova Production
+```
+
+Banco e Media Storage não sofrem delete/rollback destrutivo automático.
+
+## Evidência histórica
+
+A migração para main-only e Production v3 está preservada em:
+
+- [baseline da simplificação](cicd-simplification-baseline.md);
+- [plano concluído](cicd-simplification-plan.md);
+- [histórico de deployments](deployments.md).
+
+Esses documentos explicam como chegamos aqui. Não substituem este runbook para comportamento atual.
