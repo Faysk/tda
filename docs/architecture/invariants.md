@@ -73,11 +73,11 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 42. Deploy é ação controlada após validação, não mecanismo de desenvolvimento.
 43. GitHub é o control plane canônico: código, docs, manifests, migrations, workflows e configuração declarativa ficam versionados no repositório; GitHub Actions controla automações de entrega.
 44. Providers de runtime, dados e storage são substituíveis. Vercel, Supabase e Cloudflare R2 são os providers atuais.
-50. Secrets operacionais usados por GitHub Actions ficam preferencialmente em GitHub Environments; runtime providers mantêm somente secrets necessários em execução.
-51. A Vercel correta precisa ser verificada antes de qualquer operação enquanto ela for o provider atual: `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
-52. Rollback deve ser definido antes de promover candidato importante.
-53. Mudança estrutural sem documentação correspondente na mesma PR não está completa.
-54. A infraestrutura é free-first: serviço/tier pago exige necessidade comprovada e decisão documentada; custo zero nunca justifica enfraquecer segurança ou integridade.
+45. Secrets operacionais usados por GitHub Actions ficam preferencialmente em GitHub Environments; runtime providers mantêm somente secrets necessários em execução.
+46. A Vercel correta precisa ser verificada antes de qualquer operação enquanto ela for o provider atual: `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
+47. Rollback deve ser definido antes de promover candidato importante.
+48. Mudança estrutural sem documentação correspondente na mesma PR não está completa.
+49. A infraestrutura é free-first: serviço/tier pago exige necessidade comprovada e decisão documentada; custo zero nunca justifica enfraquecer segurança ou integridade.
 
 ## Memória e exploração
 
