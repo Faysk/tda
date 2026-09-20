@@ -2,8 +2,20 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
+
+## Snapshot de advisors — 2026-09-20
+
+Revalidação read-only no projeto canônico, sem DDL ou mudança de grants:
+
+- 54 tabelas públicas observadas, todas com RLS habilitado;
+- 49 ocorrências informativas de `rls_enabled_no_policy`; neste projeto várias são intencionalmente deny-by-default e precisam ser avaliadas pelo boundary real, não “corrigidas” em massa;
+- 8 funções `SECURITY DEFINER` executáveis por `authenticated`, mesma classe de risco já inventariada;
+- Leaked Password Protection continua desabilitada;
+- performance advisor: 58 FKs sem covering index e 33 índices sem uso observado.
+
+Esses números são fotografia do advisor em 2026-09-20. As seções históricas abaixo preservam as contagens observadas nas migrations anteriores e não devem ser reinterpretadas como estado corrente.
 
 ## Modelo mental
 
