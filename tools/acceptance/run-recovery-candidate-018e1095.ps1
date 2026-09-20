@@ -23,6 +23,35 @@ function Require-Windows {
     if (-not $env:LOCALAPPDATA) { throw "LOCALAPPDATA_NOT_FOUND" }
 }
 
+function Resolve-Pwsh {
+    $command = Get-Command "pwsh.exe" -ErrorAction SilentlyContinue
+    if ($null -eq $command) { $command = Get-Command "pwsh" -ErrorAction SilentlyContinue }
+    if ($null -eq $command) { throw "RECOVERY_POWERSHELL7_REQUIRED" }
+
+    $path = [string]$command.Source
+    $versionText = & $path -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+    if ($LASTEXITCODE -ne 0 -or -not $versionText) { throw "RECOVERY_POWERSHELL7_UNAVAILABLE" }
+    try { $version = [Version]([string]$versionText).Trim() }
+    catch { throw "RECOVERY_POWERSHELL7_VERSION_INVALID" }
+    if ($version.Major -lt 7) { throw "RECOVERY_POWERSHELL7_REQUIRED" }
+
+    return [ordered]@{
+        path = $path
+        version = $version.ToString()
+    }
+}
+
+function Invoke-PwshScript(
+    [string]$PwshPath,
+    [string]$ScriptPath,
+    [string[]]$Arguments,
+    [string]$FailureCode
+) {
+    & $PwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $ScriptPath @Arguments
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw "$FailureCode:$code" }
+}
+
 function Get-Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
@@ -147,6 +176,8 @@ function Assert-PhysicalReceipt([object]$Value) {
 }
 
 Require-Windows
+$pwsh = Resolve-Pwsh
+Write-Host "PowerShell 7 runtime: $($pwsh.version) — $($pwsh.path)" -ForegroundColor Green
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $generator = Join-Path $PSScriptRoot "generate-physical-acceptance-fixture.ps1"
@@ -187,8 +218,10 @@ if (
 
 Write-Host ""
 Write-Host "Generating synthetic acceptance fixtures..." -ForegroundColor Cyan
-& $generator -OutputRoot $fixtureRoot -TargetSeconds 80
-if ($LASTEXITCODE -ne 0) { throw "RECOVERY_FIXTURE_GENERATION_FAILED" }
+Invoke-PwshScript $pwsh.path $generator @(
+    "-OutputRoot", $fixtureRoot,
+    "-TargetSeconds", "80"
+) "RECOVERY_FIXTURE_GENERATION_FAILED"
 
 $audioPath = Join-Path $fixtureRoot "tda-physical-acceptance-synthetic.wav"
 $craigPath = Join-Path $fixtureRoot "tda-installed-acceptance-craig.zip"
@@ -203,14 +236,15 @@ $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
 Write-Host "PHASE 1/2 — Installed Windows acceptance" -ForegroundColor Cyan
 Write-Host "This phase is intentionally interactive: it measures lifecycle, BITS resume, tray, diagnostics and Craig recovery."
-& $installedScript `
-    -CandidateMsi $msiPath `
-    -PayloadManifest $payloadPath `
-    -SourceSha $SourceSha `
-    -CraigZip $craigPath `
-    -ReceiptPath $installedRaw `
-    -Port $Port
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $installedRaw -PathType Leaf)) {
+Invoke-PwshScript $pwsh.path $installedScript @(
+    "-CandidateMsi", $msiPath,
+    "-PayloadManifest", $payloadPath,
+    "-SourceSha", $SourceSha,
+    "-CraigZip", $craigPath,
+    "-ReceiptPath", $installedRaw,
+    "-Port", [string]$Port
+) "RECOVERY_INSTALLED_ACCEPTANCE_FAILED"
+if (-not (Test-Path -LiteralPath $installedRaw -PathType Leaf)) {
     throw "RECOVERY_INSTALLED_ACCEPTANCE_FAILED"
 }
 $installed = Read-Json $installedRaw "RECOVERY_INSTALLED_RECEIPT_INVALID"
@@ -222,14 +256,14 @@ Require-AllProfilesReady $Port
 
 Write-Host ""
 Write-Host "PHASE 2/2 — Physical ASR/GPU acceptance" -ForegroundColor Cyan
-& $physicalScript `
-    -Audio $audioPath `
-    -CandidateManifest $candidatePath `
-    -CandidateMsi $msiPath `
-    -PayloadManifest $payloadPath `
-    -OutputRoot $physicalStage `
-    -RequireGpuName "RTX 4070"
-if ($LASTEXITCODE -ne 0) { throw "RECOVERY_PHYSICAL_ACCEPTANCE_FAILED" }
+Invoke-PwshScript $pwsh.path $physicalScript @(
+    "-Audio", $audioPath,
+    "-CandidateManifest", $candidatePath,
+    "-CandidateMsi", $msiPath,
+    "-PayloadManifest", $payloadPath,
+    "-OutputRoot", $physicalStage,
+    "-RequireGpuName", "RTX 4070"
+) "RECOVERY_PHYSICAL_ACCEPTANCE_FAILED"
 
 $physicalRaw = Join-Path $physicalStage "physical-acceptance-suite.json"
 if (-not (Test-Path -LiteralPath $physicalRaw -PathType Leaf)) {
