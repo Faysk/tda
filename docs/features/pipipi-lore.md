@@ -2,7 +2,7 @@
 
 > Status: implementação, QA e publicação em production concluídos
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-20
 > Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
@@ -64,11 +64,24 @@ Com essa revisão, `ultimo-dia` deixa de ser uma associação pendente. A aprova
 
 ## Assets
 
-O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
+### Estado histórico da implementação
 
-Os 18 derivados finais ficam versionados **diretamente** em `public/lore/pipipi/`. Não existe reconstrução em `pnpm dev`/`pnpm build`, bundle de staging ou bootstrap de assets no caminho de produção.
+A implementação original colocou 18 derivados AVIF consumidos pelo runtime diretamente em `public/lore/pipipi/`. O diretório contém hoje 21 AVIFs; 18 possuem consumer runtime confirmado e três `*-static.avif` precisam de verificação de uso antes de remoção.
 
-O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, tamanho e SHA-256 fixados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Assim, o SHA integrado contém exatamente os bytes que o navegador usa e a integridade pode ser conferida sem depender de materialização temporária.
+Essa estratégia foi válida para a entrega original, mas foi **superseded como arquitetura de storage pela ADR-0018**. Git não é mais destino canônico de mídia.
+
+O conjunto e seus hashes históricos permanecem registrados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`.
+
+### Estado atual exigido
+
+- os AVIFs locais são dívida de migração;
+- derivados consumidos devem migrar para `tda-media-public`;
+- masters/origens, quando preservados, pertencem a `tda-media-private`;
+- os consumers devem apontar para o Media Storage antes da remoção local;
+- os três arquivos `*-static.avif` devem ser removidos se a auditoria confirmar ausência de consumer;
+- nenhuma nova mídia de Pipipi deve ser adicionada a `public/lore/pipipi`.
+
+Inventário: [Dívida de mídia ainda versionada no Git](../integrations/media-git-debt-2026-09-20.md).
 
 ## Runtime e performance
 
