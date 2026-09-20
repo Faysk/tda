@@ -13,8 +13,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-15 |
-| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente; production ativa | 2026-09-07 |
-| [Publicação controlada](../releases.md) | Não declarado | Não declarado | Não declarado |
+| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
+| [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
 
 ## docs/adr
@@ -45,11 +45,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Arquitetura — índice detalhado](../architecture/README.md) | arquitetura do TDA | vigente | 2026-09-07 |
-| [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-06 |
+| [Arquitetura — índice detalhado](../architecture/README.md) | arquitetura do TDA | vigente | 2026-09-20 |
+| [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-20 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
 | [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-20 |
-| [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-06 |
+| [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
 ## docs/database
 
@@ -80,7 +80,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Design System oficial do TDA](../design-system/README.md) | design-system / frontend | canônico; fundação runtime e superfícies públicas implementadas | 2026-09-12 |
 | [Plano de migração do Design System para o reboot](../design-system/migration-plan.md) | design-system / frontend | DS-1/DS-2/DS-3 concluídas; DS-4 parcial; DS-5 implementada; DS-7 cleanup legado aplicado | 2026-09-07 |
-| [Assets oficiais da marca TDA](../design-system/official-assets.md) | brand / design-system | canônico para marca; integração runtime parcial e verificável | 2026-09-06 |
+| [Assets oficiais da marca TDA](../design-system/official-assets.md) | brand / design-system | canônico para marca; integração runtime parcial e verificável | 2026-09-20 |
 | [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; atualizado após Home V2 e shell responsiva | 2026-09-12 |
 | [TDA — Diretriz geral de UX, design e hierarquia visual](../design-system/ux-hierarchy.md) | design-system / frontend | canônico | 2026-09-12 |
 | [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; workspace atual implementado, chrome v3 planejado | 2026-09-12 |
@@ -145,30 +145,30 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-11 |
+| [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-20 |
 | [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | vigente | 2026-09-19 |
 | [Companion local](../integrations/local-companion.md) | local-companion/processing | base sintética implementada em branch/PR; ASR real legado preservado | 2026-09-07 |
 | [Pré-flight R2 e assets das novas lores](../integrations/lore-media-preparation-2026-09-07.md) | integrations/media | preparado; execução central pendente | 2026-09-07 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
-| [R2 — governança de mídia e lifecycle](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-11 |
-| [Integração Cloudflare R2](../integrations/r2.md) | integrations/media | preparado | 2026-09-12 |
-| [Integração Supabase](../integrations/supabase.md) | integrations + data + identity | implementado/canônico | 2026-09-06 |
+| [Media Storage — governança (provider atual: R2)](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-20 |
+| [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-20 |
+| [Integração Supabase — provider atual de PostgreSQL e Auth](../integrations/supabase.md) | dados / identity-access | vigente; provider atual | 2026-09-20 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
 | [Importação de transcrição local](../integrations/transcript-import.md) | sync/consumer + dados/Supabase | fundação de import/receipt implementada em código candidato; ativação negada; adaptação ao lifecycle revisionado obrigatória antes de produção | 2026-09-15 |
-| [Integração Vercel](../integrations/vercel.md) | operations/hosting | production ativa; publicação manual controlada | 2026-09-07 |
+| [Integração Vercel — provider atual de runtime/deploy](../integrations/vercel.md) | integrations/runtime + operations | vigente; provider atual | 2026-09-20 |
 
 ## docs/integrations/r2
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [R2 — documentação detalhada](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-12 |
+| [Media Storage — documentação do provider atual R2](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-20 |
 | [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-11 |
 | [Mídia — autorização compartilhada de staging](../integrations/r2/media-access-contract.md) | integrations/media + operations | decisão aprovada | 2026-09-14 |
-| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-12 |
-| [R2 — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-12 |
+| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-20 |
+| [Media Storage — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-20 |
 | [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-12 |
 | [R2 — variantes e crops](../integrations/r2/variants-and-crops.md) | integrations/media | vigente | 2026-09-12 |
@@ -184,11 +184,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-14 |
-| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-14 |
-| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-14 |
+| [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
+| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-20 |
+| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-20 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
-| [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | concluído — Fases 1–6 implementadas e comprovadas | 2026-09-14 |
+| [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
 | [TDA Companion 0.3.3 — auditoria pesada de confiabilidade, segurança e release](../operations/companion-0.3.3-heavy-audit.md) | local-companion / processing / operations / security | auditoria concluída; 0.3.3 aposentada para certificação; remediação integrada na linha 0.3.4 | 2026-09-13 |
 | [TDA Companion — A-017 integridade dos modelos ASR](../operations/companion-a017-model-integrity.md) | local-companion / processing / operations / security | implementado em candidato; integração condicionada aos gates automáticos e ao aceite físico | 2026-09-14 |
 | [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-09-11 |
@@ -197,14 +197,14 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-11 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
-| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-14 |
+| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-20 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato 0.3.14 em validação; Stable bloqueada até aceite físico real | 2026-09-19 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
-| [R2 e mídia — runbook operacional](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-19 |
-| [Runbook — release, deploy e rollback](../operations/release-runbook.md) | operations/release | vigente | 2026-09-08 |
+| [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-20 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-20 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-19 |
-| [Do ZIP à produção — páginas e mídia com fidelidade](../operations/zip-to-production.md) | frontend / integrations/media / operations | procedimento vigente; execução por entrega, sem importador genérico automático | 2026-09-12 |
+| [Do ZIP à produção — páginas e mídia com fidelidade](../operations/zip-to-production.md) | frontend / integrations/media / operations | procedimento vigente; execução por entrega, sem importador genérico automático | 2026-09-20 |
 
 ## docs/templates
 
@@ -214,4 +214,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-138 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+138 páginas inventariadas, além deste catálogo gerado. 11 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
