@@ -28,6 +28,7 @@ env:
   SUPABASE_PROJECT_REF: dmrqnbdvbkfqzctcerbx
   SUPABASE_CLI_VERSION: 2.117.0
   TDA_MIGRATION_BOUNDARY: 20260906210333
+  R2_ACCOUNT_ID: ef7f15c85d885f090262700e297ec167
   R2_PUBLIC_BUCKET: tda-media-public
   PRODUCTION_ORIGIN: https://dnd.faysk.dev
 
@@ -44,7 +45,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
@@ -163,9 +163,11 @@ jobs:
           fi
 
           if [[ "$MEDIA_PUBLISH_REQUIRED" == "true" ]]; then
-            [[ -n "${R2_ACCOUNT_ID:-}" ]] || { echo "::error::Missing R2_ACCOUNT_ID for media release"; exit 1; }
-            [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_ACCESS_KEY_ID for media release"; exit 1; }
-            [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for media release"; exit 1; }
+            missing=0
+            [[ -n "${R2_ACCOUNT_ID:-}" ]] || { echo "::error::Missing R2_ACCOUNT_ID configuration for media release"; missing=1; }
+            [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_ACCESS_KEY_ID for media release"; missing=1; }
+            [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for media release"; missing=1; }
+            [[ "$missing" == "0" ]] || exit 1
           fi
 
       - name: Install pinned Vercel CLI
