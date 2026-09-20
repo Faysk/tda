@@ -387,6 +387,11 @@ class AgentConnection:
             self._ensure_verified(mutate=mutate)
             return self._request_once(method, path, body, idempotency_key=idempotency_key)
 
+    def ensure_ready(self) -> dict[str, Any]:
+        """Recover the exact Agent if needed without sending an authenticated request."""
+        self._ensure_verified(mutate=False)
+        return self.status()
+
     def get(self, path: str) -> Any:
         return self._request("GET", path)
 
