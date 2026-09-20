@@ -23,6 +23,7 @@ import {
 } from "../world-semantic-zoom";
 import { WorldEntityNode } from "./entity-node";
 import { WorldRelationEdge } from "./relation-edge";
+import { WorldNeighborhoodOverlay } from "./world-neighborhood-overlay";
 import { WorldSemanticZoomProvider } from "./world-semantic-zoom-context";
 import styles from "./world-explorer.module.css";
 
@@ -178,6 +179,7 @@ export function WorldCanvas({
 					);
 				}}
 			>
+				<WorldNeighborhoodOverlay nodes={nodes} />
 				<Controls
 					showInteractive={false}
 					position="bottom-left"
