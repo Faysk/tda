@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-20
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -11,32 +11,35 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
-[Astel e Noah — recebimento e plano de integração](astel-noah-lores.md) — pacotes inventariados, listagem solicitada em `/lore`, rotas e ligações necessárias; integração/publicação pendentes.
+[Astel e Noah — lores standalone publicadas](astel-noah-lores.md) — rotas/listagem integradas; 24 assets públicos verificados na Production de 2026-09-20.
 
 [Fidelidade dos pacotes de D e Seika](lore-pack-fidelity.md) — contrato visual e aceite da restauração das páginas independentes.
 
-[Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
+[Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — core de múltiplos runs imutáveis já integrado; revisão derivada, comparação e publicação revisionada continuam nos slices seguintes.
 
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
 
-Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
+[Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — implementação, QA e publicação em Production concluídos; composição própria não é template obrigatório para outras lores.
 
-Candidato em revisão: [World entity media foundation](world-entity-media-foundation.md) — identidade de asset, upload direto R2 com finalização/read-back, preview privado, vínculo entidade → portrait e publicação verificada; SQL permanece em `supabase/candidates/`.
+[World entity media foundation](world-entity-media-foundation.md) — schema aplicado e código integrado para asset/portrait, upload R2 verificado e binding transacional; rollout permanece fail-closed por feature flag.
 
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
-| Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
+| Edit / revisão e publicação de transcrição | core de runs locais imutáveis integrado; revisão/comparação/publicação cloud pendentes | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
-| World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
-| Pipipi / lore cinematográfica | candidato em branch; não publicado | [Pipipi](pipipi-lore.md) |
-| relations/grafo | arquitetura visual aprovada; schema em desenho | [Relações e grafo](relations-graph.md) |
-| contrato de dados de relations | proposta para revisão; nenhuma DDL aplicada | [Relations data contract](relations-data-contract.md) |
+| World Explorer / Ecos da Jornada | autoria canônica, audience e recuperação durável integradas; projeção pública canônica continua sob gate | [World Explorer](world-explorer.md) |
+| Pipipi / lore cinematográfica | publicada em Production | [Pipipi](pipipi-lore.md) |
+| Astel e Noah / lores standalone | publicadas em Production; mídia 24/24 verificada | [Astel e Noah](astel-noah-lores.md) |
+| diários de personagens | Astel integrado à main e incluído em Production; smoke público específico não registrado | [Diários](character-diaries.md) |
+| mídia de entities do World | schema aplicado + implementação integrada; rollout por feature flag | [World entity media](world-entity-media-foundation.md) |
+| relations/grafo | fundação física + autoria factual + provenance/review integradas; projeção pública sob gate | [Relações e grafo](relations-graph.md) |
+| contrato de dados de relations | fundação física aplicada e fluxo de provenance/review em evolução | [Relations data contract](relations-data-contract.md) |
 | knowledge/audience | em desenho | [Conhecimento e audiência](knowledge-audience.md) |
 | timeline por entity | preparado | [Timeline](entity-timeline.md) |
 | busca semântica | em desenho | [Busca semântica](semantic-search.md) |
