@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-20
 > Registro: append-only; correções devem preservar o evento original e explicar a retificação.
 
 Este arquivo registra publicações deliberadas do TDA. Merge não implica deploy. Cada entrada fixa o SHA de origem, ambiente, evidências de build/health e situação de rollback.
