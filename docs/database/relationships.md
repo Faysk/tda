@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados + domínios
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-20
 
 Este documento explica **o significado das relações**, não apenas FKs. O catálogo físico está em [schema-catalog.md](schema-catalog.md).
 
@@ -192,23 +192,51 @@ external_api_keys
 
 Chave é credencial revogável/rotacionável do client, não identidade de usuário.
 
-## Relações futuras entre entities
+## Relações first-class entre entities
 
-O grafo futuro precisa ser separado de `entity_mentions`.
+O grafo factual já possui schema próprio e permanece separado de `entity_mentions`.
 
-Contrato mínimo a decidir antes de migration:
+```text
+relation_types ───────────────┐
+       │                      │
+       ▼                      ▼
+entity_relations ───> entities(source/target)
+       │
+       └── entity_relation_sources ───> canon_entries
 
-- `source_entity_id`;
-- `target_entity_id`;
-- relation type;
-- direção/simetria;
-- status temporal;
-- visibility/audience;
-- evidence/source;
-- canon/review state;
-- início/fim quando aplicável.
+world_relation_styles ───> relation_types
+```
 
-Exemplos: família, aliança, dívida, conflito, traição. "Conhece" e "sabe segredo" podem exigir semântica de knowledge distinta de relation genérica.
+- `relation_types`: vocabulário por campanha, direção/simetria e família semântica;
+- `entity_relations`: source/target, tipo, status, visibility, revision e overrides editoriais controlados;
+- `entity_relation_sources`: provenance canônica explícita; ausência de source não deve ser inventada;
+- `world_relation_styles`: apresentação visual separada do fato.
+
+Menção/coocorrência continua não sendo relation. Conhecimento, rumor, mentira e segredo continuam conceitos diferentes e podem exigir boundary próprio.
+
+## Publicação e edição do World
+
+```text
+world_graph_heads ── 1:N ──> world_graph_revisions
+        │
+        ├── revision factual atual
+        │
+world_edit_leases ── sessão exclusiva/efêmera
+        │
+world_edit_drafts ── checkpoint durável por editor/token
+
+world_layout_snapshots ── composição visual/versionada
+```
+
+`world_edit_leases` impede writers concorrentes; não substitui persistência. `world_edit_drafts` preserva trabalho recuperável quando a lease expira ou a sessão é interrompida. `world_graph_revisions` é histórico de publicação factual; `world_layout_snapshots` é composição e não altera fatos narrativos.
+
+## Mídia de entities
+
+```text
+entities ──> entity_media_bindings ──> media_assets ──> Media Storage bytes
+```
+
+O vínculo canônico usa asset UUID/role/focal point. PostgreSQL guarda identidade, integridade e estado de publicação; o object storage guarda bytes. URL/provider não é FK lógica permanente.
 
 ## Anti-patterns
 
