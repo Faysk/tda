@@ -25,6 +25,8 @@ export const connectionHelp: Record<BridgeErrorCode, string> = {
 		"O Companion não suporta o contrato exigido por esta tela. Atualize o aplicativo local.",
 	invalid_response:
 		"O serviço retornou dados inválidos para este contrato. Confira sua versão e consulte o suporte com o código invalid_response.",
+	payload_too_large:
+		"A solicitação local excede o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de tentar novamente.",
 	conflict:
 		"O estado local mudou e esta ação não pôde ser aplicada. A conexão continua ativa; atualize a fila e confira o trabalho antes de repetir.",
 	service_error:
