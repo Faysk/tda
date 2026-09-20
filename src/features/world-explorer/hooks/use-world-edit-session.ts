@@ -225,7 +225,7 @@ export function useWorldEditSession({
 			const latestGraph = graphDraftRef.current;
 			const layoutCandidate = buildLayoutCandidate(latestGraph);
 			if (!layoutCandidate) {
-				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				setDraftSaveFailure("layout", worldDraftSaveFailureMessage("invalid_payload"));
 				return;
 			}
 			const sequence = sessionSequence.current;
@@ -436,8 +436,6 @@ export function useWorldEditSession({
 	function completePublishedEdit(message: string) {
 		sessionSequence.current += 1;
 		saveFailureRef.current = { layout: null, graph: null };
-		sessionSequence.current += 1;
-		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		setLeaseToken(null);
 		setLayoutDirty(false);
@@ -592,6 +590,8 @@ export function useWorldEditSession({
 			setFeedback(worldEditFailureMessage(result.reason));
 			return;
 		}
+		sessionSequence.current += 1;
+		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		setLeaseToken(null);
 		setLayoutDirty(false);
