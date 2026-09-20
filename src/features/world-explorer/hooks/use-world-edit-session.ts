@@ -10,6 +10,7 @@ import {
 	saveWorldGraphDraftAction,
 } from "../world-graph-actions";
 import { publishWorldEditLayoutAction } from "../world-edit-actions";
+import { worldPublicationVersionLabel } from "../world-publication";
 import {
 	acquireWorldLayoutSessionAction,
 	discardWorldLayoutSessionAction,
@@ -512,10 +513,17 @@ export function useWorldEditSession({
 				}
 				return;
 			}
+			const publishedVersion =
+				publishResult.graphRevision !== undefined && publishResult.layoutRevision !== undefined
+					? worldPublicationVersionLabel({
+							graphRevision: publishResult.graphRevision,
+							layoutRevision: publishResult.layoutRevision,
+						})
+					: null;
 			completePublishedEdit(
 				publishResult.status === "unchanged"
-					? `Publicação confirmada. Nenhuma alteração nova era necessária · revisão ${publishResult.graphRevision}.`
-					: `Mundo publicado com sucesso · revisão ${publishResult.graphRevision}. Cada pessoa vê somente o que sua visibilidade permite.`,
+					? `Publicação confirmada. Nenhuma alteração nova era necessária${publishedVersion ? ` · ${publishedVersion}` : ""}.`
+					: `Mundo publicado com sucesso${publishedVersion ? ` · ${publishedVersion}` : ""}. Cada pessoa vê somente o que sua visibilidade permite.`,
 			);
 			return;
 		}
