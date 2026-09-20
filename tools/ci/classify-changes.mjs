@@ -8,6 +8,12 @@ const CLASSIFIER_CONTRACT = new Set([
 ]);
 
 const EXACT = {
+	processing: new Set([
+		".github/workflows/ci.yml",
+		"playwright.processing.config.ts",
+		"playwright.processing-integration.config.ts",
+		"tools/processing-ui-fixture.mjs",
+	]),
 	db: new Set([
 		"tools/transcript-sync-db.py",
 		"tools/world-layout-db.py",
@@ -29,6 +35,15 @@ const EXACT = {
 };
 
 const PREFIX = {
+	processing: [
+		"src/features/edit/processing/",
+		"src/app/edit/processamento/",
+		"src/app/api/downloads/companion/",
+		"tests/processing/",
+		"tests/processing-integration/",
+		"tests/processing-fixture/",
+		"local-companion/",
+	],
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
 	media: ["media/", "tools/media/"],
@@ -51,6 +66,7 @@ export function classifyPaths(inputPaths) {
 	const files = [...new Set(inputPaths.map(normalized).filter(Boolean))].sort();
 	const classes = {
 		web: files.length > 0,
+		processing: files.some((path) => matches(path, "processing")),
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
 		media: files.some((path) => matches(path, "media")),
@@ -71,7 +87,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "db", "companion", "media"])
+	for (const key of ["web", "processing", "db", "companion", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -87,6 +103,7 @@ function writeSummary(range, result) {
 			"## Change relevance",
 			`- Range: \`${range}\``,
 			`- web: \`${result.web}\``,
+			`- processing: \`${result.processing}\``,
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
 			`- media: \`${result.media}\``,
