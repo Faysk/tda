@@ -57,6 +57,39 @@ def test_connection_recovers_once_before_retrying_request(monkeypatch):
     assert connection.status()["state"] == "ready"
 
 
+def test_ensure_ready_recovers_without_authenticated_request(monkeypatch):
+    starts = 0
+
+    def start_agent():
+        nonlocal starts
+        starts += 1
+
+    connection = AgentConnection(TOKEN, 8765, start_agent, expected_version="0.3.2")
+
+    def fake_probe(*, timeout=0.5):
+        if starts:
+            probe = AgentProbe("exact", _payload())
+        else:
+            probe = AgentProbe("unavailable", code="AGENT_CONNECTION_REFUSED")
+        connection._record_probe(probe)
+        return probe
+
+    monkeypatch.setattr(connection, "probe", fake_probe)
+    monkeypatch.setattr(
+        connection,
+        "_request_once",
+        lambda *_args, **_kwargs: pytest.fail(
+            "native readiness recovery must not send an authenticated request"
+        ),
+    )
+
+    status = connection.ensure_ready()
+
+    assert starts == 1
+    assert status["state"] == "ready"
+    assert status["service_version"] == "0.3.2"
+
+
 def test_retry_reuses_same_idempotency_key_after_transport_failure(monkeypatch):
     connection = AgentConnection(TOKEN, 8765, lambda: None, expected_version="0.3.2")
 
