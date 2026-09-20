@@ -8,6 +8,17 @@ Cloudflare R2 é o provider atual do **Media Storage** do TDA. O contrato perman
 
 Estes documentos descrevem as garantias de mídia e, quando necessário, os detalhes específicos da implementação atual em R2. Uma futura troca de provider deve preservar as garantias e substituir apenas o edge de storage/configuração.
 
+## Mapa de autoridade
+
+Para evitar contratos concorrentes:
+
+- **ADR-0018** é dona do boundary permanente, portabilidade e política free-first;
+- **este índice + documentos filhos** são donos do contrato detalhado de mídia;
+- **[r2.md](../r2.md)** resume apenas o provider/configuração atual;
+- **[r2-media-runbook.md](../../operations/r2-media-runbook.md)** é dono do procedimento operacional atual;
+- **evidências datadas/deployments** provam operações específicas, nunca redefinem o contrato;
+- **[r2-governance.md](../r2-governance.md)** é somente alias de compatibilidade para links históricos e não possui autoridade independente.
+
 ## Ordem de leitura para qualquer trabalho de mídia
 
 1. [ADR-0018](../../adr/0018-portable-core-github-control-plane.md) — GitHub como control plane, providers substituíveis, Media Storage obrigatório e free-first.
