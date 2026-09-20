@@ -223,7 +223,7 @@ describe("loopback bridge", () => {
 		expect(uploadCount).toBe(2);
 	});
 
-	it("fails as incompatible before requesting a session from Companion 0.3.13", async () => {
+	it("reports the detected and minimum version before requesting a session from Companion 0.3.13", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
 				api_version: "1",
@@ -234,10 +234,55 @@ describe("loopback bridge", () => {
 		const bridge = new LocalBridge(request);
 
 		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
-			code: "incompatible",
+			code: "version_incompatible",
+			details: {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			},
 		});
 		expect(request).toHaveBeenCalledTimes(1);
 		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/health`);
+	});
+
+	it("distinguishes an incompatible API from an old Companion version", async () => {
+		const bridge = new LocalBridge(
+			vi.fn<typeof fetch>().mockResolvedValue(
+				Response.json({
+					api_version: "2",
+					service_version: "0.3.99",
+					lifecycle: "ready",
+				}),
+			),
+		);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "api_incompatible",
+			details: {
+				detectedApiVersion: "2",
+				requiredApiVersion: "1",
+			},
+		});
+	});
+
+	it("distinguishes a missing browser-session contract after compatible health", async () => {
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) =>
+			String(url).endsWith("/health")
+				? Response.json({
+						api_version: "1",
+						service_version: "0.3.14",
+						lifecycle: "ready",
+					})
+				: Response.json({ schema: "legacy_pairing_v1" }),
+		);
+		const bridge = new LocalBridge(request);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "session_incompatible",
+			details: {
+				detectedServiceVersion: "0.3.14",
+				minimumServiceVersion: "0.3.14",
+			},
+		});
 	});
 
 	it("starts and observes Agent-owned profile preparation", async () => {
