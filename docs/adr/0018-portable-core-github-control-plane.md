@@ -3,6 +3,7 @@
 > Status: accepted
 > Data: 2026-09-20
 > Owner: arquitetura / operations
+> Última revisão: 2026-09-20
 > Fonte de verdade: esta decisão, os invariantes de arquitetura e os contratos específicos de cada integração
 
 ## Contexto
