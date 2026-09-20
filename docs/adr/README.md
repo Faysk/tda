@@ -27,7 +27,7 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0009](0009-world-explorer-multihub-layout.md) | accepted | World Explorer abre multi-hub; foco é temporário e dragging é layout local |
 | [0010](0010-world-explorer-editorial-layout-persistence.md) | accepted | layout editorial é snapshot versionado separado de canon/relations e filtrado por audience |
 | [0011](0011-world-explorer-layout-physical-persistence.md) | accepted | snapshot físico fica em storage dedicado, com capability própria, optimistic concurrency e audit atômico |
-| [0012](0012-github-actions-controlled-delivery.md) | accepted | GitHub Actions é o único controlador de entrega; Vercel Git auto-deploy permanece desligado |
+| [0012](0012-github-actions-controlled-delivery.md) | accepted | GitHub Actions continua controlador único; a topologia histórica `Preview -> main` foi substituída pela ADR-0015 |
 | [0013](0013-companion-agent-desktop-asr.md) | accepted | Companion separa Agent/UI, permanece per-user e adota runtime ASR multi-engine para Craig/português |
 | [0014](0014-r2-media-storage-and-publishing.md) | superseded | R2 consolidou o primeiro boundary de mídia; ADR-0018 generaliza para Media Storage substituível |
 | [0015](0015-recovery-oriented-delivery.md) | accepted | entrega web evolui para main-only, Preview por PR, gates proporcionais e rollback como recuperação normal |
