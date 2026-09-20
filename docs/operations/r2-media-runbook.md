@@ -1,23 +1,43 @@
-# R2 e mídia — runbook operacional
+# Media Storage — runbook operacional (provider atual: R2)
 
 > Status: vigente
 > Owner: integrations/media + operations
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 
-Fluxo obrigatório: confirmar identidade/role/audience; validar provenance; escolher o master/fonte de maior fidelidade; calcular SHA-256, MIME, bytes e dimensões; decidir se o consumidor precisa do master, de variante dinâmica ou de derivado físico; validar qualidade/resolução; escolher bucket/key; verificar colisão; fazer upload somente quando autorizado; executar read-back; para mídia pública, validar URL HTTPS anônima e decode; registrar evidência; só então promover referência e validar frontend/social.
+Regra permanente: toda mídia persistida/publicada pertence ao Media Storage; Cloudflare R2 é o provider atual. Fluxo obrigatório: confirmar identidade/role/audience; validar provenance; escolher o master/fonte de maior fidelidade; calcular SHA-256, MIME, bytes e dimensões; decidir se o consumidor precisa do master, de variante dinâmica ou de derivado físico; validar qualidade/resolução; escolher bucket/key; verificar colisão; fazer upload somente quando autorizado; executar read-back; para mídia pública, validar URL HTTPS anônima e decode; registrar evidência; só então promover referência e validar frontend/social.
 
-O [fluxo único de mídia](../integrations/r2/media-pipeline.md) é o contrato dos gates e responsabilidades. A referência é integrada primeiro no candidato e só promovida para produção depois da validação do consumidor. Autorização já dada para o escopo não precisa ser solicitada novamente; não ampliar escopo para apagar arquivos, publicar conteúdo privado ou ativar serviços pagos.
+O [fluxo único de mídia](../integrations/r2/media-pipeline.md) é o contrato dos gates e responsabilidades; [ADR-0018](../adr/0018-portable-core-github-control-plane.md) define o boundary provider-neutral e a política free-first. A referência é integrada primeiro no candidato e só promovida para produção depois da validação do consumidor. Autorização já dada para o escopo não precisa ser solicitada novamente; não ampliar escopo para apagar arquivos, publicar conteúdo privado ou ativar serviços pagos.
 
-## Acesso de contribuidores
+## Boundaries de acesso
 
-Há dois caminhos distintos e eles não devem ser misturados:
+Há três caminhos distintos e eles não devem ser misturados:
 
-- **contribuição normal de mídia/código:** não precisa de credenciais R2. O contribuidor adiciona a fonte em `media/sources/`, mantém o manifesto em `media/manifests/` e executa `pnpm media:validate`/`pnpm check`. A publicação canônica é responsabilidade da Production CD;
-- **operação R2 local/autorizada:** somente quando a tarefa exige leitura/escrita direta no storage. Nesse caso, usar `.env.local` ignorado pelo Git com credencial própria de desenvolvimento/preview e escopo mínimo. Nunca distribuir o par de Production para destravar uma contribuição comum.
+- **contribuição normal:** não recebe credencial de Production. Código, manifest, metadata e tooling são versionados; a publicação canônica é responsabilidade da automação;
+- **operação/CI:** o publisher executado pelo GitHub Actions usa secrets do GitHub Environment `production` com privilégio mínimo para o Media Storage;
+- **runtime:** quando uma feature server-side realmente precisa acessar Media Storage, recebe credencial própria do ambiente/runtime com escopo mínimo. O browser nunca recebe credenciais permanentes.
 
-A Production CD usa o `VERCEL_TOKEN` protegido no GitHub Environment `production` e, somente quando o plano de release exige publicação de mídia, executa o publisher dentro de `vercel env run --environment=production`. Assim, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` são injetados no processo sem serem gravados em arquivo; `R2_PUBLIC_BUCKET` continua fixado no workflow. O publisher canônico só roda quando o plano detecta alteração de mídia e publica os manifests alterados por `tools/ci/publish-production-media.sh`.
+Secrets operacionais esperados para o provider R2 atual:
 
-Para conteúdo versionado, o contribuidor não deve executar `pnpm media:publish` contra Production a partir da máquina local. O fluxo esperado é PR -> CI -> merge -> Production CD -> publicação/read-back -> smoke. Isso mantém os segredos fora da estação do contribuidor e deixa receipt auditável.
+```text
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+```
+
+`R2_PUBLIC_BUCKET=tda-media-public` é configuração não secreta.
+
+O GitHub Actions não deve usar a Vercel como cofre intermediário para a publicação de mídia. `vercel env pull` e `vercel env run` não são o contrato canônico de credenciais R2 da Production CD.
+
+### Estado transitório conhecido
+
+Em 2026-09-20, o `production.yml` ainda não convergiu para esse contrato: ele tenta executar o publisher por `vercel env run`, caminho que falhou nos runs recentes por configuração R2 incompleta. Até a PR de convergência da implementação:
+
+- tratar publicação automática de nova mídia em Production como bloqueada;
+- não declarar asset publicado apenas porque manifest/bytes chegaram à `main`;
+- não contornar a falha publicando manualmente de uma estação de desenvolvimento;
+- preservar manifests, fontes e referências anteriores para retry.
+
+O repositório também ainda contém binários/fontes de mídia de migrações anteriores, inclusive em `media/sources/`. Isso é dívida de migração reconhecida pela ADR-0018. Novas decisões não devem ampliar essa dependência; a retirada será feita de forma deliberada depois que o intake/storage canônico estiver implementado.
 
 O runtime do World/Edit é outro boundary: credenciais permanecem server-only; o browser recebe apenas presigned PUT curto para uma pending key quando autorizado. Staging usa `tda-media-preview` fora de Production e `tda-media-private` em Production antes da promoção pública.
 
@@ -92,9 +112,11 @@ Se o static falhar:
 
 Se ainda não existe master melhor, qualidade tem prioridade sobre tamanho aparente: limitar o CSS ao detalhe natural do raster é preferível a ampliá-lo 2×. A limitação deve ser claramente temporária e removida quando o master hi-res for publicado.
 
-## Publicação R2
+## Publicação pelo Media Storage
 
-Para as imagens históricas de sessão, o tooling existente é `tools/migrate-session-media-r2.mjs`. O modo padrão recupera/valida sem escrever no R2; `--verify-db --check-r2` faz verificações adicionais. Upload real exige autorização explícita e `--upload`.
+A publicação canônica nova usa a Media Pipeline compartilhada. Para o provider atual, o publisher é `tools/ci/publish-production-media.sh` chamando `tools/media/pipeline.mjs publish`.
+
+O tooling `tools/migrate-session-media-r2.mjs` pertence à recuperação histórica de imagens de sessão. Ele não é uploader genérico de novas lores/features. Seu modo padrão recupera/valida sem escrever no R2; `--verify-db --check-r2` faz verificações adicionais e `--upload` continua sendo uma operação explícita do fluxo histórico.
 
 Por objeto, registrar URL, HTTP status, Content-Type, bytes, SHA-256, dimensões, decode e horário, sem credenciais ou dados privados. Para derivados, registrar também master/provenance, role, encoder/parâmetros relevantes e superfície-alvo.
 
