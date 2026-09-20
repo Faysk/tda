@@ -174,6 +174,27 @@ def test_installed_bridge_correlates_maintenance_operation_id(monkeypatch, tmp_p
     assert seen["command"][-3:] == ["--cleanup-self", "--operation-id", operation_id]
     assert seen["command"][1:4] == ["--install-update", "--version", "0.3.3"]
     assert handoffs == [operation_id]
+    assert bridge._agent_watchdog_suspended is True
+
+
+def test_agent_watchdog_tick_delegates_to_verified_connection_and_can_suspend(tmp_path: Path):
+    bridge = _bridge(tmp_path)
+    seen = 0
+
+    def ensure_ready():
+        nonlocal seen
+        seen += 1
+        return {"state": "ready", "service_version": "0.3.14", "pid": 4321}
+
+    bridge.client.ensure_ready = ensure_ready  # type: ignore[method-assign]
+
+    assert bridge.agent_watchdog_tick()["state"] == "ready"
+    assert seen == 1
+
+    bridge.suspend_agent_watchdog()
+
+    assert bridge.agent_watchdog_tick() == {"state": "suspended"}
+    assert seen == 1
 
 
 def test_staged_maintenance_helper_lives_outside_tda_root(monkeypatch, tmp_path: Path):
