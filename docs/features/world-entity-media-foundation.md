@@ -38,7 +38,7 @@ Upload direto temporário:
 
 O `sha256` da chave canônica torna o objeto imutável e permite read-back/integrity checks. O banco guarda a object key e o asset UUID; consumidores públicos não persistem a URL como identidade. O namespace `uploads/pending/` não é identidade de asset e deve possuir retenção curta separada dos namespaces canônicos.
 
-## Modelo candidato
+## Modelo físico aplicado
 
 `media_assets` contém identidade, campaign, role hint, bucket de staging, object key, hash, MIME, bytes, dimensões e estado de verificação/publicação.
 
@@ -46,7 +46,7 @@ O `sha256` da chave canônica torna o objeto imutável e permite read-back/integ
 
 O vínculo da entidade é protegido também no banco por FK composta `(campaign_id, entity_id) -> entities(campaign_id, id)`. O `id` de entidade já é globalmente único; a constraint composta redundante existe para tornar o isolamento entre campanhas uma invariável relacional, sem depender apenas de checagens da aplicação.
 
-O SQL correspondente vive em `supabase/candidates/` até autorização explícita para migration remota.
+O SQL versionado está em `supabase/migrations/20260912214500_world_entity_media_foundation_v2.sql` e foi aplicado no Supabase canônico como `20260912214500 world_entity_media_foundation_v2`. O comentário histórico `CANDIDATE ONLY` preservado no arquivo descreve o estado pré-aplicação e **não deve ser corrigido editando uma migration já aplicada**.
 
 ## Segurança
 
@@ -90,16 +90,16 @@ A hidratação adiciona intenção de mídia somente quando já existe binding p
 2. O draft continua privado e recuperável enquanto a lease existir.
 3. Antes de consumir a lease, o servidor valida todos os assets pedidos pelo draft. Para entidade `public_web`, promove o objeto imutável para `tda-media-public` e confirma read-back + entrega pública.
 4. Se promoção/verificação falhar, a publicação é bloqueada como `media_pending`; graph/layout e bindings não são publicados e a lease/draft permanece disponível para retry.
-5. Com a mídia pronta, o wrapper SQL candidato `publish_world_edit_state_with_media_atomic(...)` valida o mesmo draft/lease, exige que os bindings recebidos correspondam à intenção salva nessa lease, chama a publicação factual/layout existente e aplica `entity_media_bindings` dentro da mesma transação PostgreSQL.
+5. Com a mídia pronta, o wrapper SQL aplicado `publish_world_edit_state_with_media_atomic(...)` valida o mesmo draft/lease, exige que os bindings recebidos correspondam à intenção salva nessa lease, chama a publicação factual/layout existente e aplica `entity_media_bindings` dentro da mesma transação PostgreSQL.
 6. Qualquer falha SQL depois da chamada factual reverte também graph/layout, evitando estado factual publicado com binding de mídia parcialmente aplicado.
 7. Bindings de entidades não públicas podem continuar apontando para assets verificados em staging privado; URL pública só é projetada para assets explicitamente `verified_public`.
 8. No boundary da aplicação, uma publicação exclusivamente de mídia é reportada como `saved` mesmo quando graph/layout retornam `unchanged`, evitando feedback enganoso de “nada para publicar”.
 
 ## Validação e ativação controlada
 
-O gate padrão antes da ativação é o PostgreSQL 16 efêmero da CI, que executa o contrato SQL candidato e os testes sintéticos sem tocar no Supabase remoto. **Não é requisito manter um projeto ou uma development branch Supabase dedicada de homologação para esta fase.** Infraestrutura isolada adicional só deve ser criada se surgir um risco específico que não possa ser validado de forma razoável pela CI e por smoke controlado, e sempre como decisão explícita de custo/operação.
+O gate de regressão usa PostgreSQL 16 efêmero na CI, reaplica a migration versionada e executa testes sintéticos sem tocar no Supabase remoto. **Não é requisito manter um projeto ou uma development branch Supabase dedicada de homologação para esta fase.** Infraestrutura isolada adicional só deve ser criada se surgir um risco específico que não possa ser validado de forma razoável pela CI e por smoke controlado, e sempre como decisão explícita de custo/operação.
 
-`TDA_WORLD_ENTITY_MEDIA_ENABLED` permanece `false` até uma decisão explícita de rollout. Quando a feature estiver pronta para ativação, o candidato deve seguir o procedimento normal do ambiente alvo: revisar migration/history e dry-run, configurar o storage necessário, habilitar a flag de forma controlada e executar um smoke pequeno com poucas entidades antes de ampliar o uso. Production não deve ser usado como ambiente de experimentação; qualquer mutação nela continua sujeita aos gates normais de release.
+`TDA_WORLD_ENTITY_MEDIA_ENABLED` continua sendo gate fail-closed de rollout. Schema e código integrados não equivalem a feature ativada: antes de habilitar no ambiente alvo, confirmar storage/CORS/lifecycle/runtime credentials, habilitar a flag de forma controlada e executar smoke pequeno com poucas entidades antes de ampliar o uso. Production não deve ser usado como ambiente de experimentação; qualquer mutação nela continua sujeita aos gates normais de release.
 
 Para o bucket de Preview, o contrato operacional gerenciado pelo repo é:
 
@@ -115,9 +115,9 @@ Para o bucket de Preview, o contrato operacional gerenciado pelo repo é:
 
 A origem CORS deve ser obtida do deployment real que será testado, porque o Preview CD atual gera URL `*.vercel.app` sem alias estável garantido. Trocar deployment exige revisar a origem antes de esperar que um presigned PUT funcione no browser.
 
-## Validação automatizada do candidato
+## Validação automatizada do contrato
 
-A CI executa `tools/world-entity-media-db.py` em um PostgreSQL 16 efêmero, acessível apenas por Unix socket, sem TCP e sem herdar credenciais `PG*`. O runner reaplica a fixture/migrations e os contratos sintéticos canônicos do World antes de executar o SQL em `supabase/candidates/`; ele não se conecta ao Supabase e não promove migration.
+A CI executa `tools/world-entity-media-db.py` em um PostgreSQL 16 efêmero, acessível apenas por Unix socket, sem TCP e sem herdar credenciais `PG*`. O runner reaplica a fixture/migrations e os contratos sintéticos canônicos do World, incluindo `supabase/migrations/20260912214500_world_entity_media_foundation_v2.sql`; ele não se conecta ao Supabase nem promove migration.
 
 O contrato sintético cobre RLS deny-by-default, ausência de grants para `anon`/`authenticated`, isolamento de campaign pela FK composta, rejeição de binding que não corresponda ao draft da lease, bloqueio `media_not_verified` sem consumir o rascunho e publicação atômica do portrait depois de o asset sintético estar marcado como verificado. O job existente de `world-layout-db` continua rodando separadamente para provar que o candidato não substitui os guardrails de layout/graph.
 
