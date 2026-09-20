@@ -109,11 +109,18 @@ export function WorldCanvas({
 	useEffect(() => {
 		if (lastCameraScopeKey.current === cameraScopeKey) return;
 		lastCameraScopeKey.current = cameraScopeKey;
-		if (!flowInstance.current || nodes.length === 0) return;
+		if (!flowInstance.current) return;
 
+		// Scope changes arrive before the controlled React Flow node state is
+		// reconciled in the parent. Read the instance at execution time instead
+		// of closing over the previous node array, otherwise search/filter could
+		// "refit" to the graph that was visible one render ago.
 		const timer = window.setTimeout(() => {
-			void flowInstance.current?.fitView({
-				nodes: nodes.map((node) => ({ id: node.id })),
+			const instance = flowInstance.current;
+			const currentNodes = instance?.getNodes() ?? [];
+			if (!instance || currentNodes.length === 0) return;
+			void instance.fitView({
+				nodes: currentNodes.map((node) => ({ id: node.id })),
 				padding: 0.22,
 				minZoom: WORLD_CANVAS_MIN_ZOOM,
 				maxZoom: 1.05,
@@ -121,7 +128,7 @@ export function WorldCanvas({
 			});
 		}, 120);
 		return () => window.clearTimeout(timer);
-	}, [cameraScopeKey, nodes]);
+	}, [cameraScopeKey]);
 
 	return (
 		<div
