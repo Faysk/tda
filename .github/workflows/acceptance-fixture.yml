@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - "tools/acceptance/run-recovery-candidate-018e1095.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
 permissions:
@@ -27,17 +29,40 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $path = Resolve-Path "tools/acceptance/generate-physical-acceptance-fixture.ps1"
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            $path,
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($relative in @(
+            "tools/acceptance/generate-physical-acceptance-fixture.ps1",
+            "tools/acceptance/run-recovery-candidate-018e1095.ps1"
+          )) {
+            $path = Resolve-Path $relative
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$relative :: $($_.Message)" }
+              exit 1
+            }
+          }
+      - name: Verify recovery launcher is pinned and transcript-free
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $value = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-018e1095.ps1" -Raw
+          foreach ($required in @(
+            'companion-rc-v0.3.14-018e109530ba',
+            '018e109530ba2306bfb686ade182fbd93156604a',
+            '87de762282f3626944d96bb49d8253692b64c3fa0c2db3c26482b30c93858ffa',
+            '6b7c1476adc3142f5532fae4bd6a95aef935a18d4bd3b207ed4027f28ed80d62',
+            '1613c822fa5d173b66c38fff590329e181a897e4b1664e2329bf4874364d15fe'
+          )) {
+            if (-not $value.Contains($required)) { throw "RECOVERY_LAUNCHER_IDENTITY_MISSING" }
+          }
+          if ($value -match '(?i)-WriteTranscripts') { throw "RECOVERY_LAUNCHER_TRANSCRIPT_MODE_FORBIDDEN" }
+          if ($value -match '(?i)companion-rc-v0\.3\.14-(?!018e109530ba)[a-f0-9]{12}') {
+            throw "RECOVERY_LAUNCHER_MULTIPLE_RC_FORBIDDEN"
           }
       - name: Generate synthetic speech and Craig fixture
         shell: powershell
