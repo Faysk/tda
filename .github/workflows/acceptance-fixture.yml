@@ -131,7 +131,7 @@ jobs:
           }
           function Invoke-Msi([string[]]$Args, [string]$Code) {
             $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $Args -Wait -PassThru
-            if ([int]$p.ExitCode -notin @(0, 3010)) { throw "$Code:$($p.ExitCode)" }
+            if ([int]$p.ExitCode -notin @(0, 3010)) { throw "$($Code):$($p.ExitCode)" }
           }
 
           Download-Checked "https://github.com/Faysk/tda/releases/download/$oldTag/TDACompanion-x64.msi" $oldMsi $oldMsiSha
@@ -143,84 +143,7 @@ jobs:
           $before = Get-ItemProperty -LiteralPath $productKey -ErrorAction Stop
           if ([string]$before.Version -ne "0.3.14") { throw "OLD_RC_VERSION_INVALID" }
           $productCode = [string]$before.ProductCode
-          if ($productCode -notmatch '^\{[0-9A-Fa-f-]{36}\}        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-            "tools/acceptance/generate-physical-acceptance-fixture.ps1" `
-            -OutputRoot $output `
-            -TargetSeconds 80
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify generated fixture contract
-        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-          Add-Type -AssemblyName System.IO.Compression
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-
-          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
-          $audio = Join-Path $output "tda-physical-acceptance-synthetic.wav"
-          $craig = Join-Path $output "tda-installed-acceptance-craig.zip"
-          $metadata = Join-Path $output "fixture.json"
-          foreach ($path in @($audio, $craig, $metadata)) {
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-              throw "FIXTURE_OUTPUT_MISSING"
-            }
-          }
-
-          $value = Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
-          if ([string]$value.schema -ne "tda_physical_acceptance_fixture_v1") {
-            throw "FIXTURE_SCHEMA_INVALID"
-          }
-          if ($value.synthetic -ne $true) { throw "FIXTURE_SYNTHETIC_PROOF_INVALID" }
-          $duration = [double]$value.audio.duration_seconds
-          if ($duration -lt 65 -or $duration -gt 180) {
-            throw "FIXTURE_DURATION_INVALID"
-          }
-
-          $header = [IO.File]::ReadAllBytes($audio)
-          if ($header.Length -lt 12) { throw "FIXTURE_WAV_TOO_SMALL" }
-          if ([Text.Encoding]::ASCII.GetString($header, 0, 4) -ne "RIFF") {
-            throw "FIXTURE_WAV_RIFF_INVALID"
-          }
-          if ([Text.Encoding]::ASCII.GetString($header, 8, 4) -ne "WAVE") {
-            throw "FIXTURE_WAV_WAVE_INVALID"
-          }
-
-          $zip = [IO.Compression.ZipFile]::OpenRead($craig)
-          try {
-            if ($zip.Entries.Count -ne 1) { throw "FIXTURE_CRAIG_ENTRY_COUNT_INVALID" }
-            $entry = $zip.Entries[0]
-            if ($entry.FullName -ne "1-Synthetic.flac" -or $entry.Length -le 0) {
-              throw "FIXTURE_CRAIG_TRACK_INVALID"
-            }
-            $stream = $entry.Open()
-            try {
-              $memory = [IO.MemoryStream]::new()
-              try {
-                $stream.CopyTo($memory)
-                $bytes = $memory.ToArray()
-              } finally {
-                $memory.Dispose()
-              }
-            } finally {
-              $stream.Dispose()
-            }
-            $hasher = [Security.Cryptography.SHA256]::Create()
-            try {
-              $digest = $hasher.ComputeHash($bytes)
-            } finally {
-              $hasher.Dispose()
-            }
-            $sha = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
-            if ($sha -ne "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1") {
-              throw "FIXTURE_CRAIG_FLAC_HASH_INVALID"
-            }
-          } finally {
-            $zip.Dispose()
-          }
-) { throw "OLD_RC_PRODUCT_CODE_INVALID" }
+          if ($productCode -notmatch '^\{[0-9A-Fa-f-]{36}\}$') { throw "OLD_RC_PRODUCT_CODE_INVALID" }
 
           Invoke-Msi @("/x", $productCode, "/qn", "/norestart") "OLD_RC_UNINSTALL_FAILED"
           Invoke-Msi @("/i", ('"{0}"' -f $newMsi), "/qn", "/norestart") "NEW_RC_INSTALL_FAILED"
