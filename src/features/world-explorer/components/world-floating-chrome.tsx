@@ -8,7 +8,7 @@ import type {
 	WorldRelationFilter,
 	WorldRelationTypeDTO,
 } from "../model";
-import { worldPublicationVersionLabel } from "../world-publication-repository";
+import { worldPublicationVersionLabel } from "../world-publication";
 import chrome from "./world-floating-chrome.module.css";
 import styles from "./world-explorer.module.css";
 
