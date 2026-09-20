@@ -110,9 +110,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-15 |
-| [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
-| [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-20 |
+| [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | publicado em Production; rotas e 24 assets públicos verificados em 2026-09-20 | 2026-09-20 |
+| [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | integrado à main e incluído em Production; smoke público específico do diário ainda não registrado | 2026-09-20 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
 | [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | especificação aceita para implementação; estabilização R1–R4 em andamento | 2026-09-19 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
@@ -136,7 +136,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | fundação física aplicada; provenance/review e vocabulário factual continuam em evolução | 2026-09-19 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | fundação física e autoria factual implementadas; provenance/review integrado ao fluxo editorial; dataset público real ainda depende de curadoria e ativação deliberada | 2026-09-16 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
-| [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | arquitetura aprovada; implementação pendente | 2026-09-15 |
+| [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | implementação incremental; core de runs locais imutáveis integrado, revisão/comparação/publicação revisionada pendentes | 2026-09-20 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
 | [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | schema aplicado e implementação integrada; rollout da mídia de entities permanece fail-closed por feature flag | 2026-09-20 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | multi-hub, autoria canônica, audience de campanha e recuperação durável em implementação integrada | 2026-09-20 |
