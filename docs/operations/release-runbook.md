@@ -188,8 +188,14 @@ Restaurar referência anterior quando necessário. Objetos imutáveis podem perm
 - staged smoke diverge da identidade esperada;
 - documentação vigente contradiz o comportamento que está sendo promovido.
 
-## Drift atual de Media Storage
+## Estado atual de Media Storage
 
-Em 2026-09-20 a publicação automática de mídia ainda precisa convergir para ADR-0018: secrets R2 devem vir do GitHub Environment e publicação pendente deve ser acumulativa desde o baseline.
+A convergência de CI/CD foi concluída e comprovada em 2026-09-20:
 
-Enquanto esse drift existir, não usar bypass manual para concluir release com mídia nova.
+- publisher público usa secrets do GitHub Environment `production`;
+- mídia pendente é acumulada desde o baseline realmente publicado;
+- retry é idempotente por object key imutável;
+- receipt registra `assets/published/reused/verified`;
+- Vercel não participa como cofre intermediário de R2.
+
+A dívida restante não é mais o lifecycle da Production CD; é a presença de bytes de mídia no Git e a Media Pipeline v1 ainda depender de `media/sources/`. Ver [inventário da dívida de mídia](../integrations/media-git-debt-2026-09-20.md).
