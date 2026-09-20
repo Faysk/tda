@@ -158,7 +158,7 @@ function Assert-PhysicalReceipt([object]$Value) {
 
 Require-Windows
 $pwshPath = Require-PowerShell7
-Write-Host "PowerShell runtime: $($PSVersionTable.PSVersion) — $pwshPath" -ForegroundColor Green
+Write-Host "PowerShell runtime: $($PSVersionTable.PSVersion) - $pwshPath" -ForegroundColor Green
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $generator = Join-Path $PSScriptRoot "generate-physical-acceptance-fixture.ps1"
@@ -213,7 +213,7 @@ if (
 
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
-Write-Host "PHASE 1/2 — Installed Windows acceptance" -ForegroundColor Cyan
+Write-Host "PHASE 1/2 - Installed Windows acceptance" -ForegroundColor Cyan
 Write-Host "This phase is intentionally interactive: it measures lifecycle, BITS resume, tray, diagnostics and Craig recovery."
 & $pwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installedScript `
     -CandidateMsi $msiPath `
@@ -234,7 +234,7 @@ Write-Host "Preparing ASR profiles for the physical suite..." -ForegroundColor C
 Require-AllProfilesReady $Port
 
 Write-Host ""
-Write-Host "PHASE 2/2 — Physical ASR/GPU acceptance" -ForegroundColor Cyan
+Write-Host "PHASE 2/2 - Physical ASR/GPU acceptance" -ForegroundColor Cyan
 & $pwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $physicalScript `
     -Audio $audioPath `
     -CandidateManifest $candidatePath `
