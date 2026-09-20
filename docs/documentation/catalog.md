@@ -100,7 +100,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Domínios do TDA](../domains/README.md) | produto/arquitetura | vigente | 2026-09-06 |
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | schema implementado; operação integrada ainda preparada/planejada | 2026-09-08 |
-| [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
+| [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | vigente; registry e relations first-class implementadas | 2026-09-20 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-07 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
@@ -138,7 +138,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
 | [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | arquitetura aprovada; implementação pendente | 2026-09-15 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
-| [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | implementação candidata; schema remoto não aplicado | 2026-09-13 |
+| [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | schema aplicado e implementação integrada; rollout da mídia de entities permanece fail-closed por feature flag | 2026-09-20 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | multi-hub, autoria canônica, audience de campanha e recuperação durável em implementação integrada | 2026-09-20 |
 
 ## docs/integrations
