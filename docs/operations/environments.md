@@ -146,15 +146,11 @@ Um asset histórico **já pertencente a uma Production comprovada** não deve bl
 
 Um manifest que entrou depois do SHA atual de Production e cuja publicação falhou **não é histórico irrelevante**: continua pendente até ser publicado/verificado ou removido por decisão explícita.
 
-### Drift conhecido
+### Implementação
 
-O planner/workflow atual ainda não implementa integralmente essa regra e o publisher atual ainda tenta usar `vercel env run` para R2. Isso é dívida operacional registrada, não comportamento desejado.
+O planner avalia manifests no intervalo ainda não publicado, e o publisher recebe as credenciais R2 diretamente do GitHub Environment `production`.
 
-Até a convergência:
-
-- release com mídia nova pode falhar antes do promote;
-- não contornar manualmente;
-- não declarar mídia publicada sem receipt/read-back/GET público.
+Se os secrets administrativos estiverem ausentes, a release falha cedo no gate de credenciais. Manifest em Git continua não sendo prova de publicação; receipt/read-back/GET público permanecem obrigatórios.
 
 ## Identidade de release
 

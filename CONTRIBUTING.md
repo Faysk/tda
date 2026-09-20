@@ -77,15 +77,9 @@ branch -> PR -> CI -> merge main -> Production CD
 
 Para o provider atual, o publisher é `tools/ci/publish-production-media.sh`, usando `tools/media/pipeline.mjs`.
 
-### Drift atual
+A automação de Production usa o intervalo ainda não publicado e GitHub Environment `production` para os secrets do provider atual. Não existe publisher especial por lore.
 
-Em 2026-09-20 a automação de mídia ainda precisa convergir para ADR-0018. O workflow integrado ainda tenta obter R2 via Vercel e o planner ainda pode esquecer manifest de uma release de mídia falha.
-
-Até a correção:
-
-- não fazer bypass manual;
-- não tratar manifest em `main` como prova de publicação;
-- usar o [runbook de Media Storage](docs/operations/r2-media-runbook.md) e [CI/CD](docs/operations/ci-cd.md).
+Não tratar manifest em `main` como prova de publicação; o [runbook de Media Storage](docs/operations/r2-media-runbook.md) e [CI/CD](docs/operations/ci-cd.md) definem os receipts necessários.
 
 ## Documentação
 

@@ -8,7 +8,7 @@ export function planProductionPaths(releasePaths, currentPaths = releasePaths) {
 	const migrations = accumulated.files.some(
 		(path) => path.startsWith("supabase/migrations/") && path.endsWith(".sql"),
 	);
-	const mediaPublish = current.files.some(
+	const mediaPublish = accumulated.files.some(
 		(path) => path.startsWith("media/manifests/") && path.endsWith(".json"),
 	);
 	return {
