@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-20
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -31,7 +31,9 @@ Estados:
 | Facções | preparado | `entities(type=faction)` |
 | Arcos | preparado | `entities(type=arc)` |
 | Conceitos/lore | preparado | `entities(type=concept)` + canon revisado |
-| Lore editorial Pipipi | publicada em production | rota dedicada `/lore/pipipi`, texto editorial versionado, cinematic progressivo e QA concluído; publicação observada em 2026-09-11 sem criar entity/canon por conveniência |
+| Lore editorial Pipipi | publicada em production; mídia local em migração | rota dedicada `/lore/pipipi`; experiência publicada, mas AVIFs locais em `public/lore/pipipi` são dívida da ADR-0018 |
+| Lores Astel / Noah | publicadas e verificadas | `/lore/astel` e `/lore/noah`; 24 assets públicos verificados no R2 em 2026-09-20; sources locais permanecem dívida da Media Pipeline v1 |
+| Diário de Astel | integrado na main / artefato de Production | `/diario/astel`; conteúdo e gerador versionados; favicon local ainda é dívida de Media Storage; smoke dedicado da rota não registrado nesta spec |
 | Músicas/performances | preparado | `entities(type=song)`; performances específicas continuam em desenho |
 | Quests/ganchos | preparado | `entities(type=quest)`; estados narrativos precisam ser definidos quando a feature entrar |
 | Menções de entidades | implementado no schema | `entity_mentions` liga entity a sessão/segmento/evento; tabela ainda vazia |
