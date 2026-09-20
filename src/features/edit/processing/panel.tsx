@@ -6,8 +6,8 @@ import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import {
-	connectionHelp,
 	jobLabels,
+	presentConnectionError,
 	presentJobError,
 	presentJobEvent,
 	presentJobTitle,
@@ -279,9 +279,13 @@ export function ProcessingPanel() {
 			]
 		: state.connection === "connecting"
 			? "Conectando"
-			: state.error === "incompatible"
-				? "Versão incompatível"
-				: "Serviço desconectado";
+			: state.error === "version_incompatible"
+				? "Atualização necessária"
+				: state.error === "api_incompatible"
+					? "API incompatível"
+					: state.error === "session_incompatible" || state.error === "incompatible"
+						? "Companion incompatível"
+						: "Serviço desconectado";
 	const running = state.jobs.filter((job) => job.status === "running");
 	const queued = state.jobs
 		.filter((job) => job.status === "queued")
@@ -431,7 +435,7 @@ export function ProcessingPanel() {
 					<p className={styles.connectionError} role="alert">
 						{state.serverError
 							? presentJobError(state.serverError)
-							: connectionHelp[state.error]}{" "}
+							: presentConnectionError(state.error, state.errorDetails)}{" "}
 						<small>Código: {state.serverError ?? state.error}</small>
 					</p>
 				) : null}
