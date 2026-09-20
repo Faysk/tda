@@ -1,11 +1,15 @@
 # Inventário de mídia — 2026-09-07
 
-> Status: auditoria observada
+> Status: histórico — snapshot de 2026-09-07; não usar como política atual
 > Owner: integrations/media
 > Data da observação: 2026-09-07
 > Escopo: reboot `Faysk/tda`, sessões publicadas de `yuhara-main`, Brand Pack documentado e Supabase Storage relacionado
 
-Este documento é uma **fotografia operacional**, não a fonte canônica do estado dinâmico. O banco e os buckets reais continuam sendo a fonte operacional; a política de armazenamento está em [Cloudflare R2](r2.md).
+Este documento é uma **fotografia operacional de 2026-09-07**, não a fonte do estado atual.
+
+> **Superseded:** colunas como “Destino: manter no Git” refletem a decisão daquele dia e foram substituídas pela ADR-0018. Hoje **toda mídia persistida/publicada pertence ao Media Storage**, inclusive brand/favicons/SVGs. Não copiar decisões deste snapshot para trabalho novo.
+
+Estado atual: [Media Storage / R2](r2.md) e [Dívida de mídia ainda versionada no Git — 2026-09-20](media-git-debt-2026-09-20.md).
 
 ## Resumo executivo
 
