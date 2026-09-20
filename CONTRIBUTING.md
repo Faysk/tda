@@ -19,20 +19,24 @@ Copie `.env.example` para `.env.local` apenas quando a tarefa precisar de integr
 
 Contribuição comum não recebe credenciais de Production.
 
-O contrato é:
+O contrato arquitetural é:
 
-1. preservar a fonte aprovada;
+1. preservar a fonte aprovada no Media Storage adequado ao seu audience/estado;
 2. registrar identidade/role/audience;
-3. registrar SHA-256, MIME, bytes e dimensões;
+3. registrar SHA-256, MIME, bytes, dimensões e provenance no Git;
 4. manter/atualizar o manifest canônico;
-5. executar `pnpm media:validate` e `pnpm check`;
-6. deixar a publicação remota para a automação autorizada.
+5. executar os checks compatíveis com o fluxo;
+6. deixar publicação/promote remotos para a automação autorizada.
+
+**Nova mídia não deve ser adicionada ao Git como byte de storage.**
 
 ### Estado transitório do repositório
 
-O repo ainda contém fontes/binários históricos em `media/sources/` e outras áreas porque a Media Pipeline anterior dependia deles.
+O repo ainda contém fontes/binários históricos em `media/sources/`, `public/lore/`, `public/brand/` e outras áreas. O inventário corrente está em [Dívida de mídia ainda versionada no Git](docs/integrations/media-git-debt-2026-09-20.md).
 
-Isso é dívida de migração, não padrão para nova arquitetura. Não introduzir novo storage de mídia no Git por conveniência sem decisão explícita e plano de convergência para Media Storage.
+A Media Pipeline v1 ainda exige `asset.source` dentro de `media/sources/`; isso é **limitação técnica conhecida**, não autorização para continuar adicionando mídia ao repositório.
+
+Para nova mídia, não contornar essa limitação com commit de bytes. Corrigir/estender o intake para private/preview R2 primeiro, ou executar uma operação R2 explicitamente autorizada e documentada. Git mantém manifest/hash/metadata, não a fonte binária.
 
 ## Credenciais locais
 
