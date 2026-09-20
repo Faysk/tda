@@ -116,6 +116,7 @@ class AgentController:
                 browser_sessions=api.state.browser_sessions,
                 source_gate=api.state.source_gate,
                 source_running=api.state.source_in_use,
+                run_visible=api.state.transcription_run_visible,
             )
             config = uvicorn.Config(
                 app,
