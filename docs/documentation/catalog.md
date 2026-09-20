@@ -116,10 +116,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
 | [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | especificação aceita para implementação; estabilização R1–R4 em andamento | 2026-09-19 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
-| [Edit — consulta de permissões](../features/edit-permissions.md) | identity/access + Edit | implementação candidata, somente leitura | 2026-09-07 |
-| [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado | 2026-09-15 |
-| [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md) | Edit / aplicação + segurança | compatibilidade temporária de desenvolvimento | 2026-09-07 |
-| [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
+| [Edit — consulta de permissões](../features/edit-permissions.md) | identity/access + Edit | implementado e publicado em Production; consulta somente leitura, sem grant/revoke | 2026-09-20 |
+| [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura e mutation canônicas integradas; persistence atômica com revision/audit aplicada; bypass unsafe permanece compatibilidade separada | 2026-09-20 |
+| [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md) | Edit / aplicação + segurança | compatibilidade deprecated; caminho canônico ativo, remoção do bypass pendente | 2026-09-20 |
+| [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | implementação incremental integrada; transcript canônico e módulos administrativos ativos, expansão por domínio continua | 2026-09-20 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-20 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | vigente; decisão editorial aplicada em múltiplas lores, sem impor template visual único | 2026-09-20 |
@@ -137,7 +137,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | fundação física e autoria factual implementadas; provenance/review integrado ao fluxo editorial; dataset público real ainda depende de curadoria e ativação deliberada | 2026-09-16 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
 | [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | implementação incremental; core de runs locais imutáveis integrado, revisão/comparação/publicação revisionada pendentes | 2026-09-20 |
-| [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementação candidata em branch; não publicada | 2026-09-07 |
+| [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | implementado e publicado em Production; leitura privada por capability | 2026-09-20 |
 | [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | schema aplicado e implementação integrada; rollout da mídia de entities permanece fail-closed por feature flag | 2026-09-20 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | multi-hub, autoria canônica, audience de campanha e recuperação durável em implementação integrada | 2026-09-20 |
 
