@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-20
 
 ## Prioridade editorial e integridade — decisão de 2026-09-12
 
