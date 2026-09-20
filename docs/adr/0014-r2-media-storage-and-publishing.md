@@ -1,8 +1,9 @@
 # ADR-0014 — R2 como boundary de mídia publicada
 
-- Status: superseded by ADR-0018
-- Data: 2026-09-14
-- Owner: architecture / integrations-media / operations
+> Status: superseded
+> Data: 2026-09-14
+> Owner: architecture / integrations-media / operations
+> Última revisão: 2026-09-20
 
 > Substituída em 2026-09-20 por [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](0018-portable-core-github-control-plane.md).
 >
