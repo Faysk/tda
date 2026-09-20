@@ -102,6 +102,28 @@ describe("processing state", () => {
 		controller.disconnect();
 	});
 
+	it("preserves version compatibility details for actionable UI diagnosis", async () => {
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({
+				api_version: "1",
+				service_version: "0.3.13",
+				lifecycle: "ready",
+			}),
+		);
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect();
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "error",
+			error: "version_incompatible",
+			errorDetails: {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			},
+		});
+	});
+
 	it("connects automatically when the Companion is already open", async () => {
 		const sessionToken = "browser_session_token_123456789012345678901234";
 		const autoSessionHealth = { ...health, service_version: "0.3.14" };
