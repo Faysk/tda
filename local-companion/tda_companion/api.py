@@ -20,7 +20,11 @@ from .asr_runtime import (
     inspect_whisper_runtime,
     recover_interrupted_whisper_runtime_install,
 )
-from .attempt_fence import AttemptFenceError, claim_attempt_outcome
+from .attempt_fence import (
+    AttemptFenceError,
+    claim_attempt_outcome,
+    read_attempt_outcome,
+)
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_ingest import (
@@ -281,6 +285,38 @@ def create_app(
                 )
             except AttemptFenceError as exc:
                 raise Conflict(str(exc)) from None
+
+    def transcription_run_visible(
+        package_root: Path,
+        summary: dict[str, object],
+    ) -> bool:
+        job_id = summary.get("job_id")
+        attempt = summary.get("attempt")
+        if not isinstance(job_id, str) or isinstance(attempt, bool) or not isinstance(attempt, int):
+            # Legacy imported transcripts have no queue identity and remain visible.
+            return True
+        try:
+            decision = read_attempt_outcome(package_root, job_id, attempt)
+        except AttemptFenceError:
+            # A corrupt arbitration marker must never make a run more visible.
+            return False
+        if decision == "cancel":
+            return False
+        try:
+            state = store.get(job_id)
+        except KeyError:
+            # Job cleanup must not erase a previously committed immutable run.
+            return decision != "cancel"
+        current_attempt = state.get("attempt")
+        if isinstance(current_attempt, bool) or not isinstance(current_attempt, int):
+            return False
+        if attempt < current_attempt:
+            # Historical attempts remain immutable. A cancelled historical attempt
+            # is already excluded above by its durable cancel fence.
+            return True
+        if attempt > current_attempt:
+            return False
+        return state.get("status") == "succeeded"
 
     def source_in_use(source_id: str) -> bool:
         # Queue status changes to cancelled before the isolated worker necessarily
@@ -967,6 +1003,7 @@ def create_app(
     app.state.worker_wake = worker_wake
     app.state.source_gate = source_gate
     app.state.source_in_use = source_in_use
+    app.state.transcription_run_visible = transcription_run_visible
     app.state.data_root = data_root
     app.state.models_root = resolved_models_root
     app.state.state_root = resolved_state_root
