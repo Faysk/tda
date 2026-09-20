@@ -32,7 +32,10 @@ function messageFor(code: string): string {
 		timeout: "A operação local excedeu o tempo esperado. Confira a fila antes de repetir.",
 		unreachable: "Não foi possível alcançar o Companion local.",
 		invalid_response: "O Companion respondeu com um contrato inválido.",
-		incompatible: "A versão do Companion não suporta este fluxo. Atualize o aplicativo local.",
+		api_incompatible: "A API do Companion não suporta este fluxo. Atualize o aplicativo local.",
+		version_incompatible: "A versão do Companion é antiga demais para este fluxo. Atualize o aplicativo local.",
+		session_incompatible: "O Companion não oferece a sessão automática exigida por este fluxo. Atualize o aplicativo local.",
+		incompatible: "O Companion não suporta este fluxo. Atualize o aplicativo local.",
 		service_error: "O Companion encontrou uma falha local.",
 	}[code] ?? "Falha local inesperada.";
 }
