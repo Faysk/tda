@@ -2,14 +2,14 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 > Fonte de verdade física: Supabase `dmrqnbdvbkfqzctcerbx`
 
 Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato físico**, **regra de domínio**, **segurança** e **fotografia observada**.
 
 ## Documentos
 
-- [Catálogo das 43 tabelas públicas](schema-catalog.md)
+- [Catálogo das 54 tabelas públicas observadas](schema-catalog.md)
 - [Relacionamentos e ownership](relationships.md)
 - [RLS, RBAC, RPCs e segurança](security.md)
 - [Inventário de RPCs privilegiadas](rpc-inventory.md)
@@ -27,7 +27,7 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 - campanha principal: `yuhara-main`;
 - schema de aplicação principal: `public`;
 - Auth: `auth.users` ligado a `profiles.auth_user_id` quando identidade foi vinculada;
-- RLS: habilitado em todas as tabelas públicas observadas na revisão de 2026-09-06.
+- RLS: habilitado nas 54 tabelas públicas observadas na revalidação de 2026-09-20.
 
 ## Domínios físicos
 
@@ -38,6 +38,8 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 | sessão/evidência | `sessions`, `participants`, `recording_files`, `transcript_segments`, `roll20_events`, `session_markers`, `table_notes`, `discord_interactions`, `historical_documents` |
 | classificação/revisão | `segment_classifications`, `canon_candidates`, `quote_candidates`, `outtake_candidates`, `review_decisions` |
 | memória/publicação | `entities`, `entity_mentions`, `canon_entries`, `publications`, `audit_log` |
+| relações/World | `relation_types`, `world_relation_styles`, `entity_relations`, `entity_relation_sources`, `world_graph_heads`, `world_graph_revisions`, `world_layout_snapshots`, `world_edit_leases`, `world_edit_drafts` |
+| mídia de entities | `media_assets`, `entity_media_bindings` |
 | processamento | `processing_jobs`, `processing_job_steps`, `transcription_cache`, `ai_usage_ledger` |
 | Craig/áudio | `craig_manifests`, `craig_track_extraction_steps`, `audio_chunks`, `audio_speech_slices`, `audio_artifacts`, `audio_artifact_events`, `audio_retention_policies` |
 | integração externa | `external_api_clients`, `external_api_keys` |
