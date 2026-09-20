@@ -76,6 +76,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 	});
 	assert.deepEqual(flags(["tools/ci/classify-changes.test.mjs"]), {
 		web: true,
+		processing: true,
 		db: true,
 		companion: true,
 		media: true,
