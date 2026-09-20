@@ -1,0 +1,115 @@
+name: Acceptance Fixture
+
+on:
+  pull_request:
+    paths:
+      - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - ".github/workflows/acceptance-fixture.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - ".github/workflows/acceptance-fixture.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: synthetic-acceptance-fixture
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Parse PowerShell
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $path = Resolve-Path "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $path,
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+      - name: Generate synthetic speech and Craig fixture
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+            "tools/acceptance/generate-physical-acceptance-fixture.ps1" `
+            -OutputRoot $output `
+            -TargetSeconds 80
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify generated fixture contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
+          $audio = Join-Path $output "tda-physical-acceptance-synthetic.wav"
+          $craig = Join-Path $output "tda-installed-acceptance-craig.zip"
+          $metadata = Join-Path $output "fixture.json"
+          foreach ($path in @($audio, $craig, $metadata)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "FIXTURE_OUTPUT_MISSING"
+            }
+          }
+
+          $value = Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([string]$value.schema -ne "tda_physical_acceptance_fixture_v1") {
+            throw "FIXTURE_SCHEMA_INVALID"
+          }
+          if ($value.synthetic -ne $true) { throw "FIXTURE_SYNTHETIC_PROOF_INVALID" }
+          $duration = [double]$value.audio.duration_seconds
+          if ($duration -lt 65 -or $duration -gt 180) {
+            throw "FIXTURE_DURATION_INVALID"
+          }
+
+          $header = [IO.File]::ReadAllBytes($audio)
+          if ($header.Length -lt 12) { throw "FIXTURE_WAV_TOO_SMALL" }
+          if ([Text.Encoding]::ASCII.GetString($header, 0, 4) -ne "RIFF") {
+            throw "FIXTURE_WAV_RIFF_INVALID"
+          }
+          if ([Text.Encoding]::ASCII.GetString($header, 8, 4) -ne "WAVE") {
+            throw "FIXTURE_WAV_WAVE_INVALID"
+          }
+
+          $zip = [IO.Compression.ZipFile]::OpenRead($craig)
+          try {
+            if ($zip.Entries.Count -ne 1) { throw "FIXTURE_CRAIG_ENTRY_COUNT_INVALID" }
+            $entry = $zip.Entries[0]
+            if ($entry.FullName -ne "1-Synthetic.flac" -or $entry.Length -le 0) {
+              throw "FIXTURE_CRAIG_TRACK_INVALID"
+            }
+            $stream = $entry.Open()
+            try {
+              $memory = [IO.MemoryStream]::new()
+              try {
+                $stream.CopyTo($memory)
+                $bytes = $memory.ToArray()
+              } finally {
+                $memory.Dispose()
+              }
+            } finally {
+              $stream.Dispose()
+            }
+            $sha = [Convert]::ToHexString(
+              [Security.Cryptography.SHA256]::HashData($bytes)
+            ).ToLowerInvariant()
+            if ($sha -ne "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1") {
+              throw "FIXTURE_CRAIG_FLAC_HASH_INVALID"
+            }
+          } finally {
+            $zip.Dispose()
+          }
