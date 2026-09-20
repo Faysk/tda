@@ -393,10 +393,18 @@ export function ProcessingPanel() {
 						<strong>
 							{state.connection === "connecting"
 								? "Conectando ao TDA Companion…"
-								: "TDA Companion não está conectado."}
+								: state.error === "version_incompatible"
+									? "TDA Companion precisa ser atualizado."
+									: state.error === "api_incompatible" || state.error === "session_incompatible"
+										? "TDA Companion incompatível com esta tela."
+										: "TDA Companion não está conectado."}
 						</strong>
 						<p className={styles.pairingHelp}>
-							Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente.
+							{state.error === "version_incompatible"
+								? "Instale uma versão compatível e tente novamente."
+								: state.error === "api_incompatible" || state.error === "session_incompatible"
+									? "Atualize o aplicativo local antes de tentar conectar novamente."
+									: "Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente."}
 						</p>
 						<div className={styles.pairingControls}>
 							<Button
