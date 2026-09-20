@@ -122,7 +122,7 @@ function Test-ExactInstalledPayload([string]$PayloadManifestPath, [string]$Expec
 }
 
 function Remove-SupersededSameVersionCandidate([string]$ExpectedVersion) {
-    $productKey = "HKCU:\\Software\\Faysk\\TDA Companion"
+    $productKey = "HKCU:\Software\Faysk\TDA Companion"
     if (-not (Test-Path -LiteralPath $productKey)) {
         throw "RECOVERY_SUPERSEDED_PRODUCT_REGISTRY_MISSING"
     }
@@ -159,7 +159,7 @@ function Remove-SupersededSameVersionCandidate([string]$ExpectedVersion) {
         throw "RECOVERY_SUPERSEDED_UNINSTALL_FAILED:$($process.ExitCode)"
     }
 
-    $marker = Join-Path $env:LOCALAPPDATA "TDA\\Companion\\current-version.txt"
+    $marker = Join-Path $env:LOCALAPPDATA "TDA\Companion\current-version.txt"
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
     while ([DateTimeOffset]::UtcNow -lt $deadline -and (Test-Path -LiteralPath $marker)) {
         Start-Sleep -Milliseconds 250
