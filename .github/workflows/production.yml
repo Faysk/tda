@@ -220,6 +220,7 @@ jobs:
         run: bash tools/ci/apply-production-migrations.sh
 
       - name: Publish and read back changed canonical media
+        id: media
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
           MEDIA_RANGE: ${{ steps.baseline.outputs.range }}
@@ -278,6 +279,10 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
           MIGRATIONS: ${{ steps.plan.outputs.migrations }}
           MEDIA: ${{ steps.plan.outputs.media_publish }}
+          MEDIA_ASSETS: ${{ steps.media.outputs.assets || '0' }}
+          MEDIA_PUBLISHED: ${{ steps.media.outputs.published || '0' }}
+          MEDIA_REUSED: ${{ steps.media.outputs.reused || '0' }}
+          MEDIA_VERIFIED: ${{ steps.media.outputs.verified || '0' }}
         run: |
           set -euo pipefail
           cat > release-receipt.md <<EOF
