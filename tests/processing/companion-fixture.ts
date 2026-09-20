@@ -40,7 +40,7 @@ export type CompanionFixtureState = {
 	setLifecycle(value: "preparing" | "ready" | "paused"): void;
 };
 
-function job(
+export function fixtureJob(
 	status: FixtureJobStatus,
 	overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -256,7 +256,7 @@ export async function installCompanionFixture(
 		if (path === "/jobs" && request.method() === "POST") {
 			state.jobPostCount += 1;
 			if (idempotencyKey) state.idempotencyKeys.push(idempotencyKey);
-			state.job = job("queued");
+			state.job = fixtureJob("queued");
 			submittedJob = true;
 			jobsReads = 0;
 			if (options.ambiguousJobPostOnce && !ambiguousJobPostConsumed) {
@@ -272,8 +272,8 @@ export async function installCompanionFixture(
 				(options.advanceJobs ?? true)
 			) {
 				jobsReads += 1;
-				if (jobsReads === 2) state.job = job("running");
-				else if (jobsReads >= 3) state.job = job("succeeded");
+				if (jobsReads === 2) state.job = fixtureJob("running");
+				else if (jobsReads >= 3) state.job = fixtureJob("succeeded");
 			}
 			const status = state.job?.status;
 			if (typeof status === "string") state.jobStatusesServed.push(status);
@@ -323,14 +323,14 @@ export async function installCompanionFixture(
 			path === "/jobs/craig-job-1/cancel" &&
 			request.method() === "POST"
 		) {
-			state.job = job("cancelled");
+			state.job = fixtureJob("cancelled");
 			return json(route, state.job);
 		}
 		if (
 			path === "/jobs/craig-job-1/retry" &&
 			request.method() === "POST"
 		) {
-			state.job = job("queued", { attempt: 2 });
+			state.job = fixtureJob("queued", { attempt: 2 });
 			jobsReads = 0;
 			return json(route, state.job);
 		}
@@ -355,7 +355,7 @@ export async function installCompanionFixture(
 }
 
 export function failedJob(): Record<string, unknown> {
-	return job("failed", {
+	return fixtureJob("failed", {
 		stage: "failed",
 		progress: { completed: 1, total: 2, unit: "tracks" },
 		error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
