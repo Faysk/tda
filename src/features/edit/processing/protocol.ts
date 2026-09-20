@@ -217,13 +217,10 @@ export function transcriptionProfile(value: unknown): TranscriptionProfileId {
 }
 export function parseHealth(value: unknown): Health {
 	const row = record(value);
-	if (row.api_version !== "1") {
-		const detectedApiVersion =
-			typeof row.api_version === "string" && row.api_version.length <= 16
-				? row.api_version
-				: undefined;
+	const apiVersion = text(row.api_version, 16);
+	if (apiVersion !== "1") {
 		throw new BridgeError("api_incompatible", null, {
-			detectedApiVersion,
+			detectedApiVersion: apiVersion,
 			requiredApiVersion: "1",
 		});
 	}
