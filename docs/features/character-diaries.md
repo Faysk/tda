@@ -1,8 +1,8 @@
 # Diários dos personagens
 
-> Status: implementado em branch local; publicação pendente
+> Status: integrado na main; presente no artefato atual de Production; verificação dedicada da rota não registrada nesta spec
 > Owner: narrativa / frontend
-> Última revisão: 2026-09-18
+> Última revisão: 2026-09-20
 
 ## Contrato
 
@@ -24,13 +24,13 @@ Após editar capítulos, executar `pnpm diary:generate`. O formato aceito preser
 
 Não copiar diretórios de trabalho inteiros para `public`. Não criar CMS, banco, upload ou sistema de contas para este catálogo.
 
-## Astel — entrega local
+## Astel — estado atual
 
 - Fonte: pasta fornecida pelo usuário em `.local/livro-astel`, preservada sem alteração; sem ZIP recebido.
 - URL: `/diario/astel`; listagem apenas no catálogo de diários.
 - 11 capítulos, de “Coisas Pequenas” a “Uma Resposta”.
 - Identidade aprovada: capa e livro em CSS/SVG, cores, tipografia, páginas duplas em desktop e simples em mobile do pacote recebido.
-- Sem imagens editoriais, fontes externas, áudio ou vídeo. Os SVGs são pequenos assets técnicos revisados; não há operação R2 nesta entrega. Mídia editorial futura segue a pipeline compartilhada.
+- Sem imagens editoriais, fontes externas, áudio ou vídeo. Existe, porém, um `favicon.svg` local consumido por `index.html` e `leitura.html`; pela ADR-0018 isso é **dívida de mídia no Git** e deve migrar para `tda-media-public`. Não existe exceção permanente para “SVG técnico pequeno”.
 - Marcador mantido no localStorage (`diario_astel_leitura_v1`); não é sincronizado entre aparelhos. Edição do texto pode deslocar uma posição anterior.
 - Adaptações: caminhos absolutos, XI e demais numerais romanos, links para catálogo e leitura contínua, fallback de paginação, semântica acessível e metadata específica. Largura mínima do body/capa ajustada para não gerar rolagem horizontal em 320px com scrollbar.
 - `leitura.html` contém os mesmos capítulos, com âncoras, texto selecionável, impressão e funcionamento sem JavaScript. Canonical aponta para o livro para evitar duplicar a identidade da obra.
@@ -53,6 +53,8 @@ Evidências locais em 2026-09-18, branch `arthur/livro-astel`:
 
 Limitações deliberadas: marcador apenas local; texto depende de regeneração após edição; arte social usa fallback de marca. O total de páginas varia com fonte e viewport.
 
-Nenhum upload, PR, merge ou deploy faz parte desta integração local. O fluxo remoto deve seguir [CI/CD vigente](../operations/ci-cd.md); criar PR já pode gerar Preview, e merge aprovado em main pode publicar Production. Publicado exige evidência do domínio/SHA, não apenas build local.
+A descrição acima preserva as evidências do candidato de 2026-09-18. Desde então, fontes, catálogo e páginas geradas foram integrados à `main` e estão incluídos no artefato atual de Production. Esta spec não registra um smoke HTTP dedicado de `/diario/astel`; portanto, não transformar “está no artefato” em prova adicional de navegação sem um receipt específico.
+
+O fluxo remoto segue [CI/CD vigente](../operations/ci-cd.md).
 
 Rollback: reverter a entrega de catálogo, rewrite, leitor e fontes pelo fluxo de release; não há migration ou objetos R2 a desfazer. O material original local permanece disponível.
