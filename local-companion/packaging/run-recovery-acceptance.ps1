@@ -44,10 +44,17 @@ function Require-FalsePrivacyProofs([object]$Receipt, [string]$Prefix) {
     }
 }
 
-function Write-AtomicCopy([string]$Source, [string]$Destination) {
+function Write-ImmutableCopy([string]$Source, [string]$Destination) {
+    $sourceSha = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+        $existingSha = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($existingSha -ne $sourceSha) { throw "RECOVERY_RECEIPT_EXISTS_MISMATCH" }
+        return
+    }
     $temporary = "$Destination.partial"
-    Copy-Item -LiteralPath $Source -Destination $temporary -Force
-    Move-Item -LiteralPath $temporary -Destination $Destination -Force
+    if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
+    Copy-Item -LiteralPath $Source -Destination $temporary
+    Move-Item -LiteralPath $temporary -Destination $Destination
 }
 
 if (-not $env:LOCALAPPDATA) { throw "LOCALAPPDATA_NOT_FOUND" }
@@ -192,8 +199,8 @@ try {
         throw "RECOVERY_PHYSICAL_RECEIPT_TRANSCRIPT_INVALID"
     }
 
-    Write-AtomicCopy $installedStage $installedFinal
-    Write-AtomicCopy $physicalStageReceipt $physicalFinal
+    Write-ImmutableCopy $installedStage $installedFinal
+    Write-ImmutableCopy $physicalStageReceipt $physicalFinal
 
     Write-Host ""
     Write-Host "RECOVERY ACCEPTANCE: PASS" -ForegroundColor Green
