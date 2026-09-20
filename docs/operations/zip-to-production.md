@@ -2,7 +2,7 @@
 
 > Status: procedimento vigente; execução por entrega, sem importador genérico automático
 > Owner: frontend / integrations/media / operations
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-20
 
 Este guia orienta quem prepara o pacote e quem o integra no TDA. O resultado esperado é a experiência aprovada no pacote funcionando na URL final: mesmas artes, texto, composição e comportamento, com adaptações técnicas identificadas e verificadas. Um upload bem-sucedido não comprova esse resultado.
 
@@ -188,16 +188,16 @@ Executar scripts reais do projeto no runtime fixado: `pnpm check`, `pnpm build` 
 
 Seguir o [runbook de release](release-runbook.md) vigente; não substituir suas verificações por esta lista resumida.
 
-1. Commit/PR em branch temporária, com escopo, adaptações, testes, riscos e rollback.
-2. Validar checks do SHA exato e integrar em `Preview`.
-3. Comparar o conteúdo a promover; não misturar alterações concorrentes não revisadas.
-4. Promover `Preview` para `main` via PR e concluir verificações requeridas.
-5. Executar/acompanhar o fluxo de publicação autorizado, aguardando estado terminal de sucesso.
+1. Commit em branch temporária e abrir PR diretamente para `main`, com escopo, adaptações, testes, riscos e rollback.
+2. Validar CI e o Preview Vercel construído do SHA exato da PR.
+3. Comparar o conteúdo candidato; não misturar alterações concorrentes não revisadas.
+4. Com `required-ci` verde, mergear a PR em `main`.
+5. Acompanhar a Production CD; mídia ainda não publicada deve concluir Media Storage publish/reuse + read-back + verificação antes do promote.
 6. Conferir `/api/version` no domínio público e confrontar commit/release esperados.
 7. Abrir a URL pública real, percorrer cenas e confirmar que os consumidores selecionam as novas URLs e dimensões, incluindo mobile e interações.
-8. Registrar recibo com PRs, commit, execução, URLs e resultados. Só então marcar publicado/verificado.
+8. Registrar recibo com PR, commit, execução, URLs e resultados. Só então marcar publicado/verificado.
 
-Um objeto novo no R2 não troca sozinho `src` antigo no site. Um merge na main não prova que o domínio já foi promovido. Cache de preview em WhatsApp/Discord pode conservar uma imagem anterior; confirmar primeiro HTML/metadados e origem atuais, sem prometer renovação imediata de caches externos.
+Um objeto novo no Media Storage não troca sozinho `src` antigo no site. Um merge na main não prova que o domínio já foi promovido. Cache de preview em WhatsApp/Discord pode conservar uma imagem anterior; confirmar primeiro HTML/metadados e origem atuais, sem prometer renovação imediata de caches externos.
 
 ## 8. Recuperação e rollback
 
