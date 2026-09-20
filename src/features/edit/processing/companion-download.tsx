@@ -33,6 +33,7 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 		version?: unknown;
 		channel?: unknown;
 		tag?: unknown;
+		minimum_api?: unknown;
 		minimum_service_version?: unknown;
 		asset?: unknown;
 	};
@@ -41,6 +42,7 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 	}
 	if (manifest.channel !== "stable" && manifest.channel !== "rc") return null;
 	if (typeof manifest.tag !== "string") return null;
+	if (manifest.minimum_api !== "1") return null;
 	if (
 		manifest.minimum_service_version !==
 		AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION
