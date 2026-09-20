@@ -391,6 +391,7 @@ function EntityEditor({
 	if (!entity) return null;
 
 	function commitName() {
+		if (!entity) return;
 		const trimmed = nameDraft.trim();
 		if (!trimmed) {
 			setNameDraft(entity.name);
@@ -923,6 +924,7 @@ function RelationTypeEditor({
 	if (!type) return null;
 
 	function commitLabel() {
+		if (!type) return;
 		const trimmed = labelDraft.trim();
 		if (!trimmed) {
 			setLabelDraft(type.label);
