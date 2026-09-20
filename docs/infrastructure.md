@@ -84,7 +84,15 @@ A regra permanente é **Media Storage**, não “R2 para sempre”. Ver [integra
 
 ### Controle operacional do publisher
 
-A Production CD usa GitHub Environment `production` como boundary dos secrets operacionais do provider R2 e calcula mídia pendente desde o SHA realmente publicado até o novo `main`.
+A infraestrutura R2 está separada em três credenciais bucket-scoped:
+
+- `tda-github-production-media-publisher` -> `tda-media-public` -> GitHub Environment `production` -> operacionalmente verificado;
+- `tda-github-preview-media-publisher` -> `tda-media-preview` -> GitHub Environment `preview` -> provisionado, ainda sem consumidor;
+- `tda-github-production-private-media-storage` -> `tda-media-private` -> GitHub Environment `production` -> provisionado, ainda sem consumidor.
+
+Todos usam somente Bucket Item Read + Write no bucket correspondente. Nenhum token possui acesso aos três buckets.
+
+A Production CD usa GitHub Environment `production` como boundary dos secrets operacionais do publisher público e calcula mídia pendente desde o SHA realmente publicado até o novo `main`.
 
 O workflow valida as credenciais somente quando esse lifecycle é necessário e falha antes de build/stage quando alguma estiver ausente.
 
