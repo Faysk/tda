@@ -19,8 +19,11 @@ Estados:
 
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
-| Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
+| Edit Workbench / administração | implementação incremental integrada | spec em `features/edit-workbench.md` + ADR-0007; transcript usa leitura autorizada e mutation atômica canônica, enquanto módulos administrativos evoluem por capability/domain |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
+| Consulta administrativa de permissões | publicada, somente leitura | `/edit/{campaignSlug}/permissions` + API autorizada por `campaign.permissions.manage`; Production #006 comprovou acesso autorizado e negação anônima, sem grant/revoke |
+| Estatísticas privadas de transcrições | publicadas | `/transcricoes` usa `campaign.transcript.read`, paginação completa e no-store; Production #006 comprovou OAuth real, métricas autorizadas e negação após logout |
+| Edição server-side de segmento | mutation canônica integrada | `transcript_segments.revision` + RPC `edit_transcript_segment_atomic` + Server Action; update/revision/audit atômicos e conflito explícito |
 | Runs/revisão/publicação de transcrição | core de runs locais imutáveis integrado; revisão/comparação/publicação revisionada pendentes | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016; múltiplos runs/listagem/migração legada já existem, slices editoriais seguintes continuam abertos |
 | Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; maturidade do schema não implica que todo recorte de acesso administrativo esteja concluído |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
@@ -93,7 +96,7 @@ A direção estrutural foi fechada em [ADR-0007](adr/0007-edit-workbench.md):
 - Design System atual como única autoridade visual;
 - paridade registrada em [legacy/edit-parity.md](legacy/edit-parity.md).
 
-A `main` já contém o workbench temporário e leitura autorizada com `revision`, mas isso não encerra a convergência: Auth oficial, persistence atômica/auditável, UX de conflito conectada ao resultado real e retirada do bypass continuam etapas distintas. O mapa corrente está no [roadmap](roadmap.md); os detalhes continuam nos documentos donos do Edit/banco/identity.
+A `main` já contém Auth server-side, leitura autorizada com `revision` e persistence atômica/auditável ligada ao editor. A UX trata conflito real sem perder rascunho. A retirada definitiva do bypass `TDA_EDIT_UNSAFE` continua dívida separada; novas áreas do Workbench seguem o contrato capability + scope. O mapa corrente está no [roadmap](roadmap.md); os detalhes continuam nos documentos donos do Edit/banco/identity.
 
 ## Transcrição local, revisão e publicação
 
