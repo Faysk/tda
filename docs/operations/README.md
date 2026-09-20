@@ -82,6 +82,12 @@ Os documentos abaixo são evidência da migração da esteira e **não** definem
 - [baseline da simplificação](cicd-simplification-baseline.md);
 - [plano de simplificação concluído](cicd-simplification-plan.md).
 
+Evidências/auditorias especializadas do Companion continuam preservadas e navegáveis sem virar regra geral de CI/CD:
+
+- [Companion 0.3.3 — auditoria pesada](companion-0.3.3-heavy-audit.md);
+- [Companion — A-017 integridade dos modelos ASR](companion-a017-model-integrity.md);
+- [Companion — Reliability R2 evidence](companion-reliability-r2-evidence.md).
+
 Qualquer trecho histórico com branch permanente `Preview`, `Preview -> main`, full audit global R2 ou publisher baseado em Vercel deve ser lido no contexto da data registrada.
 
 ## Matriz rápida
