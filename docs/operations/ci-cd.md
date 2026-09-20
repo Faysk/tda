@@ -163,21 +163,17 @@ R2_SECRET_ACCESS_KEY
 
 Não usar Vercel como cofre intermediário para uma operação executada pelo GitHub Actions.
 
-### Drift conhecido — 2026-09-20
+### Implementação vigente
 
-O código integrado antes da ADR-0018 ainda possui duas divergências:
+A esteira aplica o contrato acima diretamente:
 
-1. `production-release-plan.mjs` decide publicação de mídia usando o merge atual, em vez do intervalo ainda não publicado;
-2. `production.yml` tenta fornecer R2 ao publisher por `vercel env run`.
+- `production-release-plan.mjs` calcula `media_publish` a partir do intervalo completo ainda não publicado;
+- `production.yml` passa o mesmo baseline range ao publisher;
+- R2 credentials usados pelo publisher são lidos do GitHub Environment `production`;
+- `vercel env run` não participa da autenticação do Media Storage;
+- o publisher one-shot específico da Yllith foi removido; toda lore usa a pipeline compartilhada.
 
-Runs recentes provaram que o segundo caminho não fornece configuração R2 completa. A PR #407 já registrou a correção candidata do primeiro problema, mas não está integrada.
-
-Até a convergência:
-
-- publicação de nova mídia em Production não deve ser considerada saudável;
-- não fazer bypass manual para “destravar” release;
-- preservar manifest/fontes para retry;
-- atualização de implementação deve atualizar estes docs na mesma PR.
+A presença administrativa dos três secrets não é inferida da documentação. Quando mídia está pendente, o gate `Validate only required release credentials` verifica os nomes esperados antes de build/stage; ausência falha cedo sem mover tráfego de Production.
 
 ## Staged deploy
 
