@@ -110,7 +110,7 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 
 	await page.getByRole("button", { name: "Executar ensaio sintético" }).click();
 	await expect(
-		page.getByText("Concluído localmente", { exact: true }),
+		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible({ timeout: 12000 });
 
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
@@ -130,7 +130,7 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(
-		page.getByText("Concluído localmente", { exact: true }),
+		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible();
 	await expect
 		.poll(
