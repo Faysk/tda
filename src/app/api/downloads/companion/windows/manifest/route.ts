@@ -1,3 +1,4 @@
+import { AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION } from "@/features/edit/processing/compatibility";
 import { selectLatestCompanionRcRelease } from "@/features/edit/processing/companion-rc-release";
 import { selectLatestCompanionStableRelease } from "@/features/edit/processing/companion-stable-release";
 
@@ -82,6 +83,7 @@ export async function GET(request: Request) {
 				version: asset.version,
 				tag: asset.tag,
 				minimum_api: "1",
+				minimum_service_version: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
 				asset: {
 					url: `/api/downloads/companion/windows?tag=${encodeURIComponent(asset.tag)}`,
 					sha256: asset.sha256,
