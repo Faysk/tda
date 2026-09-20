@@ -46,6 +46,8 @@ _PRODUCT_ID = "tda-companion"
 _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _WORKER_SHUTDOWN_FAST_SECONDS = 20.0
+LOCAL_JSON_BODY_MAX_BYTES = 4096
+TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 
 _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
@@ -101,8 +103,8 @@ class CraigTranscriptionJobRequest(BaseModel):
         "qwen-fast",
         "qwen-quality",
     ]
-    glossary: str = Field(default="", max_length=1200)
-    context: str = Field(default="", max_length=1200)
+    glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+    context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     cpu: bool = False
 
 
@@ -1021,7 +1023,7 @@ def create_app(
                 body_bytes = bytearray()
                 async for chunk in request.stream():
                     body_bytes.extend(chunk)
-                    if len(body_bytes) > 4096:
+                    if len(body_bytes) > LOCAL_JSON_BODY_MAX_BYTES:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
