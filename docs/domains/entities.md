@@ -1,8 +1,8 @@
 # Entidades, personagens e mundo narrativo
 
-> Status: preparado
+> Status: vigente; registry e relations first-class implementadas
 > Owner: narrative-memory/entities
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-20
 
 ## Objetivo
 
@@ -137,20 +137,15 @@ Com a registry atual já é possível construir progressivamente:
 - aliases/resolução;
 - músicas/quests como objects narrativos.
 
-## Features que exigem desenho novo
+## Relações implementadas
 
-### Relations
+Relations são edges first-class entre entities. O contrato físico vigente usa `relation_types`, `entity_relations` e `entity_relation_sources`; apresentação fica em `world_relation_styles`. Direção/simetria, status, visibility, revision e provenance são tratados sem transformar coocorrência em fato.
 
-Edge first-class entre entities. Deve suportar relação/direção/status/evidence/audience.
+O World mantém publicação factual versionada e separa layout de relações. Ver [contrato de relations](../features/relations-data-contract.md) e [World Explorer](../features/world-explorer.md).
 
-Exemplos históricos:
+Segredo/knowledge não deve ser forçado a relation quando a semântica real for “quem sabe o quê”.
 
-- família;
-- aliança;
-- dívida;
-- traição;
-- conflito;
-- segredo.
+## Features que ainda exigem desenho novo
 
 ### Knowledge
 
@@ -183,7 +178,7 @@ mention/candidate
 Antes de implementar merge:
 
 - decidir entity vencedora;
-- remapear FKs/mentions/canon/relations futuras;
+- remapear FKs/mentions/canon/relations first-class;
 - preservar aliases e provenance;
 - registrar audit;
 - não apagar histórico silenciosamente.
