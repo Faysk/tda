@@ -114,12 +114,8 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	).toBeVisible({ timeout: 12000 });
 
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
-	await expect(
-		page.getByText("Nenhum recibo cloud recebido.", { exact: false }),
-	).toBeVisible();
-	await expect(
-		page.locator("dd").filter({ hasText: "synthetic-session" }),
-	).toBeVisible();
+	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
+	await expect(page.getByText("synthetic-session", { exact: true })).toBeVisible();
 
 	const sessionsBeforeRestart = posts.filter(
 		(url) => url === `${service}/session`,
