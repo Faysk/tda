@@ -22,6 +22,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.2",
 				tag: "companion-v0.3.2",
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.2",
@@ -44,6 +45,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "rc",
 				version: "0.3.8",
 				tag,
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: {
 					url: `/api/downloads/companion/windows?tag=${tag}`,
@@ -66,6 +68,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "rc",
 				version: "0.3.14",
 				tag,
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: {
 					url: `/api/downloads/companion/windows?tag=${tag}`,
@@ -85,6 +88,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.4",
 				tag: "companion-v0.3.2",
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.2",
@@ -96,6 +100,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.4",
 				tag: "companion-rc-v0.3.4-abcdef123456",
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-rc-v0.3.4-abcdef123456",
@@ -107,6 +112,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "rc",
 				version: "0.3.4",
 				tag: "companion-rc-v0.3.4-abcdef123456",
+				minimum_api: "1",
 				minimum_service_version: "0.3.14",
 				asset: { url: "https://example.invalid/TDACompanion-x64.msi" },
 			}),
@@ -116,6 +122,19 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.14",
 				tag: "companion-v0.3.14",
+				minimum_service_version: "0.3.14",
+				asset: {
+					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
+				},
+			}),
+		).toBeNull();
+		expect(
+			parseCompanionDownloadManifest({
+				channel: "stable",
+				version: "0.3.14",
+				tag: "companion-v0.3.14",
+				minimum_api: "2",
+				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
 				},
