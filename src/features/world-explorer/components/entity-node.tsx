@@ -14,6 +14,7 @@ import {
 	worldPortHandleId,
 } from "../edge-routing";
 import type { WorldNodeDTO } from "../model";
+import { worldNodeSemanticPresentation } from "../world-semantic-zoom";
 import {
 	WORLD_AUTHORING_CONNECT_FROM_NODE_EVENT,
 	WORLD_AUTHORING_OPEN_INSPECTOR_EVENT,
@@ -25,6 +26,7 @@ import {
 } from "../world-entity-media";
 import authoringStyles from "./entity-node-authoring.module.css";
 import nodeStyles from "./entity-node-v2.module.css";
+import { useWorldSemanticZoomTier } from "./world-semantic-zoom-context";
 
 const SIDES: Array<{ side: WorldPortSide; position: Position }> = [
 	{ side: "top", position: Position.Top },
@@ -125,6 +127,14 @@ function moveToolbarFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
 
 function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
 	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
+	const semanticZoom = useWorldSemanticZoomTier();
+	const semantic = worldNodeSemanticPresentation(semanticZoom, {
+		isHero,
+		isFocus,
+		selected,
+		prominence,
+		authoringConnectable,
+	});
 	const kind = visualKind(item, isHero);
 	const state = stateLabel(isFocus, selected);
 	return (
@@ -133,6 +143,7 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 			data-world-node={item.id}
 			data-prominence={prominence}
 			data-node-kind={kind}
+			data-world-semantic-zoom={semanticZoom}
 		>
 			<NodeToolbar isVisible={selected} position={Position.Top} offset={18} align="center">
 				<div
@@ -209,13 +220,19 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 				) : (
 					<span className={nodeStyles.nodeInitials}>{initials(item.label)}</span>
 				)}
-				<span className={nodeStyles.nodeKindMark}>{visualMark(kind)}</span>
+				{semantic.showKindMark ? (
+					<span className={nodeStyles.nodeKindMark}>{visualMark(kind)}</span>
+				) : null}
 				{isHero ? <i className={nodeStyles.heroOrbit} /> : null}
 			</div>
-			<div className={nodeStyles.nodeLabel} data-node-label>
-				{item.label}
-			</div>
-			{item.subtitle ? <div className={nodeStyles.nodeSubtitle}>{item.subtitle}</div> : null}
+			{semantic.showLabel ? (
+				<div className={nodeStyles.nodeLabel} data-node-label>
+					{item.label}
+				</div>
+			) : null}
+			{semantic.showSubtitle && item.subtitle ? (
+				<div className={nodeStyles.nodeSubtitle}>{item.subtitle}</div>
+			) : null}
 		</div>
 	);
 }
