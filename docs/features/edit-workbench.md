@@ -1,8 +1,8 @@
 # Edit Workbench — área administrativa do TDA
 
-> Status: arquitetura aprovada; implementação incremental em andamento
+> Status: implementação incremental integrada; transcript canônico e módulos administrativos ativos, expansão por domínio continua
 > Owner: Edit / produto + frontend
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 
 ## Objetivo
 
@@ -126,7 +126,7 @@ Regras de UX vigentes:
 - `Esc` desfaz apenas mudanças locais que ainda não estão em voo;
 - o adapter unsafe existente continua sendo o único write temporário até a troca deliberada para a mutation canônica; este contrato de UX não cria gravação paralela.
 
-A coluna física `transcript_segments.revision` já existe. A integração definitiva de `conflict` depende do boundary atômico da issue #32 retornar conflito real e da leitura autorizada fornecer a revision vigente. Até isso acontecer, a UI pode modelar e testar o estado de conflito, mas não deve simulá-lo como se tivesse vindo do banco.
+A coluna `transcript_segments.revision`, a leitura autorizada e a RPC atômica `edit_transcript_segment_atomic` já estão integradas ao caminho normal do editor. `conflict` é resultado real do boundary canônico e a UI preserva o rascunho para reconciliação; o adapter unsafe permanece dívida de compatibilidade separada, não o write principal.
 
 Detalhes estruturais estão em [arquitetura do Edit](../architecture/edit-workbench.md).
 
