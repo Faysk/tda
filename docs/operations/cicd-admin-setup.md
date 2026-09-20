@@ -49,11 +49,18 @@ production
 
 ### preview
 
-Secret necessário:
+Secrets administrativos atualmente provisionados:
 
 ```text
 VERCEL_TOKEN
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
 ```
+
+O par R2 de `preview` pertence exclusivamente ao token Cloudflare `tda-github-preview-media-publisher`, restrito ao bucket `tda-media-preview` com Bucket Item Read + Write.
+
+Estado: **provisionado, ainda não comprovado por consumidor/workflow de mídia Preview**. A presença do secret não autoriza mutação automática nem prova uso.
 
 Preview não recebe secrets irrestritos de Production.
 
@@ -72,7 +79,7 @@ SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Quando há publicação de Media Storage pendente e o provider atual é R2:
+Quando há publicação pública de Media Storage pendente e o provider atual é R2:
 
 ```text
 R2_ACCOUNT_ID
@@ -80,7 +87,20 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-`R2_PUBLIC_BUCKET=tda-media-public` é configuração não secreta e pode permanecer pinada no workflow.
+Esse par pertence ao token Cloudflare `tda-github-production-media-publisher`, restrito a `tda-media-public` com Bucket Item Read + Write. Esse boundary foi comprovado em Production em 2026-09-20 pela repair release de Astel/Noah.
+
+Para operações futuras explicitamente autorizadas no storage privado de Production estão provisionados:
+
+```text
+R2_PRIVATE_ACCESS_KEY_ID
+R2_PRIVATE_SECRET_ACCESS_KEY
+```
+
+Esse par pertence ao token Cloudflare `tda-github-production-private-media-storage`, restrito a `tda-media-private` com Bucket Item Read + Write.
+
+Estado do private: **provisionado, ainda não conectado a workflow/runtime**. Não reutilizar automaticamente só porque os secrets existem.
+
+`R2_PUBLIC_BUCKET=tda-media-public`, `R2_PRIVATE_BUCKET=tda-media-private` e `R2_PREVIEW_BUCKET=tda-media-preview` são configuração não secreta.
 
 ### Regra de ownership dos secrets
 
@@ -124,15 +144,15 @@ Supabase é o provider atual; PostgreSQL é o contrato relacional principal.
 
 ### Media Storage / Cloudflare R2
 
-Secrets operacionais do publisher:
+Matriz administrativa atual:
 
-```text
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-```
+| Boundary | Token Cloudflare | GitHub Environment | Secrets | Bucket | Estado |
+| --- | --- | --- | --- | --- | --- |
+| Production público | `tda-github-production-media-publisher` | `production` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | `tda-media-public` | operacionalmente verificado |
+| Preview | `tda-github-preview-media-publisher` | `preview` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | `tda-media-preview` | provisionado; uso ainda não exercitado |
+| Production privado | `tda-github-production-private-media-storage` | `production` | `R2_ACCOUNT_ID` compartilhado + `R2_PRIVATE_ACCESS_KEY_ID`, `R2_PRIVATE_SECRET_ACCESS_KEY` | `tda-media-private` | provisionado; uso ainda não exercitado |
 
-A credencial usada pelo publisher deve ter privilégio mínimo para o storage necessário. O browser nunca recebe esse par.
+Cada token é bucket-scoped e possui somente Bucket Item Read + Write. O browser nunca recebe credenciais permanentes.
 
 ## Estado do publisher de Media Storage
 
@@ -170,12 +190,30 @@ Não resetar senha apenas para descobrir valor. Rotação deve considerar consum
 
 ### Media Storage / R2
 
-Configurar no GitHub Environment `production`:
+A configuração atual usa três credenciais separadas por boundary. Não copiar um par entre buckets para "simplificar".
+
+Production público:
 
 ```text
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
+production/R2_ACCOUNT_ID
+production/R2_ACCESS_KEY_ID
+production/R2_SECRET_ACCESS_KEY
+```
+
+Preview:
+
+```text
+preview/R2_ACCOUNT_ID
+preview/R2_ACCESS_KEY_ID
+preview/R2_SECRET_ACCESS_KEY
+```
+
+Production privado:
+
+```text
+production/R2_ACCOUNT_ID
+production/R2_PRIVATE_ACCESS_KEY_ID
+production/R2_PRIVATE_SECRET_ACCESS_KEY
 ```
 
 Não enviar os valores por chat nem registrá-los na documentação.
