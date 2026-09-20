@@ -2,8 +2,12 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
+
+## Revalidação integral — 2026-09-20
+
+O migration history remoto foi lido de forma read-only: **53 migrations** estão registradas no projeto canônico e todas possuem representação nominal/documental neste arquivo. Nenhuma migration remota ficou sem registro nesta auditoria. Isso não significa que todos os arquivos tenham o mesmo timestamp local histórico: divergências autorizadas continuam governadas por [migration-reconciliations.md](migration-reconciliations.md).
 
 ## Princípio
 
