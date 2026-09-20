@@ -244,6 +244,21 @@ describe("loopback bridge", () => {
 		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/health`);
 	});
 
+	it("rejects a malformed health contract separately from a valid incompatible API", async () => {
+		const bridge = new LocalBridge(
+			vi.fn<typeof fetch>().mockResolvedValue(
+				Response.json({
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				}),
+			),
+		);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "invalid_response",
+		});
+	});
+
 	it("distinguishes an incompatible API from an old Companion version", async () => {
 		const bridge = new LocalBridge(
 			vi.fn<typeof fetch>().mockResolvedValue(
