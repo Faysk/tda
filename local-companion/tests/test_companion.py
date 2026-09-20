@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from tda_companion.api import create_app
 from tda_companion.attempt_fence import claim_attempt_outcome, read_attempt_outcome
 from tda_companion.craig import ingest_craig_zip
+from tda_companion.craig_runtime import load_craig_package
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
 from tda_companion.transcript import (
@@ -575,6 +576,81 @@ def test_committed_run_wins_restart_reconciliation_before_late_cancel(tmp_path):
         assert late_cancel.status_code == 409
         assert late_cancel.json()["error"]["code"] == "JOB_TERMINAL"
 
+    assert read_attempt_outcome(package_root, job["id"], 1) == "commit"
+
+
+def test_restart_recovers_commit_winner_before_queue_recovery(tmp_path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    first = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+
+    source = tmp_path / "commit-winner-restart.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-commit-winner")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    source_id = f"craig-{source_sha}"
+    package_root = data_root / "staging" / source_id
+    package = ingest_craig_zip(source, package_root)
+
+    body = {
+        "kind": "transcription.craig",
+        "campaign_id": "campaign",
+        "session_id": "session",
+        "source_id": source_id,
+        "profile_id": "whisper-turbo",
+        "glossary": "",
+        "context": "",
+        "cpu": False,
+        "units": 1,
+    }
+    job = first.state.store.submit("restart-commit-winner", body)
+    assert first.state.store.claim() == (job["id"], 1)
+
+    run = write_completed_run(
+        package_root,
+        _recovery_document(package),
+        job_id=job["id"],
+        attempt=1,
+        before_commit=lambda: (
+            claim_attempt_outcome(package_root, job["id"], 1, "commit") == "commit"
+            or (_ for _ in ()).throw(AssertionError("commit fence lost"))
+        ),
+    )
+    assert (package_root / "runs" / run["run_id"] / "run.json").is_file()
+    assert first.state.store.get(job["id"])["status"] == "running"
+    assert read_attempt_outcome(package_root, job["id"], 1) == "commit"
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(
+        restarted,
+        base_url="http://127.0.0.1:8765",
+    ) as live:
+        recovered = live.get(
+            f"/api/v1/jobs/{job['id']}",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["status"] == "succeeded"
+        assert recovered.json()["result_available"] is True
+        assert recovered.json()["attempt"] == 1
+
+        result = live.get(
+            f"/api/v1/jobs/{job['id']}/result",
+            headers=HEADERS,
+        )
+        assert result.status_code == 200
+        assert result.json()["transcription"]["run_id"] == run["run_id"]
+
+        late_cancel = live.post(
+            f"/api/v1/jobs/{job['id']}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert late_cancel.status_code == 409
+        assert late_cancel.json()["error"]["code"] == "JOB_TERMINAL"
+
+    persisted = Store(data_root).get(job["id"])
+    assert persisted["status"] == "succeeded"
     assert read_attempt_outcome(package_root, job["id"], 1) == "commit"
 
 
