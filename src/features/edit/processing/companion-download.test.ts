@@ -38,7 +38,7 @@ describe("parseCompanionDownloadManifest", () => {
 		});
 	});
 
-	it("accepts an RC only when channel, version, tag and URL agree", () => {
+	it("binds an RC to its exact channel, version, tag and URL", () => {
 		const tag = "companion-rc-v0.3.8-abcdef123456";
 		expect(
 			parseCompanionDownloadManifest({
@@ -145,6 +145,7 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.14",
 				tag: "companion-v0.3.14",
+				minimum_api: "1",
 				minimum_service_version: "0.3.15",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
