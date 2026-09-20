@@ -21,6 +21,7 @@ jobs:
       web: ${{ steps.classify.outputs.web }}
       db: ${{ steps.classify.outputs.db }}
       companion: ${{ steps.classify.outputs.companion }}
+      processing: ${{ steps.classify.outputs.processing }}
       media: ${{ steps.classify.outputs.media }}
       files_json: ${{ steps.classify.outputs.files_json }}
     steps:
@@ -138,6 +139,55 @@ jobs:
       - name: Build application
         run: pnpm build
 
+  processing-e2e:
+    name: processing-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.12.17'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Browser contract E2E
+        run: pnpm test:processing
+      - name: Scratch Companion integration
+        run: pnpm test:processing:integration
+        env:
+          TDA_COMPANION_PYTHON: .venv/bin/python
+          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
+      - name: Upload sanitized Processing failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: processing-e2e-${{ github.run_id }}
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   companion-domain:
     name: companion-domain
     needs: classify-changes
@@ -186,6 +236,7 @@ jobs:
       - validate
       - transcript-import-postgres
       - companion-domain
+      - processing-e2e
       - media-domain
     steps:
       - name: Require fast and relevant domain contracts
@@ -197,6 +248,8 @@ jobs:
           DB_RESULT: ${{ needs.transcript-import-postgres.result }}
           COMPANION_RELEVANT: ${{ needs.classify-changes.outputs.companion }}
           COMPANION_RESULT: ${{ needs.companion-domain.result }}
+          PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
+          PROCESSING_RESULT: ${{ needs.processing-e2e.result }}
           MEDIA_RELEVANT: ${{ needs.classify-changes.outputs.media }}
           MEDIA_RESULT: ${{ needs.media-domain.result }}
         shell: bash
@@ -216,6 +269,12 @@ jobs:
             test "$COMPANION_RESULT" = "success"
           else
             test "$COMPANION_RESULT" = "skipped"
+          fi
+
+          if [[ "$PROCESSING_RELEVANT" == "true" ]]; then
+            test "$PROCESSING_RESULT" = "success"
+          else
+            test "$PROCESSING_RESULT" = "skipped"
           fi
 
           if [[ "$MEDIA_RELEVANT" == "true" ]]; then
