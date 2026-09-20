@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from datetime import datetime
 from typing import Any
@@ -43,6 +45,16 @@ _FORBIDDEN_KEYS = frozenset(
 _PRIVACY_PROOF_KEYS = frozenset(
     {"contains_audio", "contains_transcript", "contains_token", "contains_paths"}
 )
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class PhysicalAcceptanceSuiteError(RuntimeError):
@@ -328,6 +340,13 @@ def _qwen_result(
         raise PhysicalAcceptanceSuiteError(
             "PHYSICAL_ACCEPTANCE_QWEN_GATE_INVALID"
         )
+    binding = {
+        "schema": QWEN_GATE_SCHEMA,
+        "profile_id": profile.id,
+        "runtime": runtime,
+        "model": model,
+        "aligner": aligner,
+    }
     if (
         runtime.get("version") != qwen_runtime["version"]
         or runtime.get("worker_sha256") != qwen_runtime["worker_sha256"]
@@ -338,6 +357,8 @@ def _qwen_result(
         or aligner.get("revision") != QWEN_FORCED_ALIGNER_REVISION
         or str(gate_gpu.get("name") or "") != gpu_name
         or str(gate_gpu.get("compute_capability") or "") != compute_capability
+        or gate.get("binding_sha256") != _canonical_sha256(binding)
+        or gate.get("acceptance_sha256") != _canonical_sha256(value)
     ):
         raise PhysicalAcceptanceSuiteError(
             "PHYSICAL_ACCEPTANCE_QWEN_GATE_MISMATCH"
