@@ -1,13 +1,13 @@
 # Edit — consulta de permissões
 
-> Status: implementação candidata, somente leitura
+> Status: implementado e publicado em Production; consulta somente leitura, sem grant/revoke
 > Owner: identity/access + Edit
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 > Fonte de verdade: `src/features/edit/permissions/`, `src/features/edit/access/policy.ts` e contrato de identidade
 
 ## Entrega e limites
 
-Implementado na branch `codex/permissions-admin-read`: tela pt-BR desktop/mobile em `/edit/{campaignSlug}/permissions`, acessível por **Minha conta → Consultar permissões**. API `GET /api/edit/{campaignSlug}/permissions` usa o mesmo boundary. Ainda não publicado; não altera dados, grants, RLS, DDL ou Auth/config. Não é diretório global nem fluxo de claim.
+A consulta nasceu na branch `codex/permissions-admin-read` e foi integrada pela #64. A tela pt-BR desktop/mobile em `/edit/{campaignSlug}/permissions` e a API `GET /api/edit/{campaignSlug}/permissions` usam o mesmo boundary e estão publicadas desde a Production #006. A feature continua sem alterar dados, grants, RLS ou DDL; não é diretório global nem fluxo de claim.
 
 O usuário autorizado consulta pessoas com atribuições na campanha pedida ou herdadas do projeto TDA. Busca por nome, profile ID, função ou action ocorre apenas sobre o DTO já autorizado. A tela distingue atribuições ativas, elegíveis, encerradas, revogadas e fora da validade. Resultado vazio é diferente de falta de acesso ou indisponibilidade.
 
@@ -92,12 +92,10 @@ Antes de implementar write, fechar: roles/planes delegáveis, target campaign/pr
 
 Testes unitários exercitam core, wrapper de identidade, scope/tempo, projection mínima, catálogo versus eficácia, origem múltipla e falhas/truncamento do repository. A suíte `playwright.permissions.config.ts` executa a **build real** com Auth/PostgREST HTTP sintéticos locais, sem mock do guard da aplicação, em desktop 1440 e mobile 390. Ela cobre anônimo, reader, técnico, outra campanha, revogado, sem profile, indisponibilidade, gestor direto/projeto, API direta, write 405, busca e ausência de overflow. Serviço de teste fica em `tools/testing`, nunca no app; a suíte integra `pnpm test:e2e` e o CI existente.
 
-- [ ] CI terminal do SHA candidato: `pnpm check`, `pnpm build`, `pnpm test:e2e`.
-- [ ] Integrar preservando CTA de processamento e demais entradas explícitas adicionadas por outros consumers; não substituir o objeto de capabilities inteiro.
-- [ ] Configuração Auth validada por Catraca conforme [runbook Discord](../operations/discord-auth.md); identidade de teste autorizada de forma deliberada, sem auto-grant.
-- [ ] `TDA_READ_EDIT_DATA=true`, URL e secret server-side válidos; sem necessidade de `TDA_EDIT_UNSAFE`.
-- [ ] Publicação deliberada por responsável, fora desta implementação.
-- [ ] Smoke real com gestor autorizado e usuário sem permission, repetindo campanha cruzada e ausência de campos privados; registrar evidência sem capturar dados pessoais.
-- [ ] Manter aviso **somente leitura**; não anunciar grant/revoke nem OAuth real como verificados apenas pelo CI sintético.
+- [x] CI terminal e integração pela #64.
+- [x] Auth/OAuth real e `TDA_READ_EDIT_DATA=true` comprovados na Production #006.
+- [x] Publicação deliberada; anônimo recebeu 401/private-no-store e gestor autorizado renderizou o diretório somente leitura.
+- [x] Manter aviso **somente leitura**; grant/revoke continuam não implementados.
+- [ ] Um smoke operacional específico de campanha cruzada + inspeção de campos privados pode ser repetido em futura mudança sensível; não é necessário reabrir a entrega já publicada para declarar um teste que não foi registrado.
 
-Node 24.20.0 existente foi utilizado localmente, sem instalação global. Next 16.3.4/React 19.2.8 foram reconsultados no registry e documentação Next instalada lida; nenhuma dependência nova é necessária. O lockfile existente permanece fixado; atualização do SDK Supabase é independente desta feature e não foi feita implicitamente.
+Os números de runtime/dependências registrados na validação original são evidência histórica daquela execução, não pins correntes do projeto. Versões atuais pertencem aos manifests/lockfile e à governança de versões.
