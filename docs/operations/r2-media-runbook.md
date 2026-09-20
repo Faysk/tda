@@ -28,14 +28,13 @@ R2_SECRET_ACCESS_KEY
 
 O GitHub Actions não deve usar a Vercel como cofre intermediário para a publicação de mídia. `vercel env pull` e `vercel env run` não são o contrato canônico de credenciais R2 da Production CD.
 
-### Estado transitório conhecido
+### Implementação canônica
 
-Em 2026-09-20, o `production.yml` ainda não convergiu para esse contrato: ele tenta executar o publisher por `vercel env run`, caminho que falhou nos runs recentes por configuração R2 incompleta. Até a PR de convergência da implementação:
+A Production CD usa diretamente os secrets do GitHub Environment `production`, valida sua presença quando mídia está pendente e executa a pipeline compartilhada sobre o intervalo ainda não publicado.
 
-- tratar publicação automática de nova mídia em Production como bloqueada;
-- não declarar asset publicado apenas porque manifest/bytes chegaram à `main`;
-- não contornar a falha publicando manualmente de uma estação de desenvolvimento;
-- preservar manifests, fontes e referências anteriores para retry.
+Não existe uploader de Production específico por lore. O antigo workflow/config one-shot da Yllith foi removido.
+
+A existência administrativa dos secrets não é presumida: ausência de qualquer variável exigida falha antes de build/stage. Não contornar esse gate com publicação manual de uma estação de desenvolvimento.
 
 O repositório também ainda contém binários/fontes de mídia de migrações anteriores, inclusive em `media/sources/`. Isso é dívida de migração reconhecida pela ADR-0018. Novas decisões não devem ampliar essa dependência; a retirada será feita de forma deliberada depois que o intake/storage canônico estiver implementado.
 
