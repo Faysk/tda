@@ -1,222 +1,99 @@
-# Integração Vercel
+# Integração Vercel — provider atual de runtime/deploy
 
-> Status: production ativa; publicação manual controlada
-> Owner: operations/hosting
-> Última revisão: 2026-09-07
+> Status: vigente; provider atual
+> Owner: integrations/runtime + operations
+> Última revisão: 2026-09-20
+> Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
-## Guardrail obrigatório
+Vercel hospeda atualmente o frontend/runtime do TDA. Ela é **provider**, não control plane nem identidade permanente da arquitetura.
 
-Antes de **qualquer** operação de projeto, env, domain ou deployment do TDA, verificar o contexto correto:
+## Recursos atuais
 
-- conta/contexto esperado: `projeto-desenv-6905`;
-- email informado pelo proprietário: `projeto_desenv@outlook.com`;
-- team: `projeto-desenv-6905s-projects` (`team_9wuTfarCQ3L63xtufPKUDzi0`);
-- project: `tda` (`prj_hDiDvvRiesg3qCDekGWE8JQMkIyH`).
+```text
+Team:    team_9wuTfarCQ3L63xtufPKUDzi0
+Project: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+Domain:  https://dnd.faysk.dev
+Plan:    Hobby
+```
 
-Uma integração/tool que mostre outro time/conta não deve ser usada para alterar o TDA sem confirmação inequívoca de ownership. Em 2026-09-07 o ChatGPT/Vercel MCP foi reautorizado no contexto correto e o acesso aos IDs acima foi confirmado antes da primeira mutação.
+Antes de qualquer mutação, confirmar team/project. Não operar outro projeto por conveniência.
 
-## Estado documentado
+## Controle de deploy
 
-O projeto `tda` está ativo na Vercel correta, plano Hobby e Node 24. O primeiro deployment do reboot foi publicado manualmente em production em 2026-09-07 e terminou `READY`.
+GitHub Actions controla a entrega.
 
-A publicação atual corresponde ao source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe`. O domínio oficial de production é `https://dnd.faysk.dev`; os aliases Vercel permanecem disponíveis para diagnóstico.
+`git.deploymentEnabled=false` permanece a política: Git push não autoriza Vercel a decidir deployment sozinho.
 
-O projeto continua sem integração Git automática como gatilho de publicação; `git.deploymentEnabled=false` permanece vigente.
+Fluxo:
 
-O projeto Vercel legado `DND/dnd-scribe` foi excluído em operação separada e verificada. Ele não é fallback, não deve ser recriado para rollback e não muda o fato de que `dnd.faysk.dev` serve o novo projeto TDA. Evidência: [Retirada do projeto Vercel legado](../operations/legacy-retirement.md).
+```text
+PR
+ -> CI
+ -> Vercel Preview do SHA
+ -> merge main
+ -> Production CD
+ -> vercel build
+ -> vercel deploy --prebuilt --prod --skip-domain
+ -> smoke
+ -> vercel promote
+```
 
-## Política de deploy
+Preview é deployment de PR, não branch.
 
-`main` e `Preview` são branches de código, **não gatilhos automáticos de deploy**.
+## Identidade pública
 
-Razões:
+Identidade de produto:
 
-- controlar cota/custo;
-- evitar publicação acidental;
-- exigir candidato validado;
-- separar merge de release.
+`https://dnd.faysk.dev`
 
-Quando o conector usado para publicar não aceitar uma Git ref diretamente, é permitido um deployment direto desde que a origem seja fixada por SHA imutável e o método seja registrado no histórico operacional. Production #001 usou o tarball do GitHub preso ao SHA autorizado, instalação com lockfile congelado e build de produção.
+URLs `*.vercel.app` são infraestrutura/diagnóstico e não devem aparecer como canonical, share URL ou navegação normal do produto.
 
-## Ambientes
+## Environment Variables
 
-### Local
+Classificar cada variável como:
 
-Pode usar `.env.local`, nunca versionado. Configuração ausente deve produzir estado explícito.
+- pública/browser;
+- runtime server-side;
+- operacional/CI.
 
-### Preview/homologação
+Secrets usados pelo GitHub Actions para operar **outro provider** não pertencem à Vercel apenas porque o runtime também é Vercel.
 
-Não deve receber secret de produção ou acesso irrestrito a conteúdo real por padrão. Preferir dados isolados/autorizados.
+Exemplo: credenciais S3 do R2 usadas pelo publisher de GitHub Actions pertencem ao GitHub Environment `production`. Se uma feature em runtime precisar de Media Storage, ela recebe credencial runtime própria com privilégio mínimo.
 
-### Production
+Nunca usar `NEXT_PUBLIC_*` para secrets.
 
-Só após aceite da entrega, validação completa e verificação da conta/contexto Vercel.
+## Build/runtime config
 
-Production está ativa desde 2026-09-07. Publicar código novo em `main` não atualiza production por si só; exige nova autorização e novo evento de deployment.
+`vercel pull` pode ser usado para obter configuração necessária ao build/runtime da própria Vercel.
 
-## Env vars
-
-Documentar **nomes e finalidade**, nunca valores secretos.
-
-Ao adicionar env:
-
-1. classificar public vs server secret;
-2. definir em quais ambientes existe;
-3. validar que `NEXT_PUBLIC_*` é realmente seguro para browser;
-4. documentar dependência no runbook;
-5. não copiar production secret para Preview sem necessidade.
-
-## Release candidate
-
-Antes de deployment:
-
-- SHA conhecido;
-- CI verde e terminal para esse SHA exato;
-- instalação/build limpos;
-- testes browser desktop/mobile;
-- dados/permissões revisados;
-- migrations necessárias já reconciliadas;
-- rollback definido;
-- conta Vercel conferida.
-
-## Promoção
-
-Deploy deve ser consequência de candidato aprovado, não forma de testar cada mudança.
-
-Após publicar:
-
-- health/runtime;
-- rotas principais;
-- auth quando aplicável;
-- acesso público/privado;
-- assets/media;
-- domínio;
-- logs de erro;
-- smoke mobile/desktop.
-
-No Production #001, `/` e `/api/health` responderam HTTP 200, dados reais foram renderizados e a consulta de runtime errors não encontrou erros no intervalo verificado logo após a publicação.
+Isso não transforma `vercel env pull` ou `vercel env run` em secret manager canônico para CI de Media Storage, banco ou outro provider.
 
 ## Rollback
 
-Preferir rollback por SHA/release conhecido. Não manter duas versões públicas concorrentes do frontend como estratégia normal.
+Rollback do app é uma operação do provider de runtime:
 
-Production #001 é o primeiro ponto de rollback reproduzível do reboot. Não havia deployment anterior do reboot na Vercel quando ele foi publicado.
+1. identificar deployment anterior saudável;
+2. confirmar compatibilidade com estado atual do banco;
+3. promover/rollback;
+4. verificar `/api/health` e `/api/version`;
+5. corrigir em nova PR.
 
-Rollback de código e rollback de domínio são operações distintas. Se o problema estiver apenas no apontamento de `dnd.faysk.dev`, restaurar a associação/DNS anterior conhecida sem recorrer ao projeto legado removido. Se schema mudou, verificar compatibilidade backward antes de rollback do app; uma migration incompatível pode impedir simples retorno de código.
+Rollback da aplicação não apaga migrations ou objetos de Media Storage.
 
-## Domínio
+## Histórico
 
-O domínio canônico de production é `https://dnd.faysk.dev`.
+Production #001 e os deployments manuais de 2026-09-07 são evidência histórica em [deployments](../operations/deployments.md), não “Production atual”.
 
-No primeiro instante do Production #001, o reboot estava acessível apenas pelos aliases Vercel. Depois, em uma operação separada, `dnd.faysk.dev` foi associado ao projeto `tda` e passou a servir o mesmo deployment, sem novo build.
+O projeto legado `DND/dnd-scribe` foi retirado e não é caminho de rollback.
 
-Validação de `2026-09-07T04:04Z`:
+## Custos
 
-- `https://dnd.faysk.dev/` -> HTTP 200;
-- `https://dnd.faysk.dev/api/health` -> HTTP 200;
-- health: `ok=true`, `application=tda`, `environment=production`;
-- HTTPS ativo;
-- resposta servida pela Vercel.
-
-A consulta DNS auxiliar falhou durante a documentação, então o valor exato do registro Cloudflare não deve ser inventado nem inferido neste arquivo. Em operações futuras, registrar tipo, nome, alvo, proxy status e TTL sempre que essa evidência estiver disponível.
-
-### Contrato de URL pública
-
-`dnd.faysk.dev` é identidade pública do produto. URLs `*.vercel.app` são aliases de infraestrutura para diagnóstico e **não podem aparecer como destino normal de navegação, canonical metadata ou compartilhamento**.
-
-Regras vigentes:
-
-- links internos do shell público usam caminhos relativos e navegação nativa do navegador para preservar o origin pelo qual o usuário entrou;
-- `metadataBase` do App Router usa explicitamente `https://dnd.faysk.dev`;
-- páginas de sessão emitem canonical sob `https://dnd.faysk.dev/sessoes/<id>`;
-- copiar/compartilhar sessão reconstrói a URL com o origin canônico, mesmo se a página tiver sido aberta por um alias de infraestrutura;
-- o teste E2E de navegação valida que clicar da Home para `/sessoes` não troca o origin atual;
-- mudanças futuras não devem reintroduzir `next/link` diretamente no shell público sem demonstrar em homologação e production que o hostname permanece canônico durante navegação cliente.
-
-### Contrato de preview social / metadata SSR
-
-Prévia de link é um contrato **da página pública**, independente de WhatsApp, Discord, Slack, redes sociais ou qualquer CTA no produto. Colar uma URL pública deve ser suficiente para que um crawler compatível encontre os metadados; nenhum botão específico de plataforma é requisito para isso.
-
-A implementação canônica vive em `src/config/public-metadata.ts`. Toda página pública deve usar esse boundary, diretamente ou por adapter de domínio, e fornecer:
-
-- título e descrição próprios da página;
-- `canonical` absoluto em `https://dnd.faysk.dev`;
-- `og:url` absoluto e idêntico ao canonical da página;
-- Open Graph com título, descrição, `siteName`, locale, tipo e imagem;
-- Twitter Card coerente com o mesmo título, descrição e imagem;
-- `og:image` em URL HTTPS absoluta e pública, sem autenticação;
-- `alt`, MIME e dimensões quando esses dados forem conhecidos.
-
-Uma URL HTTPS válida sintaticamente **não é evidência suficiente** para imagem social. Imagens customizadas entregues ao helper precisam chegar marcadas como `verified-public`; o helper não executa probe remoto e remove esse marcador antes de serializar metadata.
-
-Para sessões, `src/features/sessions/metadata.ts` não usa mais `heroImage || coverImage` diretamente. A escolha passa por `src/config/public-session-media.ts`, que separa mídia de UI/origem histórica da evidência de publicação social:
-
-- hero com evidência `verified-public` prevalece;
-- se hero estiver `pending`/`unavailable` e cover estiver `verified-public`, usa cover;
-- se nenhuma variante possuir evidência positiva, usa o fallback oficial;
-- URL histórica conhecida como 404 nunca é emitida apenas porque ainda está armazenada como string HTTPS;
-- bucket/key R2, inclusive `tda-media-public`, não tornam uma imagem pública por inferência.
-
-A promoção `verified-public` exige URL de entrega HTTPS, SHA-256, MIME de imagem, bytes, dimensões, timestamp, read-back verificado e entrega pública sem autenticação verificada. O manifesto de recuperação/dry-run da issue #25 pode registrar `pending` e `unavailable`, mas esses estados não são consumidos como autorização de preview. O contrato detalhado de mídia/Cloudflare é owned por [Integração Cloudflare R2](r2.md).
-
-Não existe `HEAD`, `GET` ou outro fetch remoto por request dentro de `generateMetadata`. A verificação é feita fora do request e promovida server-side somente depois da recuperação/publicação. Isso evita transformar SSR/crawler em health check de storage e impede que uma origem instável altere metadata de forma não determinística.
-
-O fallback oficial é `https://dnd.faysk.dev/og/default`, gerado pelo app em PNG `1200x630` com identidade visual TDA e sem dependência de auth, banco ou JavaScript.
-
-Home, arquivo de sessões e detalhes usam o mesmo contrato. Lores, World Explorer e outras superfícies públicas futuras devem reutilizar `buildPublicMetadata` em vez de criar uma segunda implementação de Open Graph/Twitter; artwork customizada futura também deve chegar ao helper apenas após evidência positiva equivalente, ou usar o fallback.
-
-O root layout mantém apenas metadata estrutural compartilhável com qualquer rota, como `metadataBase`, template de título e favicon. Ele **não** fornece Open Graph/Twitter genéricos, evitando que `/edit`, 404 ou outra superfície não pública herde uma prévia pública por acidente. `/edit/**` é explicitamente `noindex,nofollow`; páginas de sessão inexistentes entram no fluxo `notFound()` também durante geração de metadata.
-
-Os testes de crawler leem o HTML HTTP bruto com user-agents de preview, sem executar JavaScript, e verificam que as tags estão no `<head>`. O endpoint da imagem fallback também é requisitado sem cookie/token. Testes unitários cobrem duas sessões distintas, hero indisponível com cover verificada, artefato HTTPS indisponível sem probe de rede, R2 `pending` sem inferência de publicidade, ausência de evidência promovida e o uso reaproveitável para Lore/World Explorer.
-
-Esse contrato define **o que o TDA serve**, não o layout final escolhido por terceiros. Cada plataforma decide o desenho da prévia e mantém cache/recrawl próprios; não há garantia de aparência idêntica nem atualização instantânea depois de uma mudança de metadata.
-
-Em 2026-09-07 foi observado em production um vazamento do alias `tda-three.vercel.app` ao navegar a partir de `dnd.faysk.dev`, apesar de os `href` renderizados serem relativos e as rotas diretas em `dnd.faysk.dev` responderem HTTP 200. A correção foi tratada no código como boundary de navegação pública, sem transformar aliases Vercel em URLs de produto.
-
-### Estado da correção de origem canônica
-
-A PR #31 foi integrada à `main` e o código vigente contém o origin canônico `https://dnd.faysk.dev` e o teste de regressão correspondente. Isso é evidência de **correção no código**.
-
-O histórico de deployments, porém, ainda registra como publicação atual o Production #001 no source SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec`, anterior à integração da PR #31. Portanto, até existir nova entrada em `docs/operations/deployments.md` com smoke pós-deploy, **não afirmar que a correção da PR #31 está efetivamente publicada**.
-
-Os critérios operacionais para a próxima release ficam em [Runbook — release, deploy e rollback](../operations/release-runbook.md), que é o owner do procedimento. Esta conciliação documental não autoriza deployment nem mudança de DNS.
-
-## Cotas
-
-Plano Hobby e deploys/CLI podem possuir limites. Não reativar auto-deploy sem decisão explícita apenas por conveniência.
-
-## Failure modes
-
-### Conta errada
-
-Abortar operação. Não criar "outro tda" em outra conta para continuar.
-
-### Env faltando
-
-Deployment deve falhar/mostrar estado explícito, não mascarar com dados fake.
-
-### Build verde, runtime quebrado
-
-Verificar env/runtime/data boundary antes de promover domínio.
-
-### Metadado de commit ausente
-
-Deployment direto pode não preencher metadados Git da Vercel. No Production #001, `/api/health` retornou `commit: null`; o SHA autoritativo foi garantido pelo source tarball fixado e registrado em `docs/operations/deployments.md`. Não inferir um SHA a partir do horário do deploy.
-
-### Migration incompatível
-
-Tratar app+database como release coordenada e seguir rollback planejado.
+Vercel Hobby é usado enquanto atende ao projeto. Upgrade/tier pago exige necessidade comprovada e decisão documentada, conforme ADR-0018.
 
 ## Referências
 
+- [ADR-0018](../adr/0018-portable-core-github-control-plane.md)
+- [CI/CD](../operations/ci-cd.md)
+- [Configuração administrativa](../operations/cicd-admin-setup.md)
+- [Release](../operations/release-runbook.md)
 - [Histórico de deployments](../operations/deployments.md)
-- [Runbook de release](../operations/release-runbook.md)
-- [Retirada do projeto Vercel legado](../operations/legacy-retirement.md)
-- [Política resumida](../releases.md)
-- [Infraestrutura e estado](../infrastructure.md)
-
-## Identidade por link — correção de 2026-09-07
-
-Toda página pública deve emitir título, resumo, URL canônica e imagem próprios no HTML servido aos crawlers. A imagem padrão é fallback para conteúdo sem arte disponível, não um substituto universal das imagens das sessões. O mesmo contrato se aplica às futuras páginas de personagens, NPCs, itens e lores; rotas privadas não herdam previews públicos.
-
-As 11 sessões recuperadas agora consomem o registro runtime `src/config/published-session-media.ts`, promovido após nova verificação anônima das 22 URLs e hashes. O teste de integração de metadata usa o registro real, sem injetar um manifesto fictício, e exige 11 imagens distintas correspondentes às sessões. Essa promoção de imagem social não altera referências do banco.
