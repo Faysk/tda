@@ -139,6 +139,8 @@ A superfície Web envia o ZIP Craig somente para o Agent em loopback. O Companio
 
 O hash integral das faixas pertence ao ingest/deep verification. No dispatch normal, o worker revalida manifesto, path e tamanho sem reler todos os bytes (`verify_tracks=false`). Isso evita que sessões grandes fiquem minutos em I/O antes da primeira etapa de ASR. O stage `source_validation` e heartbeats atualizam liveness real enquanto o pipeline entra em execução.
 
+O envelope JSON local usa um orçamento autoritativo de **4096 bytes UTF-8** para requests POST da API v1. `context` e `glossary` continuam limitados semanticamente a **1200 valores Unicode** cada, mas a Web mede o JSON completo — incluindo kind, campaign/session/source/profile e os dois textos — antes da submissão. Um payload acima do orçamento é recusado localmente com diagnóstico acionável e o Agent mantém o mesmo limite fail-closed com `BODY_TOO_LARGE`. Contagem de caracteres não substitui a contagem de bytes de transporte.
+
 O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não possui mais o formulário concorrente; **Execução local** monitora fila/stage/liveness e concentra logs, diagnóstico, runtimes e manutenção.
 
 Os perfis executáveis vêm de `capabilities`:
