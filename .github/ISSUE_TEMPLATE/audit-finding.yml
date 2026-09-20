@@ -1,0 +1,84 @@
+name: Audit finding
+description: Register an evidence-backed finding from a focused audit without turning hypotheses into bugs.
+title: "audit(<scope>): "
+labels:
+  - "audit"
+  - "triage:needed"
+body:
+  - type: input
+    id: audit
+    attributes:
+      label: Audit / index
+      description: Link or issue number of the audit that owns this finding.
+      placeholder: "#422 / PROC-XX / audit reference"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - processing
+        - processing-web
+        - companion
+        - transcripts
+        - auth
+        - database
+        - sessions
+        - world
+        - entities
+        - media
+        - lore
+        - design-system
+        - ux
+        - release
+        - governance
+        - stats
+    validations:
+      required: true
+  - type: input
+    id: baseline
+    attributes:
+      label: Baseline
+      placeholder: "SHA / release / artifact / date"
+    validations:
+      required: true
+  - type: textarea
+    id: fact
+    attributes:
+      label: Confirmed fact
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis / inference
+      description: Leave empty if none. Never merge this into the confirmed fact.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction / verification
+      description: Synthetic or safe reproduction and exact result.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and priority rationale
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance gate
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Evidence limits / out of scope
+    validations:
+      required: true
