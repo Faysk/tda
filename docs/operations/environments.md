@@ -2,105 +2,67 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
+> Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
-Este documento define os ambientes do TDA, seus limites de dados/segredos e o relacionamento com a esteira. Procedimentos de entrega estão em [CI/CD — operação, promoção e recuperação](ci-cd.md); configuração administrativa está em [CI/CD — configuração administrativa](cicd-admin-setup.md).
+Este documento define os ambientes do TDA, seus limites de dados/secrets e o relacionamento com providers substituíveis.
 
-## Ambientes conceituais
+## Ambientes lógicos
 
-Há três ambientes lógicos, mas apenas uma branch longa necessária para a entrega web.
-
-| Ambiente | Fonte | Publicação | Dados |
+| Ambiente | Fonte | Runtime/deploy atual | Dados/storage |
 | --- | --- | --- | --- |
-| Development | branches temporárias | nenhuma | local/sintético/configurado deliberadamente |
-| Preview / homologação | SHA exato de cada PR | Vercel Preview durante CI | sem migration automática em Production |
-| Production | `main` | Vercel staged → smoke → promote | Supabase Production + R2 conforme lifecycle relevante |
+| Development | branch/worktree temporário | local | local/sintético/configurado deliberadamente |
+| Preview | SHA exato da PR | Vercel Preview | sem mutação automática de Production |
+| Production | `main` aprovado | Vercel staged → smoke → promote | PostgreSQL/Supabase + Media Storage/R2 conforme lifecycle |
 
-A antiga branch Git `Preview` foi aposentada da entrega. O termo Preview agora representa somente o deployment de homologação de uma PR.
+Preview é deployment, não branch.
 
-## Fluxo atual
+## Control plane
 
-```text
-branch temporária
-      |
-      v
-    PR -> main
-      |
-      +--> fast CI
-      +--> jobs condicionais
-      +--> Preview do SHA da PR
-      +--> smoke
-      |
-      v
-  required-ci
-      |
-      v
- merge main
-      |
-      v
- Production CD
-      |
-      +--> staged artifact
-      +--> migration se pendente
-      +--> mídia somente se o merge atual trouxer manifest canônico
-      +--> staged smoke
-      +--> promote do mesmo artifact
-      +--> canonical health/version
-      |
-      v
- dnd.faysk.dev
-```
+GitHub é o control plane.
+
+- código/config declarativa/docs -> repositório;
+- CI/CD -> GitHub Actions;
+- secrets operacionais usados por Actions -> GitHub Environments;
+- runtime provider recebe apenas secrets necessários em execução.
 
 ## Development
 
-Objetivo: desenvolver e testar sem publicar Production.
-
 Regras:
 
-- `.env.local` e outros `.env*` secretos não são versionados;
-- `.env.example` é o único modelo de ambiente que pode ser versionado;
-- build/test local deve ser reproduzível a partir do repo;
-- integração externa só é usada quando configurada deliberadamente;
-- mock/scratch não deve ser confundido com Production;
-- branches `feat/*`, `fix/*`, `refactor/*`, `ops/*`, `docs/*` são temporárias e normalmente abrem PR diretamente para `main`.
+- `.env.local` e demais envs secretos não são versionados;
+- `.env.example` é o modelo versionável;
+- integração externa só é usada quando deliberadamente configurada;
+- credencial local deve ter escopo mínimo;
+- Production não é ambiente de desenvolvimento.
 
-`TDA_EDIT_UNSAFE=true` continua sendo flag transitória de desenvolvimento quando aplicável. Ela nunca é atalho para guards de Production.
+## Preview
 
-## Preview / homologação
-
-Preview significa **deployment de pull request**, não branch.
-
-Fonte canônica de cada Preview:
+Fonte:
 
 ```text
 pull_request.head.sha
 ```
 
-Comportamento:
+Contrato:
 
-- `ci-gate` precisa passar antes do deploy;
-- o workflow recusa SHA diferente do HEAD da PR;
-- deployment recebe `APP_ENV=preview`;
-- `APP_COMMIT_SHA` recebe o SHA real;
-- `TDA_RELEASE_ID=pr-<numero>-<sha curto>`;
-- `/api/health` e `/api/version` precisam provar o SHA/release;
-- `/`, `/sessoes` e `/lore/yllith` precisam responder;
-- nenhuma migration é aplicada no Supabase Production;
-- `dnd.faysk.dev` nunca é alterado pelo Preview.
+- CI precisa passar;
+- deployment usa SHA exato;
+- `APP_ENV=preview`;
+- `APP_COMMIT_SHA=<sha>`;
+- `TDA_RELEASE_ID=pr-<numero>-<sha-curto>`;
+- smoke verifica health/version e superfícies relevantes;
+- Preview não aplica migration em Production;
+- Preview não recebe credenciais irrestritas de Production por conveniência.
 
-### GitHub Environment `preview`
-
-Secret mínimo:
+GitHub Environment:
 
 ```text
-VERCEL_TOKEN
+preview:
+  VERCEL_TOKEN
 ```
 
-Preview não recebe credencial irrestrita de Production apenas por conveniência.
-
 ## Production
-
-Objetivo: servir o TDA aprovado no domínio oficial.
 
 Fonte canônica:
 
@@ -108,65 +70,41 @@ Fonte canônica:
 main
 ```
 
-Estar em `main` isoladamente ainda não basta para publicação automática. O `production.yml` confirma:
+A release aceita apenas HEAD corrente de `main` originado de PR mergeada e exige que o SHA atualmente publicado seja ancestral do candidato.
 
-1. o SHA pedido é exatamente o HEAD atual de `main`;
-2. esse SHA é resultado de uma PR mergeada em `main`;
-3. o SHA atualmente informado por `dnd.faysk.dev/api/version` é ancestral da nova release.
-
-Não existe requisito de origem `Preview -> main`.
-
-### Recursos canônicos
-
-Supabase:
+Providers atuais:
 
 ```text
-dmrqnbdvbkfqzctcerbx
+runtime/deploy:
+  Vercel team    team_9wuTfarCQ3L63xtufPKUDzi0
+  Vercel project prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  domain         https://dnd.faysk.dev
+
+database:
+  PostgreSQL via Supabase dmrqnbdvbkfqzctcerbx
+
+Media Storage:
+  public  tda-media-public
+  private tda-media-private
+  origin  https://media.dnd.faysk.dev
 ```
 
-Vercel team:
+### GitHub Environment production
 
-```text
-team_9wuTfarCQ3L63xtufPKUDzi0
-```
-
-Vercel project:
-
-```text
-prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
-```
-
-Domínio:
-
-```text
-https://dnd.faysk.dev
-```
-
-R2 Production:
-
-```text
-tda-media-public
-tda-media-private
-```
-
-## GitHub Environment `production`
-
-Secret sempre necessário para deploy web:
+Sempre:
 
 ```text
 VERCEL_TOKEN
 ```
 
-Secrets necessários apenas quando a release contém migration pendente:
+Quando migration está pendente:
 
 ```text
 SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-`SUPABASE_ACCESS_TOKEN` precisa ser Personal Access Token da conta Supabase (`sbp_...`). Não confundir com anon key, secret key da aplicação ou service role key.
-
-Credenciais R2 de escrita pertencem ao lifecycle de publicação de mídia e só são exigidas quando o merge atual altera manifest canônico:
+Quando publicação de Media Storage está pendente:
 
 ```text
 R2_ACCOUNT_ID
@@ -174,41 +112,60 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-A ausência delas não deve bloquear deploy web comum sem mídia nova.
+Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 
-Runtime secrets da aplicação continuam configurados na Vercel por ambiente.
+Runtime secrets continuam no runtime apenas quando a aplicação realmente precisa deles.
 
-## Dados e migrations
+## Migrations
 
-CI usa PostgreSQL sintético quando o classificador marca `db=true`.
+Migrations são avaliadas no intervalo entre o SHA realmente publicado e o novo `main`.
 
-Production não instala nem autentica Supabase em toda release. O lifecycle remoto só ocorre quando existe migration SQL pendente desde o SHA realmente publicado até o novo `main`.
+Enquanto Production não alcançar uma migration, ela permanece pendente.
 
-Isso preserva duas propriedades:
+Sem migration pendente:
 
-- release web comum não toca banco sem necessidade;
-- migration que ficou pendente por causa de uma release anterior falha continua visível até Production alcançar o commit correspondente.
+- Supabase CLI não participa;
+- credenciais de migration não são exigidas;
+- release web comum não toca DB por conveniência.
 
-## Mídia
+## Media Storage
 
-Mídia continua no R2.
+Full audit global de todos os objetos não é gate do deploy web comum.
 
-Validação local de manifests/tooling ocorre no CI quando o domínio é relevante. Full public audit de todo o bucket não é gate do deploy web comum.
+A regra de recuperação é:
 
-Publicação automática dentro de Production só é considerada para manifests canônicos alterados no merge atual. Um manifest histórico no intervalo acumulado não cria obrigação retroativa de escrita R2 para uma release web posterior.
+```text
+Production publicado -> novo main
+          |
+          +-> manifests canônicos ainda não publicados?
+                sim -> lifecycle Media Storage
+                não -> skip
+```
 
-## Runtime e versões
+Um asset histórico **já pertencente a uma Production comprovada** não deve bloquear release não relacionada.
 
-Node é fixado por `.node-version`; package manager pelo `package.json`. CLIs usadas na entrega são pinadas nos workflows.
+Um manifest que entrou depois do SHA atual de Production e cuja publicação falhou **não é histórico irrelevante**: continua pendente até ser publicado/verificado ou removido por decisão explícita.
 
-Endpoints de identidade:
+### Drift conhecido
+
+O planner/workflow atual ainda não implementa integralmente essa regra e o publisher atual ainda tenta usar `vercel env run` para R2. Isso é dívida operacional registrada, não comportamento desejado.
+
+Até a convergência:
+
+- release com mídia nova pode falhar antes do promote;
+- não contornar manualmente;
+- não declarar mídia publicada sem receipt/read-back/GET público.
+
+## Identidade de release
+
+Endpoints:
 
 ```text
 /api/health
 /api/version
 ```
 
-Variáveis de release:
+Variáveis:
 
 ```text
 APP_ENV
@@ -216,48 +173,14 @@ APP_COMMIT_SHA
 TDA_RELEASE_ID
 ```
 
-O deployment staged e o canonical precisam retornar identidade coerente antes e depois do promote.
+O staged e o canonical precisam provar a identidade esperada.
 
 ## Recuperação
 
-Uma falha antes do promote não altera o domínio oficial.
+Falha antes do promote não move o domínio oficial.
 
-Uma falha recuperável depois do promote usa rollback para deployment anterior saudável e uma nova PR para a correção. O objetivo operacional é recuperação simples, não impedir por arquitetura todo incidente possível.
+Falha depois do promote usa rollback do deployment e nova PR de correção. Banco e Media Storage não sofrem rollback destrutivo automático.
 
-## Estado comprovado
+## Histórico
 
-Primeira PR main-only real:
-
-```text
-PR #345
-fix/production-v3-media-release-scope -> main
-merge a8a9253e13c159263fc1f4a4672d8690f4c62e33
-```
-
-Primeiro Production v3 completamente verde:
-
-```text
-CI run:         34900494222
-Production run: 34900630352
-Supabase:       skipped
-mídia publish:  skipped
-stage/smoke:    success
-promote:        success
-canonical:      success
-receipt:        success
-```
-
-Prova posterior à remoção das dependências da antiga branch web:
-
-```text
-PR #347
-main:           a46e8292eaed7e1cff32addd181668d83fd76be4
-CI run:         34902095910
-Production run: 34902180398
-Supabase:       skipped
-mídia publish:  skipped
-stage/smoke:    success
-promote:        success
-canonical:      success
-receipt:        success
-```
+A antiga branch permanente `Preview` e promoção `Preview -> main` pertencem apenas aos documentos históricos da simplificação.

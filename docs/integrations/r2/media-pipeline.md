@@ -2,11 +2,11 @@
 
 > Status: arquitetura aprovada
 > Owner: integrations/media + frontend + operations
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-20
 
 ## Escopo e fonte de verdade
 
-Este é o contrato de trabalho para qualquer frente que prepare, envie ou consuma imagens: sessões, lores, personagens, grafo e social. Define o comportamento exigido; não afirma que existe hoje uma ferramenta única ou uma tela de upload completa. Implementações existentes devem convergir para ele, sem criar um uploader por lore.
+Este é o contrato de trabalho para qualquer frente que prepare, envie ou consuma mídia: sessões, lores, personagens, grafo, marca e social. Define o comportamento exigido; não afirma que existe hoje uma ferramenta única ou uma tela de upload completa. Implementações existentes devem convergir para ele, sem criar um uploader por lore.
 
 Ler também [placement](placement.md), [identidade e keys](identity-and-keys.md), [qualidade e proporções](variants-and-crops.md) e o [runbook operacional](../../operations/r2-media-runbook.md). A [liberdade visual das lores](../../features/independent-lores.md) permanece; o contrato de mídia não impõe template visual.
 
@@ -32,7 +32,7 @@ Erro em qualquer gate interrompe a promoção daquele candidato. Um lote incompl
 - Comparar o SHA-256 do read-back com o hash do **arquivo enviado**. Um derivado tem hash próprio; não se espera que seu hash seja igual ao do master.
 - Hash no path, ETag ou cabeçalho declarado não substitui cálculo dos bytes. Um GET que retorna HTML, mesmo com status 200, falha.
 - Se houver transformação intencional no caminho de entrega, verificar separadamente a integridade do objeto de origem e formato/dimensões/qualidade da saída transformada. Não exigir igualdade de hash entre dois artefatos diferentes nem declarar a saída intacta por copiar o hash da origem.
-- Corrigir credencial inválida no ambiente autorizado sem imprimir valores. Não confundir token de gerenciamento Cloudflare com o par de credenciais S3 do R2.
+- Corrigir credencial inválida no ambiente autorizado sem imprimir valores. No provider atual, não confundir token de gerenciamento Cloudflare com o par de credenciais S3 do R2.
 
 ## Qualidade e variantes
 
@@ -44,9 +44,9 @@ O consumidor define tamanho do slot, crop intencional e densidades-alvo; a prepa
 
 ## Upload, endereço e registro
 
-Usar uma implementação compartilhada de envio via API S3 do R2. Preparação pode rodar localmente; objetos publicados continuam disponíveis com o computador desligado. Não habilitar serviços pagos de transformação por conveniência.
+Usar uma implementação compartilhada do boundary Media Storage. O adapter atual usa a API S3 compatível do Cloudflare R2. Preparação pode rodar localmente; objetos publicados continuam disponíveis com o computador desligado. Não habilitar serviços pagos de transformação por conveniência.
 
-Identificar conta/endpoint, bucket do ambiente, escopo da credencial e domínio antes de escrever. Produção pública usa o domínio configurado `media.dnd.faysk.dev`; domínio ativo não comprova a existência de cada key. Preview permanece isolado. Rascunhos privados não podem ser enviados a um bucket público para facilitar teste.
+Identificar provider/conta/endpoint, container do ambiente, escopo da credencial e domínio antes de escrever. No provider atual, Production pública usa `media.dnd.faysk.dev`; domínio ativo não comprova a existência de cada key. Preview permanece isolado. Rascunhos privados não podem ser enviados a um bucket público para facilitar teste.
 
 Conteúdo novo recebe key nova; reexecução só reutiliza um objeto após conferir identidade e integridade. Não sobrescrever silenciosamente, não apagar objetos como parte automática do upload e não inventar outro namespace por tarefa.
 
@@ -93,7 +93,7 @@ Cada frente documenta suas fases com checkboxes. Só marcar concluído quando ho
 
 Uma evidência pode ser um relatório gerado anexado à entrega, sem segredos, com links a imagens comparativas. Não copiar inventários dinâmicos inteiros para este contrato. CI deve bloquear integridade/consumo inválidos; inspeção perceptiva continua necessária. Falhas conhecidas não devem ser mascaradas por testes ignorados ou apenas por aumento de timeout.
 
-## Referências oficiais
+## Referências do provider atual
 
 - [R2: compatibilidade S3](https://developers.cloudflare.com/r2/api/s3/api/).
 - [R2: domínio público e cache](https://developers.cloudflare.com/r2/buckets/public-buckets/).

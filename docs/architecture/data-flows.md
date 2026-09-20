@@ -2,7 +2,7 @@
 
 > Status: vigente/parcialmente preparado
 > Owner: arquitetura + domínios
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-20
 
 Este documento descreve **movimento de dados e mudança de autoridade**. Para detalhes físicos de tabela, ver [catálogo de schema](../database/schema-catalog.md).
 
@@ -11,7 +11,7 @@ Este documento descreve **movimento de dados e mudança de autoridade**. Para de
 ```text
 browser
   -> Next.js server
-  -> consulta estreita Supabase
+  -> consulta estreita PostgreSQL (provider atual: Supabase)
   -> filtra campaign=yuhara-main + status/visibilidade publicados
   -> model de domínio
   -> renderer seguro
@@ -20,7 +20,7 @@ browser
 
 Regras:
 
-- segredo Supabase permanece server-side;
+- credencial do provider de dados permanece server-side;
 - catálogo não busca transcrição completa nem dados de usuários;
 - mídia aceita somente origens explicitamente permitidas;
 - resumo Markdown é renderizado sem HTML bruto arbitrário;
@@ -37,7 +37,7 @@ Craig/Discord/arquivos locais
   -> participants + recording metadata + jobs
   -> chunks/speech slices locais quando necessário
   -> transcrição/classificação
-  -> resultados e metadados sincronizados ao Supabase
+  -> resultados e metadados sincronizados ao PostgreSQL (provider atual: Supabase)
 ```
 
 Princípios:
@@ -127,13 +127,14 @@ Publicar não é simplesmente alterar frontend. É mudança de estado de conteú
 
 ```text
 arquivo aprovado
-  -> R2 bucket adequado
-  -> metadata/relação no banco
-  -> URL pública controlada ou URL assinada/autorizada
+  -> Media Storage adequado ao ambiente/audience
+  -> provider atual: Cloudflare R2
+  -> metadata/relação no PostgreSQL
+  -> URL pública controlada ou acesso temporário autorizado
   -> consumidor
 ```
 
-Buckets/credenciais não são modelo de autorização do domínio. A aplicação decide se o usuário pode solicitar/receber acesso.
+Bucket/container/credencial não é modelo de autorização do domínio. A aplicação decide se o usuário pode solicitar/receber acesso. Provider pode mudar sem alterar essa regra.
 
 ## 9. Auth e capabilities
 
@@ -281,7 +282,7 @@ O Design System não altera authority do conteúdo. Um estado visual nunca promo
 - falha de transcrição não invalida arquivo bruto/local;
 - falha de classificação não deve duplicar candidatos em retry;
 - falha de publicação não promove estado parcialmente;
-- falha de R2 não remove metadata/origem sem confirmação;
+- falha de Media Storage não remove metadata/origem sem confirmação;
 - falha de companion não derruba leitura cloud já sincronizada;
 - falta de identidade resolvida deixa vínculo pendente, não inventa personagem/profile;
 - falha do World Explorer não impede perfil/lista textual de relações quando disponível;

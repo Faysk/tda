@@ -1,16 +1,61 @@
 # Publicação controlada
-main e Preview são branches permanentes, não gatilhos de deploy. Vercel git.deploymentEnabled=false; CI não contém deploy. A conta Vercel alvo é projeto-desenv-6905, não DND/dndscribe.
 
-Antes de publicar: escopo fechado, revisão, instalação limpa, tipos/lint/testes, build de produção, teste visual desktop/mobile, revisão de dados/permissões, SHA conhecido e rollback. Cloud só recebe candidato validado. Não usar publicações repetidas como desenvolvimento; não reativar auto-deploy após liberar cotas. CLI/prebuilt também consome cota.
+> Status: vigente
+> Owner: operations / release
+> Última revisão: 2026-09-20
+> Fonte de verdade: [runbook de CI/CD](operations/ci-cd.md) e [runbook de release](operations/release-runbook.md)
 
-## Estado publicado
+A publicação do TDA é controlada pelo GitHub Actions.
 
-Em 2026-09-07 ocorreu o primeiro deployment manual do reboot em production. O candidato autorizado foi a `main` no SHA `a7e9053ff2d3f42b6b110558bb51a8e2105125ec` (`Fix theme toggle semantics and icons`). A publicação foi criada no projeto Vercel `tda`, equipe `projeto-desenv-6905s-projects`, como deployment `dpl_CHFi2UCFGZjE5shTj7UvsghHtRPe` e terminou `READY`.
+## Política atual
 
-Como o projeto não possui Git link automático e o conector de deployment trabalha com arquivos, o release foi construído a partir do tarball imutável do GitHub fixado nesse SHA, com `pnpm install --frozen-lockfile` e `pnpm build`. Isso não alterou `git.deploymentEnabled=false` e não criou gatilho de deploy por push.
+- `main` é a única branch longa necessária para a entrega web;
+- Preview é deployment do SHA exato de uma PR;
+- Vercel Git auto-deploy permanece desligado;
+- merge em `main` não é prova de publicação concluída;
+- Production é staged, recebe smoke e só então é promovida;
+- migrations e Media Storage participam quando houver trabalho remoto pendente;
+- rollback é mecanismo normal de recuperação.
 
-O domínio oficial de production é `https://dnd.faysk.dev`. Em `2026-09-07T04:04Z`, a Home e `/api/health` responderam HTTP 200 nesse domínio; o health retornou `ok=true`, `application=tda` e `environment=production`, com HTTPS ativo e resposta servida pela Vercel.
+Providers atuais:
 
-Os aliases Vercel continuam disponíveis para diagnóstico, incluindo `https://tda-three.vercel.app`. A promoção do domínio foi uma operação separada e não exigiu novo deployment de aplicação: `dnd.faysk.dev` passou a servir o mesmo Production #001.
+- runtime/deploy: Vercel;
+- dados: PostgreSQL via Supabase;
+- Media Storage: Cloudflare R2.
 
-O histórico verificável de Deployment ID, timestamps, URLs, método, smoke, cutover de domínio e rollback fica em [operations/deployments.md](operations/deployments.md).
+Eles são substituíveis conforme ADR-0018.
+
+## Antes de publicar
+
+Confirmar:
+
+- escopo fechado;
+- PR/CI do SHA exato;
+- Preview revisado quando aplicável;
+- documentação atualizada;
+- migrations identificadas;
+- mídia pendente identificada;
+- secrets necessários no boundary correto;
+- rollback conhecido.
+
+Não usar deployments repetidos como ferramenta de desenvolvimento.
+
+## Depois de publicar
+
+Comprovar:
+
+- `/api/health`;
+- `/api/version`;
+- SHA/release esperados;
+- superfícies alteradas;
+- migration aplicada quando necessária;
+- Media Storage publicado/verificado quando necessário;
+- receipt da release.
+
+Um step verde com zero assets não prova publicação de mídia.
+
+## Histórico
+
+Os primeiros deployments manuais de 2026-09-07 e seus IDs permanecem preservados em [Histórico de deployments](operations/deployments.md). Eles não descrevem a topologia operacional atual.
+
+A antiga branch permanente `Preview` e promoção `Preview -> main` são históricas e não devem reaparecer em procedimentos novos.

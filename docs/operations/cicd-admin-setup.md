@@ -2,23 +2,32 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
+> Fonte de verdade: ADR-0018, GitHub Environments e os workflows versionados
 
-Este runbook cobre as superfícies administrativas da esteira atual do TDA: GitHub Environments, secrets, branch protection, Vercel, Supabase e os poucos passos que não vivem no código do repositório.
+Este runbook cobre o estado administrativo desejado e verificável da esteira: GitHub Environments, secrets, branch protection e os providers atuais.
 
-O comportamento técnico da entrega está em [CI/CD — operação, promoção e recuperação](ci-cd.md). As decisões arquiteturais continuam registradas em [ADR-0012](../adr/0012-github-actions-controlled-delivery.md) e [ADR-0015](../adr/0015-recovery-oriented-delivery.md).
+O comportamento técnico da entrega está em [CI/CD — operação, promoção e recuperação](ci-cd.md). A direção arquitetural está em [ADR-0018](../adr/0018-portable-core-github-control-plane.md).
 
 ## Regra de segurança
 
-Nunca registrar valores de secrets neste arquivo, em issues, PRs, comentários, workflow inputs ou logs. A documentação guarda apenas nomes, escopo, finalidade, estado observado e procedimento.
+Nunca registrar valores de secrets em Git, docs, issues, PRs, comentários, workflow inputs, logs, screenshots ou chat.
 
-## Estado administrativo alvo após a simplificação
+A documentação guarda apenas:
 
-### GitHub branches
+- nome;
+- boundary;
+- finalidade;
+- estado observado;
+- procedimento de configuração/rotação.
+
+## GitHub como control plane
+
+GitHub é o control plane da entrega.
 
 `main` é a única branch longa necessária para a entrega web.
 
-O contrato administrativo esperado de `main` é:
+Contrato administrativo esperado:
 
 ```text
 required status check: required-ci
@@ -27,54 +36,43 @@ deletion:              bloqueado
 merge:                 por pull request
 ```
 
-O contexto `promotion-source` existiu apenas como shim temporário durante o cutover main-only. Depois que `required-ci` foi comprovado em PRs diretas para `main`, ele deve ser removido da branch protection e o workflow `.github/workflows/promotion-policy.yml` deve deixar de existir.
+Preview é deployment de PR, não branch permanente.
 
-A antiga branch permanente `Preview` não participa mais da entrega. Preview agora é um deployment Vercel criado para cada PR pelo workflow reutilizável `deploy-preview.yml`.
+## GitHub Environments
 
-Antes de apagar a branch remota `Preview`, confirmar:
-
-1. `main` contém todo o histórico dela;
-2. nenhum workflow depende de `branches: [Preview]`;
-3. `preview-branch-guard.yml` já foi removido;
-4. a proteção administrativa da branch antiga foi removida.
-
-Na evidência da Fase 6A, `Preview` estava 0 commits à frente e 9 atrás de `main`, portanto sem trabalho exclusivo.
-
-### GitHub Environments
-
-Continuam existindo dois environments de entrega:
+Ambientes de entrega:
 
 ```text
 preview
 production
 ```
 
-O nome `preview` representa o target Vercel de PR, não uma branch Git.
+### preview
 
-Secrets esperados:
-
-#### `preview`
+Secret necessário:
 
 ```text
 VERCEL_TOKEN
 ```
 
-#### `production`
+Preview não recebe secrets irrestritos de Production.
 
-Sempre necessário:
+### production
+
+Sempre necessário para o provider de runtime atual:
 
 ```text
 VERCEL_TOKEN
 ```
 
-Necessários somente quando uma release contém migrations novas:
+Quando há migration pendente:
 
 ```text
 SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Credenciais R2 não ficam duplicadas no GitHub Environment. Quando o merge atual contém manifest canônico que deve ser publicado, a Production CD usa o `VERCEL_TOKEN` para executar o publisher dentro do Environment `production` do projeto Vercel com `vercel env run`:
+Quando há publicação de Media Storage pendente e o provider atual é R2:
 
 ```text
 R2_ACCOUNT_ID
@@ -82,25 +80,19 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-Uma release web comum não executa esse pull de mídia e não deve exigir Supabase nem R2. A ausência de credencial condicional só bloqueia a release quando o próprio plano de release determina que aquele domínio precisa ser executado.
+`R2_PUBLIC_BUCKET=tda-media-public` é configuração não secreta e pode permanecer pinada no workflow.
 
-Finalidades:
+### Regra de ownership dos secrets
 
-- `VERCEL_TOKEN`: autentica Vercel CLI para pull/build/deploy/curl/promote/rollback;
-- `SUPABASE_ACCESS_TOKEN`: Personal Access Token Supabase `sbp_...` para Supabase CLI/Management API;
-- `SUPABASE_DB_PASSWORD`: senha Postgres do projeto canônico usada por migration operations;
-- `R2_*`: variáveis server-only do Environment `production` da Vercel, usadas para escrita/readback do objeto canônico alterado quando uma release de mídia realmente exige publicação.
+- secret usado por **GitHub Actions** pertence preferencialmente ao GitHub Environment correspondente;
+- secret usado apenas pelo **runtime** pertence ao ambiente do runtime;
+- não usar Vercel como cofre indireto para uma operação executada pelo GitHub Actions;
+- não duplicar secret sem necessidade funcional;
+- quando dois boundaries realmente precisam de acesso, preferir credenciais separadas e de privilégio mínimo.
 
-Não confundir:
+## Providers atuais
 
-```text
-SUPABASE_ACCESS_TOKEN  != SUPABASE_SECRET_KEY
-SUPABASE_ACCESS_TOKEN  != SUPABASE_SERVICE_ROLE_KEY
-```
-
-## Recursos canônicos
-
-Vercel:
+### Vercel
 
 ```text
 Team:    team_9wuTfarCQ3L63xtufPKUDzi0
@@ -108,103 +100,31 @@ Project: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
 Domain:  https://dnd.faysk.dev
 ```
 
-Supabase:
+`VERCEL_TOKEN` autentica a CLI usada para build/deploy/inspect/curl/promote/rollback.
+
+Vercel é provider de runtime/deploy, não control plane.
+
+### Supabase
 
 ```text
 Project ref: dmrqnbdvbkfqzctcerbx
-TDA migration boundary: 20260906210333
 ```
 
-Esses IDs são não secretos e ficam pinados nos workflows para evitar execução contra contexto ambíguo.
+- `SUPABASE_ACCESS_TOKEN`: PAT da conta para CLI/Management API;
+- `SUPABASE_DB_PASSWORD`: conexão Postgres usada pelo lifecycle de migrations.
 
-## Fluxo administrativo normal
+Não confundir:
 
 ```text
-branch temporária
-  -> PR para main
-  -> workflow-contract / validate
-  -> domínios pesados somente se relevantes
-  -> Preview Vercel do SHA exato da PR
-  -> smoke
-  -> required-ci
-  -> merge main
-  -> Production CD automático
-  -> prova de SHA atual + PR mergeada em main
-  -> migration somente se pendente
-  -> mídia somente se o merge atual exigir publicação
-  -> staged deployment
-  -> smoke
-  -> promote do mesmo artefato
-  -> canonical health/version
-  -> release receipt
+SUPABASE_ACCESS_TOKEN != SUPABASE_SECRET_KEY
+SUPABASE_ACCESS_TOKEN != SUPABASE_SERVICE_ROLE_KEY
 ```
 
-Não existe mais uma promoção Git `Preview -> main`.
+Supabase é o provider atual; PostgreSQL é o contrato relacional principal.
 
-## Provenance de Production
+### Media Storage / Cloudflare R2
 
-`production.yml` aceita somente o SHA corrente de `main` e exige que esse SHA seja o `merge_commit_sha` de uma PR realmente mergeada em `main`.
-
-Isso substitui o gate antigo que exigia literalmente `head=Preview`.
-
-O workflow também lê `/api/version` do Production canônico para determinar o baseline realmente publicado. Migrations são avaliadas no intervalo acumulado entre esse baseline e o novo SHA; publicação de mídia é avaliada no merge atual, evitando que um manifest histórico não relacionado bloqueie releases web futuras.
-
-## Branch protection — verificação
-
-Consulta sem valores secretos:
-
-```powershell
-gh api repos/Faysk/tda/branches/main --jq '{branch:.name, protected:.protected, checks:.protection.required_status_checks.contexts}'
-```
-
-Estado final esperado:
-
-```text
-branch=main
-protected=true
-checks=["required-ci"]
-```
-
-Não manter `promotion-source` depois do cutover.
-
-## Como configurar/rotacionar credenciais
-
-### Vercel
-
-Usar token dedicado de CI com acesso ao team/projeto canônicos.
-
-Após criar/rotacionar:
-
-1. atualizar `preview/VERCEL_TOKEN`;
-2. validar uma PR e seu Preview;
-3. atualizar `production/VERCEL_TOKEN`;
-4. validar um Production staged completo.
-
-### Supabase PAT
-
-Criar um Personal Access Token válido (`sbp_...`) e atualizar:
-
-```text
-production/SUPABASE_ACCESS_TOKEN
-```
-
-`SUPABASE_SECRET_KEY`/`SERVICE_ROLE_KEY` não substituem esse PAT.
-
-### Supabase database password
-
-Atualizar:
-
-```text
-production/SUPABASE_DB_PASSWORD
-```
-
-Não resetar a senha apenas para descobrir seu valor. Rotação deve considerar clientes externos que possam usar conexão Postgres direta.
-
-### R2
-
-As credenciais S3 do R2 usadas pelo publisher canônico ficam no Environment `production` do projeto Vercel, com privilégio mínimo sobre o bucket público canônico. A Production CD não replica esses valores em inputs, arquivos ou logs: quando `media_publish=true`, usa o `VERCEL_TOKEN` para executar o publisher por `vercel env run --environment=production`, que injeta as variáveis diretamente no subprocesso.
-
-Manter no Environment `production` da Vercel:
+Secrets operacionais do publisher:
 
 ```text
 R2_ACCOUNT_ID
@@ -212,70 +132,132 @@ R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 ```
 
-`R2_PUBLIC_BUCKET=tda-media-public` permanece pinado no workflow. Não puxar nem exigir as credenciais R2 em release web comum; se `media_publish=false`, o passo é ignorado.
+A credencial usada pelo publisher deve ter privilégio mínimo para o storage necessário. O browser nunca recebe esse par.
 
-## Rollback
+## Drift conhecido — 2026-09-20
 
-O workflow `Production Rollback` exige target explícito e confirmação `ROLLBACK_TDA`.
+A arquitetura aceita exige os secrets R2 do publisher no GitHub Environment `production`.
 
-Antes do rollback:
+Entretanto, o `production.yml` atualmente integrado ainda tenta:
 
-1. identificar o deployment explicitamente;
-2. validar `/api/version` do candidato;
-3. confirmar compatibilidade com schema/migrations atuais;
-4. executar o workflow manual;
-5. validar `/api/health` e `/api/version` canônicos após mover o tráfego.
+```text
+vercel env run --environment=production
+```
 
-Banco não sofre rollback automático.
+para fornecer as variáveis ao publisher.
+
+Esse caminho já falhou em Production por configuração R2 incompleta e **não é mais o contrato canônico**.
+
+Consequências operacionais:
+
+- não considerar a publicação automática de nova mídia saudável até a PR de convergência;
+- não usar `vercel env pull` ou `vercel env run` como solução definitiva para secrets operacionais do publisher;
+- não afirmar que os R2 secrets já existem no GitHub Environment sem verificação administrativa;
+- a próxima PR de implementação deve alinhar workflow + testes + documentação.
+
+## Configuração/rotação
+
+### Vercel token
+
+1. criar/rotacionar token com acesso ao team/projeto canônicos;
+2. atualizar `preview/VERCEL_TOKEN`;
+3. validar uma PR e seu Preview;
+4. atualizar `production/VERCEL_TOKEN`;
+5. validar staged Production.
+
+### Supabase
+
+PAT:
+
+```text
+production/SUPABASE_ACCESS_TOKEN
+```
+
+DB password:
+
+```text
+production/SUPABASE_DB_PASSWORD
+```
+
+Não resetar senha apenas para descobrir valor. Rotação deve considerar consumidores externos.
+
+### Media Storage / R2
+
+Configurar no GitHub Environment `production`:
+
+```text
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+```
+
+Não enviar os valores por chat nem registrá-los na documentação.
+
+Se o par S3 existente não estiver mais recuperável, a rotação/criação de nova credencial no provider deve ser operação explícita, com privilégio mínimo, seguida de teste controlado.
+
+## Fluxo administrativo normal
+
+```text
+branch temporária
+ -> PR main
+ -> CI + Preview do SHA exato
+ -> required-ci
+ -> merge main
+ -> Production CD
+ -> baseline Production real
+ -> migrations pendentes? lifecycle DB
+ -> mídia pendente? lifecycle Media Storage
+ -> build/stage
+ -> smoke
+ -> promote mesmo artifact
+ -> canonical health/version
+ -> receipt
+```
+
+A publicação de mídia deve usar o intervalo **ainda não publicado**, sem esquecer manifests que ficaram pendentes após uma release falha.
+
+## Branch protection
+
+Verificação:
+
+```powershell
+gh api repos/Faysk/tda/branches/main --jq '{branch:.name, protected:.protected, checks:.protection.required_status_checks.contexts}'
+```
+
+Esperado:
+
+```text
+branch=main
+protected=true
+checks=["required-ci"]
+```
 
 ## Troubleshooting
 
-### `Missing production secret ...`
+### Missing production secret
 
-Para `VERCEL_TOKEN` ou credenciais Supabase, verificar primeiro se o release plan realmente marcou o domínio como necessário e corrigir o GitHub Environment `production`; não passar secret por workflow input.
+Verificar primeiro se o release plan realmente exige o domínio.
 
-Para mídia R2, confirmar que `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` existem no Environment `production` do projeto Vercel canônico e que o `VERCEL_TOKEN` possui acesso a esse projeto. Variáveis marcadas como Sensitive não devem ser recuperadas por `vercel env pull`; o publisher usa `vercel env run` justamente para mantê-las somente no processo.
+- Vercel -> GitHub Environment;
+- Supabase lifecycle -> GitHub Environment;
+- Media Storage publisher -> GitHub Environment.
 
-### `SUPABASE_ACCESS_TOKEN must be ... sbp_`
+Não passar secret por workflow input.
 
-O valor não é um PAT Supabase. Usar Personal Access Token da conta, não anon key, service role ou `sb_secret_...`.
+### Media Storage falha após release anterior
 
-### `vercel pull` não encontra Project Settings
+Não esconder o manifest pendente apenas porque o merge mais recente não tocou mídia. Enquanto Production não alcançou aquele SHA com publicação válida, o trabalho permanece pendente.
 
-Confirmar se o token atual possui acesso ao team/projeto pinados. Não trocar IDs do workflow para contornar problema de token.
+### Vercel config
 
-### Production falha em provenance
-
-Confirmar que o SHA solicitado é o HEAD corrente de `main` e o resultado de uma PR mergeada em `main`. Não restaurar a antiga exigência `Preview -> main`.
+`vercel pull` continua válido para configuração de build/runtime da Vercel. Isso é diferente de usar Vercel como cofre para secrets operacionais de outro provider.
 
 ### Migration falha
 
-Não aplicar SQL manualmente só para destravar a esteira. Investigar migration authoring, boundary e drift antes de nova release.
-
-### Mídia pede R2 em release não relacionada
-
-Isso é bug no release planner. Uma release só deve exigir publicação R2 quando o merge atual altera manifest canônico.
-
-## Evidência do cutover main-only
-
-A primeira PR direta para `main` foi a #345.
-
-```text
-merge SHA:      a8a9253e13c159263fc1f4a4672d8690f4c62e33
-CI push:        34900494222 = success
-Production CD:  34900630352 = success
-Supabase:       skipped
-mídia:          skipped
-staged smoke:   success
-promote:        success
-canonical:      success
-receipt:        success
-```
-
-A Fase 6A removeu os triggers da branch antiga e o guard que a recriava. O merge #347 publicou o SHA `a46e8292eaed7e1cff32addd181668d83fd76be4`; o Production run `34902180398` passou novamente com Supabase/R2 skipped e staged/promote/canonical verdes.
+Não aplicar SQL manualmente só para destravar a esteira. Investigar migration, history e drift.
 
 ## Histórico
 
-A branch `Preview`, o contexto `promotion-source` e o guard de restauração foram mecanismos importantes da arquitetura anterior e permanecem documentados no baseline e no histórico de PRs/runs. Eles não fazem parte do contrato operacional atual.
+Branch `Preview`, `promotion-source` e os fluxos anteriores de secrets ficam documentados nos snapshots/plano de simplificação. Eles não governam a operação atual.
 
-**Estado final desejado:** uma branch longa (`main`), um required check estável (`required-ci`), Preview por PR e Production staged orientado a recuperação.
+A evidência histórica deve ser preservada, mas nunca usada como instrução vigente quando contradiz ADR-0018 ou este runbook.

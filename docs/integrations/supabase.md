@@ -1,111 +1,96 @@
-# Integração Supabase
+# Integração Supabase — provider atual de PostgreSQL e Auth
 
-> Status: implementado/canônico
-> Owner: integrations + data + identity
-> Última revisão: 2026-09-06
+> Status: vigente; provider atual
+> Owner: dados / identity-access
+> Última revisão: 2026-09-20
+> Fonte de verdade: ADR-0002 + ADR-0018 + documentação de banco
 
-## Projeto
+Supabase é o provider atual da plataforma de dados do TDA.
 
-- ref: `dmrqnbdvbkfqzctcerbx`;
-- campanha principal: `yuhara-main`;
-- serviços usados/históricos: PostgreSQL, Auth, RLS, functions/RPCs.
+O contrato relacional principal é **PostgreSQL com migrations versionadas**. ADR-0002 continua válido para reutilizar a base existente enquanto ela atende ao projeto; ADR-0018 esclarece que Supabase pode ser substituído futuramente.
 
-É a **única base canônica** do reboot. Não criar um Supabase novo para contornar migration/legado.
+## Projeto atual
 
-## Responsabilidades
+```text
+dmrqnbdvbkfqzctcerbx
+```
 
-Supabase guarda:
+Não criar segunda base para contornar migration, legado ou dívida técnica.
 
-- identidades/profiles e authorization metadata;
-- sessions/evidence/transcripts;
-- review/candidates/canon/publications;
-- entities/memory;
-- job/artifact metadata;
-- provenance e integrações.
+## Responsabilidades atuais
 
-Não é destino obrigatório de áudio bruto do reboot.
+O provider atual entrega, conforme cada domínio:
 
-## Acesso do site público
+- PostgreSQL;
+- Auth;
+- RLS;
+- RPC/functions PostgreSQL;
+- APIs/integrações auxiliares do Supabase.
 
-A aplicação Next executa consulta server-side estreita de conteúdo publicado. A secret usada atualmente possui poderes elevados; mitigação vem de boundary server-side e seleção explícita.
+Dependência específica do Supabase é permitida quando agrega valor, mas deve ser identificável para que o custo de migração seja conhecido.
 
-Não expor essa credencial ao client.
+## Persistência
 
-## Auth
+Toda DDL/grant/policy/function nova:
 
-`auth.users` se liga a `profiles.auth_user_id`. Login é identidade inicial; authorization exige profile + capability/scope.
+- entra por migration versionada;
+- preserva compatibilidade quando necessária;
+- passa pelos checks de segurança;
+- é verificada após aplicação remota;
+- atualiza documentação na mesma PR.
 
-## RLS
+Migration em Git não prova aplicação remota.
 
-RLS está habilitado nas 43 tabelas públicas observadas. Muitas estão sem policy e portanto fechadas por padrão para roles sujeitas ao RLS.
+## Boundaries
 
-Não abrir policy genérica para simplificar UI.
+Features devem preferir repositories/adapters do domínio em vez de espalhar `SupabaseClient` quando um boundary pequeno resolve a necessidade.
 
-## RPCs
+Isso não exige construir outro provider antecipadamente. O objetivo é isolar o edge real, não criar abstração hipotética.
 
-O legado utiliza RPCs `SECURITY DEFINER` para identity/access/review. Antes do Edit público, inventariar consumer e authorization interna função a função.
+## Auth e segurança
 
-Ver [segurança do banco](../database/security.md).
+Secrets/service keys ficam server-side.
 
-## Migrations
+Nunca:
 
-Novas DDL do reboot:
+- expor service/secret key ao browser;
+- abrir RLS apenas para eliminar erro de desenvolvimento;
+- tratar publishable/anon key como autorização;
+- substituir capability/scope por confiança no cliente.
 
-- entram em `supabase/migrations`;
-- são aplicadas de modo controlado;
-- devem corresponder à migration history remota;
-- atualizam documentação de schema/domínio.
+As regras detalhadas pertencem a [Segurança do banco](../database/security.md) e [Identity/access](../domains/identity-access.md).
 
-Ver [migrations](../database/migrations.md).
+## CI/CD
 
-## Queries do produto
+Secrets operacionais de migration executada pelo GitHub Actions pertencem ao GitHub Environment `production`:
 
-Regras:
+```text
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+```
 
-- filtrar campaign explicitamente;
-- selecionar somente colunas necessárias;
-- não usar `select('*')` em superfície pública sem justificativa;
-- não transportar metadata/raw transcript por conveniência;
-- normalizar/validar payload para model de domínio antes de renderizar;
-- erros de credencial/configuração devem gerar estado explícito, não dados falsos.
+Runtime secrets usados pelo aplicativo pertencem ao runtime e têm escopo/finalidade próprios.
 
-## Service/secret key
+## Portabilidade
 
-Permitida apenas server-side/worker controlado enquanto for necessária. É dívida reconhecida para fronteira pública; futuro pode introduzir view/RPC/role com privilégio menor.
+Uma futura migração pode trocar Supabase por outro PostgreSQL/provider sem alterar a identidade do TDA.
 
-## Backup e produção
+Para manter essa opção:
 
-Produção contém dados reais e não é resetável. Mudança destrutiva exige plano explícito, verificação de dependências e backup/rollback apropriado.
+- migrations são a referência de evolução;
+- SQL PostgreSQL e extensões provider-specific devem ser distinguíveis;
+- Auth/provider-specific capabilities têm dependência documentada;
+- mudança de provider exige plano formal de dados, auth, segurança e rollback.
 
-## Observabilidade mínima
+## Custos
 
-- migration history;
-- advisor security/performance;
-- erros de query/RPC;
-- row counts/invariantes em auditorias;
-- auth failures;
-- logs server-side sem secrets.
-
-## Failure modes
-
-### Chave ausente
-
-Site deve mostrar estado de preparação/configuração, sem inventar sessions.
-
-### Schema drift
-
-Parar mudança e reconciliar migration history + schema físico + repo.
-
-### RLS bloqueando consumidor legítimo
-
-Investigar capability/policy/grant correto. Não resolver distribuindo service key para client.
-
-### RPC quebrando legado
-
-Restaurar compatibilidade ou migrar consumer antes de remover contrato antigo.
+Supabase Free é o provider/tier atual enquanto atende ao uso. Upgrade pago só entra após necessidade comprovada e decisão documentada.
 
 ## Referências
 
-- [Banco](../database/README.md)
+- [ADR-0002 — reutilizar base existente](../adr/0002-existing-supabase.md)
+- [ADR-0018 — providers substituíveis](../adr/0018-portable-core-github-control-plane.md)
+- [Banco — índice](../database/README.md)
+- [Migrations](../database/migrations.md)
 - [Segurança](../database/security.md)
-- [ADR — Supabase existente](../adr/0002-existing-supabase.md)
+- [Runbook](../operations/database-runbook.md)

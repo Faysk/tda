@@ -2,14 +2,16 @@
 
 > Status: vigente/parcialmente preparado
 > Owner: integrations
-> Última revisão: 2026-09-11
+> Última revisão: 2026-09-20
 
 Integração é uma fronteira externa. Nenhum fornecedor deve redefinir o modelo de domínio do TDA.
 
+[ADR-0018](../adr/0018-portable-core-github-control-plane.md) governa essas fronteiras: GitHub é o control plane e Vercel, Supabase e Cloudflare R2 são providers atuais/substituíveis.
+
 ## Índice
 
-- [Supabase](supabase.md) — DB/Auth/RLS/RPC.
-- [Cloudflare R2](r2.md) — contrato principal de objetos/binários.
+- [Supabase](supabase.md) — provider atual de PostgreSQL/Auth.
+- [Cloudflare R2 / Media Storage](r2.md) — provider atual do boundary de mídia.
 - [R2 — governança](r2-governance.md) — ownership e separação entre política permanente e evidência operacional.
 - [R2 — índice detalhado](r2/README.md).
 - [R2 — placement](r2/placement.md).
@@ -21,7 +23,7 @@ Integração é uma fronteira externa. Nenhum fornecedor deve redefinir o modelo
 - [R2 — runbook operacional](../operations/r2-media-runbook.md).
 - [R2 — checklists](../operations/r2-media-checklists.md).
 - [Inventário de mídia — 2026-09-07](media-inventory-2026-09-07.md) — fotografia histórica auditada, não estado corrente automático.
-- [Vercel](vercel.md) — hosting/deploy.
+- [Vercel](vercel.md) — provider atual de runtime/deploy.
 - [Craig, Discord e Roll20](table-sources.md) — fontes da mesa.
 - [Companion local](local-companion.md) — processamento pesado/sincronização.
 
@@ -43,7 +45,7 @@ Toda integração deve documentar:
 ## Regras
 
 1. Secrets nunca entram no browser ou Git.
-2. IDs específicos de provider são provenance, não identidade canônica do domínio.
+2. Providers e seus IDs são configuração/provenance, não identidade canônica do domínio.
 3. Falha externa não promove estado parcial indevido.
 4. Retries precisam evitar duplicação e overwrite silencioso.
 5. Integração nova recebe somente a capability mínima necessária.
@@ -51,3 +53,5 @@ Toda integração deve documentar:
 7. O produto degrada de forma explícita; não inventa dados de fallback.
 8. Snapshot datado é evidência daquele momento, não monitoramento contínuo.
 9. Estado operacional corrente deve ser consultado em [Infraestrutura e estado](../infrastructure.md) e nos runbooks/receipts donos, não duplicado neste índice.
+10. Secret operacional usado pelo GitHub Actions pertence preferencialmente ao GitHub Environment que executa a operação; runtime recebe apenas o que usa em execução.
+11. Serviço/tier pago exige necessidade comprovada e decisão documentada.

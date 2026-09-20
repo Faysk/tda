@@ -1,9 +1,11 @@
 # CI/CD — plano de simplificação
 
-> Status: concluído — Fases 1–6 implementadas e comprovadas
+> Status: histórico — migração concluída em 2026-09-14
 > Owner: operations / architecture
 > Última revisão: 2026-09-14
-> Fonte de verdade: ADR-0015, evidências das PRs/runs e runbooks operacionais vigentes
+> Fonte de verdade histórica: evidências das PRs/runs de 2026-09-14; comportamento atual está nos runbooks vigentes
+
+> **Leitura histórica:** este documento registra a simplificação concluída em 2026-09-14. Ele preserva decisões e terminologia daquele corte, inclusive o modelo então adotado de publicar mídia apenas a partir do merge atual. Alterações posteriores — especialmente ADR-0018 e a recuperação cumulativa de mídia pendente — não reescrevem esta evidência. Para operar hoje, usar [CI/CD](ci-cd.md), [configuração administrativa](cicd-admin-setup.md) e [ambientes](environments.md).
 
 ## Resultado
 
