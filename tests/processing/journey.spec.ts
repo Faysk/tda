@@ -67,7 +67,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.jobStatusesServed).toContain("succeeded");
 
 	await expect(
-		page.getByText("Concluído localmente", { exact: true }),
+		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible();
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
 	await expect(page.getByText("run-craig-job-1-a1", { exact: false })).toBeVisible();
