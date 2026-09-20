@@ -714,13 +714,15 @@ Na revisão que originou este documento:
 - bloqueios explicitamente documentados receberam `status:blocked`;
 - gaps deliberadamente futuros usam `status:planned`;
 - achados da rodada focada usam `audit`;
-- a paleta de cores ainda precisa ser sincronizada no GitHub; labels criadas pela integração nasceram com a cor padrão cinza.
+- a paleta de cores e descrições é sincronizada por `.github/workflows/label-governance.yml` usando `tools/github/sync-issue-labels.mjs`; o workflow cria labels canônicas ausentes e corrige metadados divergentes na `main`.
 
 Se o repositório migrar para uma Organization no futuro, reavaliar Issue Types e Issue Fields nativos antes de duplicar a taxonomia.
 
 ---
 
 ## 22. Governança da taxonomia
+
+A definição executável das labels vive em `tools/github/sync-issue-labels.mjs` e deve permanecer equivalente a esta seção. Mudança de nome, cor ou descrição canônica atualiza **documento + script na mesma PR**; o workflow `Label Governance` reconcilia o GitHub após integração em `main`.
 
 Alterar labels canônicas somente quando:
 
