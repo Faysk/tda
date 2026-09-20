@@ -16,15 +16,19 @@ Há três caminhos distintos e eles não devem ser misturados:
 - **operação/CI:** o publisher executado pelo GitHub Actions usa secrets do GitHub Environment `production` com privilégio mínimo para o Media Storage;
 - **runtime:** quando uma feature server-side realmente precisa acessar Media Storage, recebe credencial própria do ambiente/runtime com escopo mínimo. O browser nunca recebe credenciais permanentes.
 
-Secrets operacionais esperados para o provider R2 atual:
+Credenciais administrativas atuais do provider R2:
 
-```text
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-```
+| Uso | Token | Environment / secrets | Bucket | Estado |
+| --- | --- | --- | --- | --- |
+| publicação pública de Production | `tda-github-production-media-publisher` | `production/R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | `tda-media-public` | verificado em release real |
+| homologação/Preview | `tda-github-preview-media-publisher` | `preview/R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | `tda-media-preview` | provisionado; ainda sem consumidor |
+| private de Production | `tda-github-production-private-media-storage` | `production/R2_ACCOUNT_ID` + `R2_PRIVATE_ACCESS_KEY_ID`, `R2_PRIVATE_SECRET_ACCESS_KEY` | `tda-media-private` | provisionado; ainda sem consumidor |
 
-`R2_PUBLIC_BUCKET=tda-media-public` é configuração não secreta.
+Os três tokens são bucket-scoped com Bucket Item Read + Write.
+
+`R2_PUBLIC_BUCKET=tda-media-public`, `R2_PRIVATE_BUCKET=tda-media-private` e `R2_PREVIEW_BUCKET=tda-media-preview` são configuração não secreta.
+
+**Provisionado não significa autorizado para uso automático.** Preview/private só entram em fluxo quando houver consumidor real, gate e receipt correspondentes.
 
 O GitHub Actions não deve usar a Vercel como cofre intermediário para a publicação de mídia. `vercel env pull` e `vercel env run` não são o contrato canônico de credenciais R2 da Production CD.
 
@@ -38,7 +42,7 @@ A existência administrativa dos secrets não é presumida: ausência de qualque
 
 O repositório também ainda contém binários/fontes de mídia de migrações anteriores, inclusive em `media/sources/`. Isso é dívida de migração reconhecida pela ADR-0018. Novas decisões não devem ampliar essa dependência; a retirada será feita de forma deliberada depois que o intake/storage canônico estiver implementado.
 
-O runtime do World/Edit é outro boundary: credenciais permanecem server-only; o browser recebe apenas presigned PUT curto para uma pending key quando autorizado. Staging usa `tda-media-preview` fora de Production e `tda-media-private` em Production antes da promoção pública.
+O runtime do World/Edit é outro boundary: credenciais permanecem server-only; o browser recebe apenas presigned PUT curto para uma pending key quando autorizado. Staging usa `tda-media-preview` fora de Production e `tda-media-private` em Production antes da promoção pública. Os tokens GitHub provisionados acima não devem ser reaproveitados automaticamente pelo runtime; quando o runtime precisar de acesso, sua identidade/escopo deve ser decidida explicitamente.
 
 ## Antes de executar
 
