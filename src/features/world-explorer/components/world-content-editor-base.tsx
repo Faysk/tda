@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Select, type SelectOption } from "@/components/ui/select";
 import {
 	WORLD_ENTITY_TYPES,
@@ -384,7 +384,24 @@ function EntityEditor({
 	onArchive: () => void;
 }) {
 	const entity = draft.nodes.find((node) => node.id === entityId);
+	const [nameDraft, setNameDraft] = useState(entity?.name ?? "");
+	useEffect(() => {
+		setNameDraft(entity?.name ?? "");
+	}, [entity?.id, entity?.name]);
 	if (!entity) return null;
+
+	function commitName() {
+		const trimmed = nameDraft.trim();
+		if (!trimmed) {
+			setNameDraft(entity.name);
+			return;
+		}
+		if (trimmed !== entity.name) {
+			onChange(updateNode(draft, entity.id, { name: trimmed }), "Nome atualizado no rascunho.");
+		}
+		setNameDraft(trimmed);
+	}
+
 	return (
 		<div className={styles.form}>
 			<div className={styles.formHeading}>
@@ -425,10 +442,18 @@ function EntityEditor({
 			<label>
 				Nome
 				<input
-					value={entity.name}
-					onChange={(event) =>
-						onChange(updateNode(draft, entity.id, { name: event.target.value }))
-					}
+					value={nameDraft}
+					maxLength={160}
+					required
+					onChange={(event) => setNameDraft(event.target.value)}
+					onBlur={commitName}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") event.currentTarget.blur();
+						if (event.key === "Escape") {
+							setNameDraft(entity.name);
+							event.currentTarget.blur();
+						}
+					}}
 				/>
 			</label>
 			<label>
@@ -464,6 +489,7 @@ function EntityEditor({
 				Resumo
 				<textarea
 					rows={4}
+					maxLength={4000}
 					value={entity.summary}
 					onChange={(event) =>
 						onChange(updateNode(draft, entity.id, { summary: event.target.value }))
@@ -479,7 +505,7 @@ function EntityEditor({
 							updateNode(draft, entity.id, {
 								aliases: event.target.value
 									.split(",")
-									.map((item) => item.trim())
+									.map((item) => item.trim().slice(0, 160))
 									.filter(Boolean)
 									.slice(0, 50),
 							}),
@@ -552,6 +578,7 @@ function NewEntityForm({
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 					placeholder="Nome do personagem, lugar..."
+					maxLength={160}
 					required
 				/>
 			</label>
@@ -712,6 +739,7 @@ function RelationEditor({
 				Nome específico
 				<input
 					value={edge.labelOverride ?? ""}
+					maxLength={120}
 					onChange={(event) =>
 						onChange(
 							updateEdge(draft, edge.id, {
@@ -847,6 +875,7 @@ function NewRelationTypeForm({
 				Nome
 				<input
 					value={label}
+					maxLength={80}
 					onChange={(event) => setLabel(event.target.value)}
 					placeholder="Amizade, Rivalidade, Família..."
 					required
@@ -887,7 +916,24 @@ function RelationTypeEditor({
 	onClose: () => void;
 }) {
 	const type = draft.relationTypes.find((item) => item.slug === slug);
+	const [labelDraft, setLabelDraft] = useState(type?.label ?? "");
+	useEffect(() => {
+		setLabelDraft(type?.label ?? "");
+	}, [type?.label, type?.slug]);
 	if (!type) return null;
+
+	function commitLabel() {
+		const trimmed = labelDraft.trim();
+		if (!trimmed) {
+			setLabelDraft(type.label);
+			return;
+		}
+		if (trimmed !== type.label) {
+			onChange(updateType(draft, type.slug, { label: trimmed }), "Tipo de ligação atualizado no rascunho.");
+		}
+		setLabelDraft(trimmed);
+	}
+
 	return (
 		<div className={styles.form}>
 			<div className={styles.formHeading}>
@@ -902,10 +948,18 @@ function RelationTypeEditor({
 			<label>
 				Nome
 				<input
-					value={type.label}
-					onChange={(event) =>
-						onChange(updateType(draft, type.slug, { label: event.target.value }))
-					}
+					value={labelDraft}
+					maxLength={80}
+					required
+					onChange={(event) => setLabelDraft(event.target.value)}
+					onBlur={commitLabel}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") event.currentTarget.blur();
+						if (event.key === "Escape") {
+							setLabelDraft(type.label);
+							event.currentTarget.blur();
+						}
+					}}
 				/>
 			</label>
 			<label>
@@ -932,6 +986,7 @@ function RelationTypeEditor({
 				Descrição
 				<textarea
 					rows={3}
+					maxLength={1000}
 					value={type.description}
 					onChange={(event) =>
 						onChange(updateType(draft, type.slug, { description: event.target.value }))
