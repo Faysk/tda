@@ -43,6 +43,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Catálogo de features](feature-catalog.md) — status canônico de cada feature.
 - [Infraestrutura e estado](infrastructure.md) — inventário operacional atual.
 - [Gestão de entregas](delivery/README.md) — Kanban leve, inventário operacional, composição de candidatos e medição.
+- [Governança de Issues e backlog](delivery/issue-governance.md) — taxonomia operacional, labels, prioridades, triage, epics, dependências e templates.
 - [Versões verificadas](versions.json) — versões de runtime/ferramentas deliberadamente fixadas.
 
 ### Arquitetura
