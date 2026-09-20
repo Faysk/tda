@@ -2,17 +2,18 @@
 
 > Status: vigente
 > Owner: arquitetura do TDA
-> Última revisão: 2026-09-07
-> Fonte de verdade: `Faysk/tda` + Supabase `dmrqnbdvbkfqzctcerbx`
+> Última revisão: 2026-09-20
+> Fonte de verdade: `Faysk/tda`, ADR-0018 e documentos donos de cada domínio
 
-Este diretório expande [architecture.md](../architecture.md), que permanece como visão executiva curta.
+Este diretório expande [architecture.md](../architecture.md).
 
 ## Documentos
 
 - [Contexto e limites do sistema](system-context.md)
 - [Fluxos ponta a ponta](data-flows.md)
 - [Princípios e invariantes](invariants.md)
-- [Edit Workbench — boundary administrativo](edit-workbench.md)
+- [ADR-0018 — core portátil e providers substituíveis](../adr/0018-portable-core-github-control-plane.md)
+- [Edit Workbench](edit-workbench.md)
 - [Modelo canônico de dados](../data-model.md)
 - [Design System](../design-system/README.md)
 - [Domínios](../domains/README.md)
@@ -24,115 +25,78 @@ Este diretório expande [architecture.md](../architecture.md), que permanece com
 ## Visão de alto nível
 
 ```text
-                        ┌─────────────────────────────┐
-                        │        Usuários TDA         │
-                        │ público / player / DM/admin │
-                        └──────────────┬──────────────┘
-                                       │ HTTPS
-                                       ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      TDA web / Edit                          │
-│                         Next.js                              │
-│  src/app ─ src/components ─ src/features ─ src/integrations │
-│                                                              │
-│  páginas editoriais    World Explorer        Edit            │
-│  server-first          projection + React    capabilities    │
-└──────────────┬───────────────────────┬───────────────────────┘
-               │                       │
-               │ server-side           │ objetos/mídia
-               ▼                       ▼
-      ┌─────────────────┐      ┌──────────────────┐
-      │    Supabase     │      │  Cloudflare R2   │
-      │ DB/Auth/RPC/RLS │      │ public/private   │
-      └────────┬────────┘      └──────────────────┘
-               ▲
-               │ conteúdo sincronizado / metadados
-               │
-┌──────────────┴───────────────────────────────────────────────┐
-│                    Companion local                           │
-│ ingestão Craig / áudio / transcrição / classificação pesada │
-│ processamento retomável, sem exigir PC ligado para leitura  │
-└──────────────┬───────────────────────────┬───────────────────┘
-               │                           │
-               ▼                           ▼
-        ┌──────────────┐            ┌────────────┐
-        │ Craig/Discord│            │  Roll20    │
-        └──────────────┘            └────────────┘
+                        Usuários TDA
+                             |
+                            HTTPS
+                             |
+                     TDA web / Edit
+                         Next.js
+                             |
+             +---------------+---------------+
+             |                               |
+          Data contract                  Media Storage
+          PostgreSQL                     object/blob
+             |                               |
+      Supabase hoje                    R2 hoje
+             ^
+             |
+       conteúdo sincronizado
+             |
+       Companion local
+       processamento pesado
+             |
+       Craig/Discord/Roll20
 ```
+
+GitHub fica acima desse desenho como **control plane**: código, docs, manifests, migrations, workflows e automação.
 
 ## Regra de composição
 
-A arquitetura do reboot evita múltiplos frontends concorrentes:
+- `src/app`: rotas/layout/composição;
+- `src/features`: domínio e casos de uso;
+- `src/integrations`: edges externos/providers;
+- `src/components`: apresentação reutilizável.
 
-- `src/app`: rotas, layouts e composição de página;
-- `src/features`: lógica de domínio e casos de uso;
-- `src/integrations`: fronteiras externas/Supabase/R2/etc.;
-- `src/components`: componentes de apresentação/composição reutilizável.
+Não criar provider-specific regra de domínio quando um boundary pequeno resolve a integração.
 
-Não criar um segundo frontend público, proxy obrigatório para o legado ou uma segunda base apenas para acelerar uma feature.
-
-O Edit segue a mesma composição. Sua especificação estrutural está em [edit-workbench.md](edit-workbench.md); o legado é consumido por paridade comportamental, não como framework interno.
-
-## World Explorer como projection
-
-A visualização de relações possui um boundary explícito:
-
-```text
-Supabase + domínio + audience
-        ↓
-query/case de uso server-side
-        ↓
-projection DTO autorizada
-        ↓
-React Flow no cliente
-```
-
-Consequências:
-
-- React Flow não consulta schema bruto como modelo de domínio;
-- nodes/edges visuais não são a fonte de verdade;
-- posições do canvas não vivem em `entities`;
-- relation secreta é removida antes do payload;
-- páginas editoriais continuam server-first quando possível;
-- somente o canvas/interações necessárias viram Client Components.
-
-A decisão tecnológica está em [ADR-0006](../adr/0006-react-flow-world-explorer.md).
-
-## Design System como boundary transversal
-
-O **TDA Design System v1.0.0** e o Brand Pack oficial são contratos transversais de apresentação.
-
-Eles não alteram domínio, mas todas as superfícies novas precisam respeitar:
-
-- tokens semânticos;
-- light/dark equivalentes;
-- tipografia editorial/UI;
-- foco/contraste/acessibilidade;
-- marca oficial sem redesenho;
-- princípio "Visitante vê história; editor vê estado editorial".
+Não criar adapter hipotético para providers que não usamos; abstrair a fronteira real.
 
 ## Fronteiras fundamentais
 
-1. **Produto cloud; processamento pesado local.**
-2. **Supabase existente é a base canônica.**
-3. **R2 armazena binários; banco armazena relações/metadados.**
-4. **Transcrição/evidência não é canon.**
-5. **PC/NPC e objetos narrativos compartilham `entities`.**
-6. **UI não decide autorização por nome de role; usa capabilities.**
-7. **O legado pode continuar operacional durante a migração, mas não dita nova arquitetura.**
-8. **Preview/homologação não recebe acesso irrestrito a dados de produção.**
-9. **Visualização não dita schema.**
-10. **Fixtures/referências de UI não viram canon.**
-11. **A própria existência de relation/knowledge pode ser secreta.**
-12. **Marca e Design System são contratos compartilhados, não estilos locais por página.**
-13. **Edit é um workbench no mesmo produto, não um CRUD ou frontend administrativo paralelo.**
+1. GitHub é o control plane canônico.
+2. Produto cloud; processamento pesado local.
+3. PostgreSQL é o contrato relacional; Supabase é o provider atual.
+4. Media Storage guarda mídia; R2 é o provider atual.
+5. Runtime/deploy é substituível; Vercel é o provider atual.
+6. Toda mídia persistida/publicada pertence ao Media Storage, não ao Git.
+7. Transcrição/evidência não é canon.
+8. PC/NPC e objetos narrativos compartilham `entities`.
+9. UI autoriza por capabilities/scope.
+10. Preview não recebe Production irrestrita.
+11. Visualização não dita schema.
+12. Fixtures não viram canon.
+13. Relation/knowledge pode ser secreta.
+14. Marca/Design System são contratos compartilhados.
+15. Edit pertence ao mesmo produto, não a frontend paralelo.
+16. Infraestrutura é free-first sem sacrificar segurança/integridade.
+17. Mudança estrutural exige docs na mesma PR.
 
-## Ownership de decisão
+## Providers atuais
 
-- desenho estrutural: ADR;
+| Edge | Contrato | Provider |
+| --- | --- | --- |
+| runtime | web runtime/deploy | Vercel |
+| dados | PostgreSQL/Auth boundary | Supabase |
+| mídia | Media Storage | Cloudflare R2 |
+
+Trocar uma linha dessa tabela no futuro exige trabalho de integração e operação, não reescrita do domínio.
+
+## Ownership
+
+- decisão estrutural: ADR;
 - regra de domínio: `docs/domains` + `data-model.md`;
 - schema físico: `docs/database` + migrations;
-- UI/brand/tokens: `docs/design-system`;
-- comportamento de feature: `docs/features`;
-- integração externa: `docs/integrations`;
+- UI/brand: `docs/design-system`;
+- feature: `docs/features`;
+- provider/integração: `docs/integrations`;
 - release/ambiente: `docs/operations`.
