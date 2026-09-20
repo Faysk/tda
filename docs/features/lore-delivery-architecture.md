@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
 
 ## Objetivo
 
@@ -31,10 +31,10 @@ Estrutura típica:
 
 ```text
 src/app/lore/<slug>/
-public/lore/<slug>/   # somente assets técnicos locais deliberados, quando necessários
+media/manifests/<slug>.json
 ```
 
-Pipipi permanece neste modelo. A existência de mídia local histórica em uma lore integrada não cria precedente para novas publicações; novos binários editoriais públicos seguem o boundary R2 descrito abaixo.
+Pipipi permanece neste modelo como feature integrada, mas seus AVIFs locais são **dívida histórica** e não parte do padrão. Código e markup podem ficar no Git; bytes de mídia pertencem ao Media Storage.
 
 ### `standalone` — microsite editorial
 
@@ -51,21 +51,29 @@ public/
       script.js
       reading.css        # quando houver modo Leitura
       reading-mode.js    # quando houver modo Leitura
-      favicon.svg        # asset técnico local pequeno, quando fizer sentido
 
 media/
   manifests/
     <slug>.json
-  sources/               # somente fontes versionáveis aceitas pela Media Pipeline
+
+Media Storage
+  private/preview        # masters, origem e candidatos
+  public                 # derivados aprovados
 ```
+
+Favicon, ícone, SVG ilustrativo e qualquer outro byte visual também são mídia e não ganham exceção por serem pequenos.
 
 A URL pública continua `/lore/<slug>`. Quando necessário, usar rewrite de `/lore/<slug>` para `/lore/<slug>/index.html` sem expor essa diferença ao visitante.
 
 ## Storage de mídia das lores
 
-Toda mídia editorial pública consumida em runtime por uma lore usa o R2 como storage de entrega: backgrounds, portraits, artwork, mapas, layers de parallax, overlays, social cards, áudio e vídeo. A publicação ocorre pela Media Pipeline compartilhada, com keys imutáveis/content-addressed, read-back e verificação da entrega pública.
+Toda mídia persistida/publicada consumida por uma lore usa Media Storage: backgrounds, portraits, artwork, mapas, parallax, overlays, social cards, favicons, SVGs, áudio e vídeo. O provider atual é R2.
 
-O repositório guarda código, markup, manifestos, metadata, tooling e pequenos assets técnicos diretamente acoplados ao documento. `favicon.svg` e SVGs técnicos pequenos podem permanecer locais quando essa escolha for deliberada. Binário editorial local em `public/lore/<slug>/assets` é exceção legada ou explicitamente justificada, não o padrão para novas lores.
+O repositório guarda código, markup, manifests, metadata, hashes e tooling. **Não existe exceção permanente para favicon, SVG pequeno ou “asset técnico”.**
+
+O estado atual ainda contém bytes locais legados em Pipipi, D, Yllith e outras áreas. Eles estão inventariados em [Dívida de mídia ainda versionada no Git](../integrations/media-git-debt-2026-09-20.md) e precisam convergir para R2.
+
+A Media Pipeline v1 ainda depende de `media/sources/`; essa limitação é dívida do intake e não deve ser copiada para novas lores.
 
 Masters, fontes de trabalho e pacotes originais permanecem separados dos derivados públicos e devem ser preservados em storage privado apropriado. O bucket público recebe apenas derivados autorizados para entrega.
 
@@ -75,17 +83,17 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 
 | Lore | Delivery | Listada | Campanha principal | Indexação desejada agora |
 | --- | --- | --- | --- | --- |
-| Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
-| Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
-| D | `standalone` estática | Não | Não | Não indexar |
+| Pipipi | `app` | Sim | Sim, conforme o projeto existente | Publicada; mídia local ainda é dívida |
+| Astel / Noah | `standalone` estática publicada | Sim | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; mídia pública em R2 |
+| D | `standalone` estática publicada | Não | Não | Não indexar; imagens narrativas em R2, favicon/local debt pendente |
 | Seika | Route Handler standalone legado | Não | Não | Não indexar; alinhar runtime em entrega própria se necessário |
-| Yllith | `standalone` estática planejada | Não | Não | Não indexar |
+| Yllith | `standalone` estática publicada | Não | Não | Não indexar; imagens em R2, favicon/local debt pendente |
 
 D e Seika chegaram à produção por estratégias técnicas diferentes. Essa diferença é histórica, não editorial.
 
 - D, em `public/lore/d`, é o modelo mais próximo do padrão novo de entrega da página, mas a política de mídia nova é o boundary R2 acima.
 - Seika, em `src/app/lore/seika/route.ts` e rotas auxiliares, continua válida, mas é exceção legada e não deve ser copiada para novas lores.
-- Yllith deve inaugurar o padrão standalone estático novo e fazer o cutover de sua mídia para o fluxo compartilhado.
+- Yllith já está publicada como standalone estática e suas imagens narrativas usam R2; o favicon local remanescente é dívida de migração.
 
 Não migrar Seika apenas por simetria de diretório. Uma migração futura precisa ser uma entrega própria, preservando URL, composição, reading mode, favicon, mídia, comportamento e fidelidade visual.
 
@@ -98,7 +106,7 @@ Essas decisões não se inferem umas das outras:
 - **vinculada**: pertence a campanha/universo confirmado;
 - **indexável**: pode entrar em mecanismos de busca.
 
-D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campanha principal e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campanha principal e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
+D, Seika e Yllith ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campanha principal e não indexáveis, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
 
 ## Contrato de produção para standalone
 
