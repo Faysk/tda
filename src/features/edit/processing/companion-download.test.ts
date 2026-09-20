@@ -22,6 +22,8 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.2",
 				tag: "companion-v0.3.2",
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.2",
 				},
@@ -31,16 +33,20 @@ describe("parseCompanionDownloadManifest", () => {
 			channel: "stable",
 			tag: "companion-v0.3.2",
 			url: "/api/downloads/companion/windows?tag=companion-v0.3.2",
+			minimumServiceVersion: "0.3.14",
+			compatible: false,
 		});
 	});
 
-	it("accepts an RC only when channel, version, tag and URL agree", () => {
+	it("binds an RC to its exact channel, version, tag and URL", () => {
 		const tag = "companion-rc-v0.3.8-abcdef123456";
 		expect(
 			parseCompanionDownloadManifest({
 				channel: "rc",
 				version: "0.3.8",
 				tag,
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
 				asset: {
 					url: `/api/downloads/companion/windows?tag=${tag}`,
 				},
@@ -50,15 +56,40 @@ describe("parseCompanionDownloadManifest", () => {
 			channel: "rc",
 			tag,
 			url: `/api/downloads/companion/windows?tag=${tag}`,
+			minimumServiceVersion: "0.3.14",
+			compatible: false,
 		});
 	});
 
-	it("rejects a manifest whose channel, tag, version or URL do not match", () => {
+	it("marks a minimum-compatible RC as installable for this processing contract", () => {
+		const tag = "companion-rc-v0.3.14-abcdef123456";
+		expect(
+			parseCompanionDownloadManifest({
+				channel: "rc",
+				version: "0.3.14",
+				tag,
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
+				asset: {
+					url: `/api/downloads/companion/windows?tag=${tag}`,
+				},
+			}),
+		).toMatchObject({
+			version: "0.3.14",
+			channel: "rc",
+			compatible: true,
+			minimumServiceVersion: "0.3.14",
+		});
+	});
+
+	it("rejects a manifest whose channel, tag, version, minimum or URL do not match", () => {
 		expect(
 			parseCompanionDownloadManifest({
 				channel: "stable",
 				version: "0.3.4",
 				tag: "companion-v0.3.2",
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-v0.3.2",
 				},
@@ -69,6 +100,8 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "stable",
 				version: "0.3.4",
 				tag: "companion-rc-v0.3.4-abcdef123456",
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
 				asset: {
 					url: "/api/downloads/companion/windows?tag=companion-rc-v0.3.4-abcdef123456",
 				},
@@ -79,7 +112,44 @@ describe("parseCompanionDownloadManifest", () => {
 				channel: "rc",
 				version: "0.3.4",
 				tag: "companion-rc-v0.3.4-abcdef123456",
+				minimum_api: "1",
+				minimum_service_version: "0.3.14",
 				asset: { url: "https://example.invalid/TDACompanion-x64.msi" },
+			}),
+		).toBeNull();
+		expect(
+			parseCompanionDownloadManifest({
+				channel: "stable",
+				version: "0.3.14",
+				tag: "companion-v0.3.14",
+				minimum_service_version: "0.3.14",
+				asset: {
+					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
+				},
+			}),
+		).toBeNull();
+		expect(
+			parseCompanionDownloadManifest({
+				channel: "stable",
+				version: "0.3.14",
+				tag: "companion-v0.3.14",
+				minimum_api: "2",
+				minimum_service_version: "0.3.14",
+				asset: {
+					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
+				},
+			}),
+		).toBeNull();
+		expect(
+			parseCompanionDownloadManifest({
+				channel: "stable",
+				version: "0.3.14",
+				tag: "companion-v0.3.14",
+				minimum_api: "1",
+				minimum_service_version: "0.3.15",
+				asset: {
+					url: "/api/downloads/companion/windows?tag=companion-v0.3.14",
+				},
 			}),
 		).toBeNull();
 	});

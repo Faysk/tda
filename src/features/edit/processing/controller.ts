@@ -4,6 +4,7 @@ import { supportsTerminalJobDelete } from "./compatibility";
 import {
 	BridgeError,
 	type BridgeErrorCode,
+	type BridgeErrorDetails,
 	type Capabilities,
 	type Health,
 	type JobEvent,
@@ -22,6 +23,7 @@ export type ProcessingState = Readonly<{
 	events: readonly JobEvent[];
 	observedJobId: string | null;
 	error: BridgeErrorCode | null;
+	errorDetails: BridgeErrorDetails | null;
 	serverError: string | null;
 	checkedAt: string | null;
 	result: ResultSummary | null;
@@ -38,6 +40,7 @@ const initial: ProcessingState = {
 	events: [],
 	observedJobId: null,
 	error: null,
+	errorDetails: null,
 	serverError: null,
 	checkedAt: null,
 	result: null,
@@ -95,7 +98,7 @@ export class ProcessingController {
 		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
-		this.update({ busy: true, error: null, serverError: null });
+		this.update({ busy: true, error: null, errorDetails: null, serverError: null });
 
 		try {
 			await action(signal);
@@ -107,25 +110,39 @@ export class ProcessingController {
 					"unreachable",
 					"unauthorized",
 					"forbidden",
+					"api_incompatible",
+					"version_incompatible",
+					"session_incompatible",
 					"incompatible",
 					"invalid_response",
 					"timeout",
 				].includes(code);
-				if (["forbidden", "incompatible"].includes(code))
+				if (
+					[
+						"forbidden",
+						"api_incompatible",
+						"version_incompatible",
+						"session_incompatible",
+						"incompatible",
+					].includes(code)
+				)
 					this.bridge.disconnect();
 				const serverError =
 					error instanceof BridgeError ? error.serverCode : null;
+				const errorDetails =
+					error instanceof BridgeError ? error.details : null;
 				if (bridgeFailure) {
 					this.update({
 						...initial,
 						connection: "error",
 						busy: true,
 						error: code,
+						errorDetails,
 						serverError,
 						uncertainSubmission: this.#submissionKey !== null,
 					});
 				} else {
-					this.update({ error: code, serverError });
+					this.update({ error: code, errorDetails, serverError });
 				}
 			}
 		} finally {

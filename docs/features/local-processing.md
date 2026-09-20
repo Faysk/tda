@@ -139,6 +139,8 @@ A superfície Web envia o ZIP Craig somente para o Agent em loopback. O Companio
 
 O hash integral das faixas pertence ao ingest/deep verification. No dispatch normal, o worker revalida manifesto, path e tamanho sem reler todos os bytes (`verify_tracks=false`). Isso evita que sessões grandes fiquem minutos em I/O antes da primeira etapa de ASR. O stage `source_validation` e heartbeats atualizam liveness real enquanto o pipeline entra em execução.
 
+O envelope JSON local usa um orçamento autoritativo de **4096 bytes UTF-8** para requests POST da API v1. `context` e `glossary` continuam limitados semanticamente a **1200 valores Unicode** cada, mas a Web mede o JSON completo — incluindo kind, campaign/session/source/profile e os dois textos — antes da submissão. Um payload acima do orçamento é recusado localmente com diagnóstico acionável e o Agent mantém o mesmo limite fail-closed com `BODY_TOO_LARGE`. Contagem de caracteres não substitui a contagem de bytes de transporte.
+
 O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não possui mais o formulário concorrente; **Execução local** monitora fila/stage/liveness e concentra logs, diagnóstico, runtimes e manutenção.
 
 Os perfis executáveis vêm de `capabilities`:
@@ -203,7 +205,22 @@ O token mestre continua disponível apenas como mecanismo técnico/nativo e não
 
 Falha recuperável/interrupção permite **Repetir trabalho**. O retry cria uma nova `attempt`, mas os engines podem reutilizar checkpoints locais por faixa quando a assinatura de source/profile/context/glossary/runtime continua compatível. Cada faixa reutilizada reaparece como progresso da nova tentativa; o checkpoint não reativa a tentativa anterior. Cancelar exige confirmação. Retomar fila confirma que trabalhos pendentes podem voltar a executar; pausar impede novos claims sem interromper o trabalho já ativo.
 
+No Qwen strict, a durabilidade é dividida em duas camadas. Depois que todas as janelas de uma **track** terminam o ASR, o texto e idioma por janela são persistidos atomicamente em um checkpoint técnico `tda_qwen_text_checkpoint_v1` antes do forced alignment. Esse artefato vive somente em `.checkpoints/<signature>/qwen-text-v1/`, não é transcript alinhado, não cria `run.json` e nunca é listável/publicável como resultado. Retry compatível pode reaproveitá-lo; antes do reuse o Companion valida schema, assinatura, hash interno, metadados da track e o SHA-256 real do FLAC staged. Mudança de source/perfil/model revision/runtime/receita/contexto/glossário ou dos bytes da track invalida/falha fechado. A granularidade é deliberadamente **por track**: crash no meio de uma track pode repetir aquela track, mas tracks cujo ASR terminou e foi checkpointado não precisam ser retranscritas por falha posterior do aligner.
+
 Retry terminalizado cria nova `attempt` e, portanto, identidade de run distinta. Checkpoints seguros podem evitar retranscrever faixas já concluídas, mas **não continuam nem mutam o run anterior**: a nova tentativa reconstrói o próprio progresso e, se concluir, grava um novo run imutável. Resultado concluído anterior nunca é substituído por uma tentativa nova.
+
+### Precedência entre cancelamento e commit do run
+
+Para `transcription.craig`, cada `job_id + attempt` possui um fence local persistente em `.attempt-fences/`. Cancelamento e commit competem pelo **mesmo winner marker** com regra first-writer-wins:
+
+- **cancel vence** quando a API reserva o fence antes da fase de commit; o job passa a `cancelled`, o worker não pode criar `run.json` para aquele attempt e qualquer diretório de run ainda não commitado é removido fail-closed;
+- **commit vence** quando o worker reserva o fence depois de escrever/validar `transcript.json` e imediatamente antes do commit atômico de `run.json`; cancelamento tardio não reclassifica o attempt e responde conflito enquanto o commit termina ou `JOB_TERMINAL` depois do sucesso;
+- se o Agent cair depois de `run.json` e antes de atualizar a fila, o startup reconcilia o run íntegro e conclui o mesmo attempt como `succeeded`;
+- a listagem de runs correlaciona `job_id/attempt`, fence e estado da fila: attempt cancelado não é exposto como run concluído, inclusive para contradições históricas anteriores ao fence;
+- o fence é scoped por attempt, portanto decisões de uma tentativa não alteram runs de tentativas anteriores nem bloqueiam um retry posterior;
+- runs válidos de outras identidades/attempts não são apagados para resolver a corrida.
+
+A decisão do fence não transforma partial/checkpoint em resultado. **Somente `run.json` válido continua sendo o commit marker autoritativo do run imutável.** Partials e checkpoints continuam não listáveis.
 
 O ensaio sintético existe apenas quando `synthetic.fixture` é anunciado e não usa áudio/modelo/GPU para produzir transcrição.
 

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
 	supportsAutomaticLoopbackSession,
 	supportsTerminalJobDelete,
 } from "./compatibility";
 
 describe("processing compatibility", () => {
+	it("publishes one minimum version for the automatic browser-session contract", () => {
+		expect(AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION).toBe("0.3.14");
+	});
+
 	it.each([
 		[undefined, false],
 		[null, false],

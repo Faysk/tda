@@ -1,19 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
-const token = "synthetic_integration_token_12345678901234567890";
 const service = "http://127.0.0.1:18765/api/v1";
 const uiOrigin = "http://127.0.0.1:3102";
-let child: ChildProcess;
-test.beforeAll(async () => {
-	const python = process.env.TDA_COMPANION_PYTHON;
-	const packageRoot = process.env.TDA_COMPANION_PACKAGE;
-	if (!python || !packageRoot)
-		throw new Error(
-			"Set TDA_COMPANION_PYTHON and TDA_COMPANION_PACKAGE to the isolated Motorzinho test runtime/package. No installer or fallback is run.",
-		);
+const secureOrigin = "https://tda-ui.test";
+const masterToken = "synthetic_integration_token_12345678901234567890";
+
+let child: ChildProcess | null = null;
+let scratch = "";
+let tokenPath = "";
+let python = "";
+let packageRoot = "";
+
+async function assertPortFree() {
 	try {
 		await fetch(`${service}/health`, { signal: AbortSignal.timeout(500) });
 		throw new Error("TEST_PORT_IN_USE: refusing to reuse another service");
@@ -21,10 +22,9 @@ test.beforeAll(async () => {
 		if (error instanceof Error && error.message.startsWith("TEST_PORT"))
 			throw error;
 	}
-	await mkdir("test-results", { recursive: true });
-	const scratch = await mkdtemp(resolve("test-results/companion-"));
-	const tokenPath = join(scratch, "synthetic-token.txt");
-	await writeFile(tokenPath, token);
+}
+
+async function startService() {
 	child = spawn(
 		python,
 		[
@@ -37,7 +37,7 @@ test.beforeAll(async () => {
 			"--origin",
 			uiOrigin,
 			"--origin",
-			"https://tda-ui.test",
+			secureOrigin,
 			"--port",
 			"18765",
 		],
@@ -60,127 +60,193 @@ test.beforeAll(async () => {
 			{ timeout: 10000 },
 		)
 		.toBe(200);
-});
-test.afterAll(async () => {
-	if (child && child.exitCode === null) {
-		const exited = new Promise<void>((done) =>
-			child.once("exit", () => done()),
+}
+
+async function stopService() {
+	const current = child;
+	child = null;
+	if (!current || current.exitCode !== null) return;
+	const exited = new Promise<void>((done) =>
+		current.once("exit", () => done()),
+	);
+	current.kill();
+	await exited;
+}
+
+test.beforeAll(async () => {
+	const configuredPython = process.env.TDA_COMPANION_PYTHON ?? "";
+	const configuredPackageRoot = process.env.TDA_COMPANION_PACKAGE ?? "";
+	if (!configuredPython || !configuredPackageRoot) {
+		throw new Error(
+			"Set TDA_COMPANION_PYTHON and TDA_COMPANION_PACKAGE to the isolated Companion test runtime/package. No installer or fallback is run.",
 		);
-		child.kill();
-		await exited;
 	}
+	// spawn() below deliberately runs with cwd=packageRoot. Resolve both inputs
+	// while still at the repository root so a relative venv path cannot become
+	// local-companion/.venv/... by accident on CI or a developer machine.
+	python = resolve(configuredPython);
+	packageRoot = resolve(configuredPackageRoot);
+	await assertPortFree();
+	await mkdir("test-results", { recursive: true });
+	scratch = await mkdtemp(resolve("test-results/companion-"));
+	tokenPath = join(scratch, "synthetic-token.txt");
+	await writeFile(tokenPath, masterToken);
+	await startService();
 });
 
-test("real scratch service: browser pairing to persistent synthetic job and local result", async ({
+test.afterAll(async () => {
+	await stopService();
+});
+
+test("real scratch Companion: automatic session, persistent job, restart and session renewal", async ({
 	page,
 }) => {
-	const requests: string[] = [];
-	const errors: string[] = [];
+	const posts: string[] = [];
 	page.on("request", (request) => {
-		if (request.method() === "POST") requests.push(request.url());
+		if (request.method() === "POST") posts.push(request.url());
 	});
+	const errors: string[] = [];
 	page.on("pageerror", (error) => errors.push(error.message));
+
 	await page.goto("/?integrated");
-	await page.getByLabel("Token de pareamento").fill(token);
-	await page.getByRole("button", { name: "Conectar neste computador" }).click();
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Token de pareamento")).toHaveCount(0);
+	expect(posts.some((url) => url === `${service}/session`)).toBe(true);
+
 	await page.getByRole("button", { name: "Executar ensaio sintético" }).click();
 	await expect(
-		page.getByText("Concluído localmente", { exact: true }),
+		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible({ timeout: 12000 });
+
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
-	await expect(
-		page.getByText("Nenhum recibo cloud recebido.", { exact: false }),
-	).toBeVisible();
+	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
 	await expect(
 		page.locator("dd").filter({ hasText: "synthetic-session" }),
 	).toBeVisible();
-	await page.getByRole("button", { name: "Desconectar esta aba" }).click();
-	await page.getByLabel("Token de pareamento").fill(token);
-	await page.getByRole("button", { name: "Conectar neste computador" }).click();
+
+	const sessionsBeforeRestart = posts.filter(
+		(url) => url === `${service}/session`,
+	).length;
+	expect(sessionsBeforeRestart).toBeGreaterThanOrEqual(1);
+
+	await stopService();
+	await startService();
+
+	// The in-memory browser credential died with the Agent. A normal refresh must
+	// observe 401, bootstrap a new origin-bound session and replay the read.
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(
-		page.getByText("Concluído localmente", { exact: true }),
+		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible();
-	expect(requests.length).toBeGreaterThan(0);
-	expect(requests.every((url) => url.startsWith(service))).toBe(true);
+	await expect
+		.poll(
+			() =>
+				posts.filter((url) => url === `${service}/session`).length,
+		)
+		.toBeGreaterThan(sessionsBeforeRestart);
+
+	expect(
+		await page.evaluate(
+			() =>
+				`${JSON.stringify(localStorage)} ${JSON.stringify(sessionStorage)} ${document.cookie}`,
+		),
+	).not.toContain("synthetic_integration_token");
 	expect(errors).toEqual([]);
 	await page.screenshot({
-		path: test.info().outputPath("integrated.png"),
+		path: test.info().outputPath("integrated-restart.png"),
 		fullPage: true,
 	});
 });
 
-test("HTTPS browser context uses real loopback CORS, rejects unpaired and hostile origins", async ({
+test("HTTPS context gets an origin-bound browser session and hostile origin stays blocked", async ({
 	browser,
 }) => {
 	const context = await browser.newContext();
 	try {
 		await context.grantPermissions(["local-network-access"], {
-			origin: "https://tda-ui.test",
+			origin: secureOrigin,
 		});
 		const page = await context.newPage();
-		await page.route("https://tda-ui.test/", (route) =>
+		await page.route(`${secureOrigin}/`, (route) =>
 			route.fulfill({
 				contentType: "text/html",
 				body: "<!doctype html><title>Synthetic HTTPS bridge test</title><h1>Synthetic HTTPS bridge test</h1>",
 			}),
 		);
-		await page.goto("https://tda-ui.test/");
+		await page.goto(`${secureOrigin}/`);
 		expect(await page.evaluate(() => isSecureContext)).toBe(true);
+
 		const outcome = await page.evaluate(
-			async ({ service, token }) => {
+			async ({ service }) => {
 				const health = await fetch(`${service}/health`, {
 					credentials: "omit",
 				});
-				const denied = await fetch(`${service}/capabilities`, {
-					credentials: "omit",
-				});
-				const capabilities = await fetch(`${service}/capabilities`, {
-					credentials: "omit",
-					headers: { Authorization: `Bearer ${token}` },
-				});
-				const mutation = await fetch(`${service}/lifecycle`, {
+				const session = await fetch(`${service}/session`, {
 					method: "POST",
 					credentials: "omit",
-					headers: {
-						Authorization: `Bearer ${token}`,
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({ action: "pause" }),
+					headers: { "Content-Type": "application/json" },
+					body: "{}",
 				});
-				return [
-					health.status,
-					denied.status,
-					capabilities.status,
-					mutation.status,
-				];
+				const sessionValue = (await session.json()) as {
+					token: string;
+					schema: string;
+				};
+				const capabilities = await fetch(`${service}/capabilities`, {
+					credentials: "omit",
+					headers: {
+						Authorization: `Bearer ${sessionValue.token}`,
+					},
+				});
+				const deniedMasterless = await fetch(`${service}/logs`, {
+					credentials: "omit",
+					headers: {
+						Authorization: `Bearer ${sessionValue.token}`,
+					},
+				});
+				return {
+					health: health.status,
+					session: session.status,
+					schema: sessionValue.schema,
+					capabilities: capabilities.status,
+					adminScope: deniedMasterless.status,
+					tokenLength: sessionValue.token.length,
+				};
 			},
-			{ service, token },
+			{ service },
 		);
-		expect(outcome).toEqual([200, 401, 200, 200]);
-		await page.route("https://hostile-ui.test/", (route) =>
+		expect(outcome).toMatchObject({
+			health: 200,
+			session: 200,
+			schema: "tda_loopback_session_v1",
+			capabilities: 200,
+			adminScope: 403,
+		});
+		expect(outcome.tokenLength).toBeGreaterThanOrEqual(32);
+
+		const hostileOrigin = "https://hostile-ui.test";
+		await page.route(`${hostileOrigin}/`, (route) =>
 			route.fulfill({
 				contentType: "text/html",
 				body: "<!doctype html><title>Synthetic denied origin</title>",
 			}),
 		);
 		await context.grantPermissions(["local-network-access"], {
-			origin: "https://hostile-ui.test",
+			origin: hostileOrigin,
 		});
-		await page.goto("https://hostile-ui.test/");
-		const blocked = await page.evaluate(
-			async ({ service, token }) => {
-				try {
-					await fetch(`${service}/jobs`, {
-						headers: { Authorization: `Bearer ${token}` },
-					});
-					return false;
-				} catch {
-					return true;
-				}
-			},
-			{ service, token },
-		);
+		await page.goto(`${hostileOrigin}/`);
+		const blocked = await page.evaluate(async ({ service }) => {
+			try {
+				await fetch(`${service}/session`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: "{}",
+				});
+				return false;
+			} catch {
+				return true;
+			}
+		}, { service });
 		expect(blocked).toBe(true);
 	} finally {
 		await context.close();

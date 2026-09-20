@@ -1,4 +1,5 @@
 const TERMINAL_JOB_DELETE_MINIMUM = [0, 3, 11] as const;
+export const AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION = "0.3.14";
 const AUTOMATIC_LOOPBACK_SESSION_MINIMUM = [0, 3, 14] as const;
 
 function parseVersion(value: string | null | undefined): readonly [number, number, number] | null {

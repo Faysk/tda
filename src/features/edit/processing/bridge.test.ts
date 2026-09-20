@@ -9,6 +9,10 @@ import {
 	parsePreparationStatus,
 	parseResultSummary,
 } from "./protocol";
+import {
+	craigTranscriptionRequestByteLength,
+	LOCAL_JSON_BODY_MAX_BYTES,
+} from "./request-budget";
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
 const job = {
@@ -223,7 +227,7 @@ describe("loopback bridge", () => {
 		expect(uploadCount).toBe(2);
 	});
 
-	it("fails as incompatible before requesting a session from Companion 0.3.13", async () => {
+	it("reports the detected and minimum version before requesting a session from Companion 0.3.13", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
 				api_version: "1",
@@ -234,10 +238,99 @@ describe("loopback bridge", () => {
 		const bridge = new LocalBridge(request);
 
 		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
-			code: "incompatible",
+			code: "version_incompatible",
+			details: {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			},
 		});
 		expect(request).toHaveBeenCalledTimes(1);
 		expect(request.mock.calls[0][0]).toBe(`${LOCAL_API}/health`);
+	});
+
+	it("rejects a malformed health contract separately from a valid incompatible API", async () => {
+		const bridge = new LocalBridge(
+			vi.fn<typeof fetch>().mockResolvedValue(
+				Response.json({
+					service_version: "0.3.14",
+					lifecycle: "ready",
+				}),
+			),
+		);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "invalid_response",
+		});
+	});
+
+	it("distinguishes an incompatible API from an old Companion version", async () => {
+		const bridge = new LocalBridge(
+			vi.fn<typeof fetch>().mockResolvedValue(
+				Response.json({
+					api_version: "2",
+					service_version: "0.3.99",
+					lifecycle: "ready",
+				}),
+			),
+		);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "api_incompatible",
+			details: {
+				detectedApiVersion: "2",
+				requiredApiVersion: "1",
+			},
+		});
+	});
+
+	it("distinguishes a missing browser-session contract after compatible health", async () => {
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) =>
+			String(url).endsWith("/health")
+				? Response.json({
+						api_version: "1",
+						service_version: "0.3.14",
+						lifecycle: "ready",
+					})
+				: Response.json({ schema: "legacy_pairing_v1" }),
+		);
+		const bridge = new LocalBridge(request);
+
+		await expect(bridge.bootstrap(signal())).rejects.toMatchObject({
+			code: "session_incompatible",
+			details: {
+				detectedServiceVersion: "0.3.14",
+				minimumServiceVersion: "0.3.14",
+			},
+		});
+	});
+
+	it("rejects an oversized UTF-8 Craig request before sending credentials or bytes", async () => {
+		const request = vi.fn<typeof fetch>();
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+		const input = {
+			campaignId: "yuhara-main",
+			sessionId: "sessao-42",
+			sourceId: `craig-${"a".repeat(64)}`,
+			profileId: "qwen-quality" as const,
+			glossary: "",
+			context: "",
+		};
+		const emptyBytes = craigTranscriptionRequestByteLength(input);
+		const available = LOCAL_JSON_BODY_MAX_BYTES - emptyBytes;
+		const context = `${"😀".repeat(Math.floor(available / 4))}${"a".repeat(
+			available % 4,
+		)}a`;
+		const oversized = { ...input, context };
+		expect(craigTranscriptionRequestByteLength(oversized)).toBe(
+			LOCAL_JSON_BODY_MAX_BYTES + 1,
+		);
+
+		await expect(
+			bridge.transcription(oversized, "utf8-budget", signal()),
+		).rejects.toMatchObject({ code: "payload_too_large" });
+		expect(request).not.toHaveBeenCalled();
+		bridge.disconnect();
 	});
 
 	it("starts and observes Agent-owned profile preparation", async () => {

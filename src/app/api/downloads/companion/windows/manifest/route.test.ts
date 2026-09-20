@@ -56,6 +56,7 @@ describe("Companion Windows manifest route", () => {
       version: "0.3.9",
       tag: "companion-v0.3.9",
       minimum_api: "1",
+      minimum_service_version: "0.3.14",
       asset: {
         url: "/api/downloads/companion/windows?tag=companion-v0.3.9",
         sha256: "a".repeat(64),
@@ -63,6 +64,89 @@ describe("Companion Windows manifest route", () => {
       },
     });
     expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
+  });
+
+  it("forces the upstream release catalog fetch to bypass the Next data cache", async () => {
+    mockGithubReleases();
+
+    await GET(
+      new Request("https://dnd.faysk.dev/api/downloads/companion/windows/manifest"),
+    );
+
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init).toMatchObject({ cache: "no-store" });
+    expect(init).not.toHaveProperty("next");
+  });
+
+  it("observes Stable promotion and rollback on the next manifest lookup", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([release("companion-v0.3.9", false)]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([release("companion-v0.3.10", false)]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([release("companion-v0.3.9", false)]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const request = () =>
+      new Request("https://dnd.faysk.dev/api/downloads/companion/windows/manifest");
+
+    const before = await GET(request());
+    expect((await before.json()).version).toBe("0.3.9");
+
+    const promoted = await GET(request());
+    expect((await promoted.json()).version).toBe("0.3.10");
+
+    const rolledBack = await GET(request());
+    expect((await rolledBack.json()).version).toBe("0.3.9");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init).toMatchObject({ cache: "no-store" });
+      expect(init).not.toHaveProperty("next");
+    }
+  });
+
+  it("fails closed after a previously valid catalog instead of serving stale data", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([release("companion-v0.3.9", false)]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ stale: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const request = () =>
+      new Request("https://dnd.faysk.dev/api/downloads/companion/windows/manifest");
+
+    expect((await (await GET(request())).json()).version).toBe("0.3.9");
+
+    const failed = await GET(request());
+    expect(failed.status).toBe(503);
+    await expect(failed.json()).resolves.toEqual({
+      error: "COMPANION_RELEASE_LOOKUP_FAILED",
+    });
+    expect(failed.headers.get("cache-control")).toBe("no-store, max-age=0");
   });
 
   it("returns an immutable RC only after explicit channel=rc opt-in", async () => {
@@ -79,6 +163,7 @@ describe("Companion Windows manifest route", () => {
       channel: "rc",
       version: "0.3.10",
       tag: "companion-rc-v0.3.10-0123456789ab",
+      minimum_service_version: "0.3.14",
       asset: {
         url:
           "/api/downloads/companion/windows?tag=companion-rc-v0.3.10-0123456789ab",
