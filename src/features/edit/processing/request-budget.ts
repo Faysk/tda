@@ -38,6 +38,7 @@ export function serializedJsonBody(value: unknown): {
 	byteLength: number;
 } {
 	const body = JSON.stringify(value);
+	if (body === undefined) throw new TypeError("JSON_BODY_UNSERIALIZABLE");
 	return {
 		body,
 		byteLength: new TextEncoder().encode(body).byteLength,
