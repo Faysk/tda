@@ -260,7 +260,12 @@ def test_cancelled_craig_source_stays_owned_until_worker_exits(monkeypatch, tmp_
 
     monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
-    source_id = "craig-" + "a" * 64
+    source = tmp_path / "cancelled-source-owner.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-cancelled-source-owner")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    source_id = f"craig-{source_sha}"
+    ingest_craig_zip(source, tmp_path / "staging" / source_id)
     job = app.state.store.submit(
         "cancelled-craig-source-owner",
         {
