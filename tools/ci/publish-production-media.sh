@@ -41,7 +41,7 @@ node tools/media/pipeline.mjs publish \
   --manifest-dir "$STAGE_DIR" \
   --receipt "$RECEIPT"
 
-read -r ASSETS PUBLISHED REUSED VERIFIED < <(
+SUMMARY_LINE="$(
   node --input-type=module - "$RECEIPT" <<'NODE'
 import fs from "node:fs";
 
@@ -63,7 +63,8 @@ process.stdout.write(
   [summary.assets, summary.published, summary.reused, summary.verified].join(" "),
 );
 NODE
-)
+)"
+read -r ASSETS PUBLISHED REUSED VERIFIED <<< "$SUMMARY_LINE"
 
 emit_outputs "$ASSETS" "$PUBLISHED" "$REUSED" "$VERIFIED"
 
