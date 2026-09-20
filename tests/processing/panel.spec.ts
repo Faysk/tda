@@ -61,6 +61,9 @@ test("API incompatível, versão antiga, offline e Origin negada são diagnósti
 	await page.unroute(`${LOCAL_API}/**`);
 	await page.route(`${LOCAL_API}/**`, (route) => route.abort("failed"));
 	await page.getByRole("button", { name: "Tentar novamente" }).click();
+	await expect(page.getByRole("alert")).toContainText(
+		"permissão de acesso à rede local",
+	);
 	await expect(page.getByRole("alert")).toContainText("Código: unreachable");
 
 	await page.unroute(`${LOCAL_API}/**`);
