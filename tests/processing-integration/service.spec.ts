@@ -74,13 +74,18 @@ async function stopService() {
 }
 
 test.beforeAll(async () => {
-	python = process.env.TDA_COMPANION_PYTHON ?? "";
-	packageRoot = process.env.TDA_COMPANION_PACKAGE ?? "";
-	if (!python || !packageRoot) {
+	const configuredPython = process.env.TDA_COMPANION_PYTHON ?? "";
+	const configuredPackageRoot = process.env.TDA_COMPANION_PACKAGE ?? "";
+	if (!configuredPython || !configuredPackageRoot) {
 		throw new Error(
 			"Set TDA_COMPANION_PYTHON and TDA_COMPANION_PACKAGE to the isolated Companion test runtime/package. No installer or fallback is run.",
 		);
 	}
+	// spawn() below deliberately runs with cwd=packageRoot. Resolve both inputs
+	// while still at the repository root so a relative venv path cannot become
+	// local-companion/.venv/... by accident on CI or a developer machine.
+	python = resolve(configuredPython);
+	packageRoot = resolve(configuredPackageRoot);
 	await assertPortFree();
 	await mkdir("test-results", { recursive: true });
 	scratch = await mkdtemp(resolve("test-results/companion-"));
