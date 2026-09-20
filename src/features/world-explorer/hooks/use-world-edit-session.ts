@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorldLayout } from "../constellation-layout";
+import { firstWorldGraphDraftValidationIssue } from "../graph-validation";
 import type { WorldGraphDraft, WorldLayoutProjection } from "../model";
 import {
 	acquireWorldGraphDraftAction,
@@ -9,6 +10,7 @@ import {
 	saveWorldGraphDraftAction,
 } from "../world-graph-actions";
 import { publishWorldEditLayoutAction } from "../world-edit-actions";
+import { worldPublicationVersionLabel } from "../world-publication";
 import {
 	acquireWorldLayoutSessionAction,
 	discardWorldLayoutSessionAction,
@@ -75,7 +77,13 @@ export function useWorldEditSession({
 	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const draftSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const draftSequence = useRef(0);
+	const sessionSequence = useRef(0);
+	const layoutSaveSequence = useRef(0);
+	const graphSaveSequence = useRef(0);
+	const saveFailureRef = useRef<{ layout: string | null; graph: string | null }>({
+		layout: null,
+		graph: null,
+	});
 	const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
 	const editing = state === "editing" || state === "publishing";
@@ -97,7 +105,9 @@ export function useWorldEditSession({
 	}, [hasChanges, state]);
 
 	const markLeaseLost = useCallback((reason: string) => {
-		draftSequence.current += 1;
+		sessionSequence.current += 1;
+		layoutSaveSequence.current += 1;
+		graphSaveSequence.current += 1;
 		if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
 		if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
 		if (draftSafetyTimer.current) clearTimeout(draftSafetyTimer.current);
@@ -145,6 +155,34 @@ export function useWorldEditSession({
 		busyTimer.current = setTimeout(() => setBusyNotice(null), WORLD_BUSY_NOTICE_MS);
 	}
 
+	function setDraftSaveFailure(kind: "layout" | "graph", message: string) {
+		saveFailureRef.current = { ...saveFailureRef.current, [kind]: message };
+		setFeedback(message);
+	}
+
+	function clearDraftSaveFailure(kind: "layout" | "graph", successMessage: string) {
+		saveFailureRef.current = { ...saveFailureRef.current, [kind]: null };
+		setFeedback(
+			saveFailureRef.current.graph ??
+				saveFailureRef.current.layout ??
+				successMessage,
+		);
+	}
+
+	function graphValidationSaveMessage(draft: WorldGraphDraft): string | null {
+		const validationIssue = firstWorldGraphDraftValidationIssue(draft);
+		return validationIssue
+			? `Não foi possível salvar esta alteração: ${validationIssue.message} O último checkpoint válido continua preservado.`
+			: null;
+	}
+
+	function graphValidationPublishMessage(draft: WorldGraphDraft): string | null {
+		const validationIssue = firstWorldGraphDraftValidationIssue(draft);
+		return validationIssue
+			? `A publicação não aconteceu: ${validationIssue.message} Corrija esse campo; o último checkpoint válido continua preservado.`
+			: null;
+	}
+
 	function enqueueSave<T>(operation: () => Promise<T>): Promise<T> {
 		const request = saveQueue.current.then(operation);
 		saveQueue.current = request.then(
@@ -188,34 +226,42 @@ export function useWorldEditSession({
 			const latestGraph = graphDraftRef.current;
 			const layoutCandidate = buildLayoutCandidate(latestGraph);
 			if (!layoutCandidate) {
-				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				setDraftSaveFailure("layout", worldDraftSaveFailureMessage("invalid_payload"));
 				return;
 			}
-			const sequence = ++draftSequence.current;
+			const sequence = sessionSequence.current;
 			void queueLayoutDraftRequest(leaseToken, layoutCandidate).then(async (layoutResult) => {
-				if (sequence !== draftSequence.current) return;
+				if (sequence !== sessionSequence.current) return;
 				if (!layoutResult.ok) {
 					if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
 						markLeaseLost(layoutResult.reason);
 					} else {
-						setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
+						setDraftSaveFailure("layout", worldDraftSaveFailureMessage(layoutResult.reason));
 					}
 					return;
 				}
+				clearDraftSaveFailure("layout", "Checkpoint de segurança do layout confirmado.");
 
 				if (canEditContent && latestGraph) {
+					const validationMessage = graphValidationSaveMessage(latestGraph);
+					if (validationMessage) {
+						setDraftSaveFailure("graph", validationMessage);
+						return;
+					}
 					const graphResult = await queueGraphDraftRequest(leaseToken, latestGraph);
-					if (sequence !== draftSequence.current) return;
+					if (sequence !== sessionSequence.current) return;
 					if (!graphResult.ok) {
 						if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
 							markLeaseLost(graphResult.reason);
 						} else {
-							setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+							setDraftSaveFailure("graph", worldDraftSaveFailureMessage(graphResult.reason));
 						}
 						return;
 					}
+					clearDraftSaveFailure("graph", "Checkpoint de segurança confirmado. Seu rascunho está preservado.");
+					return;
 				}
-				setFeedback("Checkpoint de segurança confirmado. Seu rascunho está preservado.");
+				clearDraftSaveFailure("layout", "Checkpoint de segurança confirmado. Seu rascunho está preservado.");
 			});
 		}, WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS);
 	}
@@ -226,15 +272,16 @@ export function useWorldEditSession({
 	) {
 		if (state !== "editing" || !leaseToken) return;
 		if (layoutDraftTimer.current) clearTimeout(layoutDraftTimer.current);
-		const sequence = ++draftSequence.current;
-		setFeedback(pendingMessage);
+		const sequence = ++layoutSaveSequence.current;
+		setFeedback(saveFailureRef.current.graph ?? pendingMessage);
 		scheduleSafetyDraftFlush();
 		layoutDraftTimer.current = setTimeout(() => {
 			layoutDraftTimer.current = null;
 			void queueLayoutDraftRequest(leaseToken, candidate).then((result) => {
-				if (sequence !== draftSequence.current) return;
+				if (sequence !== layoutSaveSequence.current) return;
 				if (result.ok) {
-					setFeedback(
+					clearDraftSaveFailure(
+						"layout",
 						canEditContent
 							? "Rascunho salvo. Só você vê estas alterações até publicar."
 							: "Rascunho salvo. Só você vê estas posições até publicar.",
@@ -245,7 +292,7 @@ export function useWorldEditSession({
 					markLeaseLost(result.reason);
 					return;
 				}
-				setFeedback(worldDraftSaveFailureMessage(result.reason));
+				setDraftSaveFailure("layout", worldDraftSaveFailureMessage(result.reason));
 			});
 		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
 	}
@@ -256,22 +303,32 @@ export function useWorldEditSession({
 	) {
 		if (!canEditContent || state !== "editing" || !leaseToken) return;
 		if (graphDraftTimer.current) clearTimeout(graphDraftTimer.current);
-		const sequence = ++draftSequence.current;
-		setFeedback(pendingMessage);
+		const sequence = ++graphSaveSequence.current;
+		setFeedback(saveFailureRef.current.layout ?? pendingMessage);
 		scheduleSafetyDraftFlush();
 		graphDraftTimer.current = setTimeout(() => {
 			graphDraftTimer.current = null;
+			const validationMessage = graphValidationSaveMessage(draft);
+			if (validationMessage) {
+				if (sequence === graphSaveSequence.current) {
+					setDraftSaveFailure("graph", validationMessage);
+				}
+				return;
+			}
 			void queueGraphDraftRequest(leaseToken, draft).then((result) => {
-				if (sequence !== draftSequence.current) return;
+				if (sequence !== graphSaveSequence.current) return;
 				if (result.ok) {
-					setFeedback("Rascunho salvo. Só você vê estas alterações até publicar.");
+					clearDraftSaveFailure(
+						"graph",
+						"Rascunho salvo. Só você vê estas alterações até publicar.",
+					);
 					return;
 				}
 				if (result.reason === "lease_lost" || result.reason === "forbidden") {
 					markLeaseLost(result.reason);
 					return;
 				}
-				setFeedback(worldDraftSaveFailureMessage(result.reason));
+				setDraftSaveFailure("graph", worldDraftSaveFailureMessage(result.reason));
 			});
 		}, WORLD_EDIT_DRAFT_DEBOUNCE_MS);
 	}
@@ -361,6 +418,8 @@ export function useWorldEditSession({
 	}
 
 	function cancelPendingDraftSaves() {
+		layoutSaveSequence.current += 1;
+		graphSaveSequence.current += 1;
 		if (layoutDraftTimer.current) {
 			clearTimeout(layoutDraftTimer.current);
 			layoutDraftTimer.current = null;
@@ -376,6 +435,8 @@ export function useWorldEditSession({
 	}
 
 	function completePublishedEdit(message: string) {
+		sessionSequence.current += 1;
+		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		setLeaseToken(null);
 		setLayoutDirty(false);
@@ -390,9 +451,18 @@ export function useWorldEditSession({
 	async function publish() {
 		if (state !== "editing" || !leaseToken || !hasChanges) return;
 		cancelPendingDraftSaves();
-		const sequence = ++draftSequence.current;
+		const sequence = sessionSequence.current;
 		setState("publishing");
 		setFeedback("Validando o rascunho mais recente…");
+
+		if (canEditContent && graphDraftRef.current) {
+			const validationMessage = graphValidationPublishMessage(graphDraftRef.current);
+			if (validationMessage) {
+				setState("editing");
+				setDraftSaveFailure("graph", validationMessage);
+				return;
+			}
+		}
 
 		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
 		if (!layoutCandidate) {
@@ -401,7 +471,7 @@ export function useWorldEditSession({
 			return;
 		}
 		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
-		if (sequence !== draftSequence.current) return;
+		if (sequence !== sessionSequence.current) return;
 		if (!layoutResult.ok) {
 			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
 				markLeaseLost(layoutResult.reason);
@@ -420,7 +490,7 @@ export function useWorldEditSession({
 				return;
 			}
 			const graphResult = await queueGraphDraftRequest(leaseToken, latestGraph);
-			if (sequence !== draftSequence.current) return;
+			if (sequence !== sessionSequence.current) return;
 			if (!graphResult.ok) {
 				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
 					markLeaseLost(graphResult.reason);
@@ -433,7 +503,7 @@ export function useWorldEditSession({
 
 			setFeedback("Publicando o Mundo com as visibilidades configuradas…");
 			const publishResult = await publishWorldEditStateAction(leaseToken);
-			if (sequence !== draftSequence.current) return;
+			if (sequence !== sessionSequence.current) return;
 			if (!publishResult.ok) {
 				if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
 					markLeaseLost(publishResult.reason);
@@ -443,17 +513,24 @@ export function useWorldEditSession({
 				}
 				return;
 			}
+			const publishedVersion =
+				publishResult.graphRevision !== undefined && publishResult.layoutRevision !== undefined
+					? worldPublicationVersionLabel({
+							graphRevision: publishResult.graphRevision,
+							layoutRevision: publishResult.layoutRevision,
+						})
+					: null;
 			completePublishedEdit(
 				publishResult.status === "unchanged"
-					? `Publicação confirmada. Nenhuma alteração nova era necessária · revisão ${publishResult.graphRevision}.`
-					: `Mundo publicado com sucesso · revisão ${publishResult.graphRevision}. Cada pessoa vê somente o que sua visibilidade permite.`,
+					? `Publicação confirmada. Nenhuma alteração nova era necessária${publishedVersion ? ` · ${publishedVersion}` : ""}.`
+					: `Mundo publicado com sucesso${publishedVersion ? ` · ${publishedVersion}` : ""}. Cada pessoa vê somente o que sua visibilidade permite.`,
 			);
 			return;
 		}
 
 		setFeedback("Publicando composição para todos…");
 		const publishResult = await publishWorldEditLayoutAction(leaseToken);
-		if (sequence !== draftSequence.current) return;
+		if (sequence !== sessionSequence.current) return;
 		if (!publishResult.ok) {
 			if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
 				markLeaseLost(publishResult.reason);
@@ -473,7 +550,7 @@ export function useWorldEditSession({
 	async function release(message: string) {
 		if (!leaseToken || state !== "editing") return;
 		cancelPendingDraftSaves();
-		const sequence = ++draftSequence.current;
+		const sequence = sessionSequence.current;
 
 		if (hasChanges) {
 			setFeedback("Salvando um checkpoint final antes de encerrar a edição…");
@@ -484,7 +561,7 @@ export function useWorldEditSession({
 			}
 
 			const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
-			if (sequence !== draftSequence.current) return;
+			if (sequence !== sessionSequence.current) return;
 			if (!layoutResult.ok) {
 				if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
 					markLeaseLost(layoutResult.reason);
@@ -495,8 +572,13 @@ export function useWorldEditSession({
 			}
 
 			if (canEditContent && graphDraftRef.current) {
+				const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
+				if (validationMessage) {
+					setDraftSaveFailure("graph", validationMessage);
+					return;
+				}
 				const graphResult = await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
-				if (sequence !== draftSequence.current) return;
+				if (sequence !== sessionSequence.current) return;
 				if (!graphResult.ok) {
 					if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
 						markLeaseLost(graphResult.reason);
@@ -509,13 +591,15 @@ export function useWorldEditSession({
 		}
 
 		await saveQueue.current;
-		if (sequence !== draftSequence.current) return;
+		if (sequence !== sessionSequence.current) return;
 		setFeedback("Encerrando a sessão de edição…");
 		const result = await releaseWorldLayoutSessionAction(leaseToken);
 		if (!result.ok) {
 			setFeedback(worldEditFailureMessage(result.reason));
 			return;
 		}
+		sessionSequence.current += 1;
+		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		setLeaseToken(null);
 		setLayoutDirty(false);
@@ -539,7 +623,7 @@ export function useWorldEditSession({
 		if (!confirmed) return;
 
 		cancelPendingDraftSaves();
-		const sequence = ++draftSequence.current;
+		const sequence = sessionSequence.current;
 		setFeedback("Preservando uma cópia final antes de descartar o rascunho…");
 
 		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
@@ -548,7 +632,7 @@ export function useWorldEditSession({
 			return;
 		}
 		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
-		if (sequence !== draftSequence.current) return;
+		if (sequence !== sessionSequence.current) return;
 		if (!layoutResult.ok) {
 			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
 				markLeaseLost(layoutResult.reason);
@@ -559,9 +643,12 @@ export function useWorldEditSession({
 		}
 
 		if (canEditContent && graphDraftRef.current) {
-			const graphResult = await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
-			if (sequence !== draftSequence.current) return;
-			if (!graphResult.ok) {
+			const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
+			const graphResult = validationMessage
+				? null
+				: await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+			if (sequence !== sessionSequence.current) return;
+			if (graphResult && !graphResult.ok) {
 				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
 					markLeaseLost(graphResult.reason);
 				} else {
@@ -577,6 +664,8 @@ export function useWorldEditSession({
 			setFeedback(worldEditFailureMessage(result.reason));
 			return;
 		}
+		sessionSequence.current += 1;
+		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		setLeaseToken(null);
 		setLayoutDirty(false);

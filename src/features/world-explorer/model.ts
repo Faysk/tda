@@ -65,6 +65,13 @@ export type WorldLayoutProjection = {
 	positions: Record<string, WorldPositionHint>;
 };
 
+export type WorldPublicationMeta = Readonly<{
+	graphRevision: number;
+	layoutRevision: number;
+	publishedAt: string;
+	publishedBy: string | null;
+}>;
+
 export type WorldRelationStyleDTO = Readonly<{
 	color: string;
 	lineStyle: WorldLineStyle;
@@ -122,6 +129,8 @@ export type WorldGraphProjection = {
 	nodes: WorldNodeDTO[];
 	edges: WorldEdgeDTO[];
 	relationTypes: WorldRelationTypeDTO[];
+	/** Canonical publication identity for the exact graph/layout state shown. */
+	publication?: WorldPublicationMeta;
 	/** Optional server-filtered editorial placement for overview mode only. */
 	layout?: WorldLayoutProjection;
 };
