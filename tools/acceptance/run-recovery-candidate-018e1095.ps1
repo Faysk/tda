@@ -49,7 +49,7 @@ function Invoke-PwshScript(
 ) {
     & $PwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $ScriptPath @Arguments
     $code = $LASTEXITCODE
-    if ($code -ne 0) { throw "$FailureCode:$code" }
+    if ($code -ne 0) { throw "${FailureCode}:$code" }
 }
 
 function Get-Sha256([string]$Path) {
