@@ -34,6 +34,8 @@ def test_recovery_acceptance_handoff_is_local_fail_closed_and_transcript_free():
     assert "writetranscripts" not in folded
     assert "transcripts_written -ne $false" in value
     assert ".staging-" in value
+    assert "RECOVERY_RECEIPT_EXISTS_MISMATCH" in value
+    assert "Get-FileHash -LiteralPath $Destination" in value
     assert "finally {" in value
     assert "contains_token" in value
     assert "contains_paths" in value
