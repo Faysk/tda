@@ -650,6 +650,7 @@ export function WorldExplorerClient({
 						demo={workingProjection.demo}
 						activeRelationTypes={activeRelationTypes}
 						searchInputRef={searchInputRef}
+						publication={workingProjection.publication}
 					/>
 				</div>
 
