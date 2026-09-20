@@ -27,14 +27,15 @@ def _package(tmp_path: Path) -> tuple[CraigPackage, Path]:
     tracks = root / "tracks"
     tracks.mkdir(parents=True)
     source = tracks / "1-Alice.flac"
-    source.write_bytes(b"audio")
+    payload = b"audio"
+    source.write_bytes(payload)
     track = CraigTrack(
         number=1,
         speaker="Alice",
         filename="1-Alice.flac",
         path="tracks/1-Alice.flac",
-        size_bytes=5,
-        sha256="1" * 64,
+        size_bytes=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
         identity=None,
     )
     return (
@@ -306,6 +307,139 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
     assert "model_load" not in stages
     assert "transcription" not in stages
     assert "alignment" in stages
+
+
+def test_strict_qwen_cancel_after_text_save_preserves_reusable_checkpoint(tmp_path: Path):
+    package, root = _package(tmp_path)
+    cancelled = False
+    asr_calls = 0
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.6}]
+
+        def close(self):
+            pass
+
+    def report(value: dict):
+        nonlocal cancelled
+        if value.get("code") == "ASR_TEXT_CHECKPOINT_SAVED":
+            cancelled = True
+
+    with pytest.raises(QwenRuntimeError, match="ASR_CANCELLED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=reader,
+            report=report,
+            is_cancelled=lambda: cancelled,
+        )
+
+    assert asr_calls == 1
+    assert len(list(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))) == 1
+    assert list(root.glob(".checkpoints/*/track-*.json")) == []
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry after cancel must reuse Qwen text")
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=forbidden,
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+    assert asr_calls == 1
+    assert document.tracks[0].segments[0].text == "texto"
+    assert len(list(root.glob(".checkpoints/*/track-*.json"))) == 1
+
+
+def test_strict_qwen_crash_before_alignment_preserves_reusable_checkpoint(tmp_path: Path):
+    package, root = _package(tmp_path)
+    asr_calls = 0
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.6}]
+
+        def close(self):
+            pass
+
+    with pytest.raises(RuntimeError, match="synthetic crash"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                RuntimeError("synthetic crash")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=reader,
+        )
+
+    assert asr_calls == 1
+    assert len(list(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))) == 1
+    assert not list(root.glob(".checkpoints/**/*.partial"))
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry after crash must reuse Qwen text")
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=forbidden,
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+    )
+    assert asr_calls == 1
+    assert document.tracks[0].segments[0].text == "texto"
 
 
 def test_strict_qwen_refuses_text_reuse_if_staged_track_bytes_changed(tmp_path: Path):
