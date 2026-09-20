@@ -387,7 +387,7 @@ function EntityEditor({
 	const [nameDraft, setNameDraft] = useState(entity?.name ?? "");
 	useEffect(() => {
 		setNameDraft(entity?.name ?? "");
-	}, [entity?.id, entity?.name]);
+	}, [entity?.name]);
 	if (!entity) return null;
 
 	function commitName() {
@@ -920,7 +920,7 @@ function RelationTypeEditor({
 	const [labelDraft, setLabelDraft] = useState(type?.label ?? "");
 	useEffect(() => {
 		setLabelDraft(type?.label ?? "");
-	}, [type?.label, type?.slug]);
+	}, [type?.label]);
 	if (!type) return null;
 
 	function commitLabel() {
