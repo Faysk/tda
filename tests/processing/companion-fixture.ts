@@ -23,6 +23,8 @@ export type CompanionFixtureOptions = {
 	initialJobs?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	advanceJobs?: boolean;
+	ambiguousJobPostOnce?: boolean;
 };
 
 export type CompanionFixtureState = {
@@ -32,6 +34,7 @@ export type CompanionFixtureState = {
 	jobPostCount: number;
 	preparationPostCount: number;
 	idempotencyKeys: string[];
+	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
 	setJob(job: Record<string, unknown> | null): void;
 	setLifecycle(value: "preparing" | "ready" | "paused"): void;
@@ -93,6 +96,8 @@ export async function installCompanionFixture(
 	let preparationReads = 0;
 	let jobsReads = 0;
 	let expired = false;
+	let ambiguousJobPostConsumed = false;
+	let submittedJob = false;
 	const state: CompanionFixtureState = {
 		requests: [],
 		sessionCount: 0,
@@ -100,6 +105,7 @@ export async function installCompanionFixture(
 		jobPostCount: 0,
 		preparationPostCount: 0,
 		idempotencyKeys: [],
+		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
 		setJob(value) {
 			state.job = value;
@@ -251,15 +257,26 @@ export async function installCompanionFixture(
 			state.jobPostCount += 1;
 			if (idempotencyKey) state.idempotencyKeys.push(idempotencyKey);
 			state.job = job("queued");
+			submittedJob = true;
 			jobsReads = 0;
+			if (options.ambiguousJobPostOnce && !ambiguousJobPostConsumed) {
+				ambiguousJobPostConsumed = true;
+				return route.abort("failed");
+			}
 			return json(route, state.job);
 		}
 		if (path === "/jobs" && request.method() === "GET") {
-			if (state.job) {
+			if (
+				state.job &&
+				submittedJob &&
+				(options.advanceJobs ?? true)
+			) {
 				jobsReads += 1;
 				if (jobsReads === 2) state.job = job("running");
 				else if (jobsReads >= 3) state.job = job("succeeded");
 			}
+			const status = state.job?.status;
+			if (typeof status === "string") state.jobStatusesServed.push(status);
 			return json(route, {
 				jobs: state.job ? [state.job] : (options.initialJobs ?? []),
 			});
