@@ -1,8 +1,8 @@
 # Lores independentes — publicação, liberdade visual e catálogo
 
-> Status: arquitetura aprovada; decisão editorial, não comprovação de implementação
+> Status: arquitetura aprovada; estado editorial atualizado com Production
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-13
+> Última revisão: 2026-09-20
 
 ## Decisão
 
@@ -31,10 +31,10 @@ Estado editorial definido para o momento:
 | Lore | Listagem em `/lore` | Vínculo com campanha principal |
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
-| Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
+| Astel e Noah | Listadas e publicadas | Ligações editoriais por slug de personagem, sem criar dados narrativos |
 | D | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
 | Seika | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
-| Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
+| Yllith | Não listar; publicada por URL própria | Não faz parte da campanha principal |
 | Futuras lores independentes | Não listar automaticamente; inclusão exige escolha editorial | Não assumir vínculo |
 
 `/lore` permanece um catálogo curado do site, sujeito ao seu Design System. As páginas individuais têm liberdade visual. A presença de um arquivo em uma pasta não é critério de inclusão no catálogo.
@@ -58,9 +58,9 @@ Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinemat
 O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, identidade visual/referência aprovada, vínculo narrativo conhecido ou ausente, decisão de listagem, assets/manifesto e evidência da publicação. São requisitos documentais; não introduzem schema ou nova plataforma nesta entrega.
 
 - [ ] Página funciona por acesso direto, sem depender do catálogo ou de dados da campanha principal.
-- [ ] Listagem corresponde à decisão editorial; D, Seika e Yllith ausentes do catálogo enquanto essa decisão permanecer.
+- [x] Listagem atual corresponde à decisão editorial; Astel/Noah estão listadas, D/Seika/Yllith permanecem fora.
 - [ ] Identidade visual da própria lore foi avaliada.
-- [ ] Imagens carregam, decodificam e preservam proporções e detalhes nas superfícies reais.
+- [ ] Cada lore mantém sua própria evidência de mídia/consumer; Astel/Noah possuem verificação R2 registrada, e dívida local remanescente é rastreada separadamente.
 - [ ] Preview do link representa a página individual.
 - [ ] Estilos e scripts não afetam outras rotas.
 
