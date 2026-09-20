@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-20
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -892,3 +892,29 @@ Rollback lógico:
 - restaurar as definições anteriores das RPCs em migration corretiva posterior;
 - não apagar `world_edit_drafts` para simular rollback: os checkpoints são evidência de trabalho editorial e devem ser retidos até uma política explícita de retenção/expurgo;
 - nenhuma revisão publicada, relação canônica ou layout publicado deve ser reescrito para desfazer este mecanismo.
+
+
+## 2026-09-20 — envelope espacial ampliado do layout do World
+
+### `20260920172000_world_layout_large_canvas_coordinates`
+
+**Estado:** migration versionada para rollout junto do mega fix de escala semântica do World.
+
+Objetivo:
+
+- ampliar o limite defensivo de coordenadas editoriais de `±5.000` para `±20.000` unidades lógicas;
+- permitir composições multi-ilha/multi-hub significativamente maiores sem transformar uso legítimo do canvas em `invalid_payload`;
+- manter um limite finito server-side para rejeitar coordenadas absurdas ou acidentais;
+- alinhar o validator do snapshot publicado e o validator do draft privado ao mesmo envelope usado pela aplicação.
+
+Escopo técnico:
+
+- altera somente as definições de `save_world_layout_snapshot_atomic(...)` e `save_world_edit_layout_draft_atomic(...)`;
+- não altera tabelas, dados publicados, revisions existentes, RLS, grants, capabilities, canon ou relações;
+- `save_world_graph_draft_atomic` e `publish_world_edit_state_atomic` mantêm o limite de 5.000 **edges**, que é outro contrato e não deve ser confundido com coordenadas.
+
+Validação:
+
+- migration verifica a própria definição final e falha se o limite antigo de coordenadas permanecer;
+- testes PostgreSQL sintéticos provam coordenadas de mapa acima de 5.000 em snapshot/draft e rejeitam valores acima de 20.000;
+- o layout publicado existente não é reescrito pela migration.

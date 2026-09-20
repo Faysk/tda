@@ -49,3 +49,69 @@ test("World canvas uses map-style pan and zoom without scrolling the document", 
 		.poll(() => page.evaluate(() => getComputedStyle(document.body).overflowY))
 		.toBe("hidden");
 });
+
+test("World canvas switches presentation tiers instead of shrinking all detail forever", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Fine-grained zoom control contract.");
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
+
+	const canvas = page.getByTestId("world-canvas");
+	const zoomOut = page.getByRole("button", { name: "Diminuir zoom" });
+	await expect(canvas).toBeVisible();
+
+	for (let index = 0; index < 8; index += 1) {
+		await zoomOut.click();
+	}
+	await expect(canvas).toHaveAttribute("data-world-semantic-zoom", "atlas");
+
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-label]'),
+	).toBeVisible();
+	await expect(
+		page.locator('[data-world-node="raven-queen"] [data-node-label]'),
+	).toHaveCount(0);
+	await expect(page.locator("[data-world-neighborhood-layer]")).toBeVisible();
+
+	await page.locator('[data-world-node="astel"]').click();
+	await expect(canvas).toHaveAttribute("data-world-semantic-zoom", "detail");
+	await expect(
+		page.locator('[data-world-node="astel"] [data-node-label]'),
+	).toBeVisible();
+});
+
+test("World canvas refits search results after controlled nodes reconcile", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop camera framing contract.");
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
+
+	const viewport = page.locator(".react-flow__viewport");
+	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
+	const scale = async () => {
+		const transform = await viewport.evaluate(
+			(element) => (element as HTMLElement).style.transform,
+		);
+		const match = /scale\(([-+0-9.eE]+)\)/u.exec(transform);
+		return match ? Number.parseFloat(match[1] ?? "0") : 0;
+	};
+
+	const initialScale = await scale();
+	expect(initialScale).toBeGreaterThan(0);
+
+	await search.fill("Raven Queen");
+	await expect(page.locator(".react-flow__node")).toHaveCount(2);
+	await expect(page.locator('[data-world-node="raven-queen"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="astel"]')).toBeVisible();
+
+	await expect.poll(scale).toBeGreaterThan(initialScale * 1.35);
+});
+

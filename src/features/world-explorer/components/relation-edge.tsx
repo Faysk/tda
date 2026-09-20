@@ -13,8 +13,10 @@ import {
 	type FloatingNodeBox,
 } from "../floating-edge-geometry";
 import type { WorldLineStyle, WorldRelationFamily } from "../model";
+import { worldEdgeSemanticPresentation } from "../world-semantic-zoom";
 import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
+import { useWorldSemanticZoomTier } from "./world-semantic-zoom-context";
 
 const RELATION_STROKES: Record<WorldRelationFamily, string> = {
 	affinity: "#65c98a",
@@ -87,6 +89,7 @@ function floatingBox(node: InternalNodeLike | undefined): FloatingNodeBox | null
 }
 
 export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
+	const semanticZoom = useWorldSemanticZoomTier();
 	const sourceNode = useInternalNode(props.source);
 	const targetNode = useInternalNode(props.target);
 	const sourceBox = floatingBox(sourceNode);
@@ -115,11 +118,16 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const item = props.data?.item;
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
+	const semantic = worldEdgeSemanticPresentation(semanticZoom, {
+		highlighted,
+		dimmed,
+	});
 	const stroke = customStyle?.color ?? RELATION_STROKES[family];
 	const motionStroke = RELATION_MOTION_STROKES[family];
 	const baseWidth = customStyle?.lineWidth ?? 3;
-	const strokeWidth = highlighted ? baseWidth + 0.6 : baseWidth;
-	const strokeOpacity = dimmed ? 0.12 : highlighted ? 1 : 0.94;
+	const strokeWidth =
+		(highlighted ? baseWidth + 0.6 : baseWidth) * semantic.strokeWidthScale;
+	const strokeOpacity = semantic.strokeOpacity;
 	const dash = customStyle
 		? STYLE_DASHES[customStyle.lineStyle]
 		: RELATION_DASHES[family];
@@ -160,16 +168,18 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					}}
 					aria-hidden="true"
 				>
-					<path
-						d={path}
-						fill="none"
-						stroke="var(--ds-canvas)"
-						strokeWidth={strokeWidth + 3}
-						strokeOpacity={dimmed ? 0.04 : highlighted ? 0.7 : 0.46}
-						strokeDasharray={dash}
-						vectorEffect="non-scaling-stroke"
-						strokeLinecap="round"
-					/>
+					{semantic.showHalo ? (
+						<path
+							d={path}
+							fill="none"
+							stroke="var(--ds-canvas)"
+							strokeWidth={strokeWidth + 3}
+							strokeOpacity={dimmed ? 0.04 : highlighted ? 0.7 : 0.46}
+							strokeDasharray={dash}
+							vectorEffect="non-scaling-stroke"
+							strokeLinecap="round"
+						/>
+					) : null}
 					<path
 						d={path}
 						fill="none"
@@ -183,8 +193,9 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						data-edge-curve="bezier"
 						data-edge-anchor={floating ? "floating" : "handle"}
 						data-world-edge={props.id}
+						data-world-semantic-zoom={semanticZoom}
 					/>
-					{highlighted && !dimmed ? (
+					{semantic.showMotion && highlighted && !dimmed ? (
 						<path
 							d={path}
 							className={effects.flowMotion}
@@ -202,14 +213,15 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						/>
 					) : null}
 				</svg>
-				{item && !dimmed ? (
+				{item && semantic.showLabel ? (
 					<div
 						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""}`}
 						data-family={family}
 						data-world-edge-label={props.id}
 						aria-hidden="true"
 						style={{
-							transform: `translate(-50%, -50%) translate(${labelX + labelOffset.x}px, ${labelY + labelOffset.y}px)`,
+							transform: `translate(-50%, -50%) translate(${labelX + labelOffset.x}px, ${labelY + labelOffset.y}px) scale(var(--world-label-counter-scale, 1))`,
+							transformOrigin: "50% 50%",
 						}}
 					>
 						{item.label}

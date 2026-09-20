@@ -5,6 +5,7 @@ import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
+import { WORLD_LAYOUT_COORDINATE_LIMIT } from "./layout-contract";
 import type { WorldLayoutProjection } from "./model";
 
 const UUID_PATTERN =
@@ -68,7 +69,8 @@ function sanitizeLoosePositions(value: unknown): WorldLayoutProjection["position
 		const row = raw as Record<string, unknown>;
 		if (Object.keys(row).some((key) => key !== "x" && key !== "y")) return null;
 		if (typeof row.x !== "number" || typeof row.y !== "number") return null;
-		if (!Number.isFinite(row.x) || !Number.isFinite(row.y) || Math.abs(row.x) > 5000 || Math.abs(row.y) > 5000) {
+		if (!Number.isFinite(row.x) || !Number.isFinite(row.y) || Math.abs(row.x) > WORLD_LAYOUT_COORDINATE_LIMIT ||
+			Math.abs(row.y) > WORLD_LAYOUT_COORDINATE_LIMIT) {
 			return null;
 		}
 		positions[id] = { x: row.x, y: row.y };

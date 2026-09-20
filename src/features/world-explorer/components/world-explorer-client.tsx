@@ -181,6 +181,7 @@ export function WorldExplorerClient({
 		graphDraft: edit.graphDraft,
 	});
 
+	const cameraScopeKey = `${workingProjection.mode}:${filter}:${relationFilter}:${query.trim().toLocaleLowerCase("pt-BR")}`;
 	const authoringActive = edit.editing;
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
@@ -675,6 +676,7 @@ export function WorldExplorerClient({
 						onConnectNodes={captureRelationCandidate}
 						onReconnectEdge={reconnectRelation}
 						isConnectionValid={relationConnectionIsValid}
+						cameraScopeKey={cameraScopeKey}
 						overlay={
 							<>
 								<WorldDirectCreateControls
