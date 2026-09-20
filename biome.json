@@ -9,6 +9,8 @@
 			"!!test-results",
 			"!!playwright-report",
 			"!!public/lore/d",
+			"!!local-companion/tda_companion/ui/app.css",
+			"!!public/diario/**",
 			"!next-env.d.ts"
 		]
 	},
