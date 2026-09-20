@@ -15,6 +15,12 @@ import {
 	type PreparationStatus,
 	type TranscriptionProfileId,
 } from "./protocol";
+import {
+	craigTranscriptionRequestByteLength,
+	LOCAL_JSON_BODY_MAX_BYTES,
+	TRANSCRIPTION_TEXT_MAX_CHARS,
+	truncateUnicodeScalars,
+} from "./request-budget";
 import styles from "./submission.module.css";
 
 const profileLabels: Record<TranscriptionProfileId, string> = {
@@ -32,7 +38,12 @@ function messageFor(code: string): string {
 		timeout: "A operação local excedeu o tempo esperado. Confira a fila antes de repetir.",
 		unreachable: "Não foi possível alcançar o Companion local.",
 		invalid_response: "O Companion respondeu com um contrato inválido.",
-		incompatible: "A versão do Companion não suporta este fluxo. Atualize o aplicativo local.",
+		payload_too_large:
+			"Contexto e glossário excedem o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de enviar.",
+		api_incompatible: "A API do Companion não suporta este fluxo. Atualize o aplicativo local.",
+		version_incompatible: "A versão do Companion é antiga demais para este fluxo. Atualize o aplicativo local.",
+		session_incompatible: "O Companion não oferece a sessão automática exigida por este fluxo. Atualize o aplicativo local.",
+		incompatible: "O Companion não suporta este fluxo. Atualize o aplicativo local.",
 		service_error: "O Companion encontrou uma falha local.",
 	}[code] ?? "Falha local inesperada.";
 }
@@ -94,6 +105,8 @@ function localOperationMessage(code: string | null): string {
 			"Não foi possível baixar o modelo Whisper.",
 		WHISPER_MODEL_PREPARATION_TIMEOUT:
 			"A preparação do modelo Whisper excedeu o limite de tempo.",
+		BODY_TOO_LARGE:
+			"Contexto e glossário excedem o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de enviar.",
 	}[code] ?? `Operação local não concluída · ${code}`;
 }
 
@@ -218,6 +231,19 @@ export function ProcessingSubmission() {
 			),
 		[availableProfiles, capabilities],
 	);
+	const requestBytes = useMemo(() => {
+		if (!profile || !/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) return null;
+		return craigTranscriptionRequestByteLength({
+			campaignId: CAMPAIGN_SLUG,
+			sessionId,
+			sourceId: source?.sourceId ?? `craig-${"0".repeat(64)}`,
+			profileId: profile,
+			glossary,
+			context,
+		});
+	}, [context, glossary, profile, sessionId, source]);
+	const requestTooLarge =
+		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
 
 	if (!paired) return null;
 
@@ -230,6 +256,12 @@ export function ProcessingSubmission() {
 		}
 		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
 			setError("Escolha um ZIP válido exportado pelo Craig.");
+			return;
+		}
+		if (requestTooLarge) {
+			setError(
+				`Contexto e glossário excedem o orçamento local: ${requestBytes} / ${LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8. Reduza o texto antes de enviar.`,
+			);
 			return;
 		}
 
@@ -422,8 +454,14 @@ export function ProcessingSubmission() {
 						<span>Contexto opcional</span>
 						<textarea
 							value={context}
-							onChange={(event) => setContext(event.target.value.slice(0, 1200))}
-							maxLength={1200}
+							onChange={(event) =>
+								setContext(
+									truncateUnicodeScalars(
+										event.target.value,
+										TRANSCRIPTION_TEXT_MAX_CHARS,
+									),
+								)
+							}
 							disabled={busy}
 							placeholder="Contexto curto da sessão/campanha para reconhecimento."
 						/>
@@ -432,19 +470,34 @@ export function ProcessingSubmission() {
 						<span>Glossário opcional</span>
 						<textarea
 							value={glossary}
-							onChange={(event) => setGlossary(event.target.value.slice(0, 1200))}
-							maxLength={1200}
+							onChange={(event) =>
+								setGlossary(
+									truncateUnicodeScalars(
+										event.target.value,
+										TRANSCRIPTION_TEXT_MAX_CHARS,
+									),
+								)
+							}
 							disabled={busy}
 							placeholder="Personagens, NPCs, lugares e termos difíceis."
 						/>
 					</label>
+					{requestTooLarge ? (
+						<p className={styles.error} role="alert">
+							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
+						</p>
+					) : null}
 					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
 						<p className={styles.notice} role="status">
 							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
 						</p>
 					) : null}
 					<div className={styles.actions}>
-						<Button type="submit" variant="primary" disabled={busy || !file || !profile}>
+						<Button
+							type="submit"
+							variant="primary"
+							disabled={busy || !file || !profile || requestTooLarge}
+						>
 							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
 						</Button>
 						<span>O áudio não é enviado para o cloud.</span>
