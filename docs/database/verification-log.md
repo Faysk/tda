@@ -10,6 +10,53 @@ Entradas novas devem ser adicionadas no topo, preservando as anteriores.
 
 ---
 
+## 2026-09-20 — auditoria documental pesada do schema
+
+### Escopo
+
+Revalidação read-only do estado físico do Supabase canônico contra a documentação vigente. Nenhuma DDL, grant, policy, dado ou configuração Auth foi alterada.
+
+### Estado observado
+
+- projeto: `dmrqnbdvbkfqzctcerbx`;
+- tabelas públicas: **54**, todas com RLS habilitado;
+- migration history: **53** entradas;
+- todas as migrations remotas estão representadas em `docs/database/migrations.md`;
+- `entities=34`;
+- `entity_relations=103`;
+- `world_graph_revisions=9`;
+- `world_edit_drafts=5`;
+- `world_layout_snapshots=1`;
+- `world_graph_heads=1`;
+- `relation_types=14`;
+- `world_relation_styles=14`;
+- `media_assets=0` e `entity_media_bindings=0` no instante da verificação.
+
+### Drift documental encontrado
+
+O catálogo físico anterior ainda descrevia 43 tabelas e os contratos de relacionamento/modelo tratavam relations/World como futuro, apesar das migrations aplicadas. A revisão de 2026-09-20 atualiza `schema-catalog.md`, `relationships.md`, `data-model.md` e o índice do banco sem reescrever a auditoria histórica de 2026-09-06.
+
+### Advisors
+
+Security:
+
+- `rls_enabled_no_policy`: 49 (INFO);
+- `authenticated_security_definer_function_executable`: 8 (WARN);
+- Leaked Password Protection: 1 warning.
+
+Performance:
+
+- FKs sem covering index: 58 (INFO);
+- índices sem uso observado: 33 (INFO).
+
+Esses findings não foram alterados cosmeticamente durante a auditoria. RLS sem policy continua sendo avaliado no contexto deny-by-default; `SECURITY DEFINER` exige revisão por função; índices só devem mudar com query path/impacto comprovado.
+
+### Estado final
+
+Documentação física reconciliada com o schema observado. A auditoria de 2026-09-06 permanece snapshot histórico; este log registra a verificação atual sem promover contagens operacionais a contrato permanente.
+
+---
+
 ## 2026-09-19 — publish autoritativo de relações do World (#401)
 
 ### Escopo
