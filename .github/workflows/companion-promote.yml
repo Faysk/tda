@@ -39,14 +39,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Require exact receipt path for this RC
+      - name: Require installed and physical receipt paths for this RC
         id: receipt
         shell: bash
         run: |
           set -euo pipefail
-          RECEIPT_PATH="docs/companion/acceptance/${RC_TAG}.json"
-          [[ -f "$RECEIPT_PATH" ]] || { echo "::error::Missing physical acceptance receipt at $RECEIPT_PATH"; exit 1; }
-          echo "path=$RECEIPT_PATH" >> "$GITHUB_OUTPUT"
+          INSTALLED_PATH="docs/companion/acceptance/${RC_TAG}.json"
+          PHYSICAL_PATH="docs/companion/acceptance/${RC_TAG}.physical.json"
+          [[ -f "$INSTALLED_PATH" ]] || { echo "::error::Missing installed acceptance receipt at $INSTALLED_PATH"; exit 1; }
+          [[ -f "$PHYSICAL_PATH" ]] || { echo "::error::Missing ASR physical acceptance receipt at $PHYSICAL_PATH"; exit 1; }
+          echo "installed_path=$INSTALLED_PATH" >> "$GITHUB_OUTPUT"
+          echo "physical_path=$PHYSICAL_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Require active prerelease RC
         shell: bash
@@ -76,10 +79,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p prepared
-          cp "${{ steps.receipt.outputs.path }}" prepared/TDACompanion-acceptance.json
+          cp "${{ steps.receipt.outputs.installed_path }}" prepared/TDACompanion-acceptance.json
+          cp "${{ steps.receipt.outputs.physical_path }}" prepared/TDACompanion-physical-acceptance.json
           STABLE_TAG="$(PYTHONPATH=local-companion python -m tda_companion.release_evidence verify-promotion \
             --candidate-manifest rc-assets/TDACompanion-candidate.json \
             --acceptance-receipt prepared/TDACompanion-acceptance.json \
+            --physical-acceptance-receipt prepared/TDACompanion-physical-acceptance.json \
             --assets-root rc-assets \
             --output prepared/TDACompanion-promotion.json)"
           PYTHONPATH=local-companion python -m tda_companion.promotion_payload_verify \
@@ -180,7 +185,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence-current
-          for NAME in TDACompanion-acceptance.json TDACompanion-promotion.json; do
+          for NAME in TDACompanion-acceptance.json TDACompanion-physical-acceptance.json TDACompanion-promotion.json; do
             if gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$NAME" --dir evidence-current >/dev/null 2>&1; then
               cmp -s "evidence-current/$NAME" "prepared/$NAME" || { echo "::error::Existing RC evidence $NAME differs"; exit 1; }
             else
@@ -194,8 +199,11 @@ jobs:
           set -euo pipefail
           rm -rf evidence-check && mkdir evidence-check
           gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'TDACompanion-acceptance.json' --pattern 'TDACompanion-promotion.json' --dir evidence-check
+            --pattern 'TDACompanion-acceptance.json' \
+            --pattern 'TDACompanion-physical-acceptance.json' \
+            --pattern 'TDACompanion-promotion.json' --dir evidence-check
           cmp -s evidence-check/TDACompanion-acceptance.json prepared/TDACompanion-acceptance.json
+          cmp -s evidence-check/TDACompanion-physical-acceptance.json prepared/TDACompanion-physical-acceptance.json
           cmp -s evidence-check/TDACompanion-promotion.json prepared/TDACompanion-promotion.json
 
       - name: Promote the same release object and assets to stable
@@ -207,7 +215,8 @@ jobs:
           SOURCE_SHA="${{ steps.evidence.outputs.source_sha }}"
           MSI_SHA="$(python -c "import json; print(json.load(open('prepared/TDACompanion-promotion.json'))['assets']['msi']['sha256'])")"
           PAYLOAD_SHA="$(python -c "import json; print(json.load(open('prepared/TDACompanion-promotion.json'))['assets']['payload_manifest']['sha256'])")"
-          RECEIPT_SHA="$(sha256sum prepared/TDACompanion-acceptance.json | awk '{print $1}')"
+          INSTALLED_RECEIPT_SHA="$(sha256sum prepared/TDACompanion-acceptance.json | awk '{print $1}')"
+          PHYSICAL_RECEIPT_SHA="$(sha256sum prepared/TDACompanion-physical-acceptance.json | awk '{print $1}')"
           cat > stable-notes.md <<EOF
           Instalador oficial do TDA Companion v${VERSION} para Windows x64.
 
@@ -217,7 +226,8 @@ jobs:
           - Source tree SHA: ${{ steps.evidence.outputs.source_tree_sha }}
           - MSI SHA-256: ${MSI_SHA}
           - Payload manifest SHA-256: ${PAYLOAD_SHA}
-          - Acceptance receipt SHA-256: ${RECEIPT_SHA}
+          - Installed acceptance receipt SHA-256: ${INSTALLED_RECEIPT_SHA}
+          - ASR physical acceptance receipt SHA-256: ${PHYSICAL_RECEIPT_SHA}
           EOF
           gh release edit "$RC_TAG" --repo "$GITHUB_REPOSITORY" --tag "$STABLE_TAG" --target "$SOURCE_SHA" \
             --title "TDA Companion v${VERSION}" --notes-file stable-notes.md --prerelease=false --latest
@@ -243,6 +253,7 @@ jobs:
           PYTHONPATH=local-companion python -m tda_companion.release_evidence verify-promotion \
             --candidate-manifest stable-check/TDACompanion-candidate.json \
             --acceptance-receipt stable-check/TDACompanion-acceptance.json \
+            --physical-acceptance-receipt stable-check/TDACompanion-physical-acceptance.json \
             --assets-root stable-check --output stable-check/post-promotion.json >/dev/null
           PYTHONPATH=local-companion python -m tda_companion.promotion_payload_verify \
             --candidate-manifest stable-check/TDACompanion-candidate.json \
