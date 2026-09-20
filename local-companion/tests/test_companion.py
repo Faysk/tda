@@ -19,6 +19,15 @@ from tda_companion.attempt_fence import claim_attempt_outcome, read_attempt_outc
 from tda_companion.craig import ingest_craig_zip
 from tda_companion.legacy.publication import build_publication_bundle
 from tda_companion.store import Conflict, Store
+from tda_companion.transcript import (
+    TranscriptDocument,
+    TranscriptEngine,
+    TranscriptSegment,
+    TranscriptTrack,
+    TranscriptWord,
+    stats_for_tracks,
+)
+from tda_companion.transcription_runs import write_completed_run
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
 
 TOKEN = "s" * 43
@@ -61,6 +70,49 @@ def _running_transcription(client, *, key: str):
     claim = client.app.state.store.claim()
     assert claim == (job["id"], 1)
     return job, package_root
+
+
+def _recovery_document(package) -> TranscriptDocument:
+    source_track = package.tracks[0]
+    word = TranscriptWord(
+        text="recuperado",
+        start=0.1,
+        end=0.8,
+        confidence=0.95,
+    )
+    segment = TranscriptSegment(
+        id="1-0",
+        start=0.1,
+        end=0.8,
+        text="recuperado",
+        words=(word,),
+    )
+    track = TranscriptTrack(
+        number=source_track.number,
+        speaker=source_track.speaker,
+        source_filename=source_track.filename,
+        source_sha256=source_track.sha256,
+        duration_seconds=1.0,
+        segments=(segment,),
+        timeline_offset_seconds=source_track.timeline_offset_seconds,
+        identity=None,
+    )
+    return TranscriptDocument(
+        recording_id=package.recording_id,
+        source_sha256=package.source_sha256,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="faster-whisper",
+            model="large-v3-turbo",
+            profile="whisper-turbo",
+            device="cuda",
+            compute_type="float16",
+            alignment="native",
+            model_revision="test-revision",
+        ),
+        tracks=(track,),
+        stats=stats_for_tracks((track,), processing_seconds=1.0),
+    )
 
 
 @pytest.fixture
@@ -465,6 +517,60 @@ def test_cancel_fence_survives_store_restart(client):
     reopened = Store(client.app.state.data_root)
     assert reopened.get(job["id"])["status"] == "cancelled"
     assert read_attempt_outcome(package_root, job["id"], 1) == "cancel"
+
+
+def test_committed_run_wins_restart_reconciliation_before_late_cancel(tmp_path):
+    data_root = tmp_path / "Data"
+    store = Store(data_root)
+    source = tmp_path / "restart-commit.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-restart-commit")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    source_id = f"craig-{source_sha}"
+    package_root = data_root / "staging" / source_id
+    package = ingest_craig_zip(source, package_root)
+    body = {
+        "kind": "transcription.craig",
+        "campaign_id": "campaign",
+        "session_id": "session",
+        "source_id": source_id,
+        "profile_id": "whisper-turbo",
+        "glossary": "",
+        "context": "",
+        "cpu": False,
+        "units": 1,
+    }
+    job = store.submit("restart-commit", body)
+    assert store.claim() == (job["id"], 1)
+    assert claim_attempt_outcome(package_root, job["id"], 1, "commit") == "commit"
+
+    manifest = write_completed_run(
+        package_root,
+        _recovery_document(package),
+        job_id=job["id"],
+        attempt=1,
+        context="",
+        glossary="",
+    )
+    assert (package_root / "runs" / manifest["run_id"] / "run.json").is_file()
+    assert store.get(job["id"])["status"] == "running"
+
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(app, base_url="http://127.0.0.1:8765") as restarted:
+        state = restarted.get(f"/api/v1/jobs/{job['id']}", headers=HEADERS).json()
+        assert state["status"] == "succeeded"
+        assert state["result_available"] is True
+        assert state["attempt"] == 1
+
+        late_cancel = restarted.post(
+            f"/api/v1/jobs/{job['id']}/cancel",
+            headers=HEADERS,
+            json={},
+        )
+        assert late_cancel.status_code == 409
+        assert late_cancel.json()["error"]["code"] == "JOB_TERMINAL"
+
+    assert read_attempt_outcome(package_root, job["id"], 1) == "commit"
 
 
 def test_conflict_recoverability_matches_whether_repeating_can_help(client):
