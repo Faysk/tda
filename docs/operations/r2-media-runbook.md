@@ -40,7 +40,16 @@ Não existe uploader de Production específico por lore. O antigo workflow/confi
 
 A existência administrativa dos secrets não é presumida: ausência de qualquer variável exigida falha antes de build/stage. Não contornar esse gate com publicação manual de uma estação de desenvolvimento.
 
-O repositório também ainda contém binários/fontes de mídia de migrações anteriores, inclusive em `media/sources/`. Isso é dívida de migração reconhecida pela ADR-0018. Novas decisões não devem ampliar essa dependência; a retirada será feita de forma deliberada depois que o intake/storage canônico estiver implementado.
+O repositório ainda contém 73 artefatos de mídia no snapshot de 2026-09-20. O inventário e a ordem de retirada estão em [Dívida de mídia ainda versionada no Git](../integrations/media-git-debt-2026-09-20.md).
+
+A Media Pipeline v1 ainda exige que `asset.source` viva sob `media/sources/` e lê os bytes do checkout. Isso **contradiz o estado alvo da ADR-0018** e é a próxima dívida estrutural do pipeline.
+
+Até a migração do intake:
+
+- não adicionar nova mídia ao Git para satisfazer o validator;
+- não tratar `media/sources/` como API pública da plataforma;
+- para nova mídia, implementar primeiro um intake baseado em private/preview R2 ou realizar operação R2 autorizada com receipt;
+- manter Git somente como fonte de manifest/hash/metadata/provenance.
 
 O runtime do World/Edit é outro boundary: credenciais permanecem server-only; o browser recebe apenas presigned PUT curto para uma pending key quando autorizado. Staging usa `tda-media-preview` fora de Production e `tda-media-private` em Production antes da promoção pública. Os tokens GitHub provisionados acima não devem ser reaproveitados automaticamente pelo runtime; quando o runtime precisar de acesso, sua identidade/escopo deve ser decidida explicitamente.
 
