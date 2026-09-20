@@ -152,6 +152,62 @@ test("offline Companion produces actionable loopback diagnosis", async ({ page }
 	await expect(page.getByRole("alert")).toContainText("rede local");
 });
 
+test("expired browser bearer is renewed automatically", async ({ page }) => {
+	let sessionCalls = 0;
+	let expireNextProtectedRead = false;
+
+	await page.route(service + "/**", async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		if (path.endsWith("/health"))
+			return route.fulfill({
+				headers: cors(),
+				json: { api_version: "1", service_version: "0.3.14", lifecycle: "ready" },
+			});
+		if (path.endsWith("/session")) {
+			sessionCalls += 1;
+			return route.fulfill({
+				headers: cors(),
+				json: {
+					schema: "tda_loopback_session_v1",
+					token: browserToken + String(sessionCalls),
+					expires_in_seconds: 300,
+				},
+			});
+		}
+		if (expireNextProtectedRead) {
+			expireNextProtectedRead = false;
+			return route.fulfill({
+				status: 401,
+				headers: cors(),
+				json: { error: { code: "UNAUTHORIZED", recoverable: true } },
+			});
+		}
+		if (path.endsWith("/capabilities"))
+			return route.fulfill({
+				headers: cors(),
+				json: {
+					capabilities: [],
+					sync: false,
+					device: { id: "renew-device", label: "PC renovável" },
+					transcription: { profiles: [], catalog: [] },
+				},
+			});
+		if (path.endsWith("/jobs"))
+			return route.fulfill({ headers: cors(), json: { jobs: [] } });
+		throw new Error("unexpected request: " + path);
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	expect(sessionCalls).toBe(1);
+
+	expireNextProtectedRead = true;
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect.poll(() => sessionCalls).toBe(2);
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+});
+
 test("recoverable failure exposes retry without claiming completion", async ({ page }) => {
 	let retried = false;
 	await page.route(service + "/**", async (route) => {
