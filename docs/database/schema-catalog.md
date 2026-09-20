@@ -2,10 +2,10 @@
 
 > Status: implementado
 > Owner: dados/Supabase
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-20
 > Fonte observada: `public` no projeto `dmrqnbdvbkfqzctcerbx`
 
-Este catálogo descreve as **43 tabelas públicas observadas**. Contagens são uma fotografia da revisão e não um contrato. RLS estava habilitado em todas elas.
+Este catálogo descreve as **54 tabelas públicas observadas em 2026-09-20**. Contagens são uma fotografia da revisão e não um contrato. RLS estava habilitado em todas elas. O migration history remoto possuía 53 entradas; a evolução/identidade das migrations continua em [migrations.md](migrations.md).
 
 Para regras conceituais, consultar [modelo de dados](../data-model.md). Para segurança, consultar [security.md](security.md).
 
@@ -25,14 +25,14 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 | `roll20_events` | 0 | eventos importados do Roll20 |
 | `session_markers` | 0 | marcadores de sessão |
 | `segment_classifications` | 2.488 | classificação derivada por IA |
-| `entities` | 3 | registry narrativa canônica |
+| `entities` | 34 | registry narrativa canônica |
 | `entity_mentions` | 0 | menções de entity em evidências |
-| `canon_candidates` | 159 | candidatos de canon |
+| `canon_candidates` | 161 | candidatos de canon |
 | `quote_candidates` | 68 | candidatos de falas |
 | `outtake_candidates` | 75 | candidatos de bastidores |
 | `review_decisions` | 2 | decisões de revisão |
 | `publications` | 4 | materiais revisados/publicáveis |
-| `audit_log` | 0 | trilha de mudanças relevantes |
+| `audit_log` | 20 | trilha de mudanças relevantes |
 | `historical_documents` | 0 | histórico textual importável |
 | `canon_entries` | 0 | memória canônica consolidada |
 | `transcription_cache` | 2.423 | cache de respostas de transcrição |
@@ -42,9 +42,9 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 | `profile_claims` | 0 | reivindicação/vínculo de perfil |
 | `discord_interactions` | 5 | log estruturado de interactions |
 | `table_notes` | 0 | notas de mesa para revisão |
-| `permission_catalog` | 24 | catálogo de capabilities |
+| `permission_catalog` | 25 | catálogo de capabilities |
 | `role_definitions` | 16 | roles extensíveis |
-| `role_permissions` | 49 | role ↔ capability |
+| `role_permissions` | 50 | role ↔ capability |
 | `role_assignments` | 22 | role atribuída por scope |
 | `dm_tenures` | 1 | mandatos/função de DM |
 | `audio_artifacts` | 2.453 | lifecycle de artefatos de áudio |
@@ -56,6 +56,17 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 | `ordo_access_members` | 0 | acesso delegado específico do Ordo |
 | `external_api_clients` | 1 | clientes de API externa |
 | `external_api_keys` | 1 | chaves hashed/scoped de API |
+| `world_layout_snapshots` | 1 | layout editorial publicado do World |
+| `world_edit_leases` | 0 | lease exclusivo/efêmero de edição |
+| `relation_types` | 14 | vocabulário de relações por campanha |
+| `world_relation_styles` | 14 | estilo visual por tipo de relação |
+| `entity_relations` | 103 | relações first-class entre entities |
+| `entity_relation_sources` | 0 | provenance canônica de relações |
+| `world_graph_heads` | 1 | revision factual corrente por campanha |
+| `world_graph_revisions` | 9 | snapshots factuais publicados |
+| `media_assets` | 0 | identidade/integridade de mídia de domínio |
+| `entity_media_bindings` | 0 | vínculo entity → asset por role |
+| `world_edit_drafts` | 5 | checkpoints duráveis de edição do World |
 
 ---
 
@@ -271,7 +282,8 @@ Campos centrais:
 - IDs/sequência/track/speaker role;
 - paths de origem/response;
 - métricas de texto;
-- `needs_review`, `review_status`, `tags[]`, metadata.
+- `needs_review`, `review_status`, `tags[]`, metadata;
+- `revision bigint not null default 0` para optimistic concurrency de edição.
 
 Com 30.857 linhas, é a maior superfície narrativa textual observada.
 
@@ -359,7 +371,7 @@ Campos: campaign, name, slug, type, status, visibility, summary, aliases, timest
 
 Visibility: `private_master | private_players | review_only | public_campaign | public_web`.
 
-**Estado atual:** Astel, Dandelion e Screacky existem como PCs.
+**Estado observado em 2026-09-20:** 34 entities. O snapshot de contagem não define canon nem audience; consumers continuam filtrando por status/visibility/autorização.
 
 **Compatibilidade conhecida:** legado ainda depende de unicidade `(campaign_id, name)`. Direção futura é identidade por UUID/slug; liberar homônimos exige primeiro migrar o consolidator legado.
 
@@ -387,7 +399,7 @@ Status: `active | superseded | retcon_pending | archived`.
 
 Campos: campaign/session/actor, action, table/record, old/new JSON, timestamp.
 
-Ainda vazio na fotografia atual; antes de depender dele como requisito regulatório/forense, garantir cobertura real de writes.
+Na fotografia de 2026-09-20 há 20 eventos. A existência de linhas não prova cobertura completa de todos os writes; cada mutation que depende de audit precisa testar sua própria atomicidade/cobertura.
 
 ---
 
@@ -580,3 +592,90 @@ Ainda não existe contrato aprovado para:
 - intents/intenção como conceito de domínio.
 
 Esses itens devem ser desenhados e documentados antes de nova DDL.
+
+
+---
+
+# World Explorer, relações e autoria
+
+## `world_layout_snapshots`
+
+**Propósito:** persistir composição editorial do canvas separada dos fatos narrativos.
+
+Campos centrais: `id`, campaign, `view_name`, `schema_version`, `revision`, `positions jsonb`, `updated_by` e timestamps. Há unicidade por campanha/view e optimistic concurrency por revision.
+
+**Regra:** mover node altera apresentação, não entity/relation/canon.
+
+## `world_edit_leases`
+
+**Propósito:** serializar a sessão ativa de edição por campanha.
+
+PK por `campaign_id`; guarda holder profile, token, revisions-base de layout/grafo, draft efêmero, timestamps/heartbeat e expiração.
+
+**Regra:** lease é exclusividade temporária, não armazenamento durável.
+
+## `world_edit_drafts`
+
+**Propósito:** checkpoint durável e recuperável do trabalho editorial do World.
+
+Campos incluem campaign, owner profile, lease token, base revisions, `draft_positions`, `draft_graph`, status, última tentativa/erro de publicação e revisions efetivamente publicadas.
+
+**Regra:** expiração/release da lease não deve apagar horas de trabalho recuperável.
+
+## `relation_types`
+
+**Propósito:** catálogo de semântica de relações por campanha.
+
+PK composta campaign + slug. Guarda label, directionality, family, description, flags system/active, actors e timestamps.
+
+## `world_relation_styles`
+
+**Propósito:** defaults de apresentação por relation type, sem redefinir a semântica factual.
+
+PK composta campaign + relation type; guarda color, line style/width e actor de atualização.
+
+## `entity_relations`
+
+**Propósito:** relações first-class entre duas entities.
+
+Campos centrais: source/target entity, relation type, label override, status, visibility, style overrides, `revision`, actor, metadata e timestamps.
+
+**Regras:** source/target e tipo pertencem à campanha; duplicata/semântica são validadas pelo boundary de autoria; archived/superseded preservam história em vez de hard delete editorial.
+
+## `entity_relation_sources`
+
+**Propósito:** ligar relation a `canon_entries` como provenance explícita.
+
+PK composta relation + canon entry. Linha ausente não autoriza fabricar fonte.
+
+## `world_graph_heads`
+
+**Propósito:** ponteiro de revision factual corrente por campanha.
+
+PK campaign; guarda revision, updated_by e timestamps.
+
+## `world_graph_revisions`
+
+**Propósito:** snapshots append-only de publicações factuais explícitas.
+
+PK campaign + revision; guarda actor, snapshot JSON e timestamp. O head corrente e o histórico são conceitos distintos.
+
+---
+
+# Mídia de entities
+
+## `media_assets`
+
+**Propósito:** identidade/integridade de mídia pertencente ao domínio sem armazenar os bytes no PostgreSQL.
+
+Campos centrais: campaign, kind/role, status, bucket/key de staging, SHA-256, MIME, bytes, dimensões, read-back, bucket/key público, verificação de entrega pública, actor e timestamps.
+
+**Regra:** object storage guarda bytes; provider/URL não é identidade canônica. Asset staged não é automaticamente público.
+
+## `entity_media_bindings`
+
+**Propósito:** vínculo first-class de entity a asset por role.
+
+PK composta campaign + entity + role; hoje o role físico suportado é `portrait`. Guarda `asset_id`, focal point e actor/timestamps.
+
+**Regra:** binding exige entity/asset da mesma campanha. Focal point é apresentação do uso, não mutação do master.
