@@ -433,6 +433,37 @@ Datas só entram quando forem compromisso real; não usar due date como palpite.
 
 ---
 
+## 9.1 Estrutura de execução nativa e declarativa
+
+Além da taxonomia por labels, a estrutura operacional atual é versionada em `tools/github/issue-structure.json` e reconciliada por `.github/workflows/issue-structure-governance.yml`.
+
+O sincronizador usa as relações nativas do GitHub para três dimensões que **não devem ser simuladas por labels**:
+
+- **milestone** — resultado finito de entrega;
+- **sub-issue** — decomposição de um epic em issues independentemente fecháveis;
+- **blocked by** — dependência causal que precisa estar resolvida antes do gate final da issue dependente.
+
+### Milestones canônicos atuais
+
+- `Processing Recovery` — recuperação da jornada Web → Companion → ASR → Stable;
+- `Transcript Integrity` — edição/revisão/import/publicação editorial segura;
+- `Media & R2 Completion` — migração canônica, ativação controlada e remoção de bootstrap temporário.
+
+Nenhum milestone recebe due date sem compromisso real.
+
+### Política do sincronizador
+
+- cria milestone canônico ausente e reconcilia sua descrição;
+- associa issues declaradas somente se não pertencem a outro milestone;
+- se uma issue já pertencer a milestone diferente, **falha fechado** em vez de reassociar silenciosamente;
+- adiciona sub-issues e dependências ausentes;
+- não remove relações extras automaticamente;
+- não fecha issues;
+- não muda prioridade, tipo ou área;
+- configuração e documentação devem mudar na mesma PR quando a estrutura canônica mudar.
+
+A estrutura declarativa evita que parent/dependency/milestone existam apenas na memória, em comentários ou em checklists duplicados.
+
 ## 10. GitHub Projects
 
 O TDA atualmente mantém `docs/delivery/inventory.md` como registro operacional único. Não criar um Project paralelo editável sem decidir qual fonte será canônica.
