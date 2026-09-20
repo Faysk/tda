@@ -102,6 +102,28 @@ describe("processing state", () => {
 		controller.disconnect();
 	});
 
+	it("preserves version compatibility details for actionable UI diagnosis", async () => {
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			Response.json({
+				api_version: "1",
+				service_version: "0.3.13",
+				lifecycle: "ready",
+			}),
+		);
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect();
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "error",
+			error: "version_incompatible",
+			errorDetails: {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			},
+		});
+	});
+
 	it("connects automatically when the Companion is already open", async () => {
 		const sessionToken = "browser_session_token_123456789012345678901234";
 		const autoSessionHealth = { ...health, service_version: "0.3.14" };
@@ -249,11 +271,17 @@ describe("processing state", () => {
 		});
 	});
 
-	it("does not send token to an incompatible service", async () => {
+	it("does not send token to an API-incompatible service", async () => {
 		const { request, controller } = fixture();
 		request.mockResolvedValue(Response.json({ api_version: "99" }));
 		await controller.connect(token);
-		expect(controller.snapshot().error).toBe("incompatible");
+		expect(controller.snapshot()).toMatchObject({
+			error: "api_incompatible",
+			errorDetails: {
+				detectedApiVersion: "99",
+				requiredApiVersion: "1",
+			},
+		});
 		expect(request).toHaveBeenCalledTimes(1);
 		expect(request.mock.calls[0][1]?.headers).not.toHaveProperty(
 			"Authorization",
