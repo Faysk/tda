@@ -71,13 +71,14 @@ Ficam no repositório:
 
 ## Compatibilidade atual
 
-O repo ainda possui alguns binários de mídia diretamente versionados, incluindo assets de marca/runtime e fontes históricas de lores.
+O repo ainda possui **73 artefatos de mídia** diretamente versionados no snapshot de 2026-09-20, incluindo arquivos normais e blobs base64.
 
-Eles são dívida de migração/compatibilidade.
+Eles são dívida de migração/compatibilidade. Inventário: [Dívida de mídia ainda versionada no Git](../media-git-debt-2026-09-20.md).
 
 Regras:
 
 - não usar esses casos como precedente para mídia nova;
+- **não adicionar novos bytes de mídia ao Git**;
 - não apagar enquanto houver consumidor/bootstrap dependente;
 - migrar com SHA/consumer/rollback conhecidos;
 - após a migração, manter no Git apenas identidade/manifest/checksum necessários.
