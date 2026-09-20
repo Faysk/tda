@@ -19,6 +19,7 @@ Estes documentos descrevem as garantias de mídia e, quando necessário, os deta
 7. [Lifecycle](lifecycle.md) — estados, retenção e rollback.
 8. [Segurança e custos](security-and-costs.md) — credenciais, escopo e franquias.
 9. [Runbook operacional](../../operations/r2-media-runbook.md) — execução, diagnóstico e recuperação.
+10. [Dívida de mídia ainda versionada no Git — 2026-09-20](../media-git-debt-2026-09-20.md) — inventário real e ordem de migração.
 
 A [visão do provider atual](../r2.md) resume buckets, origem pública, secrets e evidências históricas.
 
