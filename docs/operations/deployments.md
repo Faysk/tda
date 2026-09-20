@@ -195,3 +195,21 @@ Se for necessário desfazer apenas o cutover de domínio, tratar DNS/domínio co
 - Esta reconciliação **não reconstitui nem renumera deployments intermediários ausentes deste arquivo** e não infere migration, DDL, grant, DNS, OAuth, R2 ou smoke adicional que não tenha sido observado aqui.
 - Entradas históricas anteriores permanecem intactas e devem ser interpretadas como fotografias do momento em que foram registradas.
 
+
+
+## 2026-09-20 — Repair release Astel/Noah e convergência do Media Storage
+
+- Previous canonical SHA: `4244267471b0c103aa82ca2191cbd8e82c838e3d`.
+- Repair manifest commit: `416c54bd30a6cb3acfe84128fc12228a52ac9d83` (PR #415).
+- Source SHA promovido: `0e62540f4949ea8bed0d59984760bb39fdadb2e4` (PR #417).
+- Release: `prod-0e62540f4949`.
+- Production CD final: run `35510818603`, success.
+- Staged deployment: `dpl_AL3AYTQD9wFbBPijJWHNUGEWhGHF`, `https://tda-ffd21dq1a-projeto-desenv-6905s-projects.vercel.app`.
+- Media Storage: 2 manifests, 24 assets; final run `published=0`, `reused=24`, `verified=24`.
+- A execução anterior do mesmo repair range publicou os 24 objetos pela primeira vez (`published=24`, `verified=24`) mas falhou depois no wrapper de receipt; nenhum objeto foi apagado ou sobrescrito no retry.
+- Promote: sucesso.
+- Canonical verification: `CANONICAL_PRODUCTION_OK`, commit `0e62540f4949ea8bed0d59984760bb39fdadb2e4`, release `prod-0e62540f4949`.
+- Staged + canonical smoke: PASS.
+- Secrets R2 do publisher foram comprovados via GitHub Environment `production`; Vercel não participou como cofre intermediário.
+- Evidência estruturada: [Astel/Noah media repair — 2026-09-20](../integrations/evidence/astel-noah-media-repair-2026-09-20.json).
+- Rollback da aplicação permanece o deployment anterior saudável; objetos imutáveis do R2 não exigem delete para rollback de referência.
