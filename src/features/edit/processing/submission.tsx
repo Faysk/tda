@@ -19,6 +19,7 @@ import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
 	TRANSCRIPTION_TEXT_MAX_CHARS,
+	truncateUnicodeScalars,
 } from "./request-budget";
 import styles from "./submission.module.css";
 
@@ -453,8 +454,14 @@ export function ProcessingSubmission() {
 						<span>Contexto opcional</span>
 						<textarea
 							value={context}
-							onChange={(event) => setContext(event.target.value)}
-							maxLength={TRANSCRIPTION_TEXT_MAX_CHARS}
+							onChange={(event) =>
+								setContext(
+									truncateUnicodeScalars(
+										event.target.value,
+										TRANSCRIPTION_TEXT_MAX_CHARS,
+									),
+								)
+							}
 							disabled={busy}
 							placeholder="Contexto curto da sessão/campanha para reconhecimento."
 						/>
@@ -463,8 +470,14 @@ export function ProcessingSubmission() {
 						<span>Glossário opcional</span>
 						<textarea
 							value={glossary}
-							onChange={(event) => setGlossary(event.target.value)}
-							maxLength={TRANSCRIPTION_TEXT_MAX_CHARS}
+							onChange={(event) =>
+								setGlossary(
+									truncateUnicodeScalars(
+										event.target.value,
+										TRANSCRIPTION_TEXT_MAX_CHARS,
+									),
+								)
+							}
 							disabled={busy}
 							placeholder="Personagens, NPCs, lugares e termos difíceis."
 						/>
