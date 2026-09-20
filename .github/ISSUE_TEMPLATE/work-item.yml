@@ -1,0 +1,83 @@
+name: Engineering / operations work item
+description: Track docs, tests, release, security, performance or operational work that is not a bug/feature.
+title: "<verb>(<scope>): "
+labels:
+  - "triage:needed"
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Work kind
+      description: Triage will apply exactly one matching type:* label.
+      options:
+        - ops
+        - release
+        - test
+        - docs
+        - security
+        - performance
+        - epic
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - processing
+        - processing-web
+        - companion
+        - transcripts
+        - auth
+        - database
+        - sessions
+        - world
+        - entities
+        - media
+        - lore
+        - design-system
+        - ux
+        - release
+        - governance
+        - stats
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: The concrete outcome this work item must deliver.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / evidence
+      description: Baseline, current state, source documents and why this exists.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / gates
+      description: Parent, blocked-by, exact artifact/SHA, external config or approvals.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation / evidence
+      description: Tests, receipts, smoke, review, physical acceptance or documentation evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Non-goals / limits

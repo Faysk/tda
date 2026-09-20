@@ -68,8 +68,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Gestão de entregas](../delivery/README.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
+| [Gestão de entregas](../delivery/README.md) | Prancheta - Organização de entregas | preparado | 2026-09-20 |
 | [Inventário de entregas](../delivery/inventory.md) | Prancheta - Organização de entregas | vigente | 2026-09-11 |
+| [Governança de Issues e Backlog](../delivery/issue-governance.md) | produto / coordenação / delivery | vigente | 2026-09-20 |
 | [Medição de esforço e qualidade](../delivery/measurement.md) | Prancheta - Organização de entregas | preparado | 2026-09-07 |
 | [Composição de candidato e marcos](../delivery/release-candidate.md) | Prancheta - Organização de entregas; decisão de escopo por Polvo - Coordenação e produto | preparado | 2026-09-07 |
 | [Fluxo de entregas](../delivery/workflow.md) | Prancheta - Organização de entregas; execução por Polvo - Coordenação | preparado | 2026-09-07 |
@@ -214,4 +215,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-138 páginas inventariadas, além deste catálogo gerado. 11 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+139 páginas inventariadas, além deste catálogo gerado. 11 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

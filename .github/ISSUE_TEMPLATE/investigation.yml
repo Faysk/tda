@@ -1,0 +1,71 @@
+name: Investigation
+description: Gather evidence to answer a bounded technical or product question.
+title: "investigate(<scope>): "
+labels:
+  - "type:investigation"
+  - "triage:needed"
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - processing
+        - processing-web
+        - companion
+        - transcripts
+        - auth
+        - database
+        - sessions
+        - world
+        - entities
+        - media
+        - lore
+        - design-system
+        - ux
+        - release
+        - governance
+        - stats
+    validations:
+      required: true
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions to answer
+      description: The investigation closes when these questions are answered with evidence.
+      value: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: known
+    attributes:
+      label: Known facts
+      description: Evidence-backed facts only.
+    validations:
+      required: true
+  - type: textarea
+    id: hypotheses
+    attributes:
+      label: Hypotheses
+      description: Keep assumptions explicitly separate from facts.
+  - type: textarea
+    id: method
+    attributes:
+      label: Method / allowed evidence
+      description: Code review, synthetic tests, physical hardware, production read-only checks, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Decision output
+      description: What decision, follow-up issue or documentation must exist before this can close?
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Limits
+      description: Environments, data or experiments intentionally not covered.

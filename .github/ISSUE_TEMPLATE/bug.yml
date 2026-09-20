@@ -1,0 +1,103 @@
+name: Bug / regression
+description: Report a confirmed or reproducible problem in implemented behavior.
+title: "fix(<scope>): "
+labels:
+  - "type:bug"
+  - "triage:needed"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for implemented behavior that violates a contract, expected behavior or invariant.
+        Do not use it for planned functionality that does not exist yet.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      description: Triage will apply the matching area:* label.
+      options:
+        - processing
+        - processing-web
+        - companion
+        - transcripts
+        - auth
+        - database
+        - sessions
+        - world
+        - entities
+        - media
+        - lore
+        - design-system
+        - ux
+        - release
+        - governance
+        - stats
+    validations:
+      required: true
+  - type: input
+    id: baseline
+    attributes:
+      label: Baseline
+      description: Exact SHA, version, release, environment or artifact where this was observed.
+      placeholder: "main@<sha>, Production release, Companion version..."
+    validations:
+      required: true
+  - type: textarea
+    id: fact
+    attributes:
+      label: Confirmed behavior
+      description: State the fact that is supported by evidence. Keep hypotheses separate.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal safe steps or synthetic reproduction.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen according to the current contract?
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: User, data, security, reliability, release or operational impact.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Verifiable conditions that close this issue.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests / evidence required
+      description: Regression tests, E2E, physical acceptance, receipts or other evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and owner documents
+      description: Parent issue, blocked-by issues, ADR/spec/runbook owner, PRs or related work.
+  - type: textarea
+    id: limits
+    attributes:
+      label: Limits / non-goals
+      description: Explicitly state what this issue does not prove or change.

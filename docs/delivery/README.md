@@ -2,7 +2,7 @@
 
 > Status: preparado
 > Owner: Prancheta - Organização de entregas
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-20
 > Fonte de verdade: documentos donos abaixo; GitHub e evidências vinculadas no inventário
 
 Objetivo de produto: permitir que o visitante explore sessões e histórias públicas com identidade própria, e que o operador autorizado transforme processamento local em transcrição durável e editável, preservando origem, autorização e recuperação. O site deve continuar útil com o PC desligado.
@@ -13,6 +13,7 @@ Esta proposta está em revisão documental. Não muda autorização, tarefas, co
 - [Fluxo e política de transições](workflow.md): limites, critérios de entrada/saída e handoff.
 - [Composição de candidato](release-candidate.md): marcos observáveis, proposta de ordem e gates; consultar o inventário para status.
 - [Medição e feedback](measurement.md): proveniência, limitações e coleta prospectiva.
+- [Governança de Issues e backlog](issue-governance.md): taxonomia de labels, prioridades, títulos, triage, epics, dependências, formulários e Definition of Done.
 
 ## Fronteiras e manutenção
 
