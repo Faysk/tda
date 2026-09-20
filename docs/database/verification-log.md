@@ -2,6 +2,7 @@
 
 > Status: vigente / append-only por intenção
 > Owner: dados/Supabase
+> Última revisão: 2026-09-20
 > Projeto canônico: `dmrqnbdvbkfqzctcerbx`
 
 Este documento registra verificações pontuais do estado real do Supabase. Ele complementa `database-audit.md`: a auditoria descreve uma fotografia mais ampla; este log registra revalidações operacionais menores e frequentes.
