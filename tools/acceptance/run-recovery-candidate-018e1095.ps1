@@ -65,6 +65,137 @@ function Read-Json([string]$Path, [string]$Code) {
     }
 }
 
+function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
+    try {
+        $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$AgentPort/api/v1/health" -TimeoutSec 2
+        if (
+            [string]$health.product_id -ne "tda-companion" -or
+            [string]$health.api_version -ne "1" -or
+            [string]$health.service_version -ne $ExpectedVersion -or
+            [int]$health.port -ne $AgentPort -or
+            [int]$health.pid -le 0
+        ) {
+            return $null
+        }
+        return $health
+    } catch {
+        return $null
+    }
+}
+
+function Wait-ExactAgent([int]$AgentPort, [string]$ExpectedVersion, [int]$TimeoutSeconds = 20) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $health = Get-ExactAgentHealth $AgentPort $ExpectedVersion
+        if ($null -ne $health) { return $health }
+        Start-Sleep -Milliseconds 250
+    }
+    return $null
+}
+
+function Test-ExactInstalledPayload([string]$PayloadManifestPath, [string]$ExpectedVersion) {
+    $payload = Read-Json $PayloadManifestPath "RECOVERY_PAYLOAD_MANIFEST_INVALID"
+    if (
+        [string]$payload.schema -ne "tda_companion_payload_v1" -or
+        [string]$payload.version -ne $ExpectedVersion -or
+        [string]$payload.source_sha -ne $SourceSha
+    ) {
+        return $false
+    }
+
+    $appRoot = Join-Path $env:LOCALAPPDATA "TDA\Companion\versions\$ExpectedVersion"
+    foreach ($name in @(
+        "TDACompanion.exe",
+        "TDACompanionMaintenance.exe",
+        "run-physical-acceptance.ps1",
+        "run-installed-acceptance.ps1",
+        "install-rc-runtimes.ps1"
+    )) {
+        $row = $payload.files.PSObject.Properties[$name]
+        if ($null -eq $row) { return $false }
+        $path = Join-Path $appRoot $name
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+        if ((Get-Item -LiteralPath $path).Length -ne [int64]$row.Value.size) { return $false }
+        if ((Get-Sha256 $path) -ne [string]$row.Value.sha256) { return $false }
+    }
+    return $true
+}
+
+function Ensure-ExactCandidateInstalled(
+    [string]$CandidateMsi,
+    [string]$PayloadManifestPath,
+    [int]$AgentPort
+) {
+    $companionRoot = Join-Path $env:LOCALAPPDATA "TDA\Companion"
+    $marker = Join-Path $companionRoot "current-version.txt"
+    $currentVersion = $null
+    if (Test-Path -LiteralPath $marker -PathType Leaf) {
+        try { $currentVersion = (Get-Content -LiteralPath $marker -Raw -Encoding UTF8).Trim() } catch { }
+    }
+
+    $exactPayload = $false
+    if ($currentVersion -eq $Version) {
+        $exactPayload = Test-ExactInstalledPayload $PayloadManifestPath $Version
+    }
+
+    if (-not $exactPayload) {
+        Write-Host ""
+        Write-Host "Installing the exact recovery candidate before physical acceptance..." -ForegroundColor Cyan
+        if ($currentVersion) {
+            Write-Host "Current installed version: $currentVersion"
+        } else {
+            Write-Host "Current installed version: none"
+        }
+        Write-Host "Target installed version:  $Version"
+        Write-Host "The MSI major-upgrade guard owns process shutdown/restart and preserves TDA user data."
+        [void](Read-Host "Press ENTER to install the exact RC MSI")
+
+        $installLog = Join-Path $env:TEMP "tda-recovery-018e1095-msi-install.log"
+        $arguments = @(
+            "/i",
+            ('"{0}"' -f $CandidateMsi),
+            "/qn",
+            "/norestart",
+            "/L*v",
+            ('"{0}"' -f $installLog)
+        )
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -PassThru
+        if ([int]$process.ExitCode -notin @(0, 3010)) {
+            if (Test-Path -LiteralPath $installLog -PathType Leaf) {
+                Get-Content -LiteralPath $installLog -Tail 120 | Write-Host
+            }
+            throw "RECOVERY_CANDIDATE_MSI_INSTALL_FAILED:$($process.ExitCode)"
+        }
+
+        if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) {
+            throw "RECOVERY_CANDIDATE_VERSION_MARKER_MISSING"
+        }
+        $installedVersion = (Get-Content -LiteralPath $marker -Raw -Encoding UTF8).Trim()
+        if ($installedVersion -ne $Version) {
+            throw "RECOVERY_CANDIDATE_VERSION_MARKER_MISMATCH:$installedVersion"
+        }
+        if (-not (Test-ExactInstalledPayload $PayloadManifestPath $Version)) {
+            throw "RECOVERY_CANDIDATE_INSTALLED_PAYLOAD_MISMATCH"
+        }
+    } else {
+        Write-Host ""
+        Write-Host "Exact $Version candidate payload is already installed; MSI reinstall is not required." -ForegroundColor Green
+    }
+
+    $health = Wait-ExactAgent $AgentPort $Version 20
+    if ($null -eq $health) {
+        throw "RECOVERY_CANDIDATE_AGENT_NOT_READY"
+    }
+    Write-Host "Exact Agent ready: PID $([int]$health.pid), version $([string]$health.service_version)" -ForegroundColor Green
+
+    $installedExe = Join-Path $companionRoot "versions\$Version\TDACompanion.exe"
+    if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf)) {
+        throw "RECOVERY_CANDIDATE_EXECUTABLE_MISSING"
+    }
+    Start-Process -FilePath $installedExe -ArgumentList "--ui" | Out-Null
+    Start-Sleep -Seconds 2
+}
+
 function Write-ImmutableCopy([string]$Source, [string]$Destination) {
     $sourceSha = Get-Sha256 $Source
     if (Test-Path -LiteralPath $Destination -PathType Leaf) {
@@ -210,6 +341,8 @@ if (
 ) {
     throw "RECOVERY_FIXTURE_OUTPUT_MISSING"
 }
+
+Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port
 
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
