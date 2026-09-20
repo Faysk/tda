@@ -1,6 +1,6 @@
 export type WorldSemanticZoomTier = "atlas" | "region" | "detail";
 
-export const WORLD_CANVAS_MIN_ZOOM = 0.08;
+export const WORLD_CANVAS_MIN_ZOOM = 0.008;
 export const WORLD_CANVAS_MAX_ZOOM = 2.2;
 export const WORLD_ATLAS_MAX_ZOOM = 0.34;
 export const WORLD_REGION_MAX_ZOOM = 0.72;
@@ -22,7 +22,7 @@ export function worldSemanticZoomTier(zoom: number): WorldSemanticZoomTier {
  */
 export function worldLabelCounterScale(zoom: number): number {
 	if (!Number.isFinite(zoom) || zoom <= 0) return 1;
-	return Math.min(5.6, Math.max(1, 1 / Math.max(zoom, 0.18)));
+	return Math.min(48, Math.max(1, 1 / Math.max(zoom, 1 / 48)));
 }
 
 export type WorldNodeSemanticPresentation = Readonly<{
