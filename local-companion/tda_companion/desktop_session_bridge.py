@@ -90,6 +90,7 @@ class SessionDesktopBridge(DesktopBridge):
         )
         self._last_maintenance_operation_id: str | None = None
         self._maintenance_handoff_process: subprocess.Popen | None = None
+        self._agent_watchdog_suspended = False
         self._preparation_lock = threading.Lock()
         self._preparation_log = SystemLog(self.paths.logs_root)
         self._preparation_started_at: float | None = None
@@ -586,6 +587,14 @@ class SessionDesktopBridge(DesktopBridge):
             },
         }
 
+    def agent_watchdog_tick(self) -> dict[str, object]:
+        if self._agent_watchdog_suspended:
+            return {"state": "suspended"}
+        return self.client.ensure_ready()
+
+    def suspend_agent_watchdog(self) -> None:
+        self._agent_watchdog_suspended = True
+
     def snapshot(self) -> dict[str, object]:
         try:
             value = super().snapshot()
@@ -800,6 +809,7 @@ class SessionDesktopBridge(DesktopBridge):
             raise self._friendly_network_error(exc) from None
         operation_id = self._last_maintenance_operation_id
         if result.get("accepted") is True and operation_id is not None:
+            self.suspend_agent_watchdog()
             return {**result, "operation_id": operation_id}
         return result
 
@@ -810,6 +820,7 @@ class SessionDesktopBridge(DesktopBridge):
         result = super().uninstall(purge)
         operation_id = self._last_maintenance_operation_id
         if result.get("accepted") is True and operation_id is not None:
+            self.suspend_agent_watchdog()
             return {**result, "operation_id": operation_id}
         return result
 

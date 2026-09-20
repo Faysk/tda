@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Callable
 
+from .agent_connection import AgentConnectionError
 from .desktop_session_bridge import SessionDesktopBridge
 from .paths import CompanionPaths
 from .settings import SettingsStore
+from .system_log import SystemLog
 from .tray import TrayController
 
 
@@ -71,6 +74,106 @@ class DesktopUiApi:
         return self._bridge.close_desktop()
 
 
+class DesktopAgentWatchdog:
+    """Keep the local Agent recoverable independently of WebView renderer timers."""
+
+    def __init__(
+        self,
+        bridge: SessionDesktopBridge,
+        *,
+        interval_seconds: float = 2.0,
+    ) -> None:
+        self.bridge = bridge
+        self.interval_seconds = max(0.25, float(interval_seconds))
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._last_marker: str | None = None
+        self._log = SystemLog(bridge.paths.logs_root)
+
+    def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(
+            target=self._run,
+            name="tda-agent-watchdog",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self, timeout: float = 5.0) -> None:
+        self._stop.set()
+        thread = self._thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=max(0.0, float(timeout)))
+
+    def _write_transition(
+        self,
+        marker: str,
+        *,
+        level: str,
+        code: str,
+        message: str,
+        context: dict[str, object] | None = None,
+    ) -> None:
+        if marker == self._last_marker:
+            return
+        self._last_marker = marker
+        self._log.write(level, "desktop-watchdog", code, message, context or {})
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                status = self.bridge.agent_watchdog_tick()
+                state = str(status.get("state") or "unknown")
+                if state == "suspended":
+                    self._last_marker = "suspended"
+                elif state == "ready":
+                    previous = self._last_marker
+                    self._last_marker = "ready"
+                    if previous not in {None, "ready", "suspended"}:
+                        self._log.write(
+                            "info",
+                            "desktop-watchdog",
+                            "AGENT_WATCHDOG_RECOVERED",
+                            "Desktop watchdog restored the exact local Agent",
+                            {
+                                "service_version": status.get("service_version"),
+                                "pid": status.get("pid"),
+                            },
+                        )
+                else:
+                    self._write_transition(
+                        f"state:{state}",
+                        level="warning",
+                        code="AGENT_WATCHDOG_NOT_READY",
+                        message="Desktop watchdog observed a non-ready Agent state",
+                        context={"state": state},
+                    )
+            except AgentConnectionError as exc:
+                self._write_transition(
+                    f"agent:{exc.code}",
+                    level="warning",
+                    code="AGENT_WATCHDOG_RECOVERY_PENDING",
+                    message="Desktop watchdog could not restore the local Agent yet",
+                    context={
+                        "error_code": exc.code,
+                        "retry_after_seconds": self.bridge.client.status().get(
+                            "retry_after_seconds"
+                        ),
+                    },
+                )
+            except BaseException as exc:
+                self._write_transition(
+                    f"internal:{type(exc).__name__}",
+                    level="error",
+                    code="AGENT_WATCHDOG_FAILED",
+                    message="Desktop watchdog encountered an internal error",
+                    context={"error_type": type(exc).__name__},
+                )
+            self._stop.wait(self.interval_seconds)
+
+
 class DesktopExitCoordinator:
     """Separate a user's close gesture from an intentional product shutdown."""
 
@@ -133,6 +236,8 @@ def run_desktop(
     )
     exit_coordinator = DesktopExitCoordinator()
     bridge.bind_close_desktop(lambda: exit_coordinator.request_exit(window.destroy))
+    watchdog = DesktopAgentWatchdog(bridge)
+    watchdog.start()
 
     tray: TrayController | None = None
     if settings.snapshot().get("show_tray"):
@@ -158,6 +263,7 @@ def run_desktop(
         # evidence that WebView2 is available even if registry reads are blocked.
         webview.start(gui="edgechromium", debug=False)
     finally:
+        watchdog.stop()
         if previous_renderer is None:
             os.environ.pop("TDA_DESKTOP_RENDERER", None)
         else:
