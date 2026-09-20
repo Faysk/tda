@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "kind": "tda-media-repair-evidence",
+  "date": "2026-09-20",
+  "scope": "Astel and Noah canonical lore media recovery",
+  "provider": "cloudflare-r2",
+  "bucket": "tda-media-public",
+  "publicOrigin": "https://media.dnd.faysk.dev",
+  "credentialsBoundary": "github-environment:production",
+  "pullRequests": {
+    "controlPlaneConvergence": 414,
+    "repairManifests": 415,
+    "receiptWrapperFix": 417
+  },
+  "commits": {
+    "previousCanonicalProduction": "4244267471b0c103aa82ca2191cbd8e82c838e3d",
+    "repairManifestCommit": "416c54bd30a6cb3acfe84128fc12228a52ac9d83",
+    "finalProductionCommit": "0e62540f4949ea8bed0d59984760bb39fdadb2e4"
+  },
+  "manifests": [
+    {
+      "path": "media/manifests/astel.json",
+      "project": "astel-lore",
+      "assets": 16
+    },
+    {
+      "path": "media/manifests/noah.json",
+      "project": "noah-lore",
+      "assets": 8
+    }
+  ],
+  "attempts": [
+    {
+      "runId": 35482180633,
+      "runAttempt": 1,
+      "conclusion": "failure",
+      "stage": "credential-gate",
+      "reason": "R2_ACCOUNT_ID was absent from GitHub Environment production",
+      "remoteMediaMutation": false,
+      "productionPromoted": false
+    },
+    {
+      "runId": 35482180633,
+      "runAttempt": 2,
+      "conclusion": "failure",
+      "stage": "post-publication receipt wrapper",
+      "reason": "Bash read returned exit code 1 after receiving a summary without a terminal newline",
+      "remoteMediaMutation": true,
+      "media": {
+        "assets": 24,
+        "published": 24,
+        "reused": 0,
+        "publicVerified": 24
+      },
+      "productionPromoted": false
+    },
+    {
+      "runId": 35510818603,
+      "runAttempt": 1,
+      "conclusion": "success",
+      "media": {
+        "assets": 24,
+        "published": 0,
+        "reused": 24,
+        "publicVerified": 24
+      },
+      "release": "prod-0e62540f4949",
+      "stagedDeployment": {
+        "id": "dpl_AL3AYTQD9wFbBPijJWHNUGEWhGHF",
+        "url": "https://tda-ffd21dq1a-projeto-desenv-6905s-projects.vercel.app"
+      },
+      "canonicalProduction": {
+        "origin": "https://dnd.faysk.dev",
+        "commit": "0e62540f4949ea8bed0d59984760bb39fdadb2e4",
+        "verification": "CANONICAL_PRODUCTION_OK",
+        "stagedAndCanonicalSmoke": "PASS"
+      },
+      "productionPromoted": true
+    }
+  ],
+  "conclusion": {
+    "assetsExpected": 24,
+    "assetsPublishedAtLeastOnce": 24,
+    "assetsVerifiedOnFinalRun": 24,
+    "idempotentRetryObserved": true,
+    "githubEnvironmentR2SecretsOperationallyVerified": true,
+    "repairComplete": true
+  }
+}
