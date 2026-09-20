@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       web: ${{ steps.classify.outputs.web }}
+      processing: ${{ steps.classify.outputs.processing }}
       db: ${{ steps.classify.outputs.db }}
       companion: ${{ steps.classify.outputs.companion }}
       media: ${{ steps.classify.outputs.media }}
@@ -146,6 +147,47 @@ jobs:
     with:
       source_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
+  processing-domain:
+    name: processing-domain
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.12.17'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - run: .venv/bin/python local-companion/packaging/verify_dependency_lock.py local-companion/requirements-test.lock
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run current Processing browser journey
+        run: pnpm test:processing
+      - name: Run Web-to-Companion scratch integration
+        run: pnpm test:processing:integration
+        env:
+          TDA_COMPANION_PYTHON: .venv/bin/python
+          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
+      - name: Upload failure screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: processing-e2e-failure-screenshots
+          path: test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
   media-domain:
     name: media-domain
     needs: classify-changes
@@ -186,6 +228,7 @@ jobs:
       - validate
       - transcript-import-postgres
       - companion-domain
+      - processing-domain
       - media-domain
     steps:
       - name: Require fast and relevant domain contracts
@@ -197,6 +240,8 @@ jobs:
           DB_RESULT: ${{ needs.transcript-import-postgres.result }}
           COMPANION_RELEVANT: ${{ needs.classify-changes.outputs.companion }}
           COMPANION_RESULT: ${{ needs.companion-domain.result }}
+          PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
+          PROCESSING_RESULT: ${{ needs.processing-domain.result }}
           MEDIA_RELEVANT: ${{ needs.classify-changes.outputs.media }}
           MEDIA_RESULT: ${{ needs.media-domain.result }}
         shell: bash
@@ -216,6 +261,12 @@ jobs:
             test "$COMPANION_RESULT" = "success"
           else
             test "$COMPANION_RESULT" = "skipped"
+          fi
+
+          if [[ "$PROCESSING_RELEVANT" == "true" ]]; then
+            test "$PROCESSING_RESULT" = "success"
+          else
+            test "$PROCESSING_RESULT" = "skipped"
           fi
 
           if [[ "$MEDIA_RELEVANT" == "true" ]]; then
