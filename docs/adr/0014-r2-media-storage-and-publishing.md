@@ -1,8 +1,12 @@
 # ADR-0014 — R2 como boundary de mídia publicada
 
-- Status: accepted
+- Status: superseded by ADR-0018
 - Data: 2026-09-14
 - Owner: architecture / integrations-media / operations
+
+> Substituída em 2026-09-20 por [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](0018-portable-core-github-control-plane.md).
+>
+> Esta ADR permanece como registro histórico da decisão que consolidou a Media Pipeline no Cloudflare R2. A ADR-0018 generaliza o boundary permanente para Media Storage provider-neutral, mantendo imutabilidade, integridade, read-back, separação de audience e publicação compartilhada.
 
 ## Decisão
 
@@ -40,6 +44,7 @@ Para upload no browser, a direção futura é autenticação normal do TDA + aut
 
 ## Referências
 
+- [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](0018-portable-core-github-control-plane.md)
 - [Mídia — fluxo único](../integrations/r2/media-pipeline.md)
 - [Runbook R2](../operations/r2-media-runbook.md)
 - [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md)
