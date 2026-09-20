@@ -6,7 +6,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from .asr_checkpoints import build_checkpoint_signature, load_track_checkpoint, save_track_checkpoint
+from .asr_checkpoints import (
+    QwenTextCheckpointWindow,
+    build_checkpoint_signature,
+    load_qwen_text_checkpoint,
+    load_track_checkpoint,
+    save_qwen_text_checkpoint,
+    save_track_checkpoint,
+)
 from .asr_models import QWEN_FORCED_ALIGNER_MODEL_ID, get_profile
 from .asr_qwen import (
     QWEN_MAX_NEW_TOKENS,
@@ -287,14 +294,45 @@ def transcribe_craig_package_qwen_strict(
 
     started = time.monotonic()
     pending_text: dict[int, list[QwenWindowTranscript]] = {}
-    if pending_tracks:
+    asr_tracks = []
+    for track in pending_tracks:
+        cached_text = (
+            load_qwen_text_checkpoint(package_root, signature, track)
+            if checkpoints
+            else None
+        )
+        if cached_text is None:
+            asr_tracks.append(track)
+            continue
+        pending_text[track.number] = [
+            QwenWindowTranscript(
+                index=item.index,
+                start=item.start,
+                end=item.end,
+                text=item.text,
+                language=item.language,
+            )
+            for item in cached_text
+        ]
+        report(
+            {
+                "type": "event",
+                "code": "ASR_TEXT_CHECKPOINT_REUSED",
+                "stage": "source_validation",
+                "track": track.number,
+                "total_tracks": total_tracks,
+                "speaker": track.speaker,
+            }
+        )
+
+    if asr_tracks:
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
         model_root = model_prepare(models_root.resolve(), profile)
         report({"type": "stage", "stage": "model_load", "profile": profile.id})
         asr_session: AsrSession = asr_session_factory(model_root, plan)
         report({"type": "stage", "stage": "transcription", "profile": profile.id})
         try:
-            for track in pending_tracks:
+            for track in asr_tracks:
                 source = _safe_track_path(package_root, track)
                 report(
                     {
@@ -334,6 +372,44 @@ def transcribe_craig_package_qwen_strict(
                 if not values:
                     raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
                 pending_text[track.number] = values
+                if checkpoints:
+                    try:
+                        save_qwen_text_checkpoint(
+                            package_root,
+                            signature,
+                            track,
+                            (
+                                QwenTextCheckpointWindow(
+                                    index=item.index,
+                                    start=item.start,
+                                    end=item.end,
+                                    text=item.text,
+                                    language=item.language,
+                                )
+                                for item in values
+                            ),
+                        )
+                        report(
+                            {
+                                "type": "event",
+                                "code": "ASR_TEXT_CHECKPOINT_SAVED",
+                                "stage": "transcription",
+                                "track": track.number,
+                                "total_tracks": total_tracks,
+                                "speaker": track.speaker,
+                            }
+                        )
+                    except (OSError, ValueError):
+                        report(
+                            {
+                                "type": "event",
+                                "code": "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
+                                "stage": "transcription",
+                                "track": track.number,
+                                "total_tracks": total_tracks,
+                                "speaker": track.speaker,
+                            }
+                        )
         finally:
             asr_session.close()
 
