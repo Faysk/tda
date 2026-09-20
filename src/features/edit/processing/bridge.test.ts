@@ -9,6 +9,10 @@ import {
 	parsePreparationStatus,
 	parseResultSummary,
 } from "./protocol";
+import {
+	craigTranscriptionRequestByteLength,
+	LOCAL_JSON_BODY_MAX_BYTES,
+} from "./request-budget";
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
 const job = {
@@ -298,6 +302,35 @@ describe("loopback bridge", () => {
 				minimumServiceVersion: "0.3.14",
 			},
 		});
+	});
+
+	it("rejects an oversized UTF-8 Craig request before sending credentials or bytes", async () => {
+		const request = vi.fn<typeof fetch>();
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+		const input = {
+			campaignId: "yuhara-main",
+			sessionId: "sessao-42",
+			sourceId: `craig-${"a".repeat(64)}`,
+			profileId: "qwen-quality" as const,
+			glossary: "",
+			context: "",
+		};
+		const emptyBytes = craigTranscriptionRequestByteLength(input);
+		const available = LOCAL_JSON_BODY_MAX_BYTES - emptyBytes;
+		const context = `${"😀".repeat(Math.floor(available / 4))}${"a".repeat(
+			available % 4,
+		)}a`;
+		const oversized = { ...input, context };
+		expect(craigTranscriptionRequestByteLength(oversized)).toBe(
+			LOCAL_JSON_BODY_MAX_BYTES + 1,
+		);
+
+		await expect(
+			bridge.transcription(oversized, "utf8-budget", signal()),
+		).rejects.toMatchObject({ code: "payload_too_large" });
+		expect(request).not.toHaveBeenCalled();
+		bridge.disconnect();
 	});
 
 	it("starts and observes Agent-owned profile preparation", async () => {
