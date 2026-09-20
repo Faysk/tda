@@ -1,4 +1,7 @@
-import { supportsAutomaticLoopbackSession } from "./compatibility";
+import {
+	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	supportsAutomaticLoopbackSession,
+} from "./compatibility";
 import {
 	BridgeError,
 	type CraigTranscriptionInput,
@@ -16,6 +19,11 @@ import {
 	parseResultSummary,
 	parseSystemSnapshot,
 } from "./protocol";
+import {
+	buildCraigTranscriptionRequest,
+	LOCAL_JSON_BODY_MAX_BYTES,
+	serializedJsonBody,
+} from "./request-budget";
 
 type PairingMode = "none" | "legacy" | "browser";
 
@@ -82,12 +90,18 @@ export class LocalBridge {
 		// protocol before asking the local Agent for a browser-scoped credential.
 		const health = await this.health(signal);
 		if (!supportsAutomaticLoopbackSession(health.service_version))
-			throw new BridgeError("incompatible");
+			throw new BridgeError("version_incompatible", null, {
+				detectedServiceVersion: health.service_version,
+				minimumServiceVersion: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+			});
 		const value = record(
 			await this.json("/session", signal, {}, undefined, true),
 		);
 		if (value.schema !== "tda_loopback_session_v1")
-			throw new BridgeError("incompatible");
+			throw new BridgeError("session_incompatible", null, {
+				detectedServiceVersion: health.service_version,
+				minimumServiceVersion: AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+			});
 		const token = text(value.token, 256);
 		if (!/^[A-Za-z0-9_-]{32,256}$/u.test(token))
 			throw new BridgeError("invalid_response");
@@ -169,13 +183,16 @@ export class LocalBridge {
 			const timeout = AbortSignal.timeout(8000);
 			const headers: Record<string, string> = { Accept: "application/json" };
 			if (!publicRequest) headers.Authorization = `Bearer ${this.token()}`;
-			if (body !== undefined) headers["Content-Type"] = "application/json";
+			const serialized = body === undefined ? null : serializedJsonBody(body);
+			if (serialized && serialized.byteLength > LOCAL_JSON_BODY_MAX_BYTES)
+				throw new BridgeError("payload_too_large");
+			if (serialized) headers["Content-Type"] = "application/json";
 			if (key) headers["Idempotency-Key"] = identifier(key);
 			try {
 				const response = await this.request(`${LOCAL_API}${path}`, {
-					method: body === undefined ? "GET" : "POST",
+					method: serialized === null ? "GET" : "POST",
 					headers,
-					body: body === undefined ? undefined : JSON.stringify(body),
+					body: serialized?.body,
 					mode: "cors",
 					credentials: "omit",
 					redirect: "error",
@@ -303,20 +320,17 @@ export class LocalBridge {
 		}
 	}
 	async transcription(input: CraigTranscriptionInput, key: string, signal: AbortSignal) {
+		const payload = buildCraigTranscriptionRequest({
+			...input,
+			campaignId: identifier(input.campaignId),
+			sessionId: identifier(input.sessionId),
+			sourceId: identifier(input.sourceId),
+		});
 		return parseJob(
 			await this.json(
 				"/jobs",
 				signal,
-				{
-					kind: "transcription.craig",
-					campaign_id: identifier(input.campaignId),
-					session_id: identifier(input.sessionId),
-					source_id: identifier(input.sourceId),
-					profile_id: input.profileId,
-					glossary: input.glossary.slice(0, 1200),
-					context: input.context.slice(0, 1200),
-					cpu: false,
-				},
+				payload,
 				key,
 			),
 		);
