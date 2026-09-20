@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	presentConnectionError,
 	presentJobError,
 	presentJobEvent,
 	presentJobTitle,
@@ -7,6 +8,30 @@ import {
 } from "./presentation";
 
 describe("processing presentation", () => {
+	it("separates version, API and browser-session compatibility diagnostics", () => {
+		expect(
+			presentConnectionError("version_incompatible", {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			}),
+		).toContain("v0.3.13");
+		expect(
+			presentConnectionError("version_incompatible", {
+				detectedServiceVersion: "0.3.13",
+				minimumServiceVersion: "0.3.14",
+			}),
+		).toContain("v0.3.14");
+		expect(
+			presentConnectionError("api_incompatible", {
+				detectedApiVersion: "2",
+				requiredApiVersion: "1",
+			}),
+		).toContain("API v2");
+		expect(presentConnectionError("session_incompatible")).toContain(
+			"sessão automática",
+		);
+	});
+
 	it("presents Craig transcription jobs as a session transcription", () => {
 		expect(presentJobTitle({ kind: "transcription.craig" })).toBe(
 			"Transcrição de sessão",
