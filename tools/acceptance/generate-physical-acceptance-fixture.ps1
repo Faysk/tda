@@ -106,7 +106,6 @@ function Write-SyntheticSpeech([string]$Path, [int]$RepeatCount) {
         $fileStream.Open($Path, 3, $false)
         $voice.AudioOutputStream = $fileStream
         [void]$voice.Speak($text, 0)
-        $voice.AudioOutputStream = $null
         $fileStream.Close()
         return $selectedVoice
     } finally {
@@ -146,7 +145,13 @@ function New-CraigFixture([string]$ZipPath) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
     $flacBytes = [Convert]::FromBase64String($FlacFixtureBase64)
-    $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($flacBytes)).ToLowerInvariant()
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash($flacBytes)
+    } finally {
+        $sha256.Dispose()
+    }
+    $actual = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
     if ($actual -ne $FlacFixtureSha256) { throw "FIXTURE_FLAC_EMBEDDED_HASH_MISMATCH" }
 
     if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
