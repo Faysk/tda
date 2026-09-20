@@ -104,9 +104,13 @@ jobs:
             } finally {
               $stream.Dispose()
             }
-            $sha = [Convert]::ToHexString(
-              [Security.Cryptography.SHA256]::HashData($bytes)
-            ).ToLowerInvariant()
+            $hasher = [Security.Cryptography.SHA256]::Create()
+            try {
+              $digest = $hasher.ComputeHash($bytes)
+            } finally {
+              $hasher.Dispose()
+            }
+            $sha = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
             if ($sha -ne "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1") {
               throw "FIXTURE_CRAIG_FLAC_HASH_INVALID"
             }
