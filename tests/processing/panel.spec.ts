@@ -124,7 +124,7 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	await expect
 		.poll(() => state.job?.status)
 		.toBe("cancelled");
-	await expect(page.getByText("Cancelado", { exact: true })).toBeVisible();
+	await expect(page.getByRole("listitem").getByText("Cancelado", { exact: true })).toBeVisible();
 });
 
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
