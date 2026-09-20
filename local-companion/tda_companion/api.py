@@ -20,6 +20,11 @@ from .asr_runtime import (
     inspect_whisper_runtime,
     recover_interrupted_whisper_runtime_install,
 )
+from .attempt_fence import (
+    AttemptFenceError,
+    claim_attempt_outcome,
+    read_attempt_outcome,
+)
 from .browser_session import BrowserSessionManager
 from .craig import CraigPackageError
 from .craig_ingest import (
@@ -263,6 +268,55 @@ def create_app(
     def staged_package_under_source_gate(source_id: str):
         with source_gate:
             return staged_package(source_id, verify_tracks=False)
+
+    def claim_cancel_under_source_gate(
+        source_id: str,
+        job_id: str,
+        attempt: int,
+    ) -> str:
+        with source_gate:
+            package_root, _package = staged_package(source_id, verify_tracks=False)
+            try:
+                return claim_attempt_outcome(
+                    package_root,
+                    job_id,
+                    attempt,
+                    "cancel",
+                )
+            except AttemptFenceError as exc:
+                raise Conflict(str(exc)) from None
+
+    def transcription_run_visible(
+        package_root: Path,
+        summary: dict[str, object],
+    ) -> bool:
+        job_id = summary.get("job_id")
+        attempt = summary.get("attempt")
+        if not isinstance(job_id, str) or isinstance(attempt, bool) or not isinstance(attempt, int):
+            # Legacy imported transcripts have no queue identity and remain visible.
+            return True
+        try:
+            decision = read_attempt_outcome(package_root, job_id, attempt)
+        except AttemptFenceError:
+            # A corrupt arbitration marker must never make a run more visible.
+            return False
+        if decision == "cancel":
+            return False
+        try:
+            state = store.get(job_id)
+        except KeyError:
+            # Job cleanup must not erase a previously committed immutable run.
+            return decision != "cancel"
+        current_attempt = state.get("attempt")
+        if isinstance(current_attempt, bool) or not isinstance(current_attempt, int):
+            return False
+        if attempt < current_attempt:
+            # Historical attempts remain immutable. A cancelled historical attempt
+            # is already excluded above by its durable cancel fence.
+            return True
+        if attempt > current_attempt:
+            return False
+        return state.get("status") == "succeeded"
 
     def source_in_use(source_id: str) -> bool:
         # Queue status changes to cancelled before the isolated worker necessarily
@@ -949,6 +1003,7 @@ def create_app(
     app.state.worker_wake = worker_wake
     app.state.source_gate = source_gate
     app.state.source_in_use = source_in_use
+    app.state.transcription_run_visible = transcription_run_visible
     app.state.data_root = data_root
     app.state.models_root = resolved_models_root
     app.state.state_root = resolved_state_root
@@ -1300,10 +1355,33 @@ def create_app(
                 value = store.action(job_id, action)
             worker_wake.set()
             return value
-        value = store.action(job_id, action)
         if action == "cancel":
+            current = store.get(job_id)
+            if current["status"] == "cancelled":
+                return current
+            body = store.body(job_id)
+            if (
+                current["status"] == "running"
+                and body.get("kind") == "transcription.craig"
+            ):
+                attempt = current.get("attempt")
+                if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+                    raise Conflict("ATTEMPT_FENCE_ATTEMPT_INVALID")
+                winner = await asyncio.to_thread(
+                    claim_cancel_under_source_gate,
+                    str(body["source_id"]),
+                    job_id,
+                    attempt,
+                )
+                if winner == "commit":
+                    latest = store.get(job_id)
+                    if latest["status"] == "succeeded":
+                        raise Conflict("JOB_TERMINAL")
+                    raise Conflict("JOB_COMMIT_IN_PROGRESS")
+            value = store.action(job_id, action)
             signal_active_worker_cancel(job_id)
-        return value
+            return value
+        return store.action(job_id, action)
 
     @app.get("/api/v1/jobs/{job_id}/events")
     def events(job_id: str):
