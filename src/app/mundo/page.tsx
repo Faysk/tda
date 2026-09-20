@@ -14,6 +14,7 @@ import {
 	resolveWorldFocusId,
 } from "@/features/world-explorer/projection";
 import { loadWorldDataset } from "@/features/world-explorer/world-repository";
+import { loadWorldPublicationMeta } from "@/features/world-explorer/world-publication-repository";
 
 type MundoPageProps = {
 	searchParams: Promise<{ foco?: string | string[] }>;
@@ -82,6 +83,9 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 	const focusId = resolveWorldFocusId(dataset, requestedFocus);
 	const projection = buildWorldProjection(dataset, focusId);
 	projection.layout = await loadPublishedWorldLayout(projection);
+	if (!dataset.demo) {
+		projection.publication = await loadWorldPublicationMeta(audience);
+	}
 
 	return (
 		<div
