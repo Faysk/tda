@@ -120,7 +120,9 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
 	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
-	await expect(page.getByText("synthetic-session", { exact: true })).toBeVisible();
+	await expect(
+		page.locator("dd").filter({ hasText: "synthetic-session" }),
+	).toBeVisible();
 
 	const sessionsBeforeRestart = posts.filter(
 		(url) => url === `${service}/session`,
