@@ -1,8 +1,8 @@
 # Arquitetura de entrega das lores
 
-> Status: decisão aprovada; implementação parcial
+> Status: vigente; modos app/standalone em uso, registro central ainda incremental
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-20
 
 ## Objetivo
 
@@ -63,20 +63,20 @@ A URL pública continua `/lore/<slug>`. Quando necessário, usar rewrite de `/lo
 
 ## Storage de mídia das lores
 
-Toda mídia editorial pública consumida em runtime por uma lore usa o R2 como storage de entrega: backgrounds, portraits, artwork, mapas, layers de parallax, overlays, social cards, áudio e vídeo. A publicação ocorre pela Media Pipeline compartilhada, com keys imutáveis/content-addressed, read-back e verificação da entrega pública.
+Toda mídia editorial pública **nova** deve convergir para o boundary de Media Storage; Cloudflare R2 é o provider atual de entrega: backgrounds, portraits, artwork, mapas, layers de parallax, overlays, social cards, áudio e vídeo. A publicação ocorre pela Media Pipeline compartilhada, com keys imutáveis/content-addressed, read-back e verificação da entrega pública.
 
 O repositório guarda código, markup, manifestos, metadata, tooling e pequenos assets técnicos diretamente acoplados ao documento. `favicon.svg` e SVGs técnicos pequenos podem permanecer locais quando essa escolha for deliberada. Binário editorial local em `public/lore/<slug>/assets` é exceção legada ou explicitamente justificada, não o padrão para novas lores.
 
 Masters, fontes de trabalho e pacotes originais permanecem separados dos derivados públicos e devem ser preservados em storage privado apropriado. O bucket público recebe apenas derivados autorizados para entrega.
 
-Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A regra é: **a lore declara mídia; a plataforma publica**. Ver [ADR-0014 — R2 como boundary de mídia publicada](../adr/0014-r2-media-storage-and-publishing.md), [Mídia — fluxo único](../integrations/r2/media-pipeline.md) e [Mídia — autorização compartilhada de staging](../integrations/r2/media-access-contract.md).
+Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A regra é: **a lore declara mídia; a plataforma publica**. Ver [ADR-0018 — core portátil e Media Storage](../adr/0018-portable-core-github-control-plane.md), [Mídia — fluxo único](../integrations/r2/media-pipeline.md) e [runbook de mídia](../operations/r2-media-runbook.md).
 
 ## Situação atual
 
 | Lore | Delivery | Listada | Campanha principal | Indexação desejada agora |
 | --- | --- | --- | --- | --- |
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
-| Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
+| Astel / Noah | `standalone` estática, publicada | Sim | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
 | D | `standalone` estática | Não | Não | Não indexar |
 | Seika | Route Handler standalone legado | Não | Não | Não indexar; alinhar runtime em entrega própria se necessário |
 | Yllith | `standalone` estática planejada | Não | Não | Não indexar |
@@ -139,7 +139,7 @@ Campos mínimos esperados:
 
 Esse registro responde “como esta lore é entregue e qual é seu estado editorial?”. Sua implementação no código é uma tarefa separada desta decisão documental.
 
-O candidato de [Astel e Noah](astel-noah-lores.md) usa `src/features/lore/standalone-catalog.json` para as duas entradas standalone listadas, seus cards e rewrites. Esse catálogo parcial não migra nem altera o estado das lores anteriores.
+A entrega publicada de [Astel e Noah](astel-noah-lores.md) usa `src/features/lore/standalone-catalog.json` para as duas entradas standalone listadas, seus cards e rewrites. Esse catálogo parcial não migra nem altera o estado das lores anteriores.
 
 ## Futuro multi-jogo
 
