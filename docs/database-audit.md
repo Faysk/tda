@@ -1,6 +1,12 @@
 # Auditoria do banco de produção
 
-Revisão: 2026-09-06. Projeto Supabase: `dmrqnbdvbkfqzctcerbx`.
+> Status: snapshot histórico
+> Owner: dados/Supabase
+> Data do snapshot: 2026-09-06
+> Última revisão: 2026-09-20
+> Projeto Supabase: `dmrqnbdvbkfqzctcerbx`
+
+> Este arquivo preserva a auditoria ampla de 2026-09-06 e **não representa o schema corrente**. Para estado físico atual usar [schema-catalog.md](database/schema-catalog.md), [migrations.md](database/migrations.md) e [verification-log.md](database/verification-log.md).
 
 Este documento registra fatos observados no banco. Não transforma automaticamente documentação histórica do `dnd-scribe` em requisito do reboot.
 
