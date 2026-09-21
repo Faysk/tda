@@ -106,6 +106,12 @@ jobs:
             'RECOVERY_ACTIVE_USER_JOB_PRESENT_BEFORE_MUTATION',
             'RECOVERY_ACTIVE_USER_PREPARATION_PRESENT_BEFORE_MUTATION',
             'RECOVERY_ACTIVE_WORK_PREFLIGHT_UNAVAILABLE',
+            'function Read-RuntimeCandidateArchiveSha',
+            'function Install-ExactRuntimeArtifact',
+            'd4620c640ab1c5b5ebc9a96c835410eca1f16cafa3ebe0cbedc157c915137344',
+            '5a794f0953f0d4f7a73c5ea991b5529a0eb594e6d055d461c1c8b9261303a285',
+            'RECOVERY_RUNTIME_EXACT_IDENTITY_NOT_READY',
+            'RECOVERY_RUNTIME_ROLLBACK_FAILED',
             'Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)',
             'if (-not $AutomatedMode)',
             'Ensure-AutomatedRuntimesReady $downloads',
@@ -351,6 +357,71 @@ jobs:
             }
           } finally {
             $qwenZip.Dispose()
+          }
+
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Read-Json")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Get-Sha256")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Read-RuntimeCandidateArchiveSha")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Test-RuntimeReady")
+
+          $candidatePath = Join-Path $env:RUNNER_TEMP "runtime-candidate-synthetic.json"
+          $expectedArchive = "b" * 64
+          [ordered]@{
+            schema = "tda_runtime_candidate_v1"
+            family = "whisper"
+            runtime_id = "whisper-ctranslate2"
+            platform = "windows-x64"
+            version = "1.1.4"
+            candidate_tag = "companion-whisper-runtime-rc-v1.1.4-test"
+            runtime_archive_sha256 = $expectedArchive
+            assets = @(
+              [ordered]@{ name = "runtime.zip"; sha256 = ("c" * 64) }
+            )
+          } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $candidatePath -Encoding UTF8
+
+          $resolvedArchive = Read-RuntimeCandidateArchiveSha $candidatePath "whisper" "1.1.4" "whisper-ctranslate2" "companion-whisper-runtime-rc-v1.1.4-test" @{ "runtime.zip" = ("c" * 64) }
+          if ($resolvedArchive -ne $expectedArchive) {
+            throw "RUNTIME_CANDIDATE_ARCHIVE_IDENTITY_INVALID"
+          }
+
+          $savedLocalAppData = $env:LOCALAPPDATA
+          $fakeLocal = Join-Path $env:RUNNER_TEMP "runtime-identity-localappdata"
+          try {
+            $env:LOCALAPPDATA = $fakeLocal
+            $versionRoot = Join-Path $fakeLocal "TDA\Runtime\whisper\1.1.4"
+            New-Item -ItemType Directory -Force -Path $versionRoot | Out-Null
+            $worker = Join-Path $versionRoot "TDAWhisperWorker.exe"
+            [IO.File]::WriteAllBytes($worker, [byte[]](10,20,30,40))
+            $workerSha = (Get-FileHash -LiteralPath $worker -Algorithm SHA256).Hash.ToLowerInvariant()
+
+            [ordered]@{
+              schema = "tda_asr_runtime_v1"
+              runtime_id = "whisper-ctranslate2"
+              version = "1.1.4"
+            } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path (Split-Path $versionRoot -Parent) "current.json") -Encoding UTF8
+
+            [ordered]@{
+              schema = "tda_asr_runtime_v1"
+              runtime_id = "whisper-ctranslate2"
+              version = "1.1.4"
+              worker = "TDAWhisperWorker.exe"
+              worker_sha256 = $workerSha
+              archive_sha256 = ("a" * 64)
+            } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $versionRoot ".tda-runtime.json") -Encoding UTF8
+
+            if (Test-RuntimeReady "whisper" "1.1.4" "whisper-ctranslate2" "TDAWhisperWorker.exe" $expectedArchive) {
+              throw "RUNTIME_SAME_VERSION_DIFFERENT_ARCHIVE_REUSED"
+            }
+
+            $markerPath = Join-Path $versionRoot ".tda-runtime.json"
+            $marker = Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $marker.archive_sha256 = $expectedArchive
+            $marker | ConvertTo-Json | Set-Content -LiteralPath $markerPath -Encoding UTF8
+            if (-not (Test-RuntimeReady "whisper" "1.1.4" "whisper-ctranslate2" "TDAWhisperWorker.exe" $expectedArchive)) {
+              throw "RUNTIME_EXACT_ARCHIVE_NOT_REUSED"
+            }
+          } finally {
+            $env:LOCALAPPDATA = $savedLocalAppData
           }
       - name: Smoke superseded 0.3.14 RC replacement
         shell: powershell
