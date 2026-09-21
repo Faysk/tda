@@ -1,7 +1,9 @@
 param(
     [string]$OutputRoot = (Join-Path $env:LOCALAPPDATA "TDA\State\acceptance\recovery-1585a932"),
     [ValidateRange(1024, 65535)]
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [switch]$Automated,
+    [switch]$AllowLegacyTrayEquivalent
 )
 
 $ErrorActionPreference = "Stop"
@@ -409,14 +411,22 @@ Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
 Write-Host "PHASE 1/2 - Installed Windows acceptance" -ForegroundColor Cyan
-Write-Host "This phase is intentionally interactive: it measures lifecycle, BITS resume, tray, diagnostics and Craig recovery."
+$installedModeArgs = @()
+if ($Automated) {
+    Write-Host "Automated mode: zero PASS prompts, no Task Manager, no manual port blocker and no manual network toggle." -ForegroundColor Green
+    $installedModeArgs += "-Automated"
+    if ($AllowLegacyTrayEquivalent) { $installedModeArgs += "-AllowLegacyTrayEquivalent" }
+} else {
+    Write-Host "Interactive compatibility mode: operator observations are still available when explicitly requested."
+}
 & $pwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installedScript `
     -CandidateMsi $msiPath `
     -PayloadManifest $payloadPath `
     -SourceSha $SourceSha `
     -CraigZip $craigPath `
     -ReceiptPath $installedRaw `
-    -Port $Port
+    -Port $Port `
+    @installedModeArgs
 if ($LASTEXITCODE -ne 0) { throw "RECOVERY_INSTALLED_ACCEPTANCE_FAILED" }
 if (-not (Test-Path -LiteralPath $installedRaw -PathType Leaf)) {
     throw "RECOVERY_INSTALLED_ACCEPTANCE_FAILED"
