@@ -154,20 +154,6 @@ function dateFilterLabel(range: LembraDateRange) {
 	return "Até";
 }
 
-function sortLabel(sort: LembraSort) {
-	switch (sort) {
-		case "oldest":
-			return "Mais antigas";
-		case "title":
-			return "Nome";
-		case "author":
-			return "Autor";
-		case "newest":
-		default:
-			return "Mais recentes";
-	}
-}
-
 export function LembraExperience() {
 	const [references, setReferences] = useState<ReferenceItem[]>([]);
 	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
@@ -593,13 +579,6 @@ export function LembraExperience() {
 						<button type="button" onClick={clearSearchFilters}>
 							Limpar filtros
 						</button>
-					</div>
-				) : references.length ? (
-					<div className={styles.resultsBarQuiet}>
-						<span>
-							{references.length} {references.length === 1 ? "referência" : "referências"} ·{" "}
-							{sortLabel(sort)}
-						</span>
 					</div>
 				) : null}
 
