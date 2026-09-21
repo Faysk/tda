@@ -776,18 +776,26 @@
 
 .viewerPanel {
 	min-width: 0;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 18px 20px 16px;
 	border-left: 1px solid var(--ds-border-subtle);
 	background: var(--ds-surface-elevated);
 }
 
 .viewerTopbar {
+	position: sticky;
+	z-index: 2;
+	top: 0;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+	padding-bottom: 6px;
+	background: var(--ds-surface-elevated);
 }
 
 .viewerCounter {
@@ -1319,6 +1327,7 @@
 	.viewerPanel {
 		flex: 1 0 auto;
 		min-height: 280px;
+		overflow: visible;
 		border-top: 1px solid var(--ds-border-subtle);
 		border-left: 0;
 	}
