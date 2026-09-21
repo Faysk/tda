@@ -29,3 +29,19 @@ export async function authorizeLembraWrite(): Promise<LembraAccess> {
 	});
 	return decision;
 }
+
+
+export async function authorizeLembraView(): Promise<
+	| Readonly<{ ok: true; authUserId: string; profileId: string; canWrite: boolean }>
+	| Readonly<{ ok: false; reason: LembraAccessFailure }>
+> {
+	const read = await authorizeLembraRead();
+	if (read.ok) {
+		const write = await authorizeLembraWrite();
+		return { ...read, canWrite: write.ok };
+	}
+	if (read.reason !== "forbidden") return read;
+
+	const write = await authorizeLembraWrite();
+	return write.ok ? { ...write, canWrite: true } : read;
+}
