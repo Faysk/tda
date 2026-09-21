@@ -125,6 +125,12 @@ export type LocalSourceSummary = {
 	recordingId: string | null;
 	trackCount: number;
 };
+export type LocalPublicationTarget = {
+	campaignSlug: string;
+	sourceSessionId: string;
+	jobId: string;
+	attempt: number;
+};
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -144,6 +150,7 @@ export type LocalRunSummary = {
 		trackCount: number | null;
 		warningCount: number | null;
 	};
+	publicationTarget: LocalPublicationTarget | null;
 };
 export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
 export type LocalReviewSegment = {
@@ -183,6 +190,7 @@ export type LocalReview = {
 		trackCount: number | null;
 	};
 	warnings: readonly string[];
+	publicationTarget: LocalPublicationTarget | null;
 	review: {
 		reviewedSegments: number;
 		totalSegments: number;
@@ -589,6 +597,36 @@ export function parseLocalSources(value: unknown): LocalSourceSummary[] {
 	return sources;
 }
 
+function parsePublicationTarget(
+	value: unknown,
+	expected: {
+		sourceId: string;
+		runId: string;
+		transcriptSha256: string;
+	},
+): LocalPublicationTarget | null {
+	if (value === null || value === undefined) return null;
+	const row = record(value);
+	if (row.schema_version !== "tda_publication_target_v1") return invalid();
+	const sourceId = identifier(row.source_id);
+	const runId = runIdentifier(row.run_id);
+	const transcriptSha256 = sha256(row.transcript_sha256);
+	const attempt = nonNegativeInteger(row.attempt);
+	if (
+		attempt < 1 ||
+		sourceId !== expected.sourceId ||
+		runId !== expected.runId ||
+		transcriptSha256 !== expected.transcriptSha256
+	)
+		return invalid();
+	return {
+		campaignSlug: identifier(row.campaign_slug),
+		sourceSessionId: identifier(row.source_session_id),
+		jobId: identifier(row.job_id),
+		attempt,
+	};
+}
+
 export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 	const row = record(value);
 	if (row.schema_version !== "tda_transcription_runs_v1") return invalid();
@@ -598,13 +636,15 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		const item = record(raw);
 		if (item.status !== "completed") return invalid();
 		if (identifier(item.source_id) !== sourceId) return invalid();
+		const runId = runIdentifier(item.run_id);
+		const transcriptSha256 = sha256(item.transcript_sha256);
 		const stats = record(item.stats ?? {});
 		const nullableMetric = (metric: unknown) =>
 			metric === null || metric === undefined ? null : nonNegativeNumber(metric);
 		const nullableCount = (metric: unknown) =>
 			metric === null || metric === undefined ? null : nonNegativeInteger(metric);
 		return {
-			runId: runIdentifier(item.run_id),
+			runId,
 			sourceId,
 			profileId: text(item.profile_id, 64),
 			engine: nullableText(item.engine, 64),
@@ -612,7 +652,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			modelRevision: nullableText(item.model_revision, 256),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
-			transcriptSha256: sha256(item.transcript_sha256),
+			transcriptSha256,
 			transcriptSizeBytes: (() => {
 				const size = nonNegativeInteger(item.transcript_size_bytes);
 				if (size < 1) return invalid();
@@ -626,6 +666,11 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				trackCount: nullableCount(stats.track_count),
 				warningCount: nullableCount(stats.warning_count),
 			},
+			publicationTarget: parsePublicationTarget(item.publication_target, {
+				sourceId,
+				runId,
+				transcriptSha256,
+			}),
 		};
 	});
 }
@@ -635,6 +680,9 @@ export function parseLocalReview(value: unknown): LocalReview {
 	if (row.schema_version !== "tda_local_review_v1") return invalid();
 	const status = text(row.status, 32);
 	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
+	const sourceId = identifier(row.source_id);
+	const runId = runIdentifier(row.run_id);
+	const baseTranscriptSha256 = sha256(row.base_transcript_sha256);
 	const lineage = record(row.lineage);
 	const stats = record(row.stats);
 	const review = record(row.review);
@@ -666,9 +714,9 @@ export function parseLocalReview(value: unknown): LocalReview {
 	const reviewPercent = nonNegativeNumber(review.review_percent);
 	if (reviewPercent > 100) return invalid();
 	return {
-		sourceId: identifier(row.source_id),
-		runId: runIdentifier(row.run_id),
-		baseTranscriptSha256: sha256(row.base_transcript_sha256),
+		sourceId,
+		runId,
+		baseTranscriptSha256,
 		draftRevision: nonNegativeInteger(row.draft_revision),
 		draftSha256: sha256(row.draft_sha256),
 		status: status as LocalReviewStatus,
@@ -702,6 +750,11 @@ export function parseLocalReview(value: unknown): LocalReview {
 					: nonNegativeInteger(stats.track_count),
 		},
 		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
+		publicationTarget: parsePublicationTarget(row.publication_target, {
+			sourceId,
+			runId,
+			transcriptSha256: baseTranscriptSha256,
+		}),
 		review: {
 			reviewedSegments,
 			totalSegments,
