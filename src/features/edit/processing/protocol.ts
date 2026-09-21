@@ -119,6 +119,68 @@ export type ResultSummary = {
 	transcriptSha256?: string;
 	runId?: string;
 };
+export type LocalRunSummary = {
+	runId: string;
+	sourceId: string;
+	profileId: TranscriptionProfileId;
+	engine: string | null;
+	model: string | null;
+	modelRevision: string | null;
+	language: string | null;
+	completedAt: string | null;
+	transcriptSha256: string;
+	transcriptSizeBytes: number;
+	stats: {
+		processingSeconds: number | null;
+		rtf: number | null;
+		wordCount: number | null;
+		segmentCount: number | null;
+		trackCount: number | null;
+	};
+};
+export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
+export type LocalReviewSegment = {
+	trackNumber: number;
+	segmentId: string;
+	start: number;
+	end: number;
+	text: string;
+	speaker: string;
+	reviewed: boolean;
+};
+export type LocalReview = {
+	sourceId: string;
+	runId: string;
+	baseTranscriptSha256: string;
+	draftRevision: number;
+	draftSha256: string;
+	status: LocalReviewStatus;
+	createdAt: string;
+	updatedAt: string;
+	lineage: {
+		profileId: TranscriptionProfileId;
+		engine: string | null;
+		model: string | null;
+		modelRevision: string | null;
+		completedAt: string | null;
+	};
+	stats: {
+		processingSeconds: number | null;
+		rtf: number | null;
+		trackCount: number | null;
+	};
+	warnings: readonly string[];
+	review: {
+		reviewedSegments: number;
+		totalSegments: number;
+		reviewPercent: number;
+		editedSegments: number;
+		wordCount: number;
+		warningCount: number;
+	};
+	segments: readonly LocalReviewSegment[];
+	sync: { status: "not_configured" };
+};
 export type BridgeErrorCode =
 	| "unreachable"
 	| "unauthorized"
@@ -205,6 +267,26 @@ function sha256(value: unknown): string {
 	const parsed = text(value, 64);
 	if (!/^[a-f0-9]{64}$/u.test(parsed)) return invalid();
 	return parsed;
+}
+function runIdentifier(value: unknown): string {
+	const id = text(value, 196);
+	if (!/^[A-Za-z0-9_-]{1,196}$/u.test(id)) return invalid();
+	return id;
+}
+function contentText(value: unknown, max: number): string {
+	if (typeof value !== "string" || !value.trim() || value.length > max)
+		return invalid();
+	if (value.includes("\0")) return invalid();
+	return value;
+}
+function nonNegativeNumber(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+		return invalid();
+	return value;
+}
+function nullableIsoDate(value: unknown): string | null {
+	if (value === null || value === undefined) return null;
+	return isoDate(value);
 }
 export function transcriptionProfile(value: unknown): TranscriptionProfileId {
 	const parsed = text(value, 32);
@@ -471,6 +553,113 @@ export function parseSystemSnapshot(value: unknown): SystemSnapshot {
 	};
 }
 // Only identity/hashes are retained. Transcript text and local artifact content never enter the cloud UI bridge.
+export function parseLocalRuns(value: unknown): LocalRunSummary[] {
+	const row = record(value);
+	if (row.schema_version !== "tda_transcription_runs_v1") return invalid();
+	const sourceId = identifier(row.source_id);
+	if (!Array.isArray(row.runs) || row.runs.length > 1000) return invalid();
+	return row.runs.map((raw) => {
+		const item = record(raw);
+		if (item.status !== "completed") return invalid();
+		if (identifier(item.source_id) !== sourceId) return invalid();
+		const stats = record(item.stats ?? {});
+		const nullableMetric = (metric: unknown) =>
+			metric === null || metric === undefined ? null : nonNegativeNumber(metric);
+		const nullableCount = (metric: unknown) =>
+			metric === null || metric === undefined ? null : nonNegativeInteger(metric);
+		return {
+			runId: runIdentifier(item.run_id),
+			sourceId,
+			profileId: transcriptionProfile(item.profile_id),
+			engine: nullableText(item.engine, 64),
+			model: nullableText(item.model, 256),
+			modelRevision: nullableText(item.model_revision, 256),
+			language: nullableText(item.language, 32),
+			completedAt: nullableIsoDate(item.completed_at),
+			transcriptSha256: sha256(item.transcript_sha256),
+			transcriptSizeBytes: nonNegativeInteger(item.transcript_size_bytes),
+			stats: {
+				processingSeconds: nullableMetric(stats.processing_seconds),
+				rtf: nullableMetric(stats.rtf),
+				wordCount: nullableCount(stats.word_count),
+				segmentCount: nullableCount(stats.segment_count),
+				trackCount: nullableCount(stats.track_count),
+			},
+		};
+	});
+}
+
+export function parseLocalReview(value: unknown): LocalReview {
+	const row = record(value);
+	if (row.schema_version !== "tda_local_review_v1") return invalid();
+	const status = text(row.status, 32);
+	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
+	const lineage = record(row.lineage);
+	const stats = record(row.stats);
+	const review = record(row.review);
+	const sync = record(row.sync);
+	if (sync.status !== "not_configured") return invalid();
+	if (!Array.isArray(row.warnings) || row.warnings.length > 1000) return invalid();
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
+	const segments = row.segments.map((raw) => {
+		const segment = record(raw);
+		const start = nonNegativeNumber(segment.start);
+		const end = nonNegativeNumber(segment.end);
+		if (end < start) return invalid();
+		return {
+			trackNumber: nonNegativeInteger(segment.track_number),
+			segmentId: contentText(segment.segment_id, 256),
+			start,
+			end,
+			text: contentText(segment.text, 100_000),
+			speaker: text(segment.speaker, 160),
+			reviewed: boolean(segment.reviewed),
+		};
+	});
+	const totalSegments = nonNegativeInteger(review.total_segments);
+	const reviewedSegments = nonNegativeInteger(review.reviewed_segments);
+	if (totalSegments !== segments.length || reviewedSegments > totalSegments)
+		return invalid();
+	const reviewPercent = nonNegativeNumber(review.review_percent);
+	if (reviewPercent > 100) return invalid();
+	return {
+		sourceId: identifier(row.source_id),
+		runId: runIdentifier(row.run_id),
+		baseTranscriptSha256: sha256(row.base_transcript_sha256),
+		draftRevision: nonNegativeInteger(row.draft_revision),
+		draftSha256: sha256(row.draft_sha256),
+		status: status as LocalReviewStatus,
+		createdAt: isoDate(row.created_at),
+		updatedAt: isoDate(row.updated_at),
+		lineage: {
+			profileId: transcriptionProfile(lineage.profile_id),
+			engine: nullableText(lineage.engine, 64),
+			model: nullableText(lineage.model, 256),
+			modelRevision: nullableText(lineage.model_revision, 256),
+			completedAt: nullableIsoDate(lineage.completed_at),
+		},
+		stats: {
+			processingSeconds: nullableNonNegativeNumber(stats.processing_seconds),
+			rtf: nullableNonNegativeNumber(stats.rtf),
+			trackCount:
+				stats.track_count === null || stats.track_count === undefined
+					? null
+					: nonNegativeInteger(stats.track_count),
+		},
+		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
+		review: {
+			reviewedSegments,
+			totalSegments,
+			reviewPercent,
+			editedSegments: nonNegativeInteger(review.edited_segments),
+			wordCount: nonNegativeInteger(review.word_count),
+			warningCount: nonNegativeInteger(review.warning_count),
+		},
+		segments,
+		sync: { status: "not_configured" },
+	};
+}
+
 export function parseResultSummary(
 	value: unknown,
 	jobId: string,
