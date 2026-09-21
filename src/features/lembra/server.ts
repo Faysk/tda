@@ -77,7 +77,7 @@ function lembraProductionRuntime() {
 }
 
 function lembraMediaClient() {
-	return lembraProductionRuntime() ? privateMediaClient() : lembraMediaClient();
+	return lembraProductionRuntime() ? privateMediaClient() : mediaClient();
 }
 
 function lembraMediaConnectionConfig() {
