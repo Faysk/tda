@@ -94,6 +94,9 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     assert '"Valid"' in value
     assert "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH" in value
     assert "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH" in value
+    assert "AUTHENTICODE_TIMESTAMP_MISSING" in value
+    assert "AUTHENTICODE_TRUST_VERIFY_FAILED" in value
+    assert "& $signToolPath verify /pa /all /v $Path" in value
 
     companion_sign = value.index('Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanion.exe")')
     helper_sign = value.index(
