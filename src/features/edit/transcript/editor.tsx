@@ -316,7 +316,7 @@ function SegmentEditor({
 					<div className={styles.conflictPanel} role="alert">
 						<div>
 							<strong>Conflito de edição</strong>
-							<p>
+							<p className={styles.conflictHelp}>
 								Seu rascunho local continua preservado. Carregue a versão atual
 								antes de decidir como reconciliar; salvar continua bloqueado.
 							</p>
@@ -326,11 +326,11 @@ function SegmentEditor({
 								<div className={styles.conflictSnapshot}>
 									<div>
 										<strong>Versão atual no servidor · revision {revision}</strong>
-										<span>
+										<span className={styles.conflictMeta}>
 											{editor.conflictRemote.speaker} · {statusLabels[editor.conflictRemote.reviewStatus]}
 										</span>
 									</div>
-									<p>{editor.conflictRemote.text}</p>
+									<p className={styles.conflictSnapshotText}>{editor.conflictRemote.text}</p>
 								</div>
 								<div className={styles.conflictActions}>
 									<Button
