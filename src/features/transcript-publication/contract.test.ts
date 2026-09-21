@@ -93,7 +93,8 @@ describe("transcript publication contract", () => {
 				word_count: 2,
 			},
 		});
-		expect(parsed.value.payloadJson).not.toContain("job-a");
+		expect(payload).not.toHaveProperty("job_id");
+		expect(payload).not.toHaveProperty("campaign_slug");
 		expect(parsed.value.payloadJson).not.toContain("yuhara-main");
 	});
 
