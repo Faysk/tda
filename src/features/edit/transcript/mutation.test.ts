@@ -8,6 +8,7 @@ import {
 	type TranscriptMutationDependencies,
 } from "./mutation";
 
+const sessionId = "123e4567-e89b-42d3-a456-426614174000";
 const segmentId = "123e4567-e89b-42d3-a456-426614174001";
 
 function context(
@@ -49,11 +50,21 @@ function dependencies(
 const request = {
 	authUserId: "auth-user",
 	campaignSlug: "yuhara-main",
+	sessionId,
 	segmentId,
 	expectedRevision: 3,
 	text: " Texto corrigido ",
 	speaker: " Dandelion ",
 	reviewStatus: "approved",
+} as const;
+
+const approvedSnapshot = {
+	text: "Texto corrigido",
+	speaker: "Dandelion",
+	reviewStatus: "approved",
+	needsReview: false,
+	textChars: 15,
+	textWords: 2,
 } as const;
 
 describe("mutateTranscriptSegment", () => {
@@ -69,11 +80,12 @@ describe("mutateTranscriptSegment", () => {
 		expect(deps.persist).not.toHaveBeenCalled();
 	});
 
-	it("validates the revision and edit payload before authorization", async () => {
+	it("validates session, revision and edit payload before authorization", async () => {
 		const deps = dependencies();
 		const result = await mutateTranscriptSegment(
 			{
 				...request,
+				sessionId: "wrong-session",
 				expectedRevision: -1,
 				text: " ",
 				reviewStatus: "wat",
@@ -85,12 +97,14 @@ describe("mutateTranscriptSegment", () => {
 			ok: false,
 			reason: "validation",
 			issues: [
+				"session_id_invalid",
 				"expected_revision_invalid",
 				"text_required",
 				"review_status_invalid",
 			],
 		});
 		expect(deps.resolveAccessContext).not.toHaveBeenCalled();
+		expect(deps.persist).not.toHaveBeenCalled();
 	});
 
 	it("does not allow transcript read capability to write", async () => {
@@ -107,28 +121,65 @@ describe("mutateTranscriptSegment", () => {
 		expect(deps.persist).not.toHaveBeenCalled();
 	});
 
-	it("passes only server-derived invariants to persistence", async () => {
+	it("passes session-bound server invariants to persistence and returns the confirmed canonical snapshot", async () => {
 		const deps = dependencies();
 		const result = await mutateTranscriptSegment(request, deps);
 
-		expect(result).toEqual({ ok: true, revision: 4 });
+		expect(result).toEqual({
+			ok: true,
+			revision: 4,
+			segment: approvedSnapshot,
+		});
 		expect(deps.persist).toHaveBeenCalledWith({
 			actorProfileId: "profile-1",
 			campaignSlug: "yuhara-main",
+			expectedSessionId: sessionId,
 			segmentId,
 			expectedRevision: 3,
-			edit: {
-				text: "Texto corrigido",
-				speaker: "Dandelion",
-				reviewStatus: "approved",
-				needsReview: false,
-				textChars: 15,
+			edit: approvedSnapshot,
+		});
+	});
+
+	it("returns the canonical persisted state for legacy review aliases", async () => {
+		const deps = dependencies();
+		const result = await mutateTranscriptSegment(
+			{
+				...request,
+				text: "  Texto legado  ",
+				speaker: "  Sense  ",
+				reviewStatus: "unreviewed",
+			},
+			deps,
+		);
+
+		expect(deps.persist).toHaveBeenCalledWith(
+			expect.objectContaining({
+				expectedSessionId: sessionId,
+				edit: {
+					text: "Texto legado",
+					speaker: "Sense",
+					reviewStatus: "pending",
+					needsReview: true,
+					textChars: 12,
+					textWords: 2,
+				},
+			}),
+		);
+		expect(result).toEqual({
+			ok: true,
+			revision: 4,
+			segment: {
+				text: "Texto legado",
+				speaker: "Sense",
+				reviewStatus: "pending",
+				needsReview: true,
+				textChars: 12,
 				textWords: 2,
 			},
 		});
 	});
 
-	it("surfaces optimistic concurrency conflicts", async () => {
+	it("surfaces optimistic concurrency conflicts without fabricating a snapshot", async () => {
 		const deps = dependencies({
 			persist: vi.fn(async () => ({ status: "conflict" as const })),
 		});
@@ -139,7 +190,7 @@ describe("mutateTranscriptSegment", () => {
 		});
 	});
 
-	it("does not expose cross-campaign resource existence", async () => {
+	it("keeps session/segment mismatch opaque as not_found", async () => {
 		const deps = dependencies({
 			persist: vi.fn(async () => ({ status: "not_found" as const })),
 		});
