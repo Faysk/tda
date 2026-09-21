@@ -591,8 +591,9 @@ export function LembraExperience({
 
 		if (!persistenceEnabled) return;
 
-		const result = await setLembraFavoriteAction(id, favorite);
-		if (!result.ok) {
+		try {
+			const result = await setLembraFavoriteAction(id, favorite);
+			if (result.ok) return;
 			setFavoriteIds((current) => {
 				const next = new Set(current);
 				if (wasFavorite) next.add(id);
@@ -600,6 +601,14 @@ export function LembraExperience({
 				return next;
 			});
 			setMessage(mutationMessage(result.reason));
+		} catch {
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				if (wasFavorite) next.add(id);
+				else next.delete(id);
+				return next;
+			});
+			setMessage("Não foi possível atualizar o favorito agora.");
 		}
 	}
 
@@ -655,6 +664,8 @@ export function LembraExperience({
 			);
 			setEditing(false);
 			setMessage("Referência atualizada.");
+		} catch {
+			setMessage("Não foi possível salvar a alteração agora.");
 		} finally {
 			setSaving(false);
 		}
@@ -684,6 +695,8 @@ export function LembraExperience({
 			});
 			closeViewer();
 			setMessage("Referência removida.");
+		} catch {
+			setMessage("Não foi possível remover a referência agora.");
 		} finally {
 			setSaving(false);
 		}
