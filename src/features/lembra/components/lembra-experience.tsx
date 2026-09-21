@@ -488,7 +488,7 @@ export function LembraExperience({
 
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [editing, moveViewer, selectedId, selectedReference]);
+	}, [closeViewer, editing, moveViewer, selectedId, selectedReference]);
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
