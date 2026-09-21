@@ -2,6 +2,7 @@
 
 import {
 	useCallback,
+	useDeferredValue,
 	useEffect,
 	useMemo,
 	useRef,
@@ -238,6 +239,7 @@ export function LembraExperience({
 	);
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
+	const deferredQuery = useDeferredValue(query);
 	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
 	const [sort, setSort] = useState<LembraSort>("newest");
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
@@ -400,11 +402,11 @@ export function LembraExperience({
 		const filtered = references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
-			if (!matchesLembraSearch(item, query)) return false;
+			if (!matchesLembraSearch(item, deferredQuery)) return false;
 			return isWithinLembraDateRange(item.createdAt, dateRange);
 		});
 		return sortLembraReferences(filtered, sort);
-	}, [dateRange, favoriteIds, query, references, sort, view]);
+	}, [dateRange, deferredQuery, favoriteIds, references, sort, view]);
 
 	const selectedIndex = selectedId
 		? visibleReferences.findIndex((item) => item.id === selectedId)
