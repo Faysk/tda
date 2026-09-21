@@ -48,7 +48,7 @@
 
 .connection {
 	display: grid;
-	grid-template-columns: minmax(240px, 1fr) minmax(560px, auto) auto;
+	grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2.2fr) auto;
 	align-items: center;
 	gap: 10px;
 	min-height: 64px;
@@ -150,9 +150,9 @@
 
 .metricsStrip {
 	display: grid;
-	grid-template-columns: repeat(7, minmax(68px, 1fr));
+	grid-template-columns: repeat(7, minmax(58px, 1fr));
 	gap: 5px;
-	min-width: min(780px, 55vw);
+	min-width: 0;
 }
 
 .metric {
