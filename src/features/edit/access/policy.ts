@@ -57,7 +57,7 @@ function grantCoversCampaign(grant: EditGrant, campaignSlug: string): boolean {
 
 export function authorizeCampaignCapability(
 	context: EditAccessContext,
-	capability: EditCapability,
+	capability: string,
 	campaignSlug: string,
 	now = new Date(),
 ): EditAccessResult {
