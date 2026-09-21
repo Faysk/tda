@@ -995,7 +995,11 @@ export function LembraExperience({
 				className={styles.viewerDialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					closeViewer();
+					if (editing) {
+						cancelEditing();
+						return;
+					}
+					if (!saving) closeViewer();
 				}}
 				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
 			>
@@ -1028,6 +1032,7 @@ export function LembraExperience({
 										className={styles.viewerPrevious}
 										onClick={() => moveViewer(-1)}
 										aria-label="Referência anterior"
+										disabled={editing || saving}
 									>
 										<ArrowIcon direction="left" />
 									</button>
@@ -1036,6 +1041,7 @@ export function LembraExperience({
 										className={styles.viewerNext}
 										onClick={() => moveViewer(1)}
 										aria-label="Próxima referência"
+										disabled={editing || saving}
 									>
 										<ArrowIcon direction="right" />
 									</button>
@@ -1057,6 +1063,7 @@ export function LembraExperience({
 												: styles.viewerFavorite
 										}
 										onClick={() => toggleFavorite(selectedReference.id)}
+										disabled={saving}
 										aria-pressed={favoriteIds.has(selectedReference.id)}
 										aria-label={
 											favoriteIds.has(selectedReference.id)
@@ -1194,8 +1201,14 @@ export function LembraExperience({
 							)}
 
 							<div className={styles.viewerHints} aria-hidden="true">
-								<span>← → navegar</span>
-								<span>Esc fechar</span>
+								{editing ? (
+									<span>Esc cancelar edição</span>
+								) : (
+									<>
+										<span>← → navegar</span>
+										<span>Esc fechar</span>
+									</>
+								)}
 							</div>
 						</aside>
 					</div>
