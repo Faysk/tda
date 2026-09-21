@@ -20,6 +20,12 @@ $signingEnabled = -not [string]::IsNullOrWhiteSpace($normalizedThumbprint)
 if ($RequireAuthenticode -and -not $signingEnabled) {
     throw "AUTHENTICODE_REQUIRED"
 }
+if ($RequireAuthenticode -and [string]::IsNullOrWhiteSpace($AuthenticodeTimestampUrl)) {
+    throw "AUTHENTICODE_TIMESTAMP_REQUIRED"
+}
+if ($RequireAuthenticode -and [string]::IsNullOrWhiteSpace($AuthenticodeExpectedSubject)) {
+    throw "AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED"
+}
 if ($signingEnabled -and $normalizedThumbprint -notmatch '^[A-F0-9]{40}$') {
     throw "AUTHENTICODE_THUMBPRINT_INVALID"
 }
