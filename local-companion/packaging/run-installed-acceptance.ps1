@@ -124,8 +124,9 @@ function Get-UiProcesses {
     $agentPid = if ($null -ne $health) { [int]$health.pid } else { -1 }
     return @(Get-CimInstance Win32_Process -Filter "Name='TDACompanion.exe'" -ErrorAction SilentlyContinue |
         Where-Object {
+            $commandLine = [string]$_.CommandLine
             [int]$_.ProcessId -ne $agentPid -and
-            ([string]$_.CommandLine -match '(?i)(?:^|\s)--ui(?:\s|$)')
+            $commandLine -notmatch '(?i)(?:^|\s)--(?:agent|worker|install-rc-runtime|installed-acceptance)(?:\s|$)'
         } | Sort-Object CreationDate -Descending)
 }
 
