@@ -111,13 +111,17 @@
 }
 
 .toolbar {
-	position: relative;
-	z-index: 4;
+	position: sticky;
+	z-index: 20;
+	top: 0;
 	display: grid;
 	grid-template-columns: minmax(260px, 1fr) auto auto auto;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 14px;
+	margin: -8px 0 6px;
+	padding: 8px 0;
+	background: color-mix(in srgb, var(--ds-canvas) 92%, transparent);
+	backdrop-filter: blur(14px);
 }
 
 .searchBox {
@@ -1133,7 +1137,8 @@
 
 	.toolbar {
 		gap: 7px;
-		margin-bottom: 10px;
+		margin: -6px 0 4px;
+		padding-block: 6px;
 	}
 
 	.dateSummary,
