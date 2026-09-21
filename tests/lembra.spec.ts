@@ -229,3 +229,17 @@ test("Lembra keeps very long reference names inside the mobile card", async ({ p
 	expect(box).not.toBeNull();
 	expect(box?.width ?? 999).toBeLessThan(280);
 });
+
+
+test("Lembra keeps viewer management reachable in a short desktop viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 1100, height: 500 });
+	await page.goto("/lembra");
+	await addReference(page, "Observatório", "Uma descrição suficientemente longa para ocupar espaço no painel do viewer.");
+
+	await page.getByRole("button", { name: "Observatório", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	const edit = viewer.getByRole("button", { name: "Editar", exact: true });
+	await edit.scrollIntoViewIfNeeded();
+	await expect(edit).toBeVisible();
+	await expect(viewer.getByRole("button", { name: "Fechar referência" }).last()).toBeVisible();
+});
