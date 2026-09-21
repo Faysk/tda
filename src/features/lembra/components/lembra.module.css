@@ -391,6 +391,31 @@
 	transition: transform var(--ds-motion-slow) var(--ds-ease-soft);
 }
 
+.mediaFallback {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	align-content: center;
+	gap: 8px;
+	padding: 18px;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	text-align: center;
+}
+
+.mediaFallback svg {
+	width: 28px;
+	height: 28px;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.5;
+}
+
 .mediaOpen {
 	position: absolute;
 	z-index: 1;
@@ -640,6 +665,37 @@
 	width: auto;
 	height: auto;
 	object-fit: contain;
+}
+
+.viewerMediaFallback {
+	display: grid;
+	place-items: center;
+	align-content: center;
+	gap: 8px;
+	padding: 28px;
+	color: rgba(255, 255, 255, 0.72);
+	font-family: var(--ds-font-ui);
+	text-align: center;
+}
+
+.viewerMediaFallback svg {
+	width: 42px;
+	height: 42px;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.4;
+}
+
+.viewerMediaFallback strong {
+	font-size: 0.95rem;
+	font-weight: 650;
+}
+
+.viewerMediaFallback span {
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 0.76rem;
 }
 
 .viewerPrevious,
