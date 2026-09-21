@@ -927,6 +927,8 @@
 
 
 .viewerRemoveConfirm {
+	min-width: 0;
+	margin-inline: 0;
 	display: grid;
 	gap: 14px;
 	margin-top: 18px;
