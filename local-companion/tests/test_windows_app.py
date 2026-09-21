@@ -107,6 +107,35 @@ def test_installed_acceptance_requires_candidate_payload_source_craig_bits_and_r
         parse_args(["--installed-acceptance"])
 
 
+def test_runtime_physical_seal_requires_candidate_root_and_result(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    with pytest.raises(SystemExit):
+        parse_args(["--seal-runtime-physical"])
+
+
+def test_runtime_physical_seal_parses_release_evidence_inputs(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    candidate = tmp_path / "candidate.json"
+    runtime_root = tmp_path / "Runtime"
+    result = tmp_path / "receipt.json"
+    whisper = tmp_path / "whisper.json"
+    qwen_state = tmp_path / "State"
+    args = parse_args([
+        "--seal-runtime-physical",
+        "--runtime-candidate-manifest", str(candidate),
+        "--runtime-root", str(runtime_root),
+        "--runtime-acceptance-result", str(result),
+        "--runtime-whisper-receipt", str(whisper),
+        "--runtime-qwen-state-root", str(qwen_state),
+    ])
+    assert args.seal_runtime_physical is True
+    assert args.runtime_candidate_manifest == candidate
+    assert args.runtime_root == runtime_root
+    assert args.runtime_acceptance_result == result
+    assert args.runtime_whisper_receipt == [whisper]
+    assert args.runtime_qwen_state_root == qwen_state
+
+
 def test_installed_acceptance_parses_only_named_observations(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     argv = [
