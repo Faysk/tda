@@ -25,6 +25,10 @@ const EXACT = {
 		"playwright.processing-integration.config.ts",
 		"tools/processing-ui-fixture.mjs",
 	]),
+	lembra: new Set([
+		".github/workflows/ci.yml",
+		"tests/lembra.spec.ts",
+	]),
 	media: new Set([
 		"tools/media-pipeline.py",
 		"tools/check-canonical-media-usage.py",
@@ -44,6 +48,11 @@ const PREFIX = {
 		"tests/processing-integration/",
 		"tests/processing-fixture/",
 		"local-companion/",
+	],
+	lembra: [
+		"src/features/lembra/",
+		"src/app/lembra/",
+		"src/app/api/lembra/",
 	],
 	media: ["media/", "tools/media/"],
 };
@@ -68,6 +77,7 @@ export function classifyPaths(inputPaths) {
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
 		processing: files.some((path) => matches(path, "processing")),
+		lembra: files.some((path) => matches(path, "lembra")),
 		media: files.some((path) => matches(path, "media")),
 	};
 	return { files, ...classes };
@@ -86,7 +96,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "db", "companion", "processing", "media"])
+	for (const key of ["web", "db", "companion", "processing", "lembra", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -105,6 +115,7 @@ function writeSummary(range, result) {
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
 			`- processing: \`${result.processing}\``,
+			`- lembra: \`${result.lembra}\``,
 			`- media: \`${result.media}\``,
 			`- Files (${result.files.length}): ${result.files.map((file) => `\`${file}\``).join(", ") || "none"}`,
 			"",

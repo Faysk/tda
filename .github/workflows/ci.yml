@@ -22,6 +22,7 @@ jobs:
       db: ${{ steps.classify.outputs.db }}
       companion: ${{ steps.classify.outputs.companion }}
       processing: ${{ steps.classify.outputs.processing }}
+      lembra: ${{ steps.classify.outputs.lembra }}
       media: ${{ steps.classify.outputs.media }}
       files_json: ${{ steps.classify.outputs.files_json }}
     steps:
@@ -98,6 +99,7 @@ jobs:
           TDA_SYNTHETIC_POSTGRES: "1"
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py
+      - run: python tools/lembra-db.py
 
   validate:
     name: validate
@@ -138,6 +140,48 @@ jobs:
         run: pnpm check
       - name: Build application
         run: pnpm build
+
+  lembra-e2e:
+    name: lembra-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.lembra == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Lembra browser contract
+        run: pnpm exec playwright test tests/lembra.spec.ts --project=desktop-1080p
+      - name: Upload sanitized Lembra failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lembra-e2e-${{ github.run_id }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
 
   processing-e2e:
     name: processing-e2e
@@ -239,6 +283,7 @@ jobs:
       - transcript-import-postgres
       - companion-domain
       - processing-e2e
+      - lembra-e2e
       - media-domain
     steps:
       - name: Require fast and relevant domain contracts
@@ -252,6 +297,8 @@ jobs:
           COMPANION_RESULT: ${{ needs.companion-domain.result }}
           PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
           PROCESSING_RESULT: ${{ needs.processing-e2e.result }}
+          LEMBRA_RELEVANT: ${{ needs.classify-changes.outputs.lembra }}
+          LEMBRA_RESULT: ${{ needs.lembra-e2e.result }}
           MEDIA_RELEVANT: ${{ needs.classify-changes.outputs.media }}
           MEDIA_RESULT: ${{ needs.media-domain.result }}
         shell: bash
@@ -277,6 +324,12 @@ jobs:
             test "$PROCESSING_RESULT" = "success"
           else
             test "$PROCESSING_RESULT" = "skipped"
+          fi
+
+          if [[ "$LEMBRA_RELEVANT" == "true" ]]; then
+            test "$LEMBRA_RESULT" = "success"
+          else
+            test "$LEMBRA_RESULT" = "skipped"
           fi
 
           if [[ "$MEDIA_RELEVANT" == "true" ]]; then

@@ -3,8 +3,8 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, processing, media } = classifyPaths(files);
-	return { web, db, companion, processing, media };
+	const { web, db, companion, processing, lembra, media } = classifyPaths(files);
+	return { web, db, companion, processing, lembra, media };
 }
 
 const fastOnly = {
@@ -12,6 +12,7 @@ const fastOnly = {
 	db: false,
 	companion: false,
 	processing: false,
+	lembra: false,
 	media: false,
 };
 
@@ -49,6 +50,15 @@ test("Processing Web paths activate the Processing E2E contract", () => {
 	);
 });
 
+test("Lembra paths activate only the targeted Lembra E2E contract", () => {
+	const source = flags(["src/features/lembra/components/lembra-experience.tsx"]);
+	assert.equal(source.lembra, true);
+	assert.equal(source.processing, false);
+	assert.equal(flags(["src/app/lembra/page.tsx"]).lembra, true);
+	assert.equal(flags(["src/app/api/lembra/abc/image/route.ts"]).lembra, true);
+	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
+});
+
 test("Companion source activates Companion and Processing E2E", () => {
 	const result = flags(["local-companion/tda_companion/app.py"]);
 	assert.equal(result.companion, true);
@@ -71,8 +81,10 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 	}
 });
 
-test("CI workflow changes exercise the Processing gate they define", () => {
-	assert.equal(flags([".github/workflows/ci.yml"]).processing, true);
+test("CI workflow changes exercise the browser gates they define", () => {
+	const result = flags([".github/workflows/ci.yml"]);
+	assert.equal(result.processing, true);
+	assert.equal(result.lembra, true);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -103,6 +115,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 		db: true,
 		companion: true,
 		processing: true,
+		lembra: true,
 		media: true,
 	};
 	assert.deepEqual(flags(["tools/ci/classify-changes.mjs"]), expected);
@@ -122,6 +135,7 @@ test("mixed changes activate each relevant domain", () => {
 			db: true,
 			companion: true,
 			processing: true,
+			lembra: false,
 			media: true,
 		},
 	);

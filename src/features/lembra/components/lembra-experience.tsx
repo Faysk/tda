@@ -2,6 +2,7 @@
 
 import {
 	useCallback,
+	useDeferredValue,
 	useEffect,
 	useMemo,
 	useRef,
@@ -10,6 +11,20 @@ import {
 	type ReactNode,
 } from "react";
 import { Button } from "@/components/ui";
+import {
+	finalizeLembraUploadAction,
+	retireLembraReferenceAction,
+	setLembraFavoriteAction,
+	updateLembraReferenceAction,
+	requestLembraUploadAction,
+} from "../actions";
+import {
+	LEMBRA_MAX_BYTES,
+	isLembraMediaMime,
+	type LembraMediaMime,
+	type LembraReference,
+	type LembraUploadIntent,
+} from "../model";
 import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
@@ -24,14 +39,10 @@ import styles from "./lembra.module.css";
 
 type ViewFilter = "all" | "mine" | "favorites";
 
-type ReferenceItem = Readonly<{
-	id: string;
-	title: string;
-	description: string;
-	author: string;
-	createdAt: string;
-	imageUrl: string;
-	mine: boolean;
+type LembraExperienceProps = Readonly<{
+	initialReferences?: readonly LembraReference[];
+	initialFavoriteIds?: readonly string[];
+	persistenceEnabled?: boolean;
 }>;
 
 type ReferenceDraft = Readonly<{
@@ -139,11 +150,25 @@ function ArrowIcon({ direction }: { direction: "left" | "right" }) {
 }
 
 function isImageFile(file: File | undefined): file is File {
-	return Boolean(file?.type.startsWith("image/"));
+	return Boolean(
+		file &&
+			isLembraMediaMime(file.type) &&
+			file.size >= 24 &&
+			file.size <= LEMBRA_MAX_BYTES,
+	);
 }
 
 function hasDraggedFiles(event: DragEvent) {
 	return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function suggestedTitle(file: File) {
+	const title = file.name
+		.replace(/\.[^.]+$/u, "")
+		.replace(/[-_]+/gu, " ")
+		.trim();
+	if (/^(image|blob|clipboard|pasted image)$/iu.test(title)) return "";
+	return title;
 }
 
 function createClientId() {
@@ -151,6 +176,37 @@ function createClientId() {
 		return crypto.randomUUID();
 	}
 	return `lembra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function bytesToHex(bytes: Uint8Array) {
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function uploadIntent(file: File): Promise<LembraUploadIntent> {
+	if (!isImageFile(file)) throw new Error("invalid_file");
+	const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+	return {
+		sha256: bytesToHex(new Uint8Array(digest)),
+		mimeType: file.type as LembraMediaMime,
+		bytes: file.size,
+	};
+}
+
+function mutationMessage(reason: string) {
+	switch (reason) {
+		case "unauthenticated":
+			return "Entre novamente para continuar usando o Lembra.";
+		case "media_unavailable":
+			return "O armazenamento do Lembra ainda não está disponível.";
+		case "invalid_payload":
+			return "Essa imagem ou referência não é válida.";
+		case "not_found":
+			return "Essa referência não existe mais.";
+		case "conflict":
+			return "Essa alteração entrou em conflito. Tente novamente.";
+		default:
+			return "Não foi possível concluir essa ação agora.";
+	}
 }
 
 function compactInputDate(value: string) {
@@ -170,17 +226,34 @@ function dateFilterLabel(range: LembraDateRange) {
 	return "Data";
 }
 
-export function LembraExperience() {
-	const [references, setReferences] = useState<ReferenceItem[]>([]);
-	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+export function LembraExperience({
+	initialReferences = [],
+	initialFavoriteIds = [],
+	persistenceEnabled = false,
+}: LembraExperienceProps) {
+	const [references, setReferences] = useState<LembraReference[]>(() => [
+		...initialReferences,
+	]);
+	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(
+		() => new Set(initialFavoriteIds),
+	);
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
+	const deferredQuery = useDeferredValue(query);
 	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
 	const [sort, setSort] = useState<LembraSort>("newest");
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [editing, setEditing] = useState(false);
+	const [confirmRemove, setConfirmRemove] = useState(false);
+	const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [editTitle, setEditTitle] = useState("");
+	const [editDescription, setEditDescription] = useState("");
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -205,7 +278,7 @@ export function LembraExperience() {
 
 	const prepareFile = useCallback((file: File | undefined) => {
 		if (!isImageFile(file)) {
-			setMessage("Escolha uma imagem para guardar no Lembra.");
+			setMessage("Use uma imagem JPG, PNG ou WebP de até 12 MB.");
 			return;
 		}
 
@@ -220,7 +293,7 @@ export function LembraExperience() {
 			return {
 				file,
 				previewUrl,
-				title: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
+				title: suggestedTitle(file),
 				description: "",
 			};
 		});
@@ -264,9 +337,13 @@ export function LembraExperience() {
 
 	useEffect(() => {
 		const onShortcut = (event: KeyboardEvent) => {
-			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+			if (
+				(event.ctrlKey || event.metaKey) &&
+				(event.key.toLowerCase() === "k" || event.code === "KeyK")
+			) {
 				event.preventDefault();
-				searchRef.current?.focus();
+				event.stopPropagation();
+				searchRef.current?.focus({ preventScroll: true });
 			}
 		};
 
@@ -329,11 +406,11 @@ export function LembraExperience() {
 		const filtered = references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
-			if (!matchesLembraSearch(item, query)) return false;
+			if (!matchesLembraSearch(item, deferredQuery)) return false;
 			return isWithinLembraDateRange(item.createdAt, dateRange);
 		});
 		return sortLembraReferences(filtered, sort);
-	}, [dateRange, favoriteIds, query, references, sort, view]);
+	}, [dateRange, deferredQuery, favoriteIds, references, sort, view]);
 
 	const selectedIndex = selectedId
 		? visibleReferences.findIndex((item) => item.id === selectedId)
@@ -380,6 +457,28 @@ export function LembraExperience() {
 		};
 	})();
 
+	const closeViewer = useCallback(() => {
+		setEditing(false);
+		setConfirmRemove(false);
+		setEditTitle("");
+		setEditDescription("");
+		setSelectedId(null);
+	}, []);
+
+	const openViewer = useCallback((id: string) => {
+		setEditing(false);
+		setConfirmRemove(false);
+		setEditTitle("");
+		setEditDescription("");
+		setBrokenImageIds((current) => {
+			if (!current.has(id)) return current;
+			const next = new Set(current);
+			next.delete(id);
+			return next;
+		});
+		setSelectedId(id);
+	}, []);
+
 	const moveViewer = useCallback(
 		(delta: number) => {
 			if (!selectedId || visibleReferences.length < 2) return;
@@ -387,6 +486,10 @@ export function LembraExperience() {
 			if (index < 0) return;
 			const nextIndex =
 				(index + delta + visibleReferences.length) % visibleReferences.length;
+			setEditing(false);
+			setConfirmRemove(false);
+			setEditTitle("");
+			setEditDescription("");
 			setSelectedId(visibleReferences[nextIndex].id);
 		},
 		[selectedId, visibleReferences],
@@ -395,11 +498,12 @@ export function LembraExperience() {
 	useEffect(() => {
 		if (!selectedId) return;
 		if (!selectedReference) {
-			setSelectedId(null);
+			closeViewer();
 			return;
 		}
 
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (editing) return;
 			if (event.key === "ArrowLeft") {
 				event.preventDefault();
 				moveViewer(-1);
@@ -412,45 +516,211 @@ export function LembraExperience() {
 
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [moveViewer, selectedId, selectedReference]);
+	}, [closeViewer, editing, moveViewer, selectedId, selectedReference]);
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
 	}
 
-	function saveReference(event: FormEvent<HTMLFormElement>) {
+	async function saveReference(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!draft) return;
+		if (!draft || saving) return;
 
 		const title = draft.title.trim();
+		const description = draft.description.trim();
 		if (!title) {
 			titleRef.current?.focus();
 			return;
 		}
 
-		const item: ReferenceItem = {
-			id: createClientId(),
-			title,
-			description: draft.description.trim(),
-			author: "Você",
-			createdAt: new Date().toISOString(),
-			imageUrl: draft.previewUrl,
-			mine: true,
-		};
+		if (!persistenceEnabled) {
+			const now = new Date().toISOString();
+			const item: LembraReference = {
+				id: createClientId(),
+				title,
+				description,
+				author: "Você",
+				authorAuthUserId: "local",
+				createdAt: now,
+				updatedAt: now,
+				imageUrl: draft.previewUrl,
+				mine: true,
+			};
+			setReferences((current) => [item, ...current]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência adicionada nesta sessão.");
+			return;
+		}
 
-		setReferences((current) => [item, ...current]);
-		setDraft(null);
-		setView("all");
-		setMessage("Referência adicionada nesta sessão.");
+		setSaving(true);
+		setMessage("");
+		try {
+			const intent = await uploadIntent(draft.file);
+			const requested = await requestLembraUploadAction(intent);
+			if (!requested.ok) {
+				setMessage(mutationMessage(requested.reason));
+				return;
+			}
+
+			const response = await fetch(requested.uploadUrl, {
+				method: requested.method,
+				headers: requested.headers,
+				body: draft.file,
+			});
+			if (!response.ok) {
+				setMessage("O envio da imagem falhou. Tente novamente.");
+				return;
+			}
+
+			const finalized = await finalizeLembraUploadAction(
+				requested.referenceId,
+				requested.uploadId,
+				intent,
+				title,
+				description,
+			);
+			if (!finalized.ok) {
+				setMessage(mutationMessage(finalized.reason));
+				return;
+			}
+
+			discardUrl(draft.previewUrl);
+			setReferences((current) => [
+				finalized.reference,
+				...current.filter((item) => item.id !== finalized.reference.id),
+			]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência guardada.");
+		} catch {
+			setMessage("Não foi possível guardar a referência agora.");
+		} finally {
+			setSaving(false);
+		}
 	}
 
-	function toggleFavorite(id: string) {
+	async function toggleFavorite(id: string) {
+		const wasFavorite = favoriteIds.has(id);
+		const favorite = !wasFavorite;
 		setFavoriteIds((current) => {
 			const next = new Set(current);
-			if (next.has(id)) next.delete(id);
-			else next.add(id);
+			if (favorite) next.add(id);
+			else next.delete(id);
 			return next;
 		});
+
+		if (!persistenceEnabled) return;
+
+		try {
+			const result = await setLembraFavoriteAction(id, favorite);
+			if (result.ok) return;
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				if (wasFavorite) next.add(id);
+				else next.delete(id);
+				return next;
+			});
+			setMessage(mutationMessage(result.reason));
+		} catch {
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				if (wasFavorite) next.add(id);
+				else next.delete(id);
+				return next;
+			});
+			setMessage("Não foi possível atualizar o favorito agora.");
+		}
+	}
+
+	function startEditing(reference: LembraReference) {
+		setConfirmRemove(false);
+		setEditTitle(reference.title);
+		setEditDescription(reference.description);
+		setEditing(true);
+	}
+
+	function cancelEditing() {
+		setEditing(false);
+		setEditTitle("");
+		setEditDescription("");
+	}
+
+	async function saveReferenceEdit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!selectedReference || saving) return;
+		const title = editTitle.trim();
+		const description = editDescription.trim();
+		if (!title) return;
+
+		if (!persistenceEnabled) {
+			const updatedAt = new Date().toISOString();
+			setReferences((current) =>
+				current.map((item) =>
+					item.id === selectedReference.id
+						? { ...item, title, description, updatedAt }
+						: item,
+				),
+			);
+			setEditing(false);
+			setMessage("Referência atualizada nesta sessão.");
+			return;
+		}
+
+		setSaving(true);
+		try {
+			const result = await updateLembraReferenceAction(
+				selectedReference.id,
+				title,
+				description,
+			);
+			if (!result.ok) {
+				setMessage(mutationMessage(result.reason));
+				return;
+			}
+			setReferences((current) =>
+				current.map((item) =>
+					item.id === result.reference.id ? result.reference : item,
+				),
+			);
+			setEditing(false);
+			setMessage("Referência atualizada.");
+		} catch {
+			setMessage("Não foi possível salvar a alteração agora.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	async function removeSelectedReference() {
+		if (!selectedReference || saving) return;
+
+		setSaving(true);
+		try {
+			if (persistenceEnabled) {
+				const result = await retireLembraReferenceAction(selectedReference.id);
+				if (!result.ok) {
+					setMessage(mutationMessage(result.reason));
+					return;
+				}
+			}
+
+			discardUrl(selectedReference.imageUrl);
+			setReferences((current) =>
+				current.filter((item) => item.id !== selectedReference.id),
+			);
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				next.delete(selectedReference.id);
+				return next;
+			});
+			closeViewer();
+			setMessage("Referência removida.");
+		} catch {
+			setMessage("Não foi possível remover a referência agora.");
+		} finally {
+			setSaving(false);
+		}
 	}
 
 	function clearSearchFilters() {
@@ -499,9 +769,6 @@ export function LembraExperience() {
 						</button>
 					))}
 				</nav>
-				<p className={styles.sidebarNote}>
-					Boas ideias vivem mais quando a gente consegue encontrá-las de novo.
-				</p>
 			</aside>
 
 			<section className={styles.content} aria-labelledby="lembra-title">
@@ -612,11 +879,16 @@ export function LembraExperience() {
 						</select>
 					</label>
 
-					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
+					<Button
+						variant="primary"
+						className={styles.addButton}
+						onClick={openFilePicker}
+						aria-label="Adicionar imagem"
+					>
 						<span className={styles.buttonIcon}>
 							<PlusIcon />
 						</span>
-						Adicionar imagem
+						<span className={styles.addButtonLabel}>Adicionar imagem</span>
 					</Button>
 				</div>
 
@@ -645,16 +917,30 @@ export function LembraExperience() {
 							return (
 								<article className={styles.card} key={item.id}>
 									<div className={styles.media}>
-										<img
-											src={item.imageUrl}
-											alt=""
-											loading="lazy"
-											decoding="async"
-										/>
+										{brokenImageIds.has(item.id) ? (
+											<div className={styles.mediaFallback} aria-hidden="true">
+												<ImageIcon />
+												<span>Imagem indisponível</span>
+											</div>
+										) : (
+											<img
+												src={item.imageUrl}
+												alt=""
+												loading="lazy"
+												decoding="async"
+												onError={() =>
+													setBrokenImageIds((current) => {
+														const next = new Set(current);
+														next.add(item.id);
+														return next;
+													})
+												}
+											/>
+										)}
 										<button
 											type="button"
 											className={styles.mediaOpen}
-											onClick={() => setSelectedId(item.id)}
+											onClick={() => openViewer(item.id)}
 											aria-label={`Abrir referência ${item.title}`}
 										/>
 										<button
@@ -676,7 +962,7 @@ export function LembraExperience() {
 											<button
 												type="button"
 												className={styles.cardTitleButton}
-												onClick={() => setSelectedId(item.id)}
+												onClick={() => openViewer(item.id)}
 											>
 												{item.title}
 											</button>
@@ -720,7 +1006,7 @@ export function LembraExperience() {
 					ref={fileInputRef}
 					className={styles.visuallyHidden}
 					type="file"
-					accept="image/*"
+					accept="image/jpeg,image/png,image/webp"
 					onChange={(event) => {
 						prepareFile(event.target.files?.[0]);
 						event.target.value = "";
@@ -745,17 +1031,45 @@ export function LembraExperience() {
 				className={styles.viewerDialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					setSelectedId(null);
+					if (editing) {
+						cancelEditing();
+						return;
+					}
+					if (!saving) closeViewer();
 				}}
 				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
 			>
 				{selectedReference ? (
-					<div className={styles.viewer}>
+					<div className={styles.viewer} aria-busy={saving}>
 						<div className={styles.viewerMedia}>
-							<img
-								src={selectedReference.imageUrl}
-								alt={`Referência visual: ${selectedReference.title}`}
-							/>
+							<button
+								type="button"
+								className={styles.viewerMobileClose}
+								onClick={closeViewer}
+								aria-label="Fechar referência"
+								disabled={saving}
+							>
+								<span aria-hidden="true">×</span>
+							</button>
+							{brokenImageIds.has(selectedReference.id) ? (
+								<div className={styles.viewerMediaFallback}>
+									<ImageIcon />
+									<strong>Imagem indisponível</strong>
+									<span>Tente abrir novamente em instantes.</span>
+								</div>
+							) : (
+								<img
+									src={selectedReference.imageUrl}
+									alt={`Referência visual: ${selectedReference.title}`}
+									onError={() =>
+										setBrokenImageIds((current) => {
+											const next = new Set(current);
+											next.add(selectedReference.id);
+											return next;
+										})
+									}
+								/>
+							)}
 							{visibleReferences.length > 1 ? (
 								<>
 									<button
@@ -763,6 +1077,7 @@ export function LembraExperience() {
 										className={styles.viewerPrevious}
 										onClick={() => moveViewer(-1)}
 										aria-label="Referência anterior"
+										disabled={editing || saving}
 									>
 										<ArrowIcon direction="left" />
 									</button>
@@ -771,6 +1086,7 @@ export function LembraExperience() {
 										className={styles.viewerNext}
 										onClick={() => moveViewer(1)}
 										aria-label="Próxima referência"
+										disabled={editing || saving}
 									>
 										<ArrowIcon direction="right" />
 									</button>
@@ -792,6 +1108,7 @@ export function LembraExperience() {
 												: styles.viewerFavorite
 										}
 										onClick={() => toggleFavorite(selectedReference.id)}
+										disabled={saving}
 										aria-pressed={favoriteIds.has(selectedReference.id)}
 										aria-label={
 											favoriteIds.has(selectedReference.id)
@@ -804,28 +1121,72 @@ export function LembraExperience() {
 									<button
 										type="button"
 										className={styles.viewerClose}
-										onClick={() => setSelectedId(null)}
+										onClick={closeViewer}
 										aria-label="Fechar referência"
+										disabled={saving}
 									>
 										<span aria-hidden="true">×</span>
 									</button>
 								</div>
 							</div>
 
-							<div className={styles.viewerInfo}>
-								<h2 id={`viewer-title-${selectedReference.id}`}>
-									{selectedReference.title}
-								</h2>
-								{selectedReference.description ? (
-									<p className={styles.viewerDescription}>
-										{selectedReference.description}
-									</p>
-								) : (
-									<p className={styles.viewerDescriptionMuted}>
-										Sem descrição. A imagem fala por si.
-									</p>
-								)}
-							</div>
+							{editing ? (
+								<form
+									className={styles.viewerEditForm}
+									onSubmit={saveReferenceEdit}
+									aria-busy={saving}
+								>
+									<label className={styles.field}>
+										<span>Nome</span>
+										<input
+											type="text"
+											required
+											maxLength={120}
+											value={editTitle}
+											onChange={(event) => setEditTitle(event.target.value)}
+											disabled={saving}
+										/>
+									</label>
+									<label className={styles.field}>
+										<span>Descrição</span>
+										<textarea
+											rows={5}
+											maxLength={320}
+											value={editDescription}
+											onChange={(event) => setEditDescription(event.target.value)}
+											disabled={saving}
+										/>
+									</label>
+									<div className={styles.viewerEditActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={cancelEditing}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button type="submit" variant="primary" disabled={saving}>
+											{saving ? "Salvando..." : "Salvar"}
+										</Button>
+									</div>
+								</form>
+							) : (
+								<div className={styles.viewerInfo}>
+									<h2 id={`viewer-title-${selectedReference.id}`}>
+										{selectedReference.title}
+									</h2>
+									{selectedReference.description ? (
+										<p className={styles.viewerDescription}>
+											{selectedReference.description}
+										</p>
+									) : (
+										<p className={styles.viewerDescriptionMuted}>
+											Sem descrição. A imagem fala por si.
+										</p>
+									)}
+								</div>
+							)}
 
 							<div className={styles.viewerMeta}>
 								<div>
@@ -840,9 +1201,64 @@ export function LembraExperience() {
 								</div>
 							</div>
 
+							{confirmRemove ? (
+								<fieldset className={styles.viewerRemoveConfirm}>
+									<legend className={styles.visuallyHidden}>Confirmar remoção</legend>
+									<div>
+										<strong>Remover esta referência?</strong>
+										<span>Ela some do Lembra para todo mundo.</span>
+									</div>
+									<div className={styles.viewerRemoveActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={() => setConfirmRemove(false)}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button
+											type="button"
+											variant="secondary"
+											onClick={removeSelectedReference}
+											disabled={saving}
+										>
+											{saving ? "Removendo..." : "Remover"}
+										</Button>
+									</div>
+								</fieldset>
+							) : (
+								<div className={styles.viewerManageActions}>
+									<button
+										type="button"
+										onClick={() => startEditing(selectedReference)}
+										disabled={saving || editing}
+									>
+										Editar
+									</button>
+									<button
+										type="button"
+										className={styles.viewerDangerAction}
+										onClick={() => {
+											setEditing(false);
+											setConfirmRemove(true);
+										}}
+										disabled={saving}
+									>
+										Remover
+									</button>
+								</div>
+							)}
+
 							<div className={styles.viewerHints} aria-hidden="true">
-								<span>← → navegar</span>
-								<span>Esc fechar</span>
+								{editing ? (
+									<span>Esc cancelar edição</span>
+								) : (
+									<>
+										<span>← → navegar</span>
+										<span>Esc fechar</span>
+									</>
+								)}
 							</div>
 						</aside>
 					</div>
@@ -854,11 +1270,15 @@ export function LembraExperience() {
 				className={styles.dialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					closeDraft();
+					if (!saving) closeDraft();
 				}}
 			>
 				{draft ? (
-					<form className={styles.composer} onSubmit={saveReference}>
+					<form
+						className={styles.composer}
+						onSubmit={saveReference}
+						aria-busy={saving}
+					>
 						<div className={styles.composerMedia}>
 							<img src={draft.previewUrl} alt="Preview da referência selecionada" />
 						</div>
@@ -873,6 +1293,7 @@ export function LembraExperience() {
 									className={styles.closeButton}
 									onClick={closeDraft}
 									aria-label="Fechar"
+									disabled={saving}
 								>
 									<span aria-hidden="true">×</span>
 								</button>
@@ -886,6 +1307,7 @@ export function LembraExperience() {
 									required
 									maxLength={120}
 									value={draft.title}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current ? { ...current, title: event.target.value } : current,
@@ -901,6 +1323,7 @@ export function LembraExperience() {
 									rows={4}
 									maxLength={320}
 									value={draft.description}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current
@@ -923,11 +1346,17 @@ export function LembraExperience() {
 									variant="tertiary"
 									className={styles.composerAction}
 									onClick={closeDraft}
+									disabled={saving}
 								>
 									Cancelar
 								</Button>
-								<Button type="submit" variant="primary" className={styles.composerAction}>
-									Guardar
+								<Button
+									type="submit"
+									variant="primary"
+									className={styles.composerAction}
+									disabled={saving}
+								>
+									{saving ? "Guardando..." : "Guardar"}
 								</Button>
 							</div>
 						</div>

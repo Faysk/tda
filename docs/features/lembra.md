@@ -1,315 +1,316 @@
 # Lembra — biblioteca compartilhada de referências visuais
 
-> Status: UX v3 em implementação; persistência rastreada em #476
-> Owner: narrative-memory / frontend / integrations-media / identity-access
+> Status: UX v3 aprovada; persistência compartilhada em implementação na #476
+> Owner: frontend / integrations-media / identity-access
 > Última revisão: 2026-09-21
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
 
-O **Lembra** é uma superfície compartilhada para guardar e reencontrar referências visuais usadas pela mesa: imagens de personagens, lugares, cenas, objetos, atmosferas e ideias que hoje costumam se perder em Discord, WhatsApp ou outras conversas.
+O **Lembra** é uma superfície simples e compartilhada para guardar e reencontrar referências visuais que normalmente se perdem em Discord, WhatsApp ou outras conversas.
 
-A rota canônica da experiência é:
+A rota canônica é:
 
 ```text
 /lembra
 ```
 
-O princípio de produto é deliberadamente simples:
+A régua de produto continua deliberadamente simples:
 
 > guardar uma referência deve levar menos de 10 segundos; reencontrá-la deve levar menos de 5.
 
-O Lembra não é uma wiki, não é um catálogo de canon e não é um DAM genérico. É uma galeria rápida, compartilhada e visual.
+O Lembra não é wiki, catálogo de canon, DAM, sistema de permissões ou rede social. É uma galeria compartilhada.
 
-## Estado de entrega desta candidata
+## Regra central de acesso
 
-A UI já passou pela primeira validação em Production e a segunda fatia simplifica a superfície para priorizar ainda mais a galeria:
+O produto não possui autorização fina própria.
 
-- galeria responsiva;
-- busca local combinável por nome, descrição, autor e data;
-- filtro explícito por período;
-- filtros locais `Lembra / Meus itens / Favoritos`;
-- ordenação por mais recentes, mais antigas, nome ou autor;
-- viewer/lightbox de referência para uso rápido durante a call, com navegação por teclado;
-- ingestão por drag-and-drop em qualquer ponto da página;
-- paste de imagem pelo clipboard;
-- seletor nativo de arquivo;
-- composer mínimo de nome + descrição;
-- autor/data apresentados como metadata;
-- preview local no browser.
+```text
+usuário autenticado no TDA
+  -> vê tudo
+  -> publica
+  -> edita qualquer referência
+  -> remove qualquer referência
+  -> favorita para si
+```
 
-A UI atual **ainda não persiste dados nem mídia**; os itens criados no protótipo desaparecem ao recarregar a página. A persistência real agora está rastreada em [#476](https://github.com/Faysk/tda/issues/476), com campaign isolation, capability server-side e Media Storage como gates explícitos.
+Usuário não autenticado não acessa a biblioteca quando a persistência estiver ativada.
 
-## Princípios de UX
+Consequências:
 
-### Conteúdo primeiro
+- não existe isolamento por campanha;
+- não existe separação de leitura/escrita por role;
+- não existe “dono” como boundary de permissão;
+- autoria é contexto histórico e critério de busca;
+- `Meus itens` é apenas um filtro por autor;
+- `Favoritos` é preferência pessoal e não altera o conteúdo compartilhado.
 
-A página deve começar a entregar sua função imediatamente. **Não existe título/hero visível na workspace**: a busca, o filtro de data e a ação de adicionar ocupam a primeira faixa útil; em seguida começa a galeria. Um `h1` continua presente apenas para acessibilidade.
+A segurança permanece invisível: sessão autenticada, validação server-side, segredos fora do browser e validação real dos bytes de mídia.
 
-Evitar hero ornamental, dashboards, painéis técnicos ou arte de fundo adicionada apenas para preencher espaço.
+## UX vigente
 
-### Publicação sem fricção
+A workspace prioriza conteúdo:
 
-As três entradas devem convergir para o mesmo pipeline de browser:
+- nenhum título/hero visual grande;
+- busca e controles aparecem na primeira faixa útil;
+- galeria começa imediatamente depois;
+- toolbar permanece disponível durante navegação;
+- grid cresce e reduz colunas conforme o espaço real;
+- sidebar some em viewports menores;
+- viewer amplo abre sem navegar para outra página.
+
+### Entrada de mídia
+
+Drag/drop, paste e seletor nativo convergem para o mesmo fluxo:
 
 ```text
 drag & drop ─┐
-paste ───────┼─> File -> validação -> preview -> nome/descrição -> guardar
+paste ───────┼─> File -> preview -> nome/descrição -> guardar
 file picker ─┘
 ```
 
-Arrastar um arquivo sobre a janela transforma a viewport numa drop target clara, sem exigir acertar uma caixa pequena.
-
-Quando uma imagem entra, pedir somente:
+O composer pede somente:
 
 - **Nome** — obrigatório;
 - **Descrição** — opcional.
 
-Na implementação persistente:
+Autor e data são automáticos.
 
-- `Publicado por` vem da identidade autenticada e não é um campo editável;
-- `Data` vem do servidor e não é um campo editável.
+### Busca e filtros
 
-### Informação do card
-
-Cada referência mostra somente o necessário para reconhecimento:
-
-```text
-imagem
-nome
-descrição
-autor · data
-```
-
-Controles secundários devem permanecer discretos. Clicar na imagem ou no nome abre um viewer dedicado sem sair da galeria.
-
-### Busca
-
-A busca textual procura em:
+A busca textual combina termos encontrados em:
 
 - nome;
 - descrição;
 - autor;
-- data de publicação em formatos humanos e ISO.
+- data de publicação.
 
-Os termos são combináveis: uma consulta como `thom ruínas setembro 2026` pode casar partes vindas de campos diferentes do mesmo item. O filtro por período é aplicado em conjunto com a busca textual.
-
-Busca semântica, embeddings ou classificação automática não pertencem a esta fatia.
-
-### Viewer para uso em call
-
-A galeria é o índice; o viewer é a superfície de consulta. Ele abre em modal amplo, preserva a imagem inteira com `object-fit: contain`, mantém nome/descrição/autor/data legíveis e permite navegar entre os resultados filtrados com `←` e `→`, fechando com `Esc`. Isso evita abrir novas páginas ou perder o contexto da busca durante uma call.
-
-## Design System
-
-O Lembra usa exclusivamente o Design System do TDA:
-
-- tokens `--ds-*`;
-- tipografia editorial para títulos/conteúdo narrativo;
-- fonte de UI para busca, controles e metadata;
-- dourado apenas como acento;
-- primitives compartilhadas quando já existirem;
-- CSS Modules para composição da feature;
-- nenhum micro-design-system próprio.
-
-O layout é uma superfície de exploração e pode usar a largura disponível até `--ds-layout-max`.
-
-## Responsividade
-
-Responsividade não significa reduzir a tela desktop e empilhar tudo.
-
-A galeria deve adaptar automaticamente a quantidade de colunas ao espaço disponível usando grid fluido, sem depender de uma matriz rígida de devices.
-
-### Desktop amplo
-
-- sidebar contextual persistente;
-- toolbar compacta de busca/data/ordenação/adicionar e galeria ocupam o restante;
-- mais colunas aparecem conforme o viewport cresce;
-- cards não devem virar outdoors gigantes apenas porque há espaço.
-
-### Tablet
-
-- composição pode reduzir/remover a sidebar;
-- filtros permanecem acessíveis em uma barra compacta;
-- galeria continua priorizando imagem.
-
-### Mobile
-
-- uma coluna quando necessário;
-- navegação contextual compacta;
-- ação de adicionar acessível por touch;
-- drag-and-drop deixa de ser requisito de descoberta;
-- file picker e paste continuam equivalentes;
-- sem scroll horizontal.
-
-Viewport mínimo de aceite: **320px**.
-
-## Acessibilidade
-
-A implementação deve manter:
-
-- heading hierarchy correta;
-- labels reais em inputs;
-- foco visível;
-- ações principais com alvo mínimo próximo de 44px;
-- operação por teclado;
-- `Escape` para fechar composer/overlay;
-- dialog semanticamente modal;
-- nenhum dado essencial dependente de hover;
-- reduced motion respeitado;
-- mensagens de erro legíveis.
-
-Imagem de referência recebe nome acessível derivado do título enquanto não houver campo de alt editorial separado.
-
-## Modelo de dados proposto
-
-O contrato físico **ainda não está aprovado**. A direção é separar bytes de metadata.
-
-Metadata mínima candidata:
+Exemplo:
 
 ```text
-reference
-- id
-- campaign_id
-- title
-- description
-- media_asset_id
-- created_by
-- created_at
-- updated_at
+thom ruínas setembro 2026
 ```
 
-Regras:
+pode combinar autor + título/descrição + data no mesmo item.
 
-- bytes de imagem pertencem ao Media Storage;
-- banco guarda identidade/relação/metadata;
-- não armazenar imagem base64 em PostgreSQL;
-- não versionar nova mídia no Git;
-- autoria deve apontar para identidade do TDA, não copiar nome livre;
-- timestamps persistentes são server-owned.
+Também existem:
 
-Nome final de tabela, FK de campanha, capability e lifecycle de deleção ainda precisam ser fechados antes de migration.
+- filtro inclusivo `De / Até`;
+- ordenação por mais recentes;
+- mais antigas;
+- nome;
+- autor;
+- `Meus itens`;
+- `Favoritos`.
+
+### Viewer
+
+Clicar na imagem ou no título abre um viewer amplo com:
+
+- imagem inteira usando `object-fit: contain`;
+- nome;
+- descrição;
+- autor;
+- data;
+- favorito;
+- edição;
+- remoção;
+- navegação por `←` / `→`;
+- fechamento por `Esc`.
+
+Edição e remoção são permitidas para qualquer usuário autenticado, por desenho do produto.
+
+## Design System e responsividade
+
+O Lembra usa somente o Design System do TDA:
+
+- tokens `--ds-*`;
+- primitives compartilhadas quando existentes;
+- CSS Modules para composição;
+- nenhum micro-design-system paralelo.
+
+Requisitos:
+
+- 320px sem overflow horizontal;
+- grid fluido;
+- desktop amplo aproveita largura útil;
+- mobile usa duas colunas quando há espaço e uma coluna quando necessário;
+- ações por touch não dependem de hover;
+- foco visível;
+- reduced motion respeitado;
+- dialogs semanticamente modais.
+
+## Persistência
+
+A persistência é compartilhada globalmente entre usuários autenticados.
+
+Metadata física:
+
+```text
+lembra_references
+- id
+- title
+- description
+- status
+- staged_bucket
+- object_key
+- sha256
+- mime_type
+- byte_size
+- width
+- height
+- read_back_verified
+- created_by_auth_user_id
+- created_by_name
+- created_at
+- updated_at
+- retired_at
+
+lembra_favorites
+- auth_user_id
+- reference_id
+- created_at
+```
+
+Não existe `campaign_id`.
+
+`created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
 ## Media Storage
 
-A arquitetura permanente é provider-neutral e segue o boundary de Media Storage; Cloudflare R2 é somente o provider atual.
+Bytes ficam no Media Storage; PostgreSQL guarda somente metadata e identidade do objeto.
 
-A implementação persistente deve prever:
+Fluxo:
 
 ```text
-browser
- -> autorização server-side
- -> upload/finalização
- -> read-back/integridade
- -> referência de mídia
- -> metadata do Lembra
+browser autenticado
+ -> SHA-256 local + intent
+ -> server valida sessão
+ -> presigned PUT curto para pending
+ -> browser envia bytes ao R2
+ -> server faz HEAD/GET
+ -> valida magic bytes/MIME/hash/tamanho/dimensões
+ -> materializa objeto canônico imutável
+ -> read-back
+ -> grava metadata
+ -> galeria compartilhada
 ```
 
-Não introduzir bucket ou publisher paralelo exclusivo do Lembra sem necessidade comprovada.
+Namespaces:
 
-## Autorização e audiência
+```text
+uploads/pending/lembra/{reference-uuid}/{upload-uuid}/{sha256}.{ext}
+lembra/{reference-uuid}/{sha256}.{ext}
+```
 
-Destino de produto: superfície compartilhada por membros autorizados da campanha.
+Formatos da primeira versão:
 
-A capability final ainda não está definida. Até ela existir:
+- JPEG;
+- PNG;
+- WebP;
+- até 12 MiB;
+- dimensões máximas 20.000 × 20.000.
 
-- a UI candidata não deve inventar role;
-- nenhum endpoint de write deve ser aberto;
-- não usar service role no browser;
-- não criar policy genérica para simplificar upload;
-- campaign/scope devem ser validados server-side quando a persistência entrar.
+Objetos canônicos são privados. A entrega passa por `/api/lembra/{referenceId}/image`, que exige sessão autenticada e faz read-back validado.
 
-## Relação com canon
+## CRUD
 
-Uma referência do Lembra **não é canon**.
+Qualquer usuário autenticado pode:
 
-Guardar uma imagem não cria:
+- criar referência;
+- alterar nome;
+- alterar descrição;
+- remover referência;
+- favoritar/desfavoritar.
 
-- `entity`;
-- `canon_entry`;
-- `canon_candidate`;
-- fato narrativo;
-- relação factual.
-
-Uma futura ligação entre referência e entity deve continuar sendo apenas referência visual, salvo fluxo editorial explícito separado.
+Remoção normal é **soft-retire** no banco. O objeto de mídia imutável não é apagado no mesmo clique, preservando recuperação operacional e evitando race com leitores.
 
 ## Failure modes
 
-A experiência deve tratar pelo menos:
+Tratar sem perder a galeria atual:
 
-- clipboard sem imagem;
-- arquivo que não seja imagem;
-- preview que falha;
-- upload futuro interrompido;
-- write de metadata futuro falhando depois do upload;
-- usuário sem autorização;
-- item removido enquanto outro usuário o visualiza;
-- busca sem resultados.
+- arquivo fora dos formatos suportados;
+- arquivo maior que o limite;
+- upload interrompido;
+- intent expirado;
+- hash/MIME/tamanho divergente;
+- read-back falhando;
+- sessão expirada;
+- write de metadata falhando após materialização do objeto;
+- item removido enquanto outro cliente o visualiza;
+- atualização concorrente simples;
+- busca sem resultado.
 
-Na candidata local, erro de arquivo inválido é mostrado sem navegar nem perder a galeria.
+A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-side sem segredo.
 
-## Critérios de aceite — primeira fatia de UI
+## Critérios de aceite da persistência
 
-- [ ] `/lembra` usa o shell e tokens oficiais do TDA;
-- [ ] não introduz nova biblioteca visual;
-- [ ] página funciona a partir de 320px sem overflow horizontal;
-- [ ] quantidade de colunas cresce com a largura disponível;
-- [ ] busca foca por `Ctrl/Cmd + K`;
-- [ ] busca aceita combinação de título/descrição/autor/data;
-- [ ] filtro `De/Até` é inclusivo e pode ser limpo sem alterar a galeria;
-- [ ] ordenação funciona por recente/antiga/nome/autor sem mutar a coleção fonte;
-- [ ] imagem e título do card abrem viewer sem navegar para outra página;
-- [ ] viewer preserva a imagem inteira, exibe metadata e navega por `←`/`→`;
-- [ ] `Esc` fecha viewer e composer;
-- [ ] arrastar uma imagem sobre a janela mostra drop overlay;
-- [ ] soltar uma imagem abre o composer;
-- [ ] colar uma imagem abre o mesmo composer;
-- [ ] file picker abre o mesmo composer;
-- [ ] composer pede somente nome e descrição;
-- [ ] autor/data não são campos editáveis;
-- [ ] salvar adiciona a referência ao estado local da galeria;
-- [ ] recarregar a página deixa claro, pelo contrato, que esta fatia não é persistente;
-- [ ] teclado, foco e Escape funcionam;
-- [ ] light/dark/system continuam sendo responsabilidade do tema global;
-- [ ] nenhuma mídia nova é adicionada ao Git;
-- [ ] nenhuma migration, grant, policy ou write remoto é criado nesta fatia.
+- [ ] reload preserva referências;
+- [ ] dois usuários autenticados enxergam a mesma biblioteca;
+- [ ] qualquer autenticado pode publicar;
+- [ ] qualquer autenticado pode editar qualquer referência;
+- [ ] qualquer autenticado pode remover qualquer referência;
+- [ ] anônimo é enviado para login;
+- [ ] autoria e data vêm do servidor;
+- [ ] `Meus itens` continua sendo somente filtro;
+- [ ] favoritos persistem por usuário;
+- [ ] busca por nome/descrição/autor/data continua funcionando;
+- [ ] filtro por período e ordenação continuam funcionando;
+- [ ] drag/drop, paste e picker usam o mesmo pipeline;
+- [ ] pending upload usa URL curta e canonical object é imutável;
+- [ ] finalize revalida bytes reais;
+- [ ] credenciais permanentes R2 nunca chegam ao browser;
+- [ ] falha de metadata não cria referência parcialmente visível;
+- [ ] remoção é refletida para todos após reload;
+- [ ] PostgreSQL sintético valida schema/grants/invariantes;
+- [ ] Production só ativa após migration + R2 + smoke controlado.
 
-## Não objetivos desta fatia
+## Fora de escopo
 
-- tags/categorias;
-- pastas/boards;
-- status canon/reference/idea/maybe;
+Não fazem parte do roadmap atual do Lembra:
+
+- isolamento por campanha;
+- RBAC/capabilities próprias;
+- tags;
+- categorias obrigatórias;
+- boards/coleções;
+- Discord bot;
+- IA/embeddings;
+- busca visual;
+- vínculo com NPC/local/entity;
+- promoção para canon;
 - comentários;
 - likes;
 - feed social;
-- classificação por IA;
-- busca semântica;
-- Discord bot;
-- upload em lote;
-- edição/deleção persistente;
-- schema remoto;
-- integração R2 real.
+- vídeo/áudio;
+- URL externa arbitrária.
 
-Esses itens só entram depois de fricção observada ou necessidade concreta.
+A simplicidade é requisito, não ausência de funcionalidade.
 
-## Próximos passos
+## Rollout
 
-Depois de validar a UI com uso real:
-
-1. executar #476: fechar audiência e capability;
-2. definir schema mínimo;
-3. definir boundary server-side de create/list/delete;
-4. reutilizar Media Storage/R2 com read-back e integridade;
-5. implementar persistência;
-6. cobrir autorização positiva/negativa e cross-campaign;
-7. adicionar paginação/loading/error reais;
-8. somente então considerar organização adicional.
+1. mergear código/schema com `TDA_LEMBRA_ENABLED=false`;
+2. validar migration em PostgreSQL descartável;
+3. aplicar migration deliberadamente no Supabase canônico;
+4. confirmar R2 private + CORS para presigned PUT;
+5. confirmar secrets server-side no runtime;
+6. ativar `TDA_LEMBRA_ENABLED=true`;
+7. smoke autenticado com dois usuários:
+   - A publica;
+   - B vê;
+   - B edita;
+   - A vê atualização;
+   - B favorita para si;
+   - A não recebe favorito de B;
+   - A/B removem;
+   - reload preserva estado correto;
+8. validar caso negativo de upload inválido e sessão anônima.
 
 ## Referências
 
 - [Arquitetura](../architecture.md)
 - [Design System](../design-system/README.md)
-- [Diretriz de UX e hierarquia](../design-system/ux-hierarchy.md)
-- [Identidade e autorização](../domains/identity-access.md)
+- [Identidade](../domains/identity-access.md)
 - [Media Storage / R2](../integrations/r2.md)
 - [Fluxo de mídia](../integrations/r2/media-pipeline.md)
+- [Issue #476](https://github.com/Faysk/tda/issues/476)
