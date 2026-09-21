@@ -4,7 +4,10 @@ const CARDS = Array.from({ length: 10 }, (_, index) => index);
 
 export default function LembraLoading() {
 	return (
-		<div className={styles.shell} aria-label="Carregando Lembra" aria-busy="true">
+		<div className={styles.shell} aria-busy="true">
+			<p className={styles.visuallyHidden} role="status">
+				Carregando Lembra
+			</p>
 			<aside className={styles.sidebar} aria-hidden="true">
 				<div className={styles.sideLine} />
 				<div className={styles.sideLine} />
