@@ -283,6 +283,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     mode.add_argument("--install-rc-runtime", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
     mode.add_argument("--installed-acceptance", action="store_true", help=argparse.SUPPRESS)
+    mode.add_argument("--seal-runtime-physical", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--startup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-tray-exit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--state-root", type=Path, default=paths.state_root)
@@ -300,6 +301,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--acceptance-craig-zip", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-bits-evidence", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-result-file", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-candidate-manifest", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-acceptance-result", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-whisper-receipt", type=Path, action="append", default=[], help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-qwen-state-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument(
         "--acceptance-observation", action="append", choices=sorted(REQUIRED_OBSERVATIONS), help=argparse.SUPPRESS,
     )
@@ -319,6 +325,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         or args.acceptance_result_file is None
     ):
         parser.error("ACCEPTANCE_CANDIDATE_PAYLOAD_SOURCE_CRAIG_BITS_AND_RESULT_REQUIRED")
+    if args.seal_runtime_physical and (
+        args.runtime_candidate_manifest is None
+        or args.runtime_root is None
+        or args.runtime_acceptance_result is None
+    ):
+        parser.error("RUNTIME_PHYSICAL_CANDIDATE_ROOT_AND_RESULT_REQUIRED")
     origins = args.origin or [PRODUCTION_ORIGIN]
     try:
         args.origins = frozenset(validate_origin(origin) for origin in origins)
@@ -379,6 +391,30 @@ def _run_installed_acceptance(args: argparse.Namespace) -> int:
         return 70
 
 
+def _seal_runtime_physical(args: argparse.Namespace) -> int:
+    from .runtime_release_evidence import RuntimeReleaseEvidenceError, main as runtime_evidence_main
+
+    argv = [
+        "seal-physical",
+        "--candidate-manifest",
+        str(args.runtime_candidate_manifest),
+        "--runtime-root",
+        str(args.runtime_root),
+        "--output",
+        str(args.runtime_acceptance_result),
+    ]
+    for receipt in args.runtime_whisper_receipt or ():
+        argv.extend(["--whisper-receipt", str(receipt)])
+    if args.runtime_qwen_state_root is not None:
+        argv.extend(["--qwen-state-root", str(args.runtime_qwen_state_root)])
+    try:
+        return int(runtime_evidence_main(argv))
+    except RuntimeReleaseEvidenceError:
+        return 66
+    except BaseException:
+        return 70
+
+
 def _show_desktop_error(exc: BaseException) -> None:
     try:
         import tkinter as tk
@@ -405,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         return _install_rc_runtime(args)
     if args.installed_acceptance:
         return _run_installed_acceptance(args)
+    if args.seal_runtime_physical:
+        return _seal_runtime_physical(args)
 
     diagnostic_file: Path | None = args.diagnostic_file
     _write_diagnostic(diagnostic_file, "BOOTSTRAP")
