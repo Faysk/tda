@@ -183,6 +183,24 @@ jobs:
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      - name: Preflight Lembra private Media Storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+          const client = new S3Client({
+            region: "auto",
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+              accessKeyId: process.env.R2_PRIVATE_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_PRIVATE_SECRET_ACCESS_KEY,
+            },
+          });
+          await client.send(new HeadBucketCommand({ Bucket: process.env.R2_PRIVATE_BUCKET }));
+          console.log("LEMBRA_PRIVATE_R2_OK bucket reachable");
+          NODE
+
       - name: Build Production artifact
         env:
           APP_ENV: production
@@ -257,6 +275,11 @@ jobs:
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/noah --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          LEMBRA_STATUS="$(vercel curl "$DEPLOYMENT_URL/lembra" --silent --show-error --output /dev/null --write-out '%{http_code}')"
+          if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
+            echo "::error::Expected authenticated Lembra to redirect anonymous staged request, got HTTP $LEMBRA_STATUS"
+            exit 1
+          fi
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
@@ -283,6 +306,11 @@ jobs:
           node tools/ci/verify-production-canonical.mjs
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/"
+          LEMBRA_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
+          if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
+            echo "::error::Expected authenticated Lembra to redirect anonymous canonical request, got HTTP $LEMBRA_STATUS"
+            exit 1
+          fi
 
       - name: Record tiny release receipt
         shell: bash
