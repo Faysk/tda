@@ -238,6 +238,9 @@ export function LembraExperience({
 	const [saving, setSaving] = useState(false);
 	const [editing, setEditing] = useState(false);
 	const [confirmRemove, setConfirmRemove] = useState(false);
+	const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 
@@ -878,12 +881,26 @@ export function LembraExperience({
 							return (
 								<article className={styles.card} key={item.id}>
 									<div className={styles.media}>
-										<img
-											src={item.imageUrl}
-											alt=""
-											loading="lazy"
-											decoding="async"
-										/>
+										{brokenImageIds.has(item.id) ? (
+											<div className={styles.mediaFallback} aria-hidden="true">
+												<ImageIcon />
+												<span>Imagem indisponível</span>
+											</div>
+										) : (
+											<img
+												src={item.imageUrl}
+												alt=""
+												loading="lazy"
+												decoding="async"
+												onError={() =>
+													setBrokenImageIds((current) => {
+														const next = new Set(current);
+														next.add(item.id);
+														return next;
+													})
+												}
+											/>
+										)}
 										<button
 											type="button"
 											className={styles.mediaOpen}
@@ -985,10 +1002,25 @@ export function LembraExperience({
 				{selectedReference ? (
 					<div className={styles.viewer}>
 						<div className={styles.viewerMedia}>
-							<img
-								src={selectedReference.imageUrl}
-								alt={`Referência visual: ${selectedReference.title}`}
-							/>
+							{brokenImageIds.has(selectedReference.id) ? (
+								<div className={styles.viewerMediaFallback}>
+									<ImageIcon />
+									<strong>Imagem indisponível</strong>
+									<span>Tente abrir novamente em instantes.</span>
+								</div>
+							) : (
+								<img
+									src={selectedReference.imageUrl}
+									alt={`Referência visual: ${selectedReference.title}`}
+									onError={() =>
+										setBrokenImageIds((current) => {
+											const next = new Set(current);
+											next.add(selectedReference.id);
+											return next;
+										})
+									}
+								/>
+							)}
 							{visibleReferences.length > 1 ? (
 								<>
 									<button
