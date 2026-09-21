@@ -1,0 +1,214 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from .transcription_runs import TranscriptionRunError, load_run, run_root
+
+PUBLICATION_TARGET_SCHEMA_VERSION = "tda_publication_target_v1"
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_MAX_BYTES = 16 * 1024
+
+
+class PublicationTargetError(RuntimeError):
+    pass
+
+
+def _target_path(package_root: Path, run_id: str) -> Path:
+    if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_ID_INVALID")
+    return run_root(package_root, run_id) / "publication-target.json"
+
+
+def _validate_identifier(value: Any, code: str) -> str:
+    if not isinstance(value, str) or not _IDENTIFIER.fullmatch(value):
+        raise PublicationTargetError(code)
+    return value
+
+
+def _validate_attempt(value: Any) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not 1 <= value <= 1_000_000
+    ):
+        raise PublicationTargetError("PUBLICATION_TARGET_ATTEMPT_INVALID")
+    return value
+
+
+def _validate_run_id(value: Any) -> str:
+    if not isinstance(value, str) or not _RUN_ID.fullmatch(value):
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_ID_INVALID")
+    return value
+
+
+def _validate_hash(value: Any) -> str:
+    if not isinstance(value, str) or not _SHA256.fullmatch(value):
+        raise PublicationTargetError("PUBLICATION_TARGET_HASH_INVALID")
+    return value
+
+
+def _validate_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {
+        "schema_version",
+        "campaign_slug",
+        "source_session_id",
+        "source_id",
+        "run_id",
+        "job_id",
+        "attempt",
+        "transcript_sha256",
+    }:
+        raise PublicationTargetError("PUBLICATION_TARGET_INVALID")
+    if value.get("schema_version") != PUBLICATION_TARGET_SCHEMA_VERSION:
+        raise PublicationTargetError("PUBLICATION_TARGET_SCHEMA_INVALID")
+    return {
+        "schema_version": PUBLICATION_TARGET_SCHEMA_VERSION,
+        "campaign_slug": _validate_identifier(
+            value.get("campaign_slug"),
+            "PUBLICATION_TARGET_CAMPAIGN_INVALID",
+        ),
+        "source_session_id": _validate_identifier(
+            value.get("source_session_id"),
+            "PUBLICATION_TARGET_SESSION_INVALID",
+        ),
+        "source_id": _validate_identifier(
+            value.get("source_id"),
+            "PUBLICATION_TARGET_SOURCE_INVALID",
+        ),
+        "run_id": _validate_run_id(value.get("run_id")),
+        "job_id": _validate_identifier(
+            value.get("job_id"),
+            "PUBLICATION_TARGET_JOB_ID_INVALID",
+        ),
+        "attempt": _validate_attempt(value.get("attempt")),
+        "transcript_sha256": _validate_hash(value.get("transcript_sha256")),
+    }
+
+
+def _read(path: Path) -> dict[str, Any]:
+    if path.is_symlink():
+        raise PublicationTargetError("PUBLICATION_TARGET_SYMLINK")
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise PublicationTargetError("PUBLICATION_TARGET_MISSING") from exc
+    if size <= 0 or size > _MAX_BYTES:
+        raise PublicationTargetError("PUBLICATION_TARGET_SIZE_INVALID")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PublicationTargetError("PUBLICATION_TARGET_INVALID") from exc
+    return _validate_payload(value)
+
+
+def _atomic_write(path: Path, value: dict[str, Any]) -> None:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def bind_publication_target(
+    package_root: Path,
+    *,
+    run_id: str,
+    job_id: str,
+    attempt: int,
+    campaign_slug: str,
+    source_session_id: str,
+    source_id: str,
+    transcript_sha256: str,
+) -> dict[str, Any]:
+    """Persist the intended cloud target beside, never inside, an immutable ASR run.
+
+    The binding is derived from the accepted queue request only after the worker's
+    immutable run has been verified. Replays are idempotent; any divergent binding
+    for the same run fails closed.
+    """
+    expected = _validate_payload(
+        {
+            "schema_version": PUBLICATION_TARGET_SCHEMA_VERSION,
+            "campaign_slug": campaign_slug,
+            "source_session_id": source_session_id,
+            "source_id": source_id,
+            "run_id": run_id,
+            "job_id": job_id,
+            "attempt": attempt,
+            "transcript_sha256": transcript_sha256,
+        }
+    )
+    try:
+        manifest = load_run(package_root, run_id, verify_content=True)
+    except TranscriptionRunError as exc:
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_INVALID") from exc
+    if (
+        manifest.get("job_id") != expected["job_id"]
+        or manifest.get("attempt") != expected["attempt"]
+        or manifest.get("source_id") != expected["source_id"]
+        or manifest.get("transcript_sha256") != expected["transcript_sha256"]
+    ):
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_MISMATCH")
+
+    path = _target_path(package_root, run_id)
+    if path.exists():
+        current = _read(path)
+        if current != expected:
+            raise PublicationTargetError("PUBLICATION_TARGET_CONFLICT")
+        return current
+    try:
+        _atomic_write(path, expected)
+    except OSError as exc:
+        raise PublicationTargetError("PUBLICATION_TARGET_WRITE_FAILED") from exc
+    current = _read(path)
+    if current != expected:
+        raise PublicationTargetError("PUBLICATION_TARGET_CONFLICT")
+    return current
+
+
+def load_publication_target(
+    package_root: Path,
+    run_id: str,
+    *,
+    verify_run: bool = True,
+) -> dict[str, Any] | None:
+    """Read a sanitized publication target. Legacy/unbound runs return None."""
+    path = _target_path(package_root, run_id)
+    if not path.exists():
+        return None
+    value = _read(path)
+    if not verify_run:
+        return value
+    try:
+        # Listing this sidecar must stay cheap. The immutable run is fully hashed
+        # when the binding is created and again when a review is opened; here we
+        # only re-check manifest identity/size so a 3-second Web refresh never
+        # re-hashes hundreds of MiB of transcript JSON.
+        manifest = load_run(package_root, run_id, verify_content=False)
+    except TranscriptionRunError as exc:
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_INVALID") from exc
+    if (
+        manifest.get("job_id") != value["job_id"]
+        or manifest.get("attempt") != value["attempt"]
+        or manifest.get("source_id") != value["source_id"]
+        or manifest.get("transcript_sha256") != value["transcript_sha256"]
+    ):
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_MISMATCH")
+    return value

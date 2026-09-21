@@ -11,6 +11,7 @@ from tda_companion.api import create_app
 from tda_companion.attempt_fence import claim_attempt_outcome
 from tda_companion.craig_ingest_http import CraigIngestBoundary
 from tda_companion.craig_runtime import load_craig_package
+from tda_companion.publication_target import bind_publication_target
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -183,6 +184,52 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert reopened.status_code == 200
         assert reopened.json()["draft_revision"] == 1
         assert reopened.json()["segments"][0]["text"] == "Texto revisado"
+
+
+def test_review_api_exposes_only_sanitized_durable_publication_target(tmp_path: Path):
+    with _client(tmp_path) as client:
+        source_id, package_root, run = _stage_and_run(
+            client,
+            tmp_path,
+            job_id="job-publish-target",
+        )
+        bind_publication_target(
+            package_root,
+            run_id=run["run_id"],
+            job_id="job-publish-target",
+            attempt=1,
+            campaign_slug="yuhara-main",
+            source_session_id="sessao-00001",
+            source_id=source_id,
+            transcript_sha256=run["transcript_sha256"],
+        )
+        headers = _browser_headers(client)
+
+        listing = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=headers,
+        )
+        assert listing.status_code == 200
+        target = listing.json()["runs"][0]["publication_target"]
+        assert target == {
+            "schema_version": "tda_publication_target_v1",
+            "campaign_slug": "yuhara-main",
+            "source_session_id": "sessao-00001",
+            "source_id": source_id,
+            "run_id": run["run_id"],
+            "job_id": "job-publish-target",
+            "attempt": 1,
+            "transcript_sha256": run["transcript_sha256"],
+        }
+
+        review = client.get(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
+            headers=headers,
+        )
+        assert review.status_code == 200
+        assert review.json()["publication_target"] == target
+        encoded = json.dumps(review.json(), ensure_ascii=False)
+        assert str(tmp_path) not in encoded
 
 
 def test_review_api_conflicts_on_stale_draft_revision(tmp_path: Path):
