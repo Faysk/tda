@@ -55,6 +55,12 @@ const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 	year: "numeric",
 });
 
+const INPUT_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+	day: "2-digit",
+	month: "2-digit",
+	timeZone: "UTC",
+});
+
 function SearchIcon() {
 	return (
 		<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -147,11 +153,21 @@ function createClientId() {
 	return `lembra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function compactInputDate(value: string) {
+	if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return "";
+	const date = new Date(`${value}T00:00:00.000Z`);
+	return Number.isNaN(date.getTime()) ? "" : INPUT_DATE_FORMATTER.format(date);
+}
+
 function dateFilterLabel(range: LembraDateRange) {
 	if (!range.from && !range.to) return "Data";
-	if (range.from && range.to) return "Período";
-	if (range.from) return "Desde";
-	return "Até";
+
+	const from = compactInputDate(range.from);
+	const to = compactInputDate(range.to);
+	if (from && to) return from === to ? from : `${from}–${to}`;
+	if (from) return `Desde ${from}`;
+	if (to) return `Até ${to}`;
+	return "Data";
 }
 
 export function LembraExperience() {
