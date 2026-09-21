@@ -464,6 +464,12 @@ export function LembraExperience({
 		setConfirmRemove(false);
 		setEditTitle("");
 		setEditDescription("");
+		setBrokenImageIds((current) => {
+			if (!current.has(id)) return current;
+			const next = new Set(current);
+			next.delete(id);
+			return next;
+		});
 		setSelectedId(id);
 	}, []);
 
