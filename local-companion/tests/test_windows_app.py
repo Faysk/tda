@@ -6,6 +6,7 @@ from tda_companion.installed_acceptance import REQUIRED_OBSERVATIONS
 from tda_companion.pairing import TOKEN_PATTERN, ensure_pairing_token
 from tda_companion.windows_app import (
     PRODUCTION_ORIGIN,
+    _ui_arguments,
     _write_diagnostic,
     default_roots,
     parse_args,
@@ -79,6 +80,25 @@ def test_headless_remains_compatibility_alias_for_agent(monkeypatch, tmp_path: P
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     args = parse_args(["--headless"])
     assert args.agent is True
+
+
+def test_acceptance_tray_exit_requires_explicit_ui_mode(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    with pytest.raises(SystemExit):
+        parse_args(["--acceptance-tray-exit"])
+
+
+def test_acceptance_tray_exit_is_hidden_ui_only_mode(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    args = parse_args(["--ui", "--acceptance-tray-exit"])
+    assert args.ui is True
+    assert args.acceptance_tray_exit is True
+
+
+def test_acceptance_tray_exit_is_forwarded_to_active_version(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    args = parse_args(["--ui", "--acceptance-tray-exit"])
+    assert "--acceptance-tray-exit" in _ui_arguments(args)
 
 
 def test_installed_acceptance_requires_candidate_payload_source_craig_bits_and_result(monkeypatch, tmp_path: Path):

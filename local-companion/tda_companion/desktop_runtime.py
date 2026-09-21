@@ -207,6 +207,7 @@ def run_desktop(
     settings: SettingsStore,
     executable: Path,
     start_agent: Callable[[], object],
+    acceptance_tray_exit: bool = False,
 ) -> None:
     """Run the product desktop UI while the Agent stays in its own process."""
     try:
@@ -240,9 +241,24 @@ def run_desktop(
     watchdog.start()
 
     tray: TrayController | None = None
-    if settings.snapshot().get("show_tray"):
+    if settings.snapshot().get("show_tray") or acceptance_tray_exit:
         tray = TrayController(bridge, window)
         tray.start()
+
+    if acceptance_tray_exit:
+        if tray is None:
+            raise RuntimeError("ACCEPTANCE_TRAY_REQUIRED")
+
+        def on_loaded_for_acceptance() -> None:
+            # pystray invokes the menu callback from its own thread. Mirror that
+            # execution shape instead of calling window.destroy() directly so the
+            # acceptance path exercises TrayController -> bridge.close_desktop()
+            # -> DesktopExitCoordinator -> window.destroy().
+            timer = threading.Timer(0.25, tray.exit_ui)
+            timer.daemon = True
+            timer.start()
+
+        window.events.loaded += on_loaded_for_acceptance
 
     def on_closing() -> bool | None:
         current = settings.snapshot()
