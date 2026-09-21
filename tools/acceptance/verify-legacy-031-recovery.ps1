@@ -78,11 +78,21 @@ function Invoke-UpdaterProbe(
             $code = @'
 import os
 from pathlib import Path
-from tda_companion.updates import fetch_manifest, download_update
+from tda_companion.updates import UpdateManifest, download_update
 
-manifest = fetch_manifest()
-if manifest.version != "0.3.9" or manifest.tag != "companion-v0.3.9":
-    raise SystemExit(f"LEGACY_MANIFEST_IDENTITY_UNEXPECTED:{manifest.version}:{manifest.tag}")
+# Reconstruct the exact manifest shape accepted by 0.3.1 before release-lock
+# query parameters were introduced. The MSI identity comes from the immutable
+# published companion-v0.3.9 release; only the legacy Web route shape is
+# reconstructed so this probe exercises the historical redirect defect instead
+# of failing earlier on today's stricter manifest URL.
+manifest = UpdateManifest(
+    version="0.3.9",
+    tag="companion-v0.3.9",
+    minimum_api="1",
+    url="https://dnd.faysk.dev/api/downloads/companion/windows",
+    sha256="67abdb127ae2d1569f3f3200274bad8da2a0a79e8abc45eb6cafca291edfe39c",
+    size=42830876,
+)
 
 try:
     download_update(
