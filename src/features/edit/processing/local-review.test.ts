@@ -113,8 +113,7 @@ describe("local result/review contracts", () => {
 			},
 		]);
 
-		expect(
-			parseLocalRuns({
+		const parsedRuns = parseLocalRuns({
 				schema_version: "tda_transcription_runs_v1",
 				source_id: sourceId,
 				runs: [
@@ -140,8 +139,8 @@ describe("local result/review contracts", () => {
 						},
 					},
 				],
-			}),
-		)[0]).toMatchObject({
+			});
+		expect(parsedRuns[0]).toMatchObject({
 			runId,
 			sourceId,
 			profileId: "legacy-profile",
@@ -159,7 +158,7 @@ describe("local result/review contracts", () => {
 		).toThrow(BridgeError);
 
 		const invalid = rawReview();
-		invalid.segments[0].track_number = 0;
+		invalid.segments[0]!.track_number = 0;
 		expect(() => parseLocalReview(invalid)).toThrow(BridgeError);
 	});
 
