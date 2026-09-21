@@ -20,6 +20,7 @@ import {
 	parseJobs,
 	parseLocalReview,
 	parseLocalRuns,
+	parseLocalSources,
 	parseResultSummary,
 	parseSystemSnapshot,
 	runIdentifier,
@@ -415,6 +416,10 @@ export class LocalBridge {
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
 		);
+	}
+
+	async localSources(signal: AbortSignal) {
+		return parseLocalSources(await this.json("/sources", signal));
 	}
 
 	async localRuns(sourceId: string, signal: AbortSignal) {
