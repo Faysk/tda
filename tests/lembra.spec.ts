@@ -122,3 +122,22 @@ test("Lembra removal confirmation can be cancelled without losing context", asyn
 	await expect(viewer.getByRole("button", { name: "Editar", exact: true })).toBeVisible();
 	await expect(viewer).not.toContainText("Ela some do Lembra para todo mundo.");
 });
+
+
+test("Lembra Escape cancels editing before closing the viewer", async ({ page }) => {
+	await page.goto("/lembra");
+	await addReference(page, "Biblioteca", "Estantes altas");
+
+	await page.getByRole("button", { name: "Biblioteca", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByLabel("Nome").fill("Rascunho que não deve salvar");
+
+	await page.keyboard.press("Escape");
+	await expect(viewer.getByRole("heading", { name: "Biblioteca" })).toBeVisible();
+	await expect(viewer.getByLabel("Nome")).toHaveCount(0);
+
+	await page.keyboard.press("Escape");
+	await expect(viewer).not.toBeVisible();
+	await expect(page.getByRole("button", { name: "Biblioteca", exact: true })).toBeVisible();
+});
