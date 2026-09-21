@@ -658,6 +658,7 @@ export function LembraExperience({
 			}
 		}
 
+		discardUrl(selectedReference.imageUrl);
 		setReferences((current) =>
 			current.filter((item) => item.id !== selectedReference.id),
 		);
@@ -1129,7 +1130,7 @@ export function LembraExperience({
 				className={styles.dialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					closeDraft();
+					if (!saving) closeDraft();
 				}}
 			>
 				{draft ? (
