@@ -321,12 +321,6 @@ export function LembraExperience({
 	}, [selectedId]);
 
 	useEffect(() => {
-		setEditing(false);
-		setEditTitle("");
-		setEditDescription("");
-	}, [selectedId]);
-
-	useEffect(() => {
 		const onShortcut = (event: KeyboardEvent) => {
 			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
@@ -444,6 +438,20 @@ export function LembraExperience({
 		};
 	})();
 
+	const closeViewer = useCallback(() => {
+		setEditing(false);
+		setEditTitle("");
+		setEditDescription("");
+		setSelectedId(null);
+	}, []);
+
+	const openViewer = useCallback((id: string) => {
+		setEditing(false);
+		setEditTitle("");
+		setEditDescription("");
+		setSelectedId(id);
+	}, []);
+
 	const moveViewer = useCallback(
 		(delta: number) => {
 			if (!selectedId || visibleReferences.length < 2) return;
@@ -451,6 +459,9 @@ export function LembraExperience({
 			if (index < 0) return;
 			const nextIndex =
 				(index + delta + visibleReferences.length) % visibleReferences.length;
+			setEditing(false);
+			setEditTitle("");
+			setEditDescription("");
 			setSelectedId(visibleReferences[nextIndex].id);
 		},
 		[selectedId, visibleReferences],
@@ -459,7 +470,7 @@ export function LembraExperience({
 	useEffect(() => {
 		if (!selectedId) return;
 		if (!selectedReference) {
-			setSelectedId(null);
+			closeViewer();
 			return;
 		}
 
@@ -667,7 +678,7 @@ export function LembraExperience({
 			next.delete(selectedReference.id);
 			return next;
 		});
-		setSelectedId(null);
+		closeViewer();
 		setEditing(false);
 		setMessage("Referência removida.");
 	}
@@ -873,7 +884,7 @@ export function LembraExperience({
 										<button
 											type="button"
 											className={styles.mediaOpen}
-											onClick={() => setSelectedId(item.id)}
+											onClick={() => openViewer(item.id)}
 											aria-label={`Abrir referência ${item.title}`}
 										/>
 										<button
@@ -895,7 +906,7 @@ export function LembraExperience({
 											<button
 												type="button"
 												className={styles.cardTitleButton}
-												onClick={() => setSelectedId(item.id)}
+												onClick={() => openViewer(item.id)}
 											>
 												{item.title}
 											</button>
@@ -964,7 +975,7 @@ export function LembraExperience({
 				className={styles.viewerDialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					setSelectedId(null);
+					closeViewer();
 				}}
 				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
 			>
