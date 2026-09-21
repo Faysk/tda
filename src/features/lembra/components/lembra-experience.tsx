@@ -263,7 +263,7 @@ export function LembraExperience({
 
 	const prepareFile = useCallback((file: File | undefined) => {
 		if (!isImageFile(file)) {
-			setMessage("Escolha uma imagem para guardar no Lembra.");
+			setMessage("Use uma imagem JPG, PNG ou WebP de até 12 MB.");
 			return;
 		}
 
@@ -318,6 +318,12 @@ export function LembraExperience({
 		} else if (!selectedId && viewer.open) {
 			viewer.close();
 		}
+	}, [selectedId]);
+
+	useEffect(() => {
+		setEditing(false);
+		setEditTitle("");
+		setEditDescription("");
 	}, [selectedId]);
 
 	useEffect(() => {
@@ -458,6 +464,7 @@ export function LembraExperience({
 		}
 
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (editing) return;
 			if (event.key === "ArrowLeft") {
 				event.preventDefault();
 				moveViewer(-1);
@@ -470,7 +477,7 @@ export function LembraExperience({
 
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [moveViewer, selectedId, selectedReference]);
+	}, [editing, moveViewer, selectedId, selectedReference]);
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
@@ -931,7 +938,7 @@ export function LembraExperience({
 					ref={fileInputRef}
 					className={styles.visuallyHidden}
 					type="file"
-					accept="image/*"
+					accept="image/jpeg,image/png,image/webp"
 					onChange={(event) => {
 						prepareFile(event.target.files?.[0]);
 						event.target.value = "";
@@ -1023,20 +1030,59 @@ export function LembraExperience({
 								</div>
 							</div>
 
-							<div className={styles.viewerInfo}>
-								<h2 id={`viewer-title-${selectedReference.id}`}>
-									{selectedReference.title}
-								</h2>
-								{selectedReference.description ? (
-									<p className={styles.viewerDescription}>
-										{selectedReference.description}
-									</p>
-								) : (
-									<p className={styles.viewerDescriptionMuted}>
-										Sem descrição. A imagem fala por si.
-									</p>
-								)}
-							</div>
+							{editing ? (
+								<form className={styles.viewerEditForm} onSubmit={saveReferenceEdit}>
+									<label className={styles.field}>
+										<span>Nome</span>
+										<input
+											type="text"
+											required
+											maxLength={120}
+											value={editTitle}
+											onChange={(event) => setEditTitle(event.target.value)}
+											disabled={saving}
+										/>
+									</label>
+									<label className={styles.field}>
+										<span>Descrição</span>
+										<textarea
+											rows={5}
+											maxLength={320}
+											value={editDescription}
+											onChange={(event) => setEditDescription(event.target.value)}
+											disabled={saving}
+										/>
+									</label>
+									<div className={styles.viewerEditActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={cancelEditing}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button type="submit" variant="primary" disabled={saving}>
+											{saving ? "Salvando..." : "Salvar"}
+										</Button>
+									</div>
+								</form>
+							) : (
+								<div className={styles.viewerInfo}>
+									<h2 id={`viewer-title-${selectedReference.id}`}>
+										{selectedReference.title}
+									</h2>
+									{selectedReference.description ? (
+										<p className={styles.viewerDescription}>
+											{selectedReference.description}
+										</p>
+									) : (
+										<p className={styles.viewerDescriptionMuted}>
+											Sem descrição. A imagem fala por si.
+										</p>
+									)}
+								</div>
+							)}
 
 							<div className={styles.viewerMeta}>
 								<div>
@@ -1049,6 +1095,24 @@ export function LembraExperience({
 										{LONG_DATE_FORMATTER.format(new Date(selectedReference.createdAt))}
 									</time>
 								</div>
+							</div>
+
+							<div className={styles.viewerManageActions}>
+								<button
+									type="button"
+									onClick={() => startEditing(selectedReference)}
+									disabled={saving || editing}
+								>
+									Editar
+								</button>
+								<button
+									type="button"
+									className={styles.viewerDangerAction}
+									onClick={removeSelectedReference}
+									disabled={saving}
+								>
+									Remover
+								</button>
 							</div>
 
 							<div className={styles.viewerHints} aria-hidden="true">
@@ -1084,6 +1148,7 @@ export function LembraExperience({
 									className={styles.closeButton}
 									onClick={closeDraft}
 									aria-label="Fechar"
+									disabled={saving}
 								>
 									<span aria-hidden="true">×</span>
 								</button>
@@ -1097,6 +1162,7 @@ export function LembraExperience({
 									required
 									maxLength={120}
 									value={draft.title}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current ? { ...current, title: event.target.value } : current,
@@ -1112,6 +1178,7 @@ export function LembraExperience({
 									rows={4}
 									maxLength={320}
 									value={draft.description}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current
@@ -1134,11 +1201,17 @@ export function LembraExperience({
 									variant="tertiary"
 									className={styles.composerAction}
 									onClick={closeDraft}
+									disabled={saving}
 								>
 									Cancelar
 								</Button>
-								<Button type="submit" variant="primary" className={styles.composerAction}>
-									Guardar
+								<Button
+									type="submit"
+									variant="primary"
+									className={styles.composerAction}
+									disabled={saving}
+								>
+									{saving ? "Guardando..." : "Guardar"}
 								</Button>
 							</div>
 						</div>
