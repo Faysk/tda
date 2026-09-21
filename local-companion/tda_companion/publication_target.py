@@ -196,7 +196,11 @@ def load_publication_target(
     if not verify_run:
         return value
     try:
-        manifest = load_run(package_root, run_id, verify_content=True)
+        # Listing this sidecar must stay cheap. The immutable run is fully hashed
+        # when the binding is created and again when a review is opened; here we
+        # only re-check manifest identity/size so a 3-second Web refresh never
+        # re-hashes hundreds of MiB of transcript JSON.
+        manifest = load_run(package_root, run_id, verify_content=False)
     except TranscriptionRunError as exc:
         raise PublicationTargetError("PUBLICATION_TARGET_RUN_INVALID") from exc
     if (
