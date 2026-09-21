@@ -63,22 +63,34 @@ O MSI atual não possui assinatura Authenticode configurada.
 
 ## Capabilities
 
+A resposta é dinâmica e consumidores devem fazer feature detection. O conjunto base inclui:
+
 ```json
 {
   "capabilities": [
     "synthetic.fixture",
     "job.events",
-    "system.telemetry"
+    "system.telemetry",
+    "worker.subprocess",
+    "transcription.prepare"
   ],
   "sync": false,
   "device": {
     "id": "<UUID persistido>",
     "label": "TDA local"
+  },
+  "transcription": {
+    "profiles": [],
+    "catalog": [],
+    "qwen_physical_gate": {
+      "qwen-fast": {},
+      "qwen-quality": {}
+    }
   }
 }
 ```
 
-Consumidores devem fazer feature detection.
+`transcription.craig` é anunciado somente quando existe ao menos um perfil pronto. Uma instância Desktop pode acrescentar `agent.desktop` e `agent.logs`; `agent.control` só aparece quando o processo foi criado com callback de shutdown. Os arrays/objetos de `transcription` carregam o estado real dos perfis e gates, portanto o exemplo acima não deve ser tratado como snapshot fixo de uma máquina preparada.
 
 ## Endpoints
 
