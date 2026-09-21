@@ -158,7 +158,9 @@ describe("local result/review contracts", () => {
 		).toThrow(BridgeError);
 
 		const invalid = rawReview();
-		invalid.segments[0]!.track_number = 0;
+		const first = invalid.segments[0];
+		if (!first) throw new Error("fixture segment missing");
+		first.track_number = 0;
 		expect(() => parseLocalReview(invalid)).toThrow(BridgeError);
 	});
 
