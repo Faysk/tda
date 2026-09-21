@@ -37,8 +37,11 @@ export function editDataClient() {
 
 
 export function lembraDataClient() {
+	const enabled =
+		process.env.VERCEL_ENV === "production" ||
+		process.env.TDA_LEMBRA_ENABLED === "true";
 	return serverDataClient(
-		process.env.TDA_LEMBRA_ENABLED === "true",
+		enabled,
 		"Lembra data connection is not configured",
 	);
 }
