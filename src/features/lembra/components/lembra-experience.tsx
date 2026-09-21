@@ -161,6 +161,15 @@ function hasDraggedFiles(event: DragEvent) {
 	return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
+function suggestedTitle(file: File) {
+	const title = file.name
+		.replace(/\.[^.]+$/u, "")
+		.replace(/[-_]+/gu, " ")
+		.trim();
+	if (/^(image|blob|clipboard|pasted image)$/iu.test(title)) return "";
+	return title;
+}
+
 function createClientId() {
 	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
 		return crypto.randomUUID();
@@ -282,7 +291,7 @@ export function LembraExperience({
 			return {
 				file,
 				previewUrl,
-				title: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
+				title: suggestedTitle(file),
 				description: "",
 			};
 		});
@@ -1017,7 +1026,7 @@ export function LembraExperience({
 				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
 			>
 				{selectedReference ? (
-					<div className={styles.viewer}>
+					<div className={styles.viewer} aria-busy={saving}>
 						<div className={styles.viewerMedia}>
 							{brokenImageIds.has(selectedReference.id) ? (
 								<div className={styles.viewerMediaFallback}>
@@ -1099,7 +1108,11 @@ export function LembraExperience({
 							</div>
 
 							{editing ? (
-								<form className={styles.viewerEditForm} onSubmit={saveReferenceEdit}>
+								<form
+									className={styles.viewerEditForm}
+									onSubmit={saveReferenceEdit}
+									aria-busy={saving}
+								>
 									<label className={styles.field}>
 										<span>Nome</span>
 										<input
@@ -1237,7 +1250,11 @@ export function LembraExperience({
 				}}
 			>
 				{draft ? (
-					<form className={styles.composer} onSubmit={saveReference}>
+					<form
+						className={styles.composer}
+						onSubmit={saveReference}
+						aria-busy={saving}
+					>
 						<div className={styles.composerMedia}>
 							<img src={draft.previewUrl} alt="Preview da referência selecionada" />
 						</div>
