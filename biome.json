@@ -1,13 +1,15 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
 	"files": {
 		"includes": [
-			"src/app/lembra/**",
-			"src/app/api/lembra/**",
-			"src/features/lembra/**",
-			"src/integrations/r2/server.ts",
-			"src/integrations/supabase/server.ts",
-			"tests/lembra.spec.ts"
+			"**",
+			"!!.next",
+			"!!node_modules",
+			"!!.local",
+			"!!test-results",
+			"!!playwright-report",
+			"!!public/lore/d",
+			"!next-env.d.ts"
 		]
 	},
 	"formatter": { "enabled": true },
