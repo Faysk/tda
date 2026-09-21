@@ -202,7 +202,7 @@ describe("transcript publication HTTP boundary", () => {
 				const result = await valid.commit(actor, input);
 				if (!result.ok) return result;
 				return {
-					ok: true,
+					ok: true as const,
 					receipt: { ...result.receipt, sessionId: CAMPAIGN },
 				};
 			}),
