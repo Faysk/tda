@@ -347,7 +347,7 @@ export function LembraExperience() {
 					</Button>
 				</header>
 
-				<div className={styles.compactNav} aria-label="Filtros do Lembra">
+				<nav className={styles.compactNav} aria-label="Filtros do Lembra">
 					{navItems.map((item) => (
 						<button
 							key={item.id}
@@ -360,7 +360,7 @@ export function LembraExperience() {
 							<span>{item.count}</span>
 						</button>
 					))}
-				</div>
+				</nav>
 
 				<div className={styles.searchRow}>
 					<label className={styles.searchBox}>
