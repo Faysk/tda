@@ -182,7 +182,7 @@ Failure: $failure
 
     $zipCreated = $false
     for ($attempt = 1; $attempt -le 2 -and -not $zipCreated; $attempt++) {
-        $temporaryZip = "$zipPath.partial"
+        $temporaryZip = "$zipPath.partial.zip"
         try {
             Remove-Item -LiteralPath $temporaryZip -Force -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
