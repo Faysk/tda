@@ -1,15 +1,12 @@
 import "server-only";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
-import {
-	authorizeCampaignCapability,
-	EDIT_CAPABILITIES,
-} from "@/features/edit/access/policy";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
 import type {
 	PreparedPublication,
 	PublicationResult,
-	PublicationTarget,
 } from "./contract";
+import { authorizePublicationRequest } from "./access";
 import type {
 	AuthorizedPublicationActor,
 	PublicationDependencies,
@@ -19,80 +16,67 @@ export const databasePublicationDependencies: PublicationDependencies = {
 	authorize: async (authUserId, target) => {
 		const client = editDataClient();
 		if (!client) return { ok: false, reason: "dependency_unavailable" };
-
-		const { data: action, error: actionError } = await client
-			.from("permission_catalog")
-			.select("action")
-			.eq("action", EDIT_CAPABILITIES.transcriptPublish)
-			.eq("plane", "mixed")
-			.maybeSingle();
-		if (actionError)
-			return { ok: false, reason: "dependency_unavailable" };
-		if (!action)
-			return { ok: false, reason: "publish_capability_undefined" };
-
 		const context = await loadEditAccessContext(authUserId);
 		if (!context) return { ok: false, reason: "dependency_unavailable" };
 
-		// The claimed campaign slug is checked against the operator's effective
-		// grants before any campaign/session target lookup. This keeps foreign
-		// target existence opaque to an unauthorized operator.
-		const scope = authorizeCampaignCapability(
-			context,
-			EDIT_CAPABILITIES.transcriptPublish,
-			target.campaignSlug,
-		);
-		if (!scope.ok) return { ok: false, reason: "forbidden" };
+		return authorizePublicationRequest(context, target, {
+			physicalAction: async () => {
+				const { data, error } = await client
+					.from("permission_catalog")
+					.select("action")
+					.eq("action", EDIT_CAPABILITIES.transcriptPublish)
+					.eq("plane", "mixed")
+					.maybeSingle();
+				return error
+					? {
+							ok: false as const,
+							reason: "dependency_unavailable" as const,
+						}
+					: { ok: true as const, exists: Boolean(data) };
+			},
+			target: async (expected) => {
+				// This lookup is reached only after authorizePublicationRequest
+				// proves the operator has the exact campaign scope.
+				const { data: campaign, error: campaignError } = await client
+					.from("campaigns")
+					.select("id")
+					.eq("slug", expected.campaignSlug)
+					.maybeSingle();
+				if (campaignError)
+					return {
+						ok: false as const,
+						reason: "dependency_unavailable" as const,
+					};
+				if (!campaign)
+					return { ok: false as const, reason: "not_found" as const };
 
-		return resolveAuthorizedTarget(
-			client,
-			authUserId,
-			scope.profileId,
-			target,
-		);
+				const { data: session, error: sessionError } = await client
+					.from("sessions")
+					.select("id")
+					.eq("campaign_id", campaign.id)
+					.eq("source_system", "local_companion")
+					.eq("source_session_id", expected.sourceSessionId)
+					.maybeSingle();
+				if (sessionError)
+					return {
+						ok: false as const,
+						reason: "dependency_unavailable" as const,
+					};
+				return session
+					? {
+							ok: true as const,
+							value: {
+								campaignId: campaign.id,
+								sessionId: session.id,
+							},
+						}
+					: { ok: false as const, reason: "not_found" as const };
+			},
+		});
 	},
 	commit: (actor, input) => invoke(actor, input, false),
 	lookup: (actor, input) => invoke(actor, input, true),
 };
-
-async function resolveAuthorizedTarget(
-	client: NonNullable<ReturnType<typeof editDataClient>>,
-	authUserId: string,
-	profileId: string,
-	target: PublicationTarget,
-) {
-	const { data: campaign, error: campaignError } = await client
-		.from("campaigns")
-		.select("id")
-		.eq("slug", target.campaignSlug)
-		.maybeSingle();
-	if (campaignError)
-		return { ok: false as const, reason: "dependency_unavailable" as const };
-	if (!campaign)
-		return { ok: false as const, reason: "not_found" as const };
-
-	const { data: session, error: sessionError } = await client
-		.from("sessions")
-		.select("id")
-		.eq("campaign_id", campaign.id)
-		.eq("source_system", "local_companion")
-		.eq("source_session_id", target.sourceSessionId)
-		.maybeSingle();
-	if (sessionError)
-		return { ok: false as const, reason: "dependency_unavailable" as const };
-	if (!session)
-		return { ok: false as const, reason: "not_found" as const };
-
-	return {
-		ok: true as const,
-		actor: {
-			authUserId,
-			profileId,
-			campaignId: campaign.id,
-			sessionId: session.id,
-		},
-	};
-}
 
 async function invoke(
 	actor: AuthorizedPublicationActor,
