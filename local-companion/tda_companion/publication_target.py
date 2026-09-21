@@ -33,8 +33,18 @@ def _validate_identifier(value: Any, code: str) -> str:
 
 
 def _validate_attempt(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 1_000_000:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not 1 <= value <= 1_000_000
+    ):
         raise PublicationTargetError("PUBLICATION_TARGET_ATTEMPT_INVALID")
+    return value
+
+
+def _validate_run_id(value: Any) -> str:
+    if not isinstance(value, str) or not _RUN_ID.fullmatch(value):
+        raise PublicationTargetError("PUBLICATION_TARGET_RUN_ID_INVALID")
     return value
 
 
@@ -72,12 +82,7 @@ def _validate_payload(value: Any) -> dict[str, Any]:
             value.get("source_id"),
             "PUBLICATION_TARGET_SOURCE_INVALID",
         ),
-        "run_id": (
-            value["run_id"]
-            if isinstance(value.get("run_id"), str)
-            and _RUN_ID.fullmatch(value["run_id"])
-            else (_raise("PUBLICATION_TARGET_RUN_ID_INVALID"))
-        ),
+        "run_id": _validate_run_id(value.get("run_id")),
         "job_id": _validate_identifier(
             value.get("job_id"),
             "PUBLICATION_TARGET_JOB_ID_INVALID",
@@ -85,10 +90,6 @@ def _validate_payload(value: Any) -> dict[str, Any]:
         "attempt": _validate_attempt(value.get("attempt")),
         "transcript_sha256": _validate_hash(value.get("transcript_sha256")),
     }
-
-
-def _raise(code: str):
-    raise PublicationTargetError(code)
 
 
 def _read(path: Path) -> dict[str, Any]:
