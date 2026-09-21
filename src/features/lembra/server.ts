@@ -6,7 +6,12 @@ import {
 	PutObjectCommand,
 	type S3Client,
 } from "@aws-sdk/client-s3";
-import { mediaClient, mediaConnectionConfig } from "@/integrations/r2/server";
+import {
+	mediaClient,
+	mediaConnectionConfig,
+	privateMediaClient,
+	privateMediaConnectionConfig,
+} from "@/integrations/r2/server";
 import { inspectLembraImage, lembraSha256, type LembraImageInfo } from "./image";
 import {
 	LEMBRA_MAX_BYTES,
@@ -67,12 +72,25 @@ export function lembraPersistenceEnabled() {
 	return process.env.TDA_LEMBRA_ENABLED === "true";
 }
 
+function lembraProductionRuntime() {
+	return process.env.VERCEL_ENV === "production";
+}
+
+function lembraMediaClient() {
+	return lembraProductionRuntime() ? privateMediaClient() : lembraMediaClient();
+}
+
+function lembraMediaConnectionConfig() {
+	return lembraProductionRuntime()
+		? privateMediaConnectionConfig()
+		: mediaConnectionConfig();
+}
+
 export function lembraStagingBucket(): string {
-	const production = process.env.VERCEL_ENV === "production";
-	const expected = production
+	const expected = lembraProductionRuntime()
 		? LEMBRA_PRIVATE_BUCKET
 		: LEMBRA_PREVIEW_BUCKET;
-	const configured = production
+	const configured = lembraProductionRuntime()
 		? process.env.R2_PRIVATE_BUCKET
 		: process.env.R2_PREVIEW_BUCKET;
 	if (configured !== expected) failure("STAGING_BUCKET_MISMATCH");
@@ -191,7 +209,8 @@ export function presignLembraPendingUpload({
 	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
 
 	const bucket = lembraStagingBucket();
-	const { accountId, accessKeyId, secretAccessKey } = mediaConnectionConfig();
+	const { accountId, accessKeyId, secretAccessKey } =
+		lembraMediaConnectionConfig();
 	return {
 		...presignLembraPutObject({
 			accountId,
@@ -229,7 +248,7 @@ export async function finalizeLembraPendingUpload({
 	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
 
 	const bucket = lembraStagingBucket();
-	const client = mediaClient();
+	const client = lembraMediaClient();
 	const pendingBytes = await objectBytes(client, bucket, pendingObjectKey);
 	const info = inspectLembraImage(pendingBytes);
 	if (
@@ -297,7 +316,7 @@ export async function readVerifiedLembraObject({
 		failure("OBJECT_SCOPE_MISMATCH");
 	}
 
-	const payload = await objectBytes(mediaClient(), bucket, objectKey);
+	const payload = await objectBytes(lembraMediaClient(), bucket, objectKey);
 	const inspected = inspectLembraImage(payload);
 	if (
 		inspected.sha256 !== sha256 ||
