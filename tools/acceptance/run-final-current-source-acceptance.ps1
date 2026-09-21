@@ -307,12 +307,17 @@ function Install-Runtime([string]$Exe,[object]$Candidate,[object]$Release,[strin
   $target=Join-Path $runtimeRoot ([string]$Candidate.version)
   $current=Join-Path $runtimeRoot "current.json"
   $backupTarget="";$backupCurrent=""
+  $targetExisted=Test-Path $target
+  $currentExisted=Test-Path $current
   try {
-    if(Test-Path $target){
-      $suffix=[Guid]::NewGuid().ToString("N")
+    $suffix=[Guid]::NewGuid().ToString("N")
+    if($targetExisted){
       $backupTarget=Join-Path $runtimeRoot (".$([string]$Candidate.version)-acceptance-$suffix.backup")
       Move-Item $target $backupTarget
-      if(Test-Path $current){$backupCurrent=Join-Path $runtimeRoot (".current-$suffix.backup.json");Move-Item $current $backupCurrent}
+    }
+    if($currentExisted){
+      $backupCurrent=Join-Path $runtimeRoot (".current-$suffix.backup.json")
+      Move-Item $current $backupCurrent
     }
     $result=Join-Path $Root "$family-install.json"
     $proc=Start-Process $Exe -ArgumentList @("--install-rc-runtime",$family,"--rc-artifact",('"{0}"' -f $outer),"--rc-artifact-sha256",(Get-Sha256 $outer),"--rc-result-file",('"{0}"' -f $result)) -Wait -PassThru
@@ -322,14 +327,12 @@ function Install-Runtime([string]$Exe,[object]$Candidate,[object]$Release,[strin
     if($backupTarget -and (Test-Path $backupTarget)){Remove-Item $backupTarget -Recurse -Force}
     if($backupCurrent -and (Test-Path $backupCurrent)){Remove-Item $backupCurrent -Force}
   } catch {
-    if($backupTarget){
-      try{
-        if(Test-Path $target){Remove-Item $target -Recurse -Force}
-        if(Test-Path $current){Remove-Item $current -Force}
-        if(Test-Path $backupTarget){Move-Item $backupTarget $target}
-        if($backupCurrent -and (Test-Path $backupCurrent)){Move-Item $backupCurrent $current}
-      }catch{throw ("RUNTIME_ROLLBACK_FAILED:"+$family)}
-    }
+    try{
+      if(Test-Path $target){Remove-Item $target -Recurse -Force}
+      if(Test-Path $current){Remove-Item $current -Force}
+      if($backupTarget -and (Test-Path $backupTarget)){Move-Item $backupTarget $target}
+      if($backupCurrent -and (Test-Path $backupCurrent)){Move-Item $backupCurrent $current}
+    }catch{throw ("RUNTIME_ROLLBACK_FAILED:"+$family)}
     throw
   }
 }
