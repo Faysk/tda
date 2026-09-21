@@ -160,6 +160,7 @@ jobs:
             'function Ensure-AutomatedProfilesReady',
             'PROFILE_PREPARATION_START_INVALID',
             'PROFILE_PREPARATION_TIMEOUT',
+            'LEGACY_TRAY_EQUIVALENT_SOURCE_NOT_ALLOWED',
             'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
             'WEBVIEW2_RENDERER_NOT_OBSERVED',
             'CRAIG_DID_NOT_SURVIVE_AGENT_LOSS'
@@ -188,6 +189,7 @@ jobs:
             'contains_transcript = $false',
             'AUTO_ACCEPTANCE_REQUIRED_RECEIPTS_MISSING',
             'AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED',
+            '$zipPath.partial.zip',
             'Compress-Archive'
           )) {
             if (-not $wrapper.Contains($required)) {
