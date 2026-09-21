@@ -1,5 +1,8 @@
 -- Synthetic-only PostgreSQL assertions for the session-bound edit boundary.
 -- Loaded inside tools/transcript-sync-db.py against an isolated local cluster.
+-- Keep all fixture mutations transactional so transcript-import tests see a clean database.
+
+begin;
 
 insert into public.sessions (
   id, campaign_id, source_system, source_session_id
@@ -159,3 +162,5 @@ end;
 $$;
 
 reset role;
+
+rollback;
