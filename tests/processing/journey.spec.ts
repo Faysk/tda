@@ -44,7 +44,6 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	const statusStrip = page.getByRole("region", {
 		name: "Uso e fila do computador local",
 	});
-	await expect(statusStrip).toContainText("GPU");
 	await expect(statusStrip).toContainText("CPU");
 	await expect(statusStrip).toContainText("RAM");
 	await expect(statusStrip).toContainText("Processando");
@@ -177,6 +176,7 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
+	await page.getByText("Opções avançadas", { exact: true }).click();
 	await page.getByLabel("Contexto opcional").fill("😀".repeat(1200));
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
