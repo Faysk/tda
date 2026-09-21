@@ -27,6 +27,10 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
+	await expect(page.getByRole("link", { name: "Lembra", exact: true })).toHaveAttribute(
+		"href",
+		"/lembra",
+	);
 	await expect(
 		page.getByPlaceholder("Buscar título, descrição, autor ou data..."),
 	).toBeVisible();
