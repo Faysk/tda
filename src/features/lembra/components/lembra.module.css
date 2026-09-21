@@ -440,6 +440,9 @@
 	color: var(--ds-on-art-foreground);
 	backdrop-filter: blur(10px);
 	cursor: pointer;
+	transition:
+		opacity var(--ds-motion-fast) var(--ds-ease-standard),
+		transform var(--ds-motion-fast) var(--ds-ease-standard);
 }
 
 .favoriteActive {
@@ -1192,6 +1195,17 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+	.favorite {
+		opacity: 0;
+		transform: translateY(-2px);
+	}
+
+	.card:hover .favorite,
+	.favorite:focus-visible {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
 	.card:hover {
 		border-color: var(--ds-control-border);
 		box-shadow: 0 14px 34px rgba(0, 0, 0, 0.11);
@@ -1590,6 +1604,8 @@
 	.searchBox,
 	.card,
 	.media img,
+	.favorite,
+	.favoriteActive,
 	.viewerPrevious,
 	.viewerNext {
 		transition: none;
