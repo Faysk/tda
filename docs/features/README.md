@@ -11,6 +11,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
+[Lembra — biblioteca compartilhada de referências visuais](lembra.md) — UX aprovada para galeria rápida, drag/drop, paste e file picker; persistência/autorização ainda em desenho.
+
 [Astel e Noah — recebimento e plano de integração](astel-noah-lores.md) — pacotes inventariados, listagem solicitada em `/lore`, rotas e ligações necessárias; integração/publicação pendentes.
 
 [Fidelidade dos pacotes de D e Seika](lore-pack-fidelity.md) — contrato visual e aceite da restauração das páginas independentes.
@@ -31,6 +33,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
+| Lembra / referências visuais | UX aprovada; UI candidata sem persistência | [Lembra](lembra.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
