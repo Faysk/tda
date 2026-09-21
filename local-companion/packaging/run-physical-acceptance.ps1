@@ -34,11 +34,17 @@ $state = [IO.Path]::GetFullPath($StateRoot)
 $output = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $models, $state, $output | Out-Null
 
-$runtimeCandidateCount = @($WhisperRuntimeCandidateManifest, $QwenRuntimeCandidateManifest | Where-Object { $_ }).Count
+$runtimeCandidateCount = @(
+    @($WhisperRuntimeCandidateManifest, $QwenRuntimeCandidateManifest) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+).Count
 if ($runtimeCandidateCount -notin @(0, 2)) {
     throw "RUNTIME_ACCEPTANCE_CANDIDATES_INCOMPLETE"
 }
 $sealRuntimeReceipts = $runtimeCandidateCount -eq 2
+if ($RuntimeAcceptanceOutputRoot -and -not $sealRuntimeReceipts) {
+    throw "RUNTIME_ACCEPTANCE_OUTPUT_WITHOUT_CANDIDATES"
+}
 $runtimeAcceptanceOutput = if ($RuntimeAcceptanceOutputRoot) {
     [IO.Path]::GetFullPath($RuntimeAcceptanceOutputRoot)
 } else {
