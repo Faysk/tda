@@ -210,3 +210,22 @@ test("Lembra keeps a visible close action over the mobile viewer image", async (
 	await closeButtons.first().click();
 	await expect(viewer).not.toBeVisible();
 });
+
+
+test("Lembra keeps very long reference names inside the mobile card", async ({ page }) => {
+	await page.setViewportSize({ width: 320, height: 760 });
+	await page.goto("/lembra");
+	const longTitle = "RuinaAntiga".repeat(10);
+	await addReference(page, longTitle, "Descrição curta");
+
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth,
+		),
+	).toBe(true);
+
+	const titleButton = page.getByRole("button", { name: longTitle, exact: true });
+	const box = await titleButton.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.width ?? 999).toBeLessThan(280);
+});
