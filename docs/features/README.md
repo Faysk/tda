@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-21
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -10,6 +10,8 @@ O [catálogo de features](../feature-catalog.md) responde **qual é o status can
 PRs abertas podem conter implementação validada e documentação candidata sem alterar automaticamente os estados deste índice. Dependências entre candidatos ficam no [roadmap](../roadmap.md); cada spec continua dona do contrato da sua área.
 
 ## Índice
+
+[Lembra — biblioteca compartilhada de referências visuais](lembra.md) — UX aprovada para galeria rápida, drag/drop, paste e file picker; persistência/autorização ainda em desenho.
 
 [Astel e Noah — recebimento e plano de integração](astel-noah-lores.md) — pacotes inventariados, listagem solicitada em `/lore`, rotas e ligações necessárias; integração/publicação pendentes.
 
@@ -31,6 +33,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
+| Lembra / referências visuais | UX aprovada; UI candidata sem persistência | [Lembra](lembra.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
