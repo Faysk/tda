@@ -82,3 +82,27 @@ def test_stable_promotion_requires_published_runtimes_meeting_companion_minimums
     assert "companion-whisper-runtime-v" in value
     assert "companion-qwen-runtime-v" in value
     assert "COMPANION_STABLE_{family.upper()}_RUNTIME_INCOMPATIBLE" in value
+
+
+def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing():
+    value = (REPO_ROOT / "local-companion" / "packaging" / "build-windows.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "[switch]$RequireAuthenticode" in value
+    assert 'throw "AUTHENTICODE_REQUIRED"' in value
+    assert "Get-AuthenticodeSignature" in value
+    assert '"Valid"' in value
+    assert "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH" in value
+    assert "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH" in value
+
+    companion_sign = value.index('Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanion.exe")')
+    helper_sign = value.index(
+        'Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanionMaintenance.exe")'
+    )
+    zip_build = value.index("Compress-Archive")
+    msi_sign = value.index("Invoke-AuthenticodeSign $msi")
+    msi_hash = value.index("$msiHash = (Get-FileHash -Algorithm SHA256 $msi)")
+
+    assert companion_sign < zip_build
+    assert helper_sign < zip_build
+    assert msi_sign < msi_hash
