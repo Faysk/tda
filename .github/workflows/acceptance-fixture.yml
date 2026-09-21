@@ -129,8 +129,8 @@ jobs:
             $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actual -ne $Sha) { throw "SAME_VERSION_DOWNLOAD_HASH_MISMATCH" }
           }
-          function Invoke-Msi([string[]]$Args, [string]$Code) {
-            $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $Args -Wait -PassThru
+          function Invoke-Msi([string[]]$MsiArgs, [string]$Code) {
+            $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $MsiArgs -Wait -PassThru
             if ([int]$p.ExitCode -notin @(0, 3010)) { throw "$($Code):$($p.ExitCode)" }
           }
 
