@@ -7,7 +7,6 @@ import type { ImportIdentity } from "./contract";
 
 export type ImportTarget = {
 	campaignId: string;
-	campaignSlug: string;
 	sessionId: string;
 	sourceSystem: string | null;
 	sourceSessionId: string | null;
