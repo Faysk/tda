@@ -21,7 +21,7 @@ function accessStatus(reason: string) {
 }
 
 export async function GET(
-	_request: Request,
+	request: Request,
 	context: { params: Promise<{ referenceId: string }> },
 ) {
 	if (!lembraPersistenceEnabled()) {
@@ -55,6 +55,18 @@ export async function GET(
 			return new Response("Not found", { status: 404 });
 		}
 
+		const etag = `"${row.sha256}"`;
+		if (request.headers.get("if-none-match") === etag) {
+			return new Response(null, {
+				status: 304,
+				headers: {
+					ETag: etag,
+					"Cache-Control": "private, max-age=300, must-revalidate",
+					"X-Content-Type-Options": "nosniff",
+				},
+			});
+		}
+
 		const bytes = await readVerifiedLembraObject({
 			referenceId: row.id,
 			bucket: row.staged_bucket,
@@ -71,7 +83,8 @@ export async function GET(
 			headers: {
 				"Content-Type": row.mime_type,
 				"Content-Length": String(bytes.length),
-				"Cache-Control": "private, no-store",
+				"Cache-Control": "private, max-age=300, must-revalidate",
+				ETag: etag,
 				"X-Content-Type-Options": "nosniff",
 			},
 		});
