@@ -160,6 +160,8 @@ jobs:
             'function Ensure-AutomatedProfilesReady',
             'PROFILE_PREPARATION_START_INVALID',
             'PROFILE_PREPARATION_TIMEOUT',
+            '[IO.File]::ReadAllBytes($settingsPath)',
+            '[IO.File]::WriteAllBytes($settingsPath, $settingsOriginalBytes)',
             'LEGACY_TRAY_EQUIVALENT_SOURCE_NOT_ALLOWED',
             'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
             'WEBVIEW2_RENDERER_NOT_OBSERVED',
@@ -189,6 +191,8 @@ jobs:
             'contains_transcript = $false',
             'AUTO_ACCEPTANCE_REQUIRED_RECEIPTS_MISSING',
             'AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED',
+            'harness_wrapper_sha256',
+            'harness_launcher_sha256',
             '$zipPath.partial.zip',
             'Compress-Archive'
           )) {
