@@ -78,7 +78,6 @@ function Read-Json([string]$Path, [string]$Code) {
         throw $Code
     }
 }
-
 function Download-ExactUrl(
     [string]$Url,
     [string]$ExpectedSha256,
@@ -102,7 +101,7 @@ function Test-RuntimeReady([string]$Family, [string]$ExpectedVersion, [string]$R
         $familyRoot = Join-Path $env:LOCALAPPDATA "TDA\Runtime\$Family"
         $currentPath = Join-Path $familyRoot "current.json"
         if (-not (Test-Path -LiteralPath $currentPath -PathType Leaf)) { return $false }
-        $current = Read-Json $currentPath "RECOVERY_RUNTIME_CURRENT_INVALID:$Family"
+        $current = Read-Json $currentPath ("RECOVERY_RUNTIME_CURRENT_INVALID:" + $Family)
         if (
             [string]$current.schema -ne "tda_asr_runtime_v1" -or
             [string]$current.runtime_id -ne $RuntimeId -or
@@ -114,13 +113,14 @@ function Test-RuntimeReady([string]$Family, [string]$ExpectedVersion, [string]$R
         $workerPath = Join-Path $versionRoot $WorkerName
         if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) { return $false }
         if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) { return $false }
-        $marker = Read-Json $markerPath "RECOVERY_RUNTIME_MARKER_INVALID:$Family"
+        $marker = Read-Json $markerPath ("RECOVERY_RUNTIME_MARKER_INVALID:" + $Family)
         if (
             [string]$marker.schema -ne "tda_asr_runtime_v1" -or
             [string]$marker.runtime_id -ne $RuntimeId -or
             [string]$marker.version -ne $ExpectedVersion -or
             [string]$marker.worker -ne $WorkerName -or
-            [string]$marker.worker_sha256 -notmatch '^[a-f0-9]{64}function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
+            [string]$marker.worker_sha256 -notmatch '^[a-f0-9]{64}
+function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
     try {
         $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$AgentPort/api/v1/health" -TimeoutSec 2
         if (
@@ -547,7 +547,8 @@ Write-Host "Physical receipt:  $physicalFinal"
 Write-Host ""
 Write-Host "Do not publish transcripts or audio. Only the two sanitized final receipts are promotion evidence."
  -or
-            [string]$marker.archive_sha256 -notmatch '^[a-f0-9]{64}function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
+            [string]$marker.archive_sha256 -notmatch '^[a-f0-9]{64}
+function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
     try {
         $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$AgentPort/api/v1/health" -TimeoutSec 2
         if (
@@ -985,7 +986,7 @@ function New-NoCompressionZip([string]$Root, [string]$Destination, [string[]]$Na
             foreach ($name in $Names) {
                 $file = Join-Path $Root $name
                 if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
-                    throw "RECOVERY_RUNTIME_OUTER_ARTIFACT_MEMBER_MISSING:$name"
+                    throw ("RECOVERY_RUNTIME_OUTER_ARTIFACT_MEMBER_MISSING:" + $name)
                 }
                 $entry = $zip.CreateEntry($name, [IO.Compression.CompressionLevel]::NoCompression)
                 $output = $entry.Open()
@@ -1021,9 +1022,9 @@ function Install-RcRuntimeArtifact(
     )
     $process = Start-Process -FilePath $Executable -ArgumentList $arguments -Wait -PassThru
     if (-not (Test-Path -LiteralPath $ResultPath -PathType Leaf)) {
-        throw "RECOVERY_RUNTIME_INSTALL_RESULT_MISSING:$Family"
+        throw ("RECOVERY_RUNTIME_INSTALL_RESULT_MISSING:" + $Family)
     }
-    $result = Read-Json $ResultPath "RECOVERY_RUNTIME_INSTALL_RESULT_INVALID:$Family"
+    $result = Read-Json $ResultPath ("RECOVERY_RUNTIME_INSTALL_RESULT_INVALID:" + $Family)
     if (
         [int]$process.ExitCode -ne 0 -or
         [string]$result.schema -ne "tda_rc_runtime_install_v1" -or
