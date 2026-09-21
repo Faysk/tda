@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { authorizeImportTarget, type ImportTarget } from "./access";
+import {
+	authorizeImportBoundTarget,
+	authorizeImportCampaignScope,
+	type ImportTarget,
+} from "./access";
 import type { ImportIdentity } from "./contract";
 import type { EditAccessContext, EditGrant } from "../edit/access/policy";
+
 const identity: ImportIdentity = {
 	campaignId: "campaign",
 	sessionId: "session",
@@ -24,48 +29,44 @@ const context: EditAccessContext = {
 	profileId: "profile",
 	grants: [grant],
 };
-describe("import action and resource ownership", () => {
-	it("requires physical action, profile and explicit grant", () => {
-		expect(authorizeImportTarget(context, identity, target, false).ok).toBe(
-			false,
-		);
+
+describe("import campaign scope authorization", () => {
+	it("requires physical action, profile and explicit grant before target resolution", () => {
+		expect(authorizeImportCampaignScope(context, "yuhara-main", false)).toEqual({
+			ok: false,
+			reason: "import_capability_undefined",
+		});
 		expect(
-			authorizeImportTarget(
+			authorizeImportCampaignScope(
 				{ ...context, profileId: null },
-				identity,
-				target,
+				"yuhara-main",
 				true,
-			).ok,
-		).toBe(false);
-		expect(authorizeImportTarget(context, identity, target, true).ok).toBe(
-			true,
-		);
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(authorizeImportCampaignScope(context, null, true)).toEqual({
+			ok: false,
+			reason: "forbidden",
+		});
+		expect(authorizeImportCampaignScope(context, "yuhara-main", true)).toEqual({
+			ok: true,
+			actor: { authUserId: "operator", profileId: "profile" },
+		});
 		for (const action of [
 			"campaign.local.process",
 			"campaign.upload.manage",
 			"campaign.content.edit",
 			"project.jobs.run",
-		])
+		]) {
 			expect(
-				authorizeImportTarget(
+				authorizeImportCampaignScope(
 					{ ...context, grants: [{ ...grant, action }] },
-					identity,
-					target,
+					"yuhara-main",
 					true,
-				).ok,
-			).toBe(false);
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+		}
 	});
-	it("rejects wrong campaign, source system, source identity and session", () => {
-		for (const patch of [
-			{ campaignId: "other" },
-			{ sourceSystem: "craig" },
-			{ sourceSessionId: "other" },
-			{ sessionId: "other" },
-		])
-			expect(
-				authorizeImportTarget(context, identity, { ...target, ...patch }, true),
-			).toEqual({ ok: false, reason: "not_found" });
-	});
+
 	it("does not expand expired, foreign, eligible or future scopes", () => {
 		for (const patch of [
 			{ scopeId: "other" },
@@ -74,38 +75,70 @@ describe("import action and resource ownership", () => {
 			{ endsAt: "2001-01-01T00:00:00Z" },
 			{ startsAt: "2999-01-01T00:00:00Z" },
 			{ scopeType: "session", scopeId: "session" },
-		])
+		]) {
 			expect(
-				authorizeImportTarget(
+				authorizeImportCampaignScope(
 					{ ...context, grants: [{ ...grant, ...patch }] },
-					identity,
-					target,
+					"yuhara-main",
 					true,
-				).ok,
-			).toBe(false);
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+		}
 	});
+
 	it("project tda requires the exact action", () => {
 		expect(
-			authorizeImportTarget(
+			authorizeImportCampaignScope(
 				{
 					...context,
 					grants: [{ ...grant, scopeType: "project", scopeId: "tda" }],
 				},
-				identity,
-				target,
+				"yuhara-main",
 				true,
-			).ok,
-		).toBe(true);
+			),
+		).toEqual({
+			ok: true,
+			actor: { authUserId: "operator", profileId: "profile" },
+		});
 		expect(
-			authorizeImportTarget(
+			authorizeImportCampaignScope(
 				{
 					...context,
-					grants: [{ ...grant, scopeType: "project", scopeId: "project/tda" }],
+					grants: [
+						{ ...grant, scopeType: "project", scopeId: "project/tda" },
+					],
 				},
-				identity,
-				target,
+				"yuhara-main",
 				true,
-			).ok,
-		).toBe(false);
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+	});
+});
+
+describe("authorized import target binding", () => {
+	const actor = { authUserId: "operator", profileId: "profile" };
+
+	it("rejects missing or mismatched targets only after scope authorization", () => {
+		expect(authorizeImportBoundTarget(actor, identity, null)).toEqual({
+			ok: false,
+			reason: "not_found",
+		});
+		for (const patch of [
+			{ campaignId: "other" },
+			{ sourceSystem: "craig" },
+			{ sourceSessionId: "other" },
+			{ sessionId: "other" },
+		]) {
+			expect(
+				authorizeImportBoundTarget(actor, identity, { ...target, ...patch }),
+			).toEqual({ ok: false, reason: "not_found" });
+		}
+	});
+
+	it("returns the already-authorized actor for the exact bound target", () => {
+		expect(authorizeImportBoundTarget(actor, identity, target)).toEqual({
+			ok: true,
+			actor,
+		});
 	});
 });
