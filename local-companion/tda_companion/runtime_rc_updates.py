@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from .asr_runtime import inspect_whisper_runtime
 from .large_download import download_verified_release_asset, github_release_asset_url
 from .network import NetworkClient, NetworkError
 from .rc_runtime_artifacts import (
@@ -16,6 +17,7 @@ from .rc_runtime_artifacts import (
     RcRuntimeArtifactError,
     install_runtime_candidate,
 )
+from .qwen_runtime import inspect_qwen_runtime
 from .release_download import ReleaseRedirectError, open_verified_release
 from .runtime_release_evidence import RuntimeReleaseEvidenceError, _parse_candidate, verify_candidate_assets
 
@@ -26,6 +28,7 @@ _MAX_RELEASE_PAGES = 5
 _MAX_RELEASE_RESPONSE_BYTES = 4 * 1024 * 1024
 _MAX_CANDIDATE_BYTES = 512 * 1024
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
+_SOURCE_SHA = re.compile(r"^[a-f0-9]{40}$")
 _TAGS = {
     "whisper": re.compile(r"^companion-whisper-runtime-rc-v(\d+\.\d+\.\d+)-([a-f0-9]{12})$"),
     "qwen": re.compile(r"^companion-qwen-runtime-rc-v(\d+\.\d+\.\d+)-([a-f0-9]{12})$"),
@@ -95,11 +98,20 @@ def _release_assets(release: dict[str, Any]) -> dict[str, dict[str, Any]]:
 def discover_published_runtime_rc(
     family: str,
     *,
+    source_sha: str | None = None,
     client: NetworkClient | None = None,
 ) -> dict[str, Any]:
-    """Resolve the newest published prerelease for the exact compatible runtime version."""
+    """Resolve the newest published prerelease for the compatible runtime version.
+
+    When source_sha is supplied, only the RC whose tag is bound to that exact
+    source prefix is eligible. The full source SHA is verified again from the
+    signed/digested candidate manifest before installation.
+    """
     if family not in _VERSIONS:
         _raise("RUNTIME_RC_FAMILY_INVALID")
+    normalized_source = source_sha.casefold() if isinstance(source_sha, str) else None
+    if normalized_source is not None and _SOURCE_SHA.fullmatch(normalized_source) is None:
+        _raise("RUNTIME_RC_SOURCE_SHA_INVALID")
     expected_version = _VERSIONS[family]
     pattern = _TAGS[family]
     network = client or NetworkClient.internet()
@@ -132,6 +144,10 @@ def discover_published_runtime_rc(
             if (
                 match is None
                 or match.group(1) != expected_version
+                or (
+                    normalized_source is not None
+                    and match.group(2) != normalized_source[:12]
+                )
                 or release.get("draft") is not False
                 or release.get("prerelease") is not True
             ):
@@ -346,6 +362,40 @@ def _download_candidate_assets(
         )
 
 
+def _installed_candidate_matches(
+    family: str,
+    candidate: dict[str, Any],
+    runtime_root: Path,
+) -> bool:
+    version = candidate.get("version")
+    archive_sha = candidate.get("runtime_archive_sha256")
+    if (
+        family not in {"whisper", "qwen"}
+        or not isinstance(version, str)
+        or not isinstance(archive_sha, str)
+        or _SHA256.fullmatch(archive_sha) is None
+    ):
+        return False
+    state = (
+        inspect_whisper_runtime(runtime_root, verify_worker=True)
+        if family == "whisper"
+        else inspect_qwen_runtime(runtime_root, verify_worker=True)
+    )
+    if state.get("status") != "ready" or state.get("version") != version:
+        return False
+    marker_path = runtime_root.resolve() / family / version / ".tda-runtime.json"
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(marker, dict)
+        and marker.get("schema") == "tda_asr_runtime_v1"
+        and marker.get("version") == version
+        and marker.get("archive_sha256") == archive_sha
+    )
+
+
 def install_published_runtime_rc(
     family: str,
     *,
@@ -353,12 +403,26 @@ def install_published_runtime_rc(
     cache_root: Path,
     timeout: float = 300.0,
     prefer_bits: bool = True,
+    expected_source_sha: str | None = None,
     client: NetworkClient | None = None,
 ) -> dict[str, object]:
-    """Install an exact, published runtime RC without any manual setup step."""
-    release = discover_published_runtime_rc(family, client=client)
+    """Install or bind to an exact published runtime RC without manual setup."""
+    normalized_source = (
+        expected_source_sha.casefold()
+        if isinstance(expected_source_sha, str)
+        else None
+    )
+    if normalized_source is not None and _SOURCE_SHA.fullmatch(normalized_source) is None:
+        _raise("RUNTIME_RC_SOURCE_SHA_INVALID")
+    release = discover_published_runtime_rc(
+        family,
+        source_sha=normalized_source,
+        client=client,
+    )
     candidate, raw_manifest = _read_candidate_manifest(release, timeout=min(timeout, 30.0))
     _validate_candidate_release_identity(family, release, candidate)
+    if normalized_source is not None and candidate.get("source_sha") != normalized_source:
+        _raise("RUNTIME_RC_SOURCE_SHA_MISMATCH")
 
     tag = str(release["tag_name"])
     version = _VERSIONS[family]
@@ -372,6 +436,19 @@ def install_published_runtime_rc(
         temporary.replace(candidate_path)
     finally:
         temporary.unlink(missing_ok=True)
+
+    if _installed_candidate_matches(family, candidate, runtime_root.resolve()):
+        return {
+            "runtime": family,
+            "version": candidate["version"],
+            "status": "ready",
+            "reused": True,
+            "candidate_tag": candidate["candidate_tag"],
+            "source_sha": candidate["source_sha"],
+            "runtime_archive_sha256": candidate["runtime_archive_sha256"],
+            "candidate_manifest": str(candidate_path),
+            "channel": "rc",
+        }
 
     _download_candidate_assets(
         release,
@@ -390,4 +467,10 @@ def install_published_runtime_rc(
         )
     except (RuntimeReleaseEvidenceError, RcRuntimeArtifactError) as exc:
         raise RuntimeRcUpdateError(str(exc) or "RUNTIME_RC_INSTALL_FAILED") from exc
-    return {**result, "channel": "rc"}
+    return {
+        **result,
+        "channel": "rc",
+        "source_sha": candidate["source_sha"],
+        "runtime_archive_sha256": candidate["runtime_archive_sha256"],
+        "candidate_manifest": str(candidate_path),
+    }
