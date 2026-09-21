@@ -152,13 +152,80 @@ function Read-RuntimeCandidate([string]$Path, [string]$ExpectedFamily) {
         $value = Get-Content -LiteralPath $resolved -Raw -Encoding UTF8 |
             ConvertFrom-Json -Depth 32 -ErrorAction Stop
     } catch {
-        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
+        throw ("RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:" + $ExpectedFamily)
     }
     if (
         [string]$value.schema -ne "tda_runtime_candidate_v1" -or
         [string]$value.family -ne $ExpectedFamily -or
-        [string]$value.candidate_tag -notmatch "^companion-$ExpectedFamily-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$" -or
-        [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}    param(
+        [string]$value.candidate_tag -notmatch ("^companion-" + [regex]::Escape($ExpectedFamily) + "-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$") -or
+        [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        throw ("RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:" + $ExpectedFamily)
+    }
+    return [pscustomobject]@{
+        Path = $resolved
+        Family = $ExpectedFamily
+        Tag = [string]$value.candidate_tag
+    }
+}
+
+function Write-JsonEvidence([string]$Path, [object]$Value) {
+    $temporary = "$Path.partial"
+    $Value | ConvertTo-Json -Depth 32 -Compress |
+        Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
+function Invoke-RuntimePhysicalSeal(
+    [string]$CompanionExecutable,
+    [object]$RuntimeCandidate,
+    [string[]]$WhisperReceipts = @(),
+    [string]$QwenStateRoot = ""
+) {
+    $destination = Join-Path $runtimeAcceptanceOutput "$($RuntimeCandidate.Tag).json"
+    $arguments = [Collections.Generic.List[string]]::new()
+    foreach ($value in @(
+        "--seal-runtime-physical",
+        "--runtime-candidate-manifest", [string]$RuntimeCandidate.Path,
+        "--runtime-root", $runtime,
+        "--runtime-acceptance-result", $destination
+    )) {
+        $arguments.Add([string]$value)
+    }
+    foreach ($receipt in $WhisperReceipts) {
+        $arguments.Add("--runtime-whisper-receipt")
+        $arguments.Add($receipt)
+    }
+    if ($QwenStateRoot) {
+        $arguments.Add("--runtime-qwen-state-root")
+        $arguments.Add($QwenStateRoot)
+    }
+
+    & $CompanionExecutable @($arguments.ToArray())
+    if ($LASTEXITCODE -ne 0) {
+        throw ("RUNTIME_ACCEPTANCE_SEAL_FAILED:" + [string]$RuntimeCandidate.Family + ":" + [string]$LASTEXITCODE)
+    }
+    try {
+        $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
+            ConvertFrom-Json -Depth 32 -ErrorAction Stop
+    } catch {
+        throw ("RUNTIME_ACCEPTANCE_RECEIPT_INVALID:" + [string]$RuntimeCandidate.Family)
+    }
+    if (
+        [string]$sealed.schema -ne "tda_runtime_physical_acceptance_v1" -or
+        $sealed.pass -ne $true -or
+        [string]$sealed.family -ne [string]$RuntimeCandidate.Family -or
+        [string]$sealed.candidate_tag -ne [string]$RuntimeCandidate.Tag -or
+        $sealed.contains_audio -ne $false -or
+        $sealed.contains_transcript -ne $false -or
+        $sealed.contains_local_paths -ne $false
+    ) {
+        throw ("RUNTIME_ACCEPTANCE_RECEIPT_INVALID:" + [string]$RuntimeCandidate.Family)
+    }
+    return $destination
+}
+function Invoke-JsonProcess {
+    param(
         [Parameter(Mandatory = $true)][string]$Executable,
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [Parameter(Mandatory = $true)][string]$ErrorPrefix
