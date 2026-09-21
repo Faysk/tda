@@ -67,6 +67,16 @@ function rawReview(
 			track_count: 1,
 		},
 		warnings: ["LOW_CONFIDENCE"],
+		publication_target: {
+			schema_version: "tda_publication_target_v1",
+			campaign_slug: "yuhara-main",
+			source_session_id: "sessao-00001",
+			source_id: sourceId,
+			run_id: runId,
+			job_id: "job-review",
+			attempt: 1,
+			transcript_sha256: transcriptSha,
+		},
 		review: {
 			reviewed_segments: segments.filter((item) => item.reviewed).length,
 			total_segments: segments.length,
@@ -129,6 +139,16 @@ describe("local result/review contracts", () => {
 						completed_at: "2026-09-21T00:00:00.000Z",
 						transcript_sha256: transcriptSha,
 						transcript_size_bytes: 1200,
+						publication_target: {
+			schema_version: "tda_publication_target_v1",
+			campaign_slug: "yuhara-main",
+			source_session_id: "sessao-00001",
+			source_id: sourceId,
+			run_id: runId,
+			job_id: "job-review",
+			attempt: 1,
+			transcript_sha256: transcriptSha,
+		},
 						stats: {
 							processing_seconds: 12,
 							rtf: 0.2,
@@ -145,8 +165,20 @@ describe("local result/review contracts", () => {
 			sourceId,
 			profileId: "legacy-profile",
 			transcriptSha256: transcriptSha,
+			publicationTarget: {
+				campaignSlug: "yuhara-main",
+				sourceSessionId: "sessao-00001",
+				jobId: "job-review",
+				attempt: 1,
+			},
 			stats: { warningCount: 3 },
 		});
+	});
+
+	it("rejects a publication target that does not bind to the opened run", () => {
+		const invalid = rawReview();
+		invalid.publication_target.run_id = "run-other-a1";
+		expect(() => parseLocalReview(invalid)).toThrow(BridgeError);
 	});
 
 	it("rejects review payloads that claim cloud sync or invalid track identity", () => {
