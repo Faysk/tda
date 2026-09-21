@@ -388,6 +388,75 @@ function Capture-BitsResumeEvidence([string]$Destination) {
     return $evidence
 }
 
+
+function Capture-AutomatedBitsResumeEvidence([string]$Destination) {
+    try { $uri = [Uri]$BitsProbeUrl } catch { throw "BITS_PROBE_URL_INVALID" }
+    if ($uri.Scheme -ne "https" -or $uri.Host -ne "github.com" -or -not $uri.AbsolutePath.StartsWith("/Faysk/tda/releases/download/", [StringComparison]::Ordinal)) {
+        throw "BITS_PROBE_URL_INVALID"
+    }
+
+    Import-Module BitsTransfer -ErrorAction Stop
+    $probeRoot = Join-Path $env:LOCALAPPDATA "TDA\Cache\acceptance"
+    New-Item -ItemType Directory -Force -Path $probeRoot | Out-Null
+    $probePath = Join-Path $probeRoot ("bits-probe-" + [Guid]::NewGuid().ToString("N") + ".bin")
+    $job = $null
+
+    try {
+        $job = Start-BitsTransfer -Source $BitsProbeUrl -Destination $probePath -DisplayName ("TDA Companion Acceptance " + [Guid]::NewGuid().ToString("N")) -Description "TDA automated installed acceptance BITS probe" -Priority High -Asynchronous -ErrorAction Stop
+        Suspend-BitsTransfer -BitsJob $job -ErrorAction Stop | Out-Null
+        Start-Sleep -Milliseconds 250
+
+        $beforeJob = Get-BitsTransfer -JobId $job.JobId -ErrorAction Stop
+        $before = Get-TdaBitsSnapshot $beforeJob
+        if ($before.State -ne "Suspended") { throw "BITS_EVIDENCE_SUSPEND_NOT_OBSERVED" }
+
+        Resume-BitsTransfer -BitsJob $beforeJob -Asynchronous -ErrorAction Stop | Out-Null
+        $after = $null
+        $deadline = [DateTimeOffset]::UtcNow.AddSeconds(90)
+        while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -eq $after) {
+            $candidateJob = Get-BitsTransfer -JobId $job.JobId -ErrorAction Stop
+            $candidate = Get-TdaBitsSnapshot $candidateJob
+            if ($candidate.JobId -ne $before.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
+            if ($candidate.BytesTotalKnown -and $candidate.BytesTransferred -gt $before.BytesTransferred -and $candidate.BytesTransferred -le $candidate.BytesTotal -and $candidate.State -in @("Connecting", "Transferring", "Transferred")) {
+                $after = $candidate
+            } else {
+                Start-Sleep -Milliseconds 100
+            }
+        }
+        if ($null -eq $after) { throw "BITS_EVIDENCE_SAME_JOB_PROGRESS_NOT_OBSERVED" }
+
+        $evidence = [ordered]@{
+            schema = "tda_bits_resume_evidence_v1"
+            pass = $true
+            job_id_sha256 = Get-Sha256Text (([string]$before.JobId).ToLowerInvariant())
+            bytes_before = [int64]$before.BytesTransferred
+            bytes_after = [int64]$after.BytesTransferred
+            bytes_total = [int64]$after.BytesTotal
+            state_before = [string]$before.State
+            state_after = [string]$after.State
+            same_job = $true
+            reused_job = $true
+            contains_paths = $false
+            contains_url = $false
+        }
+        $parent = Split-Path -Parent $Destination
+        if (-not $parent) { throw "BITS_EVIDENCE_DESTINATION_INVALID" }
+        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+        $temporary = "$Destination.partial"
+        $evidence | ConvertTo-Json -Compress | Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
+        Move-Item -LiteralPath $temporary -Destination $Destination -Force
+        return $evidence
+    } finally {
+        if ($null -ne $job) {
+            try {
+                $remaining = Get-BitsTransfer -JobId $job.JobId -ErrorAction SilentlyContinue
+                if ($null -ne $remaining) { Remove-BitsTransfer -BitsJob $remaining -Confirm:$false -ErrorAction SilentlyContinue }
+            } catch {}
+        }
+        Remove-Item -LiteralPath $probePath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not $env:LOCALAPPDATA) { throw "LOCALAPPDATA_NOT_FOUND" }
 $candidate = Resolve-RequiredFile $CandidateMsi "CANDIDATE_MSI_NOT_FOUND"
 $payload = Resolve-RequiredFile $PayloadManifest "PAYLOAD_MANIFEST_NOT_FOUND"
