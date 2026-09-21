@@ -119,6 +119,12 @@ export type ResultSummary = {
 	transcriptSha256?: string;
 	runId?: string;
 };
+export type LocalSourceSummary = {
+	sourceId: string;
+	sourceSha256: string;
+	recordingId: string | null;
+	trackCount: number;
+};
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -553,6 +559,29 @@ export function parseSystemSnapshot(value: unknown): SystemSnapshot {
 	};
 }
 // Only identity/hashes are retained. Transcript text and local artifact content never enter the cloud UI bridge.
+export function parseLocalSources(value: unknown): LocalSourceSummary[] {
+	const row = record(value);
+	if (row.schema_version !== "tda_craig_sources_v1") return invalid();
+	if (!Array.isArray(row.sources) || row.sources.length > 1000) return invalid();
+	const sources = row.sources.map((raw) => {
+		const item = record(raw);
+		const sourceSha256 = sha256(item.source_sha256);
+		const sourceId = identifier(item.source_id);
+		if (sourceId !== `craig-${sourceSha256}`) return invalid();
+		const trackCount = nonNegativeInteger(item.track_count);
+		if (trackCount < 1 || trackCount > 256) return invalid();
+		return {
+			sourceId,
+			sourceSha256,
+			recordingId: nullableText(item.recording_id, 256),
+			trackCount,
+		};
+	});
+	if (new Set(sources.map((item) => item.sourceId)).size !== sources.length)
+		return invalid();
+	return sources;
+}
+
 export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 	const row = record(value);
 	if (row.schema_version !== "tda_transcription_runs_v1") return invalid();
