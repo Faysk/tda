@@ -52,9 +52,85 @@ begin
 end;
 $$;
 
+do $
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.campaigns'::regclass
+      and conname = 'campaigns_id_slug_unique'
+  ) then
+    alter table public.campaigns
+      add constraint campaigns_id_slug_unique unique (id, slug);
+  end if;
+end;
+$;
+
 create table public.lembra_references (
   id uuid primary key default gen_random_uuid(),
-  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  campaign_id uuid not null,
+  campaign_slug text not null
+    check (campaign_slug ~ '^[a-z0-9][a-z0-9-]{0,95}
+  title text not null
+    check (char_length(btrim(title)) between 1 and 120),
+  description text not null default ''
+    check (char_length(description) <= 320),
+  status text not null default 'active'
+    check (status in ('active', 'retired')),
+  staged_bucket text not null
+    check (staged_bucket in ('tda-media-preview', 'tda-media-private')),
+  object_key text not null,
+  sha256 text not null
+    check (sha256 ~ '^[0-9a-f]{64}$'),
+  mime_type text not null
+    check (mime_type in ('image/jpeg', 'image/png', 'image/webp')),
+  byte_size bigint not null
+    check (byte_size between 24 and 12582912),
+  width integer not null
+    check (width between 1 and 20000),
+  height integer not null
+    check (height between 1 and 20000),
+  read_back_verified boolean not null default false,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default clock_timestamp(),
+  updated_at timestamptz not null default clock_timestamp(),
+  unique (campaign_id, staged_bucket, object_key),
+  check (
+    object_key =
+      'campaigns/' || campaign_slug || '/lembra/' || lower(id::text) || '/' ||
+      sha256 ||
+      case mime_type
+        when 'image/jpeg' then '.jpg'
+        when 'image/png' then '.png'
+        when 'image/webp' then '.webp'
+      end
+  ),
+  check (status <> 'active' or read_back_verified)
+);
+
+create index lembra_references_campaign_created_idx
+  on public.lembra_references(campaign_id, created_at desc, id desc)
+  where status = 'active';
+
+create index lembra_references_campaign_author_idx
+  on public.lembra_references(campaign_id, created_by, created_at desc)
+  where status = 'active';
+
+alter table public.lembra_references enable row level security;
+
+revoke all on public.lembra_references from public, anon, authenticated, service_role;
+grant select, insert, update on public.lembra_references to service_role;
+
+comment on table public.lembra_references is
+  'Campaign-scoped shared visual references. Binary bytes live in Media Storage; browser roles have no direct table access.';
+
+comment on column public.lembra_references.created_by is
+  'Server-resolved TDA profile identity. Never accepted as free-form browser authorship.';
+),
+  constraint lembra_references_campaign_fkey
+    foreign key (campaign_id, campaign_slug)
+    references public.campaigns(id, slug)
+    on delete cascade,
   title text not null
     check (char_length(btrim(title)) between 1 and 120),
   description text not null default ''
