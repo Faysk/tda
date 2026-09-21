@@ -275,10 +275,12 @@ jobs:
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/noah --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
-          LEMBRA_STATUS="$(vercel curl /lembra --deployment "$DEPLOYMENT_URL" --silent --show-error --output /dev/null --write-out '%{http_code}')"
+          LEMBRA_STATUS="$(vercel curl /lembra --deployment "$DEPLOYMENT_URL" --silent --show-error --output lembra-staged.html --write-out '%{http_code}')"
           if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
-            echo "::error::Expected authenticated Lembra to redirect anonymous staged request, got HTTP $LEMBRA_STATUS"
-            exit 1
+            if [[ "$LEMBRA_STATUS" != "200" ]] || ! grep -Fq '/entrar?next=%2Flembra' lembra-staged.html; then
+              echo "::error::Expected authenticated Lembra staged request to redirect to login, got HTTP $LEMBRA_STATUS"
+              exit 1
+            fi
           fi
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
@@ -306,10 +308,12 @@ jobs:
           node tools/ci/verify-production-canonical.mjs
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/"
-          LEMBRA_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
+          LEMBRA_STATUS="$(curl --silent --show-error --output lembra-canonical.html --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
           if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
-            echo "::error::Expected authenticated Lembra to redirect anonymous canonical request, got HTTP $LEMBRA_STATUS"
-            exit 1
+            if [[ "$LEMBRA_STATUS" != "200" ]] || ! grep -Fq '/entrar?next=%2Flembra' lembra-canonical.html; then
+              echo "::error::Expected authenticated Lembra canonical request to redirect to login, got HTTP $LEMBRA_STATUS"
+              exit 1
+            fi
           fi
 
       - name: Record tiny release receipt
