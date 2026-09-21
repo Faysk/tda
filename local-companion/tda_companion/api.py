@@ -39,6 +39,7 @@ from .profile_preparation import (
     profile_catalog,
     whisper_model_ready,
 )
+from .publication_target import PublicationTargetError, bind_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
@@ -502,6 +503,24 @@ def create_app(
         ):
             raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
+        try:
+            bind_publication_target(
+                package_root,
+                run_id=run_id,
+                job_id=job_id,
+                attempt=attempt,
+                campaign_slug=body["campaign_id"],
+                source_session_id=body["session_id"],
+                source_id=body["source_id"],
+                transcript_sha256=digest,
+            )
+        except PublicationTargetError as exc:
+            code = str(exc)
+            raise WorkerProcessError(
+                code if re.fullmatch(r"[A-Z0-9_]{1,96}", code) else "PUBLICATION_TARGET_INVALID",
+                recoverable=code == "PUBLICATION_TARGET_WRITE_FAILED",
+            ) from exc
+
         return local_transcription_result(
             job_id,
             body,
@@ -542,6 +561,19 @@ def create_app(
                 or not isinstance(digest, str)
                 or not _SHA256_PATTERN.fullmatch(digest)
             ):
+                continue
+            try:
+                bind_publication_target(
+                    package_root,
+                    run_id=run_id,
+                    job_id=job_id,
+                    attempt=attempt,
+                    campaign_slug=body["campaign_id"],
+                    source_session_id=body["session_id"],
+                    source_id=body["source_id"],
+                    transcript_sha256=digest,
+                )
+            except PublicationTargetError:
                 continue
             result = local_transcription_result(
                 job_id,
