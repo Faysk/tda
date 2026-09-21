@@ -1,6 +1,10 @@
 export const LEMBRA_PREVIEW_BUCKET = "tda-media-preview" as const;
 export const LEMBRA_PRIVATE_BUCKET = "tda-media-private" as const;
 export const LEMBRA_MAX_BYTES = 12 * 1024 * 1024;
+export const LEMBRA_UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
+export const LEMBRA_MAX_UPLOAD_CHUNKS = Math.ceil(
+	LEMBRA_MAX_BYTES / LEMBRA_UPLOAD_CHUNK_BYTES,
+);
 export const LEMBRA_MAX_DIMENSION = 20_000;
 export const LEMBRA_UPLOAD_EXPIRES_SECONDS = 300;
 
@@ -95,6 +99,41 @@ export function lembraPendingObjectKey({
 		return null;
 	}
 	return `uploads/pending/lembra/${referenceId.toLowerCase()}/${uploadId.toLowerCase()}/${sha256}.${extension}`;
+}
+
+
+export function lembraUploadChunkCount(bytes: number): number | null {
+	if (
+		!Number.isSafeInteger(bytes) ||
+		bytes < 24 ||
+		bytes > LEMBRA_MAX_BYTES
+	) {
+		return null;
+	}
+	return Math.ceil(bytes / LEMBRA_UPLOAD_CHUNK_BYTES);
+}
+
+export function lembraPendingChunkObjectKey({
+	referenceId,
+	uploadId,
+	part,
+}: {
+	referenceId: string;
+	uploadId: string;
+	part: number;
+}): string | null {
+	if (
+		!isLembraUuid(referenceId) ||
+		!isLembraUuid(uploadId) ||
+		!Number.isSafeInteger(part) ||
+		part < 0 ||
+		part >= LEMBRA_MAX_UPLOAD_CHUNKS
+	) {
+		return null;
+	}
+	return `uploads/pending/lembra/${referenceId.toLowerCase()}/${uploadId.toLowerCase()}/chunks/${part
+		.toString()
+		.padStart(2, "0")}`;
 }
 
 export function lembraImageUrl(referenceId: string): string | undefined {
