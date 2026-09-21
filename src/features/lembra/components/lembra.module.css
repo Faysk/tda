@@ -1331,9 +1331,12 @@
 	}
 
 	.card:hover,
-	.card:hover .media img,
+	.card:hover .media img {
+		transform: none;
+	}
+
 	.viewerPrevious:hover,
 	.viewerNext:hover {
-		transform: none;
+		transform: translateY(-50%);
 	}
 }
