@@ -97,8 +97,28 @@ test("Lembra lets any participant edit and remove a shared reference", async ({ 
 	await expect(viewer.getByRole("heading", { name: "Ruínas antigas" })).toBeVisible();
 	await expect(viewer).toContainText("Descrição atualizada");
 
-	page.once("dialog", async (dialog) => dialog.accept());
 	await viewer.getByRole("button", { name: "Remover", exact: true }).click();
+	await expect(viewer).toContainText("Ela some do Lembra para todo mundo.");
+	await expect(viewer.getByRole("button", { name: "Cancelar", exact: true })).toBeVisible();
+	const removeButtons = viewer.getByRole("button", { name: "Remover", exact: true });
+	await expect(removeButtons).toHaveCount(1);
+	await removeButtons.click();
 	await expect(viewer).not.toBeVisible();
 	await expect(page.getByRole("button", { name: "Ruínas antigas", exact: true })).toHaveCount(0);
+});
+
+
+test("Lembra removal confirmation can be cancelled without losing context", async ({ page }) => {
+	await page.goto("/lembra");
+	await addReference(page, "Farol", "Costa do norte");
+
+	await page.getByRole("button", { name: "Farol", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await viewer.getByRole("button", { name: "Remover", exact: true }).click();
+	await expect(viewer).toContainText("Ela some do Lembra para todo mundo.");
+	await viewer.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+	await expect(viewer.getByRole("heading", { name: "Farol" })).toBeVisible();
+	await expect(viewer.getByRole("button", { name: "Editar", exact: true })).toBeVisible();
+	await expect(viewer).not.toContainText("Ela some do Lembra para todo mundo.");
 });
