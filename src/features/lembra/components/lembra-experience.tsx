@@ -184,6 +184,12 @@ export function LembraExperience() {
 	}, []);
 
 	useEffect(() => {
+		if (!message) return;
+		const timeout = window.setTimeout(() => setMessage(""), 4000);
+		return () => window.clearTimeout(timeout);
+	}, [message]);
+
+	useEffect(() => {
 		const dialog = dialogRef.current;
 		if (!dialog) return;
 
