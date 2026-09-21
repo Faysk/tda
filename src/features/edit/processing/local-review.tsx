@@ -238,8 +238,8 @@ function ReviewEditor({
 				<details className={styles.warnings}>
 					<summary>{review.warnings.length} warnings do pipeline</summary>
 					<ul>
-						{review.warnings.slice(0, 50).map((warning, index) => (
-							<li key={`${index}-${warning}`}>{warning}</li>
+						{Array.from(new Set(review.warnings)).slice(0, 50).map((warning) => (
+							<li key={warning}>{warning}</li>
 						))}
 					</ul>
 				</details>
