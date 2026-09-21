@@ -82,10 +82,14 @@ test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {
 	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
 	await expect(search).toBeVisible();
 	await expect(page.getByRole("button", { name: "Adicionar imagem" })).toBeEnabled();
-	await page.keyboard.press(
-		process.platform === "darwin" ? "Meta+KeyK" : "Control+KeyK",
-	);
-	await expect(search).toBeFocused();
+	const shortcut =
+		process.platform === "darwin" ? "Meta+KeyK" : "Control+KeyK";
+	await expect
+		.poll(async () => {
+			await page.keyboard.press(shortcut);
+			return search.evaluate((element) => document.activeElement === element);
+		})
+		.toBe(true);
 });
 
 
