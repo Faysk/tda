@@ -237,6 +237,7 @@ export function LembraExperience({
 	const [message, setMessage] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [editing, setEditing] = useState(false);
+	const [confirmRemove, setConfirmRemove] = useState(false);
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 
@@ -440,6 +441,7 @@ export function LembraExperience({
 
 	const closeViewer = useCallback(() => {
 		setEditing(false);
+		setConfirmRemove(false);
 		setEditTitle("");
 		setEditDescription("");
 		setSelectedId(null);
@@ -447,6 +449,7 @@ export function LembraExperience({
 
 	const openViewer = useCallback((id: string) => {
 		setEditing(false);
+		setConfirmRemove(false);
 		setEditTitle("");
 		setEditDescription("");
 		setSelectedId(id);
@@ -460,6 +463,7 @@ export function LembraExperience({
 			const nextIndex =
 				(index + delta + visibleReferences.length) % visibleReferences.length;
 			setEditing(false);
+			setConfirmRemove(false);
 			setEditTitle("");
 			setEditDescription("");
 			setSelectedId(visibleReferences[nextIndex].id);
@@ -597,6 +601,7 @@ export function LembraExperience({
 	}
 
 	function startEditing(reference: LembraReference) {
+		setConfirmRemove(false);
 		setEditTitle(reference.title);
 		setEditDescription(reference.description);
 		setEditing(true);
@@ -654,33 +659,31 @@ export function LembraExperience({
 
 	async function removeSelectedReference() {
 		if (!selectedReference || saving) return;
-		const confirmed = window.confirm(
-			`Remover “${selectedReference.title}” do Lembra?\n\nEla some para todo mundo.`,
-		);
-		if (!confirmed) return;
 
-		if (persistenceEnabled) {
-			setSaving(true);
-			const result = await retireLembraReferenceAction(selectedReference.id);
-			setSaving(false);
-			if (!result.ok) {
-				setMessage(mutationMessage(result.reason));
-				return;
+		setSaving(true);
+		try {
+			if (persistenceEnabled) {
+				const result = await retireLembraReferenceAction(selectedReference.id);
+				if (!result.ok) {
+					setMessage(mutationMessage(result.reason));
+					return;
+				}
 			}
-		}
 
-		discardUrl(selectedReference.imageUrl);
-		setReferences((current) =>
-			current.filter((item) => item.id !== selectedReference.id),
-		);
-		setFavoriteIds((current) => {
-			const next = new Set(current);
-			next.delete(selectedReference.id);
-			return next;
-		});
-		closeViewer();
-		setEditing(false);
-		setMessage("Referência removida.");
+			discardUrl(selectedReference.imageUrl);
+			setReferences((current) =>
+				current.filter((item) => item.id !== selectedReference.id),
+			);
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				next.delete(selectedReference.id);
+				return next;
+			});
+			closeViewer();
+			setMessage("Referência removida.");
+		} finally {
+			setSaving(false);
+		}
 	}
 
 	function clearSearchFilters() {
@@ -1034,8 +1037,9 @@ export function LembraExperience({
 									<button
 										type="button"
 										className={styles.viewerClose}
-										onClick={() => setSelectedId(null)}
+										onClick={closeViewer}
 										aria-label="Fechar referência"
+										disabled={saving}
 									>
 										<span aria-hidden="true">×</span>
 									</button>
@@ -1109,23 +1113,53 @@ export function LembraExperience({
 								</div>
 							</div>
 
-							<div className={styles.viewerManageActions}>
-								<button
-									type="button"
-									onClick={() => startEditing(selectedReference)}
-									disabled={saving || editing}
-								>
-									Editar
-								</button>
-								<button
-									type="button"
-									className={styles.viewerDangerAction}
-									onClick={removeSelectedReference}
-									disabled={saving}
-								>
-									Remover
-								</button>
-							</div>
+							{confirmRemove ? (
+								<div className={styles.viewerRemoveConfirm} role="group" aria-label="Confirmar remoção">
+									<div>
+										<strong>Remover esta referência?</strong>
+										<span>Ela some do Lembra para todo mundo.</span>
+									</div>
+									<div className={styles.viewerRemoveActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={() => setConfirmRemove(false)}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button
+											type="button"
+											variant="secondary"
+											onClick={removeSelectedReference}
+											disabled={saving}
+										>
+											{saving ? "Removendo..." : "Remover"}
+										</Button>
+									</div>
+								</div>
+							) : (
+								<div className={styles.viewerManageActions}>
+									<button
+										type="button"
+										onClick={() => startEditing(selectedReference)}
+										disabled={saving || editing}
+									>
+										Editar
+									</button>
+									<button
+										type="button"
+										className={styles.viewerDangerAction}
+										onClick={() => {
+											setEditing(false);
+											setConfirmRemove(true);
+										}}
+										disabled={saving}
+									>
+										Remover
+									</button>
+								</div>
+							)}
 
 							<div className={styles.viewerHints} aria-hidden="true">
 								<span>← → navegar</span>
