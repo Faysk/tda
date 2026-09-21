@@ -150,7 +150,7 @@ function SegmentEditor({
 		const persisted: TranscriptDraft = {
 			text: result.segment.text,
 			speaker: result.segment.speaker,
-			reviewStatus: result.segment.reviewStatus as TranscriptReviewStatus,
+			reviewStatus: result.segment.reviewStatus,
 		};
 		setEditor((current) =>
 			completeTranscriptSaveSuccess(current, submission, persisted),
