@@ -40,8 +40,9 @@
 
 .form {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr);
-	gap: 10px;
+	grid-template-columns: minmax(150px, 0.7fr) minmax(170px, 0.68fr) minmax(260px, 1.3fr) auto;
+	align-items: end;
+	gap: 8px;
 }
 
 .form label {
@@ -54,8 +55,8 @@
 .form select,
 .form textarea {
 	width: 100%;
-	min-height: 38px;
-	padding: 7px 9px;
+	min-height: 36px;
+	padding: 6px 8px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-canvas-subtle);
@@ -64,7 +65,7 @@
 }
 
 .form textarea {
-	min-height: 72px;
+	min-height: 64px;
 	resize: vertical;
 }
 
@@ -75,17 +76,62 @@
 	outline-offset: 2px;
 }
 
-.fileField,
-.wide,
-.actions {
-	grid-column: 1 / -1;
-}
-
 .actions {
 	display: flex;
+	align-items: end;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+}
+
+.actions span {
+	max-width: 118px;
+	font-size: 0.62rem;
+	line-height: 1.25;
+}
+
+.advanced {
+	grid-column: 1 / -1;
+	margin-top: 1px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.advanced summary {
+	display: flex;
 	align-items: center;
-	gap: 9px;
-	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 10px;
+	min-height: 30px;
+	padding: 5px 2px 0;
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	font-size: 0.7rem;
+	font-weight: 700;
+	list-style-position: inside;
+}
+
+.advanced summary small {
+	margin-left: auto;
+	color: var(--ds-foreground-muted);
+	font-size: 0.62rem;
+	font-weight: 500;
+}
+
+.advanced summary:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+
+.advancedGrid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	padding-top: 8px;
+}
+
+.notice,
+.error {
+	grid-column: 1 / -1;
 }
 
 .notice,
@@ -106,6 +152,27 @@
 	color: var(--ds-danger-foreground, #c33);
 }
 
+@media (max-width: 1100px) {
+	.form {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.fileField,
+	.actions,
+	.advanced {
+		grid-column: 1 / -1;
+	}
+
+	.actions {
+		align-items: center;
+		justify-content: flex-start;
+	}
+
+	.actions span {
+		max-width: none;
+	}
+}
+
 @media (max-width: 720px) {
 	.card {
 		padding: 12px;
@@ -116,13 +183,33 @@
 		flex-direction: column;
 	}
 
-	.form {
+	.form,
+	.advancedGrid {
 		grid-template-columns: 1fr;
 	}
 
 	.fileField,
-	.wide,
-	.actions {
+	.actions,
+	.advanced,
+	.notice,
+	.error {
 		grid-column: auto;
+	}
+
+	.actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.actions :global(.ds-action) {
+		width: 100%;
+	}
+
+	.advanced summary {
+		align-items: flex-start;
+	}
+
+	.advanced summary small {
+		display: none;
 	}
 }
