@@ -31,7 +31,12 @@ test("Lembra stays dense, searchable and usable from keyboard", async ({ page })
 		page.getByPlaceholder("Buscar título, descrição, autor ou data..."),
 	).toBeVisible();
 	await expect(page.getByRole("button", { name: "Adicionar imagem" })).toBeVisible();
-	await expect(page.getByRole("heading", { name: "Lembra" })).not.toBeVisible();
+	const accessibleHeading = page.getByRole("heading", { name: "Lembra" });
+	expect(
+		await accessibleHeading.evaluate(
+			(element) => element.getBoundingClientRect().height,
+		),
+	).toBeLessThanOrEqual(2);
 
 	await addReference(page, "Alpha", "Templo de pedra");
 	await addReference(page, "Zeta", "Cidade iluminada");
@@ -72,7 +77,7 @@ test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {
 	await page.goto("/lembra");
 	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
 	await page.keyboard.press(
-		process.platform === "darwin" ? "Meta+KeyK" : "Control+KeyK",
+		process.platform === "darwin" ? "Meta+k" : "Control+k",
 	);
 	await expect(search).toBeFocused();
 });
