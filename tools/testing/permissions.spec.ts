@@ -115,6 +115,28 @@ test("authorized real route renders scoped data, provenance, search and mobile l
 	await expect(
 		page.getByText("Somente leitura", { exact: true }),
 	).toBeVisible();
+	const managerCard = page.locator("article").filter({
+		has: page.getByRole("heading", { name: "Pessoa manager", exact: true }),
+	});
+	await expect(managerCard.locator("section h3")).toHaveText([
+		"Acesso verificado no Edit",
+		"Funções e origem",
+	]);
+	const profileDetails = managerCard
+		.locator("summary")
+		.filter({ hasText: "Detalhes técnicos do perfil" });
+	const profileCode = managerCard.locator("details").first().locator("code");
+	await expect(profileDetails).toBeVisible();
+	await expect(profileCode).not.toBeVisible();
+	await profileDetails.focus();
+	await expect(profileDetails).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(profileCode).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(profileCode).not.toBeVisible();
+	await expect(
+		managerCard.locator("summary").filter({ hasText: "Identificador técnico" }).first(),
+	).toBeVisible();
 	await expect(page.locator("body")).toContainText("Direta na campanha");
 	await expect(page.locator("body")).toContainText("Herdada do projeto TDA");
 	await expect(page.locator("body")).not.toContainText("Pessoa foreign");
