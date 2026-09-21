@@ -227,16 +227,17 @@ describe("local result/review contracts", () => {
 		);
 
 		const [, init] = request.mock.calls[0];
+		if (!init) throw new Error("missing review request init");
 		expect(init).toMatchObject({
 			method: "POST",
 			credentials: "omit",
 			cache: "no-store",
 			redirect: "error",
 		});
-		expect((init?.headers as Record<string, string>)["Content-Type"]).toBe(
+		expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
 			"application/json",
 		);
-		const bodyBytes = new TextEncoder().encode(String(init?.body)).byteLength;
+		const bodyBytes = new TextEncoder().encode(String(init.body)).byteLength;
 		expect(bodyBytes).toBeGreaterThan(LOCAL_JSON_BODY_MAX_BYTES);
 		expect(LOCAL_JSON_BODY_MAX_BYTES).toBe(4096);
 	});
