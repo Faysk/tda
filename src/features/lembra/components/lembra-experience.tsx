@@ -697,6 +697,9 @@ export function LembraExperience() {
 					event.preventDefault();
 					setSelectedId(null);
 				}}
+				onClick={(event) => {
+					if (event.target === event.currentTarget) setSelectedId(null);
+				}}
 				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
 			>
 				{selectedReference ? (
