@@ -58,7 +58,6 @@ export const databaseImportDependencies: ImportDependencies = {
 							ok: true as const,
 							value: {
 								campaignId: session.campaign_id,
-								campaignSlug: "",
 								sessionId: session.id,
 								sourceSystem: session.source_system,
 								sourceSessionId: session.source_session_id,
