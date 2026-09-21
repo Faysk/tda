@@ -41,6 +41,12 @@ export type ReadTranscriptPageInput = Readonly<{
 	cursor: TranscriptCursor | null;
 }>;
 
+export type ReadTranscriptSegmentInput = Readonly<{
+	campaignSlug: string;
+	sessionId: string;
+	segmentId: string;
+}>;
+
 function toSegment(row: Record<string, unknown>): EditTranscriptSegment {
 	const reviewStatus = normalizeTranscriptReviewStatus(row.review_status);
 	if (
@@ -127,4 +133,34 @@ export async function readTranscriptPage(
 		nextCursor:
 			hasMore && last ? { startMs: last.startMs, id: last.id } : null,
 	};
+}
+
+
+export async function readTranscriptSegment(
+	input: ReadTranscriptSegmentInput,
+): Promise<EditTranscriptSegment | null> {
+	const client = editDataClient();
+	if (!client) return null;
+
+	const { data: session, error: sessionError } = await client
+		.from("sessions")
+		.select("id,campaigns!inner(slug)")
+		.eq("id", input.sessionId)
+		.eq("campaigns.slug", input.campaignSlug)
+		.maybeSingle();
+
+	if (sessionError) throw new Error("Edit session lookup unavailable");
+	if (!session) return null;
+
+	const { data, error } = await client
+		.from("transcript_segments")
+		.select(
+			"id,session_id,revision,start_ms,end_ms,text,speaker_name,character_name,speaker_role,track_key,review_status,source_segment_id,source_file_id,source_chunk_id,text_chars,text_words",
+		)
+		.eq("id", input.segmentId)
+		.eq("session_id", input.sessionId)
+		.maybeSingle();
+
+	if (error) throw new Error("Transcript segment unavailable");
+	return data ? toSegment(data as Record<string, unknown>) : null;
 }
