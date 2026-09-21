@@ -58,7 +58,13 @@ function Wait-AgentReplacement([int]$PreviousPid, [int]$TimeoutSeconds = 60) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $health = Get-AgentHealth
-        if ($null -ne $health -and [int]$health.pid -ne $PreviousPid) { return $health }
+        if (
+            $null -ne $health -and
+            [int]$health.pid -ne $PreviousPid -and
+            [string]$health.lifecycle -eq "ready"
+        ) {
+            return $health
+        }
         Start-Sleep -Milliseconds 300
     }
     return $null
@@ -405,12 +411,25 @@ function Capture-AutomatedBitsResumeEvidence([string]$Destination) {
     try {
         $job = Start-BitsTransfer -Source $BitsProbeUrl -Destination $probePath -DisplayName ("TDA Companion Acceptance " + [Guid]::NewGuid().ToString("N")) -Description "TDA automated installed acceptance BITS probe" -Priority High -Asynchronous -ErrorAction Stop
         Suspend-BitsTransfer -BitsJob $job -ErrorAction Stop | Out-Null
-        Start-Sleep -Milliseconds 250
 
-        $beforeJob = Get-BitsTransfer -JobId $job.JobId -ErrorAction Stop
-        $before = Get-TdaBitsSnapshot $beforeJob
-        if ($before.State -ne "Suspended") { throw "BITS_EVIDENCE_SUSPEND_NOT_OBSERVED" }
+        $before = $null
+        $suspendDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        while ([DateTimeOffset]::UtcNow -lt $suspendDeadline -and $null -eq $before) {
+            $beforeJob = Get-BitsTransfer -JobId $job.JobId -ErrorAction Stop
+            $candidateBefore = Get-TdaBitsSnapshot $beforeJob
+            if ($candidateBefore.JobId -ne [string]$job.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
+            if ($candidateBefore.State -eq "Suspended") {
+                $before = $candidateBefore
+                break
+            }
+            if ($candidateBefore.State -in @("Error", "Cancelled", "Transferred")) {
+                throw "BITS_EVIDENCE_SUSPEND_NOT_OBSERVED"
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        if ($null -eq $before) { throw "BITS_EVIDENCE_SUSPEND_NOT_OBSERVED" }
 
+        $beforeJob = Get-BitsTransfer -JobId ([Guid]$before.JobId) -ErrorAction Stop
         Resume-BitsTransfer -BitsJob $beforeJob -Asynchronous -ErrorAction Stop | Out-Null
         $after = $null
         $deadline = [DateTimeOffset]::UtcNow.AddSeconds(90)
@@ -499,6 +518,14 @@ if ($Automated) {
     $jobRows = @($jobsValue.jobs)
     $activeJobs = @($jobRows | Where-Object { [string]$_.status -in @("queued", "running") })
     if ($activeJobs.Count -gt 0) { throw "ACTIVE_USER_JOB_PRESENT" }
+
+    $preparationValue = Invoke-AgentJson "GET" "/preparation"
+    if ($preparationValue.active -eq $true) { throw "ACTIVE_USER_PREPARATION_PRESENT" }
+
+    $initialReady = Get-AgentHealth
+    if ($null -eq $initialReady -or [string]$initialReady.lifecycle -ne "ready") {
+        throw "AGENT_INITIAL_READY_REQUIRED"
+    }
 
     $settingsPath = Join-Path $env:LOCALAPPDATA "TDA\State\settings.json"
     $settingsExisted = Test-Path -LiteralPath $settingsPath -PathType Leaf
