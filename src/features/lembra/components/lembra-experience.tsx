@@ -476,39 +476,192 @@ export function LembraExperience({
 		fileInputRef.current?.click();
 	}
 
-	function saveReference(event: FormEvent<HTMLFormElement>) {
+	async function saveReference(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!draft) return;
+		if (!draft || saving) return;
 
 		const title = draft.title.trim();
+		const description = draft.description.trim();
 		if (!title) {
 			titleRef.current?.focus();
 			return;
 		}
 
-		const item: ReferenceItem = {
-			id: createClientId(),
-			title,
-			description: draft.description.trim(),
-			author: "Você",
-			createdAt: new Date().toISOString(),
-			imageUrl: draft.previewUrl,
-			mine: true,
-		};
+		if (!persistenceEnabled) {
+			const now = new Date().toISOString();
+			const item: LembraReference = {
+				id: createClientId(),
+				title,
+				description,
+				author: "Você",
+				authorAuthUserId: "local",
+				createdAt: now,
+				updatedAt: now,
+				imageUrl: draft.previewUrl,
+				mine: true,
+			};
+			setReferences((current) => [item, ...current]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência adicionada nesta sessão.");
+			return;
+		}
 
-		setReferences((current) => [item, ...current]);
-		setDraft(null);
-		setView("all");
-		setMessage("Referência adicionada nesta sessão.");
+		setSaving(true);
+		setMessage("");
+		try {
+			const intent = await uploadIntent(draft.file);
+			const requested = await requestLembraUploadAction(intent);
+			if (!requested.ok) {
+				setMessage(mutationMessage(requested.reason));
+				return;
+			}
+
+			const response = await fetch(requested.uploadUrl, {
+				method: requested.method,
+				headers: requested.headers,
+				body: draft.file,
+			});
+			if (!response.ok) {
+				setMessage("O envio da imagem falhou. Tente novamente.");
+				return;
+			}
+
+			const finalized = await finalizeLembraUploadAction(
+				requested.referenceId,
+				requested.uploadId,
+				intent,
+				title,
+				description,
+			);
+			if (!finalized.ok) {
+				setMessage(mutationMessage(finalized.reason));
+				return;
+			}
+
+			discardUrl(draft.previewUrl);
+			setReferences((current) => [
+				finalized.reference,
+				...current.filter((item) => item.id !== finalized.reference.id),
+			]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência guardada.");
+		} catch {
+			setMessage("Não foi possível guardar a referência agora.");
+		} finally {
+			setSaving(false);
+		}
 	}
 
-	function toggleFavorite(id: string) {
+	async function toggleFavorite(id: string) {
+		const wasFavorite = favoriteIds.has(id);
+		const favorite = !wasFavorite;
 		setFavoriteIds((current) => {
 			const next = new Set(current);
-			if (next.has(id)) next.delete(id);
-			else next.add(id);
+			if (favorite) next.add(id);
+			else next.delete(id);
 			return next;
 		});
+
+		if (!persistenceEnabled) return;
+
+		const result = await setLembraFavoriteAction(id, favorite);
+		if (!result.ok) {
+			setFavoriteIds((current) => {
+				const next = new Set(current);
+				if (wasFavorite) next.add(id);
+				else next.delete(id);
+				return next;
+			});
+			setMessage(mutationMessage(result.reason));
+		}
+	}
+
+	function startEditing(reference: LembraReference) {
+		setEditTitle(reference.title);
+		setEditDescription(reference.description);
+		setEditing(true);
+	}
+
+	function cancelEditing() {
+		setEditing(false);
+		setEditTitle("");
+		setEditDescription("");
+	}
+
+	async function saveReferenceEdit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!selectedReference || saving) return;
+		const title = editTitle.trim();
+		const description = editDescription.trim();
+		if (!title) return;
+
+		if (!persistenceEnabled) {
+			const updatedAt = new Date().toISOString();
+			setReferences((current) =>
+				current.map((item) =>
+					item.id === selectedReference.id
+						? { ...item, title, description, updatedAt }
+						: item,
+				),
+			);
+			setEditing(false);
+			setMessage("Referência atualizada nesta sessão.");
+			return;
+		}
+
+		setSaving(true);
+		try {
+			const result = await updateLembraReferenceAction(
+				selectedReference.id,
+				title,
+				description,
+			);
+			if (!result.ok) {
+				setMessage(mutationMessage(result.reason));
+				return;
+			}
+			setReferences((current) =>
+				current.map((item) =>
+					item.id === result.reference.id ? result.reference : item,
+				),
+			);
+			setEditing(false);
+			setMessage("Referência atualizada.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	async function removeSelectedReference() {
+		if (!selectedReference || saving) return;
+		const confirmed = window.confirm(
+			`Remover “${selectedReference.title}” do Lembra?\n\nEla some para todo mundo.`,
+		);
+		if (!confirmed) return;
+
+		if (persistenceEnabled) {
+			setSaving(true);
+			const result = await retireLembraReferenceAction(selectedReference.id);
+			setSaving(false);
+			if (!result.ok) {
+				setMessage(mutationMessage(result.reason));
+				return;
+			}
+		}
+
+		setReferences((current) =>
+			current.filter((item) => item.id !== selectedReference.id),
+		);
+		setFavoriteIds((current) => {
+			const next = new Set(current);
+			next.delete(selectedReference.id);
+			return next;
+		});
+		setSelectedId(null);
+		setEditing(false);
+		setMessage("Referência removida.");
 	}
 
 	function clearSearchFilters() {
