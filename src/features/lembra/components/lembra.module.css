@@ -1151,12 +1151,23 @@
 	font-size: 0.72rem;
 }
 
+.composerMessage {
+	padding: 9px 11px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.75rem;
+	line-height: 1.45;
+}
+
 .composerActions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;
 	margin-top: auto;
-	padding-top: 28px;
+	padding-top: 20px;
 }
 
 .filter,
