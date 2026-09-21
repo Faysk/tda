@@ -289,7 +289,7 @@ export async function setLembraFavoriteAction(
 
 	try {
 		const row = await loadLembraReferenceRow(client, referenceId);
-		if (!row || row.status !== "active") {
+		if (row?.status !== "active") {
 			return { ok: false, reason: "not_found" };
 		}
 		await setLembraFavorite(
