@@ -24,6 +24,7 @@ from .transcription_runs import (
 )
 
 CRAIG_INGEST_PATH = "/api/v1/sources/craig"
+CRAIG_SOURCES_PATH = "/api/v1/sources"
 CRAIG_RUNS_PATH = re.compile(r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs$")
 CRAIG_REVIEW_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
@@ -121,6 +122,73 @@ class CraigIngestBoundary:
             await self._send_response(_error("ORIGIN_REJECTED", 403), scope, receive, send, origin)
             return origin, False
         return origin, True
+
+    def _source_listing(self) -> dict[str, object]:
+        staging_root = (self.data_root / "staging").resolve()
+        if not staging_root.is_dir():
+            return {"schema_version": "tda_craig_sources_v1", "sources": []}
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        values: list[dict[str, object]] = []
+        with gate:
+            for candidate in sorted(staging_root.iterdir(), key=lambda item: item.name):
+                if (
+                    not candidate.is_dir()
+                    or candidate.is_symlink()
+                    or re.fullmatch(r"craig-[0-9a-f]{64}", candidate.name) is None
+                ):
+                    continue
+                try:
+                    package = load_craig_package(candidate, verify_tracks=False)
+                except CraigPackageError:
+                    continue
+                values.append(
+                    {
+                        "source_id": candidate.name,
+                        "source_sha256": package.source_sha256,
+                        "recording_id": package.recording_id,
+                        "track_count": len(package.tracks),
+                    }
+                )
+        return {"schema_version": "tda_craig_sources_v1", "sources": values}
+
+    async def _sources(self, request: Request, scope, receive, send) -> None:
+        origin, allowed = await self._common_guard(request, scope, receive, send)
+        if not allowed:
+            return
+        if request.method == "OPTIONS":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            requested_headers = {
+                value.strip().lower()
+                for value in request.headers.get("access-control-request-headers", "").split(",")
+                if value.strip()
+            }
+            if (
+                request.headers.get("access-control-request-method") != "GET"
+                or not requested_headers <= {"authorization"}
+            ):
+                await self._send_response(_error("PREFLIGHT_REJECTED", 403), scope, receive, send, origin)
+                return
+            response = JSONResponse(
+                {},
+                headers={
+                    "Access-Control-Allow-Methods": "GET",
+                    "Access-Control-Allow-Headers": "Authorization",
+                    "Access-Control-Allow-Private-Network": "true",
+                    "Access-Control-Max-Age": "60",
+                },
+            )
+            await self._send_response(response, scope, receive, send, origin)
+            return
+        if request.method != "GET":
+            await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
+            return
+        if not self._authorized(request, origin):
+            await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
+            return
+        value = await asyncio.to_thread(self._source_listing)
+        await self._send_response(JSONResponse(value), scope, receive, send, origin)
 
     def _run_listing(self, source_id: str) -> dict[str, object]:
         staging_root = (self.data_root / "staging").resolve()
@@ -334,6 +402,10 @@ class CraigIngestBoundary:
             await self.app(scope, receive, send)
             return
         path = str(scope.get("path") or "")
+        if path == CRAIG_SOURCES_PATH:
+            request = Request(scope, receive=receive)
+            await self._sources(request, scope, receive, send)
+            return
         review_match = CRAIG_REVIEW_PATH.fullmatch(path)
         if review_match is not None:
             request = Request(scope, receive=receive)
