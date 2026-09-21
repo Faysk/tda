@@ -124,6 +124,28 @@ jobs:
           if ($installed.Contains('$total = [int64]$Job.BytesTotal')) {
             throw "RECOVERY_BITS_DIRECT_INT64_CAST_PRESENT"
           }
+          foreach ($required in @(
+            '[switch]$Automated',
+            'function Capture-AutomatedBitsResumeEvidence',
+            '--acceptance-tray-exit',
+            'ACTIVE_USER_JOB_PRESENT',
+            'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
+            'WEBVIEW2_RENDERER_NOT_OBSERVED',
+            'CRAIG_DID_NOT_SURVIVE_AGENT_LOSS'
+          )) {
+            if (-not $installed.Contains($required)) {
+              throw "RECOVERY_AUTOMATED_ACCEPTANCE_CONTRACT_MISSING:$required"
+            }
+          }
+          $autoIndex = $installed.IndexOf('if ($Automated) {')
+          $manualIndex = $installed.IndexOf('$recoveryPrompt = @"')
+          if ($autoIndex -lt 0 -or $manualIndex -le $autoIndex) {
+            throw "RECOVERY_AUTOMATED_ACCEPTANCE_BOUNDARY_MISSING"
+          }
+          $autoSlice = $installed.Substring($autoIndex, $manualIndex - $autoIndex)
+          if ($autoSlice.Contains("Read-Host")) {
+            throw "RECOVERY_AUTOMATED_ACCEPTANCE_INTERACTIVE_PROMPT_PRESENT"
+          }
       - name: Unit-test physical acceptance helper edge cases
         shell: powershell
         run: |
