@@ -82,3 +82,26 @@ def test_stable_promotion_requires_published_runtimes_meeting_companion_minimums
     assert "companion-whisper-runtime-v" in value
     assert "companion-qwen-runtime-v" in value
     assert "COMPANION_STABLE_{family.upper()}_RUNTIME_INCOMPATIBLE" in value
+
+
+def test_runtime_builds_allow_explicit_main_exact_source_dispatch():
+    for name in ("whisper-runtime.yml", "qwen-runtime-package.yml"):
+        value = _read(name)
+        assert "workflow_dispatch:" in value
+        assert "RUNTIME_MANUAL_BUILD_REQUIRES_MAIN" in value
+        assert 'refs/heads/main' in value
+        assert "Verify exact source checkout" in value
+        assert "BUILD_SOURCE_SHA_MISMATCH" in value
+
+
+def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events():
+    value = _read("runtime-rc.yml")
+    assert "workflow_dispatch:" in value
+    assert "source_sha must equal current main" in value
+    assert "RUNTIME_MANUAL_BUILD_EVENT_INVALID" in value
+    assert "event not in {'push', 'workflow_dispatch'}" in value
+    assert "AUTO_RUNTIME_TRIGGER_IDENTITY_MISMATCH:event" in value
+    assert "AUTO_RUNTIME_TRIGGER_NOT_MAIN_PUSH" in value
+    assert "--commit \"$SOURCE_SHA\"" in value
+    assert "'head_sha': os.environ['SOURCE_SHA']" in value
+    assert "'head_branch': 'main'" in value
