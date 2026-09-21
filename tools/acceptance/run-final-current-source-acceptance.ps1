@@ -112,6 +112,7 @@ function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Ta
     [string]$Release.target_commitish -ne [string]$Candidate.source_sha
   ) { throw ("RUNTIME_CANDIDATE_IDENTITY_INVALID:" + $Family) }
 
+  if (-not $Tag.EndsWith(([string]$Candidate.source_sha).Substring(0,12))) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
   $assets = @($Candidate.assets)
   if ($assets.Count -lt 2 -or $assets.Count -gt 4) { throw ("RUNTIME_CANDIDATE_ASSET_COUNT_INVALID:" + $Family) }
   $seen = @{}
@@ -385,6 +386,13 @@ try{
   $msi=Join-Path $downloads "TDACompanion-x64.msi";$payload=Join-Path $downloads "TDACompanion-payload-manifest.json"
   [void](Download-Asset $cr "TDACompanion-x64.msi" $msi "companion" ([string]$cm.assets.msi.sha256))
   [void](Download-Asset $cr "TDACompanion-payload-manifest.json" $payload "companion" ([string]$cm.assets.payload_manifest.sha256))
+  $payloadValue=Read-Json $payload "PAYLOAD_MANIFEST_INVALID"
+  if(
+    [string]$payloadValue.schema -ne "tda_companion_payload_v1" -or
+    [string]$payloadValue.version -ne [string]$cm.version -or
+    [string]$payloadValue.source_sha -ne [string]$cm.source_sha -or
+    [string]$payloadValue.source_tree_sha -ne [string]$cm.source_tree_sha
+  ){throw "COMPANION_PAYLOAD_IDENTITY_INVALID"}
 
   $wmPath=Join-Path $downloads "whisper-runtime-candidate.json";$qmPath=Join-Path $downloads "qwen-runtime-candidate.json"
   [void](Download-Asset $wr "TDARuntime-candidate.json" $wmPath "whisper");[void](Download-Asset $qr "TDARuntime-candidate.json" $qmPath "qwen")
