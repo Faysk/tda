@@ -1,7 +1,10 @@
 import "server-only";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { editDataClient } from "@/integrations/supabase/server";
-import { authorizeImportTarget } from "./access";
+import {
+	authorizeImportBoundTarget,
+	authorizeImportCampaignScope,
+} from "./access";
 import type { ImportDependencies } from "./consumer";
 import type { ImportResult } from "./contract";
 
@@ -12,6 +15,7 @@ export const databaseImportDependencies: ImportDependencies = {
 		if (!client) return { ok: false, reason: "dependency_unavailable" };
 		const context = await loadEditAccessContext(authUserId);
 		if (!context) return { ok: false, reason: "dependency_unavailable" };
+
 		const { data: action, error: actionError } = await client
 			.from("permission_catalog")
 			.select("action")
@@ -19,24 +23,36 @@ export const databaseImportDependencies: ImportDependencies = {
 			.maybeSingle();
 		if (actionError) return { ok: false, reason: "dependency_unavailable" };
 		if (!action) return { ok: false, reason: "import_capability_undefined" };
-		const { data: session, error } = await client
+
+		// Resolve only the campaign scope needed for authorization. Do not touch the
+		// target session until capability/scope is proven, so denied callers cannot
+		// distinguish existing and missing sessions through this adapter.
+		const { data: campaign, error: campaignError } = await client
+			.from("campaigns")
+			.select("slug")
+			.eq("id", identity.campaignId)
+			.maybeSingle();
+		if (campaignError) return { ok: false, reason: "dependency_unavailable" };
+
+		const scope = authorizeImportCampaignScope(
+			context,
+			campaign?.slug ?? null,
+			true,
+		);
+		if (!scope.ok) return scope;
+
+		const { data: session, error: sessionError } = await client
 			.from("sessions")
 			.select("id,campaign_id,source_system,source_session_id")
 			.eq("id", identity.sessionId)
 			.eq("campaign_id", identity.campaignId)
 			.maybeSingle();
-		if (error) return { ok: false, reason: "dependency_unavailable" };
-		if (!session) return { ok: false, reason: "not_found" };
-		const { data: campaign, error: campaignError } = await client
-			.from("campaigns")
-			.select("slug")
-			.eq("id", session.campaign_id)
-			.maybeSingle();
-		if (campaignError) return { ok: false, reason: "dependency_unavailable" };
-		return authorizeImportTarget(
-			context,
+		if (sessionError) return { ok: false, reason: "dependency_unavailable" };
+
+		return authorizeImportBoundTarget(
+			scope.actor,
 			identity,
-			campaign
+			session && campaign
 				? {
 						campaignId: session.campaign_id,
 						campaignSlug: campaign.slug,
@@ -45,7 +61,6 @@ export const databaseImportDependencies: ImportDependencies = {
 						sourceSessionId: session.source_session_id,
 					}
 				: null,
-			true,
 		);
 	},
 	commit: (actor, input) => invoke(actor, input, false),
@@ -70,8 +85,9 @@ async function invoke(
 		!data ||
 		typeof data !== "object" ||
 		typeof data.ok !== "boolean"
-	)
+	) {
 		return { ok: false, reason: "dependency_unavailable" };
+	}
 	if (
 		!data.ok &&
 		![
@@ -81,8 +97,9 @@ async function invoke(
 			"invalid_payload",
 			"import_capability_undefined",
 		].includes(data.reason)
-	)
+	) {
 		return { ok: false, reason: "dependency_unavailable" };
+	}
 	// The consumer checks every successful receipt against its request before exposing it.
 	return data as ImportResult;
 }
