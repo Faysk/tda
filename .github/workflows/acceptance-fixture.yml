@@ -99,14 +99,11 @@ jobs:
           }
           foreach ($required in @(
             '[switch]$Automated',
-            'function Ensure-AutomatedRuntimesReady',
-            'ce6f25cb5bd33848eaadb8fce328be5092a2b9f236bbff2321508791f8c00014',
-            '7326574fd04bf9c7ea98fc0115d03a400a46f19076370262c27cdaf8188053e5',
-            '02f03b86e94fafb68309de563a3367183de461372f1f86f4eef2f8e0c85ead8d',
+            'function Assert-AllProfilesReady',
             'Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)',
             'if (-not $AutomatedMode)',
-            'Ensure-AutomatedRuntimesReady $downloads',
-            'RECOVERY_AUTOMATED_PROFILES_NOT_READY'
+            'Assert-AllProfilesReady $Port',
+            'Require-AllProfilesReady $Port'
           )) {
             if (-not $value.Contains($required)) {
               throw "RECOVERY_AUTOMATED_LAUNCHER_CONTRACT_MISSING:$required"
@@ -119,14 +116,8 @@ jobs:
           if ($guardIndex -lt 0 -or $promptIndex -lt 0 -or $guardIndex -gt $promptIndex) {
             throw "RECOVERY_AUTOMATED_INSTALL_PROMPT_NOT_GUARDED"
           }
-          $profilePrep = 'Require-AllProfilesReady $Port'
-          $runtimePrep = 'Ensure-AutomatedRuntimesReady $downloads'
-          if (
-            $value.LastIndexOf($runtimePrep) -lt 0 -or
-            $value.LastIndexOf($profilePrep) -lt 0 -or
-            $value.LastIndexOf($runtimePrep) -gt $value.LastIndexOf($profilePrep)
-          ) {
-            throw "RECOVERY_AUTOMATED_PROFILE_PREPARATION_BRANCH_INVALID"
+          if ($value.IndexOf('Assert-AllProfilesReady $Port') -lt 0) {
+            throw "RECOVERY_AUTOMATED_PROFILE_ASSERTION_MISSING"
           }
           $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
           $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
@@ -166,6 +157,9 @@ jobs:
             'ACTIVE_USER_PREPARATION_PRESENT',
             'AGENT_INITIAL_READY_REQUIRED',
             'BITS_EVIDENCE_SUSPEND_NOT_OBSERVED',
+            'function Ensure-AutomatedProfilesReady',
+            'PROFILE_PREPARATION_START_INVALID',
+            'PROFILE_PREPARATION_TIMEOUT',
             'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
             'WEBVIEW2_RENDERER_NOT_OBSERVED',
             'CRAIG_DID_NOT_SURVIVE_AGENT_LOSS'
@@ -192,6 +186,8 @@ jobs:
             'contains_token = $false',
             'contains_audio = $false',
             'contains_transcript = $false',
+            'AUTO_ACCEPTANCE_REQUIRED_RECEIPTS_MISSING',
+            'AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED',
             'Compress-Archive'
           )) {
             if (-not $wrapper.Contains($required)) {
