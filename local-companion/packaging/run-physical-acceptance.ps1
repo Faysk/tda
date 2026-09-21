@@ -159,7 +159,74 @@ function Read-RuntimeCandidate([string]$Path, [string]$ExpectedFamily) {
         [string]$value.schema -ne "tda_runtime_candidate_v1" -or
         [string]$value.family -ne $ExpectedFamily -or
         [string]$value.candidate_tag -notmatch "^companion-$ExpectedFamily-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$" -or
-        [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}
+        [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
+    }
+    return [pscustomobject]@{
+        Path = $resolved
+        Family = $ExpectedFamily
+        Tag = [string]$value.candidate_tag
+    }
+}
+
+function Write-JsonEvidence([string]$Path, [object]$Value) {
+    $temporary = "$Path.partial"
+    $Value | ConvertTo-Json -Depth 32 -Compress |
+        Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
+function Invoke-RuntimePhysicalSeal(
+    [string]$CompanionExecutable,
+    [object]$RuntimeCandidate,
+    [string[]]$WhisperReceipts = @(),
+    [string]$QwenStateRoot = ""
+) {
+    $destination = Join-Path $runtimeAcceptanceOutput "$($RuntimeCandidate.Tag).json"
+    $arguments = [Collections.Generic.List[string]]::new()
+    foreach ($value in @(
+        "--seal-runtime-physical",
+        "--runtime-candidate-manifest", [string]$RuntimeCandidate.Path,
+        "--runtime-root", $runtime,
+        "--runtime-acceptance-result", $destination
+    )) {
+        $arguments.Add([string]$value)
+    }
+    foreach ($receipt in $WhisperReceipts) {
+        $arguments.Add("--runtime-whisper-receipt")
+        $arguments.Add($receipt)
+    }
+    if ($QwenStateRoot) {
+        $arguments.Add("--runtime-qwen-state-root")
+        $arguments.Add($QwenStateRoot)
+    }
+
+    & $CompanionExecutable @($arguments.ToArray())
+    if ($LASTEXITCODE -ne 0) {
+        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$LASTEXITCODE"
+    }
+    try {
+        $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
+            ConvertFrom-Json -Depth 32 -ErrorAction Stop
+    } catch {
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
+    }
+    if (
+        [string]$sealed.schema -ne "tda_runtime_physical_acceptance_v1" -or
+        $sealed.pass -ne $true -or
+        [string]$sealed.family -ne [string]$RuntimeCandidate.Family -or
+        [string]$sealed.candidate_tag -ne [string]$RuntimeCandidate.Tag -or
+        $sealed.contains_audio -ne $false -or
+        $sealed.contains_transcript -ne $false -or
+        $sealed.contains_local_paths -ne $false
+    ) {
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
+    }
+    return $destination
+}
+
+function Invoke-JsonProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Executable,
         [Parameter(Mandatory = $true)][string[]]$Arguments,
@@ -341,221 +408,4 @@ if ($sealRuntimeReceipts) {
     Write-Host "  Whisper: $($runtimeAcceptanceReceipts.whisper)"
     Write-Host "  Qwen: $($runtimeAcceptanceReceipts.qwen)"
 }
-if ($WriteTranscripts) { Write-Host "Local transcripts were explicitly requested and written under: $output" }
-
-    ) {
-        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
-    }
-    return [pscustomobject]@{
-        Path = $resolved
-        Family = $ExpectedFamily
-        Tag = [string]$value.candidate_tag
-    }
-}
-
-function Write-JsonEvidence([string]$Path, [object]$Value) {
-    $temporary = "$Path.partial"
-    $Value | ConvertTo-Json -Depth 32 -Compress |
-        Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
-    Move-Item -LiteralPath $temporary -Destination $Path -Force
-}
-
-function Invoke-RuntimePhysicalSeal(
-    [string]$CompanionExecutable,
-    [object]$RuntimeCandidate,
-    [string[]]$WhisperReceipts = @(),
-    [string]$QwenStateRoot = ""
-) {
-    $destination = Join-Path $runtimeAcceptanceOutput "$($RuntimeCandidate.Tag).json"
-    $arguments = [Collections.Generic.List[string]]::new()
-    foreach ($value in @(
-        "--seal-runtime-physical",
-        "--runtime-candidate-manifest", [string]$RuntimeCandidate.Path,
-        "--runtime-root", $runtime,
-        "--runtime-acceptance-result", $destination
-    )) {
-        $arguments.Add([string]$value)
-    }
-    foreach ($receipt in $WhisperReceipts) {
-        $arguments.Add("--runtime-whisper-receipt")
-        $arguments.Add($receipt)
-    }
-    if ($QwenStateRoot) {
-        $arguments.Add("--runtime-qwen-state-root")
-        $arguments.Add($QwenStateRoot)
-    }
-
-    & $CompanionExecutable @($arguments.ToArray())
-    if ($LASTEXITCODE -ne 0) {
-        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$LASTEXITCODE"
-    }
-    try {
-        $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
-            ConvertFrom-Json -Depth 32 -ErrorAction Stop
-    } catch {
-        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
-    }
-    if (
-        [string]$sealed.schema -ne "tda_runtime_physical_acceptance_v1" -or
-        $sealed.pass -ne $true -or
-        [string]$sealed.family -ne [string]$RuntimeCandidate.Family -or
-        [string]$sealed.candidate_tag -ne [string]$RuntimeCandidate.Tag -or
-        $sealed.contains_audio -ne $false -or
-        $sealed.contains_transcript -ne $false -or
-        $sealed.contains_local_paths -ne $false
-    ) {
-        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
-    }
-    return $destination
-}
-
-function Invoke-JsonProcess {
-    param(
-        [Parameter(Mandatory = $true)][string]$Executable,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$ErrorPrefix
-    )
-    $start = [Diagnostics.ProcessStartInfo]::new()
-    $start.FileName = $Executable
-    $start.UseShellExecute = $false
-    $start.CreateNoWindow = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    foreach ($argument in $Arguments) { $null = $start.ArgumentList.Add($argument) }
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $start
-    if (-not $process.Start()) { throw "${ErrorPrefix}_START_FAILED" }
-    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $stderrTask = $process.StandardError.ReadToEndAsync()
-    $process.WaitForExit()
-    $stdout = $stdoutTask.GetAwaiter().GetResult()
-    $null = $stderrTask.GetAwaiter().GetResult() # Never persist stderr: it is diagnostic-only.
-    $lines = @($stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
-    if ($lines.Count -eq 0) { throw "${ErrorPrefix}_NO_JSON" }
-    try { $value = $lines[-1] | ConvertFrom-Json -Depth 32 -ErrorAction Stop }
-    catch { throw "${ErrorPrefix}_INVALID_JSON" }
-    if ($process.ExitCode -ne 0) {
-        $code = if ($value.error) { [string]$value.error } else { "EXIT_$($process.ExitCode)" }
-        throw "${ErrorPrefix}_$code"
-    }
-    return $value
-}
-
-$needWhisper = @($Profiles | Where-Object { $_ -like "whisper-*" }).Count -gt 0
-$needQwen = @($Profiles | Where-Object { $_ -like "qwen-*" }).Count -gt 0
-$whisper = if ($needWhisper) { Get-RuntimeWorker -Family "whisper" -RuntimeId "whisper-ctranslate2" -Executable "TDAWhisperWorker.exe" } else { $null }
-$qwen = if ($needQwen) { Get-RuntimeWorker -Family "qwen" -RuntimeId "qwen3-transformers" -Executable "TDAQwenWorker.exe" } else { $null }
-
-$probes = [ordered]@{}
-if ($whisper) { $probes.whisper = Invoke-JsonProcess -Executable $whisper.Worker -Arguments @("--probe") -ErrorPrefix "WHISPER_PROBE" }
-if ($qwen) { $probes.qwen = Invoke-JsonProcess -Executable $qwen.Worker -Arguments @("--probe") -ErrorPrefix "QWEN_PROBE" }
-
-$results = [ordered]@{}
-$qwenGates = [ordered]@{}
-foreach ($profile in $Profiles) {
-    $isQwen = $profile -like "qwen-*"
-    $selected = if ($isQwen) { $qwen } else { $whisper }
-    if (-not $selected) { throw "PROFILE_RUNTIME_MISSING:$profile" }
-    $arguments = [Collections.Generic.List[string]]::new()
-    foreach ($value in @("--acceptance", "--audio", $audioPath, "--models-root", $models, "--profile", $profile, "--require-gpu-name", $RequireGpuName)) {
-        $arguments.Add([string]$value)
-    }
-    if ($ContextFile) {
-        $context = (Resolve-Path -LiteralPath $ContextFile -ErrorAction Stop).Path
-        $arguments.Add("--context-file"); $arguments.Add($context)
-    }
-    if ($GlossaryFile) {
-        $glossary = (Resolve-Path -LiteralPath $GlossaryFile -ErrorAction Stop).Path
-        $arguments.Add("--glossary-file"); $arguments.Add($glossary)
-    }
-    if ($WriteTranscripts) {
-        $transcriptPath = Join-Path $output "$profile-transcript.json"
-        $arguments.Add("--transcript-out"); $arguments.Add($transcriptPath)
-    }
-    if ($isQwen) {
-        $arguments.Add("--record-gate")
-        $arguments.Add("--runtime-root"); $arguments.Add($runtime)
-        $arguments.Add("--state-root"); $arguments.Add($state)
-    }
-    Write-Host "Testing $profile on required GPU '$RequireGpuName'..."
-    $receipt = Invoke-JsonProcess -Executable $selected.Worker -Arguments $arguments.ToArray() -ErrorPrefix ("ACCEPTANCE_" + $profile.Replace("-", "_").ToUpperInvariant())
-    if ($receipt.pass -ne $true) { throw "ACCEPTANCE_FAILED:$profile" }
-    $results[$profile] = $receipt
-    if ($isQwen) {
-        $gatePath = Join-Path (Join-Path $state "qwen-physical-gates") "$profile.json"
-        if (-not (Test-Path -LiteralPath $gatePath -PathType Leaf)) { throw "QWEN_GATE_MISSING:$profile" }
-        try { $gate = Get-Content -LiteralPath $gatePath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 32 -ErrorAction Stop }
-        catch { throw "QWEN_GATE_INVALID:$profile" }
-        if (
-            $gate.schema -ne "tda_qwen_physical_gate_v2" -or
-            [string]$gate.profile_id -ne $profile -or
-            $gate.contains_audio -ne $false -or
-            $gate.contains_transcript -ne $false
-        ) { throw "QWEN_GATE_INVALID:$profile" }
-        $qwenGates[$profile] = $gate
-    }
-}
-
-$first = $results[$Profiles[0]]
-$qwenHardware = $results["qwen-fast"]
-$devices = @($qwenHardware.cuda.devices)
-if ($devices.Count -lt 1) { throw "PHYSICAL_ACCEPTANCE_GPU_INVALID" }
-$device = $devices[0]
-$driverVersion = [string]$qwenHardware.cuda.driver_version
-$gpuName = [string]$device.name
-$computeCapability = [string]$device.compute_capability
-if (-not $driverVersion -or -not $gpuName -or $computeCapability -notmatch '^[0-9]+\.[0-9]+$') {
-    throw "PHYSICAL_ACCEPTANCE_GPU_INVALID"
-}
-if ($RequireGpuName -and -not $gpuName.ToLowerInvariant().Contains($RequireGpuName.ToLowerInvariant())) {
-    throw "PHYSICAL_ACCEPTANCE_GPU_INVALID"
-}
-$suite = [ordered]@{
-    schema = "tda_physical_acceptance_suite_v2"
-    pass = $true
-    accepted_at = [DateTimeOffset]::UtcNow.ToString("o")
-    candidate = [ordered]@{
-        rc_tag = [string]$candidate.tag
-        version = [string]$candidate.version
-        source_sha = [string]$candidate.source_sha
-        source_tree_sha = [string]$candidate.source_tree_sha
-        msi_sha256 = $actualMsiSha
-        payload_manifest_sha256 = $actualPayloadSha
-    }
-    required_gpu_name = $RequireGpuName
-    audio_sha256 = [string]$first.audio_sha256
-    profiles = @($requiredProfiles)
-    runtimes = [ordered]@{
-        whisper = [ordered]@{
-            version = $whisper.Version
-            worker_sha256 = $whisper.Sha256
-            archive_sha256 = $whisper.ArchiveSha256
-        }
-        qwen = [ordered]@{
-            version = $qwen.Version
-            worker_sha256 = $qwen.Sha256
-            archive_sha256 = $qwen.ArchiveSha256
-        }
-    }
-    hardware = [ordered]@{
-        gpu_name = $gpuName
-        driver_version = $driverVersion
-        compute_capability = $computeCapability
-    }
-    probes = $probes
-    results = $results
-    qwen_gates = $qwenGates
-    transcripts_written = [bool]$WriteTranscripts
-    contains_audio = $false
-    contains_transcript = $false
-    contains_token = $false
-    contains_paths = $false
-}
-$receiptPath = Join-Path $output "physical-acceptance-suite.json"
-$temporary = "$receiptPath.partial"
-$suite | ConvertTo-Json -Depth 32 -Compress | Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
-Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
-
-Write-Host "Physical acceptance suite: PASS"
-Write-Host "Sanitized receipt: $receiptPath"
 if ($WriteTranscripts) { Write-Host "Local transcripts were explicitly requested and written under: $output" }
