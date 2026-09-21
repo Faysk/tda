@@ -1,6 +1,7 @@
 name: Whisper Runtime
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/whisper-runtime.yml'
@@ -57,6 +58,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Require main for manual exact-source build
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne "refs/heads/main") { throw "RUNTIME_MANUAL_BUILD_REQUIRES_MAIN" }
       - name: Verify exact source checkout
         shell: pwsh
         run: |
