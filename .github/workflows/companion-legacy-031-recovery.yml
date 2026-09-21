@@ -1,0 +1,68 @@
+name: Companion Legacy 0.3.1 Recovery
+
+on:
+  pull_request:
+    paths:
+      - "tools/acceptance/verify-legacy-031-recovery.ps1"
+      - ".github/workflows/companion-legacy-031-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: published-0.3.1-manual-recovery
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: d175c6d95c117e8324bb063292906b55e021b162
+          path: .acceptance/legacy031
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: 872964981f05aaa864d660952fe2ec9435ecf267
+          path: .acceptance/stable039
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: Prepare isolated Python
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          uv venv --python 3.12.14 .acceptance/python
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Parse recovery harness
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "tools/acceptance/verify-legacy-031-recovery.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            exit 1
+          }
+
+      - name: Reproduce 0.3.1 failure and prove manual recovery
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $python = (Resolve-Path ".acceptance/python/Scripts/python.exe").Path
+          $legacy = (Resolve-Path ".acceptance/legacy031").Path
+          $stable = (Resolve-Path ".acceptance/stable039").Path
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools/acceptance/verify-legacy-031-recovery.ps1" -Python $python -LegacySourceRoot $legacy -StableSourceRoot $stable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
