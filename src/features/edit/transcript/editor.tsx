@@ -2,8 +2,12 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
-import { updateTranscriptSegmentAction } from "./actions";
 import {
+	reloadTranscriptSegmentAction,
+	updateTranscriptSegmentAction,
+} from "./actions";
+import {
+	acceptTranscriptConflictRemote,
 	beginTranscriptSave,
 	classifyTranscriptSaveFailure,
 	completeTranscriptSaveFailure,
@@ -11,6 +15,8 @@ import {
 	createTranscriptEditorState,
 	editTranscriptDraft,
 	isTranscriptEditorDirty,
+	loadTranscriptConflictRemote,
+	reapplyTranscriptConflictDraft,
 	resetTranscriptDraft,
 	resolveTranscriptShortcut,
 	type TranscriptDraft,
@@ -116,10 +122,37 @@ function SegmentEditor({
 		createTranscriptEditorState(toDraft(initial)),
 	);
 	const [revision, setRevision] = useState(initial.revision);
+	const [reloadingCurrent, setReloadingCurrent] = useState(false);
+	const [reconciliationError, setReconciliationError] = useState<string | null>(null);
 	const textRef = useRef<HTMLTextAreaElement>(null);
 	const speakerRef = useRef<HTMLInputElement>(null);
 	const dirty = isTranscriptEditorDirty(editor);
 	const { draft } = editor;
+
+	async function loadCurrentVersion() {
+		if (!editable || editor.phase !== "conflict" || reloadingCurrent) return;
+		setReloadingCurrent(true);
+		setReconciliationError(null);
+		try {
+			const result = await reloadTranscriptSegmentAction({
+				sessionId,
+				segmentId: initial.id,
+			});
+			if (!result.ok) {
+				setReconciliationError(issueMessage(result.issues));
+				return;
+			}
+			const remote: TranscriptDraft = {
+				text: result.segment.text,
+				speaker: result.segment.speaker,
+				reviewStatus: result.segment.reviewStatus,
+			};
+			setRevision(result.revision);
+			setEditor((current) => loadTranscriptConflictRemote(current, remote));
+		} finally {
+			setReloadingCurrent(false);
+		}
+	}
 
 	async function save() {
 		if (!editable) return;
@@ -137,6 +170,7 @@ function SegmentEditor({
 		});
 		if (!result.ok) {
 			const failure = classifyTranscriptSaveFailure(result);
+			setReconciliationError(null);
 			const message =
 				failure === "conflict"
 					? "Conflito: existe uma versão mais nova desta fala. Seu rascunho foi preservado; recarregue os dados antes de salvar novamente."
@@ -147,6 +181,7 @@ function SegmentEditor({
 			return;
 		}
 		setRevision(result.revision);
+		setReconciliationError(null);
 		const persisted: TranscriptDraft = {
 			text: result.segment.text,
 			speaker: result.segment.speaker,
@@ -277,6 +312,66 @@ function SegmentEditor({
 						<span className={styles.muted}>Somente leitura</span>
 					)}
 				</div>
+				{editor.phase === "conflict" ? (
+					<div className={styles.conflictPanel} role="alert">
+						<div>
+							<strong>Conflito de edição</strong>
+							<p>
+								Seu rascunho local continua preservado. Carregue a versão atual
+								antes de decidir como reconciliar; salvar continua bloqueado.
+							</p>
+						</div>
+						{editor.conflictRemote ? (
+							<>
+								<div className={styles.conflictSnapshot}>
+									<div>
+										<strong>Versão atual no servidor · revision {revision}</strong>
+										<span>
+											{editor.conflictRemote.speaker} · {statusLabels[editor.conflictRemote.reviewStatus]}
+										</span>
+									</div>
+									<p>{editor.conflictRemote.text}</p>
+								</div>
+								<div className={styles.conflictActions}>
+									<Button
+										onClick={() => {
+											setReconciliationError(null);
+											setEditor((current) => reapplyTranscriptConflictDraft(current));
+										}}
+										variant="primary"
+									>
+										Reaplicar meu rascunho
+									</Button>
+									<Button
+										onClick={() => {
+											if (
+												!window.confirm(
+													"Descartar seu rascunho local e usar a versão atual do servidor?",
+												)
+											) return;
+											setReconciliationError(null);
+											setEditor((current) => acceptTranscriptConflictRemote(current));
+										}}
+										variant="tertiary"
+									>
+										Descartar meu rascunho
+									</Button>
+								</div>
+							</>
+						) : (
+							<Button
+								disabled={reloadingCurrent}
+								onClick={() => void loadCurrentVersion()}
+								variant="primary"
+							>
+								{reloadingCurrent ? "Carregando versão atual…" : "Carregar versão atual"}
+							</Button>
+						)}
+						{reconciliationError ? (
+							<p className={styles.conflictError}>{reconciliationError}</p>
+						) : null}
+					</div>
+				) : null}
 			</div>
 
 			<div className={styles.segmentSide}>
