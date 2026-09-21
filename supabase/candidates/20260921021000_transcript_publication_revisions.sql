@@ -264,6 +264,16 @@ begin
       return jsonb_build_object('ok', false, 'reason', 'conflict');
     end if;
 
+    select r.revision_number
+    into v_revision_number
+    from public.transcript_revisions r
+    where r.id = v_existing.revision_id
+      and r.session_id = v_session.id;
+
+    if not found then
+      raise exception 'publication receipt references a missing revision';
+    end if;
+
     return jsonb_build_object(
       'ok', true,
       'receipt', jsonb_build_object(
@@ -273,6 +283,7 @@ begin
         'campaignId', v_existing.campaign_id,
         'sessionId', v_existing.session_id,
         'revisionId', v_existing.revision_id,
+        'revisionNumber', v_revision_number,
         'operationId', v_existing.operation_id,
         'sourceId', v_existing.source_id,
         'runId', v_existing.run_id,
