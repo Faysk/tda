@@ -149,7 +149,24 @@ insert into public.role_assignments(
   now()
 );
 
-do $$
+-- Install the synthetic rollback probe as the scratch-cluster owner before the
+-- test switches to service_role. The trigger is selective so normal publication,
+-- restore and unpublish operations still exercise the least-privileged boundary.
+create function public.fail_publication_event_on_probe() returns trigger
+language plpgsql as $
+begin
+  if new.operation_id = '90000000-0000-4000-8000-000000000003'::uuid then
+    raise exception 'synthetic publication event failure';
+  end if;
+  return new;
+end;
+$;
+
+create trigger fail_publication_event
+before insert on public.transcript_publication_events
+for each row execute function public.fail_publication_event_on_probe();
+
+do $
 declare
   v_first jsonb;
   v_replay jsonb;
@@ -284,18 +301,9 @@ begin
     raise exception 'REPLACEMENT_DID_NOT_PRESERVE_HISTORY';
   end if;
 
-  -- Force a failure after revision/receipt inserts. The statement must roll back
-  -- everything and keep revision 2 current.
-  create function public.fail_publication_event() returns trigger
-  language plpgsql as $f$
-  begin
-    raise exception 'synthetic publication event failure';
-  end
-  $f$;
-  create trigger fail_publication_event
-  before insert on public.transcript_publication_events
-  for each row execute function public.fail_publication_event();
-
+  -- Force a failure after revision/receipt inserts. The scratch-cluster owner
+  -- installed a selective trigger before service_role was assumed, so this test
+  -- does not need (and must not grant) schema CREATE privileges to service_role.
   begin
     perform public.publish_transcript_revision_atomic(
       '44444444-4444-4444-8444-444444444444',
@@ -314,9 +322,6 @@ begin
       end if;
       v_failed := true;
   end;
-
-  drop trigger fail_publication_event on public.transcript_publication_events;
-  drop function public.fail_publication_event();
 
   if not v_failed then
     raise exception 'ROLLBACK_PROBE_DID_NOT_FAIL';
@@ -404,3 +409,6 @@ begin
   end if;
 end;
 $$;
+
+drop trigger fail_publication_event on public.transcript_publication_events;
+drop function public.fail_publication_event_on_probe();
