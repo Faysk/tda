@@ -23,6 +23,7 @@ export type TranscriptEditorState = Readonly<{
 	draft: TranscriptDraft;
 	phase: EditorSavePhase;
 	activeSubmission: TranscriptDraft | null;
+	conflictRemote: TranscriptDraft | null;
 	message: string | null;
 }>;
 
@@ -59,6 +60,7 @@ export function createTranscriptEditorState(
 		draft: initial,
 		phase: "clean",
 		activeSubmission: null,
+		conflictRemote: null,
 		message: null,
 	};
 }
@@ -72,11 +74,23 @@ export function editTranscriptDraft(
 	patch: Partial<TranscriptDraft>,
 ): TranscriptEditorState {
 	const draft = { ...state.draft, ...patch };
+	if (state.phase === "conflict") {
+		return {
+			...state,
+			draft,
+			// A local keystroke must never make an obsolete expectedRevision
+			// eligible for save again. Only explicit reconciliation can leave
+			// conflict.
+			phase: "conflict",
+		};
+	}
+
 	const dirty = !sameDraft(state.saved, draft);
 	return {
 		...state,
 		draft,
 		phase: state.phase === "saving" ? "saving" : dirty ? "dirty" : "clean",
+		conflictRemote: null,
 		message: null,
 	};
 }
@@ -85,7 +99,11 @@ export function beginTranscriptSave(state: TranscriptEditorState): Readonly<{
 	state: TranscriptEditorState;
 	submission: TranscriptDraft | null;
 }> {
-	if (state.phase === "saving" || state.phase === "conflict" || !isTranscriptEditorDirty(state)) {
+	if (
+		state.phase === "saving" ||
+		state.phase === "conflict" ||
+		!isTranscriptEditorDirty(state)
+	) {
 		return { state, submission: null };
 	}
 	const submission = state.draft;
@@ -95,6 +113,7 @@ export function beginTranscriptSave(state: TranscriptEditorState): Readonly<{
 			...state,
 			phase: "saving",
 			activeSubmission: submission,
+			conflictRemote: null,
 			message: null,
 		},
 	};
@@ -122,6 +141,7 @@ export function completeTranscriptSaveSuccess(
 		draft,
 		phase: sameDraft(draft, persisted) ? "saved" : "dirty",
 		activeSubmission: null,
+		conflictRemote: null,
 		message: null,
 	};
 }
@@ -137,24 +157,72 @@ export function completeTranscriptSaveFailure(
 		...state,
 		phase: failure,
 		activeSubmission: null,
+		conflictRemote: null,
 		message,
+	};
+}
+
+export function loadTranscriptConflictRemote(
+	state: TranscriptEditorState,
+	remote: TranscriptDraft,
+): TranscriptEditorState {
+	if (state.phase !== "conflict") return state;
+	return {
+		...state,
+		conflictRemote: remote,
+		message:
+			"Versão atual carregada. Compare com seu rascunho e escolha como reconciliar.",
+	};
+}
+
+export function reapplyTranscriptConflictDraft(
+	state: TranscriptEditorState,
+): TranscriptEditorState {
+	if (state.phase !== "conflict" || !state.conflictRemote) return state;
+	const saved = state.conflictRemote;
+	return {
+		...state,
+		saved,
+		phase: sameDraft(saved, state.draft) ? "clean" : "dirty",
+		activeSubmission: null,
+		conflictRemote: null,
+		message: null,
+	};
+}
+
+export function acceptTranscriptConflictRemote(
+	state: TranscriptEditorState,
+): TranscriptEditorState {
+	if (state.phase !== "conflict" || !state.conflictRemote) return state;
+	return {
+		saved: state.conflictRemote,
+		draft: state.conflictRemote,
+		phase: "clean",
+		activeSubmission: null,
+		conflictRemote: null,
+		message: null,
 	};
 }
 
 export function resetTranscriptDraft(
 	state: TranscriptEditorState,
 ): TranscriptEditorState {
-	if (state.phase === "saving") return state;
+	// Conflict owns a recoverable local draft. Escape/cancel must not silently
+	// discard it; the explicit reconciliation UI owns that destructive choice.
+	if (state.phase === "saving" || state.phase === "conflict") return state;
 	return {
 		...state,
 		draft: state.saved,
 		phase: "clean",
 		activeSubmission: null,
+		conflictRemote: null,
 		message: null,
 	};
 }
 
-export function classifyTranscriptSaveFailure(result: unknown): "error" | "conflict" {
+export function classifyTranscriptSaveFailure(
+	result: unknown,
+): "error" | "conflict" {
 	if (
 		typeof result === "object" &&
 		result !== null &&
@@ -166,7 +234,9 @@ export function classifyTranscriptSaveFailure(result: unknown): "error" | "confl
 	return "error";
 }
 
-export function resolveTranscriptShortcut(input: ShortcutInput): TranscriptShortcut | null {
+export function resolveTranscriptShortcut(
+	input: ShortcutInput,
+): TranscriptShortcut | null {
 	const command = Boolean(input.ctrlKey || input.metaKey);
 	if (command && input.key === "Enter") return "save";
 	if (input.key === "Escape") return "cancel";
