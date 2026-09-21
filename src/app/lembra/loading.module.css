@@ -144,6 +144,29 @@
 	}
 }
 
+@media (max-width: 520px) {
+	.toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 7px;
+	}
+
+	.search {
+		flex: 1 0 100%;
+	}
+
+	.control,
+	.controlWide {
+		flex: 1 1 auto;
+		width: auto;
+	}
+
+	.button {
+		flex: 0 0 44px;
+		width: 44px;
+	}
+}
+
 @media (max-width: 640px) {
 	.content {
 		padding-top: 14px;
