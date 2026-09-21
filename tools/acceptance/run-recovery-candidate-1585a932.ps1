@@ -17,6 +17,18 @@ $MsiSha256 = "83c267ae14f10fda950413cab74394fc7b875225fa0e13f5123c8901f609f8c3"
 $PayloadSha256 = "bc6ac20dbac3e0d9a31ff1cc3ff8a09e8e5b455cb644bcea00fe45f80bd34312"
 $Origin = "https://dnd.faysk.dev"
 $RequiredProfiles = @("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
+$WhisperRuntimeTag = "companion-whisper-runtime-rc-v1.1.4-018e109530ba"
+$WhisperRuntimeName = "TDAWhisperRuntime-1.1.4-windows-x64.zip"
+$WhisperRuntimeSha256 = "ce6f25cb5bd33848eaadb8fce328be5092a2b9f236bbff2321508791f8c00014"
+$WhisperRuntimeDigestName = "TDAWhisperRuntime-1.1.4-windows-x64.zip.sha256"
+$WhisperRuntimeDigestSha256 = "fc73e48b7fc282d346398c01c23c1c45ca83d87ad57a84613f9e6d8f1118c547"
+$QwenRuntimeTag = "companion-qwen-runtime-rc-v1.0.7-018e109530ba"
+$QwenBundleName = "TDAQwenRuntimeBundle-1.0.7-windows-x64.json"
+$QwenBundleSha256 = "3a364fc9cd83eb2261b515788dc24f1b05dade0ff08ba07a92d22b2d8059d1c0"
+$QwenPart1Name = "TDAQwenRuntime-1.0.7-windows-x64.zip.part001"
+$QwenPart1Sha256 = "7326574fd04bf9c7ea98fc0115d03a400a46f19076370262c27cdaf8188053e5"
+$QwenPart2Name = "TDAQwenRuntime-1.0.7-windows-x64.zip.part002"
+$QwenPart2Sha256 = "02f03b86e94fafb68309de563a3367183de461372f1f86f4eef2f8e0c85ead8d"
 
 function Require-Windows {
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
@@ -65,6 +77,110 @@ function Read-Json([string]$Path, [string]$Code) {
     } catch {
         throw $Code
     }
+}
+function Download-ExactUrl([string]$Url, [string]$ExpectedSha256, [string]$Destination) {
+    if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+        if ((Get-Sha256 $Destination) -eq $ExpectedSha256) { return }
+        Remove-Item -LiteralPath $Destination -Force
+    }
+    Write-Host "Downloading $(Split-Path -Leaf $Destination)..." -ForegroundColor Cyan
+    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination
+    if ((Get-Sha256 $Destination) -ne $ExpectedSha256) {
+        Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+        throw "RECOVERY_RUNTIME_DOWNLOAD_HASH_MISMATCH"
+    }
+}
+
+function Test-RuntimeReady([string]$Family, [string]$ExpectedVersion, [string]$RuntimeId, [string]$WorkerName) {
+    try {
+        $familyRoot = Join-Path $env:LOCALAPPDATA "TDA\Runtime\$Family"
+        $currentPath = Join-Path $familyRoot "current.json"
+        if (-not (Test-Path -LiteralPath $currentPath -PathType Leaf)) { return $false }
+        $current = Read-Json $currentPath ("RECOVERY_RUNTIME_CURRENT_INVALID:" + $Family)
+        if ([string]$current.schema -ne "tda_asr_runtime_v1" -or [string]$current.runtime_id -ne $RuntimeId -or [string]$current.version -ne $ExpectedVersion) { return $false }
+        $versionRoot = Join-Path $familyRoot $ExpectedVersion
+        $markerPath = Join-Path $versionRoot ".tda-runtime.json"
+        $workerPath = Join-Path $versionRoot $WorkerName
+        if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf) -or -not (Test-Path -LiteralPath $workerPath -PathType Leaf)) { return $false }
+        $marker = Read-Json $markerPath ("RECOVERY_RUNTIME_MARKER_INVALID:" + $Family)
+        $workerHash = [string]$marker.worker_sha256
+        $archiveHash = [string]$marker.archive_sha256
+        if (
+            [string]$marker.schema -ne "tda_asr_runtime_v1" -or
+            [string]$marker.runtime_id -ne $RuntimeId -or
+            [string]$marker.version -ne $ExpectedVersion -or
+            [string]$marker.worker -ne $WorkerName -or
+            $workerHash.Length -ne 64 -or $workerHash -match "[^a-f0-9]" -or
+            $archiveHash.Length -ne 64 -or $archiveHash -match "[^a-f0-9]"
+        ) { return $false }
+        return (Get-Sha256 $workerPath) -eq $workerHash
+    } catch { return $false }
+}
+
+function New-NoCompressionZip([string]$Root, [string]$Destination, [string[]]$Names) {
+    Add-Type -AssemblyName System.IO.Compression
+    if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Force }
+    $stream = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $zip = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            foreach ($name in $Names) {
+                $file = Join-Path $Root $name
+                if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw ("RECOVERY_RUNTIME_OUTER_ARTIFACT_MEMBER_MISSING:" + $name) }
+                $entry = $zip.CreateEntry($name, [IO.Compression.CompressionLevel]::NoCompression)
+                $output = $entry.Open()
+                try {
+                    $input = [IO.File]::OpenRead($file)
+                    try { $input.CopyTo($output) } finally { $input.Dispose() }
+                } finally { $output.Dispose() }
+            }
+        } finally { $zip.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
+function Install-RcRuntimeArtifact([string]$Executable, [string]$Family, [string]$Artifact, [string]$ArtifactSha256, [string]$ResultPath) {
+    Remove-Item -LiteralPath $ResultPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath "$ResultPath.partial" -Force -ErrorAction SilentlyContinue
+    $arguments = @("--install-rc-runtime", $Family, "--rc-artifact", ('"{0}"' -f $Artifact), "--rc-artifact-sha256", $ArtifactSha256, "--rc-result-file", ('"{0}"' -f $ResultPath))
+    $process = Start-Process -FilePath $Executable -ArgumentList $arguments -Wait -PassThru
+    if (-not (Test-Path -LiteralPath $ResultPath -PathType Leaf)) { throw ("RECOVERY_RUNTIME_INSTALL_RESULT_MISSING:" + $Family) }
+    $result = Read-Json $ResultPath ("RECOVERY_RUNTIME_INSTALL_RESULT_INVALID:" + $Family)
+    if ([int]$process.ExitCode -ne 0 -or [string]$result.schema -ne "tda_rc_runtime_install_v1" -or $result.ok -ne $true -or [string]$result.runtime -ne $Family -or [string]$result.status -ne "ready") {
+        $code = if ($result.error) { [string]$result.error } else { "RECOVERY_RUNTIME_INSTALL_FAILED" }
+        throw ($code + ":" + $Family)
+    }
+}
+
+function Ensure-AutomatedRuntimesReady([string]$DownloadRoot) {
+    $executable = Join-Path $env:LOCALAPPDATA "TDA\Companion\versions\$Version\TDACompanion.exe"
+    if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "RECOVERY_CANDIDATE_EXECUTABLE_MISSING" }
+    $runtimeAssets = Join-Path $DownloadRoot "runtime-assets"
+    New-Item -ItemType Directory -Force -Path $runtimeAssets | Out-Null
+
+    if (-not (Test-RuntimeReady "whisper" "1.1.4" "whisper-ctranslate2" "TDAWhisperWorker.exe")) {
+        $root = Join-Path $runtimeAssets "whisper"
+        New-Item -ItemType Directory -Force -Path $root | Out-Null
+        Download-ExactUrl "https://github.com/Faysk/tda/releases/download/$WhisperRuntimeTag/$WhisperRuntimeName" $WhisperRuntimeSha256 (Join-Path $root $WhisperRuntimeName)
+        Download-ExactUrl "https://github.com/Faysk/tda/releases/download/$WhisperRuntimeTag/$WhisperRuntimeDigestName" $WhisperRuntimeDigestSha256 (Join-Path $root $WhisperRuntimeDigestName)
+        $outer = Join-Path $runtimeAssets "whisper-actions-artifact.zip"
+        New-NoCompressionZip $root $outer @($WhisperRuntimeName, $WhisperRuntimeDigestName)
+        Install-RcRuntimeArtifact $executable "whisper" $outer (Get-Sha256 $outer) (Join-Path $runtimeAssets "whisper-install.json")
+        if (-not (Test-RuntimeReady "whisper" "1.1.4" "whisper-ctranslate2" "TDAWhisperWorker.exe")) { throw "RECOVERY_WHISPER_RUNTIME_NOT_READY" }
+    } else { Write-Host "Whisper runtime 1.1.4 already verified; reuse." -ForegroundColor Green }
+
+    if (-not (Test-RuntimeReady "qwen" "1.0.7" "qwen3-transformers" "TDAQwenWorker.exe")) {
+        $root = Join-Path $runtimeAssets "qwen"
+        New-Item -ItemType Directory -Force -Path $root | Out-Null
+        foreach ($asset in @(@($QwenBundleName, $QwenBundleSha256), @($QwenPart1Name, $QwenPart1Sha256), @($QwenPart2Name, $QwenPart2Sha256))) {
+            $name = [string]$asset[0]
+            $sha = [string]$asset[1]
+            Download-ExactUrl "https://github.com/Faysk/tda/releases/download/$QwenRuntimeTag/$name" $sha (Join-Path $root $name)
+        }
+        $outer = Join-Path $runtimeAssets "qwen-actions-artifact.zip"
+        New-NoCompressionZip $root $outer @($QwenBundleName, $QwenPart1Name, $QwenPart2Name)
+        Install-RcRuntimeArtifact $executable "qwen" $outer (Get-Sha256 $outer) (Join-Path $runtimeAssets "qwen-install.json")
+        if (-not (Test-RuntimeReady "qwen" "1.0.7" "qwen3-transformers" "TDAQwenWorker.exe")) { throw "RECOVERY_QWEN_RUNTIME_NOT_READY" }
+    } else { Write-Host "Qwen runtime 1.0.7 already verified; reuse." -ForegroundColor Green }
 }
 
 function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
@@ -419,6 +535,12 @@ if (
 }
 
 Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)
+
+if ($Automated) {
+    Write-Host ""
+    Write-Host "Preparing pinned ASR runtimes before installed acceptance..." -ForegroundColor Cyan
+    Ensure-AutomatedRuntimesReady $downloads
+}
 
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
