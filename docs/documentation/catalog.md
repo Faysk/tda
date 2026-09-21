@@ -148,7 +148,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-20 |
 | [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | vigente | 2026-09-19 |
-| [Companion local](../integrations/local-companion.md) | local-companion/processing | base sintética implementada em branch/PR; ASR real legado preservado | 2026-09-07 |
+| [Companion local](../integrations/local-companion.md) | local-companion/processing | integração local vigente; ASR Craig real implementado; sync cloud desativado | 2026-09-21 |
 | [Pré-flight R2 e assets das novas lores](../integrations/lore-media-preparation-2026-09-07.md) | integrations/media | preparado; execução central pendente | 2026-09-07 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
