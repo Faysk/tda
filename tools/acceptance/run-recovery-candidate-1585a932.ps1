@@ -473,6 +473,12 @@ if (
 
 Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)
 
+if ($Automated) {
+    Write-Host ""
+    Write-Host "Preparing pinned ASR runtimes before installed acceptance..." -ForegroundColor Cyan
+    Ensure-AutomatedRuntimesReady $downloads
+}
+
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
 Write-Host "PHASE 1/2 - Installed Windows acceptance" -ForegroundColor Cyan
@@ -502,8 +508,7 @@ Assert-InstalledReceipt $installed
 Write-Host ""
 Write-Host "Preparing ASR profiles for the physical suite..." -ForegroundColor Cyan
 if ($Automated) {
-    Ensure-AutomatedRuntimesReady $downloads
-    Write-Host "Automated mode: physical workers will prepare any missing pinned models." -ForegroundColor Green
+    Assert-AllProfilesReady $Port
 } else {
     Require-AllProfilesReady $Port
 }
