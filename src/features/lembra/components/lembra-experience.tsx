@@ -1179,7 +1179,8 @@ export function LembraExperience({
 							</div>
 
 							{confirmRemove ? (
-								<div className={styles.viewerRemoveConfirm} role="group" aria-label="Confirmar remoção">
+								<fieldset className={styles.viewerRemoveConfirm}>
+									<legend className={styles.visuallyHidden}>Confirmar remoção</legend>
 									<div>
 										<strong>Remover esta referência?</strong>
 										<span>Ela some do Lembra para todo mundo.</span>
@@ -1202,7 +1203,7 @@ export function LembraExperience({
 											{saving ? "Removendo..." : "Remover"}
 										</Button>
 									</div>
-								</div>
+								</fieldset>
 							) : (
 								<div className={styles.viewerManageActions}>
 									<button
