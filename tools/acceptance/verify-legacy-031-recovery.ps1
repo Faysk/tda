@@ -122,9 +122,18 @@ print("FIXED_UPDATER_REDIRECT_AND_HASH_CONFIRMED")
 '@
         }
 
-        & $Python -c $code
-        if ($LASTEXITCODE -ne 0) {
-            throw "UPDATER_PROBE_FAILED:$($Expectation):$LASTEXITCODE"
+        $probePath = Join-Path $CacheRoot ("updater-probe-{0}.py" -f $Expectation)
+        New-Item -ItemType Directory -Force -Path $CacheRoot | Out-Null
+        [IO.File]::WriteAllText(
+            $probePath,
+            $code,
+            [Text.UTF8Encoding]::new($false)
+        )
+        & $Python $probePath
+        $probeExitCode = $LASTEXITCODE
+        Remove-Item -LiteralPath $probePath -Force -ErrorAction SilentlyContinue
+        if ($probeExitCode -ne 0) {
+            throw "UPDATER_PROBE_FAILED:$($Expectation):$probeExitCode"
         }
     } finally {
         $env:PYTHONPATH = $previousPythonPath
