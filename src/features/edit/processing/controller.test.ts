@@ -441,4 +441,204 @@ describe("processing state", () => {
 		expect(posts[1][1]?.headers).toEqual(firstPost?.[1]?.headers);
 		expect(controller.snapshot().uncertainSubmission).toBe(false);
 	});
+
+	it("loads local result metadata from source catalog without opening transcript content", async () => {
+		const sourceSha = "a".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const runId = "run-library-a1";
+		const reviewCaps = {
+			...caps,
+			capabilities: ["synthetic.fixture", "transcription.review"],
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [
+						{
+							source_id: sourceId,
+							source_sha256: sourceSha,
+							recording_id: null,
+							track_count: 1,
+						},
+					],
+				});
+			if (value.endsWith(`/sources/${sourceId}/runs`))
+				return Response.json({
+					schema_version: "tda_transcription_runs_v1",
+					source_id: sourceId,
+					runs: [
+						{
+							run_id: runId,
+							status: "completed",
+							source_id: sourceId,
+							profile_id: "whisper-detailed",
+							engine: "faster-whisper",
+							model: "large-v3",
+							model_revision: "rev",
+							language: "pt",
+							completed_at: "2026-09-21T00:00:00Z",
+							transcript_sha256: "b".repeat(64),
+							transcript_size_bytes: 1200,
+							stats: { warning_count: 1 },
+						},
+					],
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			localSources: [{ sourceId }],
+			localRuns: [{ sourceId, runId }],
+			localReview: null,
+		});
+		expect(
+			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
+		).toBe(false);
+	});
+
+	it("opens review only on explicit action and keeps stale-save conflict local to the editor", async () => {
+		const sourceSha = "c".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const runId = "run-review-a1";
+		const reviewCaps = {
+			...caps,
+			capabilities: ["transcription.review"],
+		};
+		const rawReview = {
+			schema_version: "tda_local_review_v1",
+			source_id: sourceId,
+			run_id: runId,
+			base_transcript_sha256: "d".repeat(64),
+			draft_revision: 0,
+			draft_sha256: "e".repeat(64),
+			status: "draft",
+			created_at: "2026-09-21T00:00:00Z",
+			updated_at: "2026-09-21T00:00:00Z",
+			lineage: {
+				profile_id: "whisper-detailed",
+				engine: "faster-whisper",
+				model: "large-v3",
+				model_revision: "rev",
+				device: "cuda",
+				compute_type: "float16",
+				alignment: "native",
+				completed_at: "2026-09-21T00:00:00Z",
+			},
+			stats: {
+				processing_seconds: 1,
+				session_duration_seconds: 2,
+				rtf: 0.5,
+				word_count: 2,
+				segment_count: 1,
+				track_count: 1,
+			},
+			warnings: [],
+			review: {
+				reviewed_segments: 0,
+				total_segments: 1,
+				review_percent: 0,
+				edited_segments: 0,
+				word_count: 2,
+				warning_count: 0,
+			},
+			segments: [
+				{
+					track_number: 1,
+					segment_id: "1-0",
+					start: 0,
+					end: 1,
+					text: "Texto local",
+					speaker: "Alice",
+					reviewed: false,
+				},
+			],
+			sync: { status: "not_configured" },
+		};
+		let reviewPosts = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [
+						{
+							source_id: sourceId,
+							source_sha256: sourceSha,
+							recording_id: null,
+							track_count: 1,
+						},
+					],
+				});
+			if (value.endsWith(`/sources/${sourceId}/runs`))
+				return Response.json({
+					schema_version: "tda_transcription_runs_v1",
+					source_id: sourceId,
+					runs: [
+						{
+							run_id: runId,
+							status: "completed",
+							source_id: sourceId,
+							profile_id: "whisper-detailed",
+							engine: "faster-whisper",
+							model: "large-v3",
+							model_revision: "rev",
+							language: "pt",
+							completed_at: "2026-09-21T00:00:00Z",
+							transcript_sha256: "d".repeat(64),
+							transcript_size_bytes: 1200,
+							stats: {},
+						},
+					],
+				});
+			if (value.endsWith("/review") && init?.method === "GET")
+				return Response.json(rawReview);
+			if (value.endsWith("/review") && init?.method === "POST") {
+				reviewPosts += 1;
+				return Response.json(
+					{ error: { code: "LOCAL_REVIEW_DRAFT_CONFLICT", recoverable: true } },
+					{ status: 409 },
+				);
+			}
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+		await controller.connect(token);
+		expect(controller.snapshot().localReview).toBeNull();
+
+		await controller.openLocalReview(sourceId, runId);
+		expect(controller.snapshot().localReview).toMatchObject({
+			sourceId,
+			runId,
+			draftRevision: 0,
+		});
+
+		const current = controller.snapshot().localReview;
+		if (!current) throw new Error("review did not open");
+		await controller.saveLocalReview(
+			current.draftRevision,
+			"reviewed",
+			current.segments,
+		);
+
+		expect(reviewPosts).toBe(1);
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			localReview: { sourceId, runId, draftRevision: 0 },
+			localReviewBusy: false,
+			localReviewError: "LOCAL_REVIEW_DRAFT_CONFLICT",
+		});
+		expect(controller.snapshot().error).toBeNull();
+	});
 });
