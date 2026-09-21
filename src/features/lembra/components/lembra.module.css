@@ -802,6 +802,58 @@
 	font-weight: 500;
 }
 
+
+.viewerEditForm {
+	display: grid;
+	gap: 2px;
+	margin-top: clamp(24px, 4vh, 48px);
+}
+
+.viewerEditActions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.viewerManageActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 14px;
+	margin-top: 18px;
+	padding-top: 16px;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.viewerManageActions button {
+	min-height: 36px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font: inherit;
+	font-size: 0.76rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.viewerManageActions button:hover {
+	color: var(--ds-foreground);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.viewerManageActions button:disabled {
+	opacity: 0.45;
+	cursor: default;
+	text-decoration: none;
+}
+
+.viewerManageActions .viewerDangerAction {
+	color: var(--ds-danger, #c96b6b);
+}
+
 .viewerHints {
 	display: flex;
 	flex-wrap: wrap;
