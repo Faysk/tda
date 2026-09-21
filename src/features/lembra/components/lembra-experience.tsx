@@ -11,6 +11,17 @@ import {
 } from "react";
 import { Button } from "@/components/ui";
 import {
+	finalizeLembraUploadAction,
+	requestLembraUploadAction,
+} from "../actions";
+import {
+	LEMBRA_MAX_BYTES,
+	isLembraMediaMime,
+	type LembraMediaMime,
+	type LembraReference,
+	type LembraUploadIntent,
+} from "../model";
+import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
 	matchesLembraSearch,
@@ -20,21 +31,17 @@ import styles from "./lembra.module.css";
 
 type ViewFilter = "all" | "mine" | "favorites";
 
-type ReferenceItem = Readonly<{
-	id: string;
-	title: string;
-	description: string;
-	author: string;
-	createdAt: string;
-	imageUrl: string;
-	mine: boolean;
-}>;
-
 type ReferenceDraft = Readonly<{
 	file: File;
 	previewUrl: string;
 	title: string;
 	description: string;
+}>;
+
+type LembraExperienceProps = Readonly<{
+	initialReferences?: readonly LembraReference[];
+	persistenceEnabled?: boolean;
+	canWrite?: boolean;
 }>;
 
 const EMPTY_DATE_RANGE: LembraDateRange = { from: "", to: "" };
@@ -101,8 +108,8 @@ function CalendarIcon() {
 	);
 }
 
-function isImageFile(file: File | undefined): file is File {
-	return Boolean(file?.type.startsWith("image/"));
+function acceptedImageFile(file: File | undefined): file is File {
+	return Boolean(file && isLembraMediaMime(file.type) && file.size >= 24 && file.size <= LEMBRA_MAX_BYTES);
 }
 
 function hasDraggedFiles(event: DragEvent) {
@@ -123,8 +130,45 @@ function dateFilterLabel(range: LembraDateRange) {
 	return "Até";
 }
 
-export function LembraExperience() {
-	const [references, setReferences] = useState<ReferenceItem[]>([]);
+function bytesToHex(bytes: Uint8Array) {
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function uploadIntent(file: File): Promise<LembraUploadIntent> {
+	if (!acceptedImageFile(file)) throw new Error("invalid_file");
+	const buffer = await file.arrayBuffer();
+	const digest = await crypto.subtle.digest("SHA-256", buffer);
+	return {
+		sha256: bytesToHex(new Uint8Array(digest)),
+		mimeType: file.type as LembraMediaMime,
+		bytes: file.size,
+	};
+}
+
+function mutationMessage(reason: string) {
+	switch (reason) {
+		case "forbidden":
+		case "profile_unresolved":
+			return "Sua conta não tem permissão para publicar no Lembra.";
+		case "unauthenticated":
+			return "Entre na sua conta para publicar no Lembra.";
+		case "media_unavailable":
+			return "O armazenamento do Lembra ainda não está disponível.";
+		case "invalid_payload":
+			return "A imagem ou os dados da referência não são válidos.";
+		case "conflict":
+			return "Essa publicação entrou em conflito. Tente novamente.";
+		default:
+			return "Não foi possível guardar a referência agora.";
+	}
+}
+
+export function LembraExperience({
+	initialReferences = [],
+	persistenceEnabled = false,
+	canWrite = true,
+}: LembraExperienceProps) {
+	const [references, setReferences] = useState<LembraReference[]>(() => [...initialReferences]);
 	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
@@ -132,6 +176,7 @@ export function LembraExperience() {
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
+	const [saving, setSaving] = useState(false);
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -153,28 +198,35 @@ export function LembraExperience() {
 		});
 	}, [discardUrl]);
 
-	const prepareFile = useCallback((file: File | undefined) => {
-		if (!isImageFile(file)) {
-			setMessage("Escolha uma imagem para guardar no Lembra.");
-			return;
-		}
-
-		const previewUrl = URL.createObjectURL(file);
-		ownedUrlsRef.current.add(previewUrl);
-		setMessage("");
-		setDraft((current) => {
-			if (current) {
-				URL.revokeObjectURL(current.previewUrl);
-				ownedUrlsRef.current.delete(current.previewUrl);
+	const prepareFile = useCallback(
+		(file: File | undefined) => {
+			if (!canWrite) {
+				setMessage("Sua conta tem acesso somente para consultar o Lembra.");
+				return;
 			}
-			return {
-				file,
-				previewUrl,
-				title: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
-				description: "",
-			};
-		});
-	}, []);
+			if (!acceptedImageFile(file)) {
+				setMessage("Use uma imagem JPG, PNG ou WebP de até 12 MB.");
+				return;
+			}
+
+			const previewUrl = URL.createObjectURL(file);
+			ownedUrlsRef.current.add(previewUrl);
+			setMessage("");
+			setDraft((current) => {
+				if (current) {
+					URL.revokeObjectURL(current.previewUrl);
+					ownedUrlsRef.current.delete(current.previewUrl);
+				}
+				return {
+					file,
+					previewUrl,
+					title: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim(),
+					description: "",
+				};
+			});
+		},
+		[canWrite],
+	);
 
 	useEffect(() => {
 		return () => {
@@ -210,8 +262,9 @@ export function LembraExperience() {
 		};
 
 		const onPaste = (event: ClipboardEvent) => {
+			if (!canWrite) return;
 			const item = Array.from(event.clipboardData?.items ?? []).find((entry) =>
-				entry.type.startsWith("image/"),
+				isLembraMediaMime(entry.type),
 			);
 			const file = item?.getAsFile() ?? undefined;
 			if (!file) return;
@@ -220,31 +273,31 @@ export function LembraExperience() {
 		};
 
 		const onDragEnter = (event: DragEvent) => {
-			if (!hasDraggedFiles(event)) return;
+			if (!canWrite || !hasDraggedFiles(event)) return;
 			event.preventDefault();
 			dragDepthRef.current += 1;
 			setDragging(true);
 		};
 
 		const onDragOver = (event: DragEvent) => {
-			if (!hasDraggedFiles(event)) return;
+			if (!canWrite || !hasDraggedFiles(event)) return;
 			event.preventDefault();
 			if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
 		};
 
 		const onDragLeave = (event: DragEvent) => {
-			if (!hasDraggedFiles(event)) return;
+			if (!canWrite || !hasDraggedFiles(event)) return;
 			event.preventDefault();
 			dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
 			if (dragDepthRef.current === 0) setDragging(false);
 		};
 
 		const onDrop = (event: DragEvent) => {
-			if (!hasDraggedFiles(event)) return;
+			if (!canWrite || !hasDraggedFiles(event)) return;
 			event.preventDefault();
 			dragDepthRef.current = 0;
 			setDragging(false);
-			const file = Array.from(event.dataTransfer?.files ?? []).find(isImageFile);
+			const file = Array.from(event.dataTransfer?.files ?? []).find(acceptedImageFile);
 			prepareFile(file);
 		};
 
@@ -262,7 +315,7 @@ export function LembraExperience() {
 			window.removeEventListener("dragleave", onDragLeave);
 			window.removeEventListener("drop", onDrop);
 		};
-	}, [prepareFile]);
+	}, [canWrite, prepareFile]);
 
 	const visibleReferences = useMemo(() => {
 		return references.filter((item) => {
@@ -276,33 +329,87 @@ export function LembraExperience() {
 	const filtersActive = Boolean(query.trim()) || hasLembraDateFilter(dateRange);
 
 	function openFilePicker() {
+		if (!canWrite) {
+			setMessage("Sua conta tem acesso somente para consultar o Lembra.");
+			return;
+		}
 		fileInputRef.current?.click();
 	}
 
-	function saveReference(event: FormEvent<HTMLFormElement>) {
+	async function saveReference(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!draft) return;
+		if (!draft || saving || !canWrite) return;
 
 		const title = draft.title.trim();
+		const description = draft.description.trim();
 		if (!title) {
 			titleRef.current?.focus();
 			return;
 		}
 
-		const item: ReferenceItem = {
-			id: createClientId(),
-			title,
-			description: draft.description.trim(),
-			author: "Você",
-			createdAt: new Date().toISOString(),
-			imageUrl: draft.previewUrl,
-			mine: true,
-		};
+		if (!persistenceEnabled) {
+			const item: LembraReference = {
+				id: createClientId(),
+				title,
+				description,
+				author: "Você",
+				authorProfileId: null,
+				createdAt: new Date().toISOString(),
+				imageUrl: draft.previewUrl,
+				mine: true,
+			};
+			setReferences((current) => [item, ...current]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência adicionada nesta sessão.");
+			return;
+		}
 
-		setReferences((current) => [item, ...current]);
-		setDraft(null);
-		setView("all");
-		setMessage("Referência adicionada nesta sessão.");
+		setSaving(true);
+		setMessage("");
+		try {
+			const intent = await uploadIntent(draft.file);
+			const requested = await requestLembraUploadAction(intent);
+			if (!requested.ok) {
+				setMessage(mutationMessage(requested.reason));
+				return;
+			}
+
+			const response = await fetch(requested.uploadUrl, {
+				method: requested.method,
+				headers: requested.headers,
+				body: draft.file,
+			});
+			if (!response.ok) {
+				setMessage("O envio da imagem falhou. Tente novamente.");
+				return;
+			}
+
+			const finalized = await finalizeLembraUploadAction(
+				requested.referenceId,
+				requested.uploadId,
+				intent,
+				title,
+				description,
+			);
+			if (!finalized.ok) {
+				setMessage(mutationMessage(finalized.reason));
+				return;
+			}
+
+			discardUrl(draft.previewUrl);
+			setReferences((current) => [
+				finalized.reference,
+				...current.filter((item) => item.id !== finalized.reference.id),
+			]);
+			setDraft(null);
+			setView("all");
+			setMessage("Referência guardada.");
+		} catch {
+			setMessage("Não foi possível guardar a referência agora.");
+		} finally {
+			setSaving(false);
+		}
 	}
 
 	function toggleFavorite(id: string) {
@@ -449,12 +556,14 @@ export function LembraExperience() {
 						</div>
 					</details>
 
-					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
-						<span className={styles.buttonIcon}>
-							<PlusIcon />
-						</span>
-						Adicionar imagem
-					</Button>
+					{canWrite ? (
+						<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
+							<span className={styles.buttonIcon}>
+								<PlusIcon />
+							</span>
+							Adicionar imagem
+						</Button>
+					) : null}
 				</div>
 
 				{message ? (
@@ -513,17 +622,19 @@ export function LembraExperience() {
 						<p>
 							{filtersActive
 								? "Tente outra combinação de palavras ou ajuste o período."
-								: "Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador."}
+								: canWrite
+									? "Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador."
+									: "Sua conta pode consultar as referências desta campanha, mas não publicar novas imagens."}
 						</p>
 						{filtersActive ? (
 							<Button variant="secondary" onClick={clearSearchFilters}>
 								Limpar filtros
 							</Button>
-						) : (
+						) : canWrite ? (
 							<Button variant="secondary" onClick={openFilePicker}>
 								Escolher arquivo
 							</Button>
-						)}
+						) : null}
 					</div>
 				)}
 
@@ -531,7 +642,7 @@ export function LembraExperience() {
 					ref={fileInputRef}
 					className={styles.visuallyHidden}
 					type="file"
-					accept="image/*"
+					accept="image/jpeg,image/png,image/webp"
 					onChange={(event) => {
 						prepareFile(event.target.files?.[0]);
 						event.target.value = "";
@@ -556,7 +667,7 @@ export function LembraExperience() {
 				className={styles.dialog}
 				onCancel={(event) => {
 					event.preventDefault();
-					closeDraft();
+					if (!saving) closeDraft();
 				}}
 			>
 				{draft ? (
@@ -575,6 +686,7 @@ export function LembraExperience() {
 									className={styles.closeButton}
 									onClick={closeDraft}
 									aria-label="Fechar"
+									disabled={saving}
 								>
 									<span aria-hidden="true">×</span>
 								</button>
@@ -588,6 +700,7 @@ export function LembraExperience() {
 									required
 									maxLength={120}
 									value={draft.title}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current ? { ...current, title: event.target.value } : current,
@@ -603,6 +716,7 @@ export function LembraExperience() {
 									rows={4}
 									maxLength={320}
 									value={draft.description}
+									disabled={saving}
 									onChange={(event) =>
 										setDraft((current) =>
 											current
@@ -625,11 +739,17 @@ export function LembraExperience() {
 									variant="tertiary"
 									className={styles.composerAction}
 									onClick={closeDraft}
+									disabled={saving}
 								>
 									Cancelar
 								</Button>
-								<Button type="submit" variant="primary" className={styles.composerAction}>
-									Guardar
+								<Button
+									type="submit"
+									variant="primary"
+									className={styles.composerAction}
+									disabled={saving}
+								>
+									{saving ? "Guardando..." : "Guardar"}
 								</Button>
 							</div>
 						</div>
