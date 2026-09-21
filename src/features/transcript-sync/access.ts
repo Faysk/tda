@@ -18,6 +18,19 @@ export type AuthorizedImportActor = Readonly<{
 	profileId: string;
 }>;
 
+type ImportLookupResult<T> =
+	| Readonly<{ ok: true; value: T }>
+	| Readonly<{ ok: false; reason: "not_found" | "dependency_unavailable" }>;
+
+export type ImportAuthorizationQueries = Readonly<{
+	physicalAction: () => Promise<
+		| Readonly<{ ok: true; exists: boolean }>
+		| Readonly<{ ok: false; reason: "dependency_unavailable" }>
+	>;
+	campaignSlug: (campaignId: string) => Promise<ImportLookupResult<string>>;
+	target: (identity: ImportIdentity) => Promise<ImportLookupResult<ImportTarget>>;
+}>;
+
 export function authorizeImportCampaignScope(
 	context: EditAccessContext,
 	campaignSlug: string | null,
@@ -60,4 +73,43 @@ export function authorizeImportBoundTarget(
 	}
 
 	return { ok: true, actor } as const;
+}
+
+export async function authorizeImportRequest(
+	context: EditAccessContext,
+	identity: ImportIdentity,
+	queries: ImportAuthorizationQueries,
+) {
+	const action = await queries.physicalAction();
+	if (!action.ok) {
+		return { ok: false, reason: "dependency_unavailable" } as const;
+	}
+	if (!action.exists) {
+		return { ok: false, reason: "import_capability_undefined" } as const;
+	}
+
+	const campaign = await queries.campaignSlug(identity.campaignId);
+	if (!campaign.ok && campaign.reason === "dependency_unavailable") {
+		return { ok: false, reason: "dependency_unavailable" } as const;
+	}
+
+	// Missing/foreign campaign scope is deliberately opaque until a capability
+	// can be proven. In particular, target existence is never consulted here.
+	const scope = authorizeImportCampaignScope(
+		context,
+		campaign.ok ? campaign.value : null,
+		true,
+	);
+	if (!scope.ok) return scope;
+
+	const target = await queries.target(identity);
+	if (!target.ok && target.reason === "dependency_unavailable") {
+		return { ok: false, reason: "dependency_unavailable" } as const;
+	}
+
+	return authorizeImportBoundTarget(
+		scope.actor,
+		identity,
+		target.ok ? target.value : null,
+	);
 }
