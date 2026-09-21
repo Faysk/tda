@@ -1147,6 +1147,7 @@ def create_app(
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
+            "transcription.review",
         ]
         catalog = profile_catalog(
             resolved_state_root,
