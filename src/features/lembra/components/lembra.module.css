@@ -734,6 +734,21 @@
 	transform: translateY(-50%) scale(1.04);
 }
 
+.viewerPrevious:disabled,
+.viewerNext:disabled,
+.viewerFavorite:disabled,
+.viewerFavoriteActive:disabled,
+.viewerClose:disabled {
+	opacity: 0.42;
+	cursor: default;
+}
+
+.viewerPrevious:disabled:hover,
+.viewerNext:disabled:hover {
+	background: rgba(8, 10, 13, 0.64);
+	transform: translateY(-50%);
+}
+
 .arrowRight {
 	transform: rotate(180deg);
 }
