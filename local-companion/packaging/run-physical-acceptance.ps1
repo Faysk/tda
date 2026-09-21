@@ -191,6 +191,15 @@ function Read-RuntimeCandidate([string]$Path, [string]$ExpectedFamily) {
     return $value
 }
 
+$whisperRuntimeCandidate = $null
+$qwenRuntimeCandidate = $null
+$runtimeSealCompanion = $null
+if ($sealRuntimeReceipts) {
+    $whisperRuntimeCandidate = Read-RuntimeCandidate $WhisperRuntimeCandidateManifest "whisper"
+    $qwenRuntimeCandidate = Read-RuntimeCandidate $QwenRuntimeCandidateManifest "qwen"
+    $runtimeSealCompanion = Get-InstalledCompanionExecutable ([string]$candidate.version)
+}
+
 $needWhisper = @($Profiles | Where-Object { $_ -like "whisper-*" }).Count -gt 0
 $needQwen = @($Profiles | Where-Object { $_ -like "qwen-*" }).Count -gt 0
 $whisper = if ($needWhisper) { Get-RuntimeWorker -Family "whisper" -RuntimeId "whisper-ctranslate2" -Executable "TDAWhisperWorker.exe" } else { $null }
@@ -249,10 +258,6 @@ foreach ($profile in $Profiles) {
 
 $runtimeAcceptanceReceipts = [ordered]@{}
 if ($sealRuntimeReceipts) {
-    $companionExecutable = Get-InstalledCompanionExecutable ([string]$candidate.version)
-    $whisperCandidate = Read-RuntimeCandidate $WhisperRuntimeCandidateManifest "whisper"
-    $qwenCandidate = Read-RuntimeCandidate $QwenRuntimeCandidateManifest "qwen"
-
     $rawRoot = Join-Path $output ".runtime-evidence"
     New-Item -ItemType Directory -Force -Path $rawRoot | Out-Null
     $whisperReceiptPaths = [Collections.Generic.List[string]]::new()
@@ -263,10 +268,10 @@ if ($sealRuntimeReceipts) {
     }
 
     Write-Host "Sealing Whisper runtime promotion receipt from this same physical run..."
-    $runtimeAcceptanceReceipts.whisper = Invoke-RuntimePhysicalSeal -CompanionExecutable $companionExecutable -RuntimeCandidate $whisperCandidate -WhisperReceipts $whisperReceiptPaths.ToArray()
+    $runtimeAcceptanceReceipts.whisper = Invoke-RuntimePhysicalSeal -CompanionExecutable $runtimeSealCompanion -RuntimeCandidate $whisperRuntimeCandidate -WhisperReceipts $whisperReceiptPaths.ToArray()
 
     Write-Host "Sealing Qwen runtime promotion receipt from this same physical run..."
-    $runtimeAcceptanceReceipts.qwen = Invoke-RuntimePhysicalSeal -CompanionExecutable $companionExecutable -RuntimeCandidate $qwenCandidate -QwenStateRoot $state
+    $runtimeAcceptanceReceipts.qwen = Invoke-RuntimePhysicalSeal -CompanionExecutable $runtimeSealCompanion -RuntimeCandidate $qwenRuntimeCandidate -QwenStateRoot $state
 }
 
 $first = $results[$Profiles[0]]
