@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getLembraIdentity } from "./access";
 import {
+	LEMBRA_UPLOAD_CHUNK_BYTES,
 	isLembraUuid,
 	type LembraReference,
 	type LembraUploadIntent,
@@ -21,7 +22,6 @@ import {
 import {
 	finalizeLembraPendingUpload,
 	lembraPersistenceEnabled,
-	presignLembraPendingUpload,
 	type VerifiedLembraUpload,
 } from "./server";
 import { lembraDataClient } from "@/integrations/supabase/server";
@@ -40,10 +40,7 @@ export type RequestLembraUploadResult =
 			ok: true;
 			referenceId: string;
 			uploadId: string;
-			uploadUrl: string;
-			expiresAt: string;
-			method: "PUT";
-			headers: Readonly<{ "Content-Type": LembraUploadIntent["mimeType"] }>;
+			chunkBytes: number;
 	  }>
 	| Readonly<{ ok: false; reason: LembraMutationFailure }>;
 
@@ -86,31 +83,12 @@ export async function requestLembraUploadAction(
 	const access = await getLembraIdentity();
 	if (!access.ok) return access;
 
-	try {
-		const referenceId = randomUUID();
-		const uploadId = randomUUID();
-		const signed = presignLembraPendingUpload({
-			referenceId,
-			uploadId,
-			sha256: intent.sha256,
-			mimeType: intent.mimeType,
-		});
-		return {
-			ok: true,
-			referenceId,
-			uploadId,
-			uploadUrl: signed.url,
-			expiresAt: signed.expiresAt,
-			method: "PUT",
-			headers: signed.headers,
-		};
-	} catch (error) {
-		console.error(
-			"Lembra upload intent failed",
-			error instanceof Error ? error.message : "unknown_error",
-		);
-		return { ok: false, reason: "dependency_unavailable" };
-	}
+	return {
+		ok: true,
+		referenceId: randomUUID(),
+		uploadId: randomUUID(),
+		chunkBytes: LEMBRA_UPLOAD_CHUNK_BYTES,
+	};
 }
 
 export async function finalizeLembraUploadAction(

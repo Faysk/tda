@@ -7,7 +7,6 @@ const canonicalSupabaseOrigin = "https://dmrqnbdvbkfqzctcerbx.supabase.co";
 const canonicalSupabaseWebsocketOrigin =
 	"wss://dmrqnbdvbkfqzctcerbx.supabase.co";
 const canonicalMediaOrigin = "https://media.dnd.faysk.dev";
-const r2S3OriginPattern = "https://*.r2.cloudflarestorage.com";
 
 const contentSecurityPolicyReportOnly = [
 	"default-src 'self'",
@@ -19,7 +18,7 @@ const contentSecurityPolicyReportOnly = [
 	"style-src 'self' 'unsafe-inline'",
 	`img-src 'self' data: blob: ${canonicalMediaOrigin} ${canonicalSupabaseOrigin}`,
 	"font-src 'self' data:",
-	`connect-src 'self' ${canonicalSupabaseOrigin} ${canonicalSupabaseWebsocketOrigin} ${canonicalMediaOrigin} ${r2S3OriginPattern}`,
+	`connect-src 'self' ${canonicalSupabaseOrigin} ${canonicalSupabaseWebsocketOrigin} ${canonicalMediaOrigin}`,
 	`media-src 'self' blob: ${canonicalMediaOrigin}`,
 	"worker-src 'self' blob:",
 	"manifest-src 'self'",

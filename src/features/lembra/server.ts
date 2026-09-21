@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
 	PutObjectCommand,
@@ -8,34 +9,26 @@ import {
 } from "@aws-sdk/client-s3";
 import {
 	mediaClient,
-	mediaConnectionConfig,
 	privateMediaClient,
-	privateMediaConnectionConfig,
 } from "@/integrations/r2/server";
 import { inspectLembraImage, lembraSha256, type LembraImageInfo } from "./image";
 import {
 	LEMBRA_MAX_BYTES,
 	LEMBRA_PREVIEW_BUCKET,
 	LEMBRA_PRIVATE_BUCKET,
-	LEMBRA_UPLOAD_EXPIRES_SECONDS,
+	LEMBRA_UPLOAD_CHUNK_BYTES,
 	lembraExtensionForMime,
-	lembraPendingObjectKey,
+	lembraPendingChunkObjectKey,
 	lembraReferenceObjectKey,
+	lembraUploadChunkCount,
 	type LembraMediaMime,
 } from "./model";
-import { presignLembraPutObject, type LembraPresignedPut } from "./presign";
 
 export type VerifiedLembraUpload = LembraImageInfo &
 	Readonly<{
 		bucket: string;
 		objectKey: string;
 		readBackVerified: true;
-	}>;
-
-export type PresignedLembraUpload = LembraPresignedPut &
-	Readonly<{
-		bucket: string;
-		pendingObjectKey: string;
 	}>;
 
 type S3ResponseError = Readonly<{
@@ -80,12 +73,6 @@ function lembraMediaClient() {
 	return lembraProductionRuntime() ? privateMediaClient() : mediaClient();
 }
 
-function lembraMediaConnectionConfig() {
-	return lembraProductionRuntime()
-		? privateMediaConnectionConfig()
-		: mediaConnectionConfig();
-}
-
 export function lembraStagingBucket(): string {
 	const expected = lembraProductionRuntime()
 		? LEMBRA_PRIVATE_BUCKET
@@ -101,14 +88,18 @@ async function objectBytes(
 	client: S3Client,
 	bucket: string,
 	objectKey: string,
+	{
+		minBytes = 24,
+		maxBytes = LEMBRA_MAX_BYTES,
+	}: { minBytes?: number; maxBytes?: number } = {},
 ): Promise<Uint8Array> {
 	const head = await client.send(
 		new HeadObjectCommand({ Bucket: bucket, Key: objectKey }),
 	);
 	if (
 		typeof head.ContentLength !== "number" ||
-		head.ContentLength < 24 ||
-		head.ContentLength > LEMBRA_MAX_BYTES
+		head.ContentLength < minBytes ||
+		head.ContentLength > maxBytes
 	) {
 		failure("R2_INVALID_SIZE");
 	}
@@ -120,8 +111,8 @@ async function objectBytes(
 	if (
 		typeof result.ContentLength !== "number" ||
 		result.ContentLength !== head.ContentLength ||
-		result.ContentLength < 24 ||
-		result.ContentLength > LEMBRA_MAX_BYTES
+		result.ContentLength < minBytes ||
+		result.ContentLength > maxBytes
 	) {
 		failure("R2_LENGTH_MISMATCH");
 	}
@@ -189,41 +180,38 @@ async function putImmutable({
 	}
 }
 
-export function presignLembraPendingUpload({
+export async function writeLembraUploadChunk({
 	referenceId,
 	uploadId,
-	sha256,
-	mimeType,
+	part,
+	bytes,
 }: {
 	referenceId: string;
 	uploadId: string;
-	sha256: string;
-	mimeType: LembraMediaMime;
-}): PresignedLembraUpload {
-	const pendingObjectKey = lembraPendingObjectKey({
+	part: number;
+	bytes: Uint8Array;
+}): Promise<void> {
+	const objectKey = lembraPendingChunkObjectKey({
 		referenceId,
 		uploadId,
-		sha256,
-		extension: lembraExtensionForMime(mimeType),
+		part,
 	});
-	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
+	if (!objectKey) failure("INVALID_PENDING_CHUNK_KEY");
+	if (bytes.length < 1 || bytes.length > LEMBRA_UPLOAD_CHUNK_BYTES) {
+		failure("INVALID_CHUNK_SIZE");
+	}
 
 	const bucket = lembraStagingBucket();
-	const { accountId, accessKeyId, secretAccessKey } =
-		lembraMediaConnectionConfig();
-	return {
-		...presignLembraPutObject({
-			accountId,
-			bucket,
-			objectKey: pendingObjectKey,
-			accessKeyId,
-			secretAccessKey,
-			contentType: mimeType,
-			expiresIn: LEMBRA_UPLOAD_EXPIRES_SECONDS,
+	await lembraMediaClient().send(
+		new PutObjectCommand({
+			Bucket: bucket,
+			Key: objectKey,
+			Body: bytes,
+			ContentType: "application/octet-stream",
+			ContentLength: bytes.length,
+			CacheControl: "private, no-store",
 		}),
-		bucket,
-		pendingObjectKey,
-	};
+	);
 }
 
 export async function finalizeLembraPendingUpload({
@@ -239,17 +227,37 @@ export async function finalizeLembraPendingUpload({
 	expectedMimeType: LembraMediaMime;
 	expectedBytes: number;
 }): Promise<VerifiedLembraUpload> {
-	const pendingObjectKey = lembraPendingObjectKey({
-		referenceId,
-		uploadId,
-		sha256: expectedSha256,
-		extension: lembraExtensionForMime(expectedMimeType),
-	});
-	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
+	const chunkCount = lembraUploadChunkCount(expectedBytes);
+	if (!chunkCount) failure("INVALID_UPLOAD_SIZE");
 
 	const bucket = lembraStagingBucket();
 	const client = lembraMediaClient();
-	const pendingBytes = await objectBytes(client, bucket, pendingObjectKey);
+	const pendingBytes = new Uint8Array(expectedBytes);
+	const chunkKeys: string[] = [];
+	let offset = 0;
+
+	for (let part = 0; part < chunkCount; part += 1) {
+		const objectKey = lembraPendingChunkObjectKey({
+			referenceId,
+			uploadId,
+			part,
+		});
+		if (!objectKey) failure("INVALID_PENDING_CHUNK_KEY");
+		const expectedPartBytes = Math.min(
+			LEMBRA_UPLOAD_CHUNK_BYTES,
+			expectedBytes - offset,
+		);
+		const chunk = await objectBytes(client, bucket, objectKey, {
+			minBytes: expectedPartBytes,
+			maxBytes: expectedPartBytes,
+		});
+		pendingBytes.set(chunk, offset);
+		offset += chunk.length;
+		chunkKeys.push(objectKey);
+	}
+
+	if (offset !== expectedBytes) failure("UPLOAD_LENGTH_MISMATCH");
+
 	const info = inspectLembraImage(pendingBytes);
 	if (
 		info.sha256 !== expectedSha256 ||
@@ -273,6 +281,12 @@ export async function finalizeLembraPendingUpload({
 		bytes: pendingBytes,
 		info,
 	});
+
+	await Promise.allSettled(
+		chunkKeys.map((key) =>
+			client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })),
+		),
+	);
 
 	return {
 		...info,

@@ -186,9 +186,10 @@ Fluxo:
 browser autenticado
  -> SHA-256 local + intent
  -> server valida sessão
- -> presigned PUT curto para pending
- -> browser envia bytes ao R2
- -> server faz HEAD/GET
+ -> browser envia chunks de até 2 MiB para /api/lembra/upload
+ -> server revalida sessão em cada chunk
+ -> server grava chunks pending no R2 privado
+ -> finalize recompõe os bytes no server
  -> valida magic bytes/MIME/hash/tamanho/dimensões
  -> materializa objeto canônico imutável
  -> read-back
@@ -199,7 +200,7 @@ browser autenticado
 Namespaces:
 
 ```text
-uploads/pending/lembra/{reference-uuid}/{upload-uuid}/{sha256}.{ext}
+uploads/pending/lembra/{reference-uuid}/{upload-uuid}/chunks/{part}
 lembra/{reference-uuid}/{sha256}.{ext}
 ```
 
@@ -232,7 +233,7 @@ Tratar sem perder a galeria atual:
 - arquivo fora dos formatos suportados;
 - arquivo maior que o limite;
 - upload interrompido;
-- intent expirado;
+- chunk ausente ou com tamanho inesperado;
 - hash/MIME/tamanho divergente;
 - read-back falhando;
 - sessão expirada;
@@ -257,7 +258,7 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] busca por nome/descrição/autor/data continua funcionando;
 - [ ] filtro por período e ordenação continuam funcionando;
 - [ ] drag/drop, paste e picker usam o mesmo pipeline;
-- [ ] pending upload usa URL curta e canonical object é imutável;
+- [ ] upload pendente usa chunks same-origin limitados e canonical object é imutável;
 - [ ] finalize revalida bytes reais;
 - [ ] credenciais permanentes R2 nunca chegam ao browser;
 - [ ] falha de metadata não cria referência parcialmente visível;
@@ -292,7 +293,7 @@ A simplicidade é requisito, não ausência de funcionalidade.
 1. mergear código/schema com `TDA_LEMBRA_ENABLED=false`;
 2. validar migration em PostgreSQL descartável;
 3. aplicar migration deliberadamente no Supabase canônico;
-4. confirmar R2 private + CORS para presigned PUT;
+4. confirmar R2 private acessível pelo runtime server-side;
 5. confirmar secrets server-side no runtime;
 6. ativar `TDA_LEMBRA_ENABLED=true`;
 7. smoke autenticado com dois usuários:
