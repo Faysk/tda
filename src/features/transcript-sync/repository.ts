@@ -1,10 +1,7 @@
 import "server-only";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { editDataClient } from "@/integrations/supabase/server";
-import {
-	authorizeImportBoundTarget,
-	authorizeImportCampaignScope,
-} from "./access";
+import { authorizeImportRequest } from "./access";
 import type { ImportDependencies } from "./consumer";
 import type { ImportResult } from "./contract";
 
@@ -16,52 +13,60 @@ export const databaseImportDependencies: ImportDependencies = {
 		const context = await loadEditAccessContext(authUserId);
 		if (!context) return { ok: false, reason: "dependency_unavailable" };
 
-		const { data: action, error: actionError } = await client
-			.from("permission_catalog")
-			.select("action")
-			.eq("action", "campaign.transcript.import")
-			.maybeSingle();
-		if (actionError) return { ok: false, reason: "dependency_unavailable" };
-		if (!action) return { ok: false, reason: "import_capability_undefined" };
-
-		// Resolve only the campaign scope needed for authorization. Do not touch the
-		// target session until capability/scope is proven, so denied callers cannot
-		// distinguish existing and missing sessions through this adapter.
-		const { data: campaign, error: campaignError } = await client
-			.from("campaigns")
-			.select("slug")
-			.eq("id", identity.campaignId)
-			.maybeSingle();
-		if (campaignError) return { ok: false, reason: "dependency_unavailable" };
-
-		const scope = authorizeImportCampaignScope(
-			context,
-			campaign?.slug ?? null,
-			true,
-		);
-		if (!scope.ok) return scope;
-
-		const { data: session, error: sessionError } = await client
-			.from("sessions")
-			.select("id,campaign_id,source_system,source_session_id")
-			.eq("id", identity.sessionId)
-			.eq("campaign_id", identity.campaignId)
-			.maybeSingle();
-		if (sessionError) return { ok: false, reason: "dependency_unavailable" };
-
-		return authorizeImportBoundTarget(
-			scope.actor,
-			identity,
-			session && campaign
-				? {
-						campaignId: session.campaign_id,
-						campaignSlug: campaign.slug,
-						sessionId: session.id,
-						sourceSystem: session.source_system,
-						sourceSessionId: session.source_session_id,
-					}
-				: null,
-		);
+		return authorizeImportRequest(context, identity, {
+			physicalAction: async () => {
+				const { data, error } = await client
+					.from("permission_catalog")
+					.select("action")
+					.eq("action", "campaign.transcript.import")
+					.maybeSingle();
+				return error
+					? { ok: false as const, reason: "dependency_unavailable" as const }
+					: { ok: true as const, exists: Boolean(data) };
+			},
+			campaignSlug: async (campaignId) => {
+				const { data, error } = await client
+					.from("campaigns")
+					.select("slug")
+					.eq("id", campaignId)
+					.maybeSingle();
+				if (error) {
+					return {
+						ok: false as const,
+						reason: "dependency_unavailable" as const,
+					};
+				}
+				return data
+					? { ok: true as const, value: data.slug }
+					: { ok: false as const, reason: "not_found" as const };
+			},
+			target: async (expected) => {
+				const { data: session, error } = await client
+					.from("sessions")
+					.select("id,campaign_id,source_system,source_session_id")
+					.eq("id", expected.sessionId)
+					.eq("campaign_id", expected.campaignId)
+					.maybeSingle();
+				if (error) {
+					return {
+						ok: false as const,
+						reason: "dependency_unavailable" as const,
+					};
+				}
+				return session
+					? {
+							ok: true as const,
+							value: {
+								campaignId: session.campaign_id,
+								campaignSlug: "",
+								sessionId: session.id,
+								sourceSystem: session.source_system,
+								sourceSessionId: session.source_session_id,
+							},
+						}
+					: { ok: false as const, reason: "not_found" as const };
+			},
+		});
 	},
 	commit: (actor, input) => invoke(actor, input, false),
 	lookup: (actor, input) => invoke(actor, input, true),
