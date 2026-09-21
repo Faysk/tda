@@ -275,7 +275,7 @@ jobs:
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/noah --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
-          LEMBRA_STATUS="$(vercel curl "$DEPLOYMENT_URL/lembra" --silent --show-error --output /dev/null --write-out '%{http_code}')"
+          LEMBRA_STATUS="$(vercel curl /lembra --deployment "$DEPLOYMENT_URL" --silent --show-error --output /dev/null --write-out '%{http_code}')"
           if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
             echo "::error::Expected authenticated Lembra to redirect anonymous staged request, got HTTP $LEMBRA_STATUS"
             exit 1
