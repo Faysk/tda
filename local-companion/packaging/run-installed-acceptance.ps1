@@ -10,7 +10,10 @@ param(
     [string]$CraigZip,
     [string]$ReceiptPath = (Join-Path $env:LOCALAPPDATA "TDA\State\acceptance\installed-journey.json"),
     [ValidateRange(1024, 65535)]
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [switch]$Automated,
+    [switch]$AllowLegacyTrayEquivalent,
+    [string]$BitsProbeUrl = "https://github.com/Faysk/tda/releases/download/companion-qwen-runtime-rc-v1.0.7-018e109530ba/TDAQwenRuntime-1.0.7-windows-x64.zip.part002"
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +62,146 @@ function Wait-AgentReplacement([int]$PreviousPid, [int]$TimeoutSeconds = 60) {
         Start-Sleep -Milliseconds 300
     }
     return $null
+}
+
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class TdaAcceptanceWindow {
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    public static IntPtr FindAnyWindow(int pid) {
+        IntPtr result = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
+            uint owner; GetWindowThreadProcessId(hWnd, out owner);
+            if (owner == (uint)pid) { result = hWnd; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+    public static IntPtr FindVisibleWindow(int pid) {
+        IntPtr result = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
+            uint owner; GetWindowThreadProcessId(hWnd, out owner);
+            if (owner == (uint)pid && IsWindowVisible(hWnd)) { result = hWnd; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+    public static bool Close(IntPtr hWnd) { return PostMessage(hWnd, 0x0010, IntPtr.Zero, IntPtr.Zero); }
+    public static bool Show(IntPtr hWnd) { return ShowWindow(hWnd, 5); }
+}
+"@
+
+function Get-PairingToken {
+    $path = Join-Path $env:LOCALAPPDATA "TDA\State\pairing-token.txt"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "PAIRING_TOKEN_FILE_MISSING" }
+    $value = (Get-Content -LiteralPath $path -Raw -Encoding UTF8).Trim()
+    if ($value.Length -lt 43) { throw "PAIRING_TOKEN_INVALID" }
+    return $value
+}
+
+function Invoke-AgentJson([string]$Method, [string]$Path) {
+    $token = Get-PairingToken
+    $headers = @{ Authorization = "Bearer $token"; Accept = "application/json"; Origin = "https://dnd.faysk.dev" }
+    return Invoke-RestMethod -NoProxy -Method $Method -Uri "http://127.0.0.1:$Port/api/v1$Path" -Headers $headers -TimeoutSec 30
+}
+
+function Upload-CraigFixture([string]$Path) {
+    $token = Get-PairingToken
+    $headers = @{ Authorization = "Bearer $token"; Accept = "application/json"; Origin = "https://dnd.faysk.dev" }
+    $response = Invoke-WebRequest -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/sources/craig" -Headers $headers -ContentType "application/zip" -InFile $Path -TimeoutSec 900
+    return $response.Content | ConvertFrom-Json
+}
+
+function Get-UiProcesses {
+    $health = Get-AgentHealth
+    $agentPid = if ($null -ne $health) { [int]$health.pid } else { -1 }
+    return @(Get-CimInstance Win32_Process -Filter "Name='TDACompanion.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            [int]$_.ProcessId -ne $agentPid -and
+            ([string]$_.CommandLine -match '(?i)(?:^|\s)--ui(?:\s|$)')
+        } | Sort-Object CreationDate -Descending)
+}
+
+function Stop-UiProcesses {
+    $uis = @(Get-UiProcesses)
+    foreach ($ui in $uis) {
+        try { Stop-Process -Id ([int]$ui.ProcessId) -Force -ErrorAction Stop } catch {}
+    }
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+    while ([DateTimeOffset]::UtcNow -lt $deadline -and @(Get-UiProcesses).Count -gt 0) {
+        Start-Sleep -Milliseconds 200
+    }
+    if ($null -eq (Get-AgentHealth)) { throw "AGENT_DIED_WHILE_CLEANING_UI_PROCESSES" }
+    return $uis.Count
+}
+
+function Ensure-AcceptanceUi([string]$Executable) {
+    $existing = @(Get-UiProcesses) | Select-Object -First 1
+    if ($null -ne $existing) {
+        $window = [TdaAcceptanceWindow]::FindAnyWindow([int]$existing.ProcessId)
+        if ($window -ne [IntPtr]::Zero) {
+            [void][TdaAcceptanceWindow]::Show($window)
+            return $existing
+        }
+    }
+    Start-Process -FilePath $Executable -ArgumentList @("--ui", "--port", [string]$Port) | Out-Null
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $ui = @(Get-UiProcesses) | Select-Object -First 1
+        if ($null -ne $ui) {
+            $window = [TdaAcceptanceWindow]::FindVisibleWindow([int]$ui.ProcessId)
+            if ($window -ne [IntPtr]::Zero) { return $ui }
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "UI_WINDOW_NOT_READY"
+}
+
+function Get-ProcessDescendants([int]$RootPid) {
+    $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $wanted = New-Object System.Collections.Generic.HashSet[int]
+    [void]$wanted.Add($RootPid)
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+        foreach ($process in $all) {
+            if ($wanted.Contains([int]$process.ParentProcessId) -and -not $wanted.Contains([int]$process.ProcessId)) {
+                [void]$wanted.Add([int]$process.ProcessId)
+                $changed = $true
+            }
+        }
+    }
+    return @($all | Where-Object { $wanted.Contains([int]$_.ProcessId) })
+}
+
+function Write-AcceptanceSettings([string]$SettingsPath, [string]$CloseBehavior, [bool]$ShowTray) {
+    $value = @{ schema = 1; start_with_windows = $true; show_tray = $ShowTray; check_updates = $true; theme = "system"; close_behavior = $CloseBehavior }
+    if (Test-Path -LiteralPath $SettingsPath -PathType Leaf) {
+        try {
+            $old = Get-Content -LiteralPath $SettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($key in @("start_with_windows", "check_updates", "theme")) {
+                if ($null -ne $old.$key) { $value[$key] = $old.$key }
+            }
+        } catch {}
+    }
+    $temporary = "$SettingsPath.acceptance"
+    $value | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding UTF8
+    Move-Item -LiteralPath $temporary -Destination $SettingsPath -Force
+}
+
+function Wait-ProcessExit([int]$Pid, [int]$TimeoutSeconds = 20) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -ne (Get-Process -Id $Pid -ErrorAction SilentlyContinue)) {
+        Start-Sleep -Milliseconds 200
+    }
+    return $null -eq (Get-Process -Id $Pid -ErrorAction SilentlyContinue)
 }
 
 function Get-Sha256Text([string]$Value) {
