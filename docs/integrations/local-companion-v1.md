@@ -59,7 +59,7 @@ Ele é instalado por usuário, sem Windows Service, e registra startup per-user 
 
 Como o mesmo repositório também possui releases `prod-*`, o site resolve a versão mais recente pelo endpoint próprio `/api/downloads/companion/windows`, que filtra somente `companion-vX.Y.Z` e então redireciona ao asset oficial. O atalho genérico `/releases/latest` do repositório não é usado para decidir a versão do Companion.
 
-O MSI atual não possui assinatura Authenticode configurada.
+O pipeline de build possui suporte fail-closed para assinar `TDACompanion.exe`, `TDACompanionMaintenance.exe` e o MSI **antes** de ZIP/hash/manifest/receipt, validando status, thumbprint e subject esperados. A identidade real de code-signing ainda depende do provisionamento externo de #395; enquanto ela não estiver configurada, os builds normais continuam sem Authenticode e não devem ser tratados como candidato final de Stable.
 
 ## Capabilities
 
