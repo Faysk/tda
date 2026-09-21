@@ -700,7 +700,11 @@ export function LembraExperience() {
 						</span>
 						<h2>{emptyCopy.title}</h2>
 						<p>{emptyCopy.description}</p>
-						{filtersActive ? (
+						{references.length === 0 ? (
+							<Button variant="secondary" onClick={openFilePicker}>
+								Escolher arquivo
+							</Button>
+						) : filtersActive ? (
 							<Button variant="secondary" onClick={clearSearchFilters}>
 								Limpar filtros
 							</Button>
