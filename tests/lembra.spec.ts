@@ -183,6 +183,11 @@ test("Lembra expands the gallery on desktop and stays single-column at 320px", a
 		),
 	).toBe(true);
 
+	const mobileToolbarHeight = await page
+		.getByPlaceholder("Buscar título, descrição, autor ou data...")
+		.evaluate((input) => input.parentElement?.parentElement?.getBoundingClientRect().height ?? 999);
+	expect(mobileToolbarHeight).toBeLessThanOrEqual(120);
+
 	const cards = page.locator("article");
 	const first = await cards.nth(0).boundingBox();
 	const second = await cards.nth(1).boundingBox();
@@ -190,4 +195,18 @@ test("Lembra expands the gallery on desktop and stays single-column at 320px", a
 	expect(second).not.toBeNull();
 	expect(Math.abs((first?.x ?? 0) - (second?.x ?? 0))).toBeLessThan(2);
 	expect((second?.y ?? 0)).toBeGreaterThan(first?.y ?? 0);
+});
+
+
+test("Lembra keeps a visible close action over the mobile viewer image", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 760 });
+	await page.goto("/lembra");
+	await addReference(page, "Ponte", "Pedra sobre o rio");
+
+	await page.getByRole("button", { name: "Ponte", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	const closeButtons = viewer.getByRole("button", { name: "Fechar referência" });
+	await expect(closeButtons.first()).toBeVisible();
+	await closeButtons.first().click();
+	await expect(viewer).not.toBeVisible();
 });
