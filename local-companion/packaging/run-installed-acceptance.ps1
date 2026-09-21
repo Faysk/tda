@@ -97,14 +97,27 @@ function Get-TdaBitsSnapshot([object]$Job) {
     if (-not $local.StartsWith($cachePrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "BITS_EVIDENCE_DESTINATION_INVALID" }
     $jobId = [string]$Job.JobId
     if ($jobId -notmatch '^[0-9a-fA-F-]{36}$') { throw "BITS_EVIDENCE_JOB_ID_INVALID" }
-    $transferred = [int64]$Job.BytesTransferred
-    $total = [int64]$Job.BytesTotal
-    if ($transferred -lt 0 -or $total -le 0 -or $transferred -gt $total) { throw "BITS_EVIDENCE_BYTES_INVALID" }
+    $transferredRaw = [uint64]$Job.BytesTransferred
+    $totalRaw = [uint64]$Job.BytesTotal
+    $unknownTotal = [UInt64]::MaxValue
+    $int64Max = [uint64][Int64]::MaxValue
+
+    if ($transferredRaw -gt $int64Max) { throw "BITS_EVIDENCE_BYTES_OUT_OF_RANGE" }
+    $transferred = [int64]$transferredRaw
+    $totalKnown = $totalRaw -ne $unknownTotal
+    $total = $null
+    if ($totalKnown) {
+        if ($totalRaw -eq 0 -or $totalRaw -gt $int64Max) { throw "BITS_EVIDENCE_BYTES_OUT_OF_RANGE" }
+        $total = [int64]$totalRaw
+        if ($transferred -gt $total) { throw "BITS_EVIDENCE_BYTES_INVALID" }
+    }
+
     return [pscustomobject]@{
         JobId = $jobId
         State = [string]$Job.JobState
         BytesTransferred = $transferred
         BytesTotal = $total
+        BytesTotalKnown = $totalKnown
     }
 }
 
@@ -123,7 +136,10 @@ function Capture-BitsResumeEvidence([string]$Destination) {
             if ($jobs.Count -gt 1) { throw "BITS_EVIDENCE_JOB_AMBIGUOUS" }
             if ($jobs.Count -eq 1) {
                 $candidate = Get-TdaBitsSnapshot $jobs[0]
-                if ($candidate.BytesTransferred -lt $candidate.BytesTotal) {
+                if (
+                    $candidate.BytesTotalKnown -and
+                    $candidate.BytesTransferred -lt $candidate.BytesTotal
+                ) {
                     $online = $candidate
                 }
             }
@@ -148,6 +164,10 @@ function Capture-BitsResumeEvidence([string]$Destination) {
             $job = Get-BitsTransfer -JobId ([Guid]$online.JobId) -ErrorAction Stop
             $candidate = Get-TdaBitsSnapshot $job
             if ($candidate.JobId -ne $online.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
+            if (-not $candidate.BytesTotalKnown) {
+                Start-Sleep -Milliseconds 250
+                continue
+            }
             if ($candidate.BytesTotal -ne $online.BytesTotal) { throw "BITS_EVIDENCE_TOTAL_CHANGED" }
             if ($candidate.BytesTransferred -ge $candidate.BytesTotal) {
                 throw "BITS_EVIDENCE_DOWNLOAD_COMPLETED_TOO_EARLY"
@@ -184,6 +204,10 @@ function Capture-BitsResumeEvidence([string]$Destination) {
             $job = Get-BitsTransfer -JobId ([Guid]$before.JobId) -ErrorAction Stop
             $candidate = Get-TdaBitsSnapshot $job
             if ($candidate.JobId -ne $before.JobId) { throw "BITS_EVIDENCE_JOB_CHANGED" }
+            if (-not $candidate.BytesTotalKnown) {
+                Start-Sleep -Milliseconds 250
+                continue
+            }
             if ($candidate.BytesTotal -ne $before.BytesTotal) { throw "BITS_EVIDENCE_TOTAL_CHANGED" }
             if (
                 $candidate.BytesTransferred -gt $before.BytesTransferred -and
