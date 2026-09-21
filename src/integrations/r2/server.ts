@@ -26,3 +26,27 @@ export function mediaClient() {
 		credentials: { accessKeyId, secretAccessKey },
 	});
 }
+
+
+export function privateMediaConnectionConfig(): MediaConnectionConfig {
+	const accountId = process.env.R2_ACCOUNT_ID;
+	const accessKeyId = process.env.R2_PRIVATE_ACCESS_KEY_ID;
+	const secretAccessKey = process.env.R2_PRIVATE_SECRET_ACCESS_KEY;
+	if (!accountId || !accessKeyId || !secretAccessKey) {
+		throw new Error("Private media connection is not configured");
+	}
+	if (!/^[a-f0-9]{32}$/u.test(accountId)) {
+		throw new Error("Invalid private media account");
+	}
+	return { accountId, accessKeyId, secretAccessKey };
+}
+
+export function privateMediaClient() {
+	const { accountId, accessKeyId, secretAccessKey } =
+		privateMediaConnectionConfig();
+	return new S3Client({
+		region: "auto",
+		endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+		credentials: { accessKeyId, secretAccessKey },
+	});
+}
