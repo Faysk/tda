@@ -18,6 +18,7 @@ from tda_companion.runtime_release_evidence import (
     RuntimeReleaseEvidenceError,
     create_candidate,
     seal_physical,
+    seal_physical_from_files,
     verify_promotion,
 )
 
@@ -221,6 +222,42 @@ def test_qwen_physical_seal_requires_both_gates_bound_to_same_archive(tmp_path: 
     _qwen_gate(gate_root / "qwen-quality.json", "qwen-quality", version, "e" * 64)
     with pytest.raises(RuntimeReleaseEvidenceError, match="RUNTIME_QWEN_EVIDENCE_INVALID"):
         seal_physical(candidate, runtime_root, qwen_state_root=state_root)
+
+
+def test_physical_seal_from_files_writes_atomic_sanitized_runtime_receipt(tmp_path: Path) -> None:
+    _archive, archive_sha = _whisper_assets(tmp_path / "assets")
+    candidate = create_candidate(
+        "whisper",
+        tmp_path / "assets",
+        source_sha=SOURCE_SHA,
+        source_tree_sha=TREE_SHA,
+        workflow_run_id=5,
+    )
+    candidate_path = tmp_path / "candidate.json"
+    _json(candidate_path, candidate)
+    runtime_root = tmp_path / "Runtime"
+    version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    _runtime_marker(runtime_root, "whisper", version, archive_sha)
+    receipts = [
+        _whisper_receipt(tmp_path / "turbo.json", "whisper-turbo"),
+        _whisper_receipt(tmp_path / "detailed.json", "whisper-detailed"),
+    ]
+    destination = tmp_path / "out" / "runtime-acceptance.json"
+
+    receipt = seal_physical_from_files(
+        candidate_path,
+        runtime_root,
+        destination,
+        whisper_receipts=receipts,
+    )
+
+    written = json.loads(destination.read_text(encoding="utf-8"))
+    assert written == receipt
+    assert written["schema"] == ACCEPTANCE_SCHEMA
+    assert written["contains_audio"] is False
+    assert written["contains_transcript"] is False
+    assert written["contains_local_paths"] is False
+    assert not destination.with_name(destination.name + ".partial").exists()
 
 
 def test_promotion_rehashes_release_assets_and_rejects_identity_drift(tmp_path: Path) -> None:
