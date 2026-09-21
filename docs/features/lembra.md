@@ -1,6 +1,6 @@
 # Lembra — biblioteca compartilhada de referências visuais
 
-> Status: arquitetura aprovada para UX; persistência e autorização ainda em desenho
+> Status: UX v2 em implementação; persistência rastreada em #476
 > Owner: narrative-memory / frontend / integrations-media / identity-access
 > Última revisão: 2026-09-21
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
@@ -23,10 +23,11 @@ O Lembra não é uma wiki, não é um catálogo de canon e não é um DAM genér
 
 ## Estado de entrega desta candidata
 
-A primeira fatia implementa somente a **fundação de interface**:
+A UI já passou pela primeira validação em Production e a segunda fatia simplifica a superfície para priorizar ainda mais a galeria:
 
 - galeria responsiva;
-- busca local;
+- busca local combinável por nome, descrição, autor e data;
+- filtro explícito por período;
 - filtros locais `Lembra / Meus itens / Favoritos`;
 - ingestão por drag-and-drop em qualquer ponto da página;
 - paste de imagem pelo clipboard;
@@ -35,15 +36,13 @@ A primeira fatia implementa somente a **fundação de interface**:
 - autor/data apresentados como metadata;
 - preview local no browser.
 
-Esta fatia **não persiste dados nem mídia**, não cria migration, não escreve no Supabase/R2 e não concede acesso novo. Os itens criados no protótipo desaparecem ao recarregar a página.
-
-A implementação persistente só pode avançar depois de fechar o contrato de autorização, schema/API e lifecycle de Media Storage.
+A UI atual **ainda não persiste dados nem mídia**; os itens criados no protótipo desaparecem ao recarregar a página. A persistência real agora está rastreada em [#476](https://github.com/Faysk/tda/issues/476), com campaign isolation, capability server-side e Media Storage como gates explícitos.
 
 ## Princípios de UX
 
 ### Conteúdo primeiro
 
-A página deve começar a entregar sua função cedo. Depois do título e da busca, o conteúdo é a galeria.
+A página deve começar a entregar sua função imediatamente. **Não existe título/hero visível na workspace**: a busca, o filtro de data e a ação de adicionar ocupam a primeira faixa útil; em seguida começa a galeria. Um `h1` continua presente apenas para acessibilidade.
 
 Evitar hero ornamental, dashboards, painéis técnicos ou arte de fundo adicionada apenas para preencher espaço.
 
@@ -84,11 +83,14 @@ Controles secundários devem permanecer discretos.
 
 ### Busca
 
-A primeira versão procura apenas em:
+A busca textual procura em:
 
 - nome;
 - descrição;
-- autor.
+- autor;
+- data de publicação em formatos humanos e ISO.
+
+Os termos são combináveis: uma consulta como `thom ruínas setembro 2026` pode casar partes vindas de campos diferentes do mesmo item. O filtro por período é aplicado em conjunto com a busca textual.
 
 Busca semântica, embeddings ou classificação automática não pertencem a esta fatia.
 
@@ -115,7 +117,7 @@ A galeria deve adaptar automaticamente a quantidade de colunas ao espaço dispon
 ### Desktop amplo
 
 - sidebar contextual persistente;
-- título, busca e galeria ocupam o restante;
+- toolbar compacta de busca/data/adicionar e galeria ocupam o restante;
 - mais colunas aparecem conforme o viewport cresce;
 - cards não devem virar outdoors gigantes apenas porque há espaço.
 
@@ -247,6 +249,8 @@ Na candidata local, erro de arquivo inválido é mostrado sem navegar nem perder
 - [ ] página funciona a partir de 320px sem overflow horizontal;
 - [ ] quantidade de colunas cresce com a largura disponível;
 - [ ] busca foca por `Ctrl/Cmd + K`;
+- [ ] busca aceita combinação de título/descrição/autor/data;
+- [ ] filtro `De/Até` é inclusivo e pode ser limpo sem alterar a galeria;
 - [ ] arrastar uma imagem sobre a janela mostra drop overlay;
 - [ ] soltar uma imagem abre o composer;
 - [ ] colar uma imagem abre o mesmo composer;
@@ -282,7 +286,7 @@ Esses itens só entram depois de fricção observada ou necessidade concreta.
 
 Depois de validar a UI com uso real:
 
-1. fechar audiência e capability;
+1. executar #476: fechar audiência e capability;
 2. definir schema mínimo;
 3. definir boundary server-side de create/list/delete;
 4. reutilizar Media Storage/R2 com read-back e integridade;
