@@ -100,10 +100,17 @@ jobs:
           foreach ($required in @(
             '[switch]$Automated',
             'function Assert-AllProfilesReady',
+            'function Ensure-AutomatedRuntimesReady',
+            'function New-NoCompressionZip',
             'Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)',
             'if (-not $AutomatedMode)',
+            'Ensure-AutomatedRuntimesReady $downloads',
             'Assert-AllProfilesReady $Port',
-            'Require-AllProfilesReady $Port'
+            'Require-AllProfilesReady $Port',
+            'TDAWhisperRuntime-1.1.4-windows-x64.zip.sha256',
+            'fc73e48b7fc282d346398c01c23c1c45ca83d87ad57a84613f9e6d8f1118c547',
+            'TDAQwenRuntimeBundle-1.0.7-windows-x64.json',
+            '02f03b86e94fafb68309de563a3367183de461372f1f86f4eef2f8e0c85ead8d'
           )) {
             if (-not $value.Contains($required)) {
               throw "RECOVERY_AUTOMATED_LAUNCHER_CONTRACT_MISSING:$required"
@@ -116,8 +123,19 @@ jobs:
           if ($guardIndex -lt 0 -or $promptIndex -lt 0 -or $guardIndex -gt $promptIndex) {
             throw "RECOVERY_AUTOMATED_INSTALL_PROMPT_NOT_GUARDED"
           }
-          if ($value.IndexOf('Assert-AllProfilesReady $Port') -lt 0) {
-            throw "RECOVERY_AUTOMATED_PROFILE_ASSERTION_MISSING"
+          $runtimePrepIndex = $value.LastIndexOf('Ensure-AutomatedRuntimesReady $downloads')
+          $manualProfileIndex = $value.LastIndexOf('Require-AllProfilesReady $Port')
+          $physicalPhaseIndex = $value.IndexOf('PHASE 2/2 - Physical ASR/GPU acceptance')
+          $finalProfileIndex = $value.LastIndexOf('Assert-AllProfilesReady $Port')
+          if (
+            $runtimePrepIndex -lt 0 -or
+            $manualProfileIndex -lt 0 -or
+            $physicalPhaseIndex -lt 0 -or
+            $finalProfileIndex -lt 0 -or
+            $runtimePrepIndex -ge $physicalPhaseIndex -or
+            $finalProfileIndex -le $physicalPhaseIndex
+          ) {
+            throw "RECOVERY_AUTOMATED_PROFILE_PREPARATION_ORDER_INVALID"
           }
           $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
           $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
@@ -273,6 +291,49 @@ jobs:
             throw "BITS_ZERO_TOTAL_ACCEPTED"
           } catch {
             if ($_.Exception.Message -ne "BITS_EVIDENCE_BYTES_OUT_OF_RANGE") { throw }
+          }
+
+
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "New-NoCompressionZip")
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $outerRoot = Join-Path $env:RUNNER_TEMP "tda-runtime-outer-shape"
+          Remove-Item -LiteralPath $outerRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $outerRoot | Out-Null
+
+          $whisperInner = "TDAWhisperRuntime-1.1.4-windows-x64.zip"
+          $whisperDigest = "$whisperInner.sha256"
+          [IO.File]::WriteAllBytes((Join-Path $outerRoot $whisperInner), [byte[]](1,2,3,4))
+          Set-Content -LiteralPath (Join-Path $outerRoot $whisperDigest) -Value ("0" * 64 + "  " + $whisperInner) -Encoding ASCII -NoNewline
+          $whisperOuter = Join-Path $env:RUNNER_TEMP "whisper-actions-artifact.zip"
+          New-NoCompressionZip $outerRoot $whisperOuter @($whisperInner, $whisperDigest)
+          $whisperZip = [IO.Compression.ZipFile]::OpenRead($whisperOuter)
+          try {
+            $names = @($whisperZip.Entries | ForEach-Object { $_.FullName })
+            if ($names.Count -ne 2 -or $whisperInner -notin $names -or $whisperDigest -notin $names) {
+              throw "WHISPER_OUTER_ARTIFACT_SHAPE_INVALID"
+            }
+          } finally {
+            $whisperZip.Dispose()
+          }
+
+          Remove-Item -LiteralPath $outerRoot -Recurse -Force
+          New-Item -ItemType Directory -Force -Path $outerRoot | Out-Null
+          $bundle = "TDAQwenRuntimeBundle-1.0.7-windows-x64.json"
+          $part1 = "TDAQwenRuntime-1.0.7-windows-x64.zip.part001"
+          $part2 = "TDAQwenRuntime-1.0.7-windows-x64.zip.part002"
+          Set-Content -LiteralPath (Join-Path $outerRoot $bundle) -Value "{}" -Encoding UTF8 -NoNewline
+          [IO.File]::WriteAllBytes((Join-Path $outerRoot $part1), [byte[]](5,6))
+          [IO.File]::WriteAllBytes((Join-Path $outerRoot $part2), [byte[]](7,8))
+          $qwenOuter = Join-Path $env:RUNNER_TEMP "qwen-actions-artifact.zip"
+          New-NoCompressionZip $outerRoot $qwenOuter @($bundle, $part1, $part2)
+          $qwenZip = [IO.Compression.ZipFile]::OpenRead($qwenOuter)
+          try {
+            $names = @($qwenZip.Entries | ForEach-Object { $_.FullName })
+            if ($names.Count -ne 3 -or $bundle -notin $names -or $part1 -notin $names -or $part2 -notin $names) {
+              throw "QWEN_OUTER_ARTIFACT_SHAPE_INVALID"
+            }
+          } finally {
+            $qwenZip.Dispose()
           }
       - name: Smoke superseded 0.3.14 RC replacement
         shell: powershell
