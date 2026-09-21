@@ -34,3 +34,11 @@ export function editDataClient() {
 		"Edit data connection is not configured",
 	);
 }
+
+
+export function lembraDataClient() {
+	return serverDataClient(
+		process.env.TDA_LEMBRA_ENABLED === "true",
+		"Lembra data connection is not configured",
+	);
+}
