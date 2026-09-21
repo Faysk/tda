@@ -157,3 +157,34 @@ test("Lembra does not keep generic clipboard filenames as searchable titles", as
 	await expect(name).toHaveValue("");
 	await expect(dialog.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();
 });
+
+
+test("Lembra expands the gallery on desktop and stays single-column at 320px", async ({ page }) => {
+	await page.setViewportSize({ width: 1600, height: 900 });
+	await page.goto("/lembra");
+	await addReference(page, "Um", "Primeira");
+	await addReference(page, "Dois", "Segunda");
+	await addReference(page, "Três", "Terceira");
+	await addReference(page, "Quatro", "Quarta");
+
+	const grid = page.locator("article").first().locator("..");
+	const desktopColumns = await grid.evaluate((element) =>
+		getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length,
+	);
+	expect(desktopColumns).toBeGreaterThanOrEqual(3);
+
+	await page.setViewportSize({ width: 320, height: 760 });
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth,
+		),
+	).toBe(true);
+
+	const cards = page.locator("article");
+	const first = await cards.nth(0).boundingBox();
+	const second = await cards.nth(1).boundingBox();
+	expect(first).not.toBeNull();
+	expect(second).not.toBeNull();
+	expect(Math.abs((first?.x ?? 0) - (second?.x ?? 0))).toBeLessThan(2);
+	expect((second?.y ?? 0)).toBeGreaterThan(first?.y ?? 0);
+});
