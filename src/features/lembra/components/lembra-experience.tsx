@@ -16,6 +16,10 @@ import {
 	matchesLembraSearch,
 	type LembraDateRange,
 } from "../search";
+import {
+	sortLembraReferences,
+	type LembraSort,
+} from "../sort";
 import styles from "./lembra.module.css";
 
 type ViewFilter = "all" | "mine" | "favorites";
@@ -43,6 +47,18 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 	day: "2-digit",
 	month: "short",
 	year: "numeric",
+});
+
+const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+	day: "2-digit",
+	month: "long",
+	year: "numeric",
+});
+
+const INPUT_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+	day: "2-digit",
+	month: "2-digit",
+	timeZone: "UTC",
 });
 
 function SearchIcon() {
@@ -101,6 +117,27 @@ function CalendarIcon() {
 	);
 }
 
+function SortIcon() {
+	return (
+		<svg viewBox="0 0 24 24" aria-hidden="true">
+			<path d="M8 6h12M8 12h9M8 18h6" />
+			<path d="M4 4v16M2 18l2 2 2-2" />
+		</svg>
+	);
+}
+
+function ArrowIcon({ direction }: { direction: "left" | "right" }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={direction === "right" ? styles.arrowRight : undefined}
+		>
+			<path d="m15 5-7 7 7 7" />
+		</svg>
+	);
+}
+
 function isImageFile(file: File | undefined): file is File {
 	return Boolean(file?.type.startsWith("image/"));
 }
@@ -116,11 +153,21 @@ function createClientId() {
 	return `lembra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function compactInputDate(value: string) {
+	if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return "";
+	const date = new Date(`${value}T00:00:00.000Z`);
+	return Number.isNaN(date.getTime()) ? "" : INPUT_DATE_FORMATTER.format(date);
+}
+
 function dateFilterLabel(range: LembraDateRange) {
 	if (!range.from && !range.to) return "Data";
-	if (range.from && range.to) return "Período";
-	if (range.from) return "Desde";
-	return "Até";
+
+	const from = compactInputDate(range.from);
+	const to = compactInputDate(range.to);
+	if (from && to) return from === to ? from : `${from}–${to}`;
+	if (from) return `Desde ${from}`;
+	if (to) return `Até ${to}`;
+	return "Data";
 }
 
 export function LembraExperience() {
@@ -129,13 +176,16 @@ export function LembraExperience() {
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
 	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
+	const [sort, setSort] = useState<LembraSort>("newest");
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
+	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dialogRef = useRef<HTMLDialogElement>(null);
+	const viewerRef = useRef<HTMLDialogElement>(null);
 	const titleRef = useRef<HTMLInputElement>(null);
 	const dragDepthRef = useRef(0);
 	const ownedUrlsRef = useRef(new Set<string>());
@@ -202,6 +252,17 @@ export function LembraExperience() {
 	}, [draft]);
 
 	useEffect(() => {
+		const viewer = viewerRef.current;
+		if (!viewer) return;
+
+		if (selectedId && !viewer.open) {
+			viewer.showModal();
+		} else if (!selectedId && viewer.open) {
+			viewer.close();
+		}
+	}, [selectedId]);
+
+	useEffect(() => {
 		const onShortcut = (event: KeyboardEvent) => {
 			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
@@ -265,15 +326,93 @@ export function LembraExperience() {
 	}, [prepareFile]);
 
 	const visibleReferences = useMemo(() => {
-		return references.filter((item) => {
+		const filtered = references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
 			if (!matchesLembraSearch(item, query)) return false;
 			return isWithinLembraDateRange(item.createdAt, dateRange);
 		});
-	}, [dateRange, favoriteIds, query, references, view]);
+		return sortLembraReferences(filtered, sort);
+	}, [dateRange, favoriteIds, query, references, sort, view]);
 
-	const filtersActive = Boolean(query.trim()) || hasLembraDateFilter(dateRange);
+	const selectedIndex = selectedId
+		? visibleReferences.findIndex((item) => item.id === selectedId)
+		: -1;
+	const selectedReference =
+		selectedIndex >= 0 ? visibleReferences[selectedIndex] : null;
+
+	const textOrDateFilterActive =
+		Boolean(query.trim()) || hasLembraDateFilter(dateRange);
+	const filtersActive = view !== "all" || textOrDateFilterActive;
+
+	const emptyCopy = (() => {
+		if (references.length === 0) {
+			return {
+				title: "Ainda não guardamos nada aqui.",
+				description:
+					"Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador.",
+			};
+		}
+		if (textOrDateFilterActive) {
+			return {
+				title: "Nada por aqui com esses filtros.",
+				description:
+					"Tente outra combinação de palavras ou ajuste o período.",
+			};
+		}
+		if (view === "favorites") {
+			return {
+				title: "Nenhum favorito ainda.",
+				description:
+					"Marque o coração nas referências que você quer encontrar em um segundo durante a call.",
+			};
+		}
+		if (view === "mine") {
+			return {
+				title: "Você ainda não guardou referências.",
+				description:
+					"Volte ao Lembra para ver tudo ou adicione uma imagem nova.",
+			};
+		}
+		return {
+			title: "Nada por aqui.",
+			description: "Ajuste os filtros para voltar à galeria.",
+		};
+	})();
+
+	const moveViewer = useCallback(
+		(delta: number) => {
+			if (!selectedId || visibleReferences.length < 2) return;
+			const index = visibleReferences.findIndex((item) => item.id === selectedId);
+			if (index < 0) return;
+			const nextIndex =
+				(index + delta + visibleReferences.length) % visibleReferences.length;
+			setSelectedId(visibleReferences[nextIndex].id);
+		},
+		[selectedId, visibleReferences],
+	);
+
+	useEffect(() => {
+		if (!selectedId) return;
+		if (!selectedReference) {
+			setSelectedId(null);
+			return;
+		}
+
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "ArrowLeft") {
+				event.preventDefault();
+				moveViewer(-1);
+			}
+			if (event.key === "ArrowRight") {
+				event.preventDefault();
+				moveViewer(1);
+			}
+		};
+
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [moveViewer, selectedId, selectedReference]);
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
@@ -317,6 +456,7 @@ export function LembraExperience() {
 	function clearSearchFilters() {
 		setQuery("");
 		setDateRange(EMPTY_DATE_RANGE);
+		setView("all");
 		searchRef.current?.focus();
 	}
 
@@ -397,13 +537,19 @@ export function LembraExperience() {
 							type="search"
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Buscar por título, descrição, autor ou data..."
+							placeholder="Buscar título, descrição, autor ou data..."
 						/>
 						<kbd>Ctrl K</kbd>
 					</label>
 
 					<details className={styles.dateFilter}>
-						<summary className={hasLembraDateFilter(dateRange) ? styles.dateSummaryActive : styles.dateSummary}>
+						<summary
+							className={
+								hasLembraDateFilter(dateRange)
+									? styles.dateSummaryActive
+									: styles.dateSummary
+							}
+						>
 							<span className={styles.dateIcon}>
 								<CalendarIcon />
 							</span>
@@ -449,6 +595,23 @@ export function LembraExperience() {
 						</div>
 					</details>
 
+					<label className={styles.sortControl}>
+						<span className={styles.sortIcon}>
+							<SortIcon />
+						</span>
+						<span className={styles.visuallyHidden}>Ordenar referências</span>
+						<select
+							value={sort}
+							onChange={(event) => setSort(event.target.value as LembraSort)}
+							aria-label="Ordenar referências"
+						>
+							<option value="newest">Mais recentes</option>
+							<option value="oldest">Mais antigas</option>
+							<option value="title">Nome</option>
+							<option value="author">Autor</option>
+						</select>
+					</label>
+
 					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
 						<span className={styles.buttonIcon}>
 							<PlusIcon />
@@ -456,6 +619,18 @@ export function LembraExperience() {
 						Adicionar imagem
 					</Button>
 				</div>
+
+				{filtersActive ? (
+					<div className={styles.resultsBar} role="status">
+						<span>
+							{visibleReferences.length} de {references.length}{" "}
+							{references.length === 1 ? "referência" : "referências"}
+						</span>
+						<button type="button" onClick={clearSearchFilters}>
+							Limpar filtros
+						</button>
+					</div>
+				) : null}
 
 				{message ? (
 					<div className={styles.toast} role="status" aria-live="polite">
@@ -472,9 +647,15 @@ export function LembraExperience() {
 									<div className={styles.media}>
 										<img
 											src={item.imageUrl}
-											alt={`Referência visual: ${item.title}`}
+											alt=""
 											loading="lazy"
 											decoding="async"
+										/>
+										<button
+											type="button"
+											className={styles.mediaOpen}
+											onClick={() => setSelectedId(item.id)}
+											aria-label={`Abrir referência ${item.title}`}
 										/>
 										<button
 											type="button"
@@ -491,7 +672,15 @@ export function LembraExperience() {
 										</button>
 									</div>
 									<div className={styles.cardBody}>
-										<h2>{item.title}</h2>
+										<h2>
+											<button
+												type="button"
+												className={styles.cardTitleButton}
+												onClick={() => setSelectedId(item.id)}
+											>
+												{item.title}
+											</button>
+										</h2>
 										{item.description ? <p>{item.description}</p> : null}
 										<div className={styles.cardMeta}>
 											<span>Por {item.author}</span>
@@ -509,13 +698,13 @@ export function LembraExperience() {
 						<span className={styles.emptyIcon} aria-hidden="true">
 							<ImageIcon />
 						</span>
-						<h2>{filtersActive ? "Não lembramos dessa." : "Ainda não guardamos nada aqui."}</h2>
-						<p>
-							{filtersActive
-								? "Tente outra combinação de palavras ou ajuste o período."
-								: "Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador."}
-						</p>
-						{filtersActive ? (
+						<h2>{emptyCopy.title}</h2>
+						<p>{emptyCopy.description}</p>
+						{references.length === 0 ? (
+							<Button variant="secondary" onClick={openFilePicker}>
+								Escolher arquivo
+							</Button>
+						) : filtersActive ? (
 							<Button variant="secondary" onClick={clearSearchFilters}>
 								Limpar filtros
 							</Button>
@@ -550,6 +739,115 @@ export function LembraExperience() {
 					</div>
 				</div>
 			) : null}
+
+			<dialog
+				ref={viewerRef}
+				className={styles.viewerDialog}
+				onCancel={(event) => {
+					event.preventDefault();
+					setSelectedId(null);
+				}}
+				aria-labelledby={selectedReference ? `viewer-title-${selectedReference.id}` : undefined}
+			>
+				{selectedReference ? (
+					<div className={styles.viewer}>
+						<div className={styles.viewerMedia}>
+							<img
+								src={selectedReference.imageUrl}
+								alt={`Referência visual: ${selectedReference.title}`}
+							/>
+							{visibleReferences.length > 1 ? (
+								<>
+									<button
+										type="button"
+										className={styles.viewerPrevious}
+										onClick={() => moveViewer(-1)}
+										aria-label="Referência anterior"
+									>
+										<ArrowIcon direction="left" />
+									</button>
+									<button
+										type="button"
+										className={styles.viewerNext}
+										onClick={() => moveViewer(1)}
+										aria-label="Próxima referência"
+									>
+										<ArrowIcon direction="right" />
+									</button>
+								</>
+							) : null}
+						</div>
+
+						<aside className={styles.viewerPanel}>
+							<div className={styles.viewerTopbar}>
+								<span className={styles.viewerCounter}>
+									{selectedIndex + 1} / {visibleReferences.length}
+								</span>
+								<div className={styles.viewerTopActions}>
+									<button
+										type="button"
+										className={
+											favoriteIds.has(selectedReference.id)
+												? styles.viewerFavoriteActive
+												: styles.viewerFavorite
+										}
+										onClick={() => toggleFavorite(selectedReference.id)}
+										aria-pressed={favoriteIds.has(selectedReference.id)}
+										aria-label={
+											favoriteIds.has(selectedReference.id)
+												? "Remover dos favoritos"
+												: "Adicionar aos favoritos"
+										}
+									>
+										<HeartIcon filled={favoriteIds.has(selectedReference.id)} />
+									</button>
+									<button
+										type="button"
+										className={styles.viewerClose}
+										onClick={() => setSelectedId(null)}
+										aria-label="Fechar referência"
+									>
+										<span aria-hidden="true">×</span>
+									</button>
+								</div>
+							</div>
+
+							<div className={styles.viewerInfo}>
+								<h2 id={`viewer-title-${selectedReference.id}`}>
+									{selectedReference.title}
+								</h2>
+								{selectedReference.description ? (
+									<p className={styles.viewerDescription}>
+										{selectedReference.description}
+									</p>
+								) : (
+									<p className={styles.viewerDescriptionMuted}>
+										Sem descrição. A imagem fala por si.
+									</p>
+								)}
+							</div>
+
+							<div className={styles.viewerMeta}>
+								<div>
+									<span>Publicado por</span>
+									<strong>{selectedReference.author}</strong>
+								</div>
+								<div>
+									<span>Data</span>
+									<time dateTime={selectedReference.createdAt}>
+										{LONG_DATE_FORMATTER.format(new Date(selectedReference.createdAt))}
+									</time>
+								</div>
+							</div>
+
+							<div className={styles.viewerHints} aria-hidden="true">
+								<span>← → navegar</span>
+								<span>Esc fechar</span>
+							</div>
+						</aside>
+					</div>
+				) : null}
+			</dialog>
 
 			<dialog
 				ref={dialogRef}

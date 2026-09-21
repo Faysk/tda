@@ -1,6 +1,6 @@
 # Lembra — biblioteca compartilhada de referências visuais
 
-> Status: UX v2 em implementação; persistência rastreada em #476
+> Status: UX v3 em implementação; persistência rastreada em #476
 > Owner: narrative-memory / frontend / integrations-media / identity-access
 > Última revisão: 2026-09-21
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
@@ -29,6 +29,8 @@ A UI já passou pela primeira validação em Production e a segunda fatia simpli
 - busca local combinável por nome, descrição, autor e data;
 - filtro explícito por período;
 - filtros locais `Lembra / Meus itens / Favoritos`;
+- ordenação por mais recentes, mais antigas, nome ou autor;
+- viewer/lightbox de referência para uso rápido durante a call, com navegação por teclado;
 - ingestão por drag-and-drop em qualquer ponto da página;
 - paste de imagem pelo clipboard;
 - seletor nativo de arquivo;
@@ -79,7 +81,7 @@ descrição
 autor · data
 ```
 
-Controles secundários devem permanecer discretos.
+Controles secundários devem permanecer discretos. Clicar na imagem ou no nome abre um viewer dedicado sem sair da galeria.
 
 ### Busca
 
@@ -93,6 +95,10 @@ A busca textual procura em:
 Os termos são combináveis: uma consulta como `thom ruínas setembro 2026` pode casar partes vindas de campos diferentes do mesmo item. O filtro por período é aplicado em conjunto com a busca textual.
 
 Busca semântica, embeddings ou classificação automática não pertencem a esta fatia.
+
+### Viewer para uso em call
+
+A galeria é o índice; o viewer é a superfície de consulta. Ele abre em modal amplo, preserva a imagem inteira com `object-fit: contain`, mantém nome/descrição/autor/data legíveis e permite navegar entre os resultados filtrados com `←` e `→`, fechando com `Esc`. Isso evita abrir novas páginas ou perder o contexto da busca durante uma call.
 
 ## Design System
 
@@ -117,7 +123,7 @@ A galeria deve adaptar automaticamente a quantidade de colunas ao espaço dispon
 ### Desktop amplo
 
 - sidebar contextual persistente;
-- toolbar compacta de busca/data/adicionar e galeria ocupam o restante;
+- toolbar compacta de busca/data/ordenação/adicionar e galeria ocupam o restante;
 - mais colunas aparecem conforme o viewport cresce;
 - cards não devem virar outdoors gigantes apenas porque há espaço.
 
@@ -251,6 +257,10 @@ Na candidata local, erro de arquivo inválido é mostrado sem navegar nem perder
 - [ ] busca foca por `Ctrl/Cmd + K`;
 - [ ] busca aceita combinação de título/descrição/autor/data;
 - [ ] filtro `De/Até` é inclusivo e pode ser limpo sem alterar a galeria;
+- [ ] ordenação funciona por recente/antiga/nome/autor sem mutar a coleção fonte;
+- [ ] imagem e título do card abrem viewer sem navegar para outra página;
+- [ ] viewer preserva a imagem inteira, exibe metadata e navega por `←`/`→`;
+- [ ] `Esc` fecha viewer e composer;
 - [ ] arrastar uma imagem sobre a janela mostra drop overlay;
 - [ ] soltar uma imagem abre o composer;
 - [ ] colar uma imagem abre o mesmo composer;
