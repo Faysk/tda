@@ -536,10 +536,15 @@ export function LembraExperience() {
 							</div>
 
 							<div className={styles.composerActions}>
-								<Button type="button" variant="tertiary" onClick={closeDraft}>
+								<Button
+									type="button"
+									variant="tertiary"
+									className={styles.composerAction}
+									onClick={closeDraft}
+								>
 									Cancelar
 								</Button>
-								<Button type="submit" variant="primary">
+								<Button type="submit" variant="primary" className={styles.composerAction}>
 									Guardar
 								</Button>
 							</div>
