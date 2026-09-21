@@ -11,6 +11,20 @@ import {
 } from "react";
 import { Button } from "@/components/ui";
 import {
+	finalizeLembraUploadAction,
+	retireLembraReferenceAction,
+	setLembraFavoriteAction,
+	updateLembraReferenceAction,
+	requestLembraUploadAction,
+} from "../actions";
+import {
+	LEMBRA_MAX_BYTES,
+	isLembraMediaMime,
+	type LembraMediaMime,
+	type LembraReference,
+	type LembraUploadIntent,
+} from "../model";
+import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
 	matchesLembraSearch,
@@ -24,14 +38,10 @@ import styles from "./lembra.module.css";
 
 type ViewFilter = "all" | "mine" | "favorites";
 
-type ReferenceItem = Readonly<{
-	id: string;
-	title: string;
-	description: string;
-	author: string;
-	createdAt: string;
-	imageUrl: string;
-	mine: boolean;
+type LembraExperienceProps = Readonly<{
+	initialReferences?: readonly LembraReference[];
+	initialFavoriteIds?: readonly string[];
+	persistenceEnabled?: boolean;
 }>;
 
 type ReferenceDraft = Readonly<{
@@ -139,7 +149,12 @@ function ArrowIcon({ direction }: { direction: "left" | "right" }) {
 }
 
 function isImageFile(file: File | undefined): file is File {
-	return Boolean(file?.type.startsWith("image/"));
+	return Boolean(
+		file &&
+			isLembraMediaMime(file.type) &&
+			file.size >= 24 &&
+			file.size <= LEMBRA_MAX_BYTES,
+	);
 }
 
 function hasDraggedFiles(event: DragEvent) {
@@ -151,6 +166,37 @@ function createClientId() {
 		return crypto.randomUUID();
 	}
 	return `lembra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function bytesToHex(bytes: Uint8Array) {
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function uploadIntent(file: File): Promise<LembraUploadIntent> {
+	if (!isImageFile(file)) throw new Error("invalid_file");
+	const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+	return {
+		sha256: bytesToHex(new Uint8Array(digest)),
+		mimeType: file.type as LembraMediaMime,
+		bytes: file.size,
+	};
+}
+
+function mutationMessage(reason: string) {
+	switch (reason) {
+		case "unauthenticated":
+			return "Entre novamente para continuar usando o Lembra.";
+		case "media_unavailable":
+			return "O armazenamento do Lembra ainda não está disponível.";
+		case "invalid_payload":
+			return "Essa imagem ou referência não é válida.";
+		case "not_found":
+			return "Essa referência não existe mais.";
+		case "conflict":
+			return "Essa alteração entrou em conflito. Tente novamente.";
+		default:
+			return "Não foi possível concluir essa ação agora.";
+	}
 }
 
 function compactInputDate(value: string) {
@@ -170,9 +216,17 @@ function dateFilterLabel(range: LembraDateRange) {
 	return "Data";
 }
 
-export function LembraExperience() {
-	const [references, setReferences] = useState<ReferenceItem[]>([]);
-	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+export function LembraExperience({
+	initialReferences = [],
+	initialFavoriteIds = [],
+	persistenceEnabled = false,
+}: LembraExperienceProps) {
+	const [references, setReferences] = useState<LembraReference[]>(() => [
+		...initialReferences,
+	]);
+	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(
+		() => new Set(initialFavoriteIds),
+	);
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
 	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
@@ -181,6 +235,10 @@ export function LembraExperience() {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [editing, setEditing] = useState(false);
+	const [editTitle, setEditTitle] = useState("");
+	const [editDescription, setEditDescription] = useState("");
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
