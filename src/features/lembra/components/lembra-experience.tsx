@@ -7,6 +7,7 @@ import {
 	useRef,
 	useState,
 	type FormEvent,
+	type ReactNode,
 } from "react";
 import { Button, DisplayTitle } from "@/components/ui";
 import styles from "./lembra.module.css";
@@ -286,7 +287,7 @@ export function LembraExperience() {
 	const navItems: ReadonlyArray<{
 		id: ViewFilter;
 		label: string;
-		icon: React.ReactNode;
+		icon: ReactNode;
 		count: number;
 	}> = [
 		{ id: "all", label: "Lembra", icon: <ImageIcon />, count: references.length },
