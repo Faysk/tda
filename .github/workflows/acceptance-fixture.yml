@@ -1,0 +1,250 @@
+name: Acceptance Fixture
+
+on:
+  pull_request:
+    paths:
+      - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "local-companion/packaging/run-installed-acceptance.ps1"
+      - ".github/workflows/acceptance-fixture.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "local-companion/packaging/run-installed-acceptance.ps1"
+      - ".github/workflows/acceptance-fixture.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: synthetic-acceptance-fixture
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Parse PowerShell
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($relative in @(
+            "tools/acceptance/generate-physical-acceptance-fixture.ps1",
+            "tools/acceptance/run-recovery-candidate-1585a932.ps1",
+            "local-companion/packaging/run-installed-acceptance.ps1"
+          )) {
+            $path = Resolve-Path $relative
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Host ("PARSE_ERROR file={0} id={1} line={2} col={3} extent=[{4}] message={5}" -f
+                  $relative,
+                  $_.ErrorId,
+                  $_.Extent.StartLineNumber,
+                  $_.Extent.StartColumnNumber,
+                  $_.Extent.Text,
+                  $_.Message
+                )
+              }
+              exit 1
+            }
+          }
+      - name: Verify recovery launcher is pinned and transcript-free
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $value = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-1585a932.ps1" -Raw
+          foreach ($required in @(
+            'companion-rc-v0.3.14-1585a93235ba',
+            '1585a93235ba2fe7c2c093ef1683f0beca5d1605',
+            '83c267ae14f10fda950413cab74394fc7b875225fa0e13f5123c8901f609f8c3',
+            'bc6ac20dbac3e0d9a31ff1cc3ff8a09e8e5b455cb644bcea00fe45f80bd34312',
+            '344f4d8f7c8d353699a35bd182edd1c202585affe4d6f69d257d78793bee065e'
+          )) {
+            if (-not $value.Contains($required)) { throw "RECOVERY_LAUNCHER_IDENTITY_MISSING" }
+          }
+          if ($value -match '(?i)-WriteTranscripts') { throw "RECOVERY_LAUNCHER_TRANSCRIPT_MODE_FORBIDDEN" }
+          if ($value -match '(?i)companion-rc-v0\.3\.14-(?!1585a93235ba)[a-f0-9]{12}') {
+            throw "RECOVERY_LAUNCHER_MULTIPLE_RC_FORBIDDEN"
+          }
+          if (-not $value.Contains("function Require-PowerShell7")) {
+            throw "RECOVERY_LAUNCHER_POWERSHELL7_GUARD_MISSING"
+          }
+          if (-not $value.Contains("& $pwshPath")) {
+            throw "RECOVERY_LAUNCHER_POWERSHELL7_ISOLATION_MISSING"
+          }
+          if ($value -notmatch '(?m)^\s*& \$pwshPath .* -File \$installedScript') {
+            throw "RECOVERY_LAUNCHER_INSTALLED_CHILD_NOT_ISOLATED"
+          }
+          if ($value -notmatch '(?m)^\s*& \$pwshPath .* -File \$physicalScript') {
+            throw "RECOVERY_LAUNCHER_PHYSICAL_CHILD_NOT_ISOLATED"
+          }
+          if (-not $value.Contains('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')) {
+            throw "RECOVERY_LAUNCHER_EXACT_INSTALL_MISSING"
+          }
+          if (-not $value.Contains("Remove-SupersededSameVersionCandidate")) {
+            throw "RECOVERY_LAUNCHER_SAME_VERSION_REPLACEMENT_MISSING"
+          }
+          $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
+          $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
+          if ($installIndex -lt 0 -or $installedPhaseIndex -lt 0 -or $installIndex -gt $installedPhaseIndex) {
+            throw "RECOVERY_LAUNCHER_INSTALL_ORDER_INVALID"
+          }
+
+          $installed = Get-Content -LiteralPath "local-companion/packaging/run-installed-acceptance.ps1" -Raw
+          foreach ($required in @(
+            "BITS job detected:",
+            "Do not click prepare/install again; BITS must resume the SAME job.",
+            "AGENT_RECOVERY_PID_NOT_REPLACED",
+            "CRAIG_RECOVERY_PID_NOT_REPLACED"
+          )) {
+            if (-not $installed.Contains($required)) { throw "RECOVERY_INSTALLED_FAIL_CLOSED_MISSING" }
+          }
+      - name: Smoke superseded 0.3.14 RC replacement
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $oldTag = "companion-rc-v0.3.14-018e109530ba"
+          $newTag = "companion-rc-v0.3.14-1585a93235ba"
+          $oldMsiSha = "87de762282f3626944d96bb49d8253692b64c3fa0c2db3c26482b30c93858ffa"
+          $newMsiSha = "83c267ae14f10fda950413cab74394fc7b875225fa0e13f5123c8901f609f8c3"
+          $payloadSha = "bc6ac20dbac3e0d9a31ff1cc3ff8a09e8e5b455cb644bcea00fe45f80bd34312"
+          $root = Join-Path $env:RUNNER_TEMP "same-version-replacement"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $oldMsi = Join-Path $root "old.msi"
+          $newMsi = Join-Path $root "new.msi"
+          $payloadPath = Join-Path $root "payload.json"
+
+          function Download-Checked([string]$Url, [string]$Path, [string]$Sha) {
+            Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Path
+            $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $Sha) { throw "SAME_VERSION_DOWNLOAD_HASH_MISMATCH" }
+          }
+          function Invoke-Msi([string[]]$MsiArgs, [string]$Code) {
+            $p = Start-Process -FilePath "msiexec.exe" -ArgumentList $MsiArgs -Wait -PassThru
+            if ([int]$p.ExitCode -notin @(0, 3010)) { throw "$($Code):$($p.ExitCode)" }
+          }
+
+          Download-Checked "https://github.com/Faysk/tda/releases/download/$oldTag/TDACompanion-x64.msi" $oldMsi $oldMsiSha
+          Download-Checked "https://github.com/Faysk/tda/releases/download/$newTag/TDACompanion-x64.msi" $newMsi $newMsiSha
+          Download-Checked "https://github.com/Faysk/tda/releases/download/$newTag/TDACompanion-payload-manifest.json" $payloadPath $payloadSha
+
+          Invoke-Msi @("/i", ('"{0}"' -f $oldMsi), "/qn", "/norestart") "OLD_RC_INSTALL_FAILED"
+          $productKey = "HKCU:\Software\Faysk\TDA Companion"
+          $before = Get-ItemProperty -LiteralPath $productKey -ErrorAction Stop
+          if ([string]$before.Version -ne "0.3.14") { throw "OLD_RC_VERSION_INVALID" }
+          $productCode = [string]$before.ProductCode
+          if ($productCode -notmatch '^\{[0-9A-Fa-f-]{36}\}$') { throw "OLD_RC_PRODUCT_CODE_INVALID" }
+
+          Invoke-Msi @("/x", $productCode, "/qn", "/norestart") "OLD_RC_UNINSTALL_FAILED"
+          Invoke-Msi @("/i", ('"{0}"' -f $newMsi), "/qn", "/norestart") "NEW_RC_INSTALL_FAILED"
+
+          $payload = Get-Content -LiteralPath $payloadPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([string]$payload.source_sha -ne "1585a93235ba2fe7c2c093ef1683f0beca5d1605") {
+            throw "NEW_RC_PAYLOAD_SOURCE_INVALID"
+          }
+          $appRoot = Join-Path $env:LOCALAPPDATA "TDA\Companion\versions\0.3.14"
+          foreach ($property in $payload.files.PSObject.Properties) {
+            $target = Join-Path $appRoot $property.Name
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+              throw "NEW_RC_INSTALLED_FILE_MISSING:$($property.Name)"
+            }
+            if ((Get-Item -LiteralPath $target).Length -ne [int64]$property.Value.size) {
+              throw "NEW_RC_INSTALLED_SIZE_MISMATCH:$($property.Name)"
+            }
+            $actual = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne [string]$property.Value.sha256) {
+              throw "NEW_RC_INSTALLED_HASH_MISMATCH:$($property.Name)"
+            }
+          }
+
+          $after = Get-ItemProperty -LiteralPath $productKey -ErrorAction Stop
+          Invoke-Msi @("/x", ([string]$after.ProductCode), "/qn", "/norestart") "NEW_RC_UNINSTALL_FAILED"
+          Write-Host "Superseded same-version RC replacement: PASS" -ForegroundColor Green
+      - name: Generate synthetic speech and Craig fixture
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+            "tools/acceptance/generate-physical-acceptance-fixture.ps1" `
+            -OutputRoot $output `
+            -TargetSeconds 80
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify generated fixture contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+          $output = Join-Path $env:RUNNER_TEMP "tda-acceptance-fixture"
+          $audio = Join-Path $output "tda-physical-acceptance-synthetic.wav"
+          $craig = Join-Path $output "tda-installed-acceptance-craig.zip"
+          $metadata = Join-Path $output "fixture.json"
+          foreach ($path in @($audio, $craig, $metadata)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "FIXTURE_OUTPUT_MISSING"
+            }
+          }
+
+          $value = Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([string]$value.schema -ne "tda_physical_acceptance_fixture_v1") {
+            throw "FIXTURE_SCHEMA_INVALID"
+          }
+          if ($value.synthetic -ne $true) { throw "FIXTURE_SYNTHETIC_PROOF_INVALID" }
+          $duration = [double]$value.audio.duration_seconds
+          if ($duration -lt 65 -or $duration -gt 180) {
+            throw "FIXTURE_DURATION_INVALID"
+          }
+
+          $header = [IO.File]::ReadAllBytes($audio)
+          if ($header.Length -lt 12) { throw "FIXTURE_WAV_TOO_SMALL" }
+          if ([Text.Encoding]::ASCII.GetString($header, 0, 4) -ne "RIFF") {
+            throw "FIXTURE_WAV_RIFF_INVALID"
+          }
+          if ([Text.Encoding]::ASCII.GetString($header, 8, 4) -ne "WAVE") {
+            throw "FIXTURE_WAV_WAVE_INVALID"
+          }
+
+          $zip = [IO.Compression.ZipFile]::OpenRead($craig)
+          try {
+            if ($zip.Entries.Count -ne 1) { throw "FIXTURE_CRAIG_ENTRY_COUNT_INVALID" }
+            $entry = $zip.Entries[0]
+            if ($entry.FullName -ne "1-Synthetic.flac" -or $entry.Length -le 0) {
+              throw "FIXTURE_CRAIG_TRACK_INVALID"
+            }
+            $stream = $entry.Open()
+            try {
+              $memory = [IO.MemoryStream]::new()
+              try {
+                $stream.CopyTo($memory)
+                $bytes = $memory.ToArray()
+              } finally {
+                $memory.Dispose()
+              }
+            } finally {
+              $stream.Dispose()
+            }
+            $hasher = [Security.Cryptography.SHA256]::Create()
+            try {
+              $digest = $hasher.ComputeHash($bytes)
+            } finally {
+              $hasher.Dispose()
+            }
+            $sha = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
+            if ($sha -ne "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1") {
+              throw "FIXTURE_CRAIG_FLAC_HASH_INVALID"
+            }
+          } finally {
+            $zip.Dispose()
+          }
