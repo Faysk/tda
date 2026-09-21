@@ -113,6 +113,14 @@ function RunCard({
 			<div className={styles.runIdentity}>
 				<span title={run.sourceId}>Fonte {run.sourceId.slice(0, 22)}…</span>
 				<span title={run.transcriptSha256}>SHA {run.transcriptSha256.slice(0, 12)}…</span>
+				{run.publicationTarget ? (
+					<span>
+						Destino {run.publicationTarget.campaignSlug} · sessão{" "}
+						{run.publicationTarget.sourceSessionId}
+					</span>
+				) : (
+					<span>Sem destino cloud vinculado</span>
+				)}
 			</div>
 			<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
 				Revisar resultado
@@ -221,8 +229,12 @@ function ReviewEditor({
 			</div>
 
 			<div className={styles.reviewNotice}>
-				<strong>Nada será publicado.</strong>
-				<span>Esta revisão fica somente neste computador até uma ação explícita de publicação.</span>
+				<strong>Nada será publicado automaticamente.</strong>
+				<span>
+					{review.publicationTarget
+						? `Destino vinculado: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. A revisão continua somente neste computador até uma ação explícita de publicação.`
+						: "Este run não possui um destino cloud durável. A revisão continua local e não pode ser publicada até existir um vínculo verificável."}
+				</span>
 			</div>
 
 			<div className={styles.summaryGrid}>
