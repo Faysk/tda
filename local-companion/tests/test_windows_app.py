@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -7,6 +8,7 @@ from tda_companion.pairing import TOKEN_PATTERN, ensure_pairing_token
 from tda_companion.windows_app import (
     PRODUCTION_ORIGIN,
     _ui_arguments,
+    _seal_runtime_physical,
     _write_diagnostic,
     default_roots,
     parse_args,
@@ -134,6 +136,34 @@ def test_runtime_physical_seal_parses_release_evidence_inputs(monkeypatch, tmp_p
     assert args.runtime_acceptance_result == result
     assert args.runtime_whisper_receipt == [whisper]
     assert args.runtime_qwen_state_root == qwen_state
+
+
+def test_runtime_physical_seal_reuses_canonical_release_evidence_cli(monkeypatch, tmp_path: Path):
+    calls: list[list[str]] = []
+
+    def fake_main(argv):
+        calls.append(list(argv))
+        return 0
+
+    monkeypatch.setattr("tda_companion.runtime_release_evidence.main", fake_main)
+    args = SimpleNamespace(
+        runtime_candidate_manifest=tmp_path / "candidate.json",
+        runtime_root=tmp_path / "Runtime",
+        runtime_acceptance_result=tmp_path / "receipt.json",
+        runtime_whisper_receipt=[tmp_path / "turbo.json", tmp_path / "detailed.json"],
+        runtime_qwen_state_root=tmp_path / "State",
+    )
+
+    assert _seal_runtime_physical(args) == 0
+    assert calls == [[
+        "seal-physical",
+        "--candidate-manifest", str(tmp_path / "candidate.json"),
+        "--runtime-root", str(tmp_path / "Runtime"),
+        "--output", str(tmp_path / "receipt.json"),
+        "--whisper-receipt", str(tmp_path / "turbo.json"),
+        "--whisper-receipt", str(tmp_path / "detailed.json"),
+        "--qwen-state-root", str(tmp_path / "State"),
+    ]]
 
 
 def test_installed_acceptance_parses_only_named_observations(monkeypatch, tmp_path: Path):
