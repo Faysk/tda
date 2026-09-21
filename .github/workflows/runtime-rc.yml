@@ -139,13 +139,23 @@ jobs:
               'path': os.environ['WORKFLOW_PATH'],
               'head_sha': os.environ['SOURCE_SHA'],
               'head_branch': 'main',
-              'event': 'push',
               'status': 'completed',
               'conclusion': 'success',
           }
           for key, expected in checks.items():
               if value.get(key) != expected:
                   raise SystemExit(f'RUNTIME_TRIGGER_IDENTITY_MISMATCH:{key}')
+
+          event = value.get('event')
+          outer_event = os.environ.get('GITHUB_EVENT_NAME')
+          if outer_event == 'workflow_run':
+              if event != 'push':
+                  raise SystemExit('AUTO_RUNTIME_TRIGGER_IDENTITY_MISMATCH:event')
+          elif outer_event == 'workflow_dispatch':
+              if event not in {'push', 'workflow_dispatch'}:
+                  raise SystemExit('RUNTIME_MANUAL_BUILD_EVENT_INVALID')
+          else:
+              raise SystemExit('RUNTIME_RC_EVENT_INVALID')
           if str(value.get('id')) != os.environ['RUN_ID']:
               raise SystemExit('RUNTIME_TRIGGER_IDENTITY_MISMATCH:id')
           if os.environ.get('TRIGGER_RUN_ID') and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run':
