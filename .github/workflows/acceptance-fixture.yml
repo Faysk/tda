@@ -129,7 +129,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          function Import-FunctionFromScript([string]$Path, [string]$Name) {
+          function Get-FunctionScriptBlock([string]$Path, [string]$Name) {
             $tokens = $null
             $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -144,10 +144,10 @@ jobs:
               $node.Name -eq $Name
             }, $true)
             if ($null -eq $functionAst) { throw "ACCEPTANCE_HELPER_NOT_FOUND:$Name" }
-            . ([scriptblock]::Create($functionAst.Extent.Text))
+            return [scriptblock]::Create($functionAst.Extent.Text)
           }
 
-          Import-FunctionFromScript "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Test-MsiProductCode"
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Test-MsiProductCode")
           if (-not (Test-MsiProductCode "{EAC99465-E800-40A1-9F46-222A68163AFE}")) {
             throw "PRODUCT_CODE_VALID_GUID_REJECTED"
           }
@@ -162,7 +162,7 @@ jobs:
             }
           }
 
-          Import-FunctionFromScript "local-companion/packaging/run-installed-acceptance.ps1" "Get-TdaBitsSnapshot"
+          . (Get-FunctionScriptBlock "local-companion/packaging/run-installed-acceptance.ps1" "Get-TdaBitsSnapshot")
           $local = Join-Path $env:LOCALAPPDATA "TDA\Cache\acceptance-fixture.bin"
           $job = [pscustomobject]@{
             FileList = @([pscustomobject]@{
