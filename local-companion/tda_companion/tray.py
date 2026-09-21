@@ -66,11 +66,15 @@ class TrayController:
         except Exception as exc:
             self._notify(f"Agent não foi reiniciado: {exc}")
 
-    def _exit_ui(self, _icon=None, _item=None) -> None:
+    def exit_ui(self) -> None:
+        """Use the same programmatic desktop-exit path as the tray menu."""
         try:
             self.bridge.close_desktop()
         except Exception as exc:
             self._notify(f"A interface não foi encerrada: {exc}")
+
+    def _exit_ui(self, _icon=None, _item=None) -> None:
+        self.exit_ui()
 
     def start(self) -> None:
         if self.thread is not None and self.thread.is_alive():
