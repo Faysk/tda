@@ -563,14 +563,26 @@ export function LembraExperience({
 				return;
 			}
 
-			const response = await fetch(requested.uploadUrl, {
-				method: requested.method,
-				headers: requested.headers,
-				body: draft.file,
-			});
-			if (!response.ok) {
-				setMessage("O envio da imagem falhou. Tente novamente.");
-				return;
+			const totalParts = Math.ceil(draft.file.size / requested.chunkBytes);
+			for (let part = 0; part < totalParts; part += 1) {
+				const start = part * requested.chunkBytes;
+				const end = Math.min(start + requested.chunkBytes, draft.file.size);
+				const response = await fetch(
+					`/api/lembra/upload?referenceId=${encodeURIComponent(
+						requested.referenceId,
+					)}&uploadId=${encodeURIComponent(
+						requested.uploadId,
+					)}&part=${part}`,
+					{
+						method: "PUT",
+						headers: { "Content-Type": "application/octet-stream" },
+						body: draft.file.slice(start, end),
+					},
+				);
+				if (!response.ok) {
+					setMessage("O envio da imagem falhou. Tente novamente.");
+					return;
+				}
 			}
 
 			const finalized = await finalizeLembraUploadAction(
