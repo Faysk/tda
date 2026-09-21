@@ -918,3 +918,46 @@ Validação:
 - migration verifica a própria definição final e falha se o limite antigo de coordenadas permanecer;
 - testes PostgreSQL sintéticos provam coordenadas de mapa acima de 5.000 em snapshot/draft e rejeitam valores acima de 20.000;
 - o layout publicado existente não é reescrito pela migration.
+
+## Vínculo obrigatório de edição de transcript à sessão exibida
+
+### `20260921003045_bind_transcript_edit_to_session`
+
+**Estado:** migration versionada na PR #459; **ainda não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- eliminar o boundary legado de `edit_transcript_segment_atomic(...)` que aceitava campaign + segment sem receber a sessão que o editor estava exibindo;
+- exigir `p_expected_session_id` no RPC server-only;
+- vincular o lookup bloqueado e o UPDATE ao trio **campaign + expected session + segment** antes de qualquer mutação;
+- manter mismatch de sessão/segmento opaco como `not_found`, evitando editar uma fala real de outra sessão da mesma campaign;
+- preservar optimistic concurrency por `revision` e audit atômico na sessão fisicamente confirmada.
+
+Boundary e segurança:
+
+- a assinatura antiga sem `p_expected_session_id` é removida pela migration para não deixar um caminho paralelo menos restritivo;
+- a nova função continua `SECURITY INVOKER` com `search_path = pg_catalog, public`;
+- `EXECUTE` permanece revogado de `public`, `anon` e `authenticated`, e concedido apenas a `service_role`;
+- o actor/profile continua vindo do boundary server-side; o browser não ganha acesso SQL direto;
+- o Server Action valida `sessionId` e o adapter passa esse valor como expected identity, sem usá-lo como source of truth para o audit.
+
+Validação sintética:
+
+- PostgreSQL 16 descartável prova que **session A + segment B** retorna `not_found`, mantém a row intacta e cria zero audit;
+- **session B + segment B** atualiza exatamente uma vez, incrementa revision e cria um audit;
+- retry com revision antiga retorna `conflict` e não cria segundo audit;
+- a fixture específica roda dentro de transação e faz `ROLLBACK`, preservando isolamento dos testes existentes de transcript import;
+- unit tests também provam que aliases legados de review retornam a representação canônica persistida (`unreviewed -> pending`).
+
+Compatibilidade e rollout:
+
+- o consumidor de aplicação e a migration devem ser implantados juntos, pois a chamada RPC passa a exigir o parâmetro adicional;
+- esta PR não aplica DDL diretamente no projeto Supabase e não comprova estado remoto;
+- após deploy, o aceite exige migration history + definição/grants da função por read-back antes de considerar a proteção remota efetiva.
+
+Rollback lógico:
+
+- retirar primeiro o consumidor que exige a nova assinatura;
+- qualquer reversão deve usar migration corretiva explícita; não reintroduzir silenciosamente a assinatura antiga em paralelo;
+- nenhuma row de transcript ou audit deve ser apagada para simular rollback.
+

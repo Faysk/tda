@@ -32,6 +32,7 @@ export async function updateTranscriptSegmentAction(
 			{
 				authUserId: identity.authUserId,
 				campaignSlug: CAMPAIGN_SLUG,
+				sessionId: input.sessionId,
 				segmentId: input.segmentId,
 				expectedRevision: input.expectedRevision,
 				text: input.text,
@@ -59,9 +60,9 @@ export async function updateTranscriptSegmentAction(
 			ok: true as const,
 			revision: result.revision,
 			segment: {
-				text: input.text.trim(),
-				speaker: input.speaker.trim(),
-				reviewStatus: input.reviewStatus,
+				text: result.segment.text,
+				speaker: result.segment.speaker,
+				reviewStatus: result.segment.reviewStatus,
 			},
 		};
 	} catch {
