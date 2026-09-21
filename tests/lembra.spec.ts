@@ -247,3 +247,31 @@ test("Lembra keeps viewer management reachable in a short desktop viewport", asy
 	await expect(edit).toBeVisible();
 	await expect(viewer.getByRole("button", { name: "Fechar referência" }).last()).toBeVisible();
 });
+
+
+test("Lembra composer preserves the full image instead of cropping the preview", async ({ page }) => {
+	await page.goto("/lembra");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "vertical.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const dialog = page.getByRole("dialog");
+	const preview = dialog.getByAltText("Preview da referência selecionada");
+	await expect(preview).toBeVisible();
+	expect(await preview.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+});
+
+test("Lembra mobile viewer exposes one clear close action", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 780 });
+	await page.goto("/lembra");
+	await addReference(page, "Ponte", "Referência de composição");
+
+	await page.getByRole("button", { name: "Ponte", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	const close = viewer.getByRole("button", { name: "Fechar referência" });
+	await expect(close).toHaveCount(1);
+	await close.click();
+	await expect(viewer).not.toBeVisible();
+});
