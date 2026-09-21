@@ -57,11 +57,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Reconciliações do migration history](../database/migration-reconciliations.md) | dados/Supabase + operations | vigente | 2026-09-10 |
-| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-20 |
+| [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-21 |
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-06 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
 | [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-06 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-19 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-21 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
 ## docs/delivery
@@ -126,7 +126,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-13 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
-| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | narrative-memory / frontend / integrations-media / identity-access | UX v3 em implementação; persistência rastreada em #476 | 2026-09-21 |
+| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | UX v3 aprovada; persistência compartilhada em implementação na #476 | 2026-09-21 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado | 2026-09-19 |
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-09-14 |
@@ -155,7 +155,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
 | [Media Storage — governança (provider atual: R2)](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-20 |
-| [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-20 |
+| [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-21 |
 | [Integração Supabase — provider atual de PostgreSQL e Auth](../integrations/supabase.md) | dados / identity-access | vigente; provider atual | 2026-09-20 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
 | [Importação de transcrição local](../integrations/transcript-import.md) | transcript-publication + dados/Supabase | boundary revisionado de publicação implementado e fail-closed; migration/grants/rollout de Production ainda não ativados | 2026-09-21 |
@@ -199,7 +199,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-20 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
-| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-20 |
+| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-21 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato 0.3.14 em validação; Stable bloqueada até aceite físico real | 2026-09-21 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |

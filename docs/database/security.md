@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-21
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -425,3 +425,20 @@ Qualquer alteração em policy, grant, function security, role/capability ou sec
 - teste de acesso positivo e negativo;
 - registro em `verification-log.md` após aplicação;
 - ADR se alterar a estratégia de segurança.
+
+## Lembra
+
+A biblioteca `/lembra` é compartilhada por produto entre todos os usuários autenticados, mas isso **não** implica grants diretos no banco.
+
+Contrato candidato:
+
+- `lembra_references` e `lembra_favorites` com RLS habilitado;
+- sem grants para `anon` ou `authenticated`;
+- sessão validada no boundary Next server-side;
+- qualquer sessão autenticada pode criar/editar/retirar qualquer referência;
+- favoritos são filtrados pelo `auth_user_id` da sessão;
+- nenhum role/capability narrativo é consultado;
+- bytes ficam no R2 privado e a rota de imagem revalida sessão antes do read-back;
+- service role e credenciais R2 nunca são enviados ao browser.
+
+Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.

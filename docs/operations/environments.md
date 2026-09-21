@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-21
 > Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
 Este documento define os ambientes do TDA, seus limites de dados/secrets e o relacionamento com providers substituíveis.
@@ -124,7 +124,9 @@ R2_PRIVATE_ACCESS_KEY_ID
 R2_PRIVATE_SECRET_ACCESS_KEY
 ```
 
-O par privado é dedicado ao token `tda-github-production-private-media-storage` e a `tda-media-private`; está provisionado, mas ainda não é consumido por workflow/runtime.
+O par privado é dedicado ao token `tda-github-production-private-media-storage` e a `tda-media-private`.
+
+O **Lembra** é o primeiro consumidor de runtime desse boundary privado. Os secrets `R2_ACCOUNT_ID`, `R2_PRIVATE_ACCESS_KEY_ID` e `R2_PRIVATE_SECRET_ACCESS_KEY` permanecem no GitHub Environment `production`; o Production CD os injeta somente no deployment staged por `vercel deploy --env`, junto de `R2_PRIVATE_BUCKET=tda-media-private` e `TDA_LEMBRA_ENABLED=true`. O artefato só é promovido após migrations e smoke passarem.
 
 Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 

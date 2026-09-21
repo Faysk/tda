@@ -47,6 +47,10 @@ jobs:
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_PRIVATE_ACCESS_KEY_ID: ${{ secrets.R2_PRIVATE_ACCESS_KEY_ID }}
+      R2_PRIVATE_SECRET_ACCESS_KEY: ${{ secrets.R2_PRIVATE_SECRET_ACCESS_KEY }}
+      R2_PRIVATE_BUCKET: tda-media-private
+      TDA_LEMBRA_ENABLED: "true"
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -168,17 +172,41 @@ jobs:
             [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for media release"; exit 1; }
           fi
 
+          [[ -n "${R2_ACCOUNT_ID:-}" ]] || { echo "::error::Missing R2_ACCOUNT_ID for Lembra runtime"; exit 1; }
+          [[ -n "${R2_PRIVATE_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_PRIVATE_ACCESS_KEY_ID for Lembra runtime"; exit 1; }
+          [[ -n "${R2_PRIVATE_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_PRIVATE_SECRET_ACCESS_KEY for Lembra runtime"; exit 1; }
+          [[ "$R2_PRIVATE_BUCKET" == "tda-media-private" ]] || { echo "::error::Invalid R2 private bucket for Lembra runtime"; exit 1; }
+
       - name: Install pinned Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      - name: Preflight Lembra private Media Storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+          const client = new S3Client({
+            region: "auto",
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+              accessKeyId: process.env.R2_PRIVATE_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_PRIVATE_SECRET_ACCESS_KEY,
+            },
+          });
+          await client.send(new HeadBucketCommand({ Bucket: process.env.R2_PRIVATE_BUCKET }));
+          console.log("LEMBRA_PRIVATE_R2_OK bucket reachable");
+          NODE
+
       - name: Build Production artifact
         env:
           APP_ENV: production
           APP_COMMIT_SHA: ${{ steps.source.outputs.sha }}
           TDA_RELEASE_ID: ${{ steps.source.outputs.release }}
+          TDA_LEMBRA_ENABLED: "true"
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Start staged Production artifact without domain traffic
@@ -192,7 +220,12 @@ jobs:
           URL="$(vercel deploy --prebuilt --prod --skip-domain --yes --no-wait --token="$VERCEL_TOKEN" \
             --env APP_ENV=production \
             --env APP_COMMIT_SHA="$SOURCE_SHA" \
-            --env TDA_RELEASE_ID="$RELEASE_ID" | tail -n 1)"
+            --env TDA_RELEASE_ID="$RELEASE_ID" \
+            --env TDA_LEMBRA_ENABLED=true \
+            --env R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
+            --env R2_PRIVATE_ACCESS_KEY_ID="$R2_PRIVATE_ACCESS_KEY_ID" \
+            --env R2_PRIVATE_SECRET_ACCESS_KEY="$R2_PRIVATE_SECRET_ACCESS_KEY" \
+            --env R2_PRIVATE_BUCKET="$R2_PRIVATE_BUCKET" | tail -n 1)"
           if [[ ! "$URL" =~ ^https://[A-Za-z0-9.-]+\.vercel\.app$ ]]; then
             echo "::error::Vercel did not return a valid staged Production URL: $URL"
             exit 1
@@ -242,6 +275,11 @@ jobs:
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/noah --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          LEMBRA_STATUS="$(vercel curl /lembra --deployment "$DEPLOYMENT_URL" --silent --show-error --output /dev/null --write-out '%{http_code}')"
+          if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
+            echo "::error::Expected authenticated Lembra to redirect anonymous staged request, got HTTP $LEMBRA_STATUS"
+            exit 1
+          fi
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
@@ -268,6 +306,11 @@ jobs:
           node tools/ci/verify-production-canonical.mjs
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/"
+          LEMBRA_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
+          if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
+            echo "::error::Expected authenticated Lembra to redirect anonymous canonical request, got HTTP $LEMBRA_STATUS"
+            exit 1
+          fi
 
       - name: Record tiny release receipt
         shell: bash

@@ -1,0 +1,48 @@
+.shell {
+	min-height: calc(100vh - 120px);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px var(--ds-page-gutter);
+	color: var(--ds-foreground-soft);
+	text-align: center;
+}
+
+.icon {
+	display: grid;
+	width: 54px;
+	height: 54px;
+	place-items: center;
+	margin-bottom: 16px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-muted);
+}
+
+.icon svg {
+	width: 26px;
+	height: 26px;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.7;
+}
+
+.shell h1 {
+	margin: 0;
+	color: var(--ds-foreground);
+	font-size: clamp(1.3rem, 2vw, 1.75rem);
+	font-weight: 500;
+}
+
+.shell p {
+	max-width: 440px;
+	margin: 9px 0 20px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.88rem;
+	line-height: 1.55;
+}
