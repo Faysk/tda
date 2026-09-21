@@ -475,7 +475,11 @@
 }
 
 .cardTitleButton {
+	display: -webkit-box;
 	max-width: 100%;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	padding: 0;
 	border: 0;
 	background: transparent;
@@ -483,6 +487,7 @@
 	font: inherit;
 	font-weight: inherit;
 	text-align: left;
+	overflow-wrap: anywhere;
 	cursor: pointer;
 }
 
@@ -518,7 +523,15 @@
 	font-size: 0.69rem;
 }
 
+.cardMeta > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .cardMeta time {
+	flex: 0 0 auto;
 	text-align: right;
 }
 
