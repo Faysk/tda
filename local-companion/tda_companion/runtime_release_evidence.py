@@ -385,6 +385,25 @@ def seal_physical(
     }
 
 
+def seal_physical_from_files(
+    candidate_manifest: Path,
+    runtime_root: Path,
+    destination: Path,
+    *,
+    whisper_receipts: Iterable[Path] = (),
+    qwen_state_root: Path | None = None,
+) -> dict[str, Any]:
+    candidate = _read_json(candidate_manifest.resolve(), "RUNTIME_CANDIDATE_INVALID")
+    receipt = seal_physical(
+        candidate,
+        runtime_root.resolve(),
+        whisper_receipts=whisper_receipts,
+        qwen_state_root=qwen_state_root,
+    )
+    _atomic_json(destination.resolve(), receipt)
+    return receipt
+
+
 def verify_promotion(candidate: object, acceptance: object, assets_root: Path) -> dict[str, Any]:
     value = _parse_candidate(candidate)
     if not isinstance(acceptance, dict) or acceptance.get("schema") != ACCEPTANCE_SCHEMA or acceptance.get("pass") is not True:
