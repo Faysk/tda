@@ -283,6 +283,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     mode.add_argument("--install-rc-runtime", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
     mode.add_argument("--installed-acceptance", action="store_true", help=argparse.SUPPRESS)
+    mode.add_argument("--ensure-runtime-rc", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
+    mode.add_argument("--seal-runtime-acceptance", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
     parser.add_argument("--startup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-tray-exit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--state-root", type=Path, default=paths.state_root)
@@ -294,6 +296,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rc-artifact", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--rc-artifact-sha256", help=argparse.SUPPRESS)
     parser.add_argument("--rc-result-file", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-source-sha", help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-candidate-manifest", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--runtime-result-file", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--whisper-acceptance-receipt", type=Path, action="append", default=[], help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-candidate-msi", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-payload-manifest", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--acceptance-source-sha", help=argparse.SUPPRESS)
@@ -319,6 +325,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         or args.acceptance_result_file is None
     ):
         parser.error("ACCEPTANCE_CANDIDATE_PAYLOAD_SOURCE_CRAIG_BITS_AND_RESULT_REQUIRED")
+    if args.ensure_runtime_rc and (
+        not args.runtime_source_sha or args.runtime_result_file is None
+    ):
+        parser.error("RUNTIME_RC_SOURCE_AND_RESULT_REQUIRED")
+    if args.seal_runtime_acceptance and (
+        args.runtime_candidate_manifest is None or args.runtime_result_file is None
+    ):
+        parser.error("RUNTIME_ACCEPTANCE_CANDIDATE_AND_RESULT_REQUIRED")
+    if args.seal_runtime_acceptance == "whisper" and len(args.whisper_acceptance_receipt) != 2:
+        parser.error("RUNTIME_ACCEPTANCE_WHISPER_RECEIPTS_REQUIRED")
+    if args.seal_runtime_acceptance == "qwen" and args.whisper_acceptance_receipt:
+        parser.error("RUNTIME_ACCEPTANCE_QWEN_RECEIPTS_FORBIDDEN")
     origins = args.origin or [PRODUCTION_ORIGIN]
     try:
         args.origins = frozenset(validate_origin(origin) for origin in origins)
@@ -379,6 +397,119 @@ def _run_installed_acceptance(args: argparse.Namespace) -> int:
         return 70
 
 
+def _ensure_runtime_rc(args: argparse.Namespace) -> int:
+    from .runtime_rc_updates import RuntimeRcUpdateError, install_published_runtime_rc
+
+    destination: Path = args.runtime_result_file
+    try:
+        paths = _paths_for_args(args)
+        paths.ensure_runtime_dirs()
+        result = install_published_runtime_rc(
+            args.ensure_runtime_rc,
+            runtime_root=paths.runtime_root,
+            cache_root=paths.cache_root,
+            expected_source_sha=str(args.runtime_source_sha).casefold(),
+        )
+        receipt = {
+            "schema": "tda_runtime_acceptance_prepare_v1",
+            "ok": True,
+            "family": args.ensure_runtime_rc,
+            "version": result.get("version"),
+            "candidate_tag": result.get("candidate_tag"),
+            "source_sha": result.get("source_sha"),
+            "runtime_archive_sha256": result.get("runtime_archive_sha256"),
+            "reused": result.get("reused") is True,
+            "contains_paths": False,
+            "contains_token": False,
+        }
+        _atomic_json(destination, receipt)
+        return 0
+    except RuntimeRcUpdateError as exc:
+        _atomic_json(
+            destination,
+            {
+                "schema": "tda_runtime_acceptance_prepare_v1",
+                "ok": False,
+                "family": args.ensure_runtime_rc,
+                "error": exc.code,
+                "contains_paths": False,
+                "contains_token": False,
+            },
+        )
+        return 66
+    except BaseException:
+        _atomic_json(
+            destination,
+            {
+                "schema": "tda_runtime_acceptance_prepare_v1",
+                "ok": False,
+                "family": args.ensure_runtime_rc,
+                "error": "RUNTIME_ACCEPTANCE_PREPARE_FAILED",
+                "contains_paths": False,
+                "contains_token": False,
+            },
+        )
+        return 70
+
+
+def _seal_runtime_acceptance(args: argparse.Namespace) -> int:
+    from .runtime_release_evidence import (
+        RuntimeReleaseEvidenceError,
+        seal_physical_from_files,
+    )
+
+    destination: Path = args.runtime_result_file
+    try:
+        paths = _paths_for_args(args)
+        paths.ensure_runtime_dirs()
+        receipt = seal_physical_from_files(
+            args.runtime_candidate_manifest,
+            paths.runtime_root,
+            destination,
+            whisper_receipts=(
+                args.whisper_acceptance_receipt
+                if args.seal_runtime_acceptance == "whisper"
+                else ()
+            ),
+            qwen_state_root=(
+                paths.state_root
+                if args.seal_runtime_acceptance == "qwen"
+                else None
+            ),
+        )
+        if receipt.get("family") != args.seal_runtime_acceptance:
+            raise RuntimeReleaseEvidenceError("RUNTIME_ACCEPTANCE_FAMILY_MISMATCH")
+        return 0
+    except RuntimeReleaseEvidenceError as exc:
+        _atomic_json(
+            destination,
+            {
+                "schema": "tda_runtime_physical_acceptance_error_v1",
+                "pass": False,
+                "family": args.seal_runtime_acceptance,
+                "error": exc.code,
+                "contains_audio": False,
+                "contains_transcript": False,
+                "contains_local_paths": False,
+            },
+        )
+        return 66
+    except BaseException:
+        _atomic_json(
+            destination,
+            {
+                "schema": "tda_runtime_physical_acceptance_error_v1",
+                "pass": False,
+                "family": args.seal_runtime_acceptance,
+                "error": "RUNTIME_ACCEPTANCE_SEAL_FAILED",
+                "contains_audio": False,
+                "contains_transcript": False,
+                "contains_local_paths": False,
+            },
+        )
+        return 70
+
+
 def _show_desktop_error(exc: BaseException) -> None:
     try:
         import tkinter as tk
@@ -405,6 +536,10 @@ def main(argv: list[str] | None = None) -> int:
         return _install_rc_runtime(args)
     if args.installed_acceptance:
         return _run_installed_acceptance(args)
+    if args.ensure_runtime_rc:
+        return _ensure_runtime_rc(args)
+    if args.seal_runtime_acceptance:
+        return _seal_runtime_acceptance(args)
 
     diagnostic_file: Path | None = args.diagnostic_file
     _write_diagnostic(diagnostic_file, "BOOTSTRAP")
