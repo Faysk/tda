@@ -12,7 +12,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-15 |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-21 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
@@ -111,7 +111,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-15 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-21 |
+| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | narrative-memory / frontend / integrations-media / identity-access | arquitetura aprovada para UX; persistência e autorização ainda em desenho | 2026-09-21 |
 | [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
