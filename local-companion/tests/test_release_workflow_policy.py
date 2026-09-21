@@ -139,6 +139,8 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     )
     assert "[switch]$RequireAuthenticode" in value
     assert 'throw "AUTHENTICODE_REQUIRED"' in value
+    assert 'throw "AUTHENTICODE_TIMESTAMP_REQUIRED"' in value
+    assert 'throw "AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED"' in value
     assert "Get-AuthenticodeSignature" in value
     assert '"Valid"' in value
     assert "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH" in value
