@@ -166,7 +166,7 @@ create trigger fail_publication_event
 before insert on public.transcript_publication_events
 for each row execute function public.fail_publication_event_on_probe();
 
-do $;
+do $main$
 declare
   v_first jsonb;
   v_replay jsonb;
@@ -408,7 +408,7 @@ begin
     raise exception 'AUDIT_LEAKED_TRANSCRIPT_CONTENT';
   end if;
 end;
-$$;
+$main$;
 
 drop trigger fail_publication_event on public.transcript_publication_events;
 drop function public.fail_publication_event_on_probe();
