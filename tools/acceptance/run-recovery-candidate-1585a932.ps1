@@ -306,6 +306,53 @@ function Ensure-AutomatedRuntimesReady([string]$DownloadRoot) {
     }
 }
 
+function Get-AnyAgentHealth([int]$AgentPort) {
+    try {
+        $health = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$AgentPort/api/v1/health" -TimeoutSec 2
+        if (
+            [string]$health.product_id -ne "tda-companion" -or
+            [string]$health.api_version -ne "1" -or
+            [int]$health.port -ne $AgentPort -or
+            [int]$health.pid -le 0
+        ) { return $null }
+        return $health
+    } catch { return $null }
+}
+
+function Invoke-CurrentAgentJson([int]$AgentPort, [string]$Method, [string]$Path) {
+    $session = Invoke-RestMethod -NoProxy -Method Post -Uri "http://127.0.0.1:$AgentPort/api/v1/session" -Headers @{ Origin = $Origin; Accept = "application/json" } -ContentType "application/json" -Body "{}" -TimeoutSec 10
+    $token = [string]$session.token
+    if (-not $token) { throw "RECOVERY_ACTIVE_WORK_PREFLIGHT_SESSION_INVALID" }
+    return Invoke-RestMethod -NoProxy -Method $Method -Uri "http://127.0.0.1:$AgentPort/api/v1$Path" -Headers @{ Origin = $Origin; Authorization = ("Bearer " + $token); Accept = "application/json" } -TimeoutSec 10
+}
+
+function Assert-NoActiveUserWorkBeforeMutation([int]$AgentPort) {
+    $jobsDb = Join-Path $env:LOCALAPPDATA "TDA\Data\jobs.sqlite3"
+    $health = Get-AnyAgentHealth $AgentPort
+    if ($null -eq $health) {
+        if (Test-Path -LiteralPath $jobsDb -PathType Leaf) {
+            throw "RECOVERY_ACTIVE_WORK_PREFLIGHT_UNAVAILABLE"
+        }
+        Write-Host "No running Agent and no persisted job store; active-work preflight is clear." -ForegroundColor DarkGreen
+        return
+    }
+
+    try {
+        $jobsValue = Invoke-CurrentAgentJson $AgentPort "GET" "/jobs"
+        $activeJobs = @($jobsValue.jobs | Where-Object { [string]$_.status -in @("queued", "running") })
+        if ($activeJobs.Count -gt 0) { throw "RECOVERY_ACTIVE_USER_JOB_PRESENT_BEFORE_MUTATION" }
+
+        $preparation = Invoke-CurrentAgentJson $AgentPort "GET" "/preparation"
+        if ($preparation.active -eq $true) { throw "RECOVERY_ACTIVE_USER_PREPARATION_PRESENT_BEFORE_MUTATION" }
+    } catch {
+        $code = [string]$_.Exception.Message
+        if ($code -like "RECOVERY_ACTIVE_USER_*") { throw }
+        throw "RECOVERY_ACTIVE_WORK_PREFLIGHT_UNAVAILABLE"
+    }
+
+    Write-Host "Active-work preflight: clear." -ForegroundColor Green
+}
+
 function Get-ExactAgentHealth([int]$AgentPort, [string]$ExpectedVersion) {
     try {
         $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$AgentPort/api/v1/health" -TimeoutSec 2
@@ -655,6 +702,10 @@ if (
     -not (Test-Path -LiteralPath $craigPath -PathType Leaf)
 ) {
     throw "RECOVERY_FIXTURE_OUTPUT_MISSING"
+}
+
+if ($Automated) {
+    Assert-NoActiveUserWorkBeforeMutation $Port
 }
 
 Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)
