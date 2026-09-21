@@ -368,6 +368,11 @@
 		box-shadow var(--ds-motion-base) var(--ds-ease-soft);
 }
 
+.card:focus-within {
+	border-color: var(--ds-control-border);
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.09);
+}
+
 .media {
 	position: relative;
 	aspect-ratio: 4 / 3;
