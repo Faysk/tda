@@ -80,7 +80,9 @@ function Download-Asset([object]$Release,[string]$Name,[string]$Destination,[str
 }
 
 function Assert-CompanionCandidate([object]$Candidate,[object]$Release,[string]$Tag) {
-  if ($Tag -notmatch '^companion-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}    [string]$Candidate.schema -ne "tda_companion_candidate_v2" -or
+  if ($Tag -notmatch '^companion-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$') { throw "COMPANION_CANDIDATE_TAG_INVALID" }
+  if (
+    [string]$Candidate.schema -ne "tda_companion_candidate_v2" -or
     [string]$Candidate.channel -ne "rc" -or
     [string]$Candidate.tag -ne $Tag -or
     [string]$Candidate.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or
@@ -100,7 +102,12 @@ function Assert-CompanionCandidate([object]$Candidate,[object]$Release,[string]$
 function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Tag,[string]$Family) {
   $runtimeId = if ($Family -eq "whisper") { "whisper-ctranslate2" } else { "qwen3-transformers" }
   $tagPattern = if ($Family -eq "whisper") {
-    '^companion-whisper-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}  if (
+    '^companion-whisper-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
+  } else {
+    '^companion-qwen-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
+  }
+  if ($Tag -notmatch $tagPattern) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+  if (
     [string]$Candidate.schema -ne "tda_runtime_candidate_v1" -or
     [string]$Candidate.family -ne $Family -or
     [string]$Candidate.runtime_id -ne $runtimeId -or
