@@ -1,7 +1,9 @@
 param(
     [string]$OutputRoot = (Join-Path $env:LOCALAPPDATA "TDA\State\acceptance\recovery-1585a932"),
     [ValidateRange(1024, 65535)]
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [switch]$Automated,
+    [switch]$AllowLegacyTrayEquivalent
 )
 
 $ErrorActionPreference = "Stop"
@@ -177,7 +179,8 @@ function Remove-SupersededSameVersionCandidate([string]$ExpectedVersion) {
 function Ensure-ExactCandidateInstalled(
     [string]$CandidateMsi,
     [string]$PayloadManifestPath,
-    [int]$AgentPort
+    [int]$AgentPort,
+    [bool]$AutomatedMode
 ) {
     $companionRoot = Join-Path $env:LOCALAPPDATA "TDA\Companion"
     $marker = Join-Path $companionRoot "current-version.txt"
@@ -210,7 +213,9 @@ function Ensure-ExactCandidateInstalled(
         }
         Write-Host "Target installed version:  $Version"
         Write-Host "The MSI major-upgrade guard owns process shutdown/restart and preserves TDA user data."
-        [void](Read-Host "Press ENTER to install the exact RC MSI")
+        if (-not $AutomatedMode) {
+            [void](Read-Host "Press ENTER to install the exact RC MSI")
+        }
 
         $installLog = Join-Path $env:TEMP "tda-recovery-1585a932-msi-install.log"
         $arguments = @(
@@ -305,6 +310,15 @@ function Require-AllProfilesReady([int]$AgentPort) {
         [void](Read-Host "When the missing profiles report ready, press ENTER to re-check")
     }
     throw "RECOVERY_REQUIRED_PROFILES_NOT_READY"
+}
+
+function Assert-AllProfilesReady([int]$AgentPort) {
+    $ready = @(Get-ReadyProfiles $AgentPort)
+    $missing = @($RequiredProfiles | Where-Object { $_ -notin $ready })
+    if ($missing.Count -ne 0) {
+        throw "RECOVERY_REQUIRED_PROFILES_NOT_READY:$($missing -join ',')"
+    }
+    Write-Host "All four ASR profiles are ready." -ForegroundColor Green
 }
 
 function Assert-InstalledReceipt([object]$Value) {
@@ -404,19 +418,27 @@ if (
     throw "RECOVERY_FIXTURE_OUTPUT_MISSING"
 }
 
-Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port
+Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)
 
 $installedRaw = Join-Path $receipts "installed.raw.json"
 Write-Host ""
 Write-Host "PHASE 1/2 - Installed Windows acceptance" -ForegroundColor Cyan
-Write-Host "This phase is intentionally interactive: it measures lifecycle, BITS resume, tray, diagnostics and Craig recovery."
+$installedModeArgs = @()
+if ($Automated) {
+    Write-Host "Automated mode: zero PASS prompts, no Task Manager, no manual port blocker and no manual network toggle." -ForegroundColor Green
+    $installedModeArgs += "-Automated"
+    if ($AllowLegacyTrayEquivalent) { $installedModeArgs += "-AllowLegacyTrayEquivalent" }
+} else {
+    Write-Host "Interactive compatibility mode: operator observations are still available when explicitly requested."
+}
 & $pwshPath -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installedScript `
     -CandidateMsi $msiPath `
     -PayloadManifest $payloadPath `
     -SourceSha $SourceSha `
     -CraigZip $craigPath `
     -ReceiptPath $installedRaw `
-    -Port $Port
+    -Port $Port `
+    @installedModeArgs
 if ($LASTEXITCODE -ne 0) { throw "RECOVERY_INSTALLED_ACCEPTANCE_FAILED" }
 if (-not (Test-Path -LiteralPath $installedRaw -PathType Leaf)) {
     throw "RECOVERY_INSTALLED_ACCEPTANCE_FAILED"
@@ -426,7 +448,11 @@ Assert-InstalledReceipt $installed
 
 Write-Host ""
 Write-Host "Preparing ASR profiles for the physical suite..." -ForegroundColor Cyan
-Require-AllProfilesReady $Port
+if ($Automated) {
+    Assert-AllProfilesReady $Port
+} else {
+    Require-AllProfilesReady $Port
+}
 
 Write-Host ""
 Write-Host "PHASE 2/2 - Physical ASR/GPU acceptance" -ForegroundColor Cyan
@@ -445,6 +471,7 @@ if (-not (Test-Path -LiteralPath $physicalRaw -PathType Leaf)) {
 }
 $physical = Read-Json $physicalRaw "RECOVERY_PHYSICAL_RECEIPT_INVALID"
 Assert-PhysicalReceipt $physical
+if ($Automated) { Assert-AllProfilesReady $Port }
 
 $installedFinal = Join-Path $receipts "$RcTag.json"
 $physicalFinal = Join-Path $receipts "$RcTag.physical.json"

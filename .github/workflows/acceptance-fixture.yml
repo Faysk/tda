@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -34,6 +36,7 @@ jobs:
           foreach ($relative in @(
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
+            "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -94,6 +97,28 @@ jobs:
           if (-not $value.Contains("Remove-SupersededSameVersionCandidate")) {
             throw "RECOVERY_LAUNCHER_SAME_VERSION_REPLACEMENT_MISSING"
           }
+          foreach ($required in @(
+            '[switch]$Automated',
+            'function Assert-AllProfilesReady',
+            'Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port ([bool]$Automated)',
+            'if (-not $AutomatedMode)',
+            'Assert-AllProfilesReady $Port',
+            'Require-AllProfilesReady $Port'
+          )) {
+            if (-not $value.Contains($required)) {
+              throw "RECOVERY_AUTOMATED_LAUNCHER_CONTRACT_MISSING:$required"
+            }
+          }
+          $installPrompt = '[void](Read-Host "Press ENTER to install the exact RC MSI")'
+          $guard = 'if (-not $AutomatedMode)'
+          $guardIndex = $value.IndexOf($guard)
+          $promptIndex = $value.IndexOf($installPrompt)
+          if ($guardIndex -lt 0 -or $promptIndex -lt 0 -or $guardIndex -gt $promptIndex) {
+            throw "RECOVERY_AUTOMATED_INSTALL_PROMPT_NOT_GUARDED"
+          }
+          if ($value.IndexOf('Assert-AllProfilesReady $Port') -lt 0) {
+            throw "RECOVERY_AUTOMATED_PROFILE_ASSERTION_MISSING"
+          }
           $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
           $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
           if ($installIndex -lt 0 -or $installedPhaseIndex -lt 0 -or $installIndex -gt $installedPhaseIndex) {
@@ -123,6 +148,60 @@ jobs:
           }
           if ($installed.Contains('$total = [int64]$Job.BytesTotal')) {
             throw "RECOVERY_BITS_DIRECT_INT64_CAST_PRESENT"
+          }
+          foreach ($required in @(
+            '[switch]$Automated',
+            'function Capture-AutomatedBitsResumeEvidence',
+            '--acceptance-tray-exit',
+            'ACTIVE_USER_JOB_PRESENT',
+            'ACTIVE_USER_PREPARATION_PRESENT',
+            'AGENT_INITIAL_READY_REQUIRED',
+            'BITS_EVIDENCE_SUSPEND_NOT_OBSERVED',
+            'function Ensure-AutomatedProfilesReady',
+            'PROFILE_PREPARATION_START_INVALID',
+            'PROFILE_PREPARATION_TIMEOUT',
+            '[IO.File]::ReadAllBytes($settingsPath)',
+            '[IO.File]::WriteAllBytes($settingsPath, $settingsOriginalBytes)',
+            'LEGACY_TRAY_EQUIVALENT_SOURCE_NOT_ALLOWED',
+            'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
+            'WEBVIEW2_RENDERER_NOT_OBSERVED',
+            'CRAIG_DID_NOT_SURVIVE_AGENT_LOSS'
+          )) {
+            if (-not $installed.Contains($required)) {
+              throw "RECOVERY_AUTOMATED_ACCEPTANCE_CONTRACT_MISSING:$required"
+            }
+          }
+          $autoIndex = $installed.IndexOf('if ($Automated) {')
+          $manualIndex = $installed.IndexOf('$recoveryPrompt = @"')
+          if ($autoIndex -lt 0 -or $manualIndex -le $autoIndex) {
+            throw "RECOVERY_AUTOMATED_ACCEPTANCE_BOUNDARY_MISSING"
+          }
+          $autoSlice = $installed.Substring($autoIndex, $manualIndex - $autoIndex)
+          if ($autoSlice.Contains("Read-Host")) {
+            throw "RECOVERY_AUTOMATED_ACCEPTANCE_INTERACTIVE_PROMPT_PRESENT"
+          }
+          $wrapper = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1" -Raw
+          foreach ($required in @(
+            '"-Automated"',
+            'TDA-AUTO-ACCEPTANCE-RESULTS-',
+            'AUTO-RESULT.json',
+            'EVIDENCE-MANIFEST.json',
+            'contains_token = $false',
+            'contains_audio = $false',
+            'contains_transcript = $false',
+            'AUTO_ACCEPTANCE_REQUIRED_RECEIPTS_MISSING',
+            'AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED',
+            'harness_wrapper_sha256',
+            'harness_launcher_sha256',
+            '$zipPath.partial.zip',
+            'Compress-Archive'
+          )) {
+            if (-not $wrapper.Contains($required)) {
+              throw "RECOVERY_AUTOMATED_WRAPPER_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($wrapper.Contains("Read-Host")) {
+            throw "RECOVERY_AUTOMATED_WRAPPER_INTERACTIVE_PROMPT_PRESENT"
           }
       - name: Unit-test physical acceptance helper edge cases
         shell: powershell
