@@ -236,22 +236,7 @@ try {
                 [string]$runtimeReceipt.schema -ne "tda_runtime_physical_acceptance_v1" -or
                 $runtimeReceipt.pass -ne $true -or
                 [string]$runtimeReceipt.family -notin @("whisper", "qwen") -or
-                [string]$runtimeReceipt.candidate_tag -notmatch '^companion-(whisper|qwen)-runtime-rc-v[0-9]+.[0-9]+.[0-9]+-[a-f0-9]{12}    Write-Host ""
-    Write-Host "RECOVERY ACCEPTANCE: PASS" -ForegroundColor Green
-    Write-Host "Installed receipt: $installedFinal"
-    Write-Host "Physical receipt:  $physicalFinal"
-    if ($sealRuntimeReceipts) {
-        Write-Host "Whisper runtime receipt: $($runtimeFinals.whisper)"
-        Write-Host "Qwen runtime receipt:    $($runtimeFinals.qwen)"
-    }
-    Write-Host "Commit Companion receipts to docs/companion/acceptance before Companion Stable promotion."
-    if ($sealRuntimeReceipts) {
-        Write-Host "Commit runtime receipts to docs/companion/runtime-acceptance before runtime Stable promotion."
-    }
-} finally {
-    Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
-}
- -or
+                [string]$runtimeReceipt.candidate_tag -notmatch '^companion-(whisper|qwen)-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$' -or
                 $runtimeReceipt.contains_audio -ne $false -or
                 $runtimeReceipt.contains_transcript -ne $false -or
                 $runtimeReceipt.contains_local_paths -ne $false
@@ -273,7 +258,14 @@ try {
     Write-Host "RECOVERY ACCEPTANCE: PASS" -ForegroundColor Green
     Write-Host "Installed receipt: $installedFinal"
     Write-Host "Physical receipt:  $physicalFinal"
-    Write-Host "Commit only these sanitized receipts to docs/companion/acceptance before Stable promotion."
+    if ($sealRuntimeReceipts) {
+        Write-Host "Whisper runtime receipt: $($runtimeFinals.whisper)"
+        Write-Host "Qwen runtime receipt:    $($runtimeFinals.qwen)"
+    }
+    Write-Host "Commit Companion receipts to docs/companion/acceptance before Companion Stable promotion."
+    if ($sealRuntimeReceipts) {
+        Write-Host "Commit runtime receipts to docs/companion/runtime-acceptance before runtime Stable promotion."
+    }
 } finally {
     Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
 }
