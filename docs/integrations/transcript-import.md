@@ -1,9 +1,9 @@
 # Importação de transcrição local
 
-> Status: fundação de import/receipt implementada em código candidato; ativação negada; adaptação ao lifecycle revisionado obrigatória antes de produção
-> Owner: sync/consumer + dados/Supabase
-> Última revisão: 2026-09-15
-> Fonte de verdade: `src/features/transcript-sync`, [spec de revisão/publicação](../features/transcript-review-publication.md), ADR-0016 e migrations candidatas correspondentes
+> Status: boundary revisionado de publicação implementado e fail-closed; migration/grants/rollout de Production ainda não ativados
+> Owner: transcript-publication + dados/Supabase
+> Última revisão: 2026-09-21
+> Fonte de verdade: `src/features/transcript-publication`, `src/features/transcript-sync` (fundação legada), [spec de revisão/publicação](../features/transcript-review-publication.md), ADR-0016 e migrations candidatas correspondentes
 
 ## Atualização arquitetural — ADR-0016
 
