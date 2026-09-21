@@ -1352,6 +1352,16 @@ export function LembraExperience({
 								<span>Data automática</span>
 							</div>
 
+							{message ? (
+								<div
+									className={styles.composerMessage}
+									role="status"
+									aria-live="polite"
+								>
+									{message}
+								</div>
+							) : null}
+
 							<div className={styles.composerActions}>
 								<Button
 									type="button"
