@@ -450,48 +450,6 @@ export function ProcessingSubmission() {
 							}}
 						/>
 					</label>
-					<label className={styles.wide}>
-						<span>Contexto opcional</span>
-						<textarea
-							value={context}
-							onChange={(event) =>
-								setContext(
-									truncateUnicodeScalars(
-										event.target.value,
-										TRANSCRIPTION_TEXT_MAX_CHARS,
-									),
-								)
-							}
-							disabled={busy}
-							placeholder="Contexto curto da sessão/campanha para reconhecimento."
-						/>
-					</label>
-					<label className={styles.wide}>
-						<span>Glossário opcional</span>
-						<textarea
-							value={glossary}
-							onChange={(event) =>
-								setGlossary(
-									truncateUnicodeScalars(
-										event.target.value,
-										TRANSCRIPTION_TEXT_MAX_CHARS,
-									),
-								)
-							}
-							disabled={busy}
-							placeholder="Personagens, NPCs, lugares e termos difíceis."
-						/>
-					</label>
-					{requestTooLarge ? (
-						<p className={styles.error} role="alert">
-							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
-						</p>
-					) : null}
-					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
-						<p className={styles.notice} role="status">
-							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
-						</p>
-					) : null}
 					<div className={styles.actions}>
 						<Button
 							type="submit"
@@ -502,6 +460,56 @@ export function ProcessingSubmission() {
 						</Button>
 						<span>O áudio não é enviado para o cloud.</span>
 					</div>
+					<details className={styles.advanced}>
+						<summary>
+							<span>Opções avançadas</span>
+							<small>Contexto e glossário</small>
+						</summary>
+						<div className={styles.advancedGrid}>
+							<label>
+								<span>Contexto opcional</span>
+								<textarea
+									value={context}
+									onChange={(event) =>
+										setContext(
+											truncateUnicodeScalars(
+												event.target.value,
+												TRANSCRIPTION_TEXT_MAX_CHARS,
+											),
+										)
+									}
+									disabled={busy}
+									placeholder="Contexto curto da sessão/campanha para reconhecimento."
+								/>
+							</label>
+							<label>
+								<span>Glossário opcional</span>
+								<textarea
+									value={glossary}
+									onChange={(event) =>
+										setGlossary(
+											truncateUnicodeScalars(
+												event.target.value,
+												TRANSCRIPTION_TEXT_MAX_CHARS,
+											),
+										)
+									}
+									disabled={busy}
+									placeholder="Personagens, NPCs, lugares e termos difíceis."
+								/>
+							</label>
+						</div>
+					</details>
+					{requestTooLarge ? (
+						<p className={styles.error} role="alert">
+							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
+						</p>
+					) : null}
+					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
+						<p className={styles.notice} role="status">
+							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
+						</p>
+					) : null}
 				</form>
 			)}
 

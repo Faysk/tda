@@ -533,7 +533,10 @@ export function LocalReviewWorkspace({
 	}
 
 	return (
-		<section className={styles.library} aria-labelledby="local-results-title">
+		<section
+			className={`${styles.library} ${runs.length ? "" : styles.libraryCompact}`}
+			aria-labelledby="local-results-title"
+		>
 			<div className={styles.libraryHeader}>
 				<div>
 					<span className={styles.eyebrow}>Biblioteca local</span>
@@ -541,25 +544,27 @@ export function LocalReviewWorkspace({
 				</div>
 				<span>{runs.length} {runs.length === 1 ? "resultado" : "resultados"}</span>
 			</div>
-			<p className={styles.libraryIntro}>
-				Runs concluídos ficam separados da fila operacional. O transcript só é carregado quando você abre uma revisão.
-			</p>
 			{runs.length ? (
-				<div className={styles.runGrid}>
-					{runs.map((run) => (
-						<RunCard
-							key={`${run.sourceId}-${run.runId}`}
-							run={run}
-							busy={busy}
-							onOpen={() => void onOpen(run.sourceId, run.runId)}
-						/>
-					))}
-				</div>
+				<>
+					<p className={styles.libraryIntro}>
+						Runs concluídos ficam separados da fila operacional. O transcript só é carregado quando você abre uma revisão.
+					</p>
+					<div className={styles.runGrid}>
+						{runs.map((run) => (
+							<RunCard
+								key={`${run.sourceId}-${run.runId}`}
+								run={run}
+								busy={busy}
+								onOpen={() => void onOpen(run.sourceId, run.runId)}
+							/>
+						))}
+					</div>
+				</>
 			) : (
-				<div className={styles.empty}>
-					<strong>Nenhum resultado local concluído ainda.</strong>
-					<span>Quando um run terminar, ele aparecerá aqui sem virar publicação automaticamente.</span>
-				</div>
+				<p className={styles.emptyCompact}>
+					Nenhum resultado local concluído ainda.
+					<span> Runs concluídos aparecem aqui sem publicação automática.</span>
+				</p>
 			)}
 		</section>
 	);
