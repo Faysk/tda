@@ -15,6 +15,7 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -271,7 +272,7 @@ jobs:
           if ($generic.Contains("Read-Host")) {
             throw "FINAL_CURRENT_SOURCE_RUNNER_INTERACTIVE_PROMPT_PRESENT"
           }
-          $preflightIndex = $generic.IndexOf('Assert-NoActiveUserWork')
+          $preflightIndex = $generic.LastIndexOf('$phase="active_work_preflight";Assert-NoActiveUserWork')
           $installIndex = $generic.LastIndexOf('$exe=Ensure-Companion')
           if ($preflightIndex -lt 0 -or $installIndex -lt 0 -or $preflightIndex -ge $installIndex) {
             throw "FINAL_CURRENT_SOURCE_PREFLIGHT_ORDER_INVALID"
