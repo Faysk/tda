@@ -198,24 +198,24 @@ export class ProcessingController {
 				: Promise.resolve([] as LocalSourceSummary[]),
 		]);
 
-		const localRuns: LocalRunSummary[] = [];
-		if (reviewEnabled && !signal.aborted) {
-			// Keep loopback fan-out bounded even after years of local sources.
-			for (let offset = 0; offset < localSources.length; offset += 8) {
-				const batch = await Promise.all(
-					localSources.slice(offset, offset + 8).map((source) =>
-						this.bridge.localRuns(source.sourceId, signal).catch(() => []),
-					),
-				);
-				for (const values of batch) localRuns.push(...values);
-				if (signal.aborted) return;
-			}
-			localRuns.sort((left, right) => {
-				const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
-				const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
-				return rightTime - leftTime;
-			});
-		}
+		const loadRunBatch = async (offset: number): Promise<LocalRunSummary[]> => {
+			if (!reviewEnabled || signal.aborted || offset >= localSources.length)
+				return [];
+			const batch = await Promise.all(
+				localSources.slice(offset, offset + 8).map((source) =>
+					this.bridge.localRuns(source.sourceId, signal).catch(() => []),
+				),
+			);
+			if (signal.aborted) return [];
+			return [...batch.flat(), ...(await loadRunBatch(offset + 8))];
+		};
+		const localRuns =
+			reviewEnabled && !signal.aborted ? await loadRunBatch(0) : [];
+		localRuns.sort((left, right) => {
+			const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+			const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+			return rightTime - leftTime;
+		});
 
 		if (!signal.aborted)
 			this.update({
