@@ -12,6 +12,7 @@ from tda_companion.desktop_runtime import (
     DesktopExitCoordinator,
     DesktopUiApi,
 )
+from tda_companion.tray import TrayController
 
 
 def test_native_watchdog_recovers_without_renderer_polling(tmp_path: Path):
@@ -65,6 +66,22 @@ def test_programmatic_exit_bypasses_hide_preference():
     closed: list[bool] = []
 
     coordinator.request_exit(lambda: closed.append(True))
+
+    assert closed == [True]
+    assert coordinator.programmatic_exit is True
+    assert coordinator.should_hide("hide", tray_available=True) is False
+
+
+def test_tray_exit_callback_uses_programmatic_desktop_close_path():
+    coordinator = DesktopExitCoordinator()
+    closed: list[bool] = []
+
+    class Bridge:
+        def close_desktop(self):
+            coordinator.request_exit(lambda: closed.append(True))
+
+    tray = TrayController(Bridge(), SimpleNamespace())
+    tray._exit_ui()
 
     assert closed == [True]
     assert coordinator.programmatic_exit is True
