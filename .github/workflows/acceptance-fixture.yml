@@ -126,17 +126,20 @@ jobs:
           $runtimePrepIndex = $value.LastIndexOf('Ensure-AutomatedRuntimesReady $downloads')
           $installedPhaseIndex = $value.IndexOf('PHASE 1/2 - Installed Windows acceptance')
           $manualProfileIndex = $value.LastIndexOf('Require-AllProfilesReady $Port')
-          $profileAssertIndex = $value.LastIndexOf('Assert-AllProfilesReady $Port')
+          $firstProfileAssertIndex = $value.IndexOf('Assert-AllProfilesReady $Port')
+          $lastProfileAssertIndex = $value.LastIndexOf('Assert-AllProfilesReady $Port')
           $physicalPhaseIndex = $value.IndexOf('PHASE 2/2 - Physical ASR/GPU acceptance')
           if (
             $runtimePrepIndex -lt 0 -or
             $installedPhaseIndex -lt 0 -or
             $manualProfileIndex -lt 0 -or
-            $profileAssertIndex -lt 0 -or
+            $firstProfileAssertIndex -lt 0 -or
+            $lastProfileAssertIndex -lt 0 -or
             $physicalPhaseIndex -lt 0 -or
             $runtimePrepIndex -ge $installedPhaseIndex -or
-            $profileAssertIndex -le $installedPhaseIndex -or
-            $profileAssertIndex -ge $physicalPhaseIndex
+            $firstProfileAssertIndex -le $installedPhaseIndex -or
+            $firstProfileAssertIndex -ge $physicalPhaseIndex -or
+            $lastProfileAssertIndex -le $physicalPhaseIndex
           ) {
             throw "RECOVERY_AUTOMATED_PROFILE_PREPARATION_ORDER_INVALID"
           }
