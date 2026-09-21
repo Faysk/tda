@@ -43,6 +43,7 @@ export async function persistTranscriptMutation(
 	const { data, error } = await client.rpc("edit_transcript_segment_atomic", {
 		p_actor_profile_id: input.actorProfileId,
 		p_campaign_slug: input.campaignSlug,
+		p_expected_session_id: input.expectedSessionId,
 		p_segment_id: input.segmentId,
 		p_expected_revision: input.expectedRevision,
 		p_text: input.edit.text,
