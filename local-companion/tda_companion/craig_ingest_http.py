@@ -16,6 +16,7 @@ from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_cra
 from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
 from .local_review import LocalReviewError, open_review, save_review
+from .publication_target import PublicationTargetError, load_publication_target
 from .system_log import SystemLog
 from .transcription_runs import (
     TranscriptionRunError,
@@ -204,19 +205,33 @@ class CraigIngestBoundary:
                 source_sha256=package.source_sha256,
                 verify_content=False,
             )
-            if self.run_visible is None:
-                return value
             runs = value.get("runs")
             if not isinstance(runs, list):
                 return value
-            return {
-                **value,
-                "runs": [
-                    item
-                    for item in runs
-                    if isinstance(item, dict) and self.run_visible(package_root, item)
-                ],
-            }
+            visible_runs = [
+                item
+                for item in runs
+                if isinstance(item, dict)
+                and (
+                    self.run_visible is None
+                    or self.run_visible(package_root, item)
+                )
+            ]
+            enriched = []
+            for item in visible_runs:
+                target = None
+                try:
+                    target = load_publication_target(
+                        package_root,
+                        str(item.get("run_id") or ""),
+                        verify_run=True,
+                    )
+                except PublicationTargetError:
+                    # A corrupt/mismatched target can never make a run publishable.
+                    # Keep the immutable local result visible and fail the target closed.
+                    target = None
+                enriched.append({**item, "publication_target": target})
+            return {**value, "runs": enriched}
 
     def _review_value(
         self,
@@ -238,17 +253,27 @@ class CraigIngestBoundary:
             if self.run_visible is not None and not self.run_visible(package_root, manifest):
                 raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE")
             if payload is None:
-                return open_review(
+                review = open_review(
                     package_root,
                     source_id=source_id,
                     run_id=run_id,
                 )
-            return save_review(
-                package_root,
-                source_id=source_id,
-                run_id=run_id,
-                value=payload,
-            )
+            else:
+                review = save_review(
+                    package_root,
+                    source_id=source_id,
+                    run_id=run_id,
+                    value=payload,
+                )
+            try:
+                target = load_publication_target(
+                    package_root,
+                    run_id,
+                    verify_run=True,
+                )
+            except PublicationTargetError:
+                target = None
+            return {**review, "publication_target": target}
 
     async def _read_review_body(self, request: Request) -> dict[str, object]:
         body = bytearray()
