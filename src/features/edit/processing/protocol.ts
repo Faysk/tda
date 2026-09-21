@@ -142,6 +142,7 @@ export type LocalRunSummary = {
 		wordCount: number | null;
 		segmentCount: number | null;
 		trackCount: number | null;
+		warningCount: number | null;
 	};
 };
 export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
@@ -168,11 +169,17 @@ export type LocalReview = {
 		engine: string | null;
 		model: string | null;
 		modelRevision: string | null;
+		device: string | null;
+		computeType: string | null;
+		alignment: string | null;
 		completedAt: string | null;
 	};
 	stats: {
 		processingSeconds: number | null;
+		sessionDurationSeconds: number | null;
 		rtf: number | null;
+		wordCount: number | null;
+		segmentCount: number | null;
 		trackCount: number | null;
 	};
 	warnings: readonly string[];
@@ -617,6 +624,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				wordCount: nullableCount(stats.word_count),
 				segmentCount: nullableCount(stats.segment_count),
 				trackCount: nullableCount(stats.track_count),
+				warningCount: nullableCount(stats.warning_count),
 			},
 		};
 	});
@@ -671,11 +679,23 @@ export function parseLocalReview(value: unknown): LocalReview {
 			engine: nullableText(lineage.engine, 64),
 			model: nullableText(lineage.model, 256),
 			modelRevision: nullableText(lineage.model_revision, 256),
+			device: nullableText(lineage.device, 64),
+			computeType: nullableText(lineage.compute_type, 64),
+			alignment: nullableText(lineage.alignment, 128),
 			completedAt: nullableIsoDate(lineage.completed_at),
 		},
 		stats: {
 			processingSeconds: nullableNonNegativeNumber(stats.processing_seconds),
+			sessionDurationSeconds: nullableNonNegativeNumber(stats.session_duration_seconds),
 			rtf: nullableNonNegativeNumber(stats.rtf),
+			wordCount:
+				stats.word_count === null || stats.word_count === undefined
+					? null
+					: nonNegativeInteger(stats.word_count),
+			segmentCount:
+				stats.segment_count === null || stats.segment_count === undefined
+					? null
+					: nonNegativeInteger(stats.segment_count),
 			trackCount:
 				stats.track_count === null || stats.track_count === undefined
 					? null
