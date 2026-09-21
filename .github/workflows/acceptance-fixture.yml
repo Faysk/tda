@@ -163,6 +163,9 @@ jobs:
             'function Capture-AutomatedBitsResumeEvidence',
             '--acceptance-tray-exit',
             'ACTIVE_USER_JOB_PRESENT',
+            'ACTIVE_USER_PREPARATION_PRESENT',
+            'AGENT_INITIAL_READY_REQUIRED',
+            'BITS_EVIDENCE_SUSPEND_NOT_OBSERVED',
             'FOREIGN_LISTENER_ACCEPTED_AS_AGENT',
             'WEBVIEW2_RENDERER_NOT_OBSERVED',
             'CRAIG_DID_NOT_SURVIVE_AGENT_LOSS'
