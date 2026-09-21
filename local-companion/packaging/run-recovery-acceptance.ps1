@@ -236,10 +236,7 @@ try {
                 [string]$runtimeReceipt.schema -ne "tda_runtime_physical_acceptance_v1" -or
                 $runtimeReceipt.pass -ne $true -or
                 [string]$runtimeReceipt.family -notin @("whisper", "qwen") -or
-                [string]$runtimeReceipt.candidate_tag -notmatch '^companion-(whisper|qwen)-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}} finally {
-    Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
-}
- -or
+                [string]$runtimeReceipt.candidate_tag -notmatch '^companion-(whisper|qwen)-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$' -or
                 $runtimeReceipt.contains_audio -ne $false -or
                 $runtimeReceipt.contains_transcript -ne $false -or
                 $runtimeReceipt.contains_local_paths -ne $false
