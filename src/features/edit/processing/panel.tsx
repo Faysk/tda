@@ -360,7 +360,7 @@ export function ProcessingPanel({
 
 				{connected ? (
 					<>
-						<section className={styles.telemetry} aria-label="Uso do computador local">
+						<section className={styles.metricsStrip} aria-label="Uso e fila do computador local">
 							{gpu ? <GpuMetric gpu={gpu} /> : null}
 							<Metric
 								label="CPU"
@@ -376,6 +376,10 @@ export function ProcessingPanel({
 										: "Telemetria indisponível"
 								}
 							/>
+							<Metric label="Processando" value={String(running.length)} />
+							<Metric label="Na fila" value={String(queued.length)} />
+							<Metric label="Concluídos" value={String(succeeded.length)} />
+							<Metric label="Atenção" value={String(attention.length)} />
 						</section>
 						<div className={styles.connectionActions}>
 							<Button size="sm" disabled={state.busy} onClick={() => void controller.refresh()}>
@@ -455,13 +459,6 @@ export function ProcessingPanel({
 
 			{connected ? (
 				<>
-					<section className={styles.summary} aria-label="Resumo da fila local">
-						<Metric label="Processando" value={String(running.length)} />
-						<Metric label="Na fila" value={String(queued.length)} />
-						<Metric label="Concluídos" value={String(succeeded.length)} />
-						<Metric label="Com atenção" value={String(attention.length)} />
-					</section>
-
 					<div className={styles.workspace}>
 						<div className={styles.primaryColumn}>
 							<section aria-labelledby="processing-now">
@@ -588,7 +585,7 @@ export function ProcessingPanel({
 								<span>{state.events.length ? "● ativo" : "sem eventos"}</span>
 							</div>
 							<div
-								className={styles.log}
+								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
 								role="log"
 								aria-label="Eventos do processamento local"
 								aria-relevant="additions text"
