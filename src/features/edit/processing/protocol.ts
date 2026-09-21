@@ -268,7 +268,7 @@ function sha256(value: unknown): string {
 	if (!/^[a-f0-9]{64}$/u.test(parsed)) return invalid();
 	return parsed;
 }
-function runIdentifier(value: unknown): string {
+export function runIdentifier(value: unknown): string {
 	const id = text(value, 196);
 	if (!/^[A-Za-z0-9_-]{1,196}$/u.test(id)) return invalid();
 	return id;
