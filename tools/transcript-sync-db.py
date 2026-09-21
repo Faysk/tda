@@ -36,7 +36,34 @@ try:
         repo/'supabase/tests/transcript_publication_revisions.sql',
     ]
     for path in paths:
-        run([str(binary/'psql'), '-X', '-h', str(socket), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], input=path.read_text(), text=True)
+        try:
+            run(
+                [
+                    str(binary/'psql'),
+                    '-X',
+                    '-h',
+                    str(socket),
+                    '-U',
+                    'postgres',
+                    '-d',
+                    'postgres',
+                    '-v',
+                    'ON_ERROR_STOP=1',
+                ],
+                input=path.read_text(),
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"SCRATCH_SQL_FAILED {path.relative_to(repo)}",
+                file=sys.stderr,
+                flush=True,
+            )
+            if exc.stdout:
+                print(exc.stdout, file=sys.stderr, flush=True)
+            if exc.stderr:
+                print(exc.stderr, file=sys.stderr, flush=True)
+            raise
     print(socket, flush=True)
     sys.stdin.read()
 finally:
