@@ -341,10 +341,44 @@ export function LembraExperience() {
 	const selectedReference =
 		selectedIndex >= 0 ? visibleReferences[selectedIndex] : null;
 
-	const filtersActive =
-		view !== "all" ||
-		Boolean(query.trim()) ||
-		hasLembraDateFilter(dateRange);
+	const textOrDateFilterActive =
+		Boolean(query.trim()) || hasLembraDateFilter(dateRange);
+	const filtersActive = view !== "all" || textOrDateFilterActive;
+
+	const emptyCopy = (() => {
+		if (references.length === 0) {
+			return {
+				title: "Ainda não guardamos nada aqui.",
+				description:
+					"Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador.",
+			};
+		}
+		if (textOrDateFilterActive) {
+			return {
+				title: "Nada por aqui com esses filtros.",
+				description:
+					"Tente outra combinação de palavras ou ajuste o período.",
+			};
+		}
+		if (view === "favorites") {
+			return {
+				title: "Nenhum favorito ainda.",
+				description:
+					"Marque o coração nas referências que você quer encontrar em um segundo durante a call.",
+			};
+		}
+		if (view === "mine") {
+			return {
+				title: "Você ainda não guardou referências.",
+				description:
+					"Volte ao Lembra para ver tudo ou adicione uma imagem nova.",
+			};
+		}
+		return {
+			title: "Nada por aqui.",
+			description: "Ajuste os filtros para voltar à galeria.",
+		};
+	})();
 
 	const moveViewer = useCallback(
 		(delta: number) => {
@@ -664,12 +698,8 @@ export function LembraExperience() {
 						<span className={styles.emptyIcon} aria-hidden="true">
 							<ImageIcon />
 						</span>
-						<h2>{filtersActive ? "Não lembramos dessa." : "Ainda não guardamos nada aqui."}</h2>
-						<p>
-							{filtersActive
-								? "Tente outra combinação de palavras ou ajuste o período."
-								: "Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador."}
-						</p>
+						<h2>{emptyCopy.title}</h2>
+						<p>{emptyCopy.description}</p>
 						{filtersActive ? (
 							<Button variant="secondary" onClick={clearSearchFilters}>
 								Limpar filtros
