@@ -81,6 +81,34 @@ def test_discovery_ignores_draft_and_selects_newest_exact_published_runtime():
     assert len(client.urls) == 1
 
 
+def test_discovery_can_pin_exact_source_prefix_for_release_acceptance():
+    source_a = "1" * 40
+    source_b = "2" * 40
+    client = _Client(
+        {
+            1: [
+                _release("qwen", RC_QWEN_VERSION, source_a, release_id=12),
+                _release("qwen", RC_QWEN_VERSION, source_b, release_id=13),
+            ]
+        }
+    )
+
+    value = runtime_rc.discover_published_runtime_rc(
+        "qwen",
+        source_sha=source_a,
+        client=client,
+    )
+
+    assert value["id"] == 12
+    assert value["tag_name"].endswith(source_a[:12])
+
+
+def test_discovery_rejects_invalid_exact_source():
+    with pytest.raises(NetworkError) as exc:
+        runtime_rc.discover_published_runtime_rc("qwen", source_sha="not-a-sha")
+    assert exc.value.code == "RUNTIME_RC_SOURCE_SHA_INVALID"
+
+
 def test_discovery_fails_closed_when_only_incomplete_draft_exists():
     source = "3" * 40
     client = _Client({1: [_release("whisper", RC_WHISPER_VERSION, source, release_id=20, draft=True)]})
@@ -207,6 +235,7 @@ def test_install_runtime_candidate_path_is_automatic_and_uses_verified_release(m
         "version": RC_QWEN_VERSION,
         "candidate_tag": release["tag_name"],
         "source_sha": source,
+        "runtime_archive_sha256": "d" * 64,
         "assets": [],
     }
     manifest = json.dumps(candidate, sort_keys=True).encode("utf-8")
@@ -214,7 +243,11 @@ def test_install_runtime_candidate_path_is_automatic_and_uses_verified_release(m
     release["assets"][0]["digest"] = "sha256:" + __import__("hashlib").sha256(manifest).hexdigest()
     observed = {}
 
-    monkeypatch.setattr(runtime_rc, "discover_published_runtime_rc", lambda family, client=None: release)
+    monkeypatch.setattr(
+        runtime_rc,
+        "discover_published_runtime_rc",
+        lambda family, source_sha=None, client=None: release,
+    )
     monkeypatch.setattr(runtime_rc, "_read_candidate_manifest", lambda release, timeout: (candidate, manifest))
     monkeypatch.setattr(runtime_rc, "_download_candidate_assets", lambda *args, **kwargs: None)
     monkeypatch.setattr(runtime_rc, "verify_candidate_assets", lambda candidate, root: None)
@@ -240,3 +273,79 @@ def test_install_runtime_candidate_path_is_automatic_and_uses_verified_release(m
     assert result["channel"] == "rc"
     assert observed["path"].name == "TDARuntime-candidate.json"
     assert observed["path"].is_file()
+    assert result["source_sha"] == source
+    assert result["runtime_archive_sha256"] == "d" * 64
+
+
+def test_exact_source_runtime_reuses_matching_installed_archive_without_downloading(monkeypatch, tmp_path: Path):
+    source = "8" * 40
+    release = _release("whisper", RC_WHISPER_VERSION, source, release_id=60)
+    candidate = {
+        "family": "whisper",
+        "version": RC_WHISPER_VERSION,
+        "candidate_tag": release["tag_name"],
+        "source_sha": source,
+        "runtime_archive_sha256": "e" * 64,
+        "assets": [],
+    }
+    manifest = json.dumps(candidate, sort_keys=True).encode("utf-8")
+    release["assets"][0]["size"] = len(manifest)
+    release["assets"][0]["digest"] = "sha256:" + __import__("hashlib").sha256(manifest).hexdigest()
+
+    monkeypatch.setattr(
+        runtime_rc,
+        "discover_published_runtime_rc",
+        lambda family, source_sha=None, client=None: release,
+    )
+    monkeypatch.setattr(runtime_rc, "_read_candidate_manifest", lambda release, timeout: (candidate, manifest))
+    monkeypatch.setattr(runtime_rc, "_installed_candidate_matches", lambda *args, **kwargs: True)
+
+    def fail_download(*_args, **_kwargs):
+        raise AssertionError("matching runtime must not redownload multi-GB assets")
+
+    monkeypatch.setattr(runtime_rc, "_download_candidate_assets", fail_download)
+    result = runtime_rc.install_published_runtime_rc(
+        "whisper",
+        runtime_root=tmp_path / "Runtime",
+        cache_root=tmp_path / "Cache",
+        expected_source_sha=source,
+        prefer_bits=False,
+    )
+
+    assert result["status"] == "ready"
+    assert result["reused"] is True
+    assert result["source_sha"] == source
+    assert result["runtime_archive_sha256"] == "e" * 64
+    assert Path(result["candidate_manifest"]).is_file()
+
+
+def test_exact_source_runtime_rejects_manifest_source_collision(monkeypatch, tmp_path: Path):
+    expected = "9" * 40
+    actual = expected[:12] + "a" * 28
+    release = _release("qwen", RC_QWEN_VERSION, expected, release_id=61)
+    candidate = {
+        "family": "qwen",
+        "version": RC_QWEN_VERSION,
+        "candidate_tag": release["tag_name"],
+        "source_sha": actual,
+        "runtime_archive_sha256": "f" * 64,
+        "assets": [],
+    }
+    manifest = json.dumps(candidate, sort_keys=True).encode("utf-8")
+
+    monkeypatch.setattr(
+        runtime_rc,
+        "discover_published_runtime_rc",
+        lambda family, source_sha=None, client=None: release,
+    )
+    monkeypatch.setattr(runtime_rc, "_read_candidate_manifest", lambda release, timeout: (candidate, manifest))
+
+    with pytest.raises(NetworkError) as exc:
+        runtime_rc.install_published_runtime_rc(
+            "qwen",
+            runtime_root=tmp_path / "Runtime",
+            cache_root=tmp_path / "Cache",
+            expected_source_sha=expected,
+            prefer_bits=False,
+        )
+    assert exc.value.code == "RUNTIME_RC_SOURCE_SHA_MISMATCH"
