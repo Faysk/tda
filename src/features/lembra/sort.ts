@@ -37,7 +37,6 @@ export function sortLembraReferences<T extends LembraSortableReference>(
 					COLLATOR.compare(left.author, right.author) ||
 					timestamp(right.createdAt) - timestamp(left.createdAt)
 				);
-			case "newest":
 			default:
 				return timestamp(right.createdAt) - timestamp(left.createdAt);
 		}
