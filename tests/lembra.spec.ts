@@ -141,3 +141,19 @@ test("Lembra Escape cancels editing before closing the viewer", async ({ page })
 	await expect(viewer).not.toBeVisible();
 	await expect(page.getByRole("button", { name: "Biblioteca", exact: true })).toBeVisible();
 });
+
+
+test("Lembra does not keep generic clipboard filenames as searchable titles", async ({ page }) => {
+	await page.goto("/lembra");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "image.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const dialog = page.getByRole("dialog");
+	const name = dialog.getByLabel("Nome");
+	await expect(name).toBeFocused();
+	await expect(name).toHaveValue("");
+	await expect(dialog.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();
+});
