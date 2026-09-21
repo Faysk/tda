@@ -68,12 +68,12 @@ function isPreconditionFailed(error: unknown): boolean {
 	);
 }
 
-export function lembraPersistenceEnabled() {
-	return process.env.TDA_LEMBRA_ENABLED === "true";
-}
-
 function lembraProductionRuntime() {
 	return process.env.VERCEL_ENV === "production";
+}
+
+export function lembraPersistenceEnabled() {
+	return lembraProductionRuntime() || process.env.TDA_LEMBRA_ENABLED === "true";
 }
 
 function lembraMediaClient() {
