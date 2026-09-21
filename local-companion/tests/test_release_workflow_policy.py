@@ -105,3 +105,30 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "--commit \"$SOURCE_SHA\"" in value
     assert "'head_sha': os.environ['SOURCE_SHA']" in value
     assert "'head_branch': 'main'" in value
+
+def test_physical_recovery_can_seal_both_runtime_receipts_from_same_gpu_run():
+    physical = (REPO_ROOT / "local-companion" / "packaging" / "run-physical-acceptance.ps1").read_text(
+        encoding="utf-8"
+    )
+    recovery = (REPO_ROOT / "local-companion" / "packaging" / "run-recovery-acceptance.ps1").read_text(
+        encoding="utf-8"
+    )
+    windows_app = (REPO_ROOT / "local-companion" / "tda_companion" / "windows_app.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "WhisperRuntimeCandidateManifest" in physical
+    assert "QwenRuntimeCandidateManifest" in physical
+    assert '"--seal-runtime-physical"' in physical
+    assert "tda_runtime_physical_acceptance_v1" in physical
+    assert "contains_local_paths" in physical
+    assert "RUNTIME_ACCEPTANCE_CANDIDATES_INCOMPLETE" in physical
+
+    assert "WhisperRuntimeCandidateManifest" in recovery
+    assert "QwenRuntimeCandidateManifest" in recovery
+    assert "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPTS_INCOMPLETE" in recovery
+    assert "docs/companion/runtime-acceptance" in recovery
+
+    assert 'mode.add_argument("--seal-runtime-physical"' in windows_app
+    assert "runtime_release_evidence import RuntimeReleaseEvidenceError, main as runtime_evidence_main" in windows_app
+

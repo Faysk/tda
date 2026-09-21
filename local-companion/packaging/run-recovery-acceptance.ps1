@@ -13,6 +13,8 @@ param(
     [string]$RequireGpuName = "RTX 4070",
     [string]$ContextFile,
     [string]$GlossaryFile,
+    [string]$WhisperRuntimeCandidateManifest,
+    [string]$QwenRuntimeCandidateManifest,
     [ValidateRange(1024, 65535)]
     [int]$Port = 8765
 )
@@ -65,6 +67,21 @@ $payloadManifestPath = Resolve-RequiredFile $PayloadManifest "RECOVERY_PAYLOAD_M
 $craigZipPath = Resolve-RequiredFile $CraigZip "RECOVERY_CRAIG_ZIP_NOT_FOUND"
 $audioPath = Resolve-RequiredFile $Audio "RECOVERY_AUDIO_NOT_FOUND"
 
+$runtimeCandidateCount = @(
+    @($WhisperRuntimeCandidateManifest, $QwenRuntimeCandidateManifest) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+).Count
+if ($runtimeCandidateCount -notin @(0, 2)) {
+    throw "RECOVERY_RUNTIME_CANDIDATES_INCOMPLETE"
+}
+$sealRuntimeReceipts = $runtimeCandidateCount -eq 2
+$whisperRuntimeCandidatePath = if ($sealRuntimeReceipts) {
+    Resolve-RequiredFile $WhisperRuntimeCandidateManifest "RECOVERY_WHISPER_RUNTIME_CANDIDATE_NOT_FOUND"
+} else { $null }
+$qwenRuntimeCandidatePath = if ($sealRuntimeReceipts) {
+    Resolve-RequiredFile $QwenRuntimeCandidateManifest "RECOVERY_QWEN_RUNTIME_CANDIDATE_NOT_FOUND"
+} else { $null }
+
 $candidate = Read-JsonObject $candidateManifestPath "RECOVERY_CANDIDATE_INVALID"
 if (
     [string]$candidate.schema -ne "tda_companion_candidate_v2" -or
@@ -115,6 +132,7 @@ New-Item -ItemType Directory -Force -Path $physicalStage | Out-Null
 
 $installedStage = Join-Path $stage "installed.json"
 $physicalStageReceipt = Join-Path $physicalStage "physical-acceptance-suite.json"
+$runtimeAcceptanceStage = Join-Path $physicalStage "runtime-acceptance"
 $tag = [string]$candidate.tag
 $installedFinal = Join-Path $output "$tag.json"
 $physicalFinal = Join-Path $output "$tag.physical.json"
@@ -172,6 +190,12 @@ try {
     if ($ContextFile) { $physicalArgs.ContextFile = $ContextFile }
     if ($GlossaryFile) { $physicalArgs.GlossaryFile = $GlossaryFile }
 
+    if ($sealRuntimeReceipts) {
+        $physicalArgs.WhisperRuntimeCandidateManifest = $whisperRuntimeCandidatePath
+        $physicalArgs.QwenRuntimeCandidateManifest = $qwenRuntimeCandidatePath
+        $physicalArgs.RuntimeAcceptanceOutputRoot = $runtimeAcceptanceStage
+    }
+
     & $physicalScript @physicalArgs
     if (-not (Test-Path -LiteralPath $physicalStageReceipt -PathType Leaf)) {
         throw "RECOVERY_PHYSICAL_ACCEPTANCE_FAILED"
@@ -202,11 +226,46 @@ try {
     Write-ImmutableCopy $installedStage $installedFinal
     Write-ImmutableCopy $physicalStageReceipt $physicalFinal
 
+    $runtimeFinals = [ordered]@{}
+    if ($sealRuntimeReceipts) {
+        $runtimeReceipts = @(Get-ChildItem -LiteralPath $runtimeAcceptanceStage -File -Filter "*.json" -ErrorAction Stop)
+        if ($runtimeReceipts.Count -ne 2) { throw "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPTS_INCOMPLETE" }
+        foreach ($runtimeReceiptFile in $runtimeReceipts) {
+            $runtimeReceipt = Read-JsonObject $runtimeReceiptFile.FullName "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPT_INVALID"
+            if (
+                [string]$runtimeReceipt.schema -ne "tda_runtime_physical_acceptance_v1" -or
+                $runtimeReceipt.pass -ne $true -or
+                [string]$runtimeReceipt.family -notin @("whisper", "qwen") -or
+                [string]$runtimeReceipt.candidate_tag -notmatch '^companion-(whisper|qwen)-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$' -or
+                $runtimeReceipt.contains_audio -ne $false -or
+                $runtimeReceipt.contains_transcript -ne $false -or
+                $runtimeReceipt.contains_local_paths -ne $false
+            ) {
+                throw "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPT_INVALID"
+            }
+            $family = [string]$runtimeReceipt.family
+            if ($runtimeFinals.Contains($family)) { throw "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPT_DUPLICATE" }
+            $destination = Join-Path $output "$([string]$runtimeReceipt.candidate_tag).json"
+            Write-ImmutableCopy $runtimeReceiptFile.FullName $destination
+            $runtimeFinals[$family] = $destination
+        }
+        if ($runtimeFinals.Count -ne 2 -or -not $runtimeFinals.whisper -or -not $runtimeFinals.qwen) {
+            throw "RECOVERY_RUNTIME_ACCEPTANCE_RECEIPTS_INCOMPLETE"
+        }
+    }
+
     Write-Host ""
     Write-Host "RECOVERY ACCEPTANCE: PASS" -ForegroundColor Green
     Write-Host "Installed receipt: $installedFinal"
     Write-Host "Physical receipt:  $physicalFinal"
-    Write-Host "Commit only these sanitized receipts to docs/companion/acceptance before Stable promotion."
+    if ($sealRuntimeReceipts) {
+        Write-Host "Whisper runtime receipt: $($runtimeFinals.whisper)"
+        Write-Host "Qwen runtime receipt:    $($runtimeFinals.qwen)"
+    }
+    Write-Host "Commit Companion receipts to docs/companion/acceptance before Companion Stable promotion."
+    if ($sealRuntimeReceipts) {
+        Write-Host "Commit runtime receipts to docs/companion/runtime-acceptance before runtime Stable promotion."
+    }
 } finally {
     Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
 }
