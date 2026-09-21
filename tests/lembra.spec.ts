@@ -167,10 +167,13 @@ test("Lembra expands the gallery on desktop and stays single-column at 320px", a
 	await addReference(page, "Três", "Terceira");
 	await addReference(page, "Quatro", "Quarta");
 
-	const grid = page.locator("article").first().locator("..");
-	const desktopColumns = await grid.evaluate((element) =>
-		getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length,
-	);
+	const desktopColumns = await page.locator("article").first().evaluate((element) => {
+		const grid = element.parentElement;
+		if (!grid) return 0;
+		return getComputedStyle(grid)
+			.gridTemplateColumns.split(" ")
+			.filter(Boolean).length;
+	});
 	expect(desktopColumns).toBeGreaterThanOrEqual(3);
 
 	await page.setViewportSize({ width: 320, height: 760 });
