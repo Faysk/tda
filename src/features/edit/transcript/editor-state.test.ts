@@ -4,9 +4,12 @@ import {
 	classifyTranscriptSaveFailure,
 	completeTranscriptSaveFailure,
 	completeTranscriptSaveSuccess,
+	acceptTranscriptConflictRemote,
 	createTranscriptEditorState,
 	editTranscriptDraft,
 	isTranscriptEditorDirty,
+	loadTranscriptConflictRemote,
+	reapplyTranscriptConflictDraft,
 	resetTranscriptDraft,
 	resolveTranscriptShortcut,
 	type TranscriptDraft,
@@ -88,6 +91,85 @@ describe("transcript editor state", () => {
 		expect(conflicted.phase).toBe("conflict");
 		expect(conflicted.draft.reviewStatus).toBe("approved");
 		expect(beginTranscriptSave(conflicted).submission).toBeNull();
+	});
+
+	it("keeps conflict locked after edits and Escape until reconciliation", () => {
+		const dirty = editTranscriptDraft(createTranscriptEditorState(base), {
+			text: "Meu rascunho",
+		});
+		const started = beginTranscriptSave(dirty);
+		const submission = requireSubmission(started.submission);
+		const conflicted = completeTranscriptSaveFailure(
+			started.state,
+			submission,
+			"conflict",
+			"Existe uma versão mais nova.",
+		);
+
+		const editedAgain = editTranscriptDraft(conflicted, {
+			text: "Meu rascunho ainda mais novo",
+		});
+		expect(editedAgain.phase).toBe("conflict");
+		expect(editedAgain.draft.text).toBe("Meu rascunho ainda mais novo");
+		expect(beginTranscriptSave(editedAgain).submission).toBeNull();
+		expect(resetTranscriptDraft(editedAgain)).toEqual(editedAgain);
+	});
+
+	it("loads the remote version without losing the draft and explicitly reapplies it", () => {
+		const dirty = editTranscriptDraft(createTranscriptEditorState(base), {
+			text: "Meu rascunho",
+		});
+		const started = beginTranscriptSave(dirty);
+		const submission = requireSubmission(started.submission);
+		const conflicted = completeTranscriptSaveFailure(
+			started.state,
+			submission,
+			"conflict",
+			"Conflito.",
+		);
+		const remote: TranscriptDraft = {
+			text: "Texto salvo por outro editor",
+			speaker: "Mestre",
+			reviewStatus: "approved",
+		};
+		const loaded = loadTranscriptConflictRemote(conflicted, remote);
+
+		expect(loaded.phase).toBe("conflict");
+		expect(loaded.draft.text).toBe("Meu rascunho");
+		expect(loaded.conflictRemote).toEqual(remote);
+		expect(beginTranscriptSave(loaded).submission).toBeNull();
+
+		const reconciled = reapplyTranscriptConflictDraft(loaded);
+		expect(reconciled.saved).toEqual(remote);
+		expect(reconciled.draft.text).toBe("Meu rascunho");
+		expect(reconciled.phase).toBe("dirty");
+		expect(beginTranscriptSave(reconciled).submission?.text).toBe("Meu rascunho");
+	});
+
+	it("can explicitly discard the local draft only after the remote version is loaded", () => {
+		const dirty = editTranscriptDraft(createTranscriptEditorState(base), {
+			text: "Rascunho local",
+		});
+		const started = beginTranscriptSave(dirty);
+		const submission = requireSubmission(started.submission);
+		const conflicted = completeTranscriptSaveFailure(
+			started.state,
+			submission,
+			"conflict",
+			"Conflito.",
+		);
+		const remote: TranscriptDraft = {
+			text: "Remoto",
+			speaker: "Sense",
+			reviewStatus: "needs_review",
+		};
+		const loaded = loadTranscriptConflictRemote(conflicted, remote);
+		const accepted = acceptTranscriptConflictRemote(loaded);
+
+		expect(accepted.phase).toBe("clean");
+		expect(accepted.saved).toEqual(remote);
+		expect(accepted.draft).toEqual(remote);
+		expect(accepted.conflictRemote).toBeNull();
 	});
 
 	it("recognizes the future canonical conflict result without inventing one", () => {
