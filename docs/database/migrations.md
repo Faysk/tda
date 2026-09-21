@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-21
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -322,6 +322,57 @@ Validação reconciliada:
 - `tools/world-layout-db.py` aplica os quatro arquivos reconciliados em PostgreSQL 16 sintético e testa grant, ausência de assignment automático, autorização/scope, payload, revision/conflict/no-op e rollback em falha do audit.
 
 Contrato arquitetural: [ADR-0011](../adr/0011-world-explorer-layout-physical-persistence.md).
+
+## Candidato — biblioteca compartilhada Lembra
+
+### `20260921190000_lembra_shared_library`
+
+**Estado:** migration versionada no repositório; **ainda não aplicada no Supabase canônico**.
+
+Objetivo:
+
+- persistir a biblioteca global `/lembra` compartilhada entre todos os usuários autenticados;
+- criar `lembra_references` para metadata verificada de mídia, autoria e soft-retire;
+- criar `lembra_favorites` como preferência pessoal por usuário;
+- manter bytes fora do PostgreSQL, em Media Storage privado;
+- não introduzir `campaign_id`, role nova ou capability específica.
+
+Segurança:
+
+- RLS habilitado nas duas tabelas;
+- `anon` e `authenticated` não recebem acesso direto;
+- o browser opera somente pelo boundary server-side após sessão Supabase Auth verificada;
+- `service_role` recebe CRUD apenas porque o boundary da aplicação precisa materializar/listar/editar/retirar referências e favoritos;
+- autoria usa o `auth user id` verificado e um snapshot de nome resolvido pelo servidor; o browser não envia autor.
+
+Integridade:
+
+- objeto canônico deve corresponder exatamente a `lembra/{reference-id}/{sha256}.{ext}`;
+- somente JPEG/PNG/WebP;
+- tamanho físico entre 24 bytes e 12 MiB;
+- dimensões entre 1 e 20.000 px;
+- item ativo exige `read_back_verified=true`;
+- soft-retire exige `retired_at` e item ativo exige `retired_at is null`.
+
+Validação sintética:
+
+- `tools/lembra-db.py` sobe PostgreSQL 16 descartável sem TCP;
+- aplica somente a migration do Lembra sobre roles sintéticos mínimos;
+- `supabase/tests/lembra_shared_library.sql` verifica grants deny-by-default, insert válido, favorito, object key inválido e soft-retire;
+- recibo esperado: `LEMBRA_SHARED_DATABASE_OK synthetic=true migration=true remote_mutation=false`.
+
+Rollout:
+
+- manter `TDA_LEMBRA_ENABLED=false` até migration e R2 private estarem prontos;
+- aplicar pelo runbook no projeto canônico;
+- depois confirmar schema/grants/read-only, habilitar runtime e executar smoke autenticado;
+- nenhuma aplicação remota é autorizada apenas pela existência deste arquivo.
+
+Rollback lógico:
+
+- antes da ativação, uma migration corretiva pode remover as tabelas sem consumidor;
+- depois da ativação, desligar primeiro `TDA_LEMBRA_ENABLED`, preservar metadata/objetos e só então preparar correção;
+- não apagar objetos ou rows compartilhados para simular rollback.
 
 ## Regras para migration nova
 
