@@ -9,7 +9,13 @@ import {
 	type FormEvent,
 	type ReactNode,
 } from "react";
-import { Button, DisplayTitle } from "@/components/ui";
+import { Button } from "@/components/ui";
+import {
+	hasLembraDateFilter,
+	isWithinLembraDateRange,
+	matchesLembraSearch,
+	type LembraDateRange,
+} from "../search";
 import styles from "./lembra.module.css";
 
 type ViewFilter = "all" | "mine" | "favorites";
@@ -30,6 +36,8 @@ type ReferenceDraft = Readonly<{
 	title: string;
 	description: string;
 }>;
+
+const EMPTY_DATE_RANGE: LembraDateRange = { from: "", to: "" };
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 	day: "2-digit",
@@ -84,6 +92,15 @@ function PlusIcon() {
 	);
 }
 
+function CalendarIcon() {
+	return (
+		<svg viewBox="0 0 24 24" aria-hidden="true">
+			<rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+			<path d="M7.5 3.5v3M16.5 3.5v3M3.5 9.5h17" />
+		</svg>
+	);
+}
+
 function isImageFile(file: File | undefined): file is File {
 	return Boolean(file?.type.startsWith("image/"));
 }
@@ -99,11 +116,19 @@ function createClientId() {
 	return `lembra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function dateFilterLabel(range: LembraDateRange) {
+	if (!range.from && !range.to) return "Data";
+	if (range.from && range.to) return "Período";
+	if (range.from) return "Desde";
+	return "Até";
+}
+
 export function LembraExperience() {
 	const [references, setReferences] = useState<ReferenceItem[]>([]);
 	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
 	const [view, setView] = useState<ViewFilter>("all");
 	const [query, setQuery] = useState("");
+	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
@@ -234,16 +259,15 @@ export function LembraExperience() {
 	}, [prepareFile]);
 
 	const visibleReferences = useMemo(() => {
-		const needle = query.trim().toLocaleLowerCase("pt-BR");
 		return references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
-			if (!needle) return true;
-			return [item.title, item.description, item.author].some((value) =>
-				value.toLocaleLowerCase("pt-BR").includes(needle),
-			);
+			if (!matchesLembraSearch(item, query)) return false;
+			return isWithinLembraDateRange(item.createdAt, dateRange);
 		});
-	}, [favoriteIds, query, references, view]);
+	}, [dateRange, favoriteIds, query, references, view]);
+
+	const filtersActive = Boolean(query.trim()) || hasLembraDateFilter(dateRange);
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
@@ -282,6 +306,12 @@ export function LembraExperience() {
 			else next.add(id);
 			return next;
 		});
+	}
+
+	function clearSearchFilters() {
+		setQuery("");
+		setDateRange(EMPTY_DATE_RANGE);
+		searchRef.current?.focus();
 	}
 
 	const navItems: ReadonlyArray<{
@@ -329,23 +359,9 @@ export function LembraExperience() {
 			</aside>
 
 			<section className={styles.content} aria-labelledby="lembra-title">
-				<header className={styles.pageHeader}>
-					<div>
-						<DisplayTitle className={styles.title} id="lembra-title">
-							Lembra<span aria-hidden="true">.</span>
-						</DisplayTitle>
-						<p className={styles.subtitle}>
-							Referências visuais guardadas para não se perder no limbo do Discord.
-						</p>
-					</div>
-
-					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
-						<span className={styles.buttonIcon}>
-							<PlusIcon />
-						</span>
-						Adicionar imagem
-					</Button>
-				</header>
+				<h1 className={styles.visuallyHidden} id="lembra-title">
+					Lembra
+				</h1>
 
 				<nav className={styles.compactNav} aria-label="Filtros do Lembra">
 					{navItems.map((item) => (
@@ -362,26 +378,84 @@ export function LembraExperience() {
 					))}
 				</nav>
 
-				<div className={styles.searchRow}>
+				<div className={styles.toolbar}>
 					<label className={styles.searchBox}>
 						<span className={styles.searchIcon}>
 							<SearchIcon />
 						</span>
-						<span className={styles.visuallyHidden}>Buscar referência</span>
+						<span className={styles.visuallyHidden}>
+							Buscar por título, descrição, autor ou data
+						</span>
 						<input
 							ref={searchRef}
 							type="search"
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Buscar referência..."
+							placeholder="Buscar por título, descrição, autor ou data..."
 						/>
 						<kbd>Ctrl K</kbd>
 					</label>
+
+					<details className={styles.dateFilter}>
+						<summary className={hasLembraDateFilter(dateRange) ? styles.dateSummaryActive : styles.dateSummary}>
+							<span className={styles.dateIcon}>
+								<CalendarIcon />
+							</span>
+							{dateFilterLabel(dateRange)}
+						</summary>
+						<div className={styles.datePanel}>
+							<label>
+								<span>De</span>
+								<input
+									type="date"
+									value={dateRange.from}
+									max={dateRange.to || undefined}
+									onChange={(event) =>
+										setDateRange((current) => ({
+											...current,
+											from: event.target.value,
+										}))
+									}
+								/>
+							</label>
+							<label>
+								<span>Até</span>
+								<input
+									type="date"
+									value={dateRange.to}
+									min={dateRange.from || undefined}
+									onChange={(event) =>
+										setDateRange((current) => ({
+											...current,
+											to: event.target.value,
+										}))
+									}
+								/>
+							</label>
+							<button
+								type="button"
+								className={styles.clearDate}
+								onClick={() => setDateRange(EMPTY_DATE_RANGE)}
+								disabled={!hasLembraDateFilter(dateRange)}
+							>
+								Limpar data
+							</button>
+						</div>
+					</details>
+
+					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
+						<span className={styles.buttonIcon}>
+							<PlusIcon />
+						</span>
+						Adicionar imagem
+					</Button>
 				</div>
 
-				<div className={styles.message} aria-live="polite">
-					{message}
-				</div>
+				{message ? (
+					<div className={styles.toast} role="status" aria-live="polite">
+						{message}
+					</div>
+				) : null}
 
 				{visibleReferences.length ? (
 					<div className={styles.grid}>
@@ -429,17 +503,21 @@ export function LembraExperience() {
 						<span className={styles.emptyIcon} aria-hidden="true">
 							<ImageIcon />
 						</span>
-						<h2>{query ? "Não lembramos dessa." : "Ainda não guardamos nada aqui."}</h2>
+						<h2>{filtersActive ? "Não lembramos dessa." : "Ainda não guardamos nada aqui."}</h2>
 						<p>
-							{query
-								? "Tente outro termo ou limpe a busca."
+							{filtersActive
+								? "Tente outra combinação de palavras ou ajuste o período."
 								: "Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador."}
 						</p>
-						{!query ? (
+						{filtersActive ? (
+							<Button variant="secondary" onClick={clearSearchFilters}>
+								Limpar filtros
+							</Button>
+						) : (
 							<Button variant="secondary" onClick={openFilePicker}>
 								Escolher arquivo
 							</Button>
-						) : null}
+						)}
 					</div>
 				)}
 
