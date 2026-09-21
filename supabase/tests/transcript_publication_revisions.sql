@@ -412,3 +412,35 @@ $main$;
 
 drop trigger fail_publication_event on public.transcript_publication_events;
 drop function public.fail_publication_event_on_probe();
+
+-- Keep the shared transcript-import scratch cluster pristine for the existing
+-- consumer tests that run after bootstrap. Candidate schema stays loaded, but
+-- publication-specific fixture rows and audit evidence are removed.
+delete from public.transcript_publication_events
+where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+  and session_id = '22222222-2222-4222-8222-222222222222'::uuid;
+
+delete from public.transcript_publication_receipts
+where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+  and session_id = '22222222-2222-4222-8222-222222222222'::uuid;
+
+delete from public.transcript_revisions
+where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+  and session_id = '22222222-2222-4222-8222-222222222222'::uuid;
+
+delete from public.audit_log
+where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+  and session_id = '22222222-2222-4222-8222-222222222222'::uuid
+  and action like 'transcript_revision.%';
+
+delete from public.role_assignments
+where profile_id = '33333333-3333-4333-8333-333333333333'::uuid
+  and role_id = '55555555-5555-4555-8555-555555555555'::uuid
+  and scope_type = 'campaign'
+  and scope_id = 'synthetic-campaign';
+
+delete from public.role_permissions
+where role_id = '55555555-5555-4555-8555-555555555555'::uuid
+  and permission_action = 'campaign.transcript.publish';
+
+drop function public.synthetic_publication_input(uuid, text, text);
