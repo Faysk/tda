@@ -240,9 +240,10 @@ begin
     true
   ) into v_lookup;
 
-  if v_replay->'receipt'->>'receiptId' <> v_first->'receipt'->>'receiptId'
-     or v_lookup->'receipt'->>'receiptId' <> v_first->'receipt'->>'receiptId' then
-    raise exception 'PUBLICATION_REPLAY_NOT_IDEMPOTENT';
+  if v_replay->'receipt' <> v_first->'receipt'
+     or v_lookup->'receipt' <> v_first->'receipt' then
+    raise exception 'PUBLICATION_REPLAY_NOT_EXACT: first=% replay=% lookup=%',
+      v_first->'receipt', v_replay->'receipt', v_lookup->'receipt';
   end if;
 
   select count(*) into v_receipts from public.transcript_publication_receipts;
