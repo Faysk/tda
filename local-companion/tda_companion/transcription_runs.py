@@ -176,6 +176,7 @@ def _manifest_for_document(
         "completed_at": utc_now(),
         "stats": {
             "processing_seconds": stats.processing_seconds,
+            "session_duration_seconds": stats.session_duration_seconds,
             "rtf": stats.rtf,
             "word_count": stats.word_count,
             "segment_count": stats.segment_count,
@@ -461,6 +462,7 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
                     key: stats.get(key)
                     for key in (
                         "processing_seconds",
+                        "session_duration_seconds",
                         "rtf",
                         "word_count",
                         "segment_count",
