@@ -225,6 +225,15 @@ function Assert-AuthenticodeIdentity([string]$Path) {
     ) {
         throw "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH:$([IO.Path]::GetFileName($Path))"
     }
+    if ($AuthenticodeTimestampUrl -and $null -eq $signature.TimeStamperCertificate) {
+        throw "AUTHENTICODE_TIMESTAMP_MISSING:$([IO.Path]::GetFileName($Path))"
+    }
+
+    $signToolPath = Resolve-SignToolPath
+    & $signToolPath verify /pa /all /v $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "AUTHENTICODE_TRUST_VERIFY_FAILED:$([IO.Path]::GetFileName($Path))"
+    }
     return $signature
 }
 
