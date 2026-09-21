@@ -2,14 +2,8 @@
 	"$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
 	"files": {
 		"includes": [
-			"**",
-			"!!.next",
-			"!!node_modules",
-			"!!.local",
-			"!!test-results",
-			"!!playwright-report",
-			"!!public/lore/d",
-			"!next-env.d.ts"
+			"src/features/lembra/**",
+			"tests/lembra.spec.ts"
 		]
 	},
 	"formatter": { "enabled": true },
