@@ -172,9 +172,8 @@ $rollbackProbeMsi = Join-Path $output "TDACompanion-rollback-probe-x64.msi"
 if ($LASTEXITCODE -ne 0) { throw "WIX_ROLLBACK_PROBE_BUILD_FAILED" }
 if (-not (Test-Path $rollbackProbeMsi)) { throw "ROLLBACK_PROBE_MSI_NOT_CREATED" }
 
-# The rollback probe is test-only and never published. Sign only the real MSI,
-# then hash it; candidate manifest/attestation/physical acceptance must therefore
-# bind to the final signed installer bytes.
+# Rollback-probe MSI is test-only and never published. Sign only the real MSI,
+# then hash it so candidate metadata binds to the final signed bytes.
 Invoke-AuthenticodeSign $msi
 
 $msiHash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
@@ -194,7 +193,7 @@ if ($signingEnabled) {
 }
 if ($signingEnabled -and $AuthenticodeTimestampUrl) {
     try { $timestampUri = [Uri]$AuthenticodeTimestampUrl } catch { throw "AUTHENTICODE_TIMESTAMP_URL_INVALID" }
-    if ($timestampUri.Scheme -notin @("http", "https") -or -not $timestampUri.IsAbsoluteUri) {
+    if (-not $timestampUri.IsAbsoluteUri -or $timestampUri.Scheme -notin @("http", "https")) {
         throw "AUTHENTICODE_TIMESTAMP_URL_INVALID"
     }
 }
@@ -234,16 +233,14 @@ function Invoke-AuthenticodeSign([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         throw "AUTHENTICODE_TARGET_MISSING:$([IO.Path]::GetFileName($Path))"
     }
+
     $signToolPath = Resolve-SignToolPath
-    $arguments = @(
-        "sign",
-        "/sha1", $normalizedThumbprint,
-        "/fd", "SHA256"
-    )
+    $arguments = @("sign", "/sha1", $normalizedThumbprint, "/fd", "SHA256")
     if ($AuthenticodeTimestampUrl) {
         $arguments += @("/tr", $AuthenticodeTimestampUrl, "/td", "SHA256")
     }
     $arguments += @("/v", $Path)
+
     & $signToolPath @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "AUTHENTICODE_SIGN_FAILED:$([IO.Path]::GetFileName($Path))"
