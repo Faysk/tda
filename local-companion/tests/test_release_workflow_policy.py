@@ -105,3 +105,30 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "--commit \"$SOURCE_SHA\"" in value
     assert "'head_sha': os.environ['SOURCE_SHA']" in value
     assert "'head_branch': 'main'" in value
+
+def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing():
+    value = (REPO_ROOT / "local-companion" / "packaging" / "build-windows.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "[switch]$RequireAuthenticode" in value
+    assert 'throw "AUTHENTICODE_REQUIRED"' in value
+    assert "Get-AuthenticodeSignature" in value
+    assert '"Valid"' in value
+    assert "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH" in value
+    assert "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH" in value
+    assert "AUTHENTICODE_TIMESTAMP_MISSING" in value
+    assert "AUTHENTICODE_TRUST_VERIFY_FAILED" in value
+    assert "& $signToolPath verify /pa /all /v $Path" in value
+
+    companion_sign = value.index('Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanion.exe")')
+    helper_sign = value.index(
+        'Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanionMaintenance.exe")'
+    )
+    zip_build = value.index("Compress-Archive")
+    msi_sign = value.index("Invoke-AuthenticodeSign $msi")
+    msi_hash = value.index("$msiHash = (Get-FileHash -Algorithm SHA256 $msi)")
+
+    assert companion_sign < zip_build
+    assert helper_sign < zip_build
+    assert msi_sign < msi_hash
+
