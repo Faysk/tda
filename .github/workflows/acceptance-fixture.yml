@@ -102,6 +102,10 @@ jobs:
             'function Assert-AllProfilesReady',
             'function Ensure-AutomatedRuntimesReady',
             'function New-NoCompressionZip',
+            'function Assert-NoActiveUserWorkBeforeMutation',
+            'RECOVERY_ACTIVE_USER_JOB_PRESENT_BEFORE_MUTATION',
+            'RECOVERY_ACTIVE_USER_PREPARATION_PRESENT_BEFORE_MUTATION',
+            'RECOVERY_ACTIVE_WORK_PREFLIGHT_UNAVAILABLE',
             'function Read-RuntimeCandidateArchiveSha',
             'function Install-ExactRuntimeArtifact',
             'd4620c640ab1c5b5ebc9a96c835410eca1f16cafa3ebe0cbedc157c915137344',
@@ -149,9 +153,16 @@ jobs:
           ) {
             throw "RECOVERY_AUTOMATED_PROFILE_PREPARATION_ORDER_INVALID"
           }
+          $preflightIndex = $value.LastIndexOf('Assert-NoActiveUserWorkBeforeMutation $Port')
           $installIndex = $value.IndexOf('Ensure-ExactCandidateInstalled $msiPath $payloadPath $Port')
           $installedPhaseIndex = $value.IndexOf("PHASE 1/2 - Installed Windows acceptance")
-          if ($installIndex -lt 0 -or $installedPhaseIndex -lt 0 -or $installIndex -gt $installedPhaseIndex) {
+          if (
+            $preflightIndex -lt 0 -or
+            $installIndex -lt 0 -or
+            $installedPhaseIndex -lt 0 -or
+            $preflightIndex -ge $installIndex -or
+            $installIndex -gt $installedPhaseIndex
+          ) {
             throw "RECOVERY_LAUNCHER_INSTALL_ORDER_INVALID"
           }
 
