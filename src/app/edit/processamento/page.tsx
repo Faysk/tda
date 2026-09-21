@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { requireCapability } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	authorizeCampaignCapability,
+	EDIT_CAPABILITIES,
+} from "@/features/edit/access/policy";
 import { CompanionDownload } from "@/features/edit/processing/companion-download";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
 import { ProcessingSubmission } from "@/features/edit/processing/submission";
+import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/processing/processing.module.css";
 import pageStyles from "./page.module.css";
 
@@ -13,10 +17,17 @@ export const metadata: Metadata = {
 };
 
 export default async function ProcessingPage() {
-	await requireCapability(
+	const access = await requireCapability(
 		EDIT_CAPABILITIES.localProcess,
 		"/edit/processamento",
 	);
+	const publicationEnabled =
+		process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true" &&
+		authorizeCampaignCapability(
+			access,
+			EDIT_CAPABILITIES.transcriptPublish,
+			CAMPAIGN_SLUG,
+		).ok;
 	return (
 		<section className={styles.page}>
 			<header className={`${styles.pageHeader} ${pageStyles.pageHeaderActions}`}>
@@ -33,7 +44,7 @@ export default async function ProcessingPage() {
 				</div>
 			</header>
 			<ProcessingSubmission />
-			<ProcessingPanel />
+			<ProcessingPanel publicationEnabled={publicationEnabled} />
 		</section>
 	);
 }
