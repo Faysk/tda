@@ -6,6 +6,7 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
@@ -37,6 +38,7 @@ jobs:
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
+            "tools/acceptance/run-final-current-source-acceptance.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -243,6 +245,36 @@ jobs:
           }
           if ($wrapper.Contains("Read-Host")) {
             throw "RECOVERY_AUTOMATED_WRAPPER_INTERACTIVE_PROMPT_PRESENT"
+          }
+          $generic = Get-Content -LiteralPath "tools/acceptance/run-final-current-source-acceptance.ps1" -Raw
+          foreach ($required in @(
+            '[string]$CompanionRcTag',
+            '[string]$WhisperRuntimeRcTag',
+            '[string]$QwenRuntimeRcTag',
+            'Assert-NoActiveUserWork',
+            'Ensure-Companion',
+            'Install-Runtime',
+            '"-Automated"',
+            'WhisperRuntimeCandidateManifest',
+            'QwenRuntimeCandidateManifest',
+            'RuntimeAcceptanceOutputRoot',
+            'tda_runtime_physical_acceptance_v1',
+            'TDA-FINAL-ACCEPTANCE-RESULTS-',
+            'contains_token=$false',
+            'contains_audio=$false',
+            'contains_transcript=$false'
+          )) {
+            if (-not $generic.Contains($required)) {
+              throw "FINAL_CURRENT_SOURCE_RUNNER_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($generic.Contains("Read-Host")) {
+            throw "FINAL_CURRENT_SOURCE_RUNNER_INTERACTIVE_PROMPT_PRESENT"
+          }
+          $preflightIndex = $generic.IndexOf('Assert-NoActiveUserWork')
+          $installIndex = $generic.LastIndexOf('$exe=Ensure-Companion')
+          if ($preflightIndex -lt 0 -or $installIndex -lt 0 -or $preflightIndex -ge $installIndex) {
+            throw "FINAL_CURRENT_SOURCE_PREFLIGHT_ORDER_INVALID"
           }
       - name: Unit-test physical acceptance helper edge cases
         shell: powershell
