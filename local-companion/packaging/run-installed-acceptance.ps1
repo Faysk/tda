@@ -583,6 +583,14 @@ if ([IO.Path]::GetExtension($payload).ToLowerInvariant() -ne ".json") { throw "P
 if ([IO.Path]::GetExtension($craig).ToLowerInvariant() -ne ".zip") { throw "CRAIG_ZIP_REQUIRED" }
 if ($candidate.Contains('"') -or $payload.Contains('"') -or $craig.Contains('"') -or $ReceiptPath.Contains('"')) { throw "UNSUPPORTED_QUOTE_IN_PATH" }
 
+$normalizedSourceSha = $SourceSha.ToLowerInvariant()
+if (
+    $AllowLegacyTrayEquivalent -and
+    $normalizedSourceSha -ne "1585a93235ba2fe7c2c093ef1683f0beca5d1605"
+) {
+    throw "LEGACY_TRAY_EQUIVALENT_SOURCE_NOT_ALLOWED"
+}
+
 $receiptDirectory = Split-Path -Parent ([IO.Path]::GetFullPath($ReceiptPath))
 $bitsEvidencePath = Join-Path $receiptDirectory "bits-resume-evidence.json"
 Remove-Item -LiteralPath $bitsEvidencePath -Force -ErrorAction SilentlyContinue
