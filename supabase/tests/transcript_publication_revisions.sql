@@ -153,20 +153,20 @@ insert into public.role_assignments(
 -- test switches to service_role. The trigger is selective so normal publication,
 -- restore and unpublish operations still exercise the least-privileged boundary.
 create function public.fail_publication_event_on_probe() returns trigger
-language plpgsql as $
+language plpgsql as $probe$
 begin
   if new.operation_id = '90000000-0000-4000-8000-000000000003'::uuid then
     raise exception 'synthetic publication event failure';
   end if;
   return new;
 end;
-$;
+$probe$;
 
 create trigger fail_publication_event
 before insert on public.transcript_publication_events
 for each row execute function public.fail_publication_event_on_probe();
 
-do $
+do $;
 declare
   v_first jsonb;
   v_replay jsonb;
