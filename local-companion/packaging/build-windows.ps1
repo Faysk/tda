@@ -1,7 +1,12 @@
 param(
     [string]$Python = ".venv/Scripts/python.exe",
     [string]$Wix = ".wix/wix.exe",
-    [string]$OutputRoot = "local-companion/out/windows"
+    [string]$OutputRoot = "local-companion/out/windows",
+    [string]$AuthenticodeThumbprint = "",
+    [string]$AuthenticodeTimestampUrl = "",
+    [string]$AuthenticodeExpectedSubject = "",
+    [string]$SignTool = "signtool.exe",
+    [switch]$RequireAuthenticode
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +14,80 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $pythonPath = if ([IO.Path]::IsPathRooted($Python)) { $Python } else { Join-Path $repoRoot $Python }
 $output = if ([IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $repoRoot $OutputRoot }
 $packageSource = Join-Path $repoRoot "local-companion"
+
+$normalizedThumbprint = ($AuthenticodeThumbprint -replace '\s', '').ToUpperInvariant()
+$signingEnabled = -not [string]::IsNullOrWhiteSpace($normalizedThumbprint)
+if ($RequireAuthenticode -and -not $signingEnabled) {
+    throw "AUTHENTICODE_REQUIRED"
+}
+if ($signingEnabled -and $normalizedThumbprint -notmatch '^[A-F0-9]{40}$') {
+    throw "AUTHENTICODE_THUMBPRINT_INVALID"
+}
+if ($signingEnabled -and $AuthenticodeTimestampUrl) {
+    try { $timestampUri = [Uri]$AuthenticodeTimestampUrl } catch { throw "AUTHENTICODE_TIMESTAMP_URL_INVALID" }
+    if (-not $timestampUri.IsAbsoluteUri -or $timestampUri.Scheme -notin @("http", "https")) {
+        throw "AUTHENTICODE_TIMESTAMP_URL_INVALID"
+    }
+}
+
+function Resolve-SignToolPath {
+    if ([IO.Path]::IsPathRooted($SignTool)) {
+        if (-not (Test-Path -LiteralPath $SignTool -PathType Leaf)) { throw "SIGNTOOL_NOT_FOUND" }
+        return [IO.Path]::GetFullPath($SignTool)
+    }
+    try {
+        return (Get-Command $SignTool -ErrorAction Stop).Source
+    } catch {
+        throw "SIGNTOOL_NOT_FOUND"
+    }
+}
+
+function Assert-AuthenticodeIdentity([string]$Path) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ([string]$signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
+        throw "AUTHENTICODE_SIGNATURE_INVALID:$([IO.Path]::GetFileName($Path)):$($signature.Status)"
+    }
+    $actualThumbprint = ([string]$signature.SignerCertificate.Thumbprint -replace '\s', '').ToUpperInvariant()
+    if ($actualThumbprint -ne $normalizedThumbprint) {
+        throw "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH:$([IO.Path]::GetFileName($Path))"
+    }
+    if (
+        $AuthenticodeExpectedSubject -and
+        [string]$signature.SignerCertificate.Subject -ne $AuthenticodeExpectedSubject
+    ) {
+        throw "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH:$([IO.Path]::GetFileName($Path))"
+    }
+    if ($AuthenticodeTimestampUrl -and $null -eq $signature.TimeStamperCertificate) {
+        throw "AUTHENTICODE_TIMESTAMP_MISSING:$([IO.Path]::GetFileName($Path))"
+    }
+
+    $signToolPath = Resolve-SignToolPath
+    & $signToolPath verify /pa /all /v $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "AUTHENTICODE_TRUST_VERIFY_FAILED:$([IO.Path]::GetFileName($Path))"
+    }
+    return $signature
+}
+
+function Invoke-AuthenticodeSign([string]$Path) {
+    if (-not $signingEnabled) { return }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "AUTHENTICODE_TARGET_MISSING:$([IO.Path]::GetFileName($Path))"
+    }
+
+    $signToolPath = Resolve-SignToolPath
+    $arguments = @("sign", "/sha1", $normalizedThumbprint, "/fd", "SHA256")
+    if ($AuthenticodeTimestampUrl) {
+        $arguments += @("/tr", $AuthenticodeTimestampUrl, "/td", "SHA256")
+    }
+    $arguments += @("/v", $Path)
+
+    & $signToolPath @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "AUTHENTICODE_SIGN_FAILED:$([IO.Path]::GetFileName($Path))"
+    }
+    [void](Assert-AuthenticodeIdentity $Path)
+}
 
 if (-not (Test-Path $pythonPath)) {
     throw "PYTHON_NOT_FOUND: $pythonPath"
@@ -81,6 +160,11 @@ Copy-Item $maintenanceExe (Join-Path $appRoot "TDACompanionMaintenance.exe")
 Copy-Item (Join-Path $PSScriptRoot "run-physical-acceptance.ps1") (Join-Path $appRoot "run-physical-acceptance.ps1")
 Copy-Item (Join-Path $PSScriptRoot "run-installed-acceptance.ps1") (Join-Path $appRoot "run-installed-acceptance.ps1")
 Copy-Item (Join-Path $PSScriptRoot "install-rc-runtimes.ps1") (Join-Path $appRoot "install-rc-runtimes.ps1")
+
+# Sign executable payload bytes before ZIP/MSI construction so every later hash,
+# manifest and physical receipt refers to the signed binaries.
+Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanion.exe")
+Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanionMaintenance.exe")
 
 Copy-Item (Join-Path $PSScriptRoot "install-windows.ps1") (Join-Path $packageRoot "install.ps1")
 Copy-Item (Join-Path $PSScriptRoot "uninstall-windows.ps1") (Join-Path $packageRoot "uninstall.ps1")
@@ -157,6 +241,10 @@ $rollbackProbeMsi = Join-Path $output "TDACompanion-rollback-probe-x64.msi"
 if ($LASTEXITCODE -ne 0) { throw "WIX_ROLLBACK_PROBE_BUILD_FAILED" }
 if (-not (Test-Path $rollbackProbeMsi)) { throw "ROLLBACK_PROBE_MSI_NOT_CREATED" }
 
+# Rollback-probe MSI is test-only and never published. Sign only the real MSI,
+# then hash it so candidate metadata binds to the final signed bytes.
+Invoke-AuthenticodeSign $msi
+
 $msiHash = (Get-FileHash -Algorithm SHA256 $msi).Hash.ToLowerInvariant()
 Set-Content -Path (Join-Path $output "TDACompanion-x64.msi.sha256") -Value "$msiHash  TDACompanion-x64.msi" -Encoding ascii -NoNewline
 
@@ -165,3 +253,7 @@ Write-Host "ZIP: $zip"
 Write-Host "MSI: $msi"
 Write-Host "Rollback probe MSI (test-only): $rollbackProbeMsi"
 Write-Host "MSI SHA256: $msiHash"
+Write-Host "Authenticode: $($signingEnabled ? "signed + verified" : "not configured")"
+if ($signingEnabled) {
+    Write-Host "Signer thumbprint: $normalizedThumbprint"
+}
