@@ -571,6 +571,12 @@ function Capture-AutomatedBitsResumeEvidence([string]$Destination) {
             } catch {}
         }
         Remove-Item -LiteralPath $probePath -Force -ErrorAction SilentlyContinue
+        try {
+            $remainingProbeFiles = @(Get-ChildItem -LiteralPath $probeRoot -Force -ErrorAction SilentlyContinue)
+            if ($remainingProbeFiles.Count -eq 0) {
+                Remove-Item -LiteralPath $probeRoot -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
     }
 }
 
@@ -643,7 +649,7 @@ if ($Automated) {
 
     $settingsPath = Join-Path $env:LOCALAPPDATA "TDA\State\settings.json"
     $settingsExisted = Test-Path -LiteralPath $settingsPath -PathType Leaf
-    $settingsOriginal = if ($settingsExisted) { Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 } else { $null }
+    $settingsOriginalBytes = if ($settingsExisted) { [IO.File]::ReadAllBytes($settingsPath) } else { $null }
     $initialUiCount = @(Get-UiProcesses).Count
 
     try {
@@ -768,7 +774,7 @@ if ($Automated) {
     } finally {
         try {
             if ($settingsExisted) {
-                $settingsOriginal | Set-Content -LiteralPath $settingsPath -Encoding UTF8 -NoNewline
+                [IO.File]::WriteAllBytes($settingsPath, $settingsOriginalBytes)
             } else {
                 Remove-Item -LiteralPath $settingsPath -Force -ErrorAction SilentlyContinue
             }
