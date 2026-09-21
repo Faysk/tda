@@ -138,6 +138,7 @@ function Get-RuntimeWorker {
     }
 }
 
+
 function Get-InstalledCompanionExecutable([string]$Version) {
     $path = Join-Path $env:LOCALAPPDATA "TDA\Companion\versions\$Version\TDACompanion.exe"
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -152,15 +153,15 @@ function Read-RuntimeCandidate([string]$Path, [string]$ExpectedFamily) {
         $value = Get-Content -LiteralPath $resolved -Raw -Encoding UTF8 |
             ConvertFrom-Json -Depth 32 -ErrorAction Stop
     } catch {
-        throw ("RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:" + $ExpectedFamily)
+        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
     }
     if (
         [string]$value.schema -ne "tda_runtime_candidate_v1" -or
         [string]$value.family -ne $ExpectedFamily -or
-        [string]$value.candidate_tag -notmatch ("^companion-" + [regex]::Escape($ExpectedFamily) + "-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$") -or
+        [string]$value.candidate_tag -notmatch "^companion-$ExpectedFamily-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$" -or
         [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
     ) {
-        throw ("RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:" + $ExpectedFamily)
+        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
     }
     return [pscustomobject]@{
         Path = $resolved
@@ -203,13 +204,13 @@ function Invoke-RuntimePhysicalSeal(
 
     & $CompanionExecutable @($arguments.ToArray())
     if ($LASTEXITCODE -ne 0) {
-        throw ("RUNTIME_ACCEPTANCE_SEAL_FAILED:" + [string]$RuntimeCandidate.Family + ":" + [string]$LASTEXITCODE)
+        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$LASTEXITCODE"
     }
     try {
         $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
             ConvertFrom-Json -Depth 32 -ErrorAction Stop
     } catch {
-        throw ("RUNTIME_ACCEPTANCE_RECEIPT_INVALID:" + [string]$RuntimeCandidate.Family)
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
     }
     if (
         [string]$sealed.schema -ne "tda_runtime_physical_acceptance_v1" -or
@@ -220,10 +221,11 @@ function Invoke-RuntimePhysicalSeal(
         $sealed.contains_transcript -ne $false -or
         $sealed.contains_local_paths -ne $false
     ) {
-        throw ("RUNTIME_ACCEPTANCE_RECEIPT_INVALID:" + [string]$RuntimeCandidate.Family)
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
     }
     return $destination
 }
+
 function Invoke-JsonProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Executable,
@@ -319,6 +321,7 @@ foreach ($profile in $Profiles) {
         $qwenGates[$profile] = $gate
     }
 }
+
 
 $runtimeAcceptanceReceipts = [ordered]@{}
 if ($sealRuntimeReceipts) {
