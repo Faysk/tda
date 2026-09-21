@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import json
 import re
 from contextlib import nullcontext
 from pathlib import Path
@@ -14,12 +15,22 @@ from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
 from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
+from .local_review import LocalReviewError, open_review, save_review
 from .system_log import SystemLog
-from .transcription_runs import TranscriptionRunError, ensure_legacy_and_list
+from .transcription_runs import (
+    TranscriptionRunError,
+    ensure_legacy_and_list,
+    load_run,
+)
 
 CRAIG_INGEST_PATH = "/api/v1/sources/craig"
 CRAIG_RUNS_PATH = re.compile(r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs$")
+CRAIG_REVIEW_PATH = re.compile(
+    r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
+    r"(?P<run_id>[A-Za-z0-9_-]{1,196})/review$"
+)
 _ALLOWED_PREFLIGHT_HEADERS = frozenset({"authorization", "content-type"})
+_LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024
 
 ASGIApp = Callable[[dict, Callable[[], Awaitable[dict]], Callable[[dict], Awaitable[None]]], Awaitable[None]]
 
@@ -139,6 +150,139 @@ class CraigIngestBoundary:
                 ],
             }
 
+    def _review_value(
+        self,
+        source_id: str,
+        run_id: str,
+        payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        staging_root = (self.data_root / "staging").resolve()
+        package_root = (staging_root / source_id).resolve()
+        if package_root.parent != staging_root:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        with gate:
+            load_craig_package(package_root, verify_tracks=False)
+            try:
+                manifest = load_run(package_root, run_id, verify_content=False)
+            except TranscriptionRunError as exc:
+                raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE") from exc
+            if self.run_visible is not None and not self.run_visible(package_root, manifest):
+                raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE")
+            if payload is None:
+                return open_review(
+                    package_root,
+                    source_id=source_id,
+                    run_id=run_id,
+                )
+            return save_review(
+                package_root,
+                source_id=source_id,
+                run_id=run_id,
+                value=payload,
+            )
+
+    async def _read_review_body(self, request: Request) -> dict[str, object]:
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > _LOCAL_REVIEW_BODY_MAX_BYTES:
+                raise LocalReviewError("LOCAL_REVIEW_REQUEST_TOO_LARGE")
+        try:
+            value = json.loads(bytes(body).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise LocalReviewError("LOCAL_REVIEW_REQUEST_INVALID") from exc
+        if not isinstance(value, dict):
+            raise LocalReviewError("LOCAL_REVIEW_REQUEST_INVALID")
+        return value
+
+    async def _review(
+        self,
+        request: Request,
+        source_id: str,
+        run_id: str,
+        scope,
+        receive,
+        send,
+    ) -> None:
+        origin, allowed = await self._common_guard(request, scope, receive, send)
+        if not allowed:
+            return
+        if request.method == "OPTIONS":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            requested_headers = {
+                value.strip().lower()
+                for value in request.headers.get("access-control-request-headers", "").split(",")
+                if value.strip()
+            }
+            requested_method = request.headers.get("access-control-request-method")
+            if (
+                requested_method not in {"GET", "POST"}
+                or not requested_headers <= _ALLOWED_PREFLIGHT_HEADERS
+            ):
+                await self._send_response(_error("PREFLIGHT_REJECTED", 403), scope, receive, send, origin)
+                return
+            response = JSONResponse(
+                {},
+                headers={
+                    "Access-Control-Allow-Methods": "GET, POST",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                    "Access-Control-Allow-Private-Network": "true",
+                    "Access-Control-Max-Age": "60",
+                },
+            )
+            await self._send_response(response, scope, receive, send, origin)
+            return
+        if request.method not in {"GET", "POST"}:
+            await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
+            return
+        if not self._authorized(request, origin):
+            await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
+            return
+        if request.method == "POST":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+                await self._send_response(_error("JSON_REQUIRED", 415), scope, receive, send, origin)
+                return
+
+        try:
+            payload = await self._read_review_body(request) if request.method == "POST" else None
+            value = await asyncio.to_thread(
+                self._review_value,
+                source_id,
+                run_id,
+                payload,
+            )
+            response = JSONResponse(value)
+        except LocalReviewError as exc:
+            code = str(exc)
+            if code == "LOCAL_REVIEW_RUN_NOT_VISIBLE":
+                response = _error(code, 404)
+            elif code in {
+                "LOCAL_REVIEW_REQUEST_INVALID",
+                "LOCAL_REVIEW_EXPECTED_REVISION_INVALID",
+                "LOCAL_REVIEW_STATUS_INVALID",
+                "LOCAL_REVIEW_SEGMENTS_INVALID",
+                "LOCAL_REVIEW_SEGMENT_INVALID",
+                "LOCAL_REVIEW_SEGMENT_IDENTITY_MISMATCH",
+                "LOCAL_REVIEW_SEGMENT_TIMING_IMMUTABLE",
+                "LOCAL_REVIEW_SEGMENT_TEXT_INVALID",
+                "LOCAL_REVIEW_SEGMENT_SPEAKER_INVALID",
+                "LOCAL_REVIEW_SEGMENT_REVIEWED_INVALID",
+            }:
+                response = _error(code, 422)
+            elif code == "LOCAL_REVIEW_REQUEST_TOO_LARGE":
+                response = _error(code, 413)
+            else:
+                response = _error(code, 409, code == "LOCAL_REVIEW_DRAFT_CONFLICT")
+        except CraigPackageError as exc:
+            response = _error(str(exc), 404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409, True)
+        await self._send_response(response, scope, receive, send, origin)
+
     async def _runs(self, request: Request, source_id: str, scope, receive, send) -> None:
         origin, allowed = await self._common_guard(request, scope, receive, send)
         if not allowed:
@@ -190,6 +334,18 @@ class CraigIngestBoundary:
             await self.app(scope, receive, send)
             return
         path = str(scope.get("path") or "")
+        review_match = CRAIG_REVIEW_PATH.fullmatch(path)
+        if review_match is not None:
+            request = Request(scope, receive=receive)
+            await self._review(
+                request,
+                review_match.group("source_id"),
+                review_match.group("run_id"),
+                scope,
+                receive,
+                send,
+            )
+            return
         run_match = CRAIG_RUNS_PATH.fullmatch(path)
         if run_match is not None:
             request = Request(scope, receive=receive)
