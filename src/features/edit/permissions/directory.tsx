@@ -125,7 +125,10 @@ export function PermissionsDirectoryView({
 							<header className={styles.personHeader}>
 								<div>
 									<h2>{person.displayName}</h2>
-									<p className={styles.profileId}>Perfil {person.id}</p>
+									<details className={styles.roleActions}>
+										<summary>Detalhes técnicos do perfil</summary>
+										<code>{person.id}</code>
+									</details>
 								</div>
 								<div className={styles.badges}>
 									<StatusPill tone={person.authLinked ? "success" : "neutral"}>
@@ -141,13 +144,45 @@ export function PermissionsDirectoryView({
 								</div>
 							</header>
 							<div className={styles.columns}>
+								<section aria-label={`Permissões de ${person.displayName}`}>
+									<h3>Acesso verificado no Edit</h3>
+									{person.verifiedEditAccess.length ? (
+										<ul className={styles.capabilities}>
+											{person.verifiedEditAccess.map((capability) => (
+												<li key={capability.action}>
+													<strong>
+														{labels[capability.action] ?? capability.action}
+													</strong>
+													{capability.origins.map((origin) => (
+														<p
+															className={styles.muted}
+															key={origin.assignmentId}
+														>
+															Via {origin.roleName} ·{" "}
+															{origin.scopeType === "campaign"
+																? "direta"
+																: "herdada do projeto"}
+														</p>
+													))}
+													<details className={styles.roleActions}>
+														<summary>Identificador técnico</summary>
+														<code>{capability.action}</code>
+													</details>
+												</li>
+											))}
+										</ul>
+									) : (
+										<p className={styles.muted}>
+											Sem acesso verificado às operações atuais do Edit.
+										</p>
+									)}
+								</section>
 								<section aria-label={`Funções de ${person.displayName}`}>
 									<h3>Funções e origem</h3>
 									<ul className={styles.roles}>
 										{person.roles.map((role) => (
 											<li key={role.id}>
 												<strong>{role.name}</strong>
-												<p className={styles.muted}>{role.slug}</p>
 												<StatusPill tone={role.active ? "success" : "neutral"}>
 													{role.active
 														? "Ativa"
@@ -159,8 +194,7 @@ export function PermissionsDirectoryView({
 												<p>
 													{role.scopeType === "campaign"
 														? "Direta na campanha"
-														: "Herdada do projeto TDA"}{" "}
-													<code>{role.scopeId}</code>
+														: "Herdada do projeto TDA"}
 												</p>
 												<p className={styles.muted}>
 													Desde {dateLabel(role.startsAt)} UTC
@@ -170,8 +204,12 @@ export function PermissionsDirectoryView({
 												</p>
 												<details className={styles.roleActions}>
 													<summary>
-														Ações catalogadas ({role.actions.length})
+														Detalhes técnicos e ações ({role.actions.length})
 													</summary>
+													<p className={styles.muted}>
+														Função <code>{role.slug}</code> · escopo{" "}
+														<code>{role.scopeId}</code>
+													</p>
 													<p className={styles.muted}>
 														O catálogo descreve a função; cada operação verifica
 														a permissão e o escopo no servidor.
@@ -187,36 +225,6 @@ export function PermissionsDirectoryView({
 											</li>
 										))}
 									</ul>
-								</section>
-								<section aria-label={`Permissões de ${person.displayName}`}>
-									<h3>Acesso verificado no Edit</h3>
-									{person.verifiedEditAccess.length ? (
-										<ul className={styles.capabilities}>
-											{person.verifiedEditAccess.map((capability) => (
-												<li key={capability.action}>
-													<strong>
-														{labels[capability.action] ?? capability.action}
-													</strong>
-													<code>{capability.action}</code>
-													{capability.origins.map((origin) => (
-														<p
-															className={styles.muted}
-															key={origin.assignmentId}
-														>
-															Via {origin.roleName} ·{" "}
-															{origin.scopeType === "campaign"
-																? "direta"
-																: "herdada do projeto"}
-														</p>
-													))}
-												</li>
-											))}
-										</ul>
-									) : (
-										<p className={styles.muted}>
-											Sem acesso verificado às operações atuais do Edit.
-										</p>
-									)}
 								</section>
 							</div>
 						</article>
