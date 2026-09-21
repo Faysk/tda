@@ -48,7 +48,7 @@ export async function getVerifiedServerIdentity() {
 }
 
 export async function authorizeCampaignCapabilityServer(input: {
-	action: EditCapability;
+	action: string;
 	campaignSlug: string;
 }) {
 	const identity = await getVerifiedServerIdentity();
@@ -99,7 +99,7 @@ export const currentAccess = cache(async () => {
 });
 
 export async function requireCapability(
-	capability: EditCapability,
+	capability: string,
 	returnTo = "/edit",
 ) {
 	const access = await currentAccess();
