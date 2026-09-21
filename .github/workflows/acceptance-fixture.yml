@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
+      - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -34,6 +36,7 @@ jobs:
           foreach ($relative in @(
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
+            "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -145,6 +148,24 @@ jobs:
           $autoSlice = $installed.Substring($autoIndex, $manualIndex - $autoIndex)
           if ($autoSlice.Contains("Read-Host")) {
             throw "RECOVERY_AUTOMATED_ACCEPTANCE_INTERACTIVE_PROMPT_PRESENT"
+          }
+          $wrapper = Get-Content -LiteralPath "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1" -Raw
+          foreach ($required in @(
+            '"-Automated"',
+            'TDA-AUTO-ACCEPTANCE-RESULTS-',
+            'AUTO-RESULT.json',
+            'EVIDENCE-MANIFEST.json',
+            'contains_token = $false',
+            'contains_audio = $false',
+            'contains_transcript = $false',
+            'Compress-Archive'
+          )) {
+            if (-not $wrapper.Contains($required)) {
+              throw "RECOVERY_AUTOMATED_WRAPPER_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($wrapper.Contains("Read-Host")) {
+            throw "RECOVERY_AUTOMATED_WRAPPER_INTERACTIVE_PROMPT_PRESENT"
           }
       - name: Unit-test physical acceptance helper edge cases
         shell: powershell
