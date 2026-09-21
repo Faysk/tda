@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
 	identity: vi.fn(),
 	loadAccess: vi.fn(),
 	persist: vi.fn(),
+	readSegment: vi.fn(),
 }));
 
 vi.mock("@/features/auth/server", () => ({
@@ -16,8 +17,14 @@ vi.mock("@/features/sessions/model", () => ({ CAMPAIGN_SLUG: "yuhara-main" }));
 vi.mock("../edit/transcript/persistence", () => ({
 	persistTranscriptMutation: mocks.persist,
 }));
+vi.mock("../edit/transcript/repository", () => ({
+	readTranscriptSegment: mocks.readSegment,
+}));
 
-import { updateTranscriptSegmentAction } from "../edit/transcript/actions";
+import {
+	reloadTranscriptSegmentAction,
+	updateTranscriptSegmentAction,
+} from "../edit/transcript/actions";
 
 const SEGMENT_ID = "11111111-1111-4111-8111-111111111111";
 const SESSION_ID = "22222222-2222-4222-8222-222222222222";
@@ -45,9 +52,35 @@ beforeEach(() => {
 				startsAt: "2020-01-01T00:00:00.000Z",
 				endsAt: null,
 			},
+			{
+				action: "campaign.transcript.read",
+				scopeType: "campaign",
+				scopeId: "yuhara-main",
+				status: "active",
+				startsAt: "2020-01-01T00:00:00.000Z",
+				endsAt: null,
+			},
 		],
 	});
 	mocks.persist.mockResolvedValue({ status: "updated", revision: 8 });
+	mocks.readSegment.mockResolvedValue({
+		id: SEGMENT_ID,
+		sessionId: SESSION_ID,
+		revision: 9,
+		startMs: 1000,
+		endMs: 2000,
+		text: "Texto mais novo",
+		speakerName: "Mesa",
+		characterName: "Sense",
+		speakerRole: "player",
+		trackKey: "track-1",
+		reviewStatus: "needs_review",
+		sourceSegmentId: "source-1",
+		sourceFileId: null,
+		sourceChunkId: null,
+		textChars: 15,
+		textWords: 3,
+	});
 });
 
 describe("administrative operation entry point", () => {
@@ -111,5 +144,71 @@ describe("administrative operation entry point", () => {
 			issues: ["conflict"],
 		});
 		expect(mocks.persist).toHaveBeenCalledTimes(1);
+	});
+});
+
+
+describe("transcript conflict reconciliation reload", () => {
+	it("validates exact session and segment ids before reading", async () => {
+		const result = await reloadTranscriptSegmentAction({
+			sessionId: "not-a-session",
+			segmentId: SEGMENT_ID,
+		});
+		expect(result).toEqual({
+			ok: false,
+			reason: "validation",
+			issues: ["validation"],
+		});
+		expect(mocks.loadAccess).not.toHaveBeenCalled();
+		expect(mocks.readSegment).not.toHaveBeenCalled();
+	});
+
+	it("authorizes transcript read before resolving the current segment", async () => {
+		mocks.loadAccess.mockResolvedValue({
+			authUserId: "verified",
+			profileId: "verified-profile",
+			grants: [],
+		});
+		const result = await reloadTranscriptSegmentAction({
+			sessionId: SESSION_ID,
+			segmentId: SEGMENT_ID,
+		});
+		expect(result).toMatchObject({ ok: false, reason: "forbidden" });
+		expect(mocks.readSegment).not.toHaveBeenCalled();
+	});
+
+	it("returns the exact current revision and canonical display draft", async () => {
+		const result = await reloadTranscriptSegmentAction({
+			sessionId: SESSION_ID,
+			segmentId: SEGMENT_ID,
+		});
+		expect(mocks.readSegment).toHaveBeenCalledWith({
+			campaignSlug: "yuhara-main",
+			sessionId: SESSION_ID,
+			segmentId: SEGMENT_ID,
+		});
+		expect(result).toEqual({
+			ok: true,
+			revision: 9,
+			segment: {
+				text: "Texto mais novo",
+				speaker: "Sense",
+				reviewStatus: "needs_review",
+			},
+		});
+	});
+
+	it("keeps missing segments opaque after authorization", async () => {
+		mocks.readSegment.mockResolvedValue(null);
+		expect(
+			await reloadTranscriptSegmentAction({
+				sessionId: SESSION_ID,
+				segmentId: SEGMENT_ID,
+			}),
+		).toEqual({
+			ok: false,
+			reason: "not_found",
+			issues: ["not_found"],
+		});
 	});
 });
