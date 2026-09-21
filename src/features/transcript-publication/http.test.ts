@@ -195,16 +195,18 @@ describe("transcript publication HTTP boundary", () => {
 	});
 
 	it("rejects a mismatched receipt rather than claiming publication", async () => {
-		const { raw, publication } = dependencies();
-		const original = publication.commit;
-		publication.commit = vi.fn(async (actor, input) => {
-			const result = await original(actor, input);
-			if (!result.ok) return result;
-			return {
-				ok: true,
-				receipt: { ...result.receipt, sessionId: CAMPAIGN },
-			};
-		});
+		const { raw, publication: valid } = dependencies();
+		const publication: PublicationDependencies = {
+			...valid,
+			commit: vi.fn(async (actor, input) => {
+				const result = await valid.commit(actor, input);
+				if (!result.ok) return result;
+				return {
+					ok: true,
+					receipt: { ...result.receipt, sessionId: CAMPAIGN },
+				};
+			}),
+		};
 		const handler = createPublicationHandler({
 			origin: () => ORIGIN,
 			identity: async () => ({ ok: true, authUserId: AUTH_USER }),
