@@ -870,11 +870,16 @@ export function LembraExperience({
 						</select>
 					</label>
 
-					<Button variant="primary" className={styles.addButton} onClick={openFilePicker}>
+					<Button
+						variant="primary"
+						className={styles.addButton}
+						onClick={openFilePicker}
+						aria-label="Adicionar imagem"
+					>
 						<span className={styles.buttonIcon}>
 							<PlusIcon />
 						</span>
-						Adicionar imagem
+						<span className={styles.addButtonLabel}>Adicionar imagem</span>
 					</Button>
 				</div>
 
@@ -1028,6 +1033,15 @@ export function LembraExperience({
 				{selectedReference ? (
 					<div className={styles.viewer} aria-busy={saving}>
 						<div className={styles.viewerMedia}>
+							<button
+								type="button"
+								className={styles.viewerMobileClose}
+								onClick={closeViewer}
+								aria-label="Fechar referência"
+								disabled={saving}
+							>
+								<span aria-hidden="true">×</span>
+							</button>
 							{brokenImageIds.has(selectedReference.id) ? (
 								<div className={styles.viewerMediaFallback}>
 									<ImageIcon />
