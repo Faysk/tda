@@ -8,6 +8,8 @@ import {
 } from "@/features/lembra/repository";
 import { lembraPersistenceEnabled } from "@/features/lembra/server";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
 	title: "Lembra",
 	description:
