@@ -258,6 +258,24 @@
 .saveState[data-state="dirty"] { color: var(--ds-accent-strong); }
 .saveState[data-state="conflict"] { color: var(--ds-accent-strong); }
 
+.conflictPanel {
+	display: grid;
+	gap: 10px;
+	margin-top: 6px;
+	padding: 12px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent-strong) 55%, var(--ds-border));
+	border-radius: var(--ds-radius-sm);
+	background: color-mix(in srgb, var(--ds-surface-raised) 92%, var(--ds-accent) 8%);
+}
+
+.conflictPanel p { margin: 4px 0 0; color: var(--ds-foreground-muted); }
+.conflictSnapshot { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-sm); background: var(--ds-surface); }
+.conflictSnapshot > div { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.conflictSnapshot span { color: var(--ds-foreground-muted); font-size: 0.75rem; }
+.conflictSnapshot p { white-space: pre-wrap; color: var(--ds-foreground); }
+.conflictActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.conflictError { color: var(--ds-danger) !important; font-weight: 700; }
+
 .pagination {
 	justify-content: space-between;
 	margin-top: 24px;
