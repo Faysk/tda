@@ -765,9 +765,6 @@ export function LembraExperience({
 						</button>
 					))}
 				</nav>
-				<p className={styles.sidebarNote}>
-					Boas ideias vivem mais quando a gente consegue encontrá-las de novo.
-				</p>
 			</aside>
 
 			<section className={styles.content} aria-labelledby="lembra-title">
