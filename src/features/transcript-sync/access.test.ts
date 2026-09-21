@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	authorizeImportBoundTarget,
 	authorizeImportCampaignScope,
+	authorizeImportRequest,
+	type ImportAuthorizationQueries,
 	type ImportTarget,
 } from "./access";
 import type { ImportIdentity } from "./contract";
@@ -15,7 +17,7 @@ const identity: ImportIdentity = {
 	publicationId: "hash",
 	transcriptSha256: "hash",
 };
-const target: ImportTarget = { ...identity, campaignSlug: "yuhara-main" };
+const target: ImportTarget = { ...identity };
 const grant: EditGrant = {
 	action: "campaign.transcript.import",
 	scopeType: "campaign",
@@ -140,5 +142,104 @@ describe("authorized import target binding", () => {
 			ok: true,
 			actor,
 		});
+	});
+});
+
+
+describe("import authorization query order", () => {
+	function queries(
+		overrides: Partial<ImportAuthorizationQueries> = {},
+	): ImportAuthorizationQueries {
+		return {
+			physicalAction: async () => ({ ok: true, exists: true }),
+			campaignSlug: async () => ({ ok: true, value: "yuhara-main" }),
+			target: async () => ({ ok: true, value: target }),
+			...overrides,
+		};
+	}
+
+	it("never resolves the target session for a denied operator", async () => {
+		const calls: string[] = [];
+		const denied = { ...context, grants: [] };
+		const result = await authorizeImportRequest(denied, identity, {
+			physicalAction: async () => {
+				calls.push("action");
+				return { ok: true, exists: true };
+			},
+			campaignSlug: async () => {
+				calls.push("campaign");
+				return { ok: true, value: "yuhara-main" };
+			},
+			target: async () => {
+				calls.push("target");
+				return { ok: true, value: target };
+			},
+		});
+
+		expect(result).toEqual({ ok: false, reason: "forbidden" });
+		expect(calls).toEqual(["action", "campaign"]);
+	});
+
+	it("keeps missing and existing targets opaque until scope is authorized", async () => {
+		for (const targetResult of [
+			{ ok: true as const, value: target },
+			{ ok: false as const, reason: "not_found" as const },
+		]) {
+			let targetCalls = 0;
+			const result = await authorizeImportRequest(
+				{ ...context, grants: [] },
+				identity,
+				queries({
+					target: async () => {
+						targetCalls += 1;
+						return targetResult;
+					},
+				}),
+			);
+			expect(result).toEqual({ ok: false, reason: "forbidden" });
+			expect(targetCalls).toBe(0);
+		}
+	});
+
+	it("distinguishes not_found only after the exact scope is authorized", async () => {
+		const calls: string[] = [];
+		const result = await authorizeImportRequest(context, identity, {
+			physicalAction: async () => {
+				calls.push("action");
+				return { ok: true, exists: true };
+			},
+			campaignSlug: async () => {
+				calls.push("campaign");
+				return { ok: true, value: "yuhara-main" };
+			},
+			target: async () => {
+				calls.push("target");
+				return { ok: false, reason: "not_found" };
+			},
+		});
+
+		expect(result).toEqual({ ok: false, reason: "not_found" });
+		expect(calls).toEqual(["action", "campaign", "target"]);
+	});
+
+	it("fails closed before target lookup when the physical capability is absent", async () => {
+		const campaignSlug = async () => {
+			throw new Error("campaign lookup must not run");
+		};
+		const targetLookup = async () => {
+			throw new Error("target lookup must not run");
+		};
+
+		expect(
+			await authorizeImportRequest(
+				context,
+				identity,
+				queries({
+					physicalAction: async () => ({ ok: true, exists: false }),
+					campaignSlug,
+					target: targetLookup,
+				}),
+			),
+		).toEqual({ ok: false, reason: "import_capability_undefined" });
 	});
 });
