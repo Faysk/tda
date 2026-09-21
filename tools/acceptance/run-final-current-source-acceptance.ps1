@@ -220,7 +220,16 @@ function Test-MsiProductCode([string]$Value) {
 function Assert-Authenticode([string]$Path) {
   if(-not $RequireAuthenticode) { return }
   $expected=($ExpectedSignerThumbprint -replace '\s','').ToUpperInvariant()
-  if($expected -notmatch '^[A-F0-9]{40}
+  if($expected -notmatch '^[A-F0-9]{40}$') { throw "AUTHENTICODE_EXPECTED_THUMBPRINT_REQUIRED" }
+  if([string]::IsNullOrWhiteSpace($ExpectedSignerSubject)) { throw "AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED" }
+  $sig=Get-AuthenticodeSignature -LiteralPath $Path
+  if([string]$sig.Status -ne "Valid" -or $null -eq $sig.SignerCertificate) { throw "AUTHENTICODE_SIGNATURE_INVALID" }
+  $actual=([string]$sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant()
+  if($actual -ne $expected) { throw "AUTHENTICODE_SIGNER_MISMATCH" }
+  if([string]$sig.SignerCertificate.Subject -ne $ExpectedSignerSubject) { throw "AUTHENTICODE_SIGNER_SUBJECT_MISMATCH" }
+  if($null -eq $sig.TimeStamperCertificate) { throw "AUTHENTICODE_TIMESTAMP_MISSING" }
+}
+
 function Ensure-Companion([object]$Candidate,[string]$Msi,[string]$Payload) {
   Assert-Authenticode $Msi
   $version=[string]$Candidate.version
