@@ -16,6 +16,9 @@ param(
     [string]$RequireGpuName = "RTX 4070",
     [string]$ContextFile,
     [string]$GlossaryFile,
+    [string]$WhisperRuntimeCandidateManifest,
+    [string]$QwenRuntimeCandidateManifest,
+    [string]$RuntimeAcceptanceOutputRoot,
     [switch]$WriteTranscripts
 )
 
@@ -30,6 +33,26 @@ $models = [IO.Path]::GetFullPath($ModelsRoot)
 $state = [IO.Path]::GetFullPath($StateRoot)
 $output = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $models, $state, $output | Out-Null
+
+$runtimeCandidateCount = @(
+    @($WhisperRuntimeCandidateManifest, $QwenRuntimeCandidateManifest) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+).Count
+if ($runtimeCandidateCount -notin @(0, 2)) {
+    throw "RUNTIME_ACCEPTANCE_CANDIDATES_INCOMPLETE"
+}
+$sealRuntimeReceipts = $runtimeCandidateCount -eq 2
+if ($RuntimeAcceptanceOutputRoot -and -not $sealRuntimeReceipts) {
+    throw "RUNTIME_ACCEPTANCE_OUTPUT_WITHOUT_CANDIDATES"
+}
+$runtimeAcceptanceOutput = if ($RuntimeAcceptanceOutputRoot) {
+    [IO.Path]::GetFullPath($RuntimeAcceptanceOutputRoot)
+} else {
+    Join-Path $output "runtime-acceptance"
+}
+if ($sealRuntimeReceipts) {
+    New-Item -ItemType Directory -Force -Path $runtimeAcceptanceOutput | Out-Null
+}
 
 $requiredProfiles = @("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
 if ($Profiles.Count -ne $requiredProfiles.Count -or @($requiredProfiles | Where-Object { $_ -notin $Profiles }).Count -ne 0) {
@@ -115,6 +138,94 @@ function Get-RuntimeWorker {
     }
 }
 
+
+function Get-InstalledCompanionExecutable([string]$Version) {
+    $path = Join-Path $env:LOCALAPPDATA "TDA\Companion\versions\$Version\TDACompanion.exe"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "RUNTIME_ACCEPTANCE_COMPANION_EXE_MISSING"
+    }
+    return [IO.Path]::GetFullPath($path)
+}
+
+function Read-RuntimeCandidate([string]$Path, [string]$ExpectedFamily) {
+    $resolved = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
+    try {
+        $value = Get-Content -LiteralPath $resolved -Raw -Encoding UTF8 |
+            ConvertFrom-Json -Depth 32 -ErrorAction Stop
+    } catch {
+        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
+    }
+    if (
+        [string]$value.schema -ne "tda_runtime_candidate_v1" -or
+        [string]$value.family -ne $ExpectedFamily -or
+        [string]$value.candidate_tag -notmatch "^companion-$ExpectedFamily-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$" -or
+        [string]$value.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        throw "RUNTIME_ACCEPTANCE_CANDIDATE_INVALID:$ExpectedFamily"
+    }
+    return [pscustomobject]@{
+        Path = $resolved
+        Family = $ExpectedFamily
+        Tag = [string]$value.candidate_tag
+    }
+}
+
+function Write-JsonEvidence([string]$Path, [object]$Value) {
+    $temporary = "$Path.partial"
+    $Value | ConvertTo-Json -Depth 32 -Compress |
+        Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
+function Invoke-RuntimePhysicalSeal(
+    [string]$CompanionExecutable,
+    [object]$RuntimeCandidate,
+    [string[]]$WhisperReceipts = @(),
+    [string]$QwenStateRoot = ""
+) {
+    $destination = Join-Path $runtimeAcceptanceOutput "$($RuntimeCandidate.Tag).json"
+    $arguments = [Collections.Generic.List[string]]::new()
+    foreach ($value in @(
+        "--seal-runtime-physical",
+        "--runtime-candidate-manifest", [string]$RuntimeCandidate.Path,
+        "--runtime-root", $runtime,
+        "--runtime-acceptance-result", $destination
+    )) {
+        $arguments.Add([string]$value)
+    }
+    foreach ($receipt in $WhisperReceipts) {
+        $arguments.Add("--runtime-whisper-receipt")
+        $arguments.Add($receipt)
+    }
+    if ($QwenStateRoot) {
+        $arguments.Add("--runtime-qwen-state-root")
+        $arguments.Add($QwenStateRoot)
+    }
+
+    & $CompanionExecutable @($arguments.ToArray())
+    if ($LASTEXITCODE -ne 0) {
+        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$LASTEXITCODE"
+    }
+    try {
+        $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
+            ConvertFrom-Json -Depth 32 -ErrorAction Stop
+    } catch {
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
+    }
+    if (
+        [string]$sealed.schema -ne "tda_runtime_physical_acceptance_v1" -or
+        $sealed.pass -ne $true -or
+        [string]$sealed.family -ne [string]$RuntimeCandidate.Family -or
+        [string]$sealed.candidate_tag -ne [string]$RuntimeCandidate.Tag -or
+        $sealed.contains_audio -ne $false -or
+        $sealed.contains_transcript -ne $false -or
+        $sealed.contains_local_paths -ne $false
+    ) {
+        throw "RUNTIME_ACCEPTANCE_RECEIPT_INVALID:$($RuntimeCandidate.Family)"
+    }
+    return $destination
+}
+
 function Invoke-JsonProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Executable,
@@ -145,6 +256,15 @@ function Invoke-JsonProcess {
         throw "${ErrorPrefix}_$code"
     }
     return $value
+}
+
+$whisperRuntimeCandidate = $null
+$qwenRuntimeCandidate = $null
+$runtimeSealCompanion = $null
+if ($sealRuntimeReceipts) {
+    $whisperRuntimeCandidate = Read-RuntimeCandidate $WhisperRuntimeCandidateManifest "whisper"
+    $qwenRuntimeCandidate = Read-RuntimeCandidate $QwenRuntimeCandidateManifest "qwen"
+    $runtimeSealCompanion = Get-InstalledCompanionExecutable ([string]$candidate.version)
 }
 
 $needWhisper = @($Profiles | Where-Object { $_ -like "whisper-*" }).Count -gt 0
@@ -200,6 +320,25 @@ foreach ($profile in $Profiles) {
         ) { throw "QWEN_GATE_INVALID:$profile" }
         $qwenGates[$profile] = $gate
     }
+}
+
+
+$runtimeAcceptanceReceipts = [ordered]@{}
+if ($sealRuntimeReceipts) {
+    $rawRoot = Join-Path $output ".runtime-evidence"
+    New-Item -ItemType Directory -Force -Path $rawRoot | Out-Null
+    $whisperReceiptPaths = [Collections.Generic.List[string]]::new()
+    foreach ($profile in @("whisper-turbo", "whisper-detailed")) {
+        $path = Join-Path $rawRoot "$profile.json"
+        Write-JsonEvidence $path $results[$profile]
+        $whisperReceiptPaths.Add($path)
+    }
+
+    Write-Host "Sealing Whisper runtime promotion receipt from this same physical run..."
+    $runtimeAcceptanceReceipts.whisper = Invoke-RuntimePhysicalSeal -CompanionExecutable $runtimeSealCompanion -RuntimeCandidate $whisperRuntimeCandidate -WhisperReceipts $whisperReceiptPaths.ToArray()
+
+    Write-Host "Sealing Qwen runtime promotion receipt from this same physical run..."
+    $runtimeAcceptanceReceipts.qwen = Invoke-RuntimePhysicalSeal -CompanionExecutable $runtimeSealCompanion -RuntimeCandidate $qwenRuntimeCandidate -QwenStateRoot $state
 }
 
 $first = $results[$Profiles[0]]
@@ -264,4 +403,9 @@ Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
 
 Write-Host "Physical acceptance suite: PASS"
 Write-Host "Sanitized receipt: $receiptPath"
+if ($sealRuntimeReceipts) {
+    Write-Host "Runtime acceptance receipts:" -ForegroundColor Cyan
+    Write-Host "  Whisper: $($runtimeAcceptanceReceipts.whisper)"
+    Write-Host "  Qwen: $($runtimeAcceptanceReceipts.qwen)"
+}
 if ($WriteTranscripts) { Write-Host "Local transcripts were explicitly requested and written under: $output" }
