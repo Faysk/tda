@@ -2,7 +2,7 @@
 
 > Status: candidato 0.3.14 em validação; Stable bloqueada até aceite físico real
 > Owner: local-companion/processing
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-21
 
 Referências: [contrato de confiabilidade e aceite real](companion-reliability.md), [contrato API](../integrations/local-companion-v1.md), [especificação v0.3](../features/companion-desktop-asr-v0.3.md), [política de dependências](companion-dependency-policy.md) e [processamento no Edit](../features/local-processing.md).
 
@@ -112,6 +112,41 @@ TDAQwenRuntime-<versão>-windows-x64.zip.part*
 Os endpoints do TDA selecionam somente a família correta de tags/assets, e os downloads são verificados por tamanho e SHA-256 antes da instalação. Os runtimes ASR ficam fora do MSI para não transformar o instalador principal em um pacote de vários gigabytes. O bundle Qwen pode ser dividido em múltiplas partes; o archive lógico e cada parte possuem identidade/hash verificados antes da materialização.
 
 Update não pode interromper job ativo. Enquanto não houver assinatura Authenticode confiável, instalação de update continua exigindo confirmação explícita. A estabilização adiciona ainda dois invariantes: manifest stable não pode ficar stale e o download precisa apontar para o asset imutável da mesma versão selecionada pelo manifest.
+
+### Recuperação de instalações legadas 0.3.1
+
+O Companion 0.3.1 possui um bug conhecido no downloader: ao seguir a cadeia legítima de redirect do asset publicado pelo GitHub, ele pode retornar `UPDATE_REDIRECT_REJECTED`. Essa instalação **não deve** relaxar validação de origem/hash e não deve depender de autocorreção pelo updater quebrado.
+
+O caminho suportado para uma instalação 0.3.1 afetada é um **upgrade manual in-place pelo MSI Stable oficial**:
+
+1. confirmar que `%LOCALAPPDATA%\TDA\Companion\current-version.txt` contém `0.3.1`;
+2. não apagar `%LOCALAPPDATA%\TDA\Data`, `State`, `Logs`, `Cache`, `Models` ou `Runtime`;
+3. baixar o MSI e o checksum do release Stable oficial `companion-v0.3.9`;
+4. verificar o MSI antes de executar:
+
+```powershell
+$msi = ".\TDACompanion-x64.msi"
+$expected = "67abdb127ae2d1569f3f3200274bad8da2a0a79e8abc45eb6cafca291edfe39c"
+$actual = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "TDA Companion MSI SHA-256 inválido" }
+
+Start-Process msiexec.exe -ArgumentList @(
+  "/i", ('"{0}"' -f (Resolve-Path $msi)),
+  "/qn", "/norestart"
+) -Wait
+```
+
+5. depois do upgrade, confirmar `current-version.txt = 0.3.9` e que os roots de dados locais continuam presentes;
+6. a partir da 0.3.9, o downloader corrigido aceita a cadeia oficial de redirect **sem** desativar verificação de tamanho/SHA-256.
+
+O teste versionado `tools/acceptance/verify-legacy-031-recovery.ps1` exercita esse bootstrap em Windows descartável usando:
+- o MSI 0.3.1 realmente publicado e seu SHA-256;
+- o source SHA exato `d175c6d95c117e8324bb063292906b55e021b162` para reproduzir `UPDATE_REDIRECT_REJECTED`;
+- o MSI Stable 0.3.9 realmente publicado e seu payload manifest;
+- um marcador sintético em `Data` para provar preservação no upgrade e no uninstall normal;
+- o updater do source SHA exato da 0.3.9 para provar redirect + hash no caminho corrigido.
+
+Isso é recuperação de bootstrap, não promoção de versão nova. Authenticode continua sendo um gate separado (#395); enquanto ele não estiver provisionado, o checksum publicado é obrigatório, mas não deve ser descrito como assinatura de publisher.
 
 ## Conexão local e segurança
 
