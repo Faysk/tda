@@ -5,6 +5,8 @@ on:
     paths:
       - "tools/acceptance/verify-legacy-031-recovery.ps1"
       - ".github/workflows/companion-legacy-031-recovery.yml"
+      - "docs/operations/local-companion.md"
+      - "docs/documentation/catalog.md"
   workflow_dispatch:
 
 permissions:
