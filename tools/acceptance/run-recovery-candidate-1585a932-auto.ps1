@@ -138,6 +138,8 @@ try {
                 payload_manifest_sha256 = $PayloadSha256
             }
             harness_source_sha = $head
+            harness_wrapper_sha256 = Get-Sha256 $PSCommandPath
+            harness_launcher_sha256 = Get-Sha256 $launcher
             exact_tray_required = (-not $AllowLegacyTrayEquivalent)
             legacy_tray_equivalent_allowed = [bool]$AllowLegacyTrayEquivalent
             failure = $failure
