@@ -81,3 +81,24 @@ test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {
 	);
 	await expect(search).toBeFocused();
 });
+
+
+test("Lembra lets any participant edit and remove a shared reference", async ({ page }) => {
+	await page.goto("/lembra");
+	await addReference(page, "Ruínas", "Primeira descrição");
+
+	await page.getByRole("button", { name: "Ruínas", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByLabel("Nome").fill("Ruínas antigas");
+	await viewer.getByLabel("Descrição").fill("Descrição atualizada");
+	await viewer.getByRole("button", { name: "Salvar", exact: true }).click();
+
+	await expect(viewer.getByRole("heading", { name: "Ruínas antigas" })).toBeVisible();
+	await expect(viewer).toContainText("Descrição atualizada");
+
+	page.once("dialog", async (dialog) => dialog.accept());
+	await viewer.getByRole("button", { name: "Remover", exact: true }).click();
+	await expect(viewer).not.toBeVisible();
+	await expect(page.getByRole("button", { name: "Ruínas antigas", exact: true })).toHaveCount(0);
+});
