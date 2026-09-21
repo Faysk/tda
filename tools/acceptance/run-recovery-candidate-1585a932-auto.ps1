@@ -94,6 +94,20 @@ try {
         }
     }
 
+    if ($exitCode -eq 0) {
+        $requiredReceipts = @(
+            (Join-Path $receiptsOut "$RcTag.json"),
+            (Join-Path $receiptsOut "$RcTag.physical.json")
+        )
+        $missingReceipts = @($requiredReceipts | Where-Object {
+            -not (Test-Path -LiteralPath $_ -PathType Leaf)
+        })
+        if ($missingReceipts.Count -gt 0) {
+            $failure = "AUTO_ACCEPTANCE_REQUIRED_RECEIPTS_MISSING"
+            $exitCode = 1
+        }
+    }
+
     try {
         if (Test-Path -LiteralPath $rawLog -PathType Leaf) {
             $log = Get-Content -LiteralPath $rawLog -Raw -Encoding UTF8
@@ -111,29 +125,31 @@ try {
 
     $head = ""
     try { $head = ((& git.exe -C $repoRoot rev-parse HEAD 2>$null) -join "").Trim() } catch {}
-    $summary = [ordered]@{
-        schema = "tda_auto_recovery_acceptance_v1"
-        pass = ($exitCode -eq 0)
-        accepted_at = [DateTimeOffset]::UtcNow.ToString("o")
-        candidate = [ordered]@{
-            tag = $RcTag
-            source_sha = $SourceSha
-            msi_sha256 = $MsiSha256
-            payload_manifest_sha256 = $PayloadSha256
-        }
-        harness_source_sha = $head
-        exact_tray_required = (-not $AllowLegacyTrayEquivalent)
-        legacy_tray_equivalent_allowed = [bool]$AllowLegacyTrayEquivalent
-        failure = $failure
-        contains_token = $false
-        contains_env = $false
-        contains_audio = $false
-        contains_transcript = $false
-        contains_paths = $false
-    }
-    $summary | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Join-Path $shareRoot "AUTO-RESULT.json") -Encoding UTF8
 
-    @"
+    function Write-ShareMetadata {
+        $summary = [ordered]@{
+            schema = "tda_auto_recovery_acceptance_v1"
+            pass = ($exitCode -eq 0)
+            accepted_at = [DateTimeOffset]::UtcNow.ToString("o")
+            candidate = [ordered]@{
+                tag = $RcTag
+                source_sha = $SourceSha
+                msi_sha256 = $MsiSha256
+                payload_manifest_sha256 = $PayloadSha256
+            }
+            harness_source_sha = $head
+            exact_tray_required = (-not $AllowLegacyTrayEquivalent)
+            legacy_tray_equivalent_allowed = [bool]$AllowLegacyTrayEquivalent
+            failure = $failure
+            contains_token = $false
+            contains_env = $false
+            contains_audio = $false
+            contains_transcript = $false
+            contains_paths = $false
+        }
+        $summary | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Join-Path $shareRoot "AUTO-RESULT.json") -Encoding UTF8
+
+        @"
 TDA AUTOMATED RECOVERY ACCEPTANCE
 =================================
 Status: $(if ($exitCode -eq 0) { "PASS" } else { "FAILED" })
@@ -149,26 +165,48 @@ Historical RC 1585a932 predates that hook; use -AllowLegacyTrayEquivalent only w
 Failure: $failure
 "@ | Set-Content -LiteralPath (Join-Path $shareRoot "READ-ME-FIRST.txt") -Encoding UTF8
 
-    $manifest = @(Get-ChildItem -LiteralPath $shareRoot -File -Recurse -ErrorAction SilentlyContinue |
-        Sort-Object FullName |
-        ForEach-Object {
-            [ordered]@{
-                path = $_.FullName.Substring($shareRoot.Length + 1)
-                bytes = [int64]$_.Length
-                sha256 = Get-Sha256 $_.FullName
-            }
-        })
-    $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $shareRoot "EVIDENCE-MANIFEST.json") -Encoding UTF8
-
-    try {
-        if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-        Compress-Archive -Path (Join-Path $shareRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
-    } catch {
-        Write-Warning "EVIDENCE_ZIP_FAILED:$($_.Exception.GetType().Name)"
+        Remove-Item -LiteralPath (Join-Path $shareRoot "EVIDENCE-MANIFEST.json") -Force -ErrorAction SilentlyContinue
+        $manifest = @(Get-ChildItem -LiteralPath $shareRoot -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName |
+            ForEach-Object {
+                [ordered]@{
+                    path = $_.FullName.Substring($shareRoot.Length + 1)
+                    bytes = [int64]$_.Length
+                    sha256 = Get-Sha256 $_.FullName
+                }
+            })
+        $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $shareRoot "EVIDENCE-MANIFEST.json") -Encoding UTF8
     }
 
-    Write-Host ""
-    Write-Host "Evidence bundle: $zipPath" -ForegroundColor Cyan
+    Write-ShareMetadata
+
+    $zipCreated = $false
+    for ($attempt = 1; $attempt -le 2 -and -not $zipCreated; $attempt++) {
+        $temporaryZip = "$zipPath.partial"
+        try {
+            Remove-Item -LiteralPath $temporaryZip -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+            Compress-Archive -Path (Join-Path $shareRoot "*") -DestinationPath $temporaryZip -CompressionLevel Optimal -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $temporaryZip -PathType Leaf) -or (Get-Item -LiteralPath $temporaryZip).Length -le 0) {
+                throw "EVIDENCE_ZIP_EMPTY"
+            }
+            Move-Item -LiteralPath $temporaryZip -Destination $zipPath -Force
+            $zipCreated = $true
+        } catch {
+            Remove-Item -LiteralPath $temporaryZip -Force -ErrorAction SilentlyContinue
+            $failure = "AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED"
+            $exitCode = 1
+            Write-ShareMetadata
+            if ($attempt -lt 2) { Start-Sleep -Milliseconds 250 }
+        }
+    }
+
+    if (-not $zipCreated) {
+        Write-Warning "AUTO_ACCEPTANCE_EVIDENCE_ZIP_FAILED"
+    } else {
+        Write-Host ""
+        Write-Host "Evidence bundle: $zipPath" -ForegroundColor Cyan
+    }
 }
 
 if ($exitCode -eq 0) { exit 0 }
