@@ -188,7 +188,22 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
-          import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+          import {
+            GetBucketCorsCommand,
+            HeadBucketCommand,
+            PutBucketCorsCommand,
+            S3Client,
+          } from "@aws-sdk/client-s3";
+
+          const bucket = process.env.R2_PRIVATE_BUCKET;
+          const expectedRule = {
+            AllowedOrigins: ["https://dnd.faysk.dev"],
+            AllowedMethods: ["PUT"],
+            AllowedHeaders: ["Content-Type"],
+            ExposeHeaders: ["ETag"],
+            MaxAgeSeconds: 3600,
+          };
+
           const client = new S3Client({
             region: "auto",
             endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -197,10 +212,46 @@ jobs:
               secretAccessKey: process.env.R2_PRIVATE_SECRET_ACCESS_KEY,
             },
           });
-          await client.send(new HeadBucketCommand({ Bucket: process.env.R2_PRIVATE_BUCKET }));
-          console.log("LEMBRA_PRIVATE_R2_OK bucket reachable");
-          NODE
 
+          await client.send(new HeadBucketCommand({ Bucket: bucket }));
+
+          const normalizedRule = (rule = {}) => ({
+            AllowedOrigins: [...(rule.AllowedOrigins ?? [])].sort(),
+            AllowedMethods: [...(rule.AllowedMethods ?? [])].sort(),
+            AllowedHeaders: [...(rule.AllowedHeaders ?? [])].sort(),
+            ExposeHeaders: [...(rule.ExposeHeaders ?? [])].sort(),
+            MaxAgeSeconds: rule.MaxAgeSeconds ?? 0,
+          });
+          const sameRule = (left, right) =>
+            JSON.stringify(normalizedRule(left)) === JSON.stringify(normalizedRule(right));
+
+          let rules = [];
+          try {
+            const current = await client.send(new GetBucketCorsCommand({ Bucket: bucket }));
+            rules = current.CORSRules ?? [];
+          } catch (error) {
+            const status = error?.$metadata?.httpStatusCode;
+            const name = error?.name ?? "";
+            if (status !== 404 && name !== "NoSuchCORSConfiguration") throw error;
+          }
+
+          if (rules.length !== 1 || !sameRule(rules[0], expectedRule)) {
+            await client.send(
+              new PutBucketCorsCommand({
+                Bucket: bucket,
+                CORSConfiguration: { CORSRules: [expectedRule] },
+              }),
+            );
+          }
+
+          const verified = await client.send(new GetBucketCorsCommand({ Bucket: bucket }));
+          const verifiedRules = verified.CORSRules ?? [];
+          if (verifiedRules.length !== 1 || !sameRule(verifiedRules[0], expectedRule)) {
+            throw new Error("LEMBRA_PRIVATE_R2_CORS_MISMATCH");
+          }
+
+          console.log("LEMBRA_PRIVATE_R2_OK bucket reachable; CORS verified");
+          NODE
       - name: Build Production artifact
         env:
           APP_ENV: production
