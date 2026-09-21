@@ -20,6 +20,54 @@ async function refresh(page: import("@playwright/test").Page) {
 	await button.click();
 }
 
+test("desktop controls stay compact and advanced fields expand on demand", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const advanced = page.getByText("Opções avançadas", { exact: true });
+	await expect(advanced).toBeVisible();
+	await expect(page.getByLabel("Contexto opcional")).not.toBeVisible();
+	await expect(page.getByLabel("Glossário opcional")).not.toBeVisible();
+
+	await advanced.click();
+	await expect(page.getByLabel("Contexto opcional")).toBeVisible();
+	await expect(page.getByLabel("Glossário opcional")).toBeVisible();
+	await advanced.click();
+
+	const statusStrip = page.getByRole("region", {
+		name: "Uso e fila do computador local",
+	});
+	await expect(statusStrip).toContainText("GPU");
+	await expect(statusStrip).toContainText("CPU");
+	await expect(statusStrip).toContainText("RAM");
+	await expect(statusStrip).toContainText("Processando");
+	await expect(statusStrip).toContainText("Na fila");
+	await expect(statusStrip).toContainText("Concluídos");
+	await expect(statusStrip).toContainText("Atenção");
+
+	for (const locator of [
+		page.getByText("Nova transcrição Craig", { exact: true }),
+		page.getByText("Computador local", { exact: true }),
+		page.getByText("Processando agora", { exact: true }),
+		page.getByText("Detalhes do processamento", { exact: true }),
+	]) {
+		const box = await locator.boundingBox();
+		expect(box).not.toBeNull();
+		expect((box?.y ?? 9999) + (box?.height ?? 0)).toBeLessThanOrEqual(900);
+	}
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBe(true);
+});
+
 test("automatic session → Craig staging → preparation → queue → progress → result", async ({
 	page,
 }) => {
