@@ -5,6 +5,8 @@ import {
 import {
 	BridgeError,
 	type CraigTranscriptionInput,
+	type LocalReviewSegment,
+	type LocalReviewStatus,
 	identifier,
 	LOCAL_API,
 	parseCapabilities,
@@ -16,14 +18,20 @@ import {
 	text,
 	parseJobEvents,
 	parseJobs,
+	parseLocalReview,
+	parseLocalRuns,
+	parseLocalSources,
 	parseResultSummary,
 	parseSystemSnapshot,
+	runIdentifier,
 } from "./protocol";
 import {
 	buildCraigTranscriptionRequest,
 	LOCAL_JSON_BODY_MAX_BYTES,
 	serializedJsonBody,
 } from "./request-budget";
+
+const LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024;
 
 type PairingMode = "none" | "legacy" | "browser";
 
@@ -126,7 +134,7 @@ export class LocalBridge {
 		return pairedToken;
 	}
 
-	private async responseJson(response: Response) {
+	private async responseJson(response: Response, maxBytes = 1024 * 1024) {
 		const isJson =
 			response.headers.get("content-type")?.includes("application/json") ?? false;
 		const reader = response.body?.getReader();
@@ -143,7 +151,7 @@ export class LocalBridge {
 				const { done, value } = await reader.read();
 				if (done) break;
 				size += value.byteLength;
-				if (size > 1024 * 1024) {
+				if (size > maxBytes) {
 					await reader.cancel();
 					if (!response.ok) throw mapStatus(response.status);
 					throw new BridgeError("invalid_response");
@@ -214,6 +222,58 @@ export class LocalBridge {
 				error instanceof BridgeError &&
 				error.code === "unauthorized" &&
 				!publicRequest &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
+			if (error instanceof BridgeError) throw error;
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
+		}
+	}
+
+	private async reviewJson(
+		path: string,
+		signal: AbortSignal,
+		body?: unknown,
+	) {
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(30_000);
+			const serialized = body === undefined ? null : serializedJsonBody(body);
+			if (serialized && serialized.byteLength > LOCAL_REVIEW_BODY_MAX_BYTES)
+				throw new BridgeError("payload_too_large");
+			const headers: Record<string, string> = {
+				Accept: "application/json",
+				Authorization: `Bearer ${this.token()}`,
+			};
+			if (serialized) headers["Content-Type"] = "application/json";
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: serialized === null ? "GET" : "POST",
+					headers,
+					body: serialized?.body,
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return await this.responseJson(response, LOCAL_REVIEW_BODY_MAX_BYTES);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+		try {
+			return await requestOnce();
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
 				pairingMode === "browser" &&
 				!signal.aborted
 			) {
@@ -355,6 +415,59 @@ export class LocalBridge {
 		return parseResultSummary(
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
+		);
+	}
+
+	async localSources(signal: AbortSignal) {
+		return parseLocalSources(await this.json("/sources", signal));
+	}
+
+	async localRuns(sourceId: string, signal: AbortSignal) {
+		return parseLocalRuns(
+			await this.json(`/sources/${identifier(sourceId)}/runs`, signal),
+		);
+	}
+
+	async localReview(sourceId: string, runId: string, signal: AbortSignal) {
+		return parseLocalReview(
+			await this.reviewJson(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/review`,
+				signal,
+			),
+		);
+	}
+
+	async saveLocalReview(
+		sourceId: string,
+		runId: string,
+		expectedDraftRevision: number,
+		status: LocalReviewStatus,
+		segments: readonly LocalReviewSegment[],
+		signal: AbortSignal,
+	) {
+		if (
+			!Number.isSafeInteger(expectedDraftRevision) ||
+			expectedDraftRevision < 0
+		)
+			throw new BridgeError("invalid_response");
+		return parseLocalReview(
+			await this.reviewJson(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/review`,
+				signal,
+				{
+					expected_draft_revision: expectedDraftRevision,
+					status,
+					segments: segments.map((segment) => ({
+						track_number: segment.trackNumber,
+						segment_id: segment.segmentId,
+						start: segment.start,
+						end: segment.end,
+						text: segment.text,
+						speaker: segment.speaker,
+						reviewed: segment.reviewed,
+					})),
+				},
+			),
 		);
 	}
 }

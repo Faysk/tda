@@ -321,3 +321,64 @@ def test_review_preflight_is_narrow_for_get_and_post(tmp_path: Path):
         )
         assert rejected.status_code == 403
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
+
+
+def test_source_catalog_survives_queue_history_and_never_exposes_paths_or_transcript(
+    tmp_path: Path,
+):
+    with _client(tmp_path) as client:
+        source_id, _package_root, _run = _stage_and_run(client, tmp_path)
+        headers = _browser_headers(client)
+
+        response = client.get("/api/v1/sources", headers=headers)
+
+        assert response.status_code == 200
+        value = response.json()
+        assert value["schema_version"] == "tda_craig_sources_v1"
+        assert len(value["sources"]) == 1
+        source = value["sources"][0]
+        assert source["source_id"] == source_id
+        assert source["source_sha256"] == source_id.removeprefix("craig-")
+        assert source["track_count"] == 1
+        encoded = json.dumps(value, ensure_ascii=False)
+        assert "SEGREDO EDITORIAL LOCAL" not in encoded
+        assert str(tmp_path) not in encoded
+
+        # Source discovery is filesystem-backed, not queue-history-backed.
+        assert client.app.app.state.store.jobs() == []
+        repeated = client.get("/api/v1/sources", headers=headers)
+        assert repeated.status_code == 200
+        assert repeated.json()["sources"][0]["source_id"] == source_id
+
+
+def test_source_catalog_requires_auth_and_get_only_preflight(tmp_path: Path):
+    with _client(tmp_path) as client:
+        _stage_and_run(client, tmp_path)
+
+        unauthorized = client.get(
+            "/api/v1/sources",
+            headers={"Authorization": "Bearer invalid", "Origin": ORIGIN},
+        )
+        assert unauthorized.status_code == 401
+
+        allowed = client.options(
+            "/api/v1/sources",
+            headers={
+                "Origin": ORIGIN,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert allowed.status_code == 200
+        assert allowed.headers["access-control-allow-private-network"] == "true"
+
+        rejected = client.options(
+            "/api/v1/sources",
+            headers={
+                "Origin": ORIGIN,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert rejected.status_code == 403
+        assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"

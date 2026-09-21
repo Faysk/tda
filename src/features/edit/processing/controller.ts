@@ -9,6 +9,11 @@ import {
 	type Health,
 	type JobEvent,
 	type LocalJob,
+	type LocalReview,
+	type LocalReviewSegment,
+	type LocalReviewStatus,
+	type LocalRunSummary,
+	type LocalSourceSummary,
 	type ResultSummary,
 	type SystemSnapshot,
 } from "./protocol";
@@ -19,6 +24,11 @@ export type ProcessingState = Readonly<{
 	health: Health | null;
 	capabilities: Capabilities | null;
 	jobs: readonly LocalJob[];
+	localSources: readonly LocalSourceSummary[];
+	localRuns: readonly LocalRunSummary[];
+	localReview: LocalReview | null;
+	localReviewBusy: boolean;
+	localReviewError: string | null;
 	system: SystemSnapshot | null;
 	events: readonly JobEvent[];
 	observedJobId: string | null;
@@ -36,6 +46,11 @@ const initial: ProcessingState = {
 	health: null,
 	capabilities: null,
 	jobs: [],
+	localSources: [],
+	localRuns: [],
+	localReview: null,
+	localReviewBusy: false,
+	localReviewError: null,
 	system: null,
 	events: [],
 	observedJobId: null,
@@ -169,14 +184,38 @@ export class ProcessingController {
 			jobs[0] ??
 			null;
 
-		const [system, events] = await Promise.all([
+		const reviewEnabled =
+			capabilities.capabilities.includes("transcription.review");
+		const [system, events, localSources] = await Promise.all([
 			capabilities.capabilities.includes("system.telemetry")
 				? this.bridge.system(signal).catch(() => null)
 				: Promise.resolve(null),
 			observedJob && capabilities.capabilities.includes("job.events")
 				? this.bridge.events(observedJob.id, signal).catch(() => [])
 				: Promise.resolve([] as JobEvent[]),
+			reviewEnabled
+				? this.bridge.localSources(signal).catch(() => [])
+				: Promise.resolve([] as LocalSourceSummary[]),
 		]);
+
+		const loadRunBatch = async (offset: number): Promise<LocalRunSummary[]> => {
+			if (!reviewEnabled || signal.aborted || offset >= localSources.length)
+				return [];
+			const batch = await Promise.all(
+				localSources.slice(offset, offset + 8).map((source) =>
+					this.bridge.localRuns(source.sourceId, signal).catch(() => []),
+				),
+			);
+			if (signal.aborted) return [];
+			return [...batch.flat(), ...(await loadRunBatch(offset + 8))];
+		};
+		const localRuns =
+			reviewEnabled && !signal.aborted ? await loadRunBatch(0) : [];
+		localRuns.sort((left, right) => {
+			const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+			const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+			return rightTime - leftTime;
+		});
 
 		if (!signal.aborted)
 			this.update({
@@ -184,6 +223,8 @@ export class ProcessingController {
 				health,
 				capabilities,
 				jobs,
+				localSources,
+				localRuns,
 				system,
 				events,
 				observedJobId: observedJob?.id ?? null,
@@ -292,6 +333,74 @@ export class ProcessingController {
 			this.update({ uncertainSubmission: false });
 			await this.read(signal);
 		});
+	};
+
+	private async reviewAction(
+		action: (signal: AbortSignal) => Promise<LocalReview>,
+	) {
+		if (
+			this.#state.connection !== "connected" ||
+			this.#state.localReviewBusy
+		)
+			return;
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		const stopGlobalLoading = beginInteractiveGlobalLoading();
+		this.update({ localReviewBusy: true, localReviewError: null });
+		try {
+			const localReview = await action(signal);
+			if (epoch === this.#epoch && !signal.aborted)
+				this.update({ localReview, localReviewError: null });
+		} catch (error) {
+			if (epoch === this.#epoch && !signal.aborted) {
+				this.update({
+					localReviewError:
+						error instanceof BridgeError
+							? (error.serverCode ?? error.code)
+							: "service_error",
+				});
+			}
+		} finally {
+			if (epoch === this.#epoch)
+				this.update({ localReviewBusy: false });
+			stopGlobalLoading();
+		}
+	}
+
+	openLocalReview = async (sourceId: string, runId: string) => {
+		if (
+			!this.#state.localRuns.some(
+				(run) => run.sourceId === sourceId && run.runId === runId,
+			)
+		)
+			return;
+		await this.reviewAction((signal) =>
+			this.bridge.localReview(sourceId, runId, signal),
+		);
+	};
+
+	saveLocalReview = async (
+		expectedDraftRevision: number,
+		status: LocalReviewStatus,
+		segments: readonly LocalReviewSegment[],
+	) => {
+		const current = this.#state.localReview;
+		if (!current) return;
+		await this.reviewAction((signal) =>
+			this.bridge.saveLocalReview(
+				current.sourceId,
+				current.runId,
+				expectedDraftRevision,
+				status,
+				segments,
+				signal,
+			),
+		);
+	};
+
+	closeLocalReview = () => {
+		if (this.#state.localReviewBusy) return;
+		this.update({ localReview: null, localReviewError: null });
 	};
 
 	result = async (id: string) => {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
+import { LocalReviewWorkspace } from "./local-review";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -629,6 +630,20 @@ export function ProcessingPanel() {
 							) : null}
 						</aside>
 					</div>
+
+					<LocalReviewWorkspace
+						runs={state.localRuns}
+						review={state.localReview}
+						busy={state.localReviewBusy || state.busy}
+						error={state.localReviewError}
+						onOpen={(sourceId, runId) =>
+							controller.openLocalReview(sourceId, runId)
+						}
+						onSave={(revision, status, segments) =>
+							controller.saveLocalReview(revision, status, segments)
+						}
+						onClose={controller.closeLocalReview}
+					/>
 
 					<section className={styles.syncStrip} aria-labelledby="local-sync">
 						<div>

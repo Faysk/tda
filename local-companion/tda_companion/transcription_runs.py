@@ -176,12 +176,14 @@ def _manifest_for_document(
         "completed_at": utc_now(),
         "stats": {
             "processing_seconds": stats.processing_seconds,
+            "session_duration_seconds": stats.session_duration_seconds,
             "rtf": stats.rtf,
             "word_count": stats.word_count,
             "segment_count": stats.segment_count,
             "track_count": stats.track_count,
             "turn_count": stats.turn_count,
             "deduplicated_segment_count": stats.deduplicated_segment_count,
+            "warning_count": len(document.warnings),
         },
     }
 
@@ -456,17 +458,23 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
             "created_at": value.get("created_at"),
             "completed_at": value.get("created_at") or utc_now(),
             "stats": {
-                key: stats.get(key)
-                for key in (
-                    "processing_seconds",
-                    "rtf",
-                    "word_count",
-                    "segment_count",
-                    "track_count",
-                    "turn_count",
-                    "deduplicated_segment_count",
-                )
-                if key in stats
+                **{
+                    key: stats.get(key)
+                    for key in (
+                        "processing_seconds",
+                        "session_duration_seconds",
+                        "rtf",
+                        "word_count",
+                        "segment_count",
+                        "track_count",
+                        "turn_count",
+                        "deduplicated_segment_count",
+                    )
+                    if key in stats
+                },
+                "warning_count": len(value.get("warnings", []))
+                if isinstance(value.get("warnings"), list)
+                else 0,
             },
         }
         _atomic_json(destination / "run.json", manifest)
