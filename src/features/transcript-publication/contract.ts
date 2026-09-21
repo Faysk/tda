@@ -68,6 +68,10 @@ export type PublicationResult =
 	| Readonly<{ ok: true; receipt: PublicationReceipt }>
 	| Readonly<{ ok: false; reason: PublicationFailure }>;
 
+export type PreparePublicationResult =
+	| Readonly<{ ok: true; value: PreparedPublication }>
+	| Readonly<{ ok: false; reason: PublicationFailure }>;
+
 function record(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -124,10 +128,7 @@ export function sha256Utf8(value: string): string {
 	return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-export function preparePublication(raw: string): PublicationResult | {
-	ok: true;
-	value: PreparedPublication;
-} {
+export function preparePublication(raw: string): PreparePublicationResult {
 	if (utf8Bytes(raw) > MAX_PUBLICATION_REQUEST_BYTES)
 		return { ok: false, reason: "too_large" };
 	let input: unknown;
