@@ -126,7 +126,7 @@ R2_PRIVATE_SECRET_ACCESS_KEY
 
 O par privado é dedicado ao token `tda-github-production-private-media-storage` e a `tda-media-private`.
 
-O candidato de persistência do **Lembra** é o primeiro consumidor de runtime desse boundary privado. O código espera `R2_ACCOUNT_ID`, `R2_PRIVATE_ACCESS_KEY_ID`, `R2_PRIVATE_SECRET_ACCESS_KEY` e `R2_PRIVATE_BUCKET=tda-media-private` no runtime Production. A existência administrativa desses secrets no GitHub Environment não prova que já estejam injetados na Vercel; a ativação continua bloqueada até configuração e smoke controlados.
+O **Lembra** é o primeiro consumidor de runtime desse boundary privado. Os secrets `R2_ACCOUNT_ID`, `R2_PRIVATE_ACCESS_KEY_ID` e `R2_PRIVATE_SECRET_ACCESS_KEY` permanecem no GitHub Environment `production`; o Production CD os injeta somente no deployment staged por `vercel deploy --env`, junto de `R2_PRIVATE_BUCKET=tda-media-private` e `TDA_LEMBRA_ENABLED=true`. O artefato só é promovido após migrations e smoke passarem.
 
 Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 
