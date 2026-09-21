@@ -486,73 +486,214 @@ Write-Host "Source SHA candidato: $($SourceSha.ToLowerInvariant())"
 Write-Host "MSI SHA256: $((Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant())"
 Write-Host "Payload manifest SHA256: $((Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant())"
 Write-Host ""
-Write-Host "As observações humanas são atestações; recovery, identidade do Agent e retomada BITS exigem prova medida." -ForegroundColor DarkYellow
+Write-Host ($(if ($Automated) { "Modo automatizado: nenhuma confirmação PASS, Task Manager, file picker ou alternância manual de rede." } else { "As observações humanas são atestações; recovery, identidade do Agent e retomada BITS exigem prova medida." })) -ForegroundColor DarkYellow
 
 $observations = New-Object System.Collections.Generic.List[string]
 
-$initialHealth = Get-AgentHealth
-if ($null -eq $initialHealth) { throw "AGENT_INITIAL_IDENTITY_REQUIRED" }
-$initialPid = [int]$initialHealth.pid
-Write-Host "Agent inicial exato: PID $initialPid, versão $([string]$initialHealth.service_version)"
-$recoveryPrompt = @"
+if ($Automated) {
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw "AUTOMATED_ACCEPTANCE_WINDOWS_REQUIRED" }
+    if ($PSVersionTable.PSVersion.Major -lt 7) { throw "AUTOMATED_ACCEPTANCE_POWERSHELL_7_REQUIRED" }
+
+    $jobsValue = Invoke-AgentJson "GET" "/jobs"
+    $jobRows = @($jobsValue.jobs)
+    $activeJobs = @($jobRows | Where-Object { [string]$_.status -in @("queued", "running") })
+    if ($activeJobs.Count -gt 0) { throw "ACTIVE_USER_JOB_PRESENT" }
+
+    $settingsPath = Join-Path $env:LOCALAPPDATA "TDA\State\settings.json"
+    $settingsExisted = Test-Path -LiteralPath $settingsPath -PathType Leaf
+    $settingsOriginal = if ($settingsExisted) { Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 } else { $null }
+    $initialUiCount = @(Get-UiProcesses).Count
+
+    try {
+        [void](Stop-UiProcesses)
+        Write-AcceptanceSettings $settingsPath "hide" $true
+        $ui = Ensure-AcceptanceUi $executable
+        Start-Sleep -Seconds 2
+
+        Write-Host "[agent_recovery - automated]" -ForegroundColor Cyan
+        $initialHealth = Get-AgentHealth
+        if ($null -eq $initialHealth) { throw "AGENT_INITIAL_IDENTITY_REQUIRED" }
+        $initialPid = [int]$initialHealth.pid
+        Stop-Process -Id $initialPid -Force
+        $replacementHealth = Wait-AgentReplacement $initialPid 90
+        if ($null -eq $replacementHealth) { throw "AGENT_RECOVERY_PID_NOT_REPLACED" }
+        $observations.Add("agent_recovery")
+
+        Write-Host "[port_conflict - automated]" -ForegroundColor Cyan
+        $portHealth = Get-AgentHealth
+        if ($null -eq $portHealth) { throw "PORT_CONFLICT_INITIAL_IDENTITY_REQUIRED" }
+        $portPid = [int]$portHealth.pid
+        Stop-Process -Id $portPid -Force
+        $listener = $null
+        $bindDeadline = [DateTimeOffset]::UtcNow.AddSeconds(8)
+        while ($null -eq $listener -and [DateTimeOffset]::UtcNow -lt $bindDeadline) {
+            $candidateListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+            try {
+                $candidateListener.Start()
+                $listener = $candidateListener
+            } catch {
+                try { $candidateListener.Stop() } catch {}
+                Start-Sleep -Milliseconds 50
+            }
+        }
+        if ($null -eq $listener) { throw "PORT_CONFLICT_LISTENER_BIND_FAILED" }
+        try {
+            Start-Sleep -Seconds 4
+            if ($null -ne (Get-AgentHealth)) { throw "FOREIGN_LISTENER_ACCEPTED_AS_AGENT" }
+        } finally {
+            try { $listener.Stop() } catch {}
+        }
+        if ($null -eq (Wait-AgentReplacement $portPid 90)) { throw "PORT_CONFLICT_RECOVERY_FAILED" }
+        $observations.Add("port_conflict")
+
+        Write-Host "[diagnostics_ui - automated]" -ForegroundColor Cyan
+        $ui = Ensure-AcceptanceUi $executable
+        Start-Sleep -Seconds 1
+        $descendants = Get-ProcessDescendants ([int]$ui.ProcessId)
+        $webviews = @($descendants | Where-Object { [string]$_.Name -ieq "msedgewebview2.exe" })
+        if ($webviews.Count -lt 1) { throw "WEBVIEW2_RENDERER_NOT_OBSERVED" }
+        $capabilities = Invoke-AgentJson "GET" "/capabilities"
+        if (-not (@($capabilities.capabilities) -contains "system.telemetry")) { throw "CAPABILITIES_INVALID" }
+        $observations.Add("diagnostics_ui")
+
+        Write-Host "[background_download_resume - automated]" -ForegroundColor Cyan
+        $bitsEvidence = Capture-AutomatedBitsResumeEvidence $bitsEvidencePath
+        if ($bitsEvidence.pass -ne $true -or $bitsEvidence.same_job -ne $true -or $bitsEvidence.bytes_after -le $bitsEvidence.bytes_before) {
+            throw "BITS_EVIDENCE_INVALID"
+        }
+        $observations.Add("background_download_resume")
+
+        Write-Host "[close_hides_ui - automated]" -ForegroundColor Cyan
+        Write-AcceptanceSettings $settingsPath "hide" $true
+        $ui = Ensure-AcceptanceUi $executable
+        $window = [TdaAcceptanceWindow]::FindVisibleWindow([int]$ui.ProcessId)
+        if ($window -eq [IntPtr]::Zero) { throw "UI_VISIBLE_WINDOW_NOT_FOUND" }
+        [void][TdaAcceptanceWindow]::Close($window)
+        Start-Sleep -Seconds 2
+        if ($null -eq (Get-Process -Id ([int]$ui.ProcessId) -ErrorAction SilentlyContinue)) { throw "UI_CLOSE_DID_NOT_HIDE" }
+        $hiddenWindow = [TdaAcceptanceWindow]::FindAnyWindow([int]$ui.ProcessId)
+        if ($hiddenWindow -eq [IntPtr]::Zero -or [TdaAcceptanceWindow]::IsWindowVisible($hiddenWindow)) { throw "UI_CLOSE_WINDOW_STILL_VISIBLE" }
+        if ($null -eq (Get-AgentHealth)) { throw "AGENT_DIED_WHEN_UI_HIDDEN" }
+        $observations.Add("close_hides_ui")
+        [void][TdaAcceptanceWindow]::Show($hiddenWindow)
+
+        Write-Host "[tray_exit - automated]" -ForegroundColor Cyan
+        [void](Stop-UiProcesses)
+        $agentBeforeTrayExit = Get-AgentHealth
+        if ($null -eq $agentBeforeTrayExit) { throw "TRAY_EXIT_AGENT_PRECONDITION_FAILED" }
+
+        $trayProcess = Start-Process -FilePath $executable -ArgumentList @("--ui", "--acceptance-tray-exit", "--port", [string]$Port) -PassThru
+        $trayExact = $trayProcess.WaitForExit(30000) -and [int]$trayProcess.ExitCode -eq 0
+
+        if (-not $trayExact) {
+            try {
+                if (-not $trayProcess.HasExited) { Stop-Process -Id $trayProcess.Id -Force -ErrorAction SilentlyContinue }
+            } catch {}
+            if (-not $AllowLegacyTrayEquivalent) { throw "EXACT_TRAY_EXIT_ACCEPTANCE_UNSUPPORTED" }
+
+            Write-Warning "Installed candidate predates exact tray automation; using the explicit legacy close_ui equivalent."
+            Write-AcceptanceSettings $settingsPath "close_ui" $false
+            $legacyUi = Ensure-AcceptanceUi $executable
+            $legacyWindow = [TdaAcceptanceWindow]::FindVisibleWindow([int]$legacyUi.ProcessId)
+            if ($legacyWindow -eq [IntPtr]::Zero) { throw "LEGACY_TRAY_EQUIVALENT_WINDOW_NOT_FOUND" }
+            [void][TdaAcceptanceWindow]::Close($legacyWindow)
+            if (-not (Wait-ProcessExit ([int]$legacyUi.ProcessId) 20)) { throw "LEGACY_TRAY_EQUIVALENT_UI_STILL_ALIVE" }
+        }
+
+        $agentAfterTrayExit = Get-AgentHealth
+        if ($null -eq $agentAfterTrayExit) { throw "AGENT_DIED_WITH_TRAY_EXIT" }
+        if ($trayExact -and [int]$agentAfterTrayExit.pid -ne [int]$agentBeforeTrayExit.pid) { throw "TRAY_EXIT_AGENT_IDENTITY_CHANGED" }
+        $observations.Add("tray_exit")
+
+        Write-AcceptanceSettings $settingsPath "hide" $true
+        $ui = Ensure-AcceptanceUi $executable
+
+        Write-Host "[craig_selected / craig_survives_agent_loss - automated]" -ForegroundColor Cyan
+        $craigFirst = Upload-CraigFixture $craig
+        if ([string]$craigFirst.source_id -notmatch '^craig-[a-f0-9]{64}$' -or [int]$craigFirst.track_count -lt 1) {
+            throw "CRAIG_INGEST_INVALID"
+        }
+        $observations.Add("craig_selected")
+
+        $craigHealth = Get-AgentHealth
+        if ($null -eq $craigHealth) { throw "CRAIG_AGENT_INITIAL_IDENTITY_REQUIRED" }
+        $craigPid = [int]$craigHealth.pid
+        Stop-Process -Id $craigPid -Force
+        if ($null -eq (Wait-AgentReplacement $craigPid 90)) { throw "CRAIG_RECOVERY_PID_NOT_REPLACED" }
+
+        $craigSecond = Upload-CraigFixture $craig
+        if ([string]$craigSecond.source_id -ne [string]$craigFirst.source_id -or $craigSecond.reused -ne $true) {
+            throw "CRAIG_DID_NOT_SURVIVE_AGENT_LOSS"
+        }
+        $observations.Add("craig_survives_agent_loss")
+    } finally {
+        try {
+            if ($settingsExisted) {
+                $settingsOriginal | Set-Content -LiteralPath $settingsPath -Encoding UTF8 -NoNewline
+            } else {
+                Remove-Item -LiteralPath $settingsPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try { [void](Stop-UiProcesses) } catch {}
+        if ($initialUiCount -gt 0) {
+            try { [void](Ensure-AcceptanceUi $executable) } catch {}
+        }
+    }
+} else {
+    $initialHealth = Get-AgentHealth
+    if ($null -eq $initialHealth) { throw "AGENT_INITIAL_IDENTITY_REQUIRED" }
+    $initialPid = [int]$initialHealth.pid
+    Write-Host "Agent inicial exato: PID $initialPid, versão $([string]$initialHealth.service_version)"
+    $recoveryPrompt = @"
 Com a UI do Companion aberta, finalize manualmente SOMENTE o processo Agent no Gerenciador de Tarefas.
 A interface deve mostrar recovery/reconexão e voltar a Ready sem abrir uma segunda UI, sem loop de erro e sem você reiniciar o aplicativo.
 "@
-$recoveryObserved = Confirm-Observation "agent_recovery" $recoveryPrompt
-if (-not $recoveryObserved) { throw "AGENT_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
-$replacement = Wait-AgentReplacement $initialPid
-if ($null -eq $replacement) {
-    throw "AGENT_RECOVERY_PID_NOT_REPLACED"
-}
-Write-Host "Novo Agent exato confirmado: PID $([int]$replacement.pid)" -ForegroundColor Green
-$observations.Add("agent_recovery")
+    $recoveryObserved = Confirm-Observation "agent_recovery" $recoveryPrompt
+    if (-not $recoveryObserved) { throw "AGENT_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
+    $replacementHealth = Wait-AgentReplacement $initialPid
+    if ($null -eq $replacementHealth) { throw "AGENT_RECOVERY_PID_NOT_REPLACED" }
+    $observations.Add("agent_recovery")
 
-$portPrompt = @"
+    $portPrompt = @"
 Teste manualmente o conflito da porta 8765: com o Agent parado, ocupe 127.0.0.1:8765 com um listener que NÃO seja TDA, mantenha a UI aberta e tente/aguarde o recovery.
 A UI deve indicar conflito de porta/processo incompatível e NÃO deve tratar esse listener como Agent. Depois libere a porta e confirme que o Agent consegue voltar.
 "@
-if (Confirm-Observation "port_conflict" $portPrompt) { $observations.Add("port_conflict") }
+    if (Confirm-Observation "port_conflict" $portPrompt) { $observations.Add("port_conflict") }
 
-$diagnosticPrompt = @"
+    $diagnosticPrompt = @"
 Abra Diagnóstico na UI instalada. Confirme que o resumo por capability aparece, que erros de rede são tipados/amigáveis e que WebView2 não aparece como ausente enquanto essa mesma UI WebView2 está aberta.
 "@
-if (Confirm-Observation "diagnostics_ui" $diagnosticPrompt) { $observations.Add("diagnostics_ui") }
+    if (Confirm-Observation "diagnostics_ui" $diagnosticPrompt) { $observations.Add("diagnostics_ui") }
 
-$bitsEvidence = Capture-BitsResumeEvidence $bitsEvidencePath
-if ($bitsEvidence.pass -eq $true) {
-    $observations.Add("background_download_resume")
-    Write-Host "Retomada BITS medida: mesmo job, $($bitsEvidence.bytes_before) -> $($bitsEvidence.bytes_after) bytes." -ForegroundColor Green
-}
+    $bitsEvidence = Capture-BitsResumeEvidence $bitsEvidencePath
+    if ($bitsEvidence.pass -eq $true) { $observations.Add("background_download_resume") }
 
-$closePrompt = @"
+    $closePrompt = @"
 Com a preferência 'Ao fechar: Ocultar a interface' e o tray ativo, clique no X. A janela deve desaparecer, o tray deve permanecer e o Agent deve continuar operacional.
 "@
-if (Confirm-Observation "close_hides_ui" $closePrompt) { $observations.Add("close_hides_ui") }
+    if (Confirm-Observation "close_hides_ui" $closePrompt) { $observations.Add("close_hides_ui") }
 
-$trayPrompt = @"
+    $trayPrompt = @"
 Reabra a interface pelo tray e use 'Sair da interface'. A UI deve encerrar de verdade sem encerrar o Agent. Depois abra novamente o Companion para continuar o aceite.
 "@
-if (Confirm-Observation "tray_exit" $trayPrompt) { $observations.Add("tray_exit") }
+    if (Confirm-Observation "tray_exit" $trayPrompt) { $observations.Add("tray_exit") }
 
-$craigPrompt = @"
+    $craigPrompt = @"
 Na tela Processar sessão, selecione exatamente o Craig ZIP fornecido. Confirme que as faixas/speakers aparecem e que o ZIP não é rejeitado por uma falha posterior de Agent/perfis.
 "@
-if (Confirm-Observation "craig_selected" $craigPrompt) { $observations.Add("craig_selected") }
+    if (Confirm-Observation "craig_selected" $craigPrompt) { $observations.Add("craig_selected") }
 
-$craigHealth = Get-AgentHealth
-if ($null -eq $craigHealth) { throw "CRAIG_AGENT_INITIAL_IDENTITY_REQUIRED" }
-$craigPid = [int]$craigHealth.pid
-Write-Host "Agent exato antes do teste Craig/recovery: PID $craigPid"
-$craigRecoveryPrompt = @"
+    $craigHealth = Get-AgentHealth
+    if ($null -eq $craigHealth) { throw "CRAIG_AGENT_INITIAL_IDENTITY_REQUIRED" }
+    $craigPid = [int]$craigHealth.pid
+    $craigRecoveryPrompt = @"
 Sem remover a sessão Craig da tela, finalize manualmente SOMENTE o Agent. Após o recovery, a sessão Craig deve continuar selecionada e válida; a UI não pode dizer que o ZIP é inválido/rejeitado só porque o Agent caiu.
 "@
-$craigRecoveryObserved = Confirm-Observation "craig_survives_agent_loss" $craigRecoveryPrompt
-if (-not $craigRecoveryObserved) { throw "CRAIG_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
-$replacement = Wait-AgentReplacement $craigPid
-if ($null -eq $replacement) {
-    throw "CRAIG_RECOVERY_PID_NOT_REPLACED"
+    $craigRecoveryObserved = Confirm-Observation "craig_survives_agent_loss" $craigRecoveryPrompt
+    if (-not $craigRecoveryObserved) { throw "CRAIG_RECOVERY_OBSERVATION_NOT_CONFIRMED" }
+    if ($null -eq (Wait-AgentReplacement $craigPid)) { throw "CRAIG_RECOVERY_PID_NOT_REPLACED" }
+    $observations.Add("craig_survives_agent_loss")
 }
-$observations.Add("craig_survives_agent_loss")
 
 $arguments = @(
     "--installed-acceptance",
