@@ -157,7 +157,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-20 |
 | [Integração Supabase — provider atual de PostgreSQL e Auth](../integrations/supabase.md) | dados / identity-access | vigente; provider atual | 2026-09-20 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
-| [Importação de transcrição local](../integrations/transcript-import.md) | sync/consumer + dados/Supabase | fundação de import/receipt implementada em código candidato; ativação negada; adaptação ao lifecycle revisionado obrigatória antes de produção | 2026-09-15 |
+| [Importação de transcrição local](../integrations/transcript-import.md) | transcript-publication + dados/Supabase | boundary revisionado de publicação implementado e fail-closed; migration/grants/rollout de Production ainda não ativados | 2026-09-21 |
 | [Integração Vercel — provider atual de runtime/deploy](../integrations/vercel.md) | integrations/runtime + operations | vigente; provider atual | 2026-09-20 |
 
 ## docs/integrations/r2

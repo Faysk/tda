@@ -6,6 +6,7 @@ import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
+import { publishApprovedLocalReview } from "./publication-client";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -240,7 +241,9 @@ function JobRow({
 	);
 }
 
-export function ProcessingPanel() {
+export function ProcessingPanel({
+	publicationEnabled = false,
+}: Readonly<{ publicationEnabled?: boolean }>) {
 	const [controller] = useState(() => new ProcessingController());
 	const state = useSyncExternalStore(
 		controller.subscribe,
@@ -636,6 +639,7 @@ export function ProcessingPanel() {
 						review={state.localReview}
 						busy={state.localReviewBusy || state.busy}
 						error={state.localReviewError}
+						publicationEnabled={publicationEnabled}
 						onOpen={(sourceId, runId) =>
 							controller.openLocalReview(sourceId, runId)
 						}
@@ -643,13 +647,26 @@ export function ProcessingPanel() {
 							controller.saveLocalReview(revision, status, segments)
 						}
 						onClose={controller.closeLocalReview}
+						onPublish={(review, operationId) =>
+							publishApprovedLocalReview(review, operationId)
+						}
 					/>
 
 					<section className={styles.syncStrip} aria-labelledby="local-sync">
 						<div>
 							<h2 id="local-sync">Sincronização com o Edit</h2>
 							<p>
-								<strong>Sincronização não configurada.</strong> Concluir localmente não significa enviar ou publicar.
+								{publicationEnabled ? (
+									<>
+										<strong>Publicação revisionada disponível.</strong>{" "}
+										Somente um draft salvo como Aprovado localmente e uma confirmação explícita podem publicar.
+									</>
+								) : (
+									<>
+										<strong>Sincronização não configurada.</strong>{" "}
+										Concluir localmente não significa enviar ou publicar.
+									</>
+								)}
 							</p>
 						</div>
 						{state.result ? (

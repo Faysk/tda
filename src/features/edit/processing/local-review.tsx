@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
+import {
+	PublicationClientError,
+	type PublicationReceiptView,
+} from "./publication-client";
 import type {
 	LocalReview,
 	LocalReviewSegment,
@@ -16,6 +20,7 @@ type Props = Readonly<{
 	review: LocalReview | null;
 	busy: boolean;
 	error: string | null;
+	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
 	onSave: (
 		expectedDraftRevision: number,
@@ -23,6 +28,10 @@ type Props = Readonly<{
 		segments: readonly LocalReviewSegment[],
 	) => void | Promise<void>;
 	onClose: () => void;
+	onPublish: (
+		review: LocalReview,
+		operationId: string,
+	) => Promise<PublicationReceiptView>;
 }>;
 
 const PAGE_SIZE = 25;
@@ -135,12 +144,16 @@ function ReviewEditor({
 	error,
 	onSave,
 	onClose,
+	publicationEnabled,
+	onPublish,
 }: Readonly<{
 	review: LocalReview;
 	busy: boolean;
 	error: string | null;
 	onSave: Props["onSave"];
 	onClose: () => void;
+	publicationEnabled: boolean;
+	onPublish: Props["onPublish"];
 }>) {
 	const [segments, setSegments] = useState<LocalReviewSegment[]>(() =>
 		review.segments.map((segment) => ({ ...segment })),
@@ -149,6 +162,12 @@ function ReviewEditor({
 	const [dirty, setDirty] = useState(false);
 	const [query, setQuery] = useState("");
 	const [page, setPage] = useState(0);
+	const [publishConfirmation, setPublishConfirmation] = useState(false);
+	const [publishOperationId, setPublishOperationId] = useState<string | null>(null);
+	const [publishing, setPublishing] = useState(false);
+	const [publicationError, setPublicationError] = useState<string | null>(null);
+	const [publicationReceipt, setPublicationReceipt] =
+		useState<PublicationReceiptView | null>(null);
 
 	useEffect(() => {
 		if (!dirty) return;
@@ -201,6 +220,56 @@ function ReviewEditor({
 			return;
 		onClose();
 	}
+	function publicationErrorMessage(code: string): string {
+		return {
+			unauthenticated: "Sua sessão Web expirou. Entre novamente antes de publicar.",
+			forbidden: "Seu acesso não permite publicar transcrições nesta campanha.",
+			publish_capability_undefined:
+				"A publicação ainda não está ativada para esta campanha.",
+			approved_review_required:
+				"Salve esta revisão como Aprovado localmente antes de publicar.",
+			invalid_payload:
+				"O servidor recusou o vínculo ou o conteúdo desta revisão.",
+			too_large: "A revisão excede o limite aceito para publicação.",
+			not_found:
+				"A sessão vinculada não foi localizada no escopo autorizado.",
+			conflict:
+				"Esta operação conflita com uma publicação já registrada. Recarregue antes de continuar.",
+			dependency_unavailable:
+				"O serviço de publicação está indisponível e não confirmou nenhuma alteração.",
+			unconfirmed:
+				"A resposta foi perdida e o readback ainda não confirmou o commit. Repetir reutilizará a mesma operação.",
+		}[code] ?? `Publicação não confirmada · ${code}`;
+	}
+
+	async function confirmPublication() {
+		if (
+			publishing ||
+			dirty ||
+			review.status !== "approved_local" ||
+			!review.publicationTarget
+		)
+			return;
+		const operationId = publishOperationId ?? crypto.randomUUID();
+		setPublishOperationId(operationId);
+		setPublishing(true);
+		setPublicationError(null);
+		try {
+			const receipt = await onPublish(review, operationId);
+			setPublicationReceipt(receipt);
+			setPublishConfirmation(false);
+			setPublishOperationId(null);
+		} catch (cause) {
+			const code =
+				cause instanceof PublicationClientError
+					? cause.code
+					: "dependency_unavailable";
+			setPublicationError(publicationErrorMessage(code));
+			setPublishConfirmation(false);
+		} finally {
+			setPublishing(false);
+		}
+	}
 
 	return (
 		<section className={styles.editor} aria-labelledby="local-review-title">
@@ -225,6 +294,29 @@ function ReviewEditor({
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
 					</Button>
+					{publicationEnabled && review.publicationTarget ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={
+								busy ||
+								publishing ||
+								dirty ||
+								review.status !== "approved_local" ||
+								Boolean(publicationReceipt)
+							}
+							onClick={() => {
+								setPublicationError(null);
+								setPublishConfirmation(true);
+							}}
+						>
+							{publicationReceipt
+								? `Publicado · r${publicationReceipt.revisionNumber}`
+								: publishing
+									? "Publicando…"
+									: "Publicar no TDA"}
+						</Button>
+					) : null}
 				</div>
 			</div>
 
@@ -232,10 +324,63 @@ function ReviewEditor({
 				<strong>Nada será publicado automaticamente.</strong>
 				<span>
 					{review.publicationTarget
-						? `Destino vinculado: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. A revisão continua somente neste computador até uma ação explícita de publicação.`
+						? `Destino vinculado: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. ${publicationEnabled ? "Somente a confirmação explícita abaixo pode publicar este draft salvo." : "A publicação cloud continua desativada neste ambiente."}`
 						: "Este run não possui um destino cloud durável. A revisão continua local e não pode ser publicada até existir um vínculo verificável."}
 				</span>
 			</div>
+
+			{publishConfirmation && review.publicationTarget ? (
+				<section
+					className={styles.publishConfirmation}
+					role="alertdialog"
+					aria-labelledby="publication-confirmation-title"
+					aria-describedby="publication-confirmation-detail"
+				>
+					<div>
+						<span className={styles.eyebrow}>Confirmação editorial</span>
+						<h3 id="publication-confirmation-title">Publicar esta revisão no TDA?</h3>
+						<p id="publication-confirmation-detail">
+							Será publicada a revisão salva <strong>r{review.draftRevision}</strong> com{" "}
+							<strong>{review.segments.length} segmentos</strong> em{" "}
+							<strong>{review.publicationTarget.campaignSlug}</strong> · sessão{" "}
+							<strong>{review.publicationTarget.sourceSessionId}</strong>.
+							O run bruto continuará imutável.
+						</p>
+						<small>
+							Base SHA {review.baseTranscriptSha256.slice(0, 12)}… · draft SHA{" "}
+							{review.draftSha256.slice(0, 12)}…
+						</small>
+					</div>
+					<div className={styles.publishActions}>
+						<Button
+							size="sm"
+							variant="tertiary"
+							disabled={publishing}
+							onClick={() => setPublishConfirmation(false)}
+						>
+							Cancelar
+						</Button>
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={publishing}
+							onClick={() => void confirmPublication()}
+						>
+							{publishing ? "Publicando…" : "Confirmar publicação"}
+						</Button>
+					</div>
+				</section>
+			) : null}
+
+			{publicationError ? (
+				<p className={styles.error} role="alert">{publicationError}</p>
+			) : null}
+			{publicationReceipt ? (
+				<p className={styles.published} role="status">
+					Publicação confirmada · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
+					{publicationReceipt.receiptId.slice(0, 12)}…
+				</p>
+			) : null}
 
 			<div className={styles.summaryGrid}>
 				<div><span>Revisão</span><strong>{reviewed} / {segments.length}</strong><small>{segments.length ? Math.round((reviewed / segments.length) * 100) : 100}%</small></div>
@@ -366,9 +511,11 @@ export function LocalReviewWorkspace({
 	review,
 	busy,
 	error,
+	publicationEnabled,
 	onOpen,
 	onSave,
 	onClose,
+	onPublish,
 }: Props) {
 	if (review) {
 		return (
@@ -379,6 +526,8 @@ export function LocalReviewWorkspace({
 				error={error}
 				onSave={onSave}
 				onClose={onClose}
+				publicationEnabled={publicationEnabled}
+				onPublish={onPublish}
 			/>
 		);
 	}
