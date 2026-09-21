@@ -121,6 +121,11 @@ function Test-ExactInstalledPayload([string]$PayloadManifestPath, [string]$Expec
     return $true
 }
 
+function Test-MsiProductCode([string]$Value) {
+    $parsed = [Guid]::Empty
+    return [Guid]::TryParseExact($Value, "B", [ref]$parsed)
+}
+
 function Remove-SupersededSameVersionCandidate([string]$ExpectedVersion) {
     $productKey = "HKCU:\Software\Faysk\TDA Companion"
     if (-not (Test-Path -LiteralPath $productKey)) {
@@ -132,7 +137,7 @@ function Remove-SupersededSameVersionCandidate([string]$ExpectedVersion) {
     if ($installedVersion -ne $ExpectedVersion) {
         throw "RECOVERY_SUPERSEDED_VERSION_MISMATCH:$installedVersion"
     }
-    if ($productCode -notmatch '^\\{[0-9A-Fa-f-]{36}\\}$') {
+    if (-not (Test-MsiProductCode $productCode)) {
         throw "RECOVERY_SUPERSEDED_PRODUCT_CODE_INVALID"
     }
 

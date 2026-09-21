@@ -109,6 +109,92 @@ jobs:
           )) {
             if (-not $installed.Contains($required)) { throw "RECOVERY_INSTALLED_FAIL_CLOSED_MISSING" }
           }
+          if (-not $value.Contains("function Test-MsiProductCode")) {
+            throw "RECOVERY_PRODUCT_CODE_VALIDATOR_MISSING"
+          }
+          if (-not $value.Contains('[Guid]::TryParseExact($Value, "B", [ref]$parsed)')) {
+            throw "RECOVERY_PRODUCT_CODE_STRUCTURAL_VALIDATION_MISSING"
+          }
+          if (-not $installed.Contains("[UInt64]::MaxValue")) {
+            throw "RECOVERY_BITS_UNKNOWN_TOTAL_SENTINEL_MISSING"
+          }
+          if (-not $installed.Contains("BytesTotalKnown")) {
+            throw "RECOVERY_BITS_TOTAL_KNOWN_STATE_MISSING"
+          }
+          if ($installed.Contains('$total = [int64]$Job.BytesTotal')) {
+            throw "RECOVERY_BITS_DIRECT_INT64_CAST_PRESENT"
+          }
+      - name: Unit-test physical acceptance helper edge cases
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Get-FunctionScriptBlock([string]$Path, [string]$Name) {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $Path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) { throw "ACCEPTANCE_HELPER_PARSE_FAILED:$Name" }
+            $functionAst = $ast.Find({
+              param($node)
+              $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+              $node.Name -eq $Name
+            }, $true)
+            if ($null -eq $functionAst) { throw "ACCEPTANCE_HELPER_NOT_FOUND:$Name" }
+            return [scriptblock]::Create($functionAst.Extent.Text)
+          }
+
+          . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Test-MsiProductCode")
+          if (-not (Test-MsiProductCode "{EAC99465-E800-40A1-9F46-222A68163AFE}")) {
+            throw "PRODUCT_CODE_VALID_GUID_REJECTED"
+          }
+          foreach ($invalid in @(
+            "EAC99465-E800-40A1-9F46-222A68163AFE",
+            "{not-a-guid}",
+            "{EAC99465-E800-40A1-9F46-222A68163AF}",
+            ""
+          )) {
+            if (Test-MsiProductCode $invalid) {
+              throw "PRODUCT_CODE_INVALID_VALUE_ACCEPTED:$invalid"
+            }
+          }
+
+          . (Get-FunctionScriptBlock "local-companion/packaging/run-installed-acceptance.ps1" "Get-TdaBitsSnapshot")
+          $local = Join-Path $env:LOCALAPPDATA "TDA\Cache\acceptance-fixture.bin"
+          $job = [pscustomobject]@{
+            FileList = @([pscustomobject]@{
+              RemoteName = "https://github.com/Faysk/tda/releases/download/test/asset.bin"
+              LocalName = $local
+            })
+            JobId = [Guid]::NewGuid()
+            JobState = "Connecting"
+            BytesTransferred = [uint64]0
+            BytesTotal = [UInt64]::MaxValue
+          }
+
+          $unknown = Get-TdaBitsSnapshot $job
+          if ($unknown.BytesTotalKnown -ne $false) { throw "BITS_UNKNOWN_TOTAL_MARKED_KNOWN" }
+          if ($null -ne $unknown.BytesTotal) { throw "BITS_UNKNOWN_TOTAL_MATERIALIZED" }
+          if ([int64]$unknown.BytesTransferred -ne 0) { throw "BITS_UNKNOWN_TRANSFERRED_INVALID" }
+
+          $job.BytesTransferred = [uint64]1120
+          $job.BytesTotal = [uint64]1992294400
+          $job.JobState = "Transferring"
+          $known = Get-TdaBitsSnapshot $job
+          if ($known.BytesTotalKnown -ne $true) { throw "BITS_FINITE_TOTAL_NOT_MARKED_KNOWN" }
+          if ([int64]$known.BytesTransferred -ne 1120) { throw "BITS_FINITE_TRANSFERRED_INVALID" }
+          if ([int64]$known.BytesTotal -ne 1992294400) { throw "BITS_FINITE_TOTAL_INVALID" }
+
+          $job.BytesTotal = [uint64]0
+          try {
+            [void](Get-TdaBitsSnapshot $job)
+            throw "BITS_ZERO_TOTAL_ACCEPTED"
+          } catch {
+            if ($_.Exception.Message -ne "BITS_EVIDENCE_BYTES_OUT_OF_RANGE") { throw }
+          }
       - name: Smoke superseded 0.3.14 RC replacement
         shell: powershell
         run: |
