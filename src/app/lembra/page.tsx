@@ -31,11 +31,12 @@ export default async function LembraPage() {
 		loadLembraReferences(access.identity.authUserId),
 		loadLembraFavoriteIds(access.identity.authUserId),
 	]);
+	const activeIds = new Set(references.map((reference) => reference.id));
 
 	return (
 		<LembraExperience
 			initialReferences={references}
-			initialFavoriteIds={favoriteIds}
+			initialFavoriteIds={favoriteIds.filter((id) => activeIds.has(id))}
 			persistenceEnabled
 		/>
 	);
