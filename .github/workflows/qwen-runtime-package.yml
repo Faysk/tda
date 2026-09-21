@@ -1,4 +1,5 @@
 name: Qwen Runtime Package
+# #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
 
 on:
   workflow_dispatch:
