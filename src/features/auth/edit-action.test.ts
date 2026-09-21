@@ -20,8 +20,9 @@ vi.mock("../edit/transcript/persistence", () => ({
 import { updateTranscriptSegmentAction } from "../edit/transcript/actions";
 
 const SEGMENT_ID = "11111111-1111-4111-8111-111111111111";
+const SESSION_ID = "22222222-2222-4222-8222-222222222222";
 const input = {
-	sessionId: "synthetic-session",
+	sessionId: SESSION_ID,
 	segmentId: SEGMENT_ID,
 	expectedRevision: 7,
 	text: " synthetic ",
@@ -78,6 +79,7 @@ describe("administrative operation entry point", () => {
 		expect(mocks.persist).toHaveBeenCalledWith({
 			actorProfileId: "verified-profile",
 			campaignSlug: "yuhara-main",
+			expectedSessionId: SESSION_ID,
 			segmentId: SEGMENT_ID,
 			expectedRevision: 7,
 			edit: {
