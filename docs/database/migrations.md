@@ -424,6 +424,45 @@ Antes de qualquer grande etapa de banco, verificar migration history + schema re
 
 Contrato, testes sintéticos e rollback: [importação local](../integrations/transcript-import.md).
 
+## Candidato de publicação revisionada de transcrição
+
+### `20260921021000_transcript_publication_revisions`
+
+**Estado:** candidato em `supabase/candidates/`; **não aplicado e não autorizado para Production**. Nenhum role/profile recebe `campaign.transcript.publish` neste recorte.
+
+Objetivo:
+
+- separar a revision editorial publicada completa de `transcript_segments.revision`, que continua sendo apenas optimistic concurrency por fala;
+- persistir revisions completas e imutáveis em `transcript_revisions`;
+- manter `sessions.current_transcript_revision_id` como ponteiro explícito para a revision atualmente ativa;
+- criar receipts idempotentes por `operation_id` e eventos metadata-only de `publish`, `replace`, `restore` e `unpublish`;
+- exigir payload local em estado `approved_local`, hash SHA-256 exato e identidade source/run/draft vinculada;
+- autorizar campaign/scope antes de consultar a existência da sessão, preservando o invariante da #431;
+- fazer revision + receipt + current pointer + evento + audit sanitizado na mesma transação;
+- preservar history ao substituir, restaurar ou despublicar; nenhum desses fluxos faz hard delete da revision.
+
+Segurança e limites:
+
+- `campaign.transcript.publish` é apenas definido no catálogo; não há assignment automático nem inferência a partir de `campaign.content.edit`/import;
+- tabelas candidatas ficam com RLS habilitado e sem privilégios de browser;
+- RPCs candidatas revogam `EXECUTE` de `public`, `anon` e `authenticated`, mantendo apenas `service_role`;
+- o audit contém IDs, hashes, contagens e ponteiros, nunca transcript integral;
+- o endpoint/adapter produtivo continua deliberadamente negado até existir autorização explícita de migration, grants e rollout.
+
+Validação sintética:
+
+- `supabase/tests/transcript_publication_revisions.sql` roda apenas no PostgreSQL 16 descartável de `tools/transcript-sync-db.py`;
+- cobre target existente/ausente opacos antes do grant, first publish, lost-response replay/readback, conflito divergente, replacement, rollback forçado após inserts, restore idempotente, unpublish e retenção de history;
+- o harness agora registra o arquivo SQL exato e stderr do `psql` quando um candidato falha, sem expor credenciais ou dados privados.
+
+Rollback lógico:
+
+- enquanto candidato, remover/revisar o SQL não toca Production;
+- depois de eventual rollout autorizado, retirar primeiro consumidores e grants; usar migration corretiva para remover RPCs/objetos somente se não houver revisions que precisem ser preservadas;
+- nunca apagar revisions, receipts, events ou audit para simular rollback editorial.
+
+Contrato funcional: [review e publicação de transcrição](../features/transcript-review-publication.md).
+
 ## Sessão exclusiva de edição do World Explorer
 
 ### `20260909173000_world_edit_lease`

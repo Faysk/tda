@@ -27,14 +27,43 @@ try:
     paths = [
         repo/'supabase/tests/transcript_import_fixture.sql',
         *sorted((repo/'supabase/candidates').glob('*_transcript_import_*.sql')),
+        *sorted((repo/'supabase/candidates').glob('*_transcript_publication_*.sql')),
         repo/'supabase/migrations/20260908144711_transcript_review_default.sql',
         repo/'supabase/migrations/20260915211245_transcript_review_contract_comments.sql',
         repo/'supabase/migrations/20260921003045_bind_transcript_edit_to_session.sql',
         repo/'supabase/tests/transcript_review_default.sql',
         repo/'supabase/tests/transcript_edit_atomic.sql',
+        repo/'supabase/tests/transcript_publication_revisions.sql',
     ]
     for path in paths:
-        run([str(binary/'psql'), '-X', '-h', str(socket), '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], input=path.read_text(), text=True)
+        try:
+            run(
+                [
+                    str(binary/'psql'),
+                    '-X',
+                    '-h',
+                    str(socket),
+                    '-U',
+                    'postgres',
+                    '-d',
+                    'postgres',
+                    '-v',
+                    'ON_ERROR_STOP=1',
+                ],
+                input=path.read_text(),
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"SCRATCH_SQL_FAILED {path.relative_to(repo)}",
+                file=sys.stderr,
+                flush=True,
+            )
+            if exc.stdout:
+                print(exc.stdout, file=sys.stderr, flush=True)
+            if exc.stderr:
+                print(exc.stderr, file=sys.stderr, flush=True)
+            raise
     print(socket, flush=True)
     sys.stdin.read()
 finally:
