@@ -100,6 +100,19 @@ A PR SQL anterior #62 foi superseded e fechada sem merge. Suas migrations não d
 
 A ordem anterior de simplesmente trocar `server.ts` para `databaseImportDependencies` **não é mais suficiente**.
 
+### Boundary revisionado implementado, rollout ainda negado por padrão
+
+O fluxo revisionado agora possui uma fronteira própria em `src/features/transcript-publication`:
+
+- o Companion persiste um vínculo durável e sanitizado entre run e destino editorial (`campaignSlug + sourceSessionId`);
+- o Web exige uma revisão salva como `approved_local` e uma confirmação humana explícita;
+- o servidor reconstrói e rehasha o payload de publicação, autoriza `campaign.transcript.publish` antes de consultar o target e resolve UUIDs físicos somente server-side;
+- commit e readback reutilizam o mesmo `operationId`, portanto perda de resposta não autoriza criar outra revision;
+- a UI e o adapter de banco só entram no caminho ativo quando `TDA_TRANSCRIPT_PUBLICATION_ENABLED=true`;
+- mesmo com a flag ativa, a UI continua escondida sem grant efetivo de `campaign.transcript.publish`, e o adapter falha fechado se catálogo/RPC/migration não estiverem disponíveis.
+
+A presença desse código **não é ativação de Production**. O valor seguro/default da flag é ausente/falso e nenhuma migration, role permission ou role assignment é criada pelo Web.
+
 Antes de ativar cloud sync/publicação:
 
 1. implementar runs locais imutáveis e selecionar explicitamente um resultado/revision para publish;
@@ -114,6 +127,8 @@ Antes de ativar cloud sync/publicação:
 10. somente então habilitar ações de **Publicar no TDA** na UI.
 
 ## Rollback funcional futuro
+
+O primeiro rollback operacional do fluxo revisionado é definir `TDA_TRANSCRIPT_PUBLICATION_ENABLED=false` (ou remover a variável) e redeployar. Isso remove a ação da UI e devolve os endpoints às `deniedPublicationDependencies` sem apagar revisions/receipts já confirmados.
 
 Se o sync/publication revisionado apresentar defeito:
 
