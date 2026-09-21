@@ -110,6 +110,8 @@ def _ui_arguments(args: argparse.Namespace) -> list[str]:
     ]
     for origin in sorted(args.origins):
         values.extend(["--origin", origin])
+    if getattr(args, "acceptance_tray_exit", False):
+        values.append("--acceptance-tray-exit")
     return values
 
 
@@ -282,6 +284,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--install-rc-runtime", choices=("whisper", "qwen"), help=argparse.SUPPRESS)
     mode.add_argument("--installed-acceptance", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--startup", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--acceptance-tray-exit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--state-root", type=Path, default=paths.state_root)
     parser.add_argument("--data-root", type=Path, default=paths.data_root)
     parser.add_argument("--logs-root", type=Path, default=paths.logs_root)
@@ -323,6 +326,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error(str(exc))
     if args.headless:
         args.agent = True
+    if args.acceptance_tray_exit and not args.ui:
+        parser.error("ACCEPTANCE_TRAY_EXIT_REQUIRES_UI")
     return args
 
 
@@ -471,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
             settings=settings,
             executable=executable,
             start_agent=lambda: ensure_agent_running(args),
+            acceptance_tray_exit=args.acceptance_tray_exit,
         )
         return 0
     except BaseException as exc:
