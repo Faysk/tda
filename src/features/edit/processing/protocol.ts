@@ -122,7 +122,7 @@ export type ResultSummary = {
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
-	profileId: TranscriptionProfileId;
+	profileId: string;
 	engine: string | null;
 	model: string | null;
 	modelRevision: string | null;
@@ -158,7 +158,7 @@ export type LocalReview = {
 	createdAt: string;
 	updatedAt: string;
 	lineage: {
-		profileId: TranscriptionProfileId;
+		profileId: string;
 		engine: string | null;
 		model: string | null;
 		modelRevision: string | null;
@@ -570,14 +570,18 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		return {
 			runId: runIdentifier(item.run_id),
 			sourceId,
-			profileId: transcriptionProfile(item.profile_id),
+			profileId: text(item.profile_id, 64),
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),
 			modelRevision: nullableText(item.model_revision, 256),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
 			transcriptSha256: sha256(item.transcript_sha256),
-			transcriptSizeBytes: nonNegativeInteger(item.transcript_size_bytes),
+			transcriptSizeBytes: (() => {
+				const size = nonNegativeInteger(item.transcript_size_bytes);
+				if (size < 1) return invalid();
+				return size;
+			})(),
 			stats: {
 				processingSeconds: nullableMetric(stats.processing_seconds),
 				rtf: nullableMetric(stats.rtf),
@@ -606,8 +610,10 @@ export function parseLocalReview(value: unknown): LocalReview {
 		const start = nonNegativeNumber(segment.start);
 		const end = nonNegativeNumber(segment.end);
 		if (end < start) return invalid();
+		const trackNumber = nonNegativeInteger(segment.track_number);
+		if (trackNumber < 1) return invalid();
 		return {
-			trackNumber: nonNegativeInteger(segment.track_number),
+			trackNumber,
 			segmentId: contentText(segment.segment_id, 256),
 			start,
 			end,
@@ -632,7 +638,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		lineage: {
-			profileId: transcriptionProfile(lineage.profile_id),
+			profileId: text(lineage.profile_id, 64),
 			engine: nullableText(lineage.engine, 64),
 			model: nullableText(lineage.model, 256),
 			modelRevision: nullableText(lineage.model_revision, 256),
