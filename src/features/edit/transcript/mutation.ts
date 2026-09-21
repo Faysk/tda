@@ -16,6 +16,7 @@ const CAMPAIGN_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/u;
 export type TranscriptMutationRequest = Readonly<{
 	authUserId: string | null;
 	campaignSlug: string;
+	sessionId: string;
 	segmentId: string;
 	expectedRevision: unknown;
 	text: unknown;
@@ -26,12 +27,14 @@ export type TranscriptMutationRequest = Readonly<{
 export type TranscriptMutationValidationIssue =
 	| TranscriptEditIssue
 	| "campaign_invalid"
+	| "session_id_invalid"
 	| "segment_id_invalid"
 	| "expected_revision_invalid";
 
 export type TranscriptMutationPersistenceInput = Readonly<{
 	actorProfileId: string;
 	campaignSlug: string;
+	expectedSessionId: string;
 	segmentId: string;
 	expectedRevision: number;
 	edit: PreparedTranscriptEdit;
@@ -53,7 +56,11 @@ export type TranscriptMutationDependencies = Readonly<{
 }>;
 
 export type TranscriptMutationResult =
-	| Readonly<{ ok: true; revision: number }>
+	| Readonly<{
+			ok: true;
+			revision: number;
+			segment: PreparedTranscriptEdit;
+	  }>
 	| Readonly<{ ok: false; reason: "unauthenticated" }>
 	| Readonly<{ ok: false; reason: "profile_unresolved" }>
 	| Readonly<{ ok: false; reason: "forbidden" }>
@@ -77,6 +84,9 @@ export async function mutateTranscriptSegment(
 	const issues: TranscriptMutationValidationIssue[] = [];
 	if (!CAMPAIGN_SLUG_PATTERN.test(request.campaignSlug)) {
 		issues.push("campaign_invalid");
+	}
+	if (!UUID_PATTERN.test(request.sessionId)) {
+		issues.push("session_id_invalid");
 	}
 	if (!UUID_PATTERN.test(request.segmentId)) {
 		issues.push("segment_id_invalid");
@@ -120,6 +130,7 @@ export async function mutateTranscriptSegment(
 	const persistence = await dependencies.persist({
 		actorProfileId: access.profileId,
 		campaignSlug: request.campaignSlug,
+		expectedSessionId: request.sessionId,
 		segmentId: request.segmentId,
 		expectedRevision,
 		edit: prepared.value,
@@ -127,7 +138,11 @@ export async function mutateTranscriptSegment(
 
 	switch (persistence.status) {
 		case "updated":
-			return { ok: true, revision: persistence.revision };
+			return {
+				ok: true,
+				revision: persistence.revision,
+				segment: prepared.value,
+			};
 		case "conflict":
 			return { ok: false, reason: "conflict" };
 		case "not_found":
