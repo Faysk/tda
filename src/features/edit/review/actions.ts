@@ -29,7 +29,8 @@ function knownFailure(reason: unknown) {
 		reason === "invalid_payload" ||
 		reason === "invalid_state" ||
 		reason === "conflict" ||
-		reason === "not_found"
+		reason === "not_found" ||
+		reason === "source_required"
 	);
 }
 
