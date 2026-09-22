@@ -191,8 +191,8 @@ export default async function NarrativeReviewPage({
 										</summary>
 										{candidate.sources.length ? (
 											<ul>
-												{candidate.sources.map((source, index) => (
-													<li key={source.kind + "-" + index}>
+												{candidate.sources.map((source) => (
+													<li key={source.key}>
 														<p className={styles.sourceMeta}>
 															<strong>{source.label}</strong>
 															{" · "}
