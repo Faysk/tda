@@ -144,6 +144,7 @@ try:
             *(repo / "supabase/migrations").glob("*_world_relation_provenance_*.sql"),
             *(repo / "supabase/migrations").glob("*_approve_canon_candidate_atomic.sql"),
             *(repo / "supabase/migrations").glob("*_review_canon_candidate_atomic.sql"),
+            *(repo / "supabase/migrations").glob("*_harden_canon_approval_source.sql"),
         ]
     )
     paths = [
