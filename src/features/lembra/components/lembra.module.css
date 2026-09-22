@@ -1170,12 +1170,38 @@
 	font-size: 0.74rem;
 }
 
+.uploadProgress,
 .uploadTrack {
-	position: relative;
+	width: 100%;
 	height: 4px;
 	overflow: hidden;
+	border: 0;
 	border-radius: 999px;
 	background: color-mix(in srgb, var(--ds-border) 72%, transparent);
+}
+
+.uploadProgress {
+	display: block;
+	appearance: none;
+}
+
+.uploadProgress::-webkit-progress-bar {
+	border-radius: inherit;
+	background: color-mix(in srgb, var(--ds-border) 72%, transparent);
+}
+
+.uploadProgress::-webkit-progress-value {
+	border-radius: inherit;
+	background: var(--ds-accent);
+}
+
+.uploadProgress::-moz-progress-bar {
+	border-radius: inherit;
+	background: var(--ds-accent);
+}
+
+.uploadTrack {
+	position: relative;
 }
 
 .uploadTrackFill {
