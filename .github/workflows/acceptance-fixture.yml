@@ -714,7 +714,7 @@ jobs:
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/RUN-final-current-source-acceptance.cmd"
           )) {
-            $expected = (git rev-parse "$env:GITHUB_SHA\`:$relative").Trim()
+            $expected = (git rev-parse "$env:GITHUB_SHA`:$relative").Trim()
             $materialized = Join-Path $out ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
             $actual = (git hash-object --no-filters $materialized).Trim()
             if ($expected -ne $actual) { throw "HANDOFF_EXACT_BLOB_MISMATCH:$relative" }
