@@ -28,6 +28,12 @@ const labels: Record<string, string> = {
 	"campaign.audio.read": "Ouvir áudio local",
 
 	"campaign.read": "Ler material autorizado da campanha",
+
+	"campaign.world.layout.edit": "Editar composição do Mundo",
+
+	"narrative.review.read": "Revisar candidatos narrativos",
+
+	"narrative.canon.approve": "Aprovar cânone",
 };
 
 const statuses: Record<string, string> = {

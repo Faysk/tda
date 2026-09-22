@@ -6,6 +6,7 @@ export const EDIT_CAPABILITIES = {
 	transcriptImport: "campaign.transcript.import",
 	transcriptPublish: "campaign.transcript.publish",
 	worldLayoutEdit: "campaign.world.layout.edit",
+	reviewRead: "narrative.review.read",
 	canonApprove: "narrative.canon.approve",
 } as const;
 
