@@ -7,6 +7,8 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
+      - "tools/acceptance/export-final-current-source-handoff.ps1"
+      - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
@@ -16,6 +18,8 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
+      - "tools/acceptance/export-final-current-source-handoff.ps1"
+      - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -40,6 +44,7 @@ jobs:
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
+            "tools/acceptance/export-final-current-source-handoff.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -694,4 +699,39 @@ jobs:
             }
           } finally {
             $zip.Dispose()
+          }
+
+      - name: Verify binary-safe final handoff export
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $out = Join-Path $env:RUNNER_TEMP "tda-final-handoff"
+          & pwsh.exe -NoProfile -File "tools/acceptance/export-final-current-source-handoff.ps1" -HarnessRef $env:GITHUB_SHA -OutputDirectory $out
+          if ($LASTEXITCODE -ne 0) { throw "HANDOFF_EXPORT_FAILED" }
+
+          foreach ($relative in @(
+            "tools/acceptance/run-final-current-source-acceptance.ps1",
+            "tools/acceptance/generate-physical-acceptance-fixture.ps1",
+            "tools/acceptance/RUN-final-current-source-acceptance.cmd"
+          )) {
+            $expected = (git rev-parse "$env:GITHUB_SHA\`:$relative").Trim()
+            $materialized = Join-Path $out ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
+            $actual = (git hash-object --no-filters $materialized).Trim()
+            if ($expected -ne $actual) { throw "HANDOFF_EXACT_BLOB_MISMATCH:$relative" }
+          }
+
+          $fixture = Join-Path $out "tools\acceptance\generate-physical-acceptance-fixture.ps1"
+          $bytes = [IO.File]::ReadAllBytes($fixture)
+          if (@($bytes | Where-Object { $_ -gt 127 }).Count -eq 0) {
+            throw "HANDOFF_NON_ASCII_REGRESSION_COVERAGE_MISSING"
+          }
+
+          $launcher = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\RUN-final-current-source-acceptance.cmd") -Raw
+          if (-not $launcher.Contains("pwsh.exe -NoProfile -ExecutionPolicy Bypass")) {
+            throw "HANDOFF_CMD_EXECUTION_POLICY_BYPASS_MISSING"
+          }
+
+          $manifest = Get-Content -LiteralPath (Join-Path $out "HANDOFF-MANIFEST.json") -Raw | ConvertFrom-Json
+          if ([string]$manifest.schema -ne "tda_acceptance_handoff_v1" -or [string]$manifest.source_sha -ne $env:GITHUB_SHA) {
+            throw "HANDOFF_MANIFEST_IDENTITY_INVALID"
           }
