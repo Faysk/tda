@@ -51,6 +51,7 @@ jobs:
       R2_PRIVATE_SECRET_ACCESS_KEY: ${{ secrets.R2_PRIVATE_SECRET_ACCESS_KEY }}
       R2_PRIVATE_BUCKET: tda-media-private
       TDA_LEMBRA_ENABLED: "true"
+      TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -172,6 +173,10 @@ jobs:
             [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for media release"; exit 1; }
           fi
 
+          [[ -n "${R2_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_ACCESS_KEY_ID for World Media runtime"; exit 1; }
+          [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_SECRET_ACCESS_KEY for World Media runtime"; exit 1; }
+          [[ "$R2_PUBLIC_BUCKET" == "tda-media-public" ]] || { echo "::error::Invalid R2 public bucket for World Media runtime"; exit 1; }
+
           [[ -n "${R2_ACCOUNT_ID:-}" ]] || { echo "::error::Missing R2_ACCOUNT_ID for Lembra runtime"; exit 1; }
           [[ -n "${R2_PRIVATE_ACCESS_KEY_ID:-}" ]] || { echo "::error::Missing R2_PRIVATE_ACCESS_KEY_ID for Lembra runtime"; exit 1; }
           [[ -n "${R2_PRIVATE_SECRET_ACCESS_KEY:-}" ]] || { echo "::error::Missing R2_PRIVATE_SECRET_ACCESS_KEY for Lembra runtime"; exit 1; }
@@ -206,6 +211,7 @@ jobs:
           APP_COMMIT_SHA: ${{ steps.source.outputs.sha }}
           TDA_RELEASE_ID: ${{ steps.source.outputs.release }}
           TDA_LEMBRA_ENABLED: "true"
+          TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Start staged Production artifact without domain traffic
@@ -221,7 +227,11 @@ jobs:
             --env APP_COMMIT_SHA="$SOURCE_SHA" \
             --env TDA_RELEASE_ID="$RELEASE_ID" \
             --env TDA_LEMBRA_ENABLED=true \
+            --env TDA_WORLD_ENTITY_MEDIA_ENABLED=true \
             --env R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
+            --env R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+            --env R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            --env R2_PUBLIC_BUCKET="$R2_PUBLIC_BUCKET" \
             --env R2_PRIVATE_ACCESS_KEY_ID="$R2_PRIVATE_ACCESS_KEY_ID" \
             --env R2_PRIVATE_SECRET_ACCESS_KEY="$R2_PRIVATE_SECRET_ACCESS_KEY" \
             --env R2_PRIVATE_BUCKET="$R2_PRIVATE_BUCKET" | tail -n 1)"
@@ -281,6 +291,15 @@ jobs:
               exit 1
             fi
           fi
+          WORLD_MEDIA_STATUS="$(vercel curl /api/world/entity-media/11111111-1111-4111-8111-111111111111 --deployment "$DEPLOYMENT_URL" --silent --show-error --output world-media-staged.bin --write-out '%{http_code}')"
+          if [[ "$WORLD_MEDIA_STATUS" != "401" ]]; then
+            echo "::error::Expected enabled World Media staged route to fail closed at auth with HTTP 401, got $WORLD_MEDIA_STATUS"
+            exit 1
+          fi
+          if [[ -s world-media-staged.bin ]]; then
+            echo "::error::World Media unauthenticated staged probe returned an unexpected body"
+            exit 1
+          fi
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("health.json", "utf8"));
@@ -313,6 +332,15 @@ jobs:
               echo "::error::Expected authenticated Lembra canonical request to redirect to login, got HTTP $LEMBRA_STATUS"
               exit 1
             fi
+          fi
+          WORLD_MEDIA_STATUS="$(curl --silent --show-error --output world-media-canonical.bin --write-out '%{http_code}' "$PRODUCTION_ORIGIN/api/world/entity-media/11111111-1111-4111-8111-111111111111")"
+          if [[ "$WORLD_MEDIA_STATUS" != "401" ]]; then
+            echo "::error::Expected enabled World Media canonical route to fail closed at auth with HTTP 401, got $WORLD_MEDIA_STATUS"
+            exit 1
+          fi
+          if [[ -s world-media-canonical.bin ]]; then
+            echo "::error::World Media unauthenticated canonical probe returned an unexpected body"
+            exit 1
           fi
 
       - name: Record tiny release receipt
