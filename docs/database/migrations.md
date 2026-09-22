@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados/Supabase
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-22
 > Fonte: migration history do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Princípio
@@ -322,6 +322,42 @@ Validação reconciliada:
 - `tools/world-layout-db.py` aplica os quatro arquivos reconciliados em PostgreSQL 16 sintético e testa grant, ausência de assignment automático, autorização/scope, payload, revision/conflict/no-op e rollback em falha do audit.
 
 Contrato arquitetural: [ADR-0011](../adr/0011-world-explorer-layout-physical-persistence.md).
+
+## Rollout preparado — publicação versionada de transcrições
+
+### `20260922133000_transcript_publication_revisions`
+
+**Estado:** migration versionada e validada em PostgreSQL 16 sintético; **ainda não aplicada no Supabase canônico** neste changeset.
+
+Objetivo:
+
+- persistir revisões completas e imutáveis de transcrição por sessão;
+- manter um ponteiro `sessions.current_transcript_revision_id` para a revisão editorial atualmente publicada;
+- registrar receipts idempotentes de publicação e eventos leves de publish/replace/restore/unpublish;
+- expor as mutations somente por RPCs `SECURITY INVOKER` com `EXECUTE` de browser revogado;
+- definir `campaign.transcript.publish` e concedê-la somente ao role narrativo existente `site_editor`, sem criar ou ampliar assignment de usuário/perfil.
+
+Segurança e escopo:
+
+- `transcript_revisions`, `transcript_publication_receipts` e `transcript_publication_events` têm RLS habilitado;
+- `anon` e `authenticated` não recebem acesso direto nem EXECUTE nas RPCs;
+- autorização é resolvida por profile + assignment ativo + capability + scope da campaign antes de revelar existência do alvo;
+- o grant novo reutiliza o role `site_editor` já existente e preserva seus scopes/assignments atuais;
+- publicação não altera o transcript operacional bruto; cria uma revisão editorial imutável e move somente o ponteiro corrente.
+
+Validação antes do rollout remoto:
+
+- `tools/transcript-sync-db.py` aplica a migration versionada no scratch PostgreSQL, em vez de testar somente o candidate histórico;
+- `supabase/tests/transcript_publication_revisions.sql` cobre deny-by-default, ausência de oracle cross-campaign, publish inicial, retry/read-back idempotente, conflito por operation id divergente, replace preservando histórico, rollback transacional, restore e unpublish;
+- o fixture RBAC prova que `site_editor` recebe `campaign.transcript.publish` e que a migration não cria qualquer `role_assignment`;
+- o candidate histórico `supabase/candidates/20260921021000_transcript_publication_revisions.sql` permanece preservado como evidência de revisão e não é renomeado para simular migration nova.
+
+Rollout:
+
+- aplicar somente pelo gate normal de Production, com migration history/read-back e advisors após aplicação;
+- manter `TDA_TRANSCRIPT_PUBLICATION_ENABLED=false` até schema, grants e RPCs remotos estarem confirmados;
+- ativar runtime somente depois do smoke controlado de publicação/retry/restore em sessão autorizada;
+- rollback lógico após ativação começa desligando a flag; não apagar revisões/receipts para simular rollback.
 
 ## Candidato — biblioteca compartilhada Lembra
 

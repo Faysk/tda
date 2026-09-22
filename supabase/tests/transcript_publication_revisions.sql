@@ -127,6 +127,29 @@ begin
 end;
 $$;
 
+do $grant$
+begin
+  if not exists (
+    select 1
+    from public.role_permissions rp
+    join public.role_definitions rd on rd.id = rp.role_id
+    where rd.slug = 'site_editor'
+      and rd.plane = 'narrative'
+      and rp.permission_action = 'campaign.transcript.publish'
+  ) then
+    raise exception 'PUBLICATION_SITE_EDITOR_GRANT_MISSING';
+  end if;
+
+  if exists (
+    select 1
+    from public.role_assignments ra
+    where ra.role_id = '66666666-6666-4666-8666-666666666666'::uuid
+  ) then
+    raise exception 'PUBLICATION_ROLLOUT_CREATED_USER_ASSIGNMENT';
+  end if;
+end;
+$grant$;
+
 insert into public.role_permissions(role_id, permission_action)
 values (
   '55555555-5555-4555-8555-555555555555',
