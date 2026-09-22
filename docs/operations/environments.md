@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-22
 > Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
 Este documento define os ambientes do TDA, seus limites de dados/secrets e o relacionamento com providers substituíveis.
@@ -127,6 +127,8 @@ R2_PRIVATE_SECRET_ACCESS_KEY
 O par privado é dedicado ao token `tda-github-production-private-media-storage` e a `tda-media-private`.
 
 O **Lembra** é o primeiro consumidor de runtime desse boundary privado. Os secrets `R2_ACCOUNT_ID`, `R2_PRIVATE_ACCESS_KEY_ID` e `R2_PRIVATE_SECRET_ACCESS_KEY` permanecem no GitHub Environment `production`; o Production CD os injeta somente no deployment staged por `vercel deploy --env`, junto de `R2_PRIVATE_BUCKET=tda-media-private` e `TDA_LEMBRA_ENABLED=true`. O artefato só é promovido após migrations e smoke passarem.
+
+O **World Entity Media** passa a usar o mesmo boundary privado para staging e preview autenticado, mas também precisa da credencial pública para promoção explícita de portraits `public_web`. O Production CD injeta server-side `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BUCKET=tda-media-public` e `TDA_WORLD_ENTITY_MEDIA_ENABLED=true` somente no artefato staged. Antes do promote, o smoke exige que uma rota World Media sintaticamente válida alcance o boundary de autenticação e responda 401 sem corpo para visitante anônimo; isso prova flag ativa + fail-closed sem criar asset. O smoke positivo autenticado de upload/finalize/publish permanece uma evidência operacional separada porque exige uma lease editorial real.
 
 Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 
