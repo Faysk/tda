@@ -6,6 +6,7 @@ import {
 } from "@/components/global-loading";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
+import { PublicNav } from "@/components/public-nav";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SITE_NAME } from "@/config/public-metadata";
@@ -65,17 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							</span>
 						</Link>
 						<div className="header-actions">
-							<nav aria-label="Navegação principal">
-								<Link href="/sessoes">Sessões</Link>
-								<Link href="/lembra">Lembra</Link>
-								<Link className="lore-nav-link" href="/lore">
-									Lores
-								</Link>
-								<Link className="world-nav-link" href="/mundo">
-									Mundo
-								</Link>
-								<Link href="/conta">Minha conta</Link>
-							</nav>
+							<PublicNav />
 							<ThemeToggle />
 						</div>
 					</header>

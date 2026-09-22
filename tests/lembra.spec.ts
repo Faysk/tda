@@ -5,6 +5,11 @@ const PNG_1X1 = Buffer.from(
 	"base64",
 );
 
+const PNG_10X20 = Buffer.from(
+	"iVBORw0KGgoAAAANSUhEUgAAAAoAAAAUCAIAAAA7jDsBAAAAFklEQVR4nGP8z4APMOGVHZUelSZBGgCbjwEn5TWqQAAAAABJRU5ErkJggg==",
+	"base64",
+);
+
 async function addReference(
 	page: import("@playwright/test").Page,
 	title: string,
@@ -27,10 +32,9 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
-	await expect(page.getByRole("link", { name: "Lembra", exact: true })).toHaveAttribute(
-		"href",
-		"/lembra",
-	);
+	const topLembra = page.getByRole("link", { name: "Lembra", exact: true });
+	await expect(topLembra).toHaveAttribute("href", "/lembra");
+	await expect(topLembra).toHaveAttribute("aria-current", "page");
 	await expect(
 		page.getByPlaceholder("Buscar título, descrição, autor ou data..."),
 	).toBeVisible();
@@ -303,6 +307,40 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 	const viewerImage = page.getByAltText("Referência visual: Quadrada");
 	await expect(viewerImage).toBeVisible();
 	expect(await viewerImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+});
+
+test("Lembra viewer fits a portrait image without cropping its source frame", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto("/lembra");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "vertical.png",
+		mimeType: "image/png",
+		buffer: PNG_10X20,
+	});
+
+	const composer = page.getByRole("dialog");
+	await composer.getByLabel("Nome").fill("Vertical");
+	await composer.getByRole("button", { name: "Guardar", exact: true }).click();
+	await expect(composer).not.toBeVisible();
+
+	await page.getByRole("button", { name: "Vertical", exact: true }).click();
+	const viewerImage = page.getByAltText("Referência visual: Vertical");
+	await expect(viewerImage).toBeVisible();
+
+	const media = viewerImage.locator("..");
+	const imageBox = await viewerImage.boundingBox();
+	const mediaBox = await media.boundingBox();
+	expect(imageBox).not.toBeNull();
+	expect(mediaBox).not.toBeNull();
+
+	const renderedRatio = (imageBox?.width ?? 0) / Math.max(1, imageBox?.height ?? 1);
+	expect(Math.abs(renderedRatio - 0.5)).toBeLessThan(0.03);
+	expect((imageBox?.width ?? 0)).toBeLessThanOrEqual((mediaBox?.width ?? 0) + 1);
+	expect((imageBox?.height ?? 0)).toBeLessThanOrEqual((mediaBox?.height ?? 0) + 1);
+
+	const imageCenter = (imageBox?.x ?? 0) + (imageBox?.width ?? 0) / 2;
+	const mediaCenter = (mediaBox?.x ?? 0) + (mediaBox?.width ?? 0) / 2;
+	expect(Math.abs(imageCenter - mediaCenter)).toBeLessThan(2);
 });
 
 test("Lembra mobile viewer exposes one clear close action", async ({ page }) => {
