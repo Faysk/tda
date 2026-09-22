@@ -327,3 +327,49 @@ Não transformar warning do advisor em alteração automática. O objetivo é **
 ## Candidato: `import_transcript_bundle_atomic`
 
 `public.import_transcript_bundle_atomic(uuid,uuid,jsonb,boolean)` é candidato service-only `SECURITY INVOKER`, search_path `pg_catalog, public`, sem `EXECUTE` para `PUBLIC`/`anon`/`authenticated`. Revalida operador/profile, action explícita, scope e origem da sessão; grava segmentos/recibo/audit juntos ou consulta recibo. Não aplicado e não selecionado pelo endpoint produtivo. Contrato e rollback em [importação local](../integrations/transcript-import.md).
+
+
+## RPCs server-only de review/canon — Review Board
+
+### `approve_canon_candidate_atomic(uuid,uuid,text,uuid,text)`
+
+Boundary de aprovação humana final do Review Board.
+
+Contrato:
+
+- identity binding `auth_user_id -> profile_id`;
+- exige `narrative.canon.approve` no scope da campaign ou `project/tda`;
+- autorização ocorre antes do lookup do target;
+- candidate precisa pertencer a uma sessão da campaign;
+- candidate precisa possuir ao menos uma fonte física resolvível na mesma sessão (`transcript_segments` ou `roll20_events`);
+- cria uma única `canon_entry` ativa com `visibility=review_only`;
+- registra `review_decisions` e `audit_log` atomically;
+- replay da mesma aprovação retorna `unchanged`;
+- não publica no site, não muda relation audience e não conecta provenance do World automaticamente.
+
+Segurança:
+
+- `SECURITY DEFINER`;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
+- `service_role`: com `EXECUTE`.
+
+### `review_canon_candidate_atomic(uuid,uuid,text,uuid,text,text)`
+
+Boundary de triagem humana que deliberadamente **não cria canon**.
+
+Contrato:
+
+- exige `narrative.review.manage`;
+- aceita somente `rejected | interpretation | possible_hook | retcon_pending | private`;
+- rejeita `approved_canon`, que permanece no boundary de autoridade superior;
+- atualiza o status do candidate e registra uma `review_decision` + audit metadata-only na mesma transação;
+- retry da mesma decisão é idempotente quando a decisão registrada já existe;
+- conflito com um estado diferente falha fechado.
+
+Segurança planejada para rollout:
+
+- `SECURITY DEFINER`;
+- `search_path = pg_catalog, public`;
+- browser roles sem `EXECUTE`;
+- somente `service_role`.
