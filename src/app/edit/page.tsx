@@ -42,6 +42,12 @@ const MODULES: readonly EditModule[] = [
 		capability: EDIT_CAPABILITIES.worldLayoutEdit,
 	},
 	{
+		title: "Revisão narrativa",
+		description: "Revise candidatos antes de qualquer entrada no cânone da campanha.",
+		href: "/edit/revisao",
+		capability: EDIT_CAPABILITIES.reviewRead,
+	},
+	{
 		title: "Permissões",
 		description: "Consulte quem tem acesso e quais ações estão liberadas na campanha.",
 		href: `/edit/${CAMPAIGN_SLUG}/permissions`,
