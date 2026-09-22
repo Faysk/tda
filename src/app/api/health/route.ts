@@ -7,6 +7,9 @@ export function GET() {
 				process.env.APP_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || null,
 			environment:
 				process.env.APP_ENV || process.env.VERCEL_ENV || "development",
+			features: {
+				transcriptPublication: process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true",
+			},
 		},
 		{ headers: { "Cache-Control": "no-store" } },
 	);
