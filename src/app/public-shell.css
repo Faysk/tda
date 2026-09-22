@@ -94,6 +94,15 @@ footer {
 		transform var(--ds-motion-base) var(--ds-ease-soft);
 }
 
+.site-header nav a[aria-current="page"] {
+	color: var(--ds-foreground);
+}
+
+.site-header nav a[aria-current="page"]::after {
+	opacity: 0.9;
+	transform: scaleX(1);
+}
+
 @media (hover: hover) and (pointer: fine) {
 	.site-header nav a:hover {
 		color: var(--ds-foreground);
