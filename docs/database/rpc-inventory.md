@@ -342,6 +342,7 @@ Contrato:
 - autorização ocorre antes do lookup do target;
 - candidate precisa pertencer a uma sessão da campaign;
 - candidate precisa possuir ao menos uma fonte física resolvível na mesma sessão (`transcript_segments` ou `roll20_events`);
+- esse source gate prova existência/provenance, não concede leitura do conteúdo: transcript continua condicionado a `campaign.transcript.read` na aplicação e Roll20 não expõe payload/texto pelo Review Board;
 - cria uma única `canon_entry` ativa com `visibility=review_only`;
 - registra `review_decisions` e `audit_log` atomically;
 - replay da mesma aprovação retorna `unchanged`;
