@@ -1,41 +1,37 @@
 import "server-only";
 
 import {
+	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
 	PutObjectCommand,
 	type S3Client,
 } from "@aws-sdk/client-s3";
-import { mediaClient, mediaConnectionConfig } from "@/integrations/r2/server";
+import { mediaClient, privateMediaClient } from "@/integrations/r2/server";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
+	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
 	WORLD_ENTITY_MEDIA_PRIVATE_BUCKET,
 	WORLD_ENTITY_MEDIA_PREVIEW_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
 	WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS,
 	type WorldEntityMediaMime,
+	worldEntityMediaUploadChunkCount,
 	worldEntityPortraitObjectKey,
-	worldEntityPortraitPendingObjectKey,
+	worldEntityPortraitPendingChunkObjectKey,
 } from "./world-entity-media";
 import {
 	inspectWorldEntityImage,
 	type WorldEntityImageInfo,
 	worldEntityMediaSha256,
 } from "./world-entity-media-image";
-import { presignR2PutObject, type R2PresignedPut } from "./world-entity-media-presign";
 
 export type VerifiedWorldEntityUpload = WorldEntityImageInfo &
 	Readonly<{
 		bucket: string;
 		objectKey: string;
 		readBackVerified: true;
-	}>;
-
-export type PresignedWorldEntityUpload = R2PresignedPut &
-	Readonly<{
-		bucket: string;
-		pendingObjectKey: string;
 	}>;
 
 type S3ResponseError = Readonly<{
@@ -79,6 +75,10 @@ export function worldEntityMediaStagingBucket(): string {
 	return configured;
 }
 
+function stagingClient(): S3Client {
+	return process.env.VERCEL_ENV === "production" ? privateMediaClient() : mediaClient();
+}
+
 function publicBucket(): string {
 	if (process.env.R2_PUBLIC_BUCKET !== WORLD_ENTITY_MEDIA_PUBLIC_BUCKET) {
 		failure("PUBLIC_BUCKET_MISMATCH");
@@ -90,12 +90,16 @@ async function objectBytes(
 	client: S3Client,
 	bucket: string,
 	objectKey: string,
+	{
+		minBytes = 24,
+		maxBytes = WORLD_ENTITY_MEDIA_MAX_BYTES,
+	}: { minBytes?: number; maxBytes?: number } = {},
 ): Promise<Uint8Array> {
 	const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: objectKey }));
 	if (
 		typeof head.ContentLength !== "number" ||
-		head.ContentLength < 24 ||
-		head.ContentLength > WORLD_ENTITY_MEDIA_MAX_BYTES
+		head.ContentLength < minBytes ||
+		head.ContentLength > maxBytes
 	) {
 		failure("R2_INVALID_SIZE");
 	}
@@ -103,8 +107,8 @@ async function objectBytes(
 	if (!result.Body) failure("R2_EMPTY_BODY");
 	if (
 		typeof result.ContentLength !== "number" ||
-		result.ContentLength < 24 ||
-		result.ContentLength > WORLD_ENTITY_MEDIA_MAX_BYTES ||
+		result.ContentLength < minBytes ||
+		result.ContentLength > maxBytes ||
 		result.ContentLength !== head.ContentLength
 	) {
 		failure("R2_LENGTH_MISMATCH");
@@ -172,48 +176,42 @@ async function putImmutableObject({
 	}
 }
 
-/**
- * Creates a short-lived PUT bearer URL for a unique pending key. The browser
- * never receives R2 credentials and never writes the canonical content-addressed
- * portrait key directly. Finalization re-reads and validates the bytes first.
- */
-export function presignWorldEntityPortraitPendingUpload({
+export async function writeWorldEntityPortraitPendingUploadChunk({
 	campaignSlug,
 	entityId,
 	uploadId,
 	sha256,
-	mimeType,
+	part,
+	bytes,
 }: {
 	campaignSlug: string;
 	entityId: string;
 	uploadId: string;
 	sha256: string;
-	mimeType: WorldEntityMediaMime;
-}): PresignedWorldEntityUpload {
-	const extension = mimeType === "image/png" ? "png" : "webp";
-	const pendingObjectKey = worldEntityPortraitPendingObjectKey({
+	part: number;
+	bytes: Uint8Array;
+}): Promise<void> {
+	const objectKey = worldEntityPortraitPendingChunkObjectKey({
 		campaignSlug,
 		entityId,
 		uploadId,
 		sha256,
-		extension,
+		part,
 	});
-	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
-	const bucket = worldEntityMediaStagingBucket();
-	const { accountId, accessKeyId, secretAccessKey } = mediaConnectionConfig();
-	return {
-		...presignR2PutObject({
-			accountId,
-			bucket,
-			objectKey: pendingObjectKey,
-			accessKeyId,
-			secretAccessKey,
-			contentType: mimeType,
-			expiresIn: WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS,
+	if (!objectKey) failure("INVALID_PENDING_CHUNK_KEY");
+	if (bytes.length < 1 || bytes.length > WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES) {
+		failure("INVALID_CHUNK_SIZE");
+	}
+	await stagingClient().send(
+		new PutObjectCommand({
+			Bucket: worldEntityMediaStagingBucket(),
+			Key: objectKey,
+			Body: bytes,
+			ContentType: "application/octet-stream",
+			ContentLength: bytes.length,
+			CacheControl: "private, no-store",
 		}),
-		bucket,
-		pendingObjectKey,
-	};
+	);
 }
 
 /**
@@ -237,19 +235,37 @@ export async function finalizeWorldEntityPortraitPendingUpload({
 	expectedMimeType: WorldEntityMediaMime;
 	expectedBytes: number;
 }): Promise<VerifiedWorldEntityUpload> {
-	const extension = expectedMimeType === "image/png" ? "png" : "webp";
-	const pendingObjectKey = worldEntityPortraitPendingObjectKey({
-		campaignSlug,
-		entityId,
-		uploadId,
-		sha256: expectedSha256,
-		extension,
-	});
-	if (!pendingObjectKey) failure("INVALID_PENDING_OBJECT_KEY");
+	const chunkCount = worldEntityMediaUploadChunkCount(expectedBytes);
+	if (!chunkCount) failure("INVALID_UPLOAD_SIZE");
 
 	const bucket = worldEntityMediaStagingBucket();
-	const client = mediaClient();
-	const bytes = await objectBytes(client, bucket, pendingObjectKey);
+	const client = stagingClient();
+	const bytes = new Uint8Array(expectedBytes);
+	const chunkKeys: string[] = [];
+	let offset = 0;
+	for (let part = 0; part < chunkCount; part += 1) {
+		const objectKey = worldEntityPortraitPendingChunkObjectKey({
+			campaignSlug,
+			entityId,
+			uploadId,
+			sha256: expectedSha256,
+			part,
+		});
+		if (!objectKey) failure("INVALID_PENDING_CHUNK_KEY");
+		const expectedPartBytes = Math.min(
+			WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
+			expectedBytes - offset,
+		);
+		const chunk = await objectBytes(client, bucket, objectKey, {
+			minBytes: expectedPartBytes,
+			maxBytes: expectedPartBytes,
+		});
+		bytes.set(chunk, offset);
+		offset += chunk.length;
+		chunkKeys.push(objectKey);
+	}
+	if (offset !== expectedBytes) failure("UPLOAD_LENGTH_MISMATCH");
+
 	const info = inspectWorldEntityImage(bytes);
 	if (
 		info.sha256 !== expectedSha256 ||
@@ -274,6 +290,9 @@ export async function finalizeWorldEntityPortraitPendingUpload({
 		info,
 		cacheControl: "private, no-store",
 	});
+	await Promise.allSettled(
+		chunkKeys.map((key) => client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))),
+	);
 	return { ...info, bucket, objectKey, readBackVerified: true };
 }
 
@@ -299,7 +318,7 @@ export async function uploadWorldEntityPortrait({
 	});
 	if (!objectKey) failure("INVALID_OBJECT_KEY");
 	const bucket = worldEntityMediaStagingBucket();
-	const client = mediaClient();
+	const client = stagingClient();
 	await putImmutableObject({
 		client,
 		bucket,
@@ -337,7 +356,7 @@ export async function verifyWorldEntityPortraitObject({
 	});
 	if (!objectKey) failure("INVALID_OBJECT_KEY");
 	const bucket = worldEntityMediaStagingBucket();
-	const bytes = await objectBytes(mediaClient(), bucket, objectKey);
+	const bytes = await objectBytes(stagingClient(), bucket, objectKey);
 	const info = inspectWorldEntityImage(bytes);
 	if (
 		info.sha256 !== expectedSha256 ||
@@ -362,7 +381,8 @@ export async function readWorldEntityMediaObject({
 		WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	]);
 	if (!allowed.has(bucket)) failure("BUCKET_NOT_ALLOWED");
-	return objectBytes(mediaClient(), bucket, objectKey);
+	const client = bucket === WORLD_ENTITY_MEDIA_PRIVATE_BUCKET ? privateMediaClient() : mediaClient();
+	return objectBytes(client, bucket, objectKey);
 }
 
 export async function promoteWorldEntityPortrait({
@@ -392,8 +412,8 @@ export async function promoteWorldEntityPortrait({
 	});
 	if (!expectedObjectKey || objectKey !== expectedObjectKey) failure("OBJECT_SCOPE_MISMATCH");
 
-	const client = mediaClient();
-	const bytes = await objectBytes(client, stagedBucket, objectKey);
+	const stagedClient = stagedBucket === WORLD_ENTITY_MEDIA_PRIVATE_BUCKET ? privateMediaClient() : mediaClient();
+	const bytes = await objectBytes(stagedClient, stagedBucket, objectKey);
 	const inspected = inspectWorldEntityImage(bytes);
 	if (
 		inspected.sha256 !== info.sha256 ||
@@ -407,7 +427,7 @@ export async function promoteWorldEntityPortrait({
 
 	const bucket = publicBucket();
 	await putImmutableObject({
-		client,
+		client: mediaClient(),
 		bucket,
 		objectKey,
 		bytes,
