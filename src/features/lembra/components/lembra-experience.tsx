@@ -52,6 +52,26 @@ type ReferenceDraft = Readonly<{
 	description: string;
 }>;
 
+type SavePhase =
+	| "idle"
+	| "preparing"
+	| "uploading"
+	| "finalizing"
+	| "success"
+	| "error";
+
+type UploadStatus = Readonly<{
+	phase: SavePhase;
+	uploadedBytes: number;
+	totalBytes: number;
+}>;
+
+const EMPTY_UPLOAD_STATUS: UploadStatus = {
+	phase: "idle",
+	uploadedBytes: 0,
+	totalBytes: 0,
+};
+
 const EMPTY_DATE_RANGE: LembraDateRange = { from: "", to: "" };
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
@@ -192,6 +212,42 @@ async function uploadIntent(file: File): Promise<LembraUploadIntent> {
 	};
 }
 
+function uploadChunk(
+	url: string,
+	body: Blob,
+	onProgress: (uploadedBytes: number) => void,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const request = new XMLHttpRequest();
+		request.open("PUT", url);
+		request.setRequestHeader("Content-Type", "application/octet-stream");
+		request.upload.addEventListener("progress", (event) => {
+			if (!event.lengthComputable) return;
+			onProgress(event.loaded);
+		});
+		request.addEventListener("load", () => {
+			if (request.status >= 200 && request.status < 300) {
+				onProgress(body.size);
+				resolve();
+				return;
+			}
+			reject(new Error(`upload_http_${request.status}`));
+		});
+		request.addEventListener("error", () => reject(new Error("upload_network_error")));
+		request.addEventListener("abort", () => reject(new Error("upload_aborted")));
+		request.send(body);
+	});
+}
+
+function formatUploadBytes(bytes: number) {
+	const megabytes = bytes / (1024 * 1024);
+	if (megabytes >= 1) {
+		return `${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB`;
+	}
+	const kilobytes = Math.max(0, Math.round(bytes / 1024));
+	return `${kilobytes} KB`;
+}
+
 function mutationMessage(reason: string) {
 	switch (reason) {
 		case "unauthenticated":
@@ -247,6 +303,8 @@ export function LembraExperience({
 	const [dragging, setDragging] = useState(false);
 	const [message, setMessage] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [uploadStatus, setUploadStatus] =
+		useState<UploadStatus>(EMPTY_UPLOAD_STATUS);
 	const [editing, setEditing] = useState(false);
 	const [confirmRemove, setConfirmRemove] = useState(false);
 	const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(
@@ -270,6 +328,8 @@ export function LembraExperience({
 	}, []);
 
 	const closeDraft = useCallback(() => {
+		setUploadStatus(EMPTY_UPLOAD_STATUS);
+		setMessage("");
 		setDraft((current) => {
 			if (current) discardUrl(current.previewUrl);
 			return null;
@@ -285,6 +345,7 @@ export function LembraExperience({
 		const previewUrl = URL.createObjectURL(file);
 		ownedUrlsRef.current.add(previewUrl);
 		setMessage("");
+		setUploadStatus(EMPTY_UPLOAD_STATUS);
 		setDraft((current) => {
 			if (current) {
 				URL.revokeObjectURL(current.previewUrl);
@@ -555,36 +616,64 @@ export function LembraExperience({
 
 		setSaving(true);
 		setMessage("");
+		setUploadStatus({
+			phase: "preparing",
+			uploadedBytes: 0,
+			totalBytes: draft.file.size,
+		});
 		try {
 			const intent = await uploadIntent(draft.file);
 			const requested = await requestLembraUploadAction(intent);
 			if (!requested.ok) {
+				setUploadStatus((current) => ({ ...current, phase: "error" }));
 				setMessage(mutationMessage(requested.reason));
 				return;
 			}
 
+			setUploadStatus({
+				phase: "uploading",
+				uploadedBytes: 0,
+				totalBytes: draft.file.size,
+			});
 			const totalParts = Math.ceil(draft.file.size / requested.chunkBytes);
 			for (let part = 0; part < totalParts; part += 1) {
 				const start = part * requested.chunkBytes;
 				const end = Math.min(start + requested.chunkBytes, draft.file.size);
-				const response = await fetch(
-					`/api/lembra/upload?referenceId=${encodeURIComponent(
-						requested.referenceId,
-					)}&uploadId=${encodeURIComponent(
-						requested.uploadId,
-					)}&part=${part}`,
-					{
-						method: "PUT",
-						headers: { "Content-Type": "application/octet-stream" },
-						body: draft.file.slice(start, end),
-					},
-				);
-				if (!response.ok) {
+				const chunk = draft.file.slice(start, end);
+				const url = `/api/lembra/upload?referenceId=${encodeURIComponent(
+					requested.referenceId,
+				)}&uploadId=${encodeURIComponent(
+					requested.uploadId,
+				)}&part=${part}`;
+
+				try {
+					await uploadChunk(url, chunk, (chunkUploadedBytes) => {
+						setUploadStatus({
+							phase: "uploading",
+							uploadedBytes: Math.min(
+								draft.file.size,
+								start + chunkUploadedBytes,
+							),
+							totalBytes: draft.file.size,
+						});
+					});
+				} catch {
+					setUploadStatus((current) => ({ ...current, phase: "error" }));
 					setMessage("O envio da imagem falhou. Tente novamente.");
 					return;
 				}
+				setUploadStatus({
+					phase: "uploading",
+					uploadedBytes: end,
+					totalBytes: draft.file.size,
+				});
 			}
 
+			setUploadStatus({
+				phase: "finalizing",
+				uploadedBytes: draft.file.size,
+				totalBytes: draft.file.size,
+			});
 			const finalized = await finalizeLembraUploadAction(
 				requested.referenceId,
 				requested.uploadId,
@@ -593,19 +682,29 @@ export function LembraExperience({
 				description,
 			);
 			if (!finalized.ok) {
+				setUploadStatus((current) => ({ ...current, phase: "error" }));
 				setMessage(mutationMessage(finalized.reason));
 				return;
 			}
+
+			setUploadStatus({
+				phase: "success",
+				uploadedBytes: draft.file.size,
+				totalBytes: draft.file.size,
+			});
+			await new Promise((resolve) => window.setTimeout(resolve, 800));
 
 			discardUrl(draft.previewUrl);
 			setReferences((current) => [
 				finalized.reference,
 				...current.filter((item) => item.id !== finalized.reference.id),
 			]);
+			setUploadStatus(EMPTY_UPLOAD_STATUS);
 			setDraft(null);
 			setView("all");
-			setMessage("Referência guardada.");
+			setMessage("Referência publicada.");
 		} catch {
+			setUploadStatus((current) => ({ ...current, phase: "error" }));
 			setMessage("Não foi possível guardar a referência agora.");
 		} finally {
 			setSaving(false);
@@ -916,7 +1015,7 @@ export function LembraExperience({
 					</div>
 				) : null}
 
-				{message ? (
+				{message && !draft ? (
 					<div className={styles.toast} role="status" aria-live="polite">
 						{message}
 					</div>
@@ -928,7 +1027,14 @@ export function LembraExperience({
 							const favorite = favoriteIds.has(item.id);
 							return (
 								<article className={styles.card} key={item.id}>
-									<div className={styles.media}>
+									<div
+										className={styles.media}
+										style={
+											item.width && item.height
+												? { aspectRatio: `${item.width} / ${item.height}` }
+												: undefined
+										}
+									>
 										{brokenImageIds.has(item.id) ? (
 											<div className={styles.mediaFallback} aria-hidden="true">
 												<ImageIcon />
@@ -938,6 +1044,8 @@ export function LembraExperience({
 											<img
 												src={item.imageUrl}
 												alt=""
+												width={item.width}
+												height={item.height}
 												loading="lazy"
 												decoding="async"
 												onError={() =>
@@ -1073,6 +1181,8 @@ export function LembraExperience({
 								<img
 									src={selectedReference.imageUrl}
 									alt={`Referência visual: ${selectedReference.title}`}
+									width={selectedReference.width}
+									height={selectedReference.height}
 									onError={() =>
 										setBrokenImageIds((current) => {
 											const next = new Set(current);
@@ -1352,6 +1462,79 @@ export function LembraExperience({
 								<span>Data automática</span>
 							</div>
 
+							{uploadStatus.phase !== "idle" ? (
+								<div
+									className={styles.uploadStatus}
+									data-phase={uploadStatus.phase}
+									role="status"
+									aria-live="polite"
+								>
+									<div className={styles.uploadStatusHeader}>
+										<span>
+											{uploadStatus.phase === "preparing"
+												? "Preparando imagem…"
+												: uploadStatus.phase === "uploading"
+													? "Enviando imagem"
+													: uploadStatus.phase === "finalizing"
+														? "Gravando referência…"
+														: uploadStatus.phase === "success"
+															? "Publicado"
+															: "Falha ao publicar"}
+										</span>
+										{uploadStatus.phase === "uploading" ? (
+											<strong>
+												{Math.min(
+													100,
+													Math.round(
+														(uploadStatus.uploadedBytes /
+															Math.max(1, uploadStatus.totalBytes)) *
+															100,
+													),
+												)}
+												%
+											</strong>
+										) : uploadStatus.phase === "success" ? (
+											<strong aria-hidden="true">✓</strong>
+										) : null}
+									</div>
+
+									{uploadStatus.phase === "uploading" ? (
+										<progress
+											className={styles.uploadProgress}
+											max={100}
+											value={Math.min(
+												100,
+												(uploadStatus.uploadedBytes /
+													Math.max(1, uploadStatus.totalBytes)) *
+													100,
+											)}
+											aria-label="Progresso do envio da imagem"
+										/>
+									) : uploadStatus.phase === "finalizing" ||
+									  uploadStatus.phase === "success" ? (
+										<div className={styles.uploadTrack} aria-hidden="true">
+											<span
+												className={styles.uploadTrackFill}
+												style={{ width: "100%" }}
+											/>
+										</div>
+									) : null}
+
+									{uploadStatus.phase === "uploading" ? (
+										<small>
+											{formatUploadBytes(uploadStatus.uploadedBytes)} de{" "}
+											{formatUploadBytes(uploadStatus.totalBytes)}
+										</small>
+									) : uploadStatus.phase === "finalizing" ? (
+										<small>Validando imagem e publicando…</small>
+									) : uploadStatus.phase === "success" ? (
+										<small>Pronto. A referência já está no Lembra.</small>
+									) : uploadStatus.phase === "preparing" ? (
+										<small>Calculando integridade e preparando o envio.</small>
+									) : null}
+								</div>
+							) : null}
+
 							{message ? (
 								<div
 									className={styles.composerMessage}
@@ -1378,7 +1561,17 @@ export function LembraExperience({
 									className={styles.composerAction}
 									disabled={saving}
 								>
-									{saving ? "Guardando..." : "Guardar"}
+									{uploadStatus.phase === "preparing"
+										? "Preparando…"
+										: uploadStatus.phase === "uploading"
+											? "Enviando…"
+											: uploadStatus.phase === "finalizing"
+												? "Gravando…"
+												: uploadStatus.phase === "success"
+													? "Publicado ✓"
+													: uploadStatus.phase === "error"
+														? "Tentar novamente"
+														: "Guardar"}
 								</Button>
 							</div>
 						</div>

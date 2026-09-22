@@ -24,6 +24,8 @@ export type LembraReference = Readonly<{
 	createdAt: string;
 	updatedAt: string;
 	imageUrl: string;
+	width?: number;
+	height?: number;
 	mine: boolean;
 }>;
 

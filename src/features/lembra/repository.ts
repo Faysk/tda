@@ -72,6 +72,8 @@ export function presentLembraRow(
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 		imageUrl,
+		width: row.width,
+		height: row.height,
 		mine: row.created_by_auth_user_id === viewerAuthUserId,
 	};
 }

@@ -1,8 +1,8 @@
 # Lembra — biblioteca compartilhada de referências visuais
 
-> Status: UX v3 aprovada; persistência compartilhada em implementação na #476
+> Status: persistência compartilhada em Production; refinamento de feedback/proporção em implementação na #476
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-22
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -57,7 +57,8 @@ A workspace prioriza conteúdo:
 - toolbar permanece disponível durante navegação;
 - grid cresce e reduz colunas conforme o espaço real;
 - sidebar some em viewports menores;
-- viewer amplo abre sem navegar para outra página.
+- viewer amplo abre sem navegar para outra página;
+- preview, galeria e viewer preservam a proporção original da imagem; não há crop editorial automático.
 
 ### Entrada de mídia
 
@@ -75,6 +76,17 @@ O composer pede somente:
 - **Descrição** — opcional.
 
 Autor e data são automáticos.
+
+Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
+
+```text
+Preparando imagem
+ -> Enviando imagem (bytes reais / porcentagem)
+ -> Gravando referência
+ -> Publicado
+```
+
+A porcentagem representa bytes enviados, não tempo estimado. `100%` de upload não equivale a publicação concluída: a UI só informa **Publicado** depois de finalize, validação, read-back e persistência de metadata.
 
 ### Busca e filtros
 
@@ -258,6 +270,9 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] busca por nome/descrição/autor/data continua funcionando;
 - [ ] filtro por período e ordenação continuam funcionando;
 - [ ] drag/drop, paste e picker usam o mesmo pipeline;
+- [ ] preview, galeria e viewer preservam a proporção original sem crop;
+- [ ] progresso de upload usa bytes reais e distingue envio de gravação/publicação;
+- [ ] `100%` enviado só muda para `Publicado` após finalize + read-back + metadata;
 - [ ] upload pendente usa chunks same-origin limitados e canonical object é imutável;
 - [ ] finalize revalida bytes reais;
 - [ ] credenciais permanentes R2 nunca chegam ao browser;

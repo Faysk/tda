@@ -241,10 +241,10 @@ test("Lembra keeps viewer management reachable in a short desktop viewport", asy
 });
 
 
-test("Lembra composer preserves the full image instead of cropping the preview", async ({ page }) => {
+test("Lembra preserves source proportions in composer, gallery and viewer", async ({ page }) => {
 	await page.goto("/lembra");
 	await page.locator('input[type="file"]').setInputFiles({
-		name: "vertical.png",
+		name: "quadrada.png",
 		mimeType: "image/png",
 		buffer: PNG_1X1,
 	});
@@ -253,6 +253,22 @@ test("Lembra composer preserves the full image instead of cropping the preview",
 	const preview = dialog.getByAltText("Preview da referência selecionada");
 	await expect(preview).toBeVisible();
 	expect(await preview.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+
+	await dialog.getByLabel("Nome").fill("Quadrada");
+	await dialog.getByRole("button", { name: "Guardar", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+
+	const cardImage = page.locator("article").filter({ hasText: "Quadrada" }).locator("img");
+	await expect(cardImage).toBeVisible();
+	const cardBox = await cardImage.boundingBox();
+	expect(cardBox).not.toBeNull();
+	expect(Math.abs((cardBox?.width ?? 0) - (cardBox?.height ?? 0))).toBeLessThan(2);
+	expect(await cardImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+
+	await page.getByRole("button", { name: "Quadrada", exact: true }).click();
+	const viewerImage = page.getByAltText("Referência visual: Quadrada");
+	await expect(viewerImage).toBeVisible();
+	expect(await viewerImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
 });
 
 test("Lembra mobile viewer exposes one clear close action", async ({ page }) => {
