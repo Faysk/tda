@@ -12,6 +12,7 @@ const SOURCE_TEXT_LIMIT = 1200;
 const SOURCE_BATCH_SIZE = 100;
 
 export type CanonReviewSource = Readonly<{
+	key: string;
 	kind: "transcript" | "roll20";
 	label: string;
 	text: string;
@@ -175,6 +176,7 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 				shortText(row.speaker_name, "") ||
 				"Transcrição";
 			sourceByKey.set("transcript:" + row.id, {
+				key: "transcript:" + row.id,
 				kind: "transcript",
 				label: speaker,
 				text: shortText(row.text, "Trecho sem texto."),
@@ -206,6 +208,7 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 				shortText(row.roll20_who, "") ||
 				shortText(row.event_type, "Roll20");
 			sourceByKey.set("roll20:" + row.id, {
+				key: "roll20:" + row.id,
 				kind: "roll20",
 				label: who,
 				text: shortText(row.text, "Evento sem texto."),
