@@ -1108,3 +1108,45 @@ Rollback lógico:
 - qualquer reversão deve usar migration corretiva explícita; não reintroduzir silenciosamente a assinatura antiga em paralelo;
 - nenhuma row de transcript ou audit deve ser apagada para simular rollback.
 
+
+
+## 2026-09-22 — aprovação humana atômica de canon candidate
+
+### `20260922193000_approve_canon_candidate_atomic`
+
+**Estado:** migration candidata do Review Board; rollout remoto condicionado ao merge/deploy governado.
+
+Objetivo:
+
+- criar o boundary server-only `approve_canon_candidate_atomic(...)` para transformar um `canon_candidate` explicitamente aprovado por humano em `canon_entry`;
+- exigir identidade Auth vinculada ao profile e capability `narrative.canon.approve` no escopo da campanha/projeto antes de resolver a existência do target;
+- manter aprovação humana separada da publicação: a nova `canon_entry` nasce `active` com `visibility=review_only`;
+- preservar provenance via `source_candidate_id` e `source_run_id`;
+- registrar a decisão em `review_decisions` e o write crítico em `audit_log`, sem copiar a claim narrativa para o audit;
+- tornar retry idempotente pela unicidade física de `canon_entries(campaign_id, source_candidate_id)`;
+- falhar atomicamente: erro tardio de audit/decision não pode deixar entry/candidate parcialmente alterados.
+
+Boundary e segurança:
+
+- função `SECURITY DEFINER` com `search_path = pg_catalog, public`;
+- `EXECUTE` revogado de `public`, `anon` e `authenticated`; somente `service_role` executa a RPC;
+- autorização é verificada antes do lookup de campaign/candidate para não expor oracle de existência a perfil sem autoridade;
+- nenhuma role/grant/assignment de Production é criada por esta migration;
+- aprovação não muda audience para `public_campaign`/`public_web`, não anexa source a relação do World e não publica relação automaticamente.
+
+Validação sintética:
+
+- browser roles não executam a RPC;
+- profile sem `narrative.canon.approve` recebe `forbidden`;
+- Auth não vinculada ao profile recebe `forbidden`;
+- candidate inexistente só retorna `not_found` depois da autorização;
+- aprovação válida cria exatamente uma canon entry `review_only`, atualiza o candidate e registra uma decisão + um audit;
+- replay retorna `unchanged` sem duplicar entry/decision/audit;
+- probe de falha tardia no audit prova rollback integral;
+- cleanup do fixture restaura o estado esperado pela suíte de provenance do World que roda em seguida.
+
+Rollback lógico:
+
+- retirar primeiro a superfície `/edit/revisao`/Server Action;
+- substituir a função apenas por migration corretiva posterior, nunca editar esta migration depois de publicada;
+- não apagar canon/review/audit reais para simular rollback: registros de decisão são evidência editorial.
