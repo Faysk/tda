@@ -371,7 +371,13 @@ where source_candidate_id in (
 delete from public.canon_candidates
 where id in (
   '70707070-7070-4070-8070-707070707070'::uuid,
-  '71717171-7171-4171-8171-717171717171'::uuid
+  '71717171-7171-4171-8171-717171717171'::uuid,
+  '74747474-7474-4474-8474-747474747474'::uuid
+);
+delete from public.transcript_segments
+where id in (
+  '80808080-8080-4080-8080-808080808080'::uuid,
+  '81818181-8181-4181-8181-818181818181'::uuid
 );
 delete from public.role_permissions
 where role_id = '55555555-5555-4555-8555-555555555555'::uuid
