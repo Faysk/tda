@@ -188,22 +188,32 @@ jobs:
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-      - name: Preflight Lembra private Media Storage
+      - name: Preflight private and public Media Storage
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
-          const client = new S3Client({
+          const endpoint = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+          const privateClient = new S3Client({
             region: "auto",
-            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            endpoint,
             credentials: {
               accessKeyId: process.env.R2_PRIVATE_ACCESS_KEY_ID,
               secretAccessKey: process.env.R2_PRIVATE_SECRET_ACCESS_KEY,
             },
           });
-          await client.send(new HeadBucketCommand({ Bucket: process.env.R2_PRIVATE_BUCKET }));
-          console.log("LEMBRA_PRIVATE_R2_OK bucket reachable");
+          const publicClient = new S3Client({
+            region: "auto",
+            endpoint,
+            credentials: {
+              accessKeyId: process.env.R2_ACCESS_KEY_ID,
+              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
+          });
+          await privateClient.send(new HeadBucketCommand({ Bucket: process.env.R2_PRIVATE_BUCKET }));
+          await publicClient.send(new HeadBucketCommand({ Bucket: process.env.R2_PUBLIC_BUCKET }));
+          console.log("WORLD_MEDIA_R2_OK private and public buckets reachable");
           NODE
       - name: Build Production artifact
         env:
