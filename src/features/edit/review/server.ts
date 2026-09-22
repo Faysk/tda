@@ -15,9 +15,10 @@ export type CanonReviewSource = Readonly<{
 	key: string;
 	kind: "transcript" | "roll20";
 	label: string;
-	text: string;
+	text: string | null;
 	startMs: number | null;
 	reviewStatus: string | null;
+	contentAccess: "granted" | "restricted";
 }>;
 
 export type CanonReviewCandidate = Readonly<{
@@ -97,6 +98,10 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 		campaignSlug: CAMPAIGN_SLUG,
 	});
 	if (!access.ok) return { ok: false, reason: access.reason };
+	const transcriptAccess = await authorizeCampaignCapabilityServer({
+		action: EDIT_CAPABILITIES.transcriptRead,
+		campaignSlug: CAMPAIGN_SLUG,
+	});
 
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -159,11 +164,12 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 	const sourceByKey = new Map<string, CanonReviewSource>();
 
 	for (const batch of chunks(segmentIds, SOURCE_BATCH_SIZE)) {
+		const selection = transcriptAccess.ok
+			? "id,session_id,start_ms,text,speaker_name,character_name,review_status"
+			: "id,session_id,start_ms,review_status";
 		const { data, error } = await client
 			.from("transcript_segments")
-			.select(
-				"id,session_id,start_ms,end_ms,text,speaker_name,character_name,review_status",
-			)
+			.select(selection)
 			.in("id", batch)
 			.in("session_id", sessionIds);
 		if (error) {
@@ -171,21 +177,24 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 			return { ok: false, reason: "dependency_unavailable" };
 		}
 		for (const row of data ?? []) {
-			const speaker =
-				shortText(row.character_name, "") ||
-				shortText(row.speaker_name, "") ||
-				"Transcrição";
+			const readable = transcriptAccess.ok;
+			const speaker = readable
+				? shortText(row.character_name, "") ||
+					shortText(row.speaker_name, "") ||
+					"Transcrição"
+				: "Trecho de transcrição";
 			sourceByKey.set("transcript:" + row.id, {
 				key: "transcript:" + row.id,
 				kind: "transcript",
 				label: speaker,
-				text: shortText(row.text, "Trecho sem texto."),
+				text: readable ? shortText(row.text, "Trecho sem texto.") : null,
 				startMs:
 					typeof row.start_ms === "number" && Number.isFinite(row.start_ms)
 						? row.start_ms
 						: null,
 				reviewStatus:
 					typeof row.review_status === "string" ? row.review_status : null,
+				contentAccess: readable ? "granted" : "restricted",
 			});
 		}
 	}
@@ -193,9 +202,7 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 	for (const batch of chunks(roll20Ids, SOURCE_BATCH_SIZE)) {
 		const { data, error } = await client
 			.from("roll20_events")
-			.select(
-				"id,session_id,event_type,roll20_who,character_name,approx_start_ms,text",
-			)
+			.select("id,session_id,approx_start_ms")
 			.in("id", batch)
 			.in("session_id", sessionIds);
 		if (error) {
@@ -203,21 +210,18 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 			return { ok: false, reason: "dependency_unavailable" };
 		}
 		for (const row of data ?? []) {
-			const who =
-				shortText(row.character_name, "") ||
-				shortText(row.roll20_who, "") ||
-				shortText(row.event_type, "Roll20");
 			sourceByKey.set("roll20:" + row.id, {
 				key: "roll20:" + row.id,
 				kind: "roll20",
-				label: who,
-				text: shortText(row.text, "Evento sem texto."),
+				label: "Evento Roll20",
+				text: null,
 				startMs:
 					typeof row.approx_start_ms === "number" &&
 					Number.isFinite(row.approx_start_ms)
 						? row.approx_start_ms
 						: null,
 				reviewStatus: null,
+				contentAccess: "restricted",
 			});
 		}
 	}
