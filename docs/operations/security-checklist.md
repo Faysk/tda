@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: security/operations
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-22
 
 Use antes de abrir uma nova superfície, publicar release ou alterar integração sensível.
 
@@ -62,6 +62,16 @@ Use antes de abrir uma nova superfície, publicar release ou alterar integraçã
 - [ ] rollback conhecido;
 - [ ] PR Preview privilegiado só recebe credencial de deploy em workflow confiável do default branch;
 - [ ] código do PR não executa `pnpm install`, scripts ou build local no runner que possui `VERCEL_TOKEN`.
+
+## GitHub / proteção de branch
+
+- [ ] `main` está protegida e exige `required-ci`;
+- [ ] merge normal ocorre por pull request;
+- [ ] force-push e deleção estão bloqueados no estado administrativo efetivo;
+- [ ] bypass/admin é reservado a recuperação explícita, com issue/incident, motivo, ator e restauração posterior;
+- [ ] bypass nunca é usado para transformar CI vermelho em release aceitável;
+- [ ] após recuperação administrativa, protection + `required-ci` são revalidados;
+- [ ] quando a credencial não consegue ler settings administrativos, o item permanece não verificado em vez de ser inferido.
 
 ## Companion/API externa
 

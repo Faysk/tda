@@ -188,7 +188,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
 | [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-20 |
-| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-20 |
+| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-22 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
 | [TDA Companion 0.3.3 — auditoria pesada de confiabilidade, segurança e release](../operations/companion-0.3.3-heavy-audit.md) | local-companion / processing / operations / security | auditoria concluída; 0.3.3 aposentada para certificação; remediação integrada na linha 0.3.4 | 2026-09-13 |
@@ -205,7 +205,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-20 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-20 |
-| [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-19 |
+| [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Do ZIP à produção — páginas e mídia com fidelidade](../operations/zip-to-production.md) | frontend / integrations/media / operations | procedimento vigente; execução por entrega, sem importador genérico automático | 2026-09-20 |
 
 ## docs/templates

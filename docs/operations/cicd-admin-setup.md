@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-22
 > Fonte de verdade: ADR-0018, GitHub Environments e os workflows versionados
 
 Este runbook cobre o estado administrativo desejado e verificável da esteira: GitHub Environments, secrets, branch protection e os providers atuais.
@@ -244,6 +244,48 @@ branch temporária
 A publicação de mídia deve usar o intervalo **ainda não publicado**, sem esquecer manifests que ficaram pendentes após uma release falha.
 
 ## Branch protection
+
+### Política de bypass e recuperação administrativa
+
+O fluxo normal **não usa bypass**. `main` deve entrar por PR com `required-ci` verde; force-push e deleção permanecem bloqueados no contrato administrativo desejado.
+
+Bypass/admin recovery é reservado a recuperação explícita de controle do repositório, por exemplo:
+
+- regra/protection quebrada que impede qualquer merge legítimo;
+- incidente do próprio GitHub/ruleset que torne o fluxo normal impossível;
+- restauração de uma configuração administrativa removida por engano.
+
+Bypass **não** é mecanismo para:
+
+- ignorar CI vermelho;
+- publicar hotfix sem evidência;
+- contornar review por conveniência;
+- empurrar código direto para Production;
+- desativar permanentemente `required-ci`.
+
+Antes de qualquer bypass deliberado:
+
+1. registrar issue/incident ou referência operacional;
+2. registrar SHA atual de `main`, motivo, ator e mudança administrativa pretendida;
+3. limitar a exceção ao menor escopo e duração possível;
+4. preservar o provenance gate do Production CD — bypass de branch **não** autoriza deploy.
+
+Durante a recuperação:
+
+- preferir alteração administrativa à branch protection/ruleset, sem alterar conteúdo de `main`;
+- se um commit administrativo direto for inevitável, ele não deve ser tratado como Production-ready: o Production CD continua exigindo proveniência de PR mergeada;
+- não remover `required-ci` além do estritamente necessário para restaurar a própria governança;
+- nunca registrar token, certificado, private key ou valor de secret na evidência.
+
+Depois da recuperação:
+
+1. restaurar PR requirement, `required-ci`, bloqueio de force-push e deleção;
+2. revalidar `main.protected=true` e o contexto obrigatório `required-ci`;
+3. executar CI no SHA final;
+4. confirmar que qualquer mudança de produto/release voltou ao fluxo PR → main → Production CD;
+5. registrar o resultado no issue/incident com apenas metadata não sensível.
+
+Se a credencial disponível não possuir permissão administrativa suficiente para ler ou alterar a proteção detalhada, o estado deve permanecer **não verificado**. Não inferir PR requirement, bypass list, force-push ou deletion policy apenas porque `protected=true`.
 
 Verificação:
 
