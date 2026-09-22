@@ -1,8 +1,8 @@
 # Canon, revisão e publicação
 
-> Status: schema implementado; operação integrada ainda preparada/planejada
+> Status: schema + Review Board implementados; aprovação humana e adoção real em andamento
 > Owner: review/canon
-> Última revisão: 2026-09-08
+> Última revisão: 2026-09-22
 
 ## Objetivo
 
@@ -114,7 +114,7 @@ Fluxo deve respeitar aprovação exigida pelo conteúdo, inclusive quando sessio
 
 Decisão humana deve registrar target, ação, notas, ator e provenance quando disponível.
 
-A UI futura deve tornar rápido revisar sem esconder impacto. Atalhos históricos podem ser revalidados, mas backend continua validando ação/capability.
+A primeira superfície integrada está em `/edit/revisao`: `narrative.review.read` abre a fila e `narrative.canon.approve` habilita a decisão final. A aprovação chama um RPC server-only atômico, registra `review_decisions` + `audit_log` e cria `canon_entries` com `visibility=review_only`. Ela não publica no site nem conecta relações do World automaticamente. O backend continua validando ação/capability, identidade vinculada e escopo.
 
 ## O que pode virar canon
 
@@ -218,9 +218,9 @@ Idealmente toda ação crítica deve responder:
 
 `audit_log` existe, mas ainda não possui cobertura demonstrada completa; isso precisa ser implementado junto ao Edit.
 
-## UI de revisão futura
+## UI de revisão
 
-Conceito histórico revalidado:
+O Review Board inicial está integrado ao Next e preserva o conceito histórico:
 
 ```text
 Timeline | Transcript | Candidates | Source/Audio
@@ -255,7 +255,7 @@ Não assumir que todo player que lê recap pode abrir transcript ou candidate pr
 
 ## Futuro
 
-- Review Board integrado ao Next;
+- rejeição/classificação e bulk review seguros além do primeiro gate de aprovação;
 - source/audio por timestamp;
 - bulk review seguro;
 - entity resolution dentro da revisão;
