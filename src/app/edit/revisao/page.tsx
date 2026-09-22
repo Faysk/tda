@@ -182,7 +182,7 @@ export default async function NarrativeReviewPage({
 
 									<p className={styles.claim}>{candidate.claim}</p>
 
-									<details className={styles.sources} open>
+									<details className={styles.sources}>
 										<summary>
 											Fontes verificáveis ({candidate.sources.length} exibidas de{" "}
 											{candidate.sourceCount})
