@@ -11,7 +11,7 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 ## Índice
 
-[Lembra — biblioteca compartilhada de referências visuais](lembra.md) — UX v3 integrada; persistência global autenticada, CRUD compartilhado, favoritos e R2 privado em implementação.
+[Lembra — biblioteca compartilhada de referências visuais](lembra.md) — persistência global autenticada, CRUD compartilhado, favoritos e R2 privado em Production; feedback de upload e proporção visual em refinamento.
 
 [Astel e Noah — recebimento e plano de integração](astel-noah-lores.md) — pacotes inventariados, listagem solicitada em `/lore`, rotas e ligações necessárias; integração/publicação pendentes.
 
@@ -33,7 +33,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
-| Lembra / referências visuais | UX v3 integrada; persistência compartilhada candidata | [Lembra](lembra.md) |
+| Lembra / referências visuais | persistência compartilhada em Production; refinamento visual em andamento | [Lembra](lembra.md) |
 | PCs/NPCs | preparado | [Personagens e NPCs](characters-and-npcs.md) |
 | perfis editoriais de entities | scaffold integrado; projection pendente | [Entity profiles](entity-profiles.md) |
 | World Explorer / Ecos da Jornada | slice visual integrado; dados reais pendentes | [World Explorer](world-explorer.md) |
