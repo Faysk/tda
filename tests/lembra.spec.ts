@@ -54,7 +54,8 @@ test("Lembra stays dense, searchable and usable from keyboard", async ({ page })
 	await expect(page.getByRole("button", { name: "Zeta", exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Limpar filtros" }).click();
 
-	await page.getByLabel("Ordenar referências").selectOption("title");
+	await page.getByRole("button", { name: "Ordenar referências" }).click();
+	await page.getByRole("option", { name: "Nome", exact: true }).click();
 	const titles = page.locator("article h2 button");
 	await expect(titles).toHaveText(["Alpha", "Zeta"]);
 
@@ -90,6 +91,39 @@ test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {
 			return search.evaluate((element) => document.activeElement === element);
 		})
 		.toBe(true);
+});
+
+
+test("Lembra filter popovers stay anchored, themed and dismiss on outside click", async ({ page }) => {
+	await page.setViewportSize({ width: 814, height: 600 });
+	await page.addInitScript(() => localStorage.setItem("tda-theme", "dark"));
+	await page.goto("/lembra");
+
+	const dateFilter = page.locator("details").filter({ hasText: "Data" });
+	const dateSummary = dateFilter.locator("summary");
+	await dateSummary.click();
+	await expect(dateFilter).toHaveAttribute("open", "");
+
+	const panel = dateFilter.locator("div").first();
+	const summaryBox = await dateSummary.boundingBox();
+	const panelBox = await panel.boundingBox();
+	expect(summaryBox).not.toBeNull();
+	expect(panelBox).not.toBeNull();
+	expect(Math.abs((panelBox?.x ?? 0) - (summaryBox?.x ?? 0))).toBeLessThan(2);
+
+	await page.getByPlaceholder("Buscar título, descrição, autor ou data...").click();
+	await expect(dateFilter).not.toHaveAttribute("open", "");
+
+	const sortTrigger = page.getByRole("button", { name: "Ordenar referências" });
+	await sortTrigger.click();
+	const listbox = page.getByRole("listbox", { name: "Ordenar referências" });
+	await expect(listbox).toBeVisible();
+	expect(
+		await listbox.evaluate((element) => getComputedStyle(element).backgroundColor),
+	).not.toBe("rgb(255, 255, 255)");
+
+	await page.getByRole("button", { name: "Adicionar imagem" }).click();
+	await expect(listbox).not.toBeVisible();
 });
 
 

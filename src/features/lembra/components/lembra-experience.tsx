@@ -10,7 +10,7 @@ import {
 	type FormEvent,
 	type ReactNode,
 } from "react";
-import { Button } from "@/components/ui";
+import { Button, Select, type SelectOption } from "@/components/ui";
 import {
 	finalizeLembraUploadAction,
 	retireLembraReferenceAction,
@@ -73,6 +73,13 @@ const EMPTY_UPLOAD_STATUS: UploadStatus = {
 };
 
 const EMPTY_DATE_RANGE: LembraDateRange = { from: "", to: "" };
+
+const SORT_OPTIONS: readonly SelectOption<LembraSort>[] = [
+	{ value: "newest", label: "Mais recentes" },
+	{ value: "oldest", label: "Mais antigas" },
+	{ value: "title", label: "Nome" },
+	{ value: "author", label: "Autor" },
+];
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 	day: "2-digit",
@@ -314,6 +321,7 @@ export function LembraExperience({
 	const [editDescription, setEditDescription] = useState("");
 
 	const searchRef = useRef<HTMLInputElement>(null);
+	const dateFilterRef = useRef<HTMLDetailsElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const viewerRef = useRef<HTMLDialogElement>(null);
@@ -364,6 +372,32 @@ export function LembraExperience({
 		return () => {
 			for (const url of ownedUrlsRef.current) URL.revokeObjectURL(url);
 			ownedUrlsRef.current.clear();
+		};
+	}, []);
+
+	useEffect(() => {
+		const dateFilter = dateFilterRef.current;
+		if (!dateFilter) return;
+
+		const closeDateFilter = () => dateFilter.removeAttribute("open");
+
+		const onPointerDown = (event: PointerEvent) => {
+			if (!dateFilter.open || dateFilter.contains(event.target as Node)) return;
+			closeDateFilter();
+		};
+
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || !dateFilter.open) return;
+			event.preventDefault();
+			closeDateFilter();
+			dateFilter.querySelector("summary")?.focus();
+		};
+
+		document.addEventListener("pointerdown", onPointerDown);
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", onPointerDown);
+			document.removeEventListener("keydown", onKeyDown);
 		};
 	}, []);
 
@@ -920,7 +954,7 @@ export function LembraExperience({
 						<kbd>Ctrl K</kbd>
 					</label>
 
-					<details className={styles.dateFilter}>
+					<details ref={dateFilterRef} className={styles.dateFilter}>
 						<summary
 							className={
 								hasLembraDateFilter(dateRange)
@@ -965,7 +999,10 @@ export function LembraExperience({
 							<button
 								type="button"
 								className={styles.clearDate}
-								onClick={() => setDateRange(EMPTY_DATE_RANGE)}
+								onClick={() => {
+									setDateRange(EMPTY_DATE_RANGE);
+									dateFilterRef.current?.removeAttribute("open");
+								}}
 								disabled={!hasLembraDateFilter(dateRange)}
 							>
 								Limpar data
@@ -973,22 +1010,19 @@ export function LembraExperience({
 						</div>
 					</details>
 
-					<label className={styles.sortControl}>
-						<span className={styles.sortIcon}>
+					<div className={styles.sortControl}>
+						<span className={styles.sortIcon} aria-hidden="true">
 							<SortIcon />
 						</span>
-						<span className={styles.visuallyHidden}>Ordenar referências</span>
-						<select
+						<Select
 							value={sort}
-							onChange={(event) => setSort(event.target.value as LembraSort)}
-							aria-label="Ordenar referências"
-						>
-							<option value="newest">Mais recentes</option>
-							<option value="oldest">Mais antigas</option>
-							<option value="title">Nome</option>
-							<option value="author">Autor</option>
-						</select>
-					</label>
+							options={SORT_OPTIONS}
+							onChange={setSort}
+							ariaLabel="Ordenar referências"
+							className={styles.sortSelect}
+							embedded
+						/>
+					</div>
 
 					<Button
 						variant="primary"
