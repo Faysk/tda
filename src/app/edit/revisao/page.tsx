@@ -64,6 +64,8 @@ function feedbackMessage(result: string | undefined, error: string | undefined) 
 		return "Sua conta não possui autoridade para esta decisão.";
 	if (error === "not_found")
 		return "O candidato não está mais disponível nesta campanha.";
+	if (error === "source_required")
+		return "Aprovação bloqueada: o candidate não possui fonte física resolvível na mesma sessão.";
 	if (error === "invalid_state" || error === "conflict")
 		return "O candidato mudou desde a abertura da página. Atualize a fila antes de decidir.";
 	if (error)
