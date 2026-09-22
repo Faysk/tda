@@ -206,7 +206,15 @@ export default async function NarrativeReviewPage({
 																? " · " + source.reviewStatus
 																: ""}
 														</p>
-														<p className={styles.sourceText}>{source.text}</p>
+														{source.text ? (
+															<p className={styles.sourceText}>{source.text}</p>
+														) : (
+															<p className={styles.sourceWarning}>
+																Conteúdo da fonte restrito nesta permissão. A
+																referência física foi validada, mas o texto não foi
+																exposto.
+															</p>
+														)}
 													</li>
 												))}
 											</ul>
