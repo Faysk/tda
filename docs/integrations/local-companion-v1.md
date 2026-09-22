@@ -224,6 +224,18 @@ O worker emite `source_validation` imediatamente e heartbeat periódico. O Agent
 
 Perfis Qwen exigem runtime/modelo/gate físico compatíveis antes do job. Whisper e Qwen produzem o mesmo contrato de transcript/run local.
 
+### Compatibilidade GPU do Qwen
+
+A linha de runtime Qwen `1.0.8` trata Compute Capability como capability, não como nome de placa:
+
+- `SM >= 7.5`: caminho elegível, ainda sujeito a probe CUDA real, carga integral do modelo, ASR, Forced Aligner e gate físico;
+- `SM < 7.5`: rejeitado fail-closed;
+- dtype: `bfloat16` somente quando o runtime reporta suporte; caso contrário `float16`;
+- RTX 4070 8 GB continua a baseline de release validada;
+- RTX 2080 SUPER / SM 7.5 possui evidência física de ASR + Forced Aligner concluídos e entra inicialmente como **suporte experimental**, não como equivalência automática a toda GPU Turing.
+
+O runtime/gate registra compute capability e compute type. A promoção de suporte experimental para oficial exige preservar evidência física de VRAM/pico, desempenho e estabilidade no hardware SM 7.5, sem reduzir os critérios de acceptance.
+
 Cancelamento é cooperativo primeiro. Se código nativo/CUDA não responder dentro do grace period, o subprocesso isolado é encerrado e o job permanece `cancelled`; o log técnico registra `WORKER_CANCEL_FORCED` em vez de converter a ação do usuário em falha `WORKER_CANCEL_TIMEOUT`.
 
 ## Validação
