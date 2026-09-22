@@ -5,7 +5,7 @@ import {
 	requireCapability,
 } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { approveCanonCandidateFormAction } from "@/features/edit/review/actions";
+import { reviewCanonCandidateFormAction } from "@/features/edit/review/actions";
 import { loadCanonReviewQueue } from "@/features/edit/review/server";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/review/review.module.css";
@@ -37,19 +37,39 @@ function dateLabel(value: string | null) {
 	}).format(parsed);
 }
 
+function timeLabel(value: number | null) {
+	if (value === null || value < 0) return "";
+	const seconds = Math.floor(value / 1000);
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const rest = seconds % 60;
+	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
 function feedbackMessage(result: string | undefined, error: string | undefined) {
 	if (result === "approved")
 		return "Candidato aprovado como cânone em revisão. Nenhuma publicação pública foi feita.";
+	if (result === "rejected") return "Candidato rejeitado e retirado da fila.";
+	if (result === "interpretation")
+		return "Candidato classificado como interpretação, sem criação de cânone.";
+	if (result === "possible_hook")
+		return "Candidato classificado como possível gancho, sem criação de cânone.";
+	if (result === "retcon_pending")
+		return "Candidato marcado como retcon pendente para revisão posterior.";
+	if (result === "private")
+		return "Candidato classificado como privado e retirado da fila comum.";
 	if (result === "unchanged")
-		return "Este candidato já estava aprovado; nenhuma evidência foi duplicada.";
+		return "Esta decisão já estava registrada; nenhuma evidência foi duplicada.";
 	if (error === "forbidden")
-		return "Sua conta pode revisar, mas não possui autoridade para aprovar cânone.";
+		return "Sua conta não possui autoridade para esta decisão.";
 	if (error === "not_found")
 		return "O candidato não está mais disponível nesta campanha.";
+	if (error === "source_required")
+		return "Aprovação bloqueada: o candidate não possui fonte física resolvível na mesma sessão.";
 	if (error === "invalid_state" || error === "conflict")
 		return "O candidato mudou desde a abertura da página. Atualize a fila antes de decidir.";
 	if (error)
-		return "Não foi possível concluir a aprovação. Nenhuma alteração parcial foi mantida.";
+		return "Não foi possível concluir a revisão. Nenhuma alteração parcial foi mantida.";
 	return null;
 }
 
@@ -60,8 +80,12 @@ export default async function NarrativeReviewPage({
 }) {
 	await requireCapability(EDIT_CAPABILITIES.reviewRead, "/edit/revisao");
 
-	const [queue, approvalAccess, params] = await Promise.all([
+	const [queue, manageAccess, approvalAccess, params] = await Promise.all([
 		loadCanonReviewQueue(),
+		authorizeCampaignCapabilityServer({
+			action: EDIT_CAPABILITIES.reviewManage,
+			campaignSlug: CAMPAIGN_SLUG,
+		}),
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.canonApprove,
 			campaignSlug: CAMPAIGN_SLUG,
@@ -69,7 +93,9 @@ export default async function NarrativeReviewPage({
 		searchParams,
 	]);
 	const feedback = feedbackMessage(first(params.resultado), first(params.erro));
+	const canManage = manageAccess.ok;
 	const canApprove = approvalAccess.ok;
+	const canDecide = canManage || canApprove;
 
 	return (
 		<section className={styles.shell}>
@@ -82,21 +108,27 @@ export default async function NarrativeReviewPage({
 				<p className={styles.eyebrow}>TDA / EDIT / REVISÃO</p>
 				<h1>Revisão narrativa</h1>
 				<p className={styles.lead}>
-					Revise candidatos extraídos da campanha antes de qualquer entrada
-					canônica. Aprovar aqui cria apenas cânone <code>review_only</code>.
+					Compare cada claim com suas fontes antes de decidir. Só a opção de
+					cânone cria uma entrada <code>review_only</code>; as demais classificam
+					o candidate sem publicar conteúdo.
 				</p>
 			</header>
 
 			<aside className={styles.notice}>
 				<strong>Gate humano obrigatório.</strong>
 				<p className={styles.muted}>
-					Esta tela não publica no site e não conecta uma relação do World
-					automaticamente. Depois da aprovação, a provenance da relação ainda
-					precisa ser escolhida e publicada deliberadamente no editor do Mundo.
+					Nada desta tela publica no site ou conecta uma relação do World
+					automaticamente. Provenance, decisão e audience continuam etapas
+					separadas.
 				</p>
+				{!canManage ? (
+					<p className={styles.muted}>
+						A triagem exige <code>narrative.review.manage</code>.
+					</p>
+				) : null}
 				{!canApprove ? (
 					<p className={styles.muted}>
-						Sua permissão atual é de leitura/revisão. A aprovação final exige{" "}
+						A criação de cânone exige, separadamente,{" "}
 						<code>narrative.canon.approve</code>.
 					</p>
 				) : null}
@@ -112,8 +144,8 @@ export default async function NarrativeReviewPage({
 				<div className={styles.empty} role="status">
 					<h2>Fila indisponível</h2>
 					<p>
-						Não foi possível consultar a revisão agora. Nenhuma decisão foi
-						alterada.
+						Não foi possível consultar candidates e suas fontes agora. Nenhuma
+						decisão foi alterada.
 					</p>
 				</div>
 			) : (
@@ -152,9 +184,57 @@ export default async function NarrativeReviewPage({
 
 									<p className={styles.claim}>{candidate.claim}</p>
 
-									{canApprove ? (
+									<details className={styles.sources}>
+										<summary>
+											Fontes verificáveis ({candidate.sources.length} exibidas de{" "}
+											{candidate.sourceCount})
+										</summary>
+										{candidate.sources.length ? (
+											<ul>
+												{candidate.sources.map((source) => (
+													<li key={source.key}>
+														<p className={styles.sourceMeta}>
+															<strong>{source.label}</strong>
+															{" · "}
+															{source.kind === "transcript"
+																? "transcrição"
+																: "Roll20"}
+															{source.startMs === null
+																? ""
+																: " · " + timeLabel(source.startMs)}
+															{source.reviewStatus
+																? " · " + source.reviewStatus
+																: ""}
+														</p>
+														{source.text ? (
+															<p className={styles.sourceText}>{source.text}</p>
+														) : (
+															<p className={styles.sourceWarning}>
+																Conteúdo da fonte restrito nesta permissão. A
+																referência física foi validada, mas o texto não foi
+																exposto.
+															</p>
+														)}
+													</li>
+												))}
+											</ul>
+										) : (
+											<p className={styles.sourceWarning}>
+												A fonte declarada não pôde ser exibida. Não aprove como
+												cânone sem verificar a evidência.
+											</p>
+										)}
+										{candidate.sourceCount > candidate.sources.length ? (
+											<p className={styles.meta}>
+												A tela mostra no máximo 3 fontes por candidate para manter
+												a revisão legível.
+											</p>
+										) : null}
+									</details>
+
+									{canDecide ? (
 										<form
-											action={approveCanonCandidateFormAction}
+											action={reviewCanonCandidateFormAction}
 											className={styles.form}
 										>
 											<input
@@ -162,6 +242,42 @@ export default async function NarrativeReviewPage({
 												type="hidden"
 												value={candidate.id}
 											/>
+											<label htmlFor={"decision-" + candidate.id}>
+												Decisão
+											</label>
+											<select
+												id={"decision-" + candidate.id}
+												name="decision"
+												required
+												defaultValue=""
+											>
+												<option value="" disabled>
+													Escolha depois de conferir as fontes
+												</option>
+												{canManage ? (
+													<>
+														<option value="rejected">Rejeitar</option>
+														<option value="interpretation">
+															Interpretação, não fato
+														</option>
+														<option value="possible_hook">
+															Possível gancho futuro
+														</option>
+														<option value="retcon_pending">
+															Retcon/conflito pendente
+														</option>
+														<option value="private">
+															Privado / fora da memória compartilhada
+														</option>
+													</>
+												) : null}
+												{canApprove ? (
+													<option value="approved_canon">
+														Aprovar como cânone em revisão
+													</option>
+												) : null}
+											</select>
+
 											<label htmlFor={"notes-" + candidate.id}>
 												Nota da decisão (opcional)
 											</label>
@@ -169,11 +285,9 @@ export default async function NarrativeReviewPage({
 												id={"notes-" + candidate.id}
 												maxLength={2000}
 												name="reviewerNotes"
-												placeholder="Contexto editorial da aprovação, sem necessidade de repetir o conteúdo."
+												placeholder="Explique conflito, inferência ou contexto sem repetir conteúdo desnecessariamente."
 											/>
-											<button type="submit">
-												Aprovar como cânone em revisão
-											</button>
+											<button type="submit">Registrar decisão</button>
 										</form>
 									) : null}
 								</article>

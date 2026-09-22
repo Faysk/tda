@@ -1,6 +1,6 @@
 # Canon, revisão e publicação
 
-> Status: schema + Review Board implementados; aprovação humana e adoção real em andamento
+> Status: Review Board com provenance + triagem implementado; adoção editorial real em andamento
 > Owner: review/canon
 > Última revisão: 2026-09-22
 
@@ -114,7 +114,7 @@ Fluxo deve respeitar aprovação exigida pelo conteúdo, inclusive quando sessio
 
 Decisão humana deve registrar target, ação, notas, ator e provenance quando disponível.
 
-A primeira superfície integrada está em `/edit/revisao`: `narrative.review.read` abre a fila e `narrative.canon.approve` habilita a decisão final. A aprovação chama um RPC server-only atômico, registra `review_decisions` + `audit_log` e cria `canon_entries` com `visibility=review_only`. Ela não publica no site nem conecta relações do World automaticamente. O backend continua validando ação/capability, identidade vinculada e escopo.
+A superfície `/edit/revisao` separa três autoridades: `narrative.review.read` abre a fila e a existência/provenance estrutural das fontes; `narrative.review.manage` permite classificar/rejeitar candidates sem criar canon; `narrative.canon.approve` habilita a decisão final de cânone. A tela resolve até três referências por candidate, restritas às sessões da campanha. Texto de `transcript_segments` só é mostrado quando a conta também possui `campaign.transcript.read`; evento Roll20 não expõe `text`, `raw_line` ou `payload` até existir capability de evidence explicitamente aprovada. A aprovação chama um RPC server-only atômico, exige ao menos uma fonte física da mesma sessão, registra `review_decisions` + `audit_log` e cria `canon_entries` com `visibility=review_only`. Triagem não-canônica registra decisão/audit, mas não cria `canon_entries`. Nenhum dos dois caminhos publica no site ou conecta relações do World automaticamente.
 
 ## O que pode virar canon
 
@@ -255,9 +255,8 @@ Não assumir que todo player que lê recap pode abrir transcript ou candidate pr
 
 ## Futuro
 
-- rejeição/classificação e bulk review seguros além do primeiro gate de aprovação;
-- source/audio por timestamp;
 - bulk review seguro;
+- source/audio navegável por timestamp;
 - entity resolution dentro da revisão;
 - retcon history visual;
 - memory/wiki alimentada por canon aprovado;

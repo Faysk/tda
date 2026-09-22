@@ -100,7 +100,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Domínios do TDA](../domains/README.md) | produto/arquitetura | vigente | 2026-09-06 |
-| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | schema + Review Board implementados; aprovação humana e adoção real em andamento | 2026-09-22 |
+| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-07 |

@@ -31,7 +31,9 @@ const labels: Record<string, string> = {
 
 	"campaign.world.layout.edit": "Editar composição do Mundo",
 
-	"narrative.review.read": "Revisar candidatos narrativos",
+	"narrative.review.read": "Ler fila de revisão narrativa",
+
+	"narrative.review.manage": "Classificar candidatos narrativos",
 
 	"narrative.canon.approve": "Aprovar cânone",
 };

@@ -143,6 +143,8 @@ try:
             *(repo / "supabase/migrations").glob("*_world_graph_*.sql"),
             *(repo / "supabase/migrations").glob("*_world_relation_provenance_*.sql"),
             *(repo / "supabase/migrations").glob("*_approve_canon_candidate_atomic.sql"),
+            *(repo / "supabase/migrations").glob("*_review_canon_candidate_atomic.sql"),
+            *(repo / "supabase/migrations").glob("*_harden_canon_approval_source.sql"),
         ]
     )
     paths = [
@@ -152,6 +154,7 @@ try:
         repo / "supabase/tests/world_edit_lease_atomic.sql",
         repo / "supabase/tests/world_graph_authoring_atomic.sql",
         repo / "supabase/tests/world_canon_review_atomic.sql",
+        repo / "supabase/tests/world_canon_triage_atomic.sql",
         repo / "supabase/tests/world_relation_provenance_atomic.sql",
     ]
     for path in paths:
@@ -369,7 +372,7 @@ try:
     ) != "33333333-3333-4333-8333-333333333333:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa":
         raise RuntimeError("lease race must preserve the first editor/token only")
 
-    print("WORLD_LAYOUT_DATABASE_OK synthetic=true layout_concurrency=real lease_concurrency=real graph_authoring=true canon_review=true relation_provenance=true")
+    print("WORLD_LAYOUT_DATABASE_OK synthetic=true layout_concurrency=real lease_concurrency=real graph_authoring=true canon_review=true canon_triage=true relation_provenance=true")
 finally:
     if started:
         run([str(binary / "pg_ctl"), "-D", str(data), "-m", "fast", "-w", "stop"])

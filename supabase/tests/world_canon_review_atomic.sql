@@ -43,6 +43,11 @@ $contract$;
 
 -- Preserve the following World provenance test's initial assumption that the
 -- synthetic site_editor does not have canon approval until that test grants it.
+delete from public.transcript_segments
+where id in (
+  '80808080-8080-4080-8080-808080808080'::uuid,
+  '81818181-8181-4181-8181-818181818181'::uuid
+);
 delete from public.role_permissions
 where role_id = '55555555-5555-4555-8555-555555555555'::uuid
   and permission_action = 'narrative.canon.approve';
@@ -51,9 +56,31 @@ insert into public.permission_catalog(action, plane, description)
 values ('narrative.canon.approve', 'narrative', 'Approve reviewed narrative canon.')
 on conflict (action) do nothing;
 
+insert into public.transcript_segments(
+  id, session_id, start_ms, end_ms, text, speaker_name, character_name, review_status
+) values (
+  '80808080-8080-4080-8080-808080808080',
+  '22222222-2222-4222-8222-222222222222',
+  1000,
+  2500,
+  'Fonte sintética aprovada.',
+  'Pessoa sintética',
+  'Herói sintético',
+  'approved'
+), (
+  '81818181-8181-4181-8181-818181818181',
+  '22222222-2222-4222-8222-222222222222',
+  3000,
+  4500,
+  'Fonte sintética de rollback.',
+  'Pessoa sintética',
+  null,
+  'pending'
+);
+
 insert into public.canon_candidates(
-  id, session_id, title, claim, candidate_type, status, source_run_id,
-  source_candidate_id, metadata
+  id, session_id, title, claim, candidate_type, status, source_segment_ids,
+  source_run_id, source_candidate_id, metadata
 ) values (
   '70707070-7070-4070-8070-707070707070',
   '22222222-2222-4222-8222-222222222222',
@@ -61,6 +88,7 @@ insert into public.canon_candidates(
   'Afirmação sintética para aprovação.',
   'event',
   'candidate',
+  array['80808080-8080-4080-8080-808080808080'::uuid],
   'synthetic-run',
   'synthetic-candidate-1',
   '{}'::jsonb
@@ -71,8 +99,20 @@ insert into public.canon_candidates(
   'Este conteúdo não pode sobreviver à falha.',
   'event',
   'candidate',
+  array['81818181-8181-4181-8181-818181818181'::uuid],
   'synthetic-run',
   'synthetic-candidate-2',
+  '{}'::jsonb
+), (
+  '74747474-7474-4474-8474-747474747474',
+  '22222222-2222-4222-8222-222222222222',
+  'Sem fonte sintética',
+  'Não pode virar cânone.',
+  'event',
+  'candidate',
+  '{}'::uuid[],
+  'synthetic-run',
+  'synthetic-candidate-no-source',
   '{}'::jsonb
 );
 
@@ -131,6 +171,31 @@ begin
   );
   if missing <> '{"ok":false,"reason":"not_found"}'::jsonb then
     raise exception 'authorized missing candidate must return not_found: %', missing;
+  end if;
+
+  result := public.approve_canon_candidate_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '74747474-7474-4474-8474-747474747474',
+    null
+  );
+  if result <> '{"ok":false,"reason":"source_required"}'::jsonb then
+    raise exception 'candidate without resolvable source must not become canon: %', result;
+  end if;
+  if exists (
+       select 1 from public.canon_entries
+       where source_candidate_id='74747474-7474-4474-8474-747474747474'::uuid
+     )
+     or exists (
+       select 1 from public.review_decisions
+       where target_id='74747474-7474-4474-8474-747474747474'::uuid
+     )
+     or exists (
+       select 1 from public.audit_log
+       where record_id='74747474-7474-4474-8474-747474747474'::uuid
+     ) then
+    raise exception 'source_required rejection must be side-effect free';
   end if;
 
   result := public.approve_canon_candidate_atomic(
@@ -289,7 +354,8 @@ delete from public.review_decisions
 where target_table='canon_candidates'
   and target_id in (
     '70707070-7070-4070-8070-707070707070'::uuid,
-    '71717171-7171-4171-8171-717171717171'::uuid
+    '71717171-7171-4171-8171-717171717171'::uuid,
+    '74747474-7474-4474-8474-747474747474'::uuid
   );
 delete from public.audit_log
 where action='canon_candidate.approve'
@@ -305,7 +371,13 @@ where source_candidate_id in (
 delete from public.canon_candidates
 where id in (
   '70707070-7070-4070-8070-707070707070'::uuid,
-  '71717171-7171-4171-8171-717171717171'::uuid
+  '71717171-7171-4171-8171-717171717171'::uuid,
+  '74747474-7474-4474-8474-747474747474'::uuid
+);
+delete from public.transcript_segments
+where id in (
+  '80808080-8080-4080-8080-808080808080'::uuid,
+  '81818181-8181-4181-8181-818181818181'::uuid
 );
 delete from public.role_permissions
 where role_id = '55555555-5555-4555-8555-555555555555'::uuid

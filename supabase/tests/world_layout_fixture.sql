@@ -55,6 +55,25 @@ create table public.sessions(
   status text not null default 'planned'
 );
 
+create table public.transcript_segments(
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  start_ms integer not null,
+  end_ms integer not null,
+  text text not null,
+  speaker_name text,
+  character_name text,
+  review_status text not null default 'pending'
+);
+
+create table public.roll20_events(
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  event_type text not null default 'message',
+  approx_start_ms integer,
+  text text
+);
+
 create table public.audit_log(
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid references public.campaigns(id),
@@ -151,6 +170,8 @@ alter table public.role_definitions enable row level security;
 alter table public.role_permissions enable row level security;
 alter table public.role_assignments enable row level security;
 alter table public.sessions enable row level security;
+alter table public.transcript_segments enable row level security;
+alter table public.roll20_events enable row level security;
 alter table public.audit_log enable row level security;
 alter table public.entities enable row level security;
 alter table public.canon_candidates enable row level security;
@@ -160,6 +181,7 @@ alter table public.review_decisions enable row level security;
 grant usage on schema public, extensions to service_role, anon, authenticated;
 grant select on public.campaigns, public.profiles, public.permission_catalog,
   public.role_definitions, public.role_permissions, public.role_assignments, public.sessions,
+  public.transcript_segments, public.roll20_events,
   public.audit_log, public.entities, public.canon_candidates, public.canon_entries,
   public.review_decisions to service_role;
 grant insert on public.audit_log to service_role;
