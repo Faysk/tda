@@ -130,6 +130,9 @@ O **Lembra** é o primeiro consumidor de runtime desse boundary privado. Os secr
 
 O **World Entity Media** passa a usar o mesmo boundary privado para staging e preview autenticado, mas também precisa da credencial pública para promoção explícita de portraits `public_web`. O Production CD injeta server-side `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BUCKET=tda-media-public` e `TDA_WORLD_ENTITY_MEDIA_ENABLED=true` somente no artefato staged. Antes do promote, o smoke exige que uma rota World Media sintaticamente válida alcance o boundary de autenticação e responda 401 sem corpo para visitante anônimo; isso prova flag ativa + fail-closed sem criar asset. O smoke positivo autenticado de upload/finalize/publish permanece uma evidência operacional separada porque exige uma lease editorial real.
 
+A **publicação revisionada de transcrições** é habilitada pelo mesmo staged rollout com `TDA_TRANSCRIPT_PUBLICATION_ENABLED=true` somente depois de migration/grants/RPCs e hardening pós-rollout estarem aplicados e verificados. O endpoint público `/api/health` expõe apenas o booleano não sensível `features.transcriptPublication`; staged e canonical smoke exigem `true` antes de considerar o rollout ativo. Esse probe não publica conteúdo. O smoke editorial autenticado permanece separado porque exige uma sessão/revisão aprovada real e uma decisão humana explícita.
+
+
 Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
 
 Runtime secrets continuam no runtime apenas quando a aplicação realmente precisa deles.
