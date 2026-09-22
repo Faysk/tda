@@ -52,6 +52,7 @@ jobs:
       R2_PRIVATE_BUCKET: tda-media-private
       TDA_LEMBRA_ENABLED: "true"
       TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
+      TDA_TRANSCRIPT_PUBLICATION_ENABLED: "true"
       REQUESTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -222,6 +223,7 @@ jobs:
           TDA_RELEASE_ID: ${{ steps.source.outputs.release }}
           TDA_LEMBRA_ENABLED: "true"
           TDA_WORLD_ENTITY_MEDIA_ENABLED: "true"
+          TDA_TRANSCRIPT_PUBLICATION_ENABLED: "true"
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Start staged Production artifact without domain traffic
@@ -238,6 +240,7 @@ jobs:
             --env TDA_RELEASE_ID="$RELEASE_ID" \
             --env TDA_LEMBRA_ENABLED=true \
             --env TDA_WORLD_ENTITY_MEDIA_ENABLED=true \
+            --env TDA_TRANSCRIPT_PUBLICATION_ENABLED=true \
             --env R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
             --env R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
             --env R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
@@ -317,6 +320,9 @@ jobs:
           if (health.ok !== true) throw new Error("Staged Production health is not ok");
           if (health.environment !== "production") throw new Error(`Expected production environment, got ${health.environment}`);
           if (health.commit !== process.env.SOURCE_SHA) throw new Error(`Health commit mismatch: ${health.commit}`);
+          if (health.features?.transcriptPublication !== true) {
+            throw new Error("Transcript publication runtime is not enabled in staged Production");
+          }
           if (version.commit !== process.env.SOURCE_SHA) throw new Error(`Version commit mismatch: ${version.commit}`);
           if (version.release !== process.env.RELEASE_ID) throw new Error(`Release id mismatch: ${version.release}`);
           NODE
@@ -334,6 +340,15 @@ jobs:
         run: |
           set -euo pipefail
           node tools/ci/verify-production-canonical.mjs
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
+            "$PRODUCTION_ORIGIN/api/health" > canonical-health.json
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const health = JSON.parse(fs.readFileSync("canonical-health.json", "utf8"));
+          if (health.features?.transcriptPublication !== true) {
+            throw new Error("Transcript publication runtime is not enabled in canonical Production");
+          }
+          NODE
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/"
           LEMBRA_STATUS="$(curl --silent --show-error --output lembra-canonical.html --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
