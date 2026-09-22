@@ -46,7 +46,7 @@ if ($resolvedRef -notmatch '^[a-f0-9]{40}$') { throw "HANDOFF_REF_INVALID" }
 
 $expected = @{}
 foreach ($relative in $RequiredFiles) {
-  $blob = Invoke-Git @("-C", $repoRoot, "rev-parse", "$resolvedRef\`:$relative") "HANDOFF_SOURCE_FILE_MISSING"
+  $blob = Invoke-Git @("-C", $repoRoot, "rev-parse", "$resolvedRef`:$relative") "HANDOFF_SOURCE_FILE_MISSING"
   if ($blob -notmatch '^[a-f0-9]{40}$') { throw "HANDOFF_SOURCE_BLOB_INVALID" }
   $expected[$relative] = $blob
 }
