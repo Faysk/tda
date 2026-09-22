@@ -6,6 +6,7 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
@@ -14,6 +15,7 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
@@ -37,6 +39,7 @@ jobs:
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
+            "tools/acceptance/run-final-current-source-acceptance.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
@@ -244,6 +247,41 @@ jobs:
           if ($wrapper.Contains("Read-Host")) {
             throw "RECOVERY_AUTOMATED_WRAPPER_INTERACTIVE_PROMPT_PRESENT"
           }
+          $generic = Get-Content -LiteralPath "tools/acceptance/run-final-current-source-acceptance.ps1" -Raw
+          foreach ($required in @(
+            '[string]$CompanionRcTag',
+            '[string]$WhisperRuntimeRcTag',
+            '[string]$QwenRuntimeRcTag',
+            '[switch]$RequireAuthenticode',
+            '[string]$ExpectedSignerThumbprint',
+            '[string]$ExpectedSignerSubject',
+            'AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED',
+            'AUTHENTICODE_TIMESTAMP_MISSING',
+            'Assert-NoActiveUserWork',
+            'Ensure-Companion',
+            'Install-Runtime',
+            '"-Automated"',
+            'WhisperRuntimeCandidateManifest',
+            'QwenRuntimeCandidateManifest',
+            'RuntimeAcceptanceOutputRoot',
+            'tda_runtime_physical_acceptance_v1',
+            'TDA-FINAL-ACCEPTANCE-RESULTS-',
+            'contains_token=$false',
+            'contains_audio=$false',
+            'contains_transcript=$false'
+          )) {
+            if (-not $generic.Contains($required)) {
+              throw "FINAL_CURRENT_SOURCE_RUNNER_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($generic.Contains("Read-Host")) {
+            throw "FINAL_CURRENT_SOURCE_RUNNER_INTERACTIVE_PROMPT_PRESENT"
+          }
+          $preflightIndex = $generic.LastIndexOf('$phase="active_work_preflight";Assert-NoActiveUserWork')
+          $installIndex = $generic.LastIndexOf('$exe=Ensure-Companion')
+          if ($preflightIndex -lt 0 -or $installIndex -lt 0 -or $preflightIndex -ge $installIndex) {
+            throw "FINAL_CURRENT_SOURCE_PREFLIGHT_ORDER_INVALID"
+          }
       - name: Unit-test physical acceptance helper edge cases
         shell: powershell
         run: |
@@ -423,6 +461,65 @@ jobs:
           } finally {
             $env:LOCALAPPDATA = $savedLocalAppData
           }
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Get-ReleaseAsset")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Assert-RuntimeCandidate")
+
+          $sourceSha = "a" * 40
+          $assetSha = "b" * 64
+          $digestSha = "c" * 64
+          $runtimeArchive = "d" * 64
+          $runtimeTag = "companion-whisper-runtime-rc-v1.1.4-" + $sourceSha.Substring(0, 12)
+          $release = [pscustomobject]@{
+            target_commitish = $sourceSha
+            assets = @(
+              [pscustomobject]@{
+                name = "TDAWhisperRuntime-1.1.4-windows-x64.zip"
+                digest = "sha256:$assetSha"
+                size = 4
+                browser_download_url = "https://github.com/Faysk/tda/releases/download/$runtimeTag/TDAWhisperRuntime-1.1.4-windows-x64.zip"
+              },
+              [pscustomobject]@{
+                name = "TDAWhisperRuntime-1.1.4-windows-x64.zip.sha256"
+                digest = "sha256:$digestSha"
+                size = 64
+                browser_download_url = "https://github.com/Faysk/tda/releases/download/$runtimeTag/TDAWhisperRuntime-1.1.4-windows-x64.zip.sha256"
+              }
+            )
+          }
+          $candidate = [pscustomobject]@{
+            schema = "tda_runtime_candidate_v1"
+            family = "whisper"
+            runtime_id = "whisper-ctranslate2"
+            platform = "windows-x64"
+            version = "1.1.4"
+            source_sha = $sourceSha
+            source_tree_sha = ("e" * 40)
+            candidate_tag = $runtimeTag
+            runtime_archive_sha256 = $runtimeArchive
+            assets = @(
+              [pscustomobject]@{ name = "TDAWhisperRuntime-1.1.4-windows-x64.zip"; sha256 = $assetSha },
+              [pscustomobject]@{ name = "TDAWhisperRuntime-1.1.4-windows-x64.zip.sha256"; sha256 = $digestSha }
+            )
+          }
+          Assert-RuntimeCandidate $candidate $release $runtimeTag "whisper"
+
+          $candidate.runtime_archive_sha256 = "bad"
+          try {
+            Assert-RuntimeCandidate $candidate $release $runtimeTag "whisper"
+            throw "GENERIC_RUNTIME_INVALID_ARCHIVE_ACCEPTED"
+          } catch {
+            if ($_.Exception.Message -eq "GENERIC_RUNTIME_INVALID_ARCHIVE_ACCEPTED") { throw }
+          }
+          $candidate.runtime_archive_sha256 = $runtimeArchive
+
+          $release.assets[0].digest = "sha256:" + ("f" * 64)
+          try {
+            Assert-RuntimeCandidate $candidate $release $runtimeTag "whisper"
+            throw "GENERIC_RUNTIME_RELEASE_DIGEST_MISMATCH_ACCEPTED"
+          } catch {
+            if ($_.Exception.Message -eq "GENERIC_RUNTIME_RELEASE_DIGEST_MISMATCH_ACCEPTED") { throw }
+          }
+
       - name: Smoke superseded 0.3.14 RC replacement
         shell: powershell
         run: |
