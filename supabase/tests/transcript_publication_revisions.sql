@@ -75,6 +75,42 @@ begin
 end;
 $$;
 
+do $hardening$
+declare
+  v_table text;
+  v_index text;
+begin
+  foreach v_table in array array[
+    'transcript_revisions',
+    'transcript_publication_receipts',
+    'transcript_publication_events'
+  ] loop
+    if not has_table_privilege('service_role', format('public.%I', v_table), 'SELECT')
+       or not has_table_privilege('service_role', format('public.%I', v_table), 'INSERT')
+       or has_table_privilege('service_role', format('public.%I', v_table), 'UPDATE')
+       or has_table_privilege('service_role', format('public.%I', v_table), 'DELETE') then
+      raise exception 'PUBLICATION_SERVICE_ROLE_PRIVILEGES_NOT_MINIMAL:%', v_table;
+    end if;
+  end loop;
+
+  foreach v_index in array array[
+    'sessions_current_transcript_revision_id_idx',
+    'transcript_revisions_campaign_id_idx',
+    'transcript_revisions_actor_profile_id_idx',
+    'transcript_publication_receipts_campaign_id_idx',
+    'transcript_publication_receipts_actor_profile_id_idx',
+    'transcript_publication_events_campaign_id_idx',
+    'transcript_publication_events_revision_id_idx',
+    'transcript_publication_events_previous_revision_id_idx',
+    'transcript_publication_events_actor_profile_id_idx'
+  ] loop
+    if to_regclass('public.' || v_index) is null then
+      raise exception 'PUBLICATION_FK_INDEX_MISSING:%', v_index;
+    end if;
+  end loop;
+end;
+$hardening$;
+
 do $$
 declare
   v_existing jsonb;

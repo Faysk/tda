@@ -359,6 +359,27 @@ Rollout:
 - ativar runtime somente depois do smoke controlado de publicação/retry/restore em sessão autorizada;
 - rollback lógico após ativação começa desligando a flag; não apagar revisões/receipts para simular rollback.
 
+## Hardening pós-rollout — publicação de transcrições
+
+### `20260922151000_transcript_publication_hardening`
+
+**Estado:** migration de hardening preparada após a verificação remota da primeira aplicação.
+
+Motivação observada em Production após `20260922133000_transcript_publication_revisions`:
+
+- browser roles permaneceram sem acesso e as RPCs ficaram `SECURITY INVOKER`, como previsto;
+- o role `service_role`, porém, herdou privilégios `UPDATE/DELETE` nas três tabelas de evidência imutável apesar do contrato da migration conceder apenas `SELECT/INSERT`;
+- o advisor de performance passou de 58 para 67 FKs sem índice, com exatamente nove novos findings pertencentes ao schema de publicação.
+
+Esta migration:
+
+- revoga todos os privilégios diretos do `service_role` em `transcript_revisions`, `transcript_publication_receipts` e `transcript_publication_events`;
+- reabre somente `SELECT, INSERT` nesses três objetos;
+- adiciona os nove índices de cobertura apontados pelo advisor, incluindo o ponteiro corrente em `sessions`;
+- não altera capability, assignment, conteúdo publicado, current pointer nem feature flag.
+
+O scratch PostgreSQL aplica esta migration antes do contrato de publicação e falha se `service_role` recuperar `UPDATE/DELETE` ou se qualquer índice esperado desaparecer.
+
 ## Candidato — biblioteca compartilhada Lembra
 
 ### `20260921190000_lembra_shared_library`
