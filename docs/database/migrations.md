@@ -1114,7 +1114,7 @@ Rollback lógico:
 
 ### `20260922193000_approve_canon_candidate_atomic`
 
-**Estado:** migration candidata do Review Board; rollout remoto condicionado ao merge/deploy governado.
+**Estado:** aplicada em Production em 2026-09-22 pelo rollout governado do Review Board.
 
 Objetivo:
 
@@ -1150,3 +1150,57 @@ Rollback lógico:
 - retirar primeiro a superfície `/edit/revisao`/Server Action;
 - substituir a função apenas por migration corretiva posterior, nunca editar esta migration depois de publicada;
 - não apagar canon/review/audit reais para simular rollback: registros de decisão são evidência editorial.
+
+
+## 2026-09-22 — triagem humana não-canônica de candidates
+
+### `20260922211500_review_canon_candidate_atomic`
+
+**Estado:** migration candidata deste slice; rollout remoto condicionado a CI + deploy governado.
+
+Objetivo:
+
+- permitir que reviewers classifiquem um candidate como `rejected`, `interpretation`, `possible_hook`, `retcon_pending` ou `private` sem criar `canon_entries`;
+- exigir identidade Auth vinculada ao profile e capability `narrative.review.manage` antes de resolver a existência do target;
+- preservar a separação de autoridade: `approved_canon` continua proibido nesta RPC e permanece exclusivo de `narrative.canon.approve`;
+- registrar `review_decisions` e `audit_log` na mesma transação, sem copiar a claim para o audit;
+- tornar replay da mesma decisão idempotente quando a evidência de review já existe.
+
+Segurança e validação:
+
+- `SECURITY DEFINER` com `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`; somente `service_role`;
+- profile sem `narrative.review.manage` falha antes do lookup de campaign/candidate;
+- decisão inválida, incluindo `approved_canon`, retorna `invalid_payload`;
+- falha tardia do audit faz rollback do status + decision;
+- replay não duplica `review_decisions` nem audit.
+
+Rollback lógico:
+
+- retirar primeiro a ação de triagem da UI;
+- substituir a função por migration corretiva posterior se necessário;
+- não apagar decisões humanas reais para simular rollback.
+
+## 2026-09-22 — source gate físico para aprovação de canon
+
+### `20260922212000_harden_canon_approval_source`
+
+**Estado:** migration candidata deste slice; rollout remoto condicionado a CI + deploy governado.
+
+Objetivo:
+
+- endurecer `approve_canon_candidate_atomic(...)` para que um candidate só possa virar canon quando ao menos uma fonte declarada resolve fisicamente para `transcript_segments` ou `roll20_events` **na mesma sessão do candidate**;
+- impedir que um UUID órfão/cross-session satisfaça a regra “nada vira canon sem fonte”;
+- manter todo o contrato anterior de autorização, atomicidade, idempotência, `review_only` e ausência de publicação automática.
+
+Validação sintética:
+
+- candidate autorizado sem fonte resolvível retorna `source_required`;
+- a rejeição por `source_required` é side-effect free;
+- candidates com transcript sintético da mesma sessão continuam aprováveis;
+- replay, rollback de audit e privacy do audit continuam cobertos.
+
+Estado real observado antes do rollout:
+
+- os 161 candidates pendentes de Production possuem ao menos uma fonte resolvível na mesma sessão;
+- portanto o hardening não depende de backfill e não deve tornar a fila atual inválida.
