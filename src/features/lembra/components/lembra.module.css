@@ -217,15 +217,22 @@
 	color: var(--ds-foreground);
 }
 
+.dateSummary:focus-visible,
+.dateSummaryActive:focus-visible {
+	border-color: var(--ds-accent);
+	box-shadow: var(--ds-control-focus-ring);
+	outline: 0;
+}
+
 .dateSummaryActive {
 	background: var(--ds-accent-muted);
 }
 
 .datePanel {
 	position: absolute;
-	z-index: 12;
+	z-index: 80;
 	top: calc(100% + 8px);
-	right: 0;
+	left: 0;
 	width: min(320px, calc(100vw - 32px));
 	display: grid;
 	grid-template-columns: 1fr 1fr;
@@ -254,7 +261,26 @@
 	background: var(--ds-canvas-subtle);
 	color: var(--ds-foreground);
 	font: inherit;
-	color-scheme: light dark;
+}
+
+:global(:root[data-theme="dark"]) .datePanel input {
+	color-scheme: dark;
+}
+
+:global(:root[data-theme="light"]) .datePanel input {
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:global(:root:not([data-theme])) .datePanel input {
+		color-scheme: dark;
+	}
+}
+
+@media (prefers-color-scheme: light) {
+	:global(:root:not([data-theme])) .datePanel input {
+		color-scheme: light;
+	}
 }
 
 .clearDate {
@@ -276,10 +302,10 @@
 .sortControl {
 	min-height: 46px;
 	display: grid;
-	grid-template-columns: 20px minmax(0, 1fr);
+	grid-template-columns: 20px minmax(118px, 1fr);
 	align-items: center;
 	gap: 6px;
-	padding: 0 9px 0 11px;
+	padding: 0 0 0 11px;
 	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-surface-elevated);
@@ -292,18 +318,20 @@
 	color: var(--ds-foreground);
 }
 
-.sortControl select {
+.sortSelect {
 	min-width: 118px;
-	min-height: 42px;
-	padding: 0 24px 0 2px;
-	border: 0;
-	outline: 0;
-	background: transparent;
-	color: var(--ds-foreground);
-	font: inherit;
+}
+
+.sortSelect > button {
+	min-height: 44px;
 	font-size: 0.8rem;
-	cursor: pointer;
-	color-scheme: light dark;
+	font-weight: 500;
+}
+
+.sortSelect > [role="listbox"] {
+	right: 0;
+	left: -37px;
+	min-width: calc(100% + 37px);
 }
 
 .resultsBar {
@@ -1413,7 +1441,11 @@
 		grid-column: auto;
 	}
 
-	.sortControl select {
+	.sortControl {
+		grid-template-columns: 20px minmax(104px, 1fr);
+	}
+
+	.sortSelect {
 		min-width: 104px;
 	}
 
@@ -1672,9 +1704,15 @@
 		min-width: 0;
 	}
 
-	.sortControl select {
+	.sortSelect {
 		width: 100%;
 		min-width: 0;
+	}
+
+	.sortSelect > [role="listbox"] {
+		right: 0;
+		left: 0;
+		min-width: 100%;
 	}
 
 	.addButton {
