@@ -6,6 +6,10 @@ export const WORLD_ENTITY_MEDIA_PREVIEW_BUCKET = "tda-media-preview" as const;
 export const WORLD_ENTITY_MEDIA_PRIVATE_BUCKET = "tda-media-private" as const;
 export const WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN = "https://media.dnd.faysk.dev" as const;
 export const WORLD_ENTITY_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
+export const WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
+export const WORLD_ENTITY_MEDIA_MAX_UPLOAD_CHUNKS = Math.ceil(
+	WORLD_ENTITY_MEDIA_MAX_BYTES / WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
+);
 export const WORLD_ENTITY_MEDIA_MAX_DIMENSION = 16_384;
 export const WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS = 300;
 
@@ -108,6 +112,40 @@ export function worldEntityPortraitPendingObjectKey({
 		return null;
 	}
 	return `uploads/pending/world-entity/${campaignSlug}/${entityId.toLowerCase()}/${uploadId.toLowerCase()}/${sha256}.${extension}`;
+}
+
+export function worldEntityPortraitPendingChunkObjectKey({
+	campaignSlug,
+	entityId,
+	uploadId,
+	sha256,
+	part,
+}: {
+	campaignSlug: string;
+	entityId: string;
+	uploadId: string;
+	sha256: string;
+	part: number;
+}): string | null {
+	if (!CAMPAIGN_SLUG_PATTERN.test(campaignSlug)) return null;
+	if (
+		!isWorldEntityMediaAssetId(entityId) ||
+		!isWorldEntityMediaAssetId(uploadId) ||
+		!SHA256_PATTERN.test(sha256) ||
+		!Number.isSafeInteger(part) ||
+		part < 0 ||
+		part >= WORLD_ENTITY_MEDIA_MAX_UPLOAD_CHUNKS
+	) {
+		return null;
+	}
+	return `uploads/pending/world-entity/${campaignSlug}/${entityId.toLowerCase()}/${uploadId.toLowerCase()}/${sha256}.part-${part.toString().padStart(2, "0")}`;
+}
+
+export function worldEntityMediaUploadChunkCount(bytes: number): number | null {
+	if (!Number.isSafeInteger(bytes) || bytes < 24 || bytes > WORLD_ENTITY_MEDIA_MAX_BYTES) {
+		return null;
+	}
+	return Math.ceil(bytes / WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES);
 }
 
 export function worldEntityPublicMediaUrl(

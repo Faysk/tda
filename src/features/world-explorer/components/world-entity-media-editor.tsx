@@ -127,18 +127,31 @@ export function WorldEntityMediaEditor({
 				return;
 			}
 
-			setStatus("Enviando direto para o armazenamento…");
-			const uploaded = await fetch(requested.uploadUrl, {
-				method: requested.method,
-				headers: requested.headers,
-				body: bytes,
-				cache: "no-store",
-				credentials: "omit",
-			});
-			if (!uploaded.ok) {
-				setError(`O armazenamento recusou o upload (${uploaded.status}).`);
-				setStatus(null);
-				return;
+			const chunks = Math.ceil(file.size / requested.chunkBytes);
+			for (let part = 0; part < chunks; part += 1) {
+				const start = part * requested.chunkBytes;
+				const end = Math.min(file.size, start + requested.chunkBytes);
+				setStatus(`Enviando imagem com segurança… ${part + 1}/${chunks}`);
+				const uploaded = await fetch("/api/world/entity-media/upload", {
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/octet-stream",
+						"X-TDA-World-Lease": leaseToken,
+						"X-TDA-World-Entity": entity.id,
+						"X-TDA-Upload-Id": requested.uploadId,
+						"X-TDA-Content-SHA256": sha256,
+						"X-TDA-Total-Bytes": String(file.size),
+						"X-TDA-Part": String(part),
+					},
+					body: bytes.slice(start, end),
+					cache: "no-store",
+					credentials: "same-origin",
+				});
+				if (!uploaded.ok) {
+					setError(`O upload foi recusado (${uploaded.status}).`);
+					setStatus(null);
+					return;
+				}
 			}
 
 			setStatus("Validando bytes e registrando o asset…");
