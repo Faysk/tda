@@ -78,14 +78,13 @@ function Invoke-UpdaterProbe(
             $code = @'
 import os
 from pathlib import Path
-from tda_companion.updates import UpdateManifest, download_update
+import tda_companion.updates as updates
 
-# Reconstruct the exact manifest shape accepted by 0.3.1 before release-lock
-# query parameters were introduced. The MSI identity comes from the immutable
-# published companion-v0.3.9 release; only the legacy Web route shape is
-# reconstructed so this probe exercises the historical redirect defect instead
-# of failing earlier on today's stricter manifest URL.
-manifest = UpdateManifest(
+# Reconstruct the immutable 0.3.1 downloader behavior without depending on the
+# current dnd.faysk.dev route. GitHub release downloads legitimately finish on a
+# release-assets.githubusercontent.com URL; 0.3.1 incorrectly required the final
+# response URL to remain the exact github.com/releases/download URL.
+manifest = updates.UpdateManifest(
     version="0.3.9",
     tag="companion-v0.3.9",
     minimum_api="1",
@@ -94,39 +93,116 @@ manifest = UpdateManifest(
     size=42830876,
 )
 
+class RedirectedResponse:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def geturl(self):
+        return (
+            "https://release-assets.githubusercontent.com/"
+            "github-production-release-asset/fixture?sig=synthetic"
+        )
+
+def fake_urlopen(*_args, **_kwargs):
+    return RedirectedResponse()
+
+updates.urllib.request.urlopen = fake_urlopen
+
 try:
-    download_update(
+    updates.download_update(
         manifest,
         Path(os.environ["TDA_LEGACY_RECOVERY_CACHE"]),
-        timeout=120.0,
+        timeout=5.0,
     )
 except RuntimeError as exc:
     if str(exc) != "UPDATE_REDIRECT_REJECTED":
         raise
     print("LEGACY_UPDATE_REDIRECT_REJECTED_CONFIRMED")
 else:
-    raise SystemExit("LEGACY_UPDATER_UNEXPECTEDLY_ACCEPTED_CURRENT_REDIRECT")
+    raise SystemExit("LEGACY_UPDATER_UNEXPECTEDLY_ACCEPTED_STORAGE_REDIRECT")
 '@
         } else {
             $code = @'
 import hashlib
+import io
 import os
+from email.message import Message
 from pathlib import Path
-from tda_companion.updates import fetch_manifest, download_update
+from urllib.request import Request
 
-manifest = fetch_manifest()
-if manifest.version != "0.3.9" or manifest.tag != "companion-v0.3.9":
-    raise SystemExit(f"FIXED_MANIFEST_IDENTITY_UNEXPECTED:{manifest.version}:{manifest.tag}")
+import tda_companion.updates as updates
+from tda_companion.release_download import _ReleaseRedirectHandler
 
-path = download_update(
+# The fixed source must accept exactly the two-hop official release chain:
+# TDA route -> exact GitHub release asset -> GitHub release storage.
+start_url = (
+    "https://dnd.faysk.dev/api/downloads/companion/windows"
+    "?version=0.3.9"
+)
+expected_github = (
+    "https://github.com/Faysk/tda/releases/download/companion-v0.3.9/"
+    "TDACompanion-x64.msi"
+)
+storage_url = (
+    "https://release-assets.githubusercontent.com/"
+    "github-production-release-asset/fixture?sig=synthetic"
+)
+handler = _ReleaseRedirectHandler(expected_github)
+github_request = handler.redirect_request(
+    Request(start_url),
+    None,
+    307,
+    "Temporary Redirect",
+    Message(),
+    expected_github,
+)
+if github_request is None or github_request.full_url != expected_github:
+    raise SystemExit("FIXED_FIRST_REDIRECT_NOT_ACCEPTED")
+storage_request = handler.redirect_request(
+    github_request,
+    None,
+    302,
+    "Found",
+    Message(),
+    storage_url,
+)
+if storage_request is None or storage_request.full_url != storage_url:
+    raise SystemExit("FIXED_STORAGE_REDIRECT_NOT_ACCEPTED")
+
+# Also prove the fixed downloader still verifies size/hash before materializing.
+payload = b"tda-stable-redirect-fixture"
+manifest = updates.UpdateManifest(
+    version="0.3.9",
+    tag="companion-v0.3.9",
+    minimum_api="1",
+    url=start_url,
+    sha256=hashlib.sha256(payload).hexdigest(),
+    size=len(payload),
+)
+
+def fake_open(request, *, expected_github_url, timeout):
+    if request.full_url != start_url:
+        raise AssertionError(f"UNEXPECTED_START_URL:{request.full_url}")
+    if expected_github_url != expected_github:
+        raise AssertionError(f"UNEXPECTED_GITHUB_URL:{expected_github_url}")
+    if timeout != 5.0:
+        raise AssertionError(f"UNEXPECTED_TIMEOUT:{timeout}")
+    return io.BytesIO(payload)
+
+updates.open_verified_release = fake_open
+path = updates.download_update(
     manifest,
     Path(os.environ["TDA_LEGACY_RECOVERY_CACHE"]),
-    timeout=120.0,
+    timeout=5.0,
     prefer_bits=False,
 )
 digest = hashlib.sha256(path.read_bytes()).hexdigest()
-expected = "67abdb127ae2d1569f3f3200274bad8da2a0a79e8abc45eb6cafca291edfe39c"
-if digest != expected:
+if digest != manifest.sha256:
     raise SystemExit(f"FIXED_UPDATER_HASH_MISMATCH:{digest}")
 print("FIXED_UPDATER_REDIRECT_AND_HASH_CONFIRMED")
 '@
@@ -244,8 +320,9 @@ try {
         }
     }
 
-    # The fixed updater follows the same live Stable route while keeping exact
-    # size/hash verification, rather than weakening redirect policy.
+    # Keep the fixed-updater proof deterministic: the historical recovery gate
+    # validates the official GitHub redirect chain and hash semantics from the
+    # exact 0.3.9 source instead of depending on today's mutable Web route.
     Invoke-UpdaterProbe $StableSourceRoot $fixedCache "fixed-success"
 
     $metadata = Get-ItemProperty -LiteralPath $productKey -ErrorAction Stop
@@ -266,7 +343,7 @@ try {
     Write-Host "Old updater: UPDATE_REDIRECT_REJECTED reproduced from exact release source."
     Write-Host "Manual MSI upgrade: 0.3.1 -> 0.3.9 passed."
     Write-Host "Local data preservation: passed through upgrade and normal uninstall."
-    Write-Host "Fixed updater: live Stable redirect + SHA-256 verification passed."
+    Write-Host "Fixed updater: deterministic official redirect-chain + SHA-256 verification passed."
 } finally {
     try {
         if (Test-Path -LiteralPath $productKey) {
