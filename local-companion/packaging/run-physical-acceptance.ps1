@@ -177,6 +177,32 @@ function Write-JsonEvidence([string]$Path, [object]$Value) {
     Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
+function Invoke-NativeProcessExitCode(
+    [string]$Executable,
+    [string[]]$Arguments,
+    [string]$ErrorPrefix
+) {
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $Executable
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    foreach ($argument in $Arguments) {
+        $null = $start.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    try {
+        if (-not $process.Start()) {
+            throw "${ErrorPrefix}_START_FAILED"
+        }
+        $process.WaitForExit()
+        return [int]$process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function Invoke-RuntimePhysicalSeal(
     [string]$CompanionExecutable,
     [object]$RuntimeCandidate,
@@ -202,9 +228,9 @@ function Invoke-RuntimePhysicalSeal(
         $arguments.Add($QwenStateRoot)
     }
 
-    & $CompanionExecutable @($arguments.ToArray())
-    if ($LASTEXITCODE -ne 0) {
-        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$LASTEXITCODE"
+    $exitCode = Invoke-NativeProcessExitCode -Executable $CompanionExecutable -Arguments $arguments.ToArray() -ErrorPrefix "RUNTIME_ACCEPTANCE_SEAL"
+    if ($exitCode -ne 0) {
+        throw "RUNTIME_ACCEPTANCE_SEAL_FAILED:$($RuntimeCandidate.Family):$exitCode"
     }
     try {
         $sealed = Get-Content -LiteralPath $destination -Raw -Encoding UTF8 |
