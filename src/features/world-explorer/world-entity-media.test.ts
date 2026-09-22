@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
 	clampWorldEntityMediaFocalPoint,
 	isWorldEntityMediaAssetId,
 	worldEntityMediaObjectPosition,
+	worldEntityMediaUploadChunkCount,
 	worldEntityMediaPreviewUrl,
 	worldEntityMediaShouldBypassImageOptimization,
 	worldEntityPortraitObjectKey,
+	worldEntityPortraitPendingChunkObjectKey,
 	worldEntityPortraitPendingObjectKey,
 	worldEntityPublicMediaUrl,
 } from "./world-entity-media";
@@ -77,6 +80,33 @@ describe("World entity media contract", () => {
 				uploadId: "not-a-uuid",
 				sha256: SHA256,
 				extension: "webp",
+			}),
+		).toBeNull();
+	});
+
+	it("binds same-origin upload chunks to entity, upload and content identity", () => {
+		expect(
+			worldEntityPortraitPendingChunkObjectKey({
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+				uploadId: UPLOAD_ID,
+				sha256: SHA256,
+				part: 0,
+			}),
+		).toBe(
+			`uploads/pending/world-entity/${CAMPAIGN_SLUG}/${ENTITY_ID}/${UPLOAD_ID}/${SHA256}.part-00`,
+		);
+		expect(worldEntityMediaUploadChunkCount(24)).toBe(1);
+		expect(worldEntityMediaUploadChunkCount(WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES + 1)).toBe(2);
+		expect(worldEntityMediaUploadChunkCount(8 * 1024 * 1024)).toBe(4);
+		expect(worldEntityMediaUploadChunkCount(8 * 1024 * 1024 + 1)).toBeNull();
+		expect(
+			worldEntityPortraitPendingChunkObjectKey({
+				campaignSlug: CAMPAIGN_SLUG,
+				entityId: ENTITY_ID,
+				uploadId: UPLOAD_ID,
+				sha256: SHA256,
+				part: 4,
 			}),
 		).toBeNull();
 	});
