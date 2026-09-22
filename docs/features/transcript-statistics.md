@@ -1,8 +1,8 @@
 # Estatísticas privadas de transcrições
 
-> Status: implementação candidata em branch; não publicada
+> Status: publicado em Production; benchmark operacional pendente
 > Owner: transcrições / leitura e estatísticas
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-22
 > Fonte de verdade: `src/features/transcripts/statistics` e `public.sessions` / `public.transcript_segments`
 
 ## Superfície e conjunto
@@ -38,6 +38,11 @@ O browser recebe somente título/data e métricas autorizadas. Texto de transcri
 Edição/importação altera as fontes canônicas; a próxima consulta/reload recalcula os valores, inclusive quando `text_words` derivado estiver desatualizado. A página instrui recarregar após editar/importar. Não promete atualização ao vivo de uma aba já aberta, nem depende da aplicação da RPC #44.
 
 A leitura usa páginas de até 200 sessões e 1000 segmentos, sem nova dependência ou custo contratado. O custo é O(segmentos), com round trips por página/sessão. O ensaio sintético não é benchmark do Supabase real; medir latência/egress antes de expandir o volume. Uma agregação SQL futura exige contrato/migration revisada com o dono do banco, não habilitação automática de agregações públicas.
+
+### Observabilidade operacional
+
+A leitura autorizada emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V1`. Ele registra somente outcome, duração total, quantidade de requests de sessões/segmentos, quantidade de rows e tamanho UTF-8 aproximado dos payloads lidos. Não registra campaign slug, usuário/profile, IDs de sessão/segmento, texto de transcrição, detalhes de erro ou credenciais. O evento existe para fechar o benchmark operacional de #53 com amostras reais cold/warm sem transportar conteúdo privado para a evidência.
+
 
 Não há snapshot transacional entre páginas: importação/edição simultânea pode produzir uma leitura durante a mudança. Recarregar após a operação concluída é o contrato atual. Falha de rede/cursor/identidade ambígua nega o resultado integral, sem reaproveitar contagem antiga de outro usuário.
 
