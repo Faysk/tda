@@ -631,7 +631,7 @@ jobs:
           try {
             if ($zip.Entries.Count -ne 1) { throw "FIXTURE_CRAIG_ENTRY_COUNT_INVALID" }
             $entry = $zip.Entries[0]
-            if ($entry.FullName -ne "1-Synthetic.flac" -or $entry.Length -le 0) {
+            if ($entry.FullName -ne "1-Synthetic.flac" -or $entry.Length -le 42) {
               throw "FIXTURE_CRAIG_TRACK_INVALID"
             }
             $stream = $entry.Open()
@@ -646,6 +646,32 @@ jobs:
             } finally {
               $stream.Dispose()
             }
+
+            if ([Text.Encoding]::ASCII.GetString($bytes, 0, 4) -ne "fLaC") {
+              throw "FIXTURE_CRAIG_FLAC_MARKER_INVALID"
+            }
+            if (($bytes[4] -band 0x7f) -ne 0) {
+              throw "FIXTURE_CRAIG_STREAMINFO_MISSING"
+            }
+            $metadataLength = ([int]$bytes[5] -shl 16) -bor ([int]$bytes[6] -shl 8) -bor [int]$bytes[7]
+            if ($metadataLength -ne 34) {
+              throw "FIXTURE_CRAIG_STREAMINFO_LENGTH_INVALID"
+            }
+
+            [uint64]$packed = 0
+            for ($index = 18; $index -le 25; $index++) {
+              $packed = ($packed -shl 8) -bor [uint64]$bytes[$index]
+            }
+            $sampleRate = [uint64]($packed -shr 44)
+            $totalSamples = [uint64]($packed -band [uint64]68719476735)
+            if ($sampleRate -le 0 -or $totalSamples -le 0) {
+              throw "FIXTURE_CRAIG_STREAMINFO_DURATION_INVALID"
+            }
+            $craigDuration = [double]$totalSamples / [double]$sampleRate
+            if ($craigDuration -lt 60 -or $craigDuration -gt 180) {
+              throw "FIXTURE_CRAIG_QWEN_WINDOW_TOO_SHORT"
+            }
+
             $hasher = [Security.Cryptography.SHA256]::Create()
             try {
               $digest = $hasher.ComputeHash($bytes)
@@ -653,8 +679,18 @@ jobs:
               $hasher.Dispose()
             }
             $sha = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
-            if ($sha -ne "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1") {
+            if (
+              [string]$value.craig.embedded_flac_sha256 -notmatch '^[a-f0-9]{64}$' -or
+              $sha -ne [string]$value.craig.embedded_flac_sha256
+            ) {
               throw "FIXTURE_CRAIG_FLAC_HASH_INVALID"
+            }
+            if ([string]$value.craig.track_codec -ne "flac") {
+              throw "FIXTURE_CRAIG_CODEC_INVALID"
+            }
+            $recordedDuration = [double]$value.craig.track_duration_seconds
+            if ($recordedDuration -lt 60 -or [Math]::Abs($recordedDuration - $craigDuration) -gt 0.01) {
+              throw "FIXTURE_CRAIG_DURATION_METADATA_INVALID"
             }
           } finally {
             $zip.Dispose()
