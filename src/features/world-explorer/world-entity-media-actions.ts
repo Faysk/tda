@@ -53,6 +53,30 @@ export type FinalizeWorldEntityPortraitUploadResult =
 	  }>
 	| Readonly<{ ok: false; reason: WorldEntityMediaUploadFailure }>;
 
+type MediaAssetRow = Readonly<{
+	id: string;
+	status: "staged" | "verified_public" | "retired";
+	role_hint: string;
+	staged_bucket: string;
+	object_key: string;
+	sha256: string;
+	mime_type: string;
+	byte_size: number | string;
+	width: number;
+	height: number;
+	read_back_verified: boolean;
+}>;
+
+function validIntent(intent: WorldEntityPortraitUploadIntent): boolean {
+	return (
+		isWorldEntityMediaSha256(intent.sha256) &&
+		isWorldEntityMediaMime(intent.mimeType) &&
+		Number.isSafeInteger(intent.bytes) &&
+		intent.bytes >= 24 &&
+		intent.bytes <= WORLD_ENTITY_MEDIA_MAX_BYTES
+	);
+}
+
 function sameVerifiedAsset(row: MediaAssetRow, upload: VerifiedWorldEntityUpload): boolean {
 	return (
 		row.status !== "retired" &&
