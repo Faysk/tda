@@ -2,21 +2,18 @@
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { editDataClient } from "@/integrations/supabase/server";
-import { sanitizeWorldGraphDraft } from "./graph-contract";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
+	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
 	type WorldEntityMediaMime,
 	isWorldEntityMediaAssetId,
 	isWorldEntityMediaMime,
 	isWorldEntityMediaSha256,
 } from "./world-entity-media";
+import { authorizeWorldEntityMediaTarget } from "./world-entity-media-access";
 import {
 	finalizeWorldEntityPortraitPendingUpload,
-	presignWorldEntityPortraitPendingUpload,
 	type VerifiedWorldEntityUpload,
 	worldEntityMediaEnabled,
 } from "./world-entity-media-server";
@@ -40,10 +37,7 @@ export type RequestWorldEntityPortraitUploadResult =
 	| Readonly<{
 			ok: true;
 			uploadId: string;
-			uploadUrl: string;
-			expiresAt: string;
-			method: "PUT";
-			headers: Readonly<{ "Content-Type": WorldEntityMediaMime }>;
+			chunkBytes: number;
 	  }>
 	| Readonly<{ ok: false; reason: WorldEntityMediaUploadFailure }>;
 
@@ -58,109 +52,6 @@ export type FinalizeWorldEntityPortraitUploadResult =
 			height: number;
 	  }>
 	| Readonly<{ ok: false; reason: WorldEntityMediaUploadFailure }>;
-
-type AuthorizedMediaEditor = Readonly<{
-	authUserId: string;
-	profileId: string;
-}>;
-
-type MediaAssetRow = Readonly<{
-	id: string;
-	status: "staged" | "verified_public" | "retired";
-	role_hint: string;
-	staged_bucket: string;
-	object_key: string;
-	sha256: string;
-	mime_type: string;
-	byte_size: number | string;
-	width: number;
-	height: number;
-	read_back_verified: boolean;
-}>;
-
-function validIntent(intent: WorldEntityPortraitUploadIntent): boolean {
-	return (
-		isWorldEntityMediaSha256(intent.sha256) &&
-		isWorldEntityMediaMime(intent.mimeType) &&
-		Number.isSafeInteger(intent.bytes) &&
-		intent.bytes >= 24 &&
-		intent.bytes <= WORLD_ENTITY_MEDIA_MAX_BYTES
-	);
-}
-
-async function authorizedMediaEditor(): Promise<
-	| Readonly<{ ok: true; access: AuthorizedMediaEditor }>
-	| Readonly<{ ok: false; reason: WorldEntityMediaUploadFailure }>
-> {
-	const [contentAccess, layoutAccess] = await Promise.all([
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.contentEdit,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.worldLayoutEdit,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-	]);
-	if (!contentAccess.ok) return { ok: false, reason: contentAccess.reason };
-	if (!layoutAccess.ok) return { ok: false, reason: layoutAccess.reason };
-	if (
-		contentAccess.authUserId !== layoutAccess.authUserId ||
-		contentAccess.profileId !== layoutAccess.profileId
-	) {
-		return { ok: false, reason: "forbidden" };
-	}
-	return {
-		ok: true,
-		access: {
-			authUserId: contentAccess.authUserId,
-			profileId: contentAccess.profileId,
-		},
-	};
-}
-
-async function campaignAndLeaseAllowEntity({
-	client,
-	profileId,
-	leaseToken,
-	entityId,
-}: {
-	client: SupabaseClient;
-	profileId: string;
-	leaseToken: string;
-	entityId: string;
-}): Promise<{ campaignId: string } | null> {
-	const { data: campaign, error: campaignError } = await client
-		.from("campaigns")
-		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
-		.maybeSingle();
-	if (campaignError) throw new Error(`campaign_lookup:${campaignError.message}`);
-	if (!campaign?.id) return null;
-
-	const { data: lease, error: leaseError } = await client
-		.from("world_edit_leases")
-		.select("draft_graph,expires_at,graph_draft_initialized")
-		.eq("campaign_id", campaign.id)
-		.eq("holder_profile_id", profileId)
-		.eq("lease_token", leaseToken)
-		.maybeSingle();
-	if (leaseError) throw new Error(`lease_lookup:${leaseError.message}`);
-	if (
-		!lease ||
-		lease.graph_draft_initialized !== true ||
-		typeof lease.expires_at !== "string" ||
-		Date.parse(lease.expires_at) <= Date.now()
-	) {
-		return null;
-	}
-
-	const draft = sanitizeWorldGraphDraft(lease.draft_graph);
-	if (!draft) return null;
-	const normalizedEntityId = entityId.toLowerCase();
-	if (!draft.nodes.some((node) => node.id.toLowerCase() === normalizedEntityId)) return null;
-	return { campaignId: campaign.id };
-}
 
 function sameVerifiedAsset(row: MediaAssetRow, upload: VerifiedWorldEntityUpload): boolean {
 	return (
@@ -262,43 +153,14 @@ export async function requestWorldEntityPortraitUploadAction(
 		return { ok: false, reason: "invalid_payload" };
 	}
 
-	const authorization = await authorizedMediaEditor();
+	const authorization = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
 	if (!authorization.ok) return authorization;
-	const client = editDataClient();
-	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
-	try {
-		const scope = await campaignAndLeaseAllowEntity({
-			client,
-			profileId: authorization.access.profileId,
-			leaseToken,
-			entityId,
-		});
-		if (!scope) return { ok: false, reason: "lease_lost" };
-
-		const uploadId = randomUUID();
-		const signed = presignWorldEntityPortraitPendingUpload({
-			campaignSlug: CAMPAIGN_SLUG,
-			entityId,
-			uploadId,
-			sha256: intent.sha256,
-			mimeType: intent.mimeType,
-		});
-		return {
-			ok: true,
-			uploadId,
-			uploadUrl: signed.url,
-			expiresAt: signed.expiresAt,
-			method: "PUT",
-			headers: signed.headers,
-		};
-	} catch (error) {
-		console.error(
-			"World entity portrait upload intent failed",
-			error instanceof Error ? error.message : "unknown_error",
-		);
-		return { ok: false, reason: "dependency_unavailable" };
-	}
+	return {
+		ok: true,
+		uploadId: randomUUID(),
+		chunkBytes: WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
+	};
 }
 
 export async function finalizeWorldEntityPortraitUploadAction(
@@ -317,20 +179,11 @@ export async function finalizeWorldEntityPortraitUploadAction(
 		return { ok: false, reason: "invalid_payload" };
 	}
 
-	const authorization = await authorizedMediaEditor();
+	const authorization = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
 	if (!authorization.ok) return authorization;
-	const client = editDataClient();
-	if (!client) return { ok: false, reason: "dependency_unavailable" };
+	const { client, campaignId, profileId } = authorization.target;
 
 	try {
-		const scope = await campaignAndLeaseAllowEntity({
-			client,
-			profileId: authorization.access.profileId,
-			leaseToken,
-			entityId,
-		});
-		if (!scope) return { ok: false, reason: "lease_lost" };
-
 		const upload = await finalizeWorldEntityPortraitPendingUpload({
 			campaignSlug: CAMPAIGN_SLUG,
 			entityId,
@@ -341,8 +194,8 @@ export async function finalizeWorldEntityPortraitUploadAction(
 		});
 		const assetId = await persistVerifiedAsset({
 			client,
-			campaignId: scope.campaignId,
-			profileId: authorization.access.profileId,
+			campaignId,
+			profileId,
 			upload,
 		});
 		return {
