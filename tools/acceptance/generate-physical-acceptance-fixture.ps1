@@ -7,8 +7,228 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$FlacFixtureBase64 = "ZkxhQwAAACIEgASAAAALAAANA+gA8AAAD6BYEBJJx2tzW9dM5TArAJMXhAAALAwAAABMYXZmNjEuNy4xMDMBAAAAFAAAAGVuY29kZXI9TGF2ZjYxLjcuMTAz//g1CAADAAAAakT/+DUIAQQAAAAGPP/4NQgCDQAAALK0//h1CAMCHz0AAAC/ig=="
-$FlacFixtureSha256 = "de19f01df8995d8841b27397dcaa034a03936a45779886a66b3330781ecf48f1"
+Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+
+public static class TdaSyntheticFlacEncoder
+{
+    private static ushort ReadU16LE(BinaryReader reader)
+    {
+        return reader.ReadUInt16();
+    }
+
+    private static uint ReadU32LE(BinaryReader reader)
+    {
+        return reader.ReadUInt32();
+    }
+
+    private static void WriteU16BE(BinaryWriter writer, int value)
+    {
+        writer.Write((byte)((value >> 8) & 0xff));
+        writer.Write((byte)(value & 0xff));
+    }
+
+    private static void WriteU64BE(BinaryWriter writer, ulong value)
+    {
+        for (int shift = 56; shift >= 0; shift -= 8)
+            writer.Write((byte)((value >> shift) & 0xff));
+    }
+
+    private static byte Crc8(byte[] bytes)
+    {
+        int crc = 0;
+        foreach (byte value in bytes)
+        {
+            crc ^= value;
+            for (int bit = 0; bit < 8; bit++)
+                crc = (crc & 0x80) != 0 ? ((crc << 1) ^ 0x07) & 0xff : (crc << 1) & 0xff;
+        }
+        return (byte)crc;
+    }
+
+    private static ushort Crc16(byte[] bytes)
+    {
+        int crc = 0;
+        foreach (byte value in bytes)
+        {
+            crc ^= value << 8;
+            for (int bit = 0; bit < 8; bit++)
+                crc = (crc & 0x8000) != 0 ? ((crc << 1) ^ 0x8005) & 0xffff : (crc << 1) & 0xffff;
+        }
+        return (ushort)crc;
+    }
+
+    private static byte[] EncodeFrameNumber(int value)
+    {
+        if (value < 0 || value > 0xffff)
+            throw new InvalidDataException("FIXTURE_FLAC_FRAME_NUMBER_INVALID");
+        if (value <= 0x7f)
+            return new byte[] { (byte)value };
+        if (value <= 0x7ff)
+            return new byte[] {
+                (byte)(0xc0 | ((value >> 6) & 0x1f)),
+                (byte)(0x80 | (value & 0x3f))
+            };
+        return new byte[] {
+            (byte)(0xe0 | ((value >> 12) & 0x0f)),
+            (byte)(0x80 | ((value >> 6) & 0x3f)),
+            (byte)(0x80 | (value & 0x3f))
+        };
+    }
+
+    public static double EncodeMonoPcm16Wave(string sourcePath, string destinationPath)
+    {
+        byte[] pcm = null;
+        int sampleRate = 0;
+        int channels = 0;
+        int bitsPerSample = 0;
+        int audioFormat = 0;
+
+        using (FileStream stream = File.OpenRead(sourcePath))
+        using (BinaryReader reader = new BinaryReader(stream, Encoding.ASCII))
+        {
+            if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "RIFF")
+                throw new InvalidDataException("FIXTURE_WAV_RIFF_INVALID");
+            ReadU32LE(reader);
+            if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "WAVE")
+                throw new InvalidDataException("FIXTURE_WAV_WAVE_INVALID");
+
+            long dataOffset = -1;
+            int dataLength = 0;
+            while (stream.Position + 8 <= stream.Length)
+            {
+                string chunk = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                uint size = ReadU32LE(reader);
+                long start = stream.Position;
+                if (chunk == "fmt ")
+                {
+                    if (size < 16)
+                        throw new InvalidDataException("FIXTURE_WAV_FMT_INVALID");
+                    audioFormat = ReadU16LE(reader);
+                    channels = ReadU16LE(reader);
+                    sampleRate = checked((int)ReadU32LE(reader));
+                    ReadU32LE(reader);
+                    ReadU16LE(reader);
+                    bitsPerSample = ReadU16LE(reader);
+                }
+                else if (chunk == "data")
+                {
+                    dataOffset = start;
+                    dataLength = checked((int)size);
+                }
+                long next = checked(start + size + (size & 1));
+                if (next > stream.Length)
+                    throw new InvalidDataException("FIXTURE_WAV_CHUNK_INVALID");
+                stream.Position = next;
+            }
+
+            if (audioFormat != 1 || channels != 1 || bitsPerSample != 16)
+                throw new InvalidDataException("FIXTURE_WAV_PCM16_MONO_REQUIRED");
+            if (sampleRate <= 0 || sampleRate > 65535)
+                throw new InvalidDataException("FIXTURE_WAV_SAMPLE_RATE_INVALID");
+            if (dataOffset < 0 || dataLength <= 0 || (dataLength & 1) != 0)
+                throw new InvalidDataException("FIXTURE_WAV_DATA_INVALID");
+
+            stream.Position = dataOffset;
+            pcm = reader.ReadBytes(dataLength);
+            if (pcm.Length != dataLength)
+                throw new InvalidDataException("FIXTURE_WAV_DATA_INVALID");
+        }
+
+        long totalSamplesLong = pcm.LongLength / 2;
+        if (totalSamplesLong <= 0 || totalSamplesLong > 0xfffffffffL)
+            throw new InvalidDataException("FIXTURE_FLAC_SAMPLE_COUNT_INVALID");
+        int totalSamples = checked((int)totalSamplesLong);
+
+        int blockSize = 4096;
+        while (blockSize > 16)
+        {
+            int remainder = totalSamples % blockSize;
+            if (remainder == 0 || remainder >= 16)
+                break;
+            blockSize--;
+        }
+        if (blockSize < 16)
+            throw new InvalidDataException("FIXTURE_FLAC_BLOCK_SIZE_INVALID");
+
+        byte[] md5;
+        using (MD5 hasher = MD5.Create())
+            md5 = hasher.ComputeHash(pcm);
+
+        using (FileStream output = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        using (BinaryWriter writer = new BinaryWriter(output, Encoding.ASCII))
+        {
+            writer.Write(Encoding.ASCII.GetBytes("fLaC"));
+            writer.Write((byte)0x80);
+            writer.Write(new byte[] { 0x00, 0x00, 0x22 });
+            WriteU16BE(writer, blockSize);
+            WriteU16BE(writer, blockSize);
+            writer.Write(new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 });
+
+            ulong streamInfo =
+                ((ulong)sampleRate << 44) |
+                ((ulong)15 << 36) |
+                (ulong)totalSamplesLong;
+            WriteU64BE(writer, streamInfo);
+            writer.Write(md5);
+
+            int frameNumber = 0;
+            int sampleOffset = 0;
+            while (sampleOffset < totalSamples)
+            {
+                int sampleCount = Math.Min(blockSize, totalSamples - sampleOffset);
+
+                byte[] headerWithoutCrc;
+                using (MemoryStream headerStream = new MemoryStream())
+                using (BinaryWriter header = new BinaryWriter(headerStream, Encoding.ASCII))
+                {
+                    header.Write((byte)0xff);
+                    header.Write((byte)0xf8);
+                    header.Write((byte)0x7d);
+                    header.Write((byte)0x08);
+                    header.Write(EncodeFrameNumber(frameNumber));
+                    WriteU16BE(header, sampleCount - 1);
+                    WriteU16BE(header, sampleRate);
+                    header.Flush();
+                    headerWithoutCrc = headerStream.ToArray();
+                }
+
+                byte[] frameWithoutFooter;
+                using (MemoryStream frameStream = new MemoryStream())
+                using (BinaryWriter frame = new BinaryWriter(frameStream, Encoding.ASCII))
+                {
+                    frame.Write(headerWithoutCrc);
+                    frame.Write(Crc8(headerWithoutCrc));
+                    frame.Write((byte)0x02);
+                    int byteOffset = sampleOffset * 2;
+                    for (int index = 0; index < sampleCount; index++)
+                    {
+                        byte low = pcm[byteOffset + (index * 2)];
+                        byte high = pcm[byteOffset + (index * 2) + 1];
+                        frame.Write(high);
+                        frame.Write(low);
+                    }
+                    frame.Flush();
+                    frameWithoutFooter = frameStream.ToArray();
+                }
+
+                writer.Write(frameWithoutFooter);
+                WriteU16BE(writer, Crc16(frameWithoutFooter));
+                sampleOffset += sampleCount;
+                frameNumber++;
+            }
+
+            writer.Flush();
+            output.Flush(true);
+        }
+
+        return (double)totalSamplesLong / (double)sampleRate;
+    }
+}
+"@
 
 function Get-Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -140,42 +360,51 @@ function New-SyntheticSpeechFixture([string]$Path, [int]$DesiredSeconds) {
     throw "FIXTURE_AUDIO_DURATION_OUT_OF_RANGE"
 }
 
-function New-CraigFixture([string]$ZipPath) {
+function New-CraigFixture([string]$ZipPath, [string]$SpeechWavPath) {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-    $flacBytes = [Convert]::FromBase64String($FlacFixtureBase64)
-    $sha256 = [Security.Cryptography.SHA256]::Create()
+    $flacPath = Join-Path ([IO.Path]::GetDirectoryName($ZipPath)) ("tda-craig-synthetic-" + [Guid]::NewGuid().ToString("N") + ".flac")
     try {
-        $digest = $sha256.ComputeHash($flacBytes)
-    } finally {
-        $sha256.Dispose()
-    }
-    $actual = ([BitConverter]::ToString($digest) -replace "-", "").ToLowerInvariant()
-    if ($actual -ne $FlacFixtureSha256) { throw "FIXTURE_FLAC_EMBEDDED_HASH_MISMATCH" }
+        $duration = [TdaSyntheticFlacEncoder]::EncodeMonoPcm16Wave($SpeechWavPath, $flacPath)
+        if ($duration -lt 60 -or $duration -gt 180) {
+            throw "FIXTURE_CRAIG_FLAC_DURATION_INVALID"
+        }
+        $flacSha = Get-Sha256 $flacPath
 
-    if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
-    $file = [IO.File]::Open($ZipPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
-    $archive = $null
-    try {
-        $archive = [IO.Compression.ZipArchive]::new(
-            $file,
-            [IO.Compression.ZipArchiveMode]::Create,
-            $false
-        )
-        $entry = $archive.CreateEntry(
-            "1-Synthetic.flac",
-            [IO.Compression.CompressionLevel]::NoCompression
-        )
-        $entryStream = $entry.Open()
+        if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
+        $file = [IO.File]::Open($ZipPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        $archive = $null
         try {
-            $entryStream.Write($flacBytes, 0, $flacBytes.Length)
+            $archive = [IO.Compression.ZipArchive]::new(
+                $file,
+                [IO.Compression.ZipArchiveMode]::Create,
+                $false
+            )
+            $entry = $archive.CreateEntry(
+                "1-Synthetic.flac",
+                [IO.Compression.CompressionLevel]::NoCompression
+            )
+            $entryStream = $entry.Open()
+            $input = $null
+            try {
+                $input = [IO.File]::OpenRead($flacPath)
+                $input.CopyTo($entryStream)
+            } finally {
+                if ($null -ne $input) { $input.Dispose() }
+                $entryStream.Dispose()
+            }
         } finally {
-            $entryStream.Dispose()
+            if ($null -ne $archive) { $archive.Dispose() }
+            $file.Dispose()
+        }
+
+        return @{
+            flac_sha256 = $flacSha
+            duration_seconds = [Math]::Round($duration, 3)
         }
     } finally {
-        if ($null -ne $archive) { $archive.Dispose() }
-        $file.Dispose()
+        Remove-Item -LiteralPath $flacPath -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -191,7 +420,7 @@ $craig = Join-Path $output "tda-installed-acceptance-craig.zip"
 $metadata = Join-Path $output "fixture.json"
 
 $speech = New-SyntheticSpeechFixture $audio $TargetSeconds
-New-CraigFixture $craig
+$craigFixture = New-CraigFixture $craig $audio
 
 $value = [ordered]@{
     schema = "tda_physical_acceptance_fixture_v1"
@@ -208,7 +437,9 @@ $value = [ordered]@{
         file = [IO.Path]::GetFileName($craig)
         sha256 = Get-Sha256 $craig
         track_count = 1
-        embedded_flac_sha256 = $FlacFixtureSha256
+        embedded_flac_sha256 = $craigFixture.flac_sha256
+        track_duration_seconds = $craigFixture.duration_seconds
+        track_codec = "flac"
     }
 }
 $value | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $metadata -Encoding UTF8
@@ -218,4 +449,5 @@ Write-Host "Audio: $audio"
 Write-Host "Craig: $craig"
 Write-Host "Metadata: $metadata"
 Write-Host "Duration: $($speech.duration_seconds)s"
+Write-Host "Craig track duration: $($craigFixture.duration_seconds)s"
 Write-Host "Voice: $($speech.voice)"
