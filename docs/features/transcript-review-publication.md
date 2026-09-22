@@ -2,8 +2,23 @@
 
 > Status: arquitetura aprovada; implementação pendente
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-22
 > Fonte de verdade: esta spec, ADR-0016, `local-companion/tda_companion`, `src/features/transcript-sync` e contratos do Edit
+
+## Rollout Production — estado operacional
+
+A fundação física de revisões completas, receipts, current pointer e capability está aplicada em Production. O runtime continua separado do schema por `TDA_TRANSCRIPT_PUBLICATION_ENABLED`.
+
+O rollout governado deve:
+
+- habilitar a flag somente no artefato staged;
+- provar em `/api/health` que `features.transcriptPublication=true`;
+- promover exatamente o artefato testado;
+- repetir a prova no domínio canônico;
+- não publicar transcript automaticamente como parte do deploy;
+- deixar o primeiro publish real dependente de revisão `approved_local`, confirmação humana e identidade/capability válidas.
+
+Rollback lógico começa desligando a flag; revisões, receipts e eventos já persistidos não são apagados para simular rollback.
 
 ## Objetivo
 
