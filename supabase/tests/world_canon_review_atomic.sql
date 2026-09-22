@@ -44,7 +44,7 @@ $contract$;
 -- Preserve the following World provenance test's initial assumption that the
 -- synthetic site_editor does not have canon approval until that test grants it.
 delete from public.role_permissions
-where role_id = '66666666-6666-4666-8666-666666666666'::uuid
+where role_id = '55555555-5555-4555-8555-555555555555'::uuid
   and permission_action = 'narrative.canon.approve';
 
 insert into public.permission_catalog(action, plane, description)
@@ -97,7 +97,7 @@ reset role;
 
 insert into public.role_permissions(role_id, permission_action)
 values (
-  '66666666-6666-4666-8666-666666666666',
+  '55555555-5555-4555-8555-555555555555',
   'narrative.canon.approve'
 )
 on conflict do nothing;
@@ -308,5 +308,5 @@ where id in (
   '71717171-7171-4171-8171-717171717171'::uuid
 );
 delete from public.role_permissions
-where role_id = '66666666-6666-4666-8666-666666666666'::uuid
+where role_id = '55555555-5555-4555-8555-555555555555'::uuid
   and permission_action = 'narrative.canon.approve';
