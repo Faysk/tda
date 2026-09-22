@@ -83,11 +83,11 @@ insert into public.campaigns(id, slug)
 values ('90909090-9090-4090-8090-909090909090', 'other-synthetic-campaign')
 on conflict do nothing;
 
-insert into public.canon_entries(id, campaign_id, status) values
-  ('30303030-3030-4030-8030-303030303030', '11111111-1111-4111-8111-111111111111', 'active'),
-  ('31313131-3131-4131-8131-313131313131', '11111111-1111-4111-8111-111111111111', 'active'),
-  ('32323232-3232-4232-8232-323232323232', '11111111-1111-4111-8111-111111111111', 'archived'),
-  ('33303030-3030-4030-8030-303030303030', '90909090-9090-4090-8090-909090909090', 'active');
+insert into public.canon_entries(id, campaign_id, title, content, status) values
+  ('30303030-3030-4030-8030-303030303030', '11111111-1111-4111-8111-111111111111', 'Fonte sintética A', 'Evidência sintética A.', 'active'),
+  ('31313131-3131-4131-8131-313131313131', '11111111-1111-4111-8111-111111111111', 'Fonte sintética B', 'Evidência sintética B.', 'active'),
+  ('32323232-3232-4232-8232-323232323232', '11111111-1111-4111-8111-111111111111', 'Fonte arquivada', 'Evidência sintética arquivada.', 'archived'),
+  ('33303030-3030-4030-8030-303030303030', '90909090-9090-4090-8090-909090909090', 'Fonte outra campanha', 'Evidência sintética externa.', 'active');
 
 set role service_role;
 do $$
