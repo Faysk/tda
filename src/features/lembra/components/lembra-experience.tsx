@@ -1498,49 +1498,24 @@ export function LembraExperience({
 										) : null}
 									</div>
 
-									{uploadStatus.phase === "uploading" ||
-									uploadStatus.phase === "finalizing" ||
-									uploadStatus.phase === "success" ? (
-										<div
-											className={styles.uploadTrack}
-											role={
-												uploadStatus.phase === "uploading"
-													? "progressbar"
-													: undefined
-											}
-											aria-valuemin={
-												uploadStatus.phase === "uploading" ? 0 : undefined
-											}
-											aria-valuemax={
-												uploadStatus.phase === "uploading" ? 100 : undefined
-											}
-											aria-valuenow={
-												uploadStatus.phase === "uploading"
-													? Math.min(
-															100,
-															Math.round(
-																(uploadStatus.uploadedBytes /
-																	Math.max(1, uploadStatus.totalBytes)) *
-																	100,
-															),
-														)
-													: undefined
-											}
-										>
+									{uploadStatus.phase === "uploading" ? (
+										<progress
+											className={styles.uploadProgress}
+											max={100}
+											value={Math.min(
+												100,
+												(uploadStatus.uploadedBytes /
+													Math.max(1, uploadStatus.totalBytes)) *
+													100,
+											)}
+											aria-label="Progresso do envio da imagem"
+										/>
+									) : uploadStatus.phase === "finalizing" ||
+									  uploadStatus.phase === "success" ? (
+										<div className={styles.uploadTrack} aria-hidden="true">
 											<span
 												className={styles.uploadTrackFill}
-												style={{
-													width: `${
-														uploadStatus.phase === "uploading"
-															? Math.min(
-																	100,
-																	(uploadStatus.uploadedBytes /
-																		Math.max(1, uploadStatus.totalBytes)) *
-																		100,
-																)
-															: 100
-													}%`,
-												}}
+												style={{ width: "100%" }}
 											/>
 										</div>
 									) : null}
