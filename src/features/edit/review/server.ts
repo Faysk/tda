@@ -164,38 +164,62 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 	const sourceByKey = new Map<string, CanonReviewSource>();
 
 	for (const batch of chunks(segmentIds, SOURCE_BATCH_SIZE)) {
-		const selection = transcriptAccess.ok
-			? "id,session_id,start_ms,text,speaker_name,character_name,review_status"
-			: "id,session_id,start_ms,review_status";
-		const { data, error } = await client
-			.from("transcript_segments")
-			.select(selection)
-			.in("id", batch)
-			.in("session_id", sessionIds);
-		if (error) {
-			console.error("Canon review transcript source lookup failed");
-			return { ok: false, reason: "dependency_unavailable" };
-		}
-		for (const row of data ?? []) {
-			const readable = transcriptAccess.ok;
-			const speaker = readable
-				? shortText(row.character_name, "") ||
+		if (transcriptAccess.ok) {
+			const { data, error } = await client
+				.from("transcript_segments")
+				.select(
+					"id,session_id,start_ms,text,speaker_name,character_name,review_status",
+				)
+				.in("id", batch)
+				.in("session_id", sessionIds);
+			if (error) {
+				console.error("Canon review transcript source lookup failed");
+				return { ok: false, reason: "dependency_unavailable" };
+			}
+			for (const row of data ?? []) {
+				const speaker =
+					shortText(row.character_name, "") ||
 					shortText(row.speaker_name, "") ||
-					"Transcrição"
-				: "Trecho de transcrição";
-			sourceByKey.set("transcript:" + row.id, {
-				key: "transcript:" + row.id,
-				kind: "transcript",
-				label: speaker,
-				text: readable ? shortText(row.text, "Trecho sem texto.") : null,
-				startMs:
-					typeof row.start_ms === "number" && Number.isFinite(row.start_ms)
-						? row.start_ms
-						: null,
-				reviewStatus:
-					typeof row.review_status === "string" ? row.review_status : null,
-				contentAccess: readable ? "granted" : "restricted",
-			});
+					"Transcrição";
+				sourceByKey.set("transcript:" + row.id, {
+					key: "transcript:" + row.id,
+					kind: "transcript",
+					label: speaker,
+					text: shortText(row.text, "Trecho sem texto."),
+					startMs:
+						typeof row.start_ms === "number" && Number.isFinite(row.start_ms)
+							? row.start_ms
+							: null,
+					reviewStatus:
+						typeof row.review_status === "string" ? row.review_status : null,
+					contentAccess: "granted",
+				});
+			}
+		} else {
+			const { data, error } = await client
+				.from("transcript_segments")
+				.select("id,session_id,start_ms,review_status")
+				.in("id", batch)
+				.in("session_id", sessionIds);
+			if (error) {
+				console.error("Canon review transcript source lookup failed");
+				return { ok: false, reason: "dependency_unavailable" };
+			}
+			for (const row of data ?? []) {
+				sourceByKey.set("transcript:" + row.id, {
+					key: "transcript:" + row.id,
+					kind: "transcript",
+					label: "Trecho de transcrição",
+					text: null,
+					startMs:
+						typeof row.start_ms === "number" && Number.isFinite(row.start_ms)
+							? row.start_ms
+							: null,
+					reviewStatus:
+						typeof row.review_status === "string" ? row.review_status : null,
+					contentAccess: "restricted",
+				});
+			}
 		}
 	}
 
