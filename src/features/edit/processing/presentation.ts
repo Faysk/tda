@@ -63,6 +63,8 @@ export function presentJobError(code: string): string {
 		AGENT_BUSY: "O Companion está ocupado com um processamento ou preparação local; aguarde a operação atual terminar.",
 		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
 		WORKER_START_TIMEOUT: "O worker local não iniciou dentro do tempo esperado.",
+		WORKER_RUNTIME_BOOTSTRAP_TIMEOUT: "O runtime local não concluiu a inicialização pesada dentro do limite esperado.",
+		WORKER_RUNTIME_BOOTSTRAP_FAILED: "O runtime local falhou durante a inicialização antes do processamento.",
 		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
 		WORKER_COMMAND_INVALID: "O Companion não conseguiu iniciar o worker com um comando local válido.",
@@ -126,6 +128,7 @@ export const jobLabels: Record<JobStatus, string> = {
 export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
 	runtime_validation: "Validando runtime e gate físico",
+	runtime_bootstrap: "Inicializando runtime local",
 	source_validation: "Validando sessão local",
 	fixture: "Ensaio sintético",
 	checking_model: "Verificando modelo",

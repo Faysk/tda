@@ -2,11 +2,47 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing
 import sys
 import tempfile
 import wave
 from importlib import metadata
 from pathlib import Path
+
+
+def _bootstrap_qwen_runtime():
+    """Load the native Qwen/Torch stack before worker threads are created.
+
+    The frozen --probe path has been physically healthy on RTX 4070 while the
+    normal worker stalled after entering runtime_validation. Keep probe,
+    acceptance and worker mode on one bootstrap order so Torch/Transformers CUDA
+    initialization never happens for the first time behind heartbeat/cancel
+    threads.
+    """
+    import accelerate  # noqa: F401
+    import av  # noqa: F401
+    import huggingface_hub  # noqa: F401
+    import numpy  # noqa: F401
+    import pynvml
+    import safetensors  # noqa: F401
+    import torch
+    import transformers
+    from tda_companion.qwen_acceptance import _decode_audio_array
+    from tda_companion.qwen_physical_gate import MIN_GATE_AUDIO_SECONDS
+    from transformers import (
+        AutoModelForMultimodalLM,
+        AutoModelForTokenClassification,
+        AutoProcessor,
+        Qwen3ASRConfig,
+        Qwen3ASRForConditionalGeneration,
+    )
+
+    # Resolve the exact native classes during the single-threaded bootstrap. The
+    # worker imports the same modules later from sys.modules rather than doing a
+    # first heavy Torch/Transformers import inside runtime_validation.
+    del AutoModelForMultimodalLM, AutoModelForTokenClassification, AutoProcessor
+    del Qwen3ASRConfig, Qwen3ASRForConditionalGeneration
+    return torch, transformers, pynvml, _decode_audio_array, MIN_GATE_AUDIO_SECONDS
 
 
 def _version(name: str) -> str:
@@ -58,26 +94,9 @@ def _cuda_execution_probe(torch) -> tuple[bool | None, str | None]:
 
 def _probe() -> int:
     try:
-        import accelerate  # noqa: F401
-        import av  # noqa: F401
-        import huggingface_hub  # noqa: F401
-        import numpy  # noqa: F401
-        import pynvml  # noqa: F401
-        import safetensors  # noqa: F401
-        import torch
-        import transformers
-        from tda_companion.qwen_acceptance import _decode_audio_array
-        from tda_companion.qwen_physical_gate import MIN_GATE_AUDIO_SECONDS
-        from transformers import (
-            AutoModelForMultimodalLM,
-            AutoModelForTokenClassification,
-            AutoProcessor,
-            Qwen3ASRConfig,
-            Qwen3ASRForConditionalGeneration,
+        torch, transformers, pynvml, _decode_audio_array, MIN_GATE_AUDIO_SECONDS = (
+            _bootstrap_qwen_runtime()
         )
-
-        del AutoModelForMultimodalLM, AutoModelForTokenClassification, AutoProcessor
-        del Qwen3ASRConfig, Qwen3ASRForConditionalGeneration
     except Exception as exc:
         print(
             json.dumps(
@@ -191,6 +210,7 @@ def _installed_runtime_root(explicit: Path | None) -> Path:
 
 
 def _acceptance(args: argparse.Namespace) -> int:
+    _bootstrap_qwen_runtime()
     from tda_companion.qwen_acceptance import (
         ACCEPTANCE_SCHEMA,
         QwenAcceptanceError,
@@ -325,8 +345,9 @@ def main() -> int:
 
     from tda_companion.asr_worker import run_worker_stdio
 
-    return run_worker_stdio()
+    return run_worker_stdio(pre_worker_bootstrap=_bootstrap_qwen_runtime)
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     raise SystemExit(main())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import subprocess
 import sys
 import threading
@@ -7,6 +8,7 @@ import time
 
 import pytest
 
+import tda_companion.asr_worker as asr_worker_module
 import tda_companion.worker_supervisor as supervisor_module
 from tda_companion.worker_protocol import (
     MAX_LINE_BYTES,
@@ -823,3 +825,152 @@ while True:
 
     assert failure.value.recoverable is True
     assert time.monotonic() - started < 1.0
+
+
+def test_worker_pre_thread_bootstrap_emits_ready_and_stage_before_control_thread(monkeypatch):
+    command = WorkerRunCommand(
+        job_id="bootstrap-order",
+        attempt=1,
+        kind="synthetic.fixture",
+        payload={"units": 1, "completed": 0},
+    )
+    stdin = io.BytesIO(command.encode().encode("utf-8"))
+    stdout = io.StringIO()
+    bootstrapped = False
+    original_thread = asr_worker_module.threading.Thread
+
+    def guarded_thread(*args, **kwargs):
+        if kwargs.get("name") == "tda-worker-control":
+            assert bootstrapped is True
+        return original_thread(*args, **kwargs)
+
+    def bootstrap():
+        nonlocal bootstrapped
+        bootstrapped = True
+
+    monkeypatch.setattr(asr_worker_module.threading, "Thread", guarded_thread)
+
+    assert (
+        asr_worker_module.run_worker_stdio(
+            stdin=stdin,
+            stdout=stdout,
+            pre_worker_bootstrap=bootstrap,
+        )
+        == 0
+    )
+    messages = [
+        WorkerMessage.decode(
+            line,
+            expected_job_id="bootstrap-order",
+            expected_attempt=1,
+            previous_seq=index - 1 if index else None,
+        )
+        for index, line in enumerate(stdout.getvalue().splitlines(keepends=True))
+    ]
+    assert [message.type for message in messages[:3]] == ["ready", "stage", "stage"]
+    assert messages[1].payload["stage"] == "runtime_bootstrap"
+    assert messages[2].payload["stage"] == "fixture"
+    assert sum(message.type == "ready" for message in messages) == 1
+    assert messages[-1].type == "result"
+
+
+def test_supervisor_bounds_runtime_bootstrap_separately_from_heartbeat(tmp_path):
+    script = tmp_path / "runtime_bootstrap_hang_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "stage", {"stage": "runtime_bootstrap"}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=0.05,
+        heartbeat_timeout=0.03,
+        runtime_bootstrap_timeout=0.12,
+    )
+    started = time.monotonic()
+
+    with pytest.raises(
+        WorkerProcessError,
+        match="WORKER_RUNTIME_BOOTSTRAP_TIMEOUT",
+    ):
+        supervisor.run_fixture(
+            job_id="bootstrap-timeout",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    elapsed = time.monotonic() - started
+    assert elapsed >= 0.10
+    assert elapsed < 1.0
+
+
+def test_supervisor_cancel_outranks_runtime_bootstrap_timeout(tmp_path):
+    script = tmp_path / "runtime_bootstrap_cancel_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+for seq, kind, payload in (
+    (0, "ready", {"kind": command.kind}),
+    (1, "stage", {"stage": "runtime_bootstrap"}),
+):
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+time.sleep(10)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=0.05,
+        heartbeat_timeout=0.03,
+        runtime_bootstrap_timeout=0.5,
+        cancel_grace=0.05,
+    )
+    started = time.monotonic()
+
+    outcome = supervisor.run_fixture(
+        job_id="bootstrap-cancel",
+        attempt=1,
+        units=1,
+        completed=0,
+        on_progress=lambda _message: None,
+        is_cancelled=lambda: time.monotonic() - started >= 0.05,
+    )
+
+    assert outcome.terminal == "cancelled"
+    assert outcome.payload == {"stage": "forced_termination", "forced": True}
+    assert time.monotonic() - started < 0.5
