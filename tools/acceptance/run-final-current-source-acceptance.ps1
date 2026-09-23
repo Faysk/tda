@@ -299,7 +299,7 @@ function New-OuterZip([string]$Root,[string]$Destination,[string[]]$Names) {
         if(-not(Test-Path $file)){throw "RUNTIME_OUTER_MEMBER_MISSING"}
         $entry=$zip.CreateEntry($name,[IO.Compression.CompressionLevel]::NoCompression)
         $output=$entry.Open()
-        try{$input=[IO.File]::OpenRead($file);try{$input.CopyTo($output)}finally{$input.Dispose()}}finally{$output.Dispose()}
+        try{$inputStream=[IO.File]::OpenRead($file);try{$inputStream.CopyTo($output)}finally{$inputStream.Dispose()}}finally{$output.Dispose()}
       }
     } finally {$zip.Dispose()}
   } finally {$stream.Dispose()}
