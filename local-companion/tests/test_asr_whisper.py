@@ -494,3 +494,67 @@ def test_whisper_model_load_emits_sanitized_milestones(monkeypatch, tmp_path: Pa
     assert reports[2]["compute_type"] == "float16"
     assert int(reports[1]["duration_ms"]) >= 0
     assert int(reports[3]["duration_ms"]) >= 0
+
+
+
+def test_whisper_model_load_uses_preloaded_class_without_late_import(
+    monkeypatch,
+    tmp_path: Path,
+):
+    import builtins
+
+    calls: list[tuple[str, str]] = []
+
+    class PreloadedWhisperModel:
+        def __init__(self, path: str, *, device: str, compute_type: str):
+            calls.append((device, compute_type))
+            assert path == str(tmp_path)
+
+    monkeypatch.setattr(
+        asr_whisper,
+        "_PRELOADED_WHISPER_MODEL_CLASS",
+        PreloadedWhisperModel,
+    )
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "faster_whisper" or name.startswith("faster_whisper."):
+            raise AssertionError("preloaded worker must not import faster_whisper inside model_load")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    reports: list[dict] = []
+    plan = asr_whisper.WhisperPlan(
+        profile_id="whisper-turbo",
+        device="cuda",
+        compute_type="float16",
+        fallback_compute_type="int8_float16",
+        cpu_requested=False,
+    )
+
+    _model, compute_type, used_fallback = asr_whisper.load_whisper_model(
+        tmp_path,
+        plan,
+        report=reports.append,
+    )
+
+    assert calls == [("cuda", "float16")]
+    assert compute_type == "float16"
+    assert used_fallback is False
+    imported = next(
+        item for item in reports if item.get("code") == "WHISPER_RUNTIME_IMPORT_READY"
+    )
+    assert imported["preloaded"] is True
+    assert any(
+        item.get("code") == "WHISPER_MODEL_CONSTRUCT_READY"
+        for item in reports
+    )
+
+
+def test_bind_preloaded_whisper_model_class_rejects_non_callable(monkeypatch):
+    monkeypatch.setattr(asr_whisper, "_PRELOADED_WHISPER_MODEL_CLASS", None)
+    with pytest.raises(
+        asr_whisper.WhisperRuntimeError,
+        match="WHISPER_RUNTIME_PRELOAD_INVALID",
+    ):
+        asr_whisper.bind_preloaded_whisper_model_class(object())
