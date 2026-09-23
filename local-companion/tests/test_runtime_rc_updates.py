@@ -167,7 +167,7 @@ def test_runtime_asset_release_digest_must_be_sha256_and_match_candidate(monkeyp
 def test_candidate_cache_cleanup_preserves_only_declared_assets_and_partials(tmp_path: Path):
     target = tmp_path / "cache"
     target.mkdir()
-    declared = "TDAQwenRuntimeBundle-1.0.7-windows-x64.json"
+    declared = f"TDAQwenRuntimeBundle-{RC_QWEN_VERSION}-windows-x64.json"
     for name in (
         "TDARuntime-candidate.json",
         declared,

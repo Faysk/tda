@@ -117,20 +117,25 @@ def _receipt(profile_id: str = "qwen-fast") -> dict:
             ],
         },
         "gpu": {
+            "available": True,
             "name": gpu,
+            "memory_total_bytes": 8 * 1024**3,
             "required_name": "RTX 4070",
             "required_name_match": True,
-            "peak_used_memory_bytes": 6 * 1024**3,
+            "peak_memory_used_bytes": 6 * 1024**3,
         },
         "alignment_gpu": {
+            "available": True,
             "name": gpu,
+            "memory_total_bytes": 8 * 1024**3,
             "required_name": "RTX 4070",
             "required_name_match": True,
-            "peak_used_memory_bytes": 5 * 1024**3,
+            "peak_memory_used_bytes": 5 * 1024**3,
         },
         "inference": {
             "device": "cuda",
             "compute_type": "bfloat16",
+            "attention_backend": "sdpa",
             "audio_seconds": MIN_GATE_AUDIO_SECONDS,
             "rtf": 0.42,
             "transcript_sha256": "b" * 64,
@@ -138,6 +143,7 @@ def _receipt(profile_id: str = "qwen-fast") -> dict:
         },
         "alignment": {
             "compute_type": "bfloat16",
+            "attention_backend": "sdpa",
             "rtf": 0.18,
             "word_count": 87,
         },
@@ -166,6 +172,10 @@ def test_physical_gate_binds_runtime_model_aligner_and_contains_no_private_text(
     assert gate["ready"] is True
     assert gate["runtime_version"] == MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
     assert gate["metrics"]["audio_seconds"] == MIN_GATE_AUDIO_SECONDS
+    assert gate["metrics"]["attention_backend"] == "sdpa"
+    assert gate["metrics"]["alignment_attention_backend"] == "sdpa"
+    assert gate["metrics"]["asr_peak_memory_used_bytes"] == 6 * 1024**3
+    assert gate["metrics"]["alignment_peak_memory_used_bytes"] == 5 * 1024**3
     persisted = (state / "qwen-physical-gates" / "qwen-fast.json").read_text(encoding="utf-8")
     assert "transcript_sha256" not in persisted
     assert "audio_sha256" not in persisted
@@ -183,6 +193,31 @@ def test_gate_rejects_gpu_discovery_without_executed_cuda(tmp_path: Path):
         record_qwen_physical_gate(state, runtime, models, bad, profile_id="qwen-fast")
 
     assert ready_qwen_profiles(state, runtime, models) == []
+
+
+def test_gate_requires_physical_gpu_metrics_and_attention_backend(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    missing_metrics = _receipt()
+    missing_metrics["gpu"]["peak_memory_used_bytes"] = None
+    with pytest.raises(QwenPhysicalGateError, match="QWEN_GATE_GPU_METRICS_REQUIRED"):
+        record_qwen_physical_gate(
+            state,
+            runtime,
+            models,
+            missing_metrics,
+            profile_id="qwen-fast",
+        )
+
+    missing_backend = _receipt()
+    missing_backend["inference"]["attention_backend"] = "unknown"
+    with pytest.raises(QwenPhysicalGateError, match="QWEN_GATE_ATTENTION_BACKEND_REQUIRED"):
+        record_qwen_physical_gate(
+            state,
+            runtime,
+            models,
+            missing_backend,
+            profile_id="qwen-fast",
+        )
 
 
 def test_gate_rejects_audio_shorter_than_production_window(tmp_path: Path):
@@ -382,6 +417,36 @@ def test_gate_default_accepts_any_supported_cuda_gpu(tmp_path: Path):
     )
     assert gate["ready"] is True
     assert gate["gpu"]["name"] == "NVIDIA GeForce RTX 3090"
+
+
+def test_gate_accepts_turing_sm75_and_rejects_older_cuda_capability(tmp_path: Path):
+    state, runtime, models = _prepared(tmp_path)
+    turing = _receipt()
+    turing["gpu"]["name"] = "NVIDIA GeForce RTX 2080 SUPER"
+    turing["alignment_gpu"]["name"] = "NVIDIA GeForce RTX 2080 SUPER"
+    turing["cuda"]["devices"][0]["name"] = "NVIDIA GeForce RTX 2080 SUPER"
+    turing["cuda"]["devices"][0]["compute_capability"] = "7.5"
+
+    gate = record_qwen_physical_gate(
+        state,
+        runtime,
+        models,
+        turing,
+        profile_id="qwen-fast",
+    )
+    assert gate["ready"] is True
+    assert gate["gpu"]["compute_capability"] == "7.5"
+
+    older = _receipt()
+    older["cuda"]["devices"][0]["compute_capability"] = "7.0"
+    with pytest.raises(QwenPhysicalGateError, match="QWEN_GATE_GPU_UNSUPPORTED"):
+        record_qwen_physical_gate(
+            state,
+            runtime,
+            models,
+            older,
+            profile_id="qwen-fast",
+        )
 
 
 def test_gate_can_still_require_an_explicit_gpu_name(tmp_path: Path):

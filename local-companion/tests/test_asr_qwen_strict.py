@@ -5,16 +5,20 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.asr_qwen as asr_qwen
+import tda_companion.asr_qwen_strict as asr_qwen_strict
 from tda_companion.asr_models import get_profile
 from tda_companion.asr_qwen import (
     AudioWindow,
     QWEN_WINDOW_SECONDS,
     QwenRuntimeError,
+    QwenWindowTranscript,
     _runtime_fingerprint,
 )
 from tda_companion.asr_qwen_strict import (
     QWEN_WINDOW_OVERLAP_SECONDS,
     _owned_words,
+    _strict_alignment_segments,
     transcribe_craig_package_qwen_strict,
 )
 from tda_companion.craig import CraigPackage, CraigPackageError, CraigTrack
@@ -114,7 +118,54 @@ def _two_windows(_path: Path):
 
 
 def test_qwen_checkpoint_pipeline_revision_is_explicit():
-    assert "checkpoint=qwen-track-v2" in _runtime_fingerprint()
+    assert "checkpoint=qwen-track-v3" in _runtime_fingerprint()
+
+
+def test_packaged_qwen_fingerprint_uses_sealed_marker_without_distribution_scan(
+    monkeypatch,
+    tmp_path: Path,
+):
+    runtime = tmp_path / "Runtime" / "qwen" / "1.0.10"
+    runtime.mkdir(parents=True)
+    executable = runtime / "TDAQwenWorker.exe"
+    executable.write_bytes(b"worker")
+    (runtime / ".tda-runtime.json").write_text(
+        '{"schema":"tda_asr_runtime_v1","runtime_id":"qwen3-transformers","version":"1.0.10","worker_sha256":"'
+        + ("f" * 64)
+        + '"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.10")
+    monkeypatch.setattr(asr_qwen.sys, "executable", str(executable))
+    monkeypatch.setattr(asr_qwen.sys, "frozen", True, raising=False)
+
+    def forbidden(_name: str) -> str:
+        raise AssertionError("packaged fingerprint must not scan package metadata")
+
+    monkeypatch.setattr(asr_qwen, "_distribution_version", forbidden)
+
+    assert _runtime_fingerprint() == (
+        "checkpoint=qwen-track-v3;"
+        "runtime=1.0.10;"
+        f"worker_sha256={'f' * 64}"
+    )
+
+
+def test_packaged_qwen_fingerprint_rejects_invalid_marker(
+    monkeypatch,
+    tmp_path: Path,
+):
+    runtime = tmp_path / "Runtime" / "qwen" / "1.0.10"
+    runtime.mkdir(parents=True)
+    executable = runtime / "TDAQwenWorker.exe"
+    executable.write_bytes(b"worker")
+    (runtime / ".tda-runtime.json").write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.10")
+    monkeypatch.setattr(asr_qwen.sys, "executable", str(executable))
+    monkeypatch.setattr(asr_qwen.sys, "frozen", True, raising=False)
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_RUNTIME_FINGERPRINT_INVALID"):
+        _runtime_fingerprint()
 
 
 def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
@@ -149,6 +200,65 @@ def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
             "profile": "qwen-fast",
         }
     ]
+
+
+def test_strict_qwen_exposes_fingerprint_and_checkpoint_scan_before_model_load(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_runtime_fingerprint",
+        lambda: "checkpoint=qwen-track-v3;runtime=test;worker_sha256=" + ("a" * 64),
+    )
+
+    def stop_model_prepare(_models_root: Path, _profile):
+        raise QwenRuntimeError("TEST_STOP_AFTER_CHECKPOINT_SCAN")
+
+    with pytest.raises(QwenRuntimeError, match="TEST_STOP_AFTER_CHECKPOINT_SCAN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            report=reports.append,
+            plan_resolver=_plan,
+            model_prepare=stop_model_prepare,
+        )
+
+    stages = [
+        item["stage"]
+        for item in reports
+        if item.get("type") == "stage"
+    ]
+    assert stages[:4] == [
+        "runtime_validation",
+        "runtime_fingerprint",
+        "checkpoint_scan",
+        "model_prepare",
+    ]
+    fingerprint = next(
+        item for item in reports if item.get("code") == "QWEN_RUNTIME_FINGERPRINT_READY"
+    )
+    checkpoint = next(
+        item for item in reports if item.get("code") == "ASR_CHECKPOINT_SCAN_COMPLETED"
+    )
+    assert fingerprint["stage"] == "runtime_fingerprint"
+    assert fingerprint["duration_ms"] >= 0
+    assert checkpoint == {
+        "type": "event",
+        "code": "ASR_CHECKPOINT_SCAN_COMPLETED",
+        "stage": "checkpoint_scan",
+        "track_count": 1,
+        "aligned_reused": 0,
+        "text_reused": 0,
+        "pending_asr": 1,
+        "duration_ms": checkpoint["duration_ms"],
+    }
+    assert checkpoint["duration_ms"] >= 0
 
 
 def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
@@ -548,6 +658,70 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
 
     attempt()
     assert asr_calls == 3
+
+
+def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
+    window = AudioWindow(index=1, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=1,
+        start=0.0,
+        end=60.0,
+        text="owned neighbor",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                {"text": "neighbor", "start_time": 59.92, "end_time": 61.68},
+            ]
+
+        def close(self):
+            pass
+
+    segments, ignored = _strict_alignment_segments(
+        1,
+        window,
+        pending,
+        Aligner(),
+        first=True,
+        last=False,
+    )
+
+    assert ignored == 1
+    assert len(segments) == 1
+    assert segments[0].text == "owned"
+
+
+def test_strict_alignment_keeps_owned_overflow_fail_closed():
+    window = AudioWindow(index=89, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=89,
+        start=0.0,
+        end=60.0,
+        text="degenerate",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "degenerate", "start_time": 0.0, "end_time": 130.16},
+            ]
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=False,
+            last=False,
+        )
 
 
 def test_overlap_ownership_assigns_boundary_words_once():
