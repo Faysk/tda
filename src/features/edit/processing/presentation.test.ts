@@ -56,6 +56,7 @@ describe("processing presentation", () => {
 		expect(presentJobError("WORKER_STDOUT_ENCODING_INVALID")).toContain("codificação");
 		expect(presentJobError("WORKER_READY_REQUIRED")).toContain("handshake");
 		expect(presentJobError("WORKER_SEQUENCE_GAP")).toContain("sequência");
+		expect(presentJobError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT")).toContain("inicialização");
 		expect(presentJobError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")).toContain(
 			"validação física",
 		);
@@ -140,6 +141,7 @@ describe("processing presentation", () => {
 
 	it("labels canonical processing stages", () => {
 		expect(stageLabels.transcription).toBe("Transcrição");
+		expect(stageLabels.runtime_bootstrap).toBe("Inicializando runtime local");
 		expect(stageLabels.energy_analysis).toBe("Analisando energia entre faixas");
 	});
 });
