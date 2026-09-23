@@ -3,7 +3,37 @@
 
 begin;
 
-do $$
+do $stats_grants_test$
+begin
+  if not has_table_privilege(
+    'service_role',
+    'public.transcript_session_statistics',
+    'SELECT'
+  ) then
+    raise exception 'STATS_SERVICE_ROLE_SELECT_MISSING';
+  end if;
+
+  if
+    has_table_privilege('service_role', 'public.transcript_session_statistics', 'INSERT')
+    or has_table_privilege('service_role', 'public.transcript_session_statistics', 'UPDATE')
+    or has_table_privilege('service_role', 'public.transcript_session_statistics', 'DELETE')
+    or has_table_privilege('service_role', 'public.transcript_session_statistics', 'TRUNCATE')
+    or has_table_privilege('service_role', 'public.transcript_session_statistics', 'REFERENCES')
+    or has_table_privilege('service_role', 'public.transcript_session_statistics', 'TRIGGER')
+  then
+    raise exception 'STATS_SERVICE_ROLE_NOT_READ_ONLY';
+  end if;
+
+  if
+    has_table_privilege('anon', 'public.transcript_session_statistics', 'SELECT')
+    or has_table_privilege('authenticated', 'public.transcript_session_statistics', 'SELECT')
+  then
+    raise exception 'STATS_BROWSER_GRANT_INVALID';
+  end if;
+end;
+$stats_grants_test$;
+
+do $word_count_test$
 declare
   v_count bigint;
 begin
@@ -20,7 +50,7 @@ begin
     raise exception 'WORD_COUNT_PUNCTUATION_INVALID';
   end if;
 end;
-$$;
+$word_count_test$;
 
 insert into public.sessions (
   id, campaign_id, source_system, source_session_id
