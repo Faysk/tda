@@ -9,8 +9,11 @@ begin
   if value <> 0 then raise exception 'WORD_COUNT_EMPTY'; end if;
   select public.transcript_word_count_v1(E' \n\t') into value;
   if value <> 0 then raise exception 'WORD_COUNT_WHITESPACE'; end if;
-  select public.transcript_word_count_v1('um' || chr(160) || 'dois' || E'\n' || 'três') into value;
-  if value <> 3 then raise exception 'WORD_COUNT_UNICODE'; end if;
+  select public.transcript_word_count_v1(
+    'um' || chr(160) || 'dois' || chr(8195) || 'três' ||
+    chr(8232) || 'quatro' || chr(65279) || 'cinco'
+  ) into value;
+  if value <> 5 then raise exception 'WORD_COUNT_UNICODE'; end if;
   select public.transcript_word_count_v1('d''água guarda-chuva') into value;
   if value <> 2 then raise exception 'WORD_COUNT_HYPHEN_APOSTROPHE'; end if;
   select public.transcript_word_count_v1('... —') into value;
