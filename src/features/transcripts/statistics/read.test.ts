@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { collectStatistics, type SessionRow, type SegmentRow } from "./read";
+import {
+	collectStatistics,
+	type SessionAggregateRow,
+	type SessionRow,
+} from "./read";
 import {
 	formatDuration,
 	recordedDuration,
@@ -16,11 +20,19 @@ const session = (
 	session_date: null,
 	duration_ms,
 });
-const segment = (
-	id: string,
+
+const aggregate = (
 	session_id: string,
-	text: string | null,
-): SegmentRow => ({ id, session_id, text, source_segment_id: id });
+	segment_count: number,
+	complete_text_count: number,
+	word_count: number,
+): SessionAggregateRow => ({
+	session_id,
+	segment_count,
+	complete_text_count,
+	word_count,
+});
+
 const page = <T extends { id: string }>(
 	rows: T[],
 	after: string | null,
@@ -64,46 +76,43 @@ describe("transcript metric definitions", () => {
 	});
 });
 
-describe("complete authorized dataset collector", () => {
-	it("includes sessions and segments beyond pages and never serializes transcript text", async () => {
+describe("bounded authorized statistics collector", () => {
+	it("reads one aggregate batch per session page and never depends on segment volume", async () => {
 		const sessions = Array.from({ length: 205 }, (_, i) =>
 			session(String(i).padStart(4, "0"), 60_000),
 		);
-		const segments = Array.from({ length: 205 }, (_, i) =>
-			segment(String(i).padStart(4, "0"), "0000", "SEGREDO sintético"),
+		const reads = vi.fn(async (_campaign: string, ids: readonly string[]) =>
+			ids.map((id) => aggregate(id, 10_000, 10_000, 20_000)),
 		);
 		const result = await collectStatistics("a", {
 			sessions: async (_, after) => page(sessions, after, 100),
-			segments: async (_, id, after) =>
-				page(
-					segments.filter((row) => row.session_id === id),
-					after,
-					100,
-				),
+			aggregates: reads,
 		});
+
+		expect(reads).toHaveBeenCalledTimes(3);
+		expect(reads.mock.calls.map((call) => call[1].length)).toEqual([
+			100, 100, 5,
+		]);
 		expect(result.totals).toEqual({
 			sessions: 205,
-			words: 410,
+			words: 4_100_000,
 			durationMs: 12_300_000,
-			wordCoverage: 1,
+			wordCoverage: 205,
 			durationCoverage: 205,
 		});
-		expect(JSON.stringify(result)).not.toContain("SEGREDO");
 	});
-	it("separates empty text from missing transcript and missing duration", async () => {
+
+	it("distinguishes no segments, incomplete text and explicit zero words", async () => {
 		const result = await collectStatistics("a", {
 			sessions: async (_, after) =>
 				page([session("a", 0), session("b"), session("c", 60_000)], after),
-			segments: async (_, id, after) =>
-				page(
-					id === "a"
-						? [segment("a", id, "")]
-						: id === "c"
-							? [segment("a", id, null)]
-							: [],
-					after,
-				),
+			aggregates: async (_, ids) =>
+				[
+					aggregate("a", 1, 1, 0),
+					aggregate("c", 2, 1, 7),
+				].filter((row) => ids.includes(row.session_id)),
 		});
+
 		expect(result.sessions.map((row) => row.words)).toEqual([0, null, null]);
 		expect(result.totals).toEqual({
 			sessions: 3,
@@ -113,55 +122,62 @@ describe("complete authorized dataset collector", () => {
 			durationCoverage: 2,
 		});
 	});
-	it("never sums overlapping tracks or uses end timestamps as duration", async () => {
-		const overlapping = ["a", "b"].map((id) => ({
-			...segment(id, "s", "sim"),
-			start_ms: 0,
-			end_ms: 600_000,
-			duration: 600_000,
-		}));
+
+	it("never derives duration from transcript aggregates", async () => {
 		const result = await collectStatistics("a", {
 			sessions: async (_, after) =>
 				page([session("s", 600_000), session("t")], after),
-			segments: async (_, id, after) =>
-				page(id === "s" ? overlapping : [], after),
+			aggregates: async (_, ids) =>
+				ids.includes("s") ? [aggregate("s", 500_000, 500_000, 1)] : [],
 		});
 		expect(result.totals.durationMs).toBe(600_000);
 		expect(result.sessions[1].durationMs).toBeNull();
 	});
-	it("rejects cross-session rows and duplicate alternate sources", async () => {
+
+	it("rejects cross-session, duplicate and structurally invalid aggregate rows", async () => {
 		for (const rows of [
-			[segment("a", "other", "x")],
-			[
-				segment("a", "s", "x"),
-				{ ...segment("b", "s", "alternative"), source_segment_id: "a" },
-			],
+			[aggregate("other", 1, 1, 1)],
+			[aggregate("s", 1, 1, 1), aggregate("s", 1, 1, 1)],
+			[aggregate("s", 0, 0, 0)],
+			[aggregate("s", 1, 2, 1)],
+			[aggregate("s", 1, 1, -1)],
 		]) {
 			await expect(
 				collectStatistics("a", {
 					sessions: async (_, after) => page([session("s")], after),
-					segments: async (_, __, after) => page(rows, after),
+					aggregates: async () => rows,
 				}),
 			).rejects.toThrow();
 		}
 	});
-	it("fails closed on a failed later page instead of returning partial totals", async () => {
-		const segments = vi
+
+	it("fails closed on a failed aggregate page instead of returning partial totals", async () => {
+		const sessions = [session("a"), session("b"), session("c")];
+		const aggregates = vi
 			.fn()
-			.mockResolvedValueOnce([segment("a", "s", "x")])
+			.mockResolvedValueOnce([aggregate("a", 1, 1, 1), aggregate("b", 1, 1, 1)])
 			.mockRejectedValue(new Error("offline"));
+
 		await expect(
 			collectStatistics("a", {
-				sessions: async (_, after) => page([session("s")], after),
-				segments,
+				sessions: async (_, after) => page(sessions, after, 2),
+				aggregates,
 			}),
 		).rejects.toThrow("offline");
 	});
-	it("rejects a stuck cursor", async () => {
+
+	it("rejects a stuck or unsorted session cursor", async () => {
 		await expect(
 			collectStatistics("a", {
 				sessions: async () => [session("s")],
-				segments: async () => [],
+				aggregates: async () => [],
+			}),
+		).rejects.toThrow("Non-progressing");
+
+		await expect(
+			collectStatistics("a", {
+				sessions: async () => [session("b"), session("a")],
+				aggregates: async () => [],
 			}),
 		).rejects.toThrow("Non-progressing");
 	});

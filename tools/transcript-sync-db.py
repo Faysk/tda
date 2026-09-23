@@ -32,8 +32,10 @@ try:
         repo/'supabase/migrations/20260908144711_transcript_review_default.sql',
         repo/'supabase/migrations/20260915211245_transcript_review_contract_comments.sql',
         repo/'supabase/migrations/20260921003045_bind_transcript_edit_to_session.sql',
+        repo/'supabase/migrations/20260923152000_transcript_statistics_read_model.sql',
         repo/'supabase/tests/transcript_review_default.sql',
         repo/'supabase/tests/transcript_edit_atomic.sql',
+        repo/'supabase/tests/transcript_statistics_read_model.sql',
         repo/'supabase/tests/transcript_publication_revisions.sql',
     ]
     for path in paths:

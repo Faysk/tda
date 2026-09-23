@@ -1,21 +1,21 @@
 # Estatísticas privadas de transcrições
 
-> Status: publicado em Production; benchmark operacional pendente
+> Status: read model bounded versionado; rollout e benchmark Production V2 pendentes
 > Owner: transcrições / leitura e estatísticas
-> Última revisão: 2026-09-22
-> Fonte de verdade: `src/features/transcripts/statistics` e `public.sessions` / `public.transcript_segments`
+> Última revisão: 2026-09-23
+> Fonte de verdade: `src/features/transcripts/statistics`, `public.sessions`, `public.transcript_segments` e `public.transcript_session_statistics`
 
 ## Superfície e conjunto
 
 `/transcricoes` mostra totais e métricas por sessão, com entrada em Minha conta para leitores. `?campanha=slug` escolhe uma campanha; o default é `yuhara-main`. O cabeçalho identifica explicitamente esse conjunto. Não agrega campanhas não selecionadas e não usa a lista pública de publicações nem o limite de 250 sessões do Edit temporário.
 
-Todas as sessões da campanha autorizada entram no conjunto, inclusive sem transcrição. A paginação interna por UUID percorre todas as sessões e todos os segmentos até uma página vazia; limites do gateway menores que o solicitado não encerram a coleta. A tela mostra todo esse conjunto, sem filtro/página client-side. Se a leitura falhar em qualquer página, retorna indisponibilidade, nunca um total parcial silencioso.
+Todas as sessões da campanha autorizada entram no conjunto, inclusive sem transcrição. A paginação interna por UUID percorre somente `sessions`; para cada página de até 200 sessões, a aplicação lê no máximo uma linha agregada por sessão em `transcript_session_statistics`. O custo de render deixa de depender do número total de `transcript_segments`. A tela mostra todo o conjunto autorizado, sem filtro/página client-side. Se qualquer página de sessão ou lote agregado falhar, retorna indisponibilidade, nunca um total parcial silencioso.
 
 ## Métricas canônicas
 
 | Métrica | Fonte e regra |
 | --- | --- |
-| Palavras | `transcript_segments.text` atual, uma vez por linha canônica. Usa `countTranscriptWords` do Edit: trim e separação por whitespace Unicode. `Olá, ação!` = 2; `d'água` = 1; `guarda-chuva` = 1; `... —` = 2 tokens. É contagem operacional de tokens separados por espaço, não análise linguística. |
+| Palavras | O read model mantém `word_count` transacionalmente a partir de `transcript_segments.text`, sem confiar no `text_words` histórico. A função SQL espelha `countTranscriptWords` do Edit, incluindo whitespace Unicode ECMAScript. `Olá, ação!` = 2; `d'água` = 1; `guarda-chuva` = 1; `... —` = 2 tokens. É contagem operacional de tokens separados por espaço, não análise linguística. |
 | Revisões | `revision` atualiza a mesma linha; não somar `audit_log`, respostas alternativas, `transcription_cache`, publicações, classificações ou summaries. Preserva o conjunto da leitura atual do Edit, inclusive estados `discarded`: status de revisão não cria outra versão nem elimina o texto da leitura. |
 | Identidade | PK `id`, com índice UNIQUE parcial `(session_id, source_segment_id)` existente. A coleta rejeita source ID repetido na mesma sessão; nunca deduplica pelo texto, pois falas iguais podem ser legítimas. Source ID nulo mantém a identidade pela PK, sem inferir equivalência. |
 | Duração registrada | `sessions.duration_ms`, inteiro em **milissegundos**, finito e não negativo. Sem fallback para `end_ms`, soma de tracks, `recording_files`, fala/VAD, started/ended ou tempo de leitura. |
@@ -29,19 +29,21 @@ Não se afirma que toda duração histórica seja a duração real da gravação
 
 O único entrypoint da página é `getTranscriptStatistics`. Ele chama `authorizeCampaignCapabilityServer` com `campaign.transcript.read` e o slug selecionado **antes** da coleta. Reutiliza Auth verificado, profile, grants ativos/temporais e capability/scope do [contrato de identidade](../domains/identity-access.md). Login sozinho não basta; leitura não exige edição/admin. Grants somente de session/resource não são promovidos implicitamente a campaign: ficam negados pelo resolver atual.
 
-O repository é interno e server-only, com o mesmo `editDataClient` privilegiado do [slice de leitura](edit-transcript-server-slice.md). A autorização é da aplicação; não se afirma enforcement RBAC nativo por RLS, pois a credencial server-side possui bypass. Cada consulta de sessões filtra `campaigns.slug`; cada consulta de segmentos exige session ID **e** join até a campanha. O collector também rejeita session ID divergente. Não cria RPC, policy, grant, migration ou segundo resolver.
+O repository é interno e server-only, com o mesmo `editDataClient` privilegiado do [slice de leitura](edit-transcript-server-slice.md). A autorização é da aplicação; não se afirma enforcement RBAC nativo por RLS, pois a credencial server-side possui bypass. Cada consulta de sessões filtra `campaigns.slug`; cada lote de `transcript_session_statistics` recebe apenas IDs da página autorizada e também faz join até `sessions -> campaigns.slug`. O collector rejeita aggregate de sessão não solicitada, duplicado ou estruturalmente inválido. A tabela agregada tem RLS habilitado, nenhum grant para browser e `SELECT` somente para `service_role`.
 
-O browser recebe somente título/data e métricas autorizadas. Texto de transcrição é lido em páginas estreitas apenas no servidor, contado e descartado. Não há API pública de estatísticas nem métricas em metadata/páginas públicas. A rota é dinâmica, força fetch sem cache e participa do proxy `private, no-store` / `noindex, nofollow`. Não existe cache persistente de resultados/autorização.
+O browser recebe somente título/data e métricas autorizadas. O caminho de leitura de Stats não lê nem serializa texto de transcrição; recebe apenas contadores agregados por sessão. Não há API pública de estatísticas nem métricas em metadata/páginas públicas. A rota é dinâmica, força fetch sem cache e participa do proxy `private, no-store` / `noindex, nofollow`. Não existe cache persistente de resultados/autorização.
 
 ## Atualização e limites operacionais
 
-Edição/importação altera as fontes canônicas; a próxima consulta/reload recalcula os valores, inclusive quando `text_words` derivado estiver desatualizado. A página instrui recarregar após editar/importar. Não promete atualização ao vivo de uma aba já aberta, nem depende da aplicação da RPC #44.
+`transcript_session_statistics` é mantida por trigger `AFTER INSERT/UPDATE OF session_id,text/DELETE` em `transcript_segments`. INSERT/import, edição, remoção e mudança de sessão aplicam deltas na mesma transação; `text_words` não é usado como fonte do agregado. Uma migration faz backfill inicial sob lock de escrita da tabela de segmentos, evitando snapshot parcialmente concorrente. Sessão sem segmentos não mantém row agregada; texto nulo reduz cobertura e texto vazio informado conta como zero palavras.
 
-A leitura usa páginas de até 200 sessões e 1000 segmentos, sem nova dependência ou custo contratado. O custo é O(segmentos), com round trips por página/sessão. O ensaio sintético não é benchmark do Supabase real; medir latência/egress antes de expandir o volume. Uma agregação SQL futura exige contrato/migration revisada com o dono do banco, não habilitação automática de agregações públicas.
+A leitura usa páginas de até 200 sessões e, por página, no máximo um lote de aggregates para os mesmos IDs. Assim, o fan-out é O(sessões) e independente do volume de segmentos. A página continua instruindo recarregar após editar/importar; não promete atualização ao vivo de uma aba já aberta.
 
 ### Observabilidade operacional
 
-A leitura autorizada emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V1`. Ele registra somente outcome, duração total, quantidade de requests de sessões/segmentos, quantidade de rows e tamanho UTF-8 aproximado dos payloads lidos. Não registra campaign slug, usuário/profile, IDs de sessão/segmento, texto de transcrição, detalhes de erro ou credenciais. O evento existe para fechar o benchmark operacional de #53 com amostras reais cold/warm sem transportar conteúdo privado para a evidência.
+`TDA_STATS_READ_MODEL_V2_ENABLED` é `false` por default. Enquanto estiver desabilitada, a aplicação preserva exatamente o caminho V1 e a telemetria `TDA_STATS_READ_V1`; isso permite merge/deploy do código antes da migration sem consultar uma tabela inexistente. O rollout correto é migration + read-back de tabela/grants/trigger -> habilitar flag em Production -> benchmark -> manter/rollback pela flag.
+
+A leitura bounded emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V2`. Ele registra somente outcome, duração total, quantidade de requests/rows de sessões e aggregates e tamanho UTF-8 aproximado dos payloads. Não registra campaign slug, usuário/profile, IDs de sessão, texto de transcrição, detalhes de erro ou credenciais. O benchmark V2 deve ser comparado à baseline V1 confirmada em Production em 2026-09-23: mediana 15,39 s, 30.857 segmentos e 49 requests de segmentos por leitura.
 
 
 Não há snapshot transacional entre páginas: importação/edição simultânea pode produzir uma leitura durante a mudança. Recarregar após a operação concluída é o contrato atual. Falha de rede/cursor/identidade ambígua nega o resultado integral, sem reaproveitar contagem antiga de outro usuário.

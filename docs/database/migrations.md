@@ -1204,3 +1204,47 @@ Estado real observado antes do rollout:
 
 - os 161 candidates pendentes de Production possuem ao menos uma fonte resolvível na mesma sessão;
 - portanto o hardening não depende de backfill e não deve tornar a fila atual inválida.
+
+
+## 2026-09-23 — read model bounded de estatísticas de transcrição
+
+### `20260923152000_transcript_statistics_read_model`
+
+**Estado:** migration versionada para #537; ainda não aplicada no Supabase canônico.
+
+Objetivo:
+
+- eliminar o full scan de `transcript_segments.text` em cada render de `/transcricoes`;
+- manter uma row `transcript_session_statistics` por sessão com segmentos;
+- preservar a semântica canônica de palavras sem confiar no `text_words` histórico;
+- tornar o custo de leitura independente do volume total de segmentos.
+
+Manutenção transacional:
+
+- trigger `AFTER INSERT/UPDATE OF session_id,text/DELETE` aplica deltas de `segment_count`, `complete_text_count` e `word_count`;
+- update que move um segmento entre sessões remove a contribuição antiga e adiciona a nova na mesma transação;
+- sessão que chega a zero segmentos tem a row agregada removida;
+- o schema canônico exige `transcript_segments.text NOT NULL`; texto vazio conta como zero palavras; o contador de coverage permanece defensivo para detectar drift impossível;
+- a contagem SQL normaliza o mesmo conjunto de whitespace Unicode ECMAScript usado pelo contrato JS;
+- backfill inicial roda sob `SHARE ROW EXCLUSIVE` em `transcript_segments`, bloqueando writes concorrentes até o snapshot e o trigger estarem instalados.
+
+Segurança:
+
+- RLS habilitado em `transcript_session_statistics`;
+- `public`, `anon` e `authenticated` sem grants diretos;
+- somente `service_role` recebe `SELECT`;
+- funções auxiliares/trigger não ficam executáveis diretamente pelas roles de aplicação/browser;
+- a autorização por `campaign.transcript.read` continua no boundary server-side antes da leitura.
+
+Validação:
+
+- PostgreSQL sintético cobre whitespace ASCII/Unicode, INSERT/UPDATE/DELETE e remoção da row vazia;
+- fixtures usam `text_words` propositalmente incorreto para provar que o read model deriva de `text`;
+- unit tests cobrem fan-out por página de sessões, coverage incompleta, aggregates cross-session/duplicados/inválidos e falha tardia fail-closed;
+- telemetria `TDA_STATS_READ_V2` permite benchmark pós-rollout contra a baseline V1 (mediana 15,39 s / 30.857 segmentos / 49 requests de segmentos).
+
+Rollout/rollback:
+
+- aplicação e migration devem ser promovidas juntas: antes da migration a tabela agregada não existe;
+- após deploy, fazer read-back de schema/grants/trigger e benchmark autenticado Production antes de fechar #537;
+- rollback de aplicação deve preceder qualquer migration corretiva; não apagar transcript real para desfazer o read model.
