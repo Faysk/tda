@@ -41,6 +41,8 @@ A leitura usa páginas de até 200 sessões e, por página, no máximo um lote d
 
 ### Observabilidade operacional
 
+`TDA_STATS_READ_MODEL_V2_ENABLED` é `false` por default. Enquanto estiver desabilitada, a aplicação preserva exatamente o caminho V1 e a telemetria `TDA_STATS_READ_V1`; isso permite merge/deploy do código antes da migration sem consultar uma tabela inexistente. O rollout correto é migration + read-back de tabela/grants/trigger -> habilitar flag em Production -> benchmark -> manter/rollback pela flag.
+
 A leitura bounded emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V2`. Ele registra somente outcome, duração total, quantidade de requests/rows de sessões e aggregates e tamanho UTF-8 aproximado dos payloads. Não registra campaign slug, usuário/profile, IDs de sessão, texto de transcrição, detalhes de erro ou credenciais. O benchmark V2 deve ser comparado à baseline V1 confirmada em Production em 2026-09-23: mediana 15,39 s, 30.857 segmentos e 49 requests de segmentos por leitura.
 
 
