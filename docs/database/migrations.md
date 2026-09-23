@@ -1204,3 +1204,49 @@ Estado real observado antes do rollout:
 
 - os 161 candidates pendentes de Production possuem ao menos uma fonte resolvível na mesma sessão;
 - portanto o hardening não depende de backfill e não deve tornar a fila atual inválida.
+
+
+## 2026-09-23 — read model bounded de estatísticas de transcrição
+
+### `20260923143000_transcript_statistics_read_model`
+
+**Estado:** migration candidata na PR #540 / issue #537; **não aplicada e não autorizada para Production nesta etapa**.
+
+Motivação medida:
+
+- benchmark autenticado de Production em 2026-09-23: 30.857 segmentos, 49 requests de segmentos e mediana server-side de 15,39 s;
+- a implementação atual de `/transcricoes` relê texto integral de todos os segmentos a cada render;
+- `transcript_segments.text_words` existe fisicamente, mas não há trigger canônico que impeça drift do derivado.
+
+Objetivo:
+
+- tornar `text_words` derivado deterministicamente do `text` na própria transação;
+- criar `transcript_session_statistics` com contagens bounded por sessão;
+- manter o agregado transacionalmente em INSERT/UPDATE/DELETE de segmentos e criar row zero para novas sessões;
+- expor ao server-side somente `transcript_statistics_read_model_v1`, com metadata de sessão + contagens, sem texto/speaker/source IDs;
+- reduzir a leitura da página de O(segmentos) e fan-out por sessão para paginação apenas de sessões agregadas.
+
+Segurança e rollout:
+
+- tabela de agregado com RLS e sem grants para `public`, `anon` ou `authenticated`;
+- view e helper de word count também não são expostos aos browser roles;
+- aplicação permanece com `TDA_STATS_READ_MODEL_ENABLED=false` até migration read-back + smoke;
+- quando a flag estiver ativa, falha do read model retorna indisponibilidade; não há fallback silencioso para full scan;
+- a candidata não é consumida pelo Production CD enquanto permanecer em `supabase/candidates`.
+
+Validação exigida antes de promoção:
+
+- PostgreSQL 16 scratch deve provar parity da contagem com a regra do Edit, inclusive whitespace Unicode/NBSP;
+- backfill deve corrigir `text_words` stale;
+- insert/update/move/delete de segmentos devem ajustar contadores atomicamente;
+- ausência inesperada da row agregada deve falhar com `TRANSCRIPT_STATS_DRIFT`, não aceitar drift silencioso;
+- zero-segment session deve permanecer com palavras não informadas na apresentação;
+- browser roles sem SELECT/EXECUTE e read model sem conteúdo textual;
+- após eventual rollout governado, repetir benchmark autenticado no mesmo volume ou maior e confirmar `segment_requests=0` com fan-out bounded.
+
+Rollback lógico:
+
+- desligar primeiro `TDA_STATS_READ_MODEL_ENABLED`;
+- qualquer reversão física posterior deve ser migration corretiva explícita;
+- não depender de apagar `text_words` ou transcript real para rollback;
+- manter o caminho legado somente durante a janela controlada de rollout.
