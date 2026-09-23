@@ -1,9 +1,4 @@
-import {
-	recordedDuration,
-	segmentWords,
-	summarize,
-	type SessionMetric,
-} from "./model";
+import { recordedDuration, summarize, type SessionMetric } from "./model";
 
 export type SessionRow = {
 	id: string;
@@ -11,76 +6,107 @@ export type SessionRow = {
 	session_date: string | null;
 	duration_ms: number | null;
 };
-export type SegmentRow = {
-	id: string;
+
+export type SessionAggregateRow = {
 	session_id: string;
-	source_segment_id: string | null;
-	text: string | null;
+	segment_count: number;
+	complete_text_count: number;
+	word_count: number;
 };
+
 export type StatisticsSource = {
 	sessions: (
 		campaign: string,
 		after: string | null,
 	) => Promise<readonly SessionRow[]>;
-	segments: (
+	aggregates: (
 		campaign: string,
-		session: string,
-		after: string | null,
-	) => Promise<readonly SegmentRow[]>;
+		sessionIds: readonly string[],
+	) => Promise<readonly SessionAggregateRow[]>;
 };
 
-// Continue until an empty page, including when a gateway caps pages below our limit.
-async function* allRows<T extends { id: string }>(
-	read: (after: string | null) => Promise<readonly T[]>,
-) {
-	let after: string | null = null;
-	while (true) {
-		const page = await read(after);
-		if (!page.length) return;
-		for (const row of page) {
-			if (!row.id || (after !== null && row.id <= after))
-				throw new Error("Non-progressing statistics cursor");
-			after = row.id;
-			yield row;
-		}
+function nonNegativeInteger(value: unknown, label: string): number {
+	if (
+		typeof value !== "number" ||
+		!Number.isSafeInteger(value) ||
+		value < 0
+	) {
+		throw new Error(`Invalid statistics ${label}`);
 	}
+	return value;
+}
+
+function metricWords(
+	aggregate: SessionAggregateRow | undefined,
+): number | null {
+	if (!aggregate) return null;
+	const segmentCount = nonNegativeInteger(
+		aggregate.segment_count,
+		"segment count",
+	);
+	const completeTextCount = nonNegativeInteger(
+		aggregate.complete_text_count,
+		"complete text count",
+	);
+	const wordCount = nonNegativeInteger(aggregate.word_count, "word count");
+	if (segmentCount < 1 || completeTextCount > segmentCount)
+		throw new Error("Invalid statistics aggregate");
+	return completeTextCount === segmentCount ? wordCount : null;
 }
 
 // Internal collector. The server boundary must authorize the campaign before calling it.
+// Cost is O(sessions) and independent of transcript segment volume: every session page
+// performs at most one aggregate lookup for the session ids already authorized by the
+// campaign-filtered sessions query.
 export async function collectStatistics(
 	campaign: string,
 	source: StatisticsSource,
 ) {
 	const sessions: SessionMetric[] = [];
-	for await (const session of allRows((after) =>
-		source.sessions(campaign, after),
-	)) {
-		let words = 0;
-		let count = 0;
-		let complete = true;
-		const sourceIds = new Set<string>();
-		for await (const segment of allRows((after) =>
-			source.segments(campaign, session.id, after),
-		)) {
-			if (segment.session_id !== session.id)
-				throw new Error("Statistics session mismatch");
-			if (segment.source_segment_id !== null) {
-				if (sourceIds.has(segment.source_segment_id))
-					throw new Error("Ambiguous transcript source");
-				sourceIds.add(segment.source_segment_id);
+	let after: string | null = null;
+
+	while (true) {
+		const page = await source.sessions(campaign, after);
+		if (!page.length) break;
+
+		const pageIds: string[] = [];
+		for (const session of page) {
+			if (!session.id || (after !== null && session.id <= after))
+				throw new Error("Non-progressing statistics cursor");
+			if (
+				pageIds.length &&
+				session.id <= pageIds[pageIds.length - 1]
+			) {
+				throw new Error("Non-progressing statistics cursor");
 			}
-			const value = segmentWords(segment.text);
-			if (value === null) complete = false;
-			else words += value;
-			count++;
+			pageIds.push(session.id);
 		}
-		sessions.push({
-			id: session.id,
-			title: session.title,
-			date: session.session_date,
-			durationMs: recordedDuration(session.duration_ms),
-			words: count && complete ? words : null,
-		});
+
+		const aggregateRows = await source.aggregates(campaign, pageIds);
+		const aggregates = new Map<string, SessionAggregateRow>();
+		const allowed = new Set(pageIds);
+		for (const aggregate of aggregateRows) {
+			if (!allowed.has(aggregate.session_id))
+				throw new Error("Statistics aggregate session mismatch");
+			if (aggregates.has(aggregate.session_id))
+				throw new Error("Duplicate statistics aggregate");
+			// Validate eagerly even when the row later maps to an incomplete metric.
+			metricWords(aggregate);
+			aggregates.set(aggregate.session_id, aggregate);
+		}
+
+		for (const session of page) {
+			sessions.push({
+				id: session.id,
+				title: session.title,
+				date: session.session_date,
+				durationMs: recordedDuration(session.duration_ms),
+				words: metricWords(aggregates.get(session.id)),
+			});
+		}
+
+		after = pageIds[pageIds.length - 1];
 	}
+
 	return { sessions, totals: summarize(sessions) };
 }
