@@ -146,8 +146,18 @@ class AgentControlRequest(BaseModel):
     force: bool = False
 
 
+_ERROR_SECURITY_HEADERS = {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
 def error(code, status, recoverable=False):
-    return JSONResponse({"error": {"code": code, "recoverable": recoverable}}, status_code=status)
+    return JSONResponse(
+        {"error": {"code": code, "recoverable": recoverable}},
+        status_code=status,
+        headers=_ERROR_SECURITY_HEADERS,
+    )
 
 
 _NON_RECOVERABLE_CONFLICTS = frozenset(
