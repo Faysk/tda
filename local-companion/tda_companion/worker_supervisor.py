@@ -51,6 +51,7 @@ class WorkerSupervisor:
         command_factory: Callable[[], list[str]] = default_worker_command,
         startup_timeout: float = 10.0,
         heartbeat_timeout: float = 30.0,
+        model_load_timeout: float = 300.0,
         cancel_grace: float = 5.0,
         data_root: Path | None = None,
         models_root: Path | None = None,
@@ -60,6 +61,7 @@ class WorkerSupervisor:
         self.command_factory = command_factory
         self.startup_timeout = startup_timeout
         self.heartbeat_timeout = heartbeat_timeout
+        self.model_load_timeout = model_load_timeout
         self.cancel_grace = cancel_grace
         self.data_root = data_root.resolve() if data_root is not None else None
         self.models_root = models_root.resolve() if models_root is not None else None
@@ -196,6 +198,8 @@ class WorkerSupervisor:
         cancel_sent = False
         cancel_deadline: float | None = None
         terminal: WorkerMessage | None = None
+        active_stage: str | None = None
+        stage_started: float | None = None
 
         try:
             process.stdin.write(encoded_command)
@@ -237,6 +241,14 @@ class WorkerSupervisor:
                 # expiry must not race it into a false worker failure. Native/CUDA
                 # code can remain inside an uninterruptible call until the grace
                 # deadline, at which point the isolated process is force-stopped.
+                if (
+                    ready
+                    and not cancel_sent
+                    and active_stage == "model_load"
+                    and stage_started is not None
+                    and now - stage_started > self.model_load_timeout
+                ):
+                    raise WorkerProcessError("WORKER_MODEL_LOAD_TIMEOUT")
                 if ready and not cancel_sent and now - last_message > self.heartbeat_timeout:
                     raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
 
@@ -308,6 +320,11 @@ class WorkerSupervisor:
                 elif message.type == "progress":
                     on_progress(message)
                 elif message.type in {"stage", "event", "heartbeat"}:
+                    if message.type == "stage":
+                        next_stage = str(message.payload.get("stage") or "")
+                        if next_stage and next_stage != active_stage:
+                            active_stage = next_stage
+                            stage_started = last_message
                     if on_event is not None:
                         on_event(message)
                 elif message.type == "error":
