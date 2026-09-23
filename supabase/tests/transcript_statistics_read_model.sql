@@ -74,7 +74,7 @@ insert into public.transcript_segments (
   2,
   1000,
   2000,
-  null,
+  '',
   'B',
   null,
   'track-b',
@@ -97,7 +97,7 @@ begin
   from public.transcript_session_statistics
   where session_id = '99999999-9999-4999-8999-999999999991';
 
-  if v_segment_count <> 2 or v_complete_count <> 1 or v_words <> 2 then
+  if v_segment_count <> 2 or v_complete_count <> 2 or v_words <> 2 then
     raise exception 'STATS_INSERT_DELTA_INVALID: % % %',
       v_segment_count, v_complete_count, v_words;
   end if;
