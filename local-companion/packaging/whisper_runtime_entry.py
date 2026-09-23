@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing
 from pathlib import Path
 
 
-def _probe() -> int:
-    """Import the packaged ASR stack without loading/downloading any model."""
-    try:
-        import av
-        import ctranslate2
-        import faster_whisper
-        from faster_whisper import WhisperModel
-        import pynvml  # noqa: F401 - proves physical acceptance telemetry is packaged
+def _bootstrap_whisper_runtime():
+    """Initialize native ASR imports in the known-good frozen Windows order."""
+    import av
+    import ctranslate2
+    import faster_whisper
+    from faster_whisper import WhisperModel
+    import pynvml  # noqa: F401 - proves physical acceptance telemetry is packaged
 
-        if not callable(WhisperModel):
-            raise RuntimeError("WHISPER_MODEL_CLASS_INVALID")
+    if not callable(WhisperModel):
+        raise RuntimeError("WHISPER_MODEL_CLASS_INVALID")
+    return av, ctranslate2, faster_whisper, WhisperModel
+
+
+def _probe() -> int:
+    """Exercise the same native bootstrap used by normal worker mode."""
+    try:
+        av, ctranslate2, faster_whisper, WhisperModel = _bootstrap_whisper_runtime()
     except Exception as exc:
         print(
             json.dumps(
@@ -49,6 +56,8 @@ def _probe() -> int:
                 "ctranslate2": getattr(ctranslate2, "__version__", "unknown"),
                 "av": getattr(av, "__version__", "unknown"),
                 "nvml": True,
+                "whisper_model_imported": getattr(WhisperModel, "__name__", "") == "WhisperModel",
+                "whisper_model_module": getattr(WhisperModel, "__module__", "unknown"),
                 "cuda_device_count": device_count,
                 "cuda_compute_types": supported,
             },
@@ -73,6 +82,7 @@ def _read_context(path: Path | None) -> str:
 
 
 def _prepare_model(args: argparse.Namespace) -> int:
+    _bootstrap_whisper_runtime()
     from tda_companion.asr_models import get_profile, inspect_model_install
     from tda_companion.asr_whisper import WhisperRuntimeError, prepare_whisper_model
 
@@ -135,6 +145,7 @@ def _prepare_model(args: argparse.Namespace) -> int:
 
 
 def _acceptance(args: argparse.Namespace) -> int:
+    _bootstrap_whisper_runtime()
     from tda_companion.asr_acceptance import ACCEPTANCE_SCHEMA, WhisperAcceptanceError, run_whisper_gpu_acceptance
 
     if args.audio is None or args.models_root is None:
@@ -219,11 +230,11 @@ def main() -> int:
     if args.prepare_model:
         return _prepare_model(args)
 
-    # Physical evidence on Windows/PyInstaller showed that importing
-    # faster_whisper after the worker heartbeat thread existed could stall
-    # indefinitely. Preload the model class in the single-threaded bootstrap.
-    # If bootstrap itself stalls, the supervisor startup timeout bounds it.
-    from faster_whisper import WhisperModel
+    # The frozen runtime probe is known-good only when CTranslate2 is
+    # initialized before faster-whisper resolves WhisperModel. Use the exact same
+    # bootstrap in normal worker mode, before any heartbeat/cancel thread exists.
+    # A bootstrap stall is therefore bounded by the supervisor startup timeout.
+    _av, _ctranslate2, _faster_whisper, WhisperModel = _bootstrap_whisper_runtime()
     from tda_companion.asr_whisper import bind_preloaded_whisper_model_class
 
     bind_preloaded_whisper_model_class(WhisperModel)
@@ -234,4 +245,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     raise SystemExit(main())
