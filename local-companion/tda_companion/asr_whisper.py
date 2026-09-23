@@ -165,23 +165,87 @@ def _is_cuda_memory_error(error: BaseException) -> bool:
     )
 
 
-def load_whisper_model(path: Path, plan: WhisperPlan):
+def load_whisper_model(
+    path: Path,
+    plan: WhisperPlan,
+    *,
+    report: ProgressCallback | None = None,
+):
+    report = report or (lambda _value: None)
+    import_started = time.monotonic()
+    report(
+        {
+            "type": "event",
+            "code": "WHISPER_RUNTIME_IMPORT_STARTED",
+            "stage": "model_load",
+        }
+    )
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
         raise WhisperRuntimeError("WHISPER_RUNTIME_NOT_INSTALLED") from exc
+    report(
+        {
+            "type": "event",
+            "code": "WHISPER_RUNTIME_IMPORT_READY",
+            "stage": "model_load",
+            "duration_ms": round((time.monotonic() - import_started) * 1000),
+        }
+    )
 
+    construct_started = time.monotonic()
+    report(
+        {
+            "type": "event",
+            "code": "WHISPER_MODEL_CONSTRUCT_STARTED",
+            "stage": "model_load",
+            "device": plan.device,
+            "compute_type": plan.compute_type,
+        }
+    )
     try:
         model = WhisperModel(str(path), device=plan.device, compute_type=plan.compute_type)
+        report(
+            {
+                "type": "event",
+                "code": "WHISPER_MODEL_CONSTRUCT_READY",
+                "stage": "model_load",
+                "device": plan.device,
+                "compute_type": plan.compute_type,
+                "duration_ms": round((time.monotonic() - construct_started) * 1000),
+            }
+        )
         return model, plan.compute_type, False
     except Exception as exc:
+        memory_error = _is_cuda_memory_error(exc)
+        report(
+            {
+                "type": "event",
+                "code": "WHISPER_MODEL_CONSTRUCT_FAILED",
+                "stage": "model_load",
+                "device": plan.device,
+                "compute_type": plan.compute_type,
+                "memory_error": memory_error,
+                "duration_ms": round((time.monotonic() - construct_started) * 1000),
+            }
+        )
         if (
             plan.device != "cuda"
             or not plan.fallback_compute_type
-            or not _is_cuda_memory_error(exc)
+            or not memory_error
         ):
             raise WhisperRuntimeError("WHISPER_MODEL_LOAD_FAILED") from exc
         gc.collect()
+        fallback_started = time.monotonic()
+        report(
+            {
+                "type": "event",
+                "code": "WHISPER_MODEL_FALLBACK_STARTED",
+                "stage": "model_load",
+                "device": "cuda",
+                "compute_type": plan.fallback_compute_type,
+            }
+        )
         try:
             model = WhisperModel(
                 str(path),
@@ -189,7 +253,27 @@ def load_whisper_model(path: Path, plan: WhisperPlan):
                 compute_type=plan.fallback_compute_type,
             )
         except Exception as fallback_exc:
+            report(
+                {
+                    "type": "event",
+                    "code": "WHISPER_MODEL_FALLBACK_FAILED",
+                    "stage": "model_load",
+                    "device": "cuda",
+                    "compute_type": plan.fallback_compute_type,
+                    "duration_ms": round((time.monotonic() - fallback_started) * 1000),
+                }
+            )
             raise WhisperRuntimeError("WHISPER_MODEL_LOAD_FAILED") from fallback_exc
+        report(
+            {
+                "type": "event",
+                "code": "WHISPER_MODEL_FALLBACK_READY",
+                "stage": "model_load",
+                "device": "cuda",
+                "compute_type": plan.fallback_compute_type,
+                "duration_ms": round((time.monotonic() - fallback_started) * 1000),
+            }
+        )
         return model, plan.fallback_compute_type, True
 
 
@@ -469,7 +553,14 @@ def transcribe_craig_package(
             report=report,
         )
         report({"type": "stage", "stage": "model_load", "profile": profile.id})
-        model, effective_compute_type, used_fallback = model_loader(prepared, plan)
+        if model_loader is load_whisper_model:
+            model, effective_compute_type, used_fallback = model_loader(
+                prepared,
+                plan,
+                report=report,
+            )
+        else:
+            model, effective_compute_type, used_fallback = model_loader(prepared, plan)
         checkpoint_signature = checkpoint_signature_for(effective_compute_type)
 
     started = time.monotonic()
