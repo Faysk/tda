@@ -8,18 +8,28 @@ returns integer
 language sql
 immutable
 parallel safe
-as $$
+as $
+  with normalized as (
+    select translate(
+      value,
+      chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(32) ||
+      chr(160) || chr(5760) ||
+      chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) ||
+      chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) ||
+      chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) ||
+      chr(12288) || chr(65279),
+      repeat(' ', 25)
+    ) as text
+  )
   select case
     when value is null then null
-    when value ~ E'^\\s*$' then 0
+    when btrim(normalized.text, ' ') = '' then 0
     else cardinality(
-      regexp_split_to_array(
-        regexp_replace(value, E'^\\s+|\\s+$', '', 'g'),
-        E'\\s+'
-      )
+      regexp_split_to_array(btrim(normalized.text, ' '), ' +')
     )
   end
-$$;
+  from normalized
+$;
 
 revoke all on function public.transcript_word_count_v1(text) from public;
 revoke all on function public.transcript_word_count_v1(text) from anon;
