@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { useStatisticsReadModelV2 } from "./rollout";
+import { statisticsReadModelV2Enabled } from "./rollout";
 
 describe("statistics read-model rollout", () => {
 	it.each([
@@ -10,6 +10,6 @@ describe("statistics read-model rollout", () => {
 		["1", false],
 		["true", true],
 	])("treats %s as enabled=%s", (value, expected) => {
-		expect(useStatisticsReadModelV2(value)).toBe(expected);
+		expect(statisticsReadModelV2Enabled(value)).toBe(expected);
 	});
 });
