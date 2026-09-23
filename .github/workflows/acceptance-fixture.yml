@@ -10,6 +10,7 @@ on:
       - "tools/acceptance/export-final-current-source-handoff.ps1"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
+      - "local-companion/packaging/run-physical-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       - "tools/acceptance/export-final-current-source-handoff.ps1"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
+      - "local-companion/packaging/run-physical-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
 permissions:
@@ -45,7 +47,8 @@ jobs:
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/export-final-current-source-handoff.ps1",
-            "local-companion/packaging/run-installed-acceptance.ps1"
+            "local-companion/packaging/run-installed-acceptance.ps1",
+            "local-companion/packaging/run-physical-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
             $tokens = $null
@@ -288,7 +291,7 @@ jobs:
             throw "FINAL_CURRENT_SOURCE_PREFLIGHT_ORDER_INVALID"
           }
       - name: Unit-test physical acceptance helper edge cases
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
@@ -308,6 +311,28 @@ jobs:
             }, $true)
             if ($null -eq $functionAst) { throw "ACCEPTANCE_HELPER_NOT_FOUND:$Name" }
             return [scriptblock]::Create($functionAst.Extent.Text)
+          }
+
+          . (Get-FunctionScriptBlock "local-companion/packaging/run-physical-acceptance.ps1" "Invoke-NativeProcessExitCode")
+          $cmd = (Get-Command cmd.exe -ErrorAction Stop).Source
+          $zero = Invoke-NativeProcessExitCode -Executable $cmd -Arguments @("/d", "/c", "exit 0") -ErrorPrefix "PHYSICAL_NATIVE_TEST"
+          if ([int]$zero -ne 0) { throw "PHYSICAL_NATIVE_ZERO_EXIT_INVALID" }
+          $seven = Invoke-NativeProcessExitCode -Executable $cmd -Arguments @("/d", "/c", "exit 7") -ErrorPrefix "PHYSICAL_NATIVE_TEST"
+          if ([int]$seven -ne 7) { throw "PHYSICAL_NATIVE_NONZERO_EXIT_INVALID" }
+
+          $physicalHelper = Get-Content -LiteralPath "local-companion/packaging/run-physical-acceptance.ps1" -Raw
+          $sealStart = $physicalHelper.IndexOf("function Invoke-RuntimePhysicalSeal")
+          $jsonStart = $physicalHelper.IndexOf("function Invoke-JsonProcess")
+          if ($sealStart -lt 0 -or $jsonStart -le $sealStart) { throw "PHYSICAL_SEAL_FUNCTION_NOT_FOUND" }
+          $sealBody = $physicalHelper.Substring($sealStart, $jsonStart - $sealStart)
+          if ($sealBody.Contains('$LASTEXITCODE')) { throw "PHYSICAL_SEAL_LASTEXITCODE_FORBIDDEN" }
+          foreach ($required in @(
+            'Invoke-NativeProcessExitCode',
+            'RUNTIME_ACCEPTANCE_SEAL_FAILED',
+            'WaitForExit()',
+            '.ExitCode'
+          )) {
+            if (-not $physicalHelper.Contains($required)) { throw "PHYSICAL_SEAL_PROCESS_CONTRACT_MISSING:$required" }
           }
 
           . (Get-FunctionScriptBlock "tools/acceptance/run-recovery-candidate-1585a932.ps1" "Test-MsiProductCode")
