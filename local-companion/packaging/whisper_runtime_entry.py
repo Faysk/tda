@@ -11,7 +11,11 @@ def _probe() -> int:
         import av
         import ctranslate2
         import faster_whisper
+        from faster_whisper import WhisperModel
         import pynvml  # noqa: F401 - proves physical acceptance telemetry is packaged
+
+        if not callable(WhisperModel):
+            raise RuntimeError("WHISPER_MODEL_CLASS_INVALID")
     except Exception as exc:
         print(
             json.dumps(
@@ -214,6 +218,15 @@ def main() -> int:
         return _acceptance(args)
     if args.prepare_model:
         return _prepare_model(args)
+
+    # Physical evidence on Windows/PyInstaller showed that importing
+    # faster_whisper after the worker heartbeat thread existed could stall
+    # indefinitely. Preload the model class in the single-threaded bootstrap.
+    # If bootstrap itself stalls, the supervisor startup timeout bounds it.
+    from faster_whisper import WhisperModel
+    from tda_companion.asr_whisper import bind_preloaded_whisper_model_class
+
+    bind_preloaded_whisper_model_class(WhisperModel)
 
     from tda_companion.asr_worker import run_worker_stdio
 
