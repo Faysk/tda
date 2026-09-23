@@ -447,3 +447,50 @@ def test_craig_whisper_reuses_exact_track_checkpoint(monkeypatch, tmp_path: Path
     )
     assert calls["transcribe"] == 3
     assert calls["load"] == 3
+
+
+def test_whisper_model_load_emits_sanitized_milestones(monkeypatch, tmp_path: Path):
+    import sys
+    import types
+
+    module = types.ModuleType("faster_whisper")
+
+    class FakeWhisperModel:
+        def __init__(self, path: str, *, device: str, compute_type: str):
+            assert path == str(tmp_path)
+            assert device == "cuda"
+            assert compute_type == "float16"
+
+    module.WhisperModel = FakeWhisperModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", module)
+
+    reports: list[dict] = []
+    plan = asr_whisper.WhisperPlan(
+        profile_id="whisper-turbo",
+        device="cuda",
+        compute_type="float16",
+        fallback_compute_type="int8_float16",
+        cpu_requested=False,
+    )
+
+    _model, compute_type, used_fallback = asr_whisper.load_whisper_model(
+        tmp_path,
+        plan,
+        report=reports.append,
+    )
+
+    assert compute_type == "float16"
+    assert used_fallback is False
+    codes = [item.get("code") for item in reports]
+    assert codes == [
+        "WHISPER_RUNTIME_IMPORT_STARTED",
+        "WHISPER_RUNTIME_IMPORT_READY",
+        "WHISPER_MODEL_CONSTRUCT_STARTED",
+        "WHISPER_MODEL_CONSTRUCT_READY",
+    ]
+    assert all(item.get("stage") == "model_load" for item in reports)
+    assert all("path" not in item for item in reports)
+    assert reports[2]["device"] == "cuda"
+    assert reports[2]["compute_type"] == "float16"
+    assert int(reports[1]["duration_ms"]) >= 0
+    assert int(reports[3]["duration_ms"]) >= 0
