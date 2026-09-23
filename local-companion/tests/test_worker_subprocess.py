@@ -874,6 +874,53 @@ def test_worker_pre_thread_bootstrap_emits_ready_and_stage_before_control_thread
     assert messages[-1].type == "result"
 
 
+
+def test_worker_pre_thread_bootstrap_failure_is_recoverable_and_never_starts_control_thread(monkeypatch):
+    command = WorkerRunCommand(
+        job_id="bootstrap-failure",
+        attempt=1,
+        kind="synthetic.fixture",
+        payload={"units": 1, "completed": 0},
+    )
+    stdin = io.BytesIO(command.encode().encode("utf-8"))
+    stdout = io.StringIO()
+
+    def unexpected_thread(*_args, **_kwargs):
+        raise AssertionError("control thread must not start after bootstrap failure")
+
+    def bootstrap():
+        raise RuntimeError("synthetic bootstrap failure")
+
+    monkeypatch.setattr(asr_worker_module.threading, "Thread", unexpected_thread)
+
+    assert (
+        asr_worker_module.run_worker_stdio(
+            stdin=stdin,
+            stdout=stdout,
+            pre_worker_bootstrap=bootstrap,
+        )
+        == 70
+    )
+    messages = []
+    previous_seq = None
+    for line in stdout.getvalue().splitlines(keepends=True):
+        message = WorkerMessage.decode(
+            line,
+            expected_job_id="bootstrap-failure",
+            expected_attempt=1,
+            previous_seq=previous_seq,
+        )
+        previous_seq = message.seq
+        messages.append(message)
+
+    assert [message.type for message in messages] == ["ready", "stage", "error"]
+    assert messages[1].payload == {"stage": "runtime_bootstrap"}
+    assert messages[2].payload == {
+        "code": "WORKER_RUNTIME_BOOTSTRAP_FAILED",
+        "recoverable": True,
+    }
+
+
 def test_supervisor_bounds_runtime_bootstrap_separately_from_heartbeat(tmp_path):
     script = tmp_path / "runtime_bootstrap_hang_worker.py"
     script.write_text(
