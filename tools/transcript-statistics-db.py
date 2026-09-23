@@ -8,6 +8,7 @@ import os
 import pathlib
 import subprocess
 import tempfile
+import sys
 
 repo = pathlib.Path(__file__).resolve().parents[1]
 binary = pathlib.Path("/usr/lib/postgresql/16/bin")
@@ -32,21 +33,28 @@ def run(args, *, input_text=None):
 
 
 def psql(text):
-    return run(
-        [
-            str(binary / "psql"),
-            "-X",
-            "-h",
-            str(socket),
-            "-U",
-            "postgres",
-            "-d",
-            "postgres",
-            "-v",
-            "ON_ERROR_STOP=1",
-        ],
-        input_text=text,
-    )
+    try:
+        return run(
+            [
+                str(binary / "psql"),
+                "-X",
+                "-h",
+                str(socket),
+                "-U",
+                "postgres",
+                "-d",
+                "postgres",
+                "-v",
+                "ON_ERROR_STOP=1",
+            ],
+            input_text=text,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.stdout:
+            print(exc.stdout, file=sys.stderr, flush=True)
+        if exc.stderr:
+            print(exc.stderr, file=sys.stderr, flush=True)
+        raise
 
 
 try:
