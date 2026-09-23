@@ -1,6 +1,6 @@
 # Estatísticas privadas de transcrições
 
-> Status: publicado em Production; benchmark operacional pendente
+> Status: leitura legacy publicada; benchmark Production concluído em 2026-09-23; read model bounded em candidato #540
 > Owner: transcrições / leitura e estatísticas
 > Última revisão: 2026-09-22
 > Fonte de verdade: `src/features/transcripts/statistics` e `public.sessions` / `public.transcript_segments`
@@ -33,15 +33,23 @@ O repository é interno e server-only, com o mesmo `editDataClient` privilegiado
 
 O browser recebe somente título/data e métricas autorizadas. Texto de transcrição é lido em páginas estreitas apenas no servidor, contado e descartado. Não há API pública de estatísticas nem métricas em metadata/páginas públicas. A rota é dinâmica, força fetch sem cache e participa do proxy `private, no-store` / `noindex, nofollow`. Não existe cache persistente de resultados/autorização.
 
+## Benchmark de Production e decisão de arquitetura
+
+Em 2026-09-23, quatro reloads autenticados produziram sete leituras server-side reais no deployment de Production. Todas percorreram 11 sessões e 30.857 segmentos, com 49 requests de segmentos por leitura. A duração observada ficou entre 14,12 s e 17,18 s, com mediana de 15,39 s e aproximadamente 7,30 MB lidos pelo servidor por request da página.
+
+Essa medição encerrou a decisão de #53: o full scan O(segmentos) não é o caminho permanente. #537/#540 introduzem um read model por sessão, mantendo o resultado privado/autorizado mas removendo texto de transcrição e fan-out por sessão do hot path.
+
+Enquanto o rollout não for autorizado, `TDA_STATS_READ_MODEL_ENABLED=false` mantém a leitura legacy. Depois da migration e do read-back físico do schema, a flag selecionará `transcript_statistics_read_model_v1`; falha desse caminho é explícita e não faz fallback silencioso para o scan caro.
+
 ## Atualização e limites operacionais
 
 Edição/importação altera as fontes canônicas; a próxima consulta/reload recalcula os valores, inclusive quando `text_words` derivado estiver desatualizado. A página instrui recarregar após editar/importar. Não promete atualização ao vivo de uma aba já aberta, nem depende da aplicação da RPC #44.
 
-A leitura usa páginas de até 200 sessões e 1000 segmentos, sem nova dependência ou custo contratado. O custo é O(segmentos), com round trips por página/sessão. O ensaio sintético não é benchmark do Supabase real; medir latência/egress antes de expandir o volume. Uma agregação SQL futura exige contrato/migration revisada com o dono do banco, não habilitação automática de agregações públicas.
+A leitura legacy usa páginas de até 200 sessões e 1000 segmentos e permanece O(segmentos), com round trips por página/sessão. A baseline real de 2026-09-23 confirmou que esse custo já é inadequado no volume atual. O candidato #540 substitui o hot path por paginação de até 200 rows agregadas por sessão, independentemente da quantidade de segmentos, sem tornar a agregação pública. A ativação continua condicionada a migration governada, read-back de schema/grants e benchmark autenticado pós-rollout.
 
 ### Observabilidade operacional
 
-A leitura autorizada emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V1`. Ele registra somente outcome, duração total, quantidade de requests de sessões/segmentos, quantidade de rows e tamanho UTF-8 aproximado dos payloads lidos. Não registra campaign slug, usuário/profile, IDs de sessão/segmento, texto de transcrição, detalhes de erro ou credenciais. O evento existe para fechar o benchmark operacional de #53 com amostras reais cold/warm sem transportar conteúdo privado para a evidência.
+A leitura autorizada emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V1`. Ele registra somente outcome, estratégia (`segment_scan_v1` ou `read_model_v1`), duração total, quantidade de requests/rows por estratégia e tamanho UTF-8 aproximado dos payloads lidos. Não registra campaign slug, usuário/profile, IDs de sessão/segmento, texto de transcrição, detalhes de erro ou credenciais. O evento existe para fechar o benchmark operacional de #53 com amostras reais cold/warm sem transportar conteúdo privado para a evidência.
 
 
 Não há snapshot transacional entre páginas: importação/edição simultânea pode produzir uma leitura durante a mudança. Recarregar após a operação concluída é o contrato atual. Falha de rede/cursor/identidade ambígua nega o resultado integral, sem reaproveitar contagem antiga de outro usuário.
@@ -62,7 +70,8 @@ Inspeção read-only do Supabase canônico em 2026-09-07 confirmou tipos de colu
 - `src/features/transcripts/statistics/*.test.ts`: tokens vazios/acentos/pontuação; ausências/zero; duração sobreposta; source duplicado; sessão divergente; paginação de sessões e segmentos; falha tardia/cursor repetido; autorização antes da consulta; revogação sem resultado reaproveitado.
 - `playwright.statistics.config.ts` + `tests/statistics`: Next de produção local com endpoints Auth/PostgREST **sintéticos**, 205 segmentos, paginação artificial menor que o solicitado, campanha diferente e leitor sem edição. Verifica HTML/RSC sem texto, anônimo/sem grants negados, no-store, totais completos, cobertura, atualização no reload, desktop/mobile sem overflow e captura de tela.
 - `pnpm check`, `pnpm build`, `pnpm test:e2e` (suíte habitual e suíte estatísticas). O provedor sintético escuta somente loopback; não injeta bypass na aplicação e não usa credenciais reais.
-- CI deve terminar verde no SHA final da PR. Isso não significa publicação, login Discord real ou validação de políticas PostgREST/RLS de produção.
+- `tools/transcript-statistics-db.py` + `supabase/tests/transcript_statistics_read_model.sql`: PostgreSQL 16 descartável para parity de word count, backfill, manutenção transacional, drift fail-closed, grants e ausência de conteúdo privado no read model.
+- CI deve terminar verde no SHA final da PR. Isso não significa aplicação da migration, login Discord real ou validação de policies/grants remotos; o rollout de #540 exige read-back separado.
 
 ## Dependências e rollback
 
