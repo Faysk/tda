@@ -1010,7 +1010,7 @@ time.sleep(10)
     )
     bootstrap_seen = False
 
-    def on_progress(message):
+    def on_event(message):
         nonlocal bootstrap_seen
         if (
             message.type == "stage"
@@ -1024,7 +1024,8 @@ time.sleep(10)
         attempt=1,
         units=1,
         completed=0,
-        on_progress=on_progress,
+        on_progress=lambda _message: None,
+        on_event=on_event,
         is_cancelled=lambda: bootstrap_seen,
     )
 
