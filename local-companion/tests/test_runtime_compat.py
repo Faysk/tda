@@ -20,8 +20,12 @@ def _runtime_version(name: str) -> str:
     return str(value["version"])
 
 
-def test_current_runtime_builds_match_the_companion_minimums():
-    assert _runtime_version("qwen-windows-x64.json") == MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
-    assert _runtime_version("whisper-windows-x64.json") == MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
-    assert RC_QWEN_VERSION == MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
-    assert RC_WHISPER_VERSION == MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+def test_current_runtime_builds_are_not_older_than_companion_minimums():
+    from tda_companion.runtime_compat import version_tuple
+
+    qwen = _runtime_version("qwen-windows-x64.json")
+    whisper = _runtime_version("whisper-windows-x64.json")
+    assert version_tuple(qwen) >= version_tuple(MIN_COMPATIBLE_QWEN_RUNTIME_VERSION)
+    assert version_tuple(whisper) >= version_tuple(MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION)
+    assert RC_QWEN_VERSION == qwen
+    assert RC_WHISPER_VERSION == whisper
