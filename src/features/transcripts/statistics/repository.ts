@@ -1,6 +1,10 @@
 import "server-only";
 import { editDataClient } from "@/integrations/supabase/server";
-import { collectStatistics, type SessionRow, type SegmentRow } from "./read";
+import {
+	collectStatistics,
+	type SessionAggregateRow,
+	type SessionRow,
+} from "./read";
 import { createStatisticsReadTelemetry } from "./telemetry";
 
 export async function readStatistics(campaign: string) {
@@ -24,32 +28,30 @@ export async function readStatistics(campaign: string) {
 				telemetry.response("sessions", rows);
 				return rows;
 			},
-			async segments(slug, session, after) {
-				telemetry.request("segments");
-				let query = client
-					.from("transcript_segments")
+			async aggregates(slug, sessionIds) {
+				if (!sessionIds.length) return [];
+				telemetry.request("aggregates");
+				const { data, error } = await client
+					.from("transcript_session_statistics")
 					.select(
-						"id,session_id,source_segment_id,text,sessions!inner(campaigns!inner(slug))",
+						"session_id,segment_count,complete_text_count,word_count,sessions!inner(campaigns!inner(slug))",
 					)
 					.eq("sessions.campaigns.slug", slug)
-					.eq("session_id", session)
-					.order("id")
-					.limit(1000);
-				if (after) query = query.gt("id", after);
-				const { data, error } = await query;
-				if (error) throw new Error("Statistics transcript unavailable");
-				const rows = (data ?? []) as unknown as SegmentRow[];
-				telemetry.response("segments", rows);
+					.in("session_id", [...sessionIds])
+					.limit(sessionIds.length);
+				if (error) throw new Error("Statistics aggregate unavailable");
+				const rows = (data ?? []) as unknown as SessionAggregateRow[];
+				telemetry.response("aggregates", rows);
 				return rows;
 			},
 		});
 		console.info(
-			"TDA_STATS_READ_V1",
+			"TDA_STATS_READ_V2",
 			JSON.stringify(telemetry.finish("success")),
 		);
 		return value;
 	} catch (error) {
-		console.info("TDA_STATS_READ_V1", JSON.stringify(telemetry.finish("error")));
+		console.info("TDA_STATS_READ_V2", JSON.stringify(telemetry.finish("error")));
 		throw error;
 	}
 }
