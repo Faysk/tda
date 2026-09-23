@@ -17,6 +17,14 @@ export type SegmentRow = {
 	source_segment_id: string | null;
 	text: string | null;
 };
+export type StatisticsReadModelRow = {
+	id: string;
+	title: string;
+	session_date: string | null;
+	duration_ms: number | null;
+	segment_count: number;
+	word_count: number;
+};
 export type StatisticsSource = {
 	sessions: (
 		campaign: string,
@@ -27,6 +35,12 @@ export type StatisticsSource = {
 		session: string,
 		after: string | null,
 	) => Promise<readonly SegmentRow[]>;
+};
+export type StatisticsReadModelSource = {
+	sessions: (
+		campaign: string,
+		after: string | null,
+	) => Promise<readonly StatisticsReadModelRow[]>;
 };
 
 // Continue until an empty page, including when a gateway caps pages below our limit.
@@ -80,6 +94,39 @@ export async function collectStatistics(
 			date: session.session_date,
 			durationMs: recordedDuration(session.duration_ms),
 			words: count && complete ? words : null,
+		});
+	}
+	return { sessions, totals: summarize(sessions) };
+}
+
+
+function aggregateCounter(value: unknown, name: string): number {
+	if (
+		typeof value !== "number" ||
+		!Number.isSafeInteger(value) ||
+		value < 0
+	)
+		throw new Error(`Invalid statistics read model ${name}`);
+	return value;
+}
+
+export async function collectStatisticsReadModel(
+	campaign: string,
+	source: StatisticsReadModelSource,
+) {
+	const sessions: SessionMetric[] = [];
+	for await (const row of allRows((after) => source.sessions(campaign, after))) {
+		const segmentCount = aggregateCounter(row.segment_count, "segment_count");
+		const wordCount = aggregateCounter(row.word_count, "word_count");
+		if (segmentCount === 0 && wordCount !== 0)
+			throw new Error("Inconsistent statistics read model");
+
+		sessions.push({
+			id: row.id,
+			title: row.title,
+			date: row.session_date,
+			durationMs: recordedDuration(row.duration_ms),
+			words: segmentCount === 0 ? null : wordCount,
 		});
 	}
 	return { sessions, totals: summarize(sessions) };
