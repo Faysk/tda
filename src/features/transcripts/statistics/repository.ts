@@ -9,7 +9,7 @@ import {
 	type SessionAggregateRow,
 	type SessionRow,
 } from "./read";
-import { useStatisticsReadModelV2 } from "./rollout";
+import { statisticsReadModelV2Enabled } from "./rollout";
 import {
 	createLegacyStatisticsReadTelemetry,
 	createStatisticsReadTelemetry,
@@ -122,7 +122,7 @@ async function readStatisticsV2(campaign: string) {
 }
 
 export async function readStatistics(campaign: string) {
-	return useStatisticsReadModelV2()
+	return statisticsReadModelV2Enabled()
 		? readStatisticsV2(campaign)
 		: readStatisticsLegacy(campaign);
 }
