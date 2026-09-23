@@ -769,3 +769,57 @@ def test_supervisor_rejects_worker_protocol_corruption(tmp_path):
 def test_cancel_command_roundtrip():
     command = WorkerCancelCommand(job_id="job-cancel", attempt=7)
     assert WorkerCancelCommand.decode(command.encode()) == command
+
+
+def test_supervisor_times_out_model_load_even_with_heartbeats(tmp_path):
+    script = tmp_path / "model_load_hang_worker.py"
+    script.write_text(
+        """
+import sys
+import time
+from tda_companion.worker_protocol import WorkerMessage, WorkerRunCommand
+
+command = WorkerRunCommand.decode(sys.stdin.buffer.readline())
+seq = 0
+
+def emit(kind, payload=None):
+    global seq
+    sys.stdout.write(
+        WorkerMessage.create(
+            job_id=command.job_id,
+            attempt=command.attempt,
+            seq=seq,
+            type=kind,
+            payload=payload,
+        ).encode()
+    )
+    sys.stdout.flush()
+    seq += 1
+
+emit("ready", {"kind": command.kind})
+emit("stage", {"stage": "model_load"})
+while True:
+    emit("heartbeat", {"stage": "asr"})
+    time.sleep(0.02)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+        model_load_timeout=0.12,
+    )
+    started = time.monotonic()
+
+    with pytest.raises(WorkerProcessError, match="WORKER_MODEL_LOAD_TIMEOUT") as failure:
+        supervisor.run_fixture(
+            job_id="model-load-hang",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.recoverable is True
+    assert time.monotonic() - started < 1.0
