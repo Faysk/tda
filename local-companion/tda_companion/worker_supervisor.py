@@ -51,6 +51,7 @@ class WorkerSupervisor:
         command_factory: Callable[[], list[str]] = default_worker_command,
         startup_timeout: float = 10.0,
         heartbeat_timeout: float = 30.0,
+        runtime_bootstrap_timeout: float = 120.0,
         model_load_timeout: float = 300.0,
         cancel_grace: float = 5.0,
         data_root: Path | None = None,
@@ -61,6 +62,7 @@ class WorkerSupervisor:
         self.command_factory = command_factory
         self.startup_timeout = startup_timeout
         self.heartbeat_timeout = heartbeat_timeout
+        self.runtime_bootstrap_timeout = runtime_bootstrap_timeout
         self.model_load_timeout = model_load_timeout
         self.cancel_grace = cancel_grace
         self.data_root = data_root.resolve() if data_root is not None else None
@@ -244,12 +246,25 @@ class WorkerSupervisor:
                 if (
                     ready
                     and not cancel_sent
+                    and active_stage == "runtime_bootstrap"
+                    and stage_started is not None
+                    and now - stage_started > self.runtime_bootstrap_timeout
+                ):
+                    raise WorkerProcessError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT")
+                if (
+                    ready
+                    and not cancel_sent
                     and active_stage == "model_load"
                     and stage_started is not None
                     and now - stage_started > self.model_load_timeout
                 ):
                     raise WorkerProcessError("WORKER_MODEL_LOAD_TIMEOUT")
-                if ready and not cancel_sent and now - last_message > self.heartbeat_timeout:
+                if (
+                    ready
+                    and not cancel_sent
+                    and active_stage != "runtime_bootstrap"
+                    and now - last_message > self.heartbeat_timeout
+                ):
                     raise WorkerProcessError("WORKER_HEARTBEAT_TIMEOUT")
 
                 try:
