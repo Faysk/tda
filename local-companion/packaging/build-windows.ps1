@@ -2,9 +2,13 @@ param(
     [string]$Python = ".venv/Scripts/python.exe",
     [string]$Wix = ".wix/wix.exe",
     [string]$OutputRoot = "local-companion/out/windows",
+    [ValidateSet("none", "certificate-store", "artifact-signing")]
+    [string]$AuthenticodeProvider = "certificate-store",
     [string]$AuthenticodeThumbprint = "",
     [string]$AuthenticodeTimestampUrl = "",
     [string]$AuthenticodeExpectedSubject = "",
+    [string]$AuthenticodeArtifactSigningDlib = "",
+    [string]$AuthenticodeArtifactSigningMetadata = "",
     [string]$SignTool = "signtool.exe",
     [switch]$RequireAuthenticode
 )
@@ -15,18 +19,43 @@ $pythonPath = if ([IO.Path]::IsPathRooted($Python)) { $Python } else { Join-Path
 $output = if ([IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $repoRoot $OutputRoot }
 $packageSource = Join-Path $repoRoot "local-companion"
 
+$normalizedProvider = $AuthenticodeProvider.ToLowerInvariant()
 $normalizedThumbprint = ($AuthenticodeThumbprint -replace '\s', '').ToUpperInvariant()
-$signingEnabled = -not [string]::IsNullOrWhiteSpace($normalizedThumbprint)
+$certificateStoreEnabled = (
+    $normalizedProvider -eq "certificate-store" -and
+    -not [string]::IsNullOrWhiteSpace($normalizedThumbprint)
+)
+$artifactSigningEnabled = $normalizedProvider -eq "artifact-signing"
+$signingEnabled = $certificateStoreEnabled -or $artifactSigningEnabled
+
+if ($normalizedProvider -eq "none" -and (
+    -not [string]::IsNullOrWhiteSpace($normalizedThumbprint) -or
+    -not [string]::IsNullOrWhiteSpace($AuthenticodeArtifactSigningDlib) -or
+    -not [string]::IsNullOrWhiteSpace($AuthenticodeArtifactSigningMetadata)
+)) {
+    throw "AUTHENTICODE_PROVIDER_ARGUMENT_CONFLICT"
+}
+if ($normalizedProvider -eq "certificate-store" -and (
+    -not [string]::IsNullOrWhiteSpace($AuthenticodeArtifactSigningDlib) -or
+    -not [string]::IsNullOrWhiteSpace($AuthenticodeArtifactSigningMetadata)
+)) {
+    throw "AUTHENTICODE_PROVIDER_ARGUMENT_CONFLICT"
+}
+if ($artifactSigningEnabled -and -not [string]::IsNullOrWhiteSpace($normalizedThumbprint)) {
+    # Artifact Signing uses short-lived managed leaf certificates. A fixed
+    # thumbprint is not a stable provider identity and must not be configured.
+    throw "AUTHENTICODE_ARTIFACT_SIGNING_THUMBPRINT_UNSUPPORTED"
+}
 if ($RequireAuthenticode -and -not $signingEnabled) {
     throw "AUTHENTICODE_REQUIRED"
 }
-if ($RequireAuthenticode -and [string]::IsNullOrWhiteSpace($AuthenticodeTimestampUrl)) {
+if (($RequireAuthenticode -or $artifactSigningEnabled) -and [string]::IsNullOrWhiteSpace($AuthenticodeTimestampUrl)) {
     throw "AUTHENTICODE_TIMESTAMP_REQUIRED"
 }
-if ($RequireAuthenticode -and [string]::IsNullOrWhiteSpace($AuthenticodeExpectedSubject)) {
+if (($RequireAuthenticode -or $artifactSigningEnabled) -and [string]::IsNullOrWhiteSpace($AuthenticodeExpectedSubject)) {
     throw "AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED"
 }
-if ($signingEnabled -and $normalizedThumbprint -notmatch '^[A-F0-9]{40}$') {
+if ($certificateStoreEnabled -and $normalizedThumbprint -notmatch '^[A-F0-9]{40}$') {
     throw "AUTHENTICODE_THUMBPRINT_INVALID"
 }
 if ($signingEnabled -and $AuthenticodeTimestampUrl) {
@@ -35,6 +64,9 @@ if ($signingEnabled -and $AuthenticodeTimestampUrl) {
         throw "AUTHENTICODE_TIMESTAMP_URL_INVALID"
     }
 }
+
+$artifactSigningDlibPath = ""
+$artifactSigningMetadataPath = ""
 
 function Resolve-SignToolPath {
     if ([IO.Path]::IsPathRooted($SignTool)) {
@@ -48,13 +80,160 @@ function Resolve-SignToolPath {
     }
 }
 
+function Resolve-AuthenticodeInputFile([string]$Value, [string]$MissingCode) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { throw $MissingCode }
+    $candidate = if ([IO.Path]::IsPathRooted($Value)) {
+        $Value
+    } else {
+        Join-Path $repoRoot $Value
+    }
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw $MissingCode }
+    return [IO.Path]::GetFullPath($candidate)
+}
+
+function Assert-ArtifactSigningMetadata([string]$Path) {
+    try {
+        $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    } catch {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+    }
+    if ($item.Length -le 0 -or $item.Length -gt 65536) {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+    }
+    try {
+        $value = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+    } catch {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+    }
+    if ($value -isnot [Collections.IDictionary]) {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+    }
+
+    $allowedKeys = @(
+        "Endpoint",
+        "CodeSigningAccountName",
+        "CertificateProfileName",
+        "CorrelationId",
+        "ExcludeCredentials"
+    )
+    foreach ($key in $value.Keys) {
+        if ([string]$key -notin $allowedKeys) {
+            throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_KEY_INVALID"
+        }
+    }
+    foreach ($required in @("Endpoint", "CodeSigningAccountName", "CertificateProfileName")) {
+        if (-not $value.Contains($required) -or [string]::IsNullOrWhiteSpace([string]$value[$required])) {
+            throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+        }
+    }
+
+    try { $endpoint = [Uri][string]$value["Endpoint"] } catch {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+    }
+    if (
+        -not $endpoint.IsAbsoluteUri -or
+        $endpoint.Scheme -ne "https" -or
+        $endpoint.Port -ne 443 -or
+        $endpoint.UserInfo -or
+        $endpoint.Host -notmatch '^[a-z0-9-]+\.codesigning\.azure\.net$' -or
+        $endpoint.AbsolutePath -notin @("", "/") -or
+        $endpoint.Query -or
+        $endpoint.Fragment
+    ) {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_ENDPOINT_INVALID"
+    }
+
+    $accountName = [string]$value["CodeSigningAccountName"]
+    if (
+        $accountName.Length -lt 3 -or
+        $accountName.Length -gt 24 -or
+        $accountName -notmatch '^[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9]$' -or
+        $accountName.Contains("--")
+    ) {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_ACCOUNT_INVALID"
+    }
+
+    $profileName = [string]$value["CertificateProfileName"]
+    if (
+        $profileName.Length -lt 5 -or
+        $profileName.Length -gt 100 -or
+        $profileName -notmatch '^[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9]$' -or
+        $profileName.Contains("--")
+    ) {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_PROFILE_INVALID"
+    }
+
+    if ($value.Contains("CorrelationId")) {
+        $correlationId = [string]$value["CorrelationId"]
+        if ($correlationId.Length -gt 256 -or $correlationId -match '[\r\n]') {
+            throw "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_INVALID"
+        }
+    }
+
+    if ($value.Contains("ExcludeCredentials")) {
+        $allowedCredentials = @(
+            "EnvironmentCredential",
+            "ManagedIdentityCredential",
+            "WorkloadIdentityCredential",
+            "SharedTokenCacheCredential",
+            "VisualStudioCredential",
+            "VisualStudioCodeCredential",
+            "AzureCliCredential",
+            "AzurePowerShellCredential",
+            "AzureDeveloperCliCredential",
+            "InteractiveBrowserCredential"
+        )
+        $rawExcluded = $value["ExcludeCredentials"]
+        if (
+            $rawExcluded -is [string] -or
+            $rawExcluded -isnot [Collections.IEnumerable]
+        ) {
+            throw "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID"
+        }
+        $excluded = @($rawExcluded)
+        if ($excluded.Count -gt $allowedCredentials.Count) {
+            throw "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID"
+        }
+        $seen = @{}
+        foreach ($credential in $excluded) {
+            $credentialName = [string]$credential
+            if ($credentialName -notin $allowedCredentials -or $seen.ContainsKey($credentialName)) {
+                throw "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID"
+            }
+            $seen[$credentialName] = $true
+        }
+    }
+}
+
+function Assert-ArtifactSigningSignTool([string]$Path) {
+    try {
+        $versionText = [string](Get-Item -LiteralPath $Path -ErrorAction Stop).VersionInfo.FileVersion
+        $match = [regex]::Match($versionText, '\d+\.\d+\.\d+\.\d+')
+        if (-not $match.Success) { throw "version" }
+        $actual = [Version]$match.Value
+    } catch {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_SIGNTOOL_VERSION_INVALID"
+    }
+    if ($actual -lt [Version]"10.0.2261.755") {
+        throw "AUTHENTICODE_ARTIFACT_SIGNING_SIGNTOOL_TOO_OLD"
+    }
+}
+
+if ($artifactSigningEnabled) {
+    $artifactSigningDlibPath = Resolve-AuthenticodeInputFile $AuthenticodeArtifactSigningDlib "AUTHENTICODE_ARTIFACT_SIGNING_DLIB_REQUIRED"
+    $artifactSigningMetadataPath = Resolve-AuthenticodeInputFile $AuthenticodeArtifactSigningMetadata "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_REQUIRED"
+    [void](Assert-ArtifactSigningMetadata $artifactSigningMetadataPath)
+    $artifactSignTool = Resolve-SignToolPath
+    [void](Assert-ArtifactSigningSignTool $artifactSignTool)
+}
+
 function Assert-AuthenticodeIdentity([string]$Path) {
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ([string]$signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
         throw "AUTHENTICODE_SIGNATURE_INVALID:$([IO.Path]::GetFileName($Path)):$($signature.Status)"
     }
     $actualThumbprint = ([string]$signature.SignerCertificate.Thumbprint -replace '\s', '').ToUpperInvariant()
-    if ($actualThumbprint -ne $normalizedThumbprint) {
+    if ($certificateStoreEnabled -and $actualThumbprint -ne $normalizedThumbprint) {
         throw "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH:$([IO.Path]::GetFileName($Path))"
     }
     if (
@@ -82,11 +261,27 @@ function Invoke-AuthenticodeSign([string]$Path) {
     }
 
     $signToolPath = Resolve-SignToolPath
-    $arguments = @("sign", "/sha1", $normalizedThumbprint, "/fd", "SHA256")
-    if ($AuthenticodeTimestampUrl) {
-        $arguments += @("/tr", $AuthenticodeTimestampUrl, "/td", "SHA256")
+    if ($certificateStoreEnabled) {
+        $arguments = @("sign", "/sha1", $normalizedThumbprint, "/fd", "SHA256")
+        if ($AuthenticodeTimestampUrl) {
+            $arguments += @("/tr", $AuthenticodeTimestampUrl, "/td", "SHA256")
+        }
+        $arguments += @("/v", $Path)
+    } elseif ($artifactSigningEnabled) {
+        $arguments = @(
+            "sign",
+            "/fd", "SHA256",
+            "/tr", $AuthenticodeTimestampUrl,
+            "/td", "SHA256",
+            "/dlib", $artifactSigningDlibPath,
+            "/dmdf", $artifactSigningMetadataPath,
+            "/v",
+            "/debug",
+            $Path
+        )
+    } else {
+        throw "AUTHENTICODE_PROVIDER_INVALID"
     }
-    $arguments += @("/v", $Path)
 
     & $signToolPath @arguments
     if ($LASTEXITCODE -ne 0) {
@@ -260,6 +455,7 @@ Write-Host "MSI: $msi"
 Write-Host "Rollback probe MSI (test-only): $rollbackProbeMsi"
 Write-Host "MSI SHA256: $msiHash"
 Write-Host "Authenticode: $($signingEnabled ? "signed + verified" : "not configured")"
-if ($signingEnabled) {
-    Write-Host "Signer thumbprint: $normalizedThumbprint"
+Write-Host "Authenticode provider: $($signingEnabled ? $normalizedProvider : "none")"
+if ($certificateStoreEnabled) {
+    Write-Host "Configured signer thumbprint: $normalizedThumbprint"
 }

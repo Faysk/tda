@@ -68,6 +68,7 @@ jobs:
         shell: pwsh
         run: |
           foreach ($script in @(
+            "local-companion/packaging/build-windows.ps1",
             "local-companion/packaging/plan.ps1",
             "local-companion/packaging/install-rc-runtimes.ps1",
             "local-companion/packaging/run-physical-acceptance.ps1",
@@ -83,6 +84,100 @@ jobs:
               throw "POWERSHELL_HARNESS_INVALID"
             }
           }
+      - name: Validate signing provider fail-closed contracts
+        shell: pwsh
+        run: |
+          function Assert-BuildFails([hashtable]$Parameters, [string]$ExpectedCode) {
+            $caught = ""
+            try {
+              & ./local-companion/packaging/build-windows.ps1 @Parameters
+            } catch {
+              $caught = [string]$_.Exception.Message
+            }
+            if ($caught -ne $ExpectedCode) {
+              throw ("SIGNING_FAIL_CLOSED_MISMATCH:{0}:{1}" -f $ExpectedCode, $caught)
+            }
+          }
+
+          Assert-BuildFails @{
+            AuthenticodeProvider = "none"
+            RequireAuthenticode = $true
+          } "AUTHENTICODE_REQUIRED"
+
+          Assert-BuildFails @{
+            AuthenticodeProvider = "certificate-store"
+            AuthenticodeThumbprint = "not-a-thumbprint"
+          } "AUTHENTICODE_THUMBPRINT_INVALID"
+
+          Assert-BuildFails @{
+            AuthenticodeProvider = "artifact-signing"
+            AuthenticodeTimestampUrl = "https://timestamp.acs.microsoft.com/"
+            AuthenticodeExpectedSubject = "CN=TDA Acceptance Fixture"
+          } "AUTHENTICODE_ARTIFACT_SIGNING_DLIB_REQUIRED"
+
+
+          $probeDlib = Join-Path $env:RUNNER_TEMP "artifact-signing-probe.dlib"
+          Set-Content -LiteralPath $probeDlib -Value "fixture" -Encoding Ascii
+
+          $badEndpointMetadata = Join-Path $env:RUNNER_TEMP "artifact-signing-bad-endpoint.json"
+          @{
+            Endpoint = "https://example.invalid/"
+            CodeSigningAccountName = "tdaacceptance"
+            CertificateProfileName = "tda-acceptance"
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath $badEndpointMetadata -Encoding UTF8
+          Assert-BuildFails @{
+            AuthenticodeProvider = "artifact-signing"
+            AuthenticodeTimestampUrl = "https://timestamp.acs.microsoft.com/"
+            AuthenticodeExpectedSubject = "CN=TDA Acceptance Fixture"
+            AuthenticodeArtifactSigningDlib = $probeDlib
+            AuthenticodeArtifactSigningMetadata = $badEndpointMetadata
+          } "AUTHENTICODE_ARTIFACT_SIGNING_ENDPOINT_INVALID"
+
+          $badCredentialMetadata = Join-Path $env:RUNNER_TEMP "artifact-signing-bad-credential.json"
+          @{
+            Endpoint = "https://weu.codesigning.azure.net/"
+            CodeSigningAccountName = "tdaacceptance"
+            CertificateProfileName = "tda-acceptance"
+            ExcludeCredentials = @("DefinitelyNotACredential")
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath $badCredentialMetadata -Encoding UTF8
+          Assert-BuildFails @{
+            AuthenticodeProvider = "artifact-signing"
+            AuthenticodeTimestampUrl = "https://timestamp.acs.microsoft.com/"
+            AuthenticodeExpectedSubject = "CN=TDA Acceptance Fixture"
+            AuthenticodeArtifactSigningDlib = $probeDlib
+            AuthenticodeArtifactSigningMetadata = $badCredentialMetadata
+          } "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID"
+
+
+          $stringCredentialMetadata = Join-Path $env:RUNNER_TEMP "artifact-signing-string-credential.json"
+          @{
+            Endpoint = "https://weu.codesigning.azure.net/"
+            CodeSigningAccountName = "tda-acceptance"
+            CertificateProfileName = "tda-acceptance"
+            ExcludeCredentials = "AzureCliCredential"
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath $stringCredentialMetadata -Encoding UTF8
+          Assert-BuildFails @{
+            AuthenticodeProvider = "artifact-signing"
+            AuthenticodeTimestampUrl = "https://timestamp.acs.microsoft.com/"
+            AuthenticodeExpectedSubject = "CN=TDA Acceptance Fixture"
+            AuthenticodeArtifactSigningDlib = $probeDlib
+            AuthenticodeArtifactSigningMetadata = $stringCredentialMetadata
+          } "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID"
+
+          $unknownKeyMetadata = Join-Path $env:RUNNER_TEMP "artifact-signing-unknown-key.json"
+          @{
+            Endpoint = "https://weu.codesigning.azure.net/"
+            CodeSigningAccountName = "tdaacceptance"
+            CertificateProfileName = "tda-acceptance"
+            ClientSecret = "must-never-be-accepted"
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath $unknownKeyMetadata -Encoding UTF8
+          Assert-BuildFails @{
+            AuthenticodeProvider = "artifact-signing"
+            AuthenticodeTimestampUrl = "https://timestamp.acs.microsoft.com/"
+            AuthenticodeExpectedSubject = "CN=TDA Acceptance Fixture"
+            AuthenticodeArtifactSigningDlib = $probeDlib
+            AuthenticodeArtifactSigningMetadata = $unknownKeyMetadata
+          } "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_KEY_INVALID"
       - name: Install WiX Toolset 5
         shell: pwsh
         run: dotnet tool install --tool-path .wix wix --version 5.0.2
