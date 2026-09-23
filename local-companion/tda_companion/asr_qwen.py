@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import gc
+import json
 import math
 import os
+import sys
 import time
 from dataclasses import asdict, dataclass
 from importlib import metadata
@@ -102,10 +104,36 @@ def _distribution_version(name: str) -> str:
 
 
 def _runtime_fingerprint() -> str:
+    runtime_version = os.environ.get("TDA_ASR_RUNTIME_VERSION", "").strip()
+    if runtime_version and bool(getattr(sys, "frozen", False)):
+        marker_path = Path(sys.executable).resolve().parent / ".tda-runtime.json"
+        try:
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID") from exc
+        if not isinstance(marker, dict):
+            raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID")
+        worker_sha256 = str(marker.get("worker_sha256") or "").lower()
+        if (
+            marker.get("schema") != "tda_asr_runtime_v1"
+            or marker.get("runtime_id") != "qwen3-transformers"
+            or marker.get("version") != runtime_version
+            or len(worker_sha256) != 64
+            or any(value not in "0123456789abcdef" for value in worker_sha256)
+        ):
+            raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID")
+        return ";".join(
+            (
+                "checkpoint=qwen-track-v3",
+                f"runtime={runtime_version}",
+                f"worker_sha256={worker_sha256}",
+            )
+        )
+
     return ";".join(
         (
-            "checkpoint=qwen-track-v2",
-            f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
+            "checkpoint=qwen-track-v3",
+            f"runtime={runtime_version or 'development'}",
             f"torch={_distribution_version('torch')}",
             f"transformers={_distribution_version('transformers')}",
             f"accelerate={_distribution_version('accelerate')}",

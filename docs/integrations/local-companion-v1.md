@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: local-companion/processing
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-24
 > Fonte de verdade: `local-companion/tda_companion/api.py`, `store.py`, `telemetry.py` e `windows_app.py`
 
 O protocolo wire permanece `api_version="1"`. A versão de serviço deste corte é `0.3.14`. A evolução continua local-first: jobs ASR Craig, eventos, telemetria e sessões de navegador existem no loopback sem transformar autorização local em autorização cloud.
@@ -223,6 +223,36 @@ A fixture não pode ser tratada como publicação real. Sync remoto autenticado,
 O worker emite `source_validation` imediatamente e heartbeat periódico. O Agent usa o heartbeat para atualizar `Job.updated_at` sem criar um evento persistido a cada poucos segundos. Assim a interface consegue distinguir **worker vivo/preparando** de congelamento real.
 
 Perfis Qwen exigem runtime/modelo/gate físico compatíveis antes do job. Whisper e Qwen produzem o mesmo contrato de transcript/run local.
+
+### Compatibilidade GPU do Qwen
+
+A linha de runtime Qwen `1.0.10` trata Compute Capability como capability, não como nome de placa:
+
+- `SM >= 7.5`: caminho elegível, ainda sujeito a probe CUDA real, carga integral do modelo, ASR, Forced Aligner e gate físico;
+- `SM < 7.5`: rejeitado fail-closed;
+- dtype: `bfloat16` somente quando o runtime reporta suporte; caso contrário `float16`;
+- RTX 4070 8 GB continua a baseline de release validada;
+- RTX 2080 SUPER / SM 7.5 possui evidência física de ASR + Forced Aligner concluídos e entra inicialmente como **suporte experimental**, não como equivalência automática a toda GPU Turing.
+
+O runtime/gate registra compute capability e compute type. A promoção de suporte experimental para oficial exige preservar evidência física de VRAM/pico, desempenho e estabilidade no hardware SM 7.5, sem reduzir os critérios de acceptance.
+
+### Observabilidade pré-model do Qwen
+
+O strict worker não deve manter toda a preparação escondida em `runtime_validation`. A sequência observável é:
+
+```text
+runtime_validation
+  -> runtime_fingerprint
+  -> checkpoint_scan
+  -> model_prepare
+  -> model_load
+```
+
+No runtime empacotado, o fingerprint de checkpoint é derivado do marker já selado `.tda-runtime.json`: versão do runtime + SHA-256 do worker. Isso evita varrer metadata de `torch`/`transformers`/`accelerate` no caminho de produção e mantém invalidation ligada aos bytes do worker. Em development, onde não existe marker/runtime imutável, o fingerprint continua incluindo versões dos pacotes.
+
+Os eventos `QWEN_RUNTIME_FINGERPRINT_READY` e `ASR_CHECKPOINT_SCAN_COMPLETED` carregam apenas duração e contadores sanitizados. Não incluem transcript, texto de checkpoint, path local, token ou conteúdo do áudio. O scan também respeita cancelamento entre tracks.
+
+No forced alignment com janelas sobrepostas, timestamp extrapolado além do fim físico da janela só pode ser ignorado quando o próprio word **começa dentro do trailing overlap pertencente à janela vizinha**, isto é, depois da right ownership boundary de uma janela não-final. Esse caso emite `QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED` sem texto. Overflow que começa na região owned continua falhando como `QWEN_ALIGNMENT_REQUIRED`; o recovery de alinhamento degenerado do Craig completo permanece gate físico separado e não é inferido por essa exceção estreita.
 
 Cancelamento é cooperativo primeiro. Se código nativo/CUDA não responder dentro do grace period, o subprocesso isolado é encerrado e o job permanece `cancelled`; o log técnico registra `WORKER_CANCEL_FORCED` em vez de converter a ação do usuário em falha `WORKER_CANCEL_TIMEOUT`.
 
