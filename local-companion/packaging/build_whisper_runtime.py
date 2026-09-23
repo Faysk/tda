@@ -174,7 +174,11 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
             raise RuntimeError("WHISPER_RUNTIME_INSTALL_SMOKE_FAILED")
         worker = Path(str(state["worker"]))
         probe = _probe_worker(worker)
-        if not probe.get("ready") or not probe.get("nvml"):
+        if (
+            not probe.get("ready")
+            or not probe.get("nvml")
+            or probe.get("whisper_model_imported") is not True
+        ):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
         bootstrap = _smoke_worker_bootstrap(worker)
         return {"probe": probe, "bootstrap": bootstrap}
@@ -225,7 +229,11 @@ def main() -> int:
                 raise RuntimeError(f"WHISPER_RUNTIME_REQUIRED_DLL_MISSING:{name}")
 
         probe = _probe_worker(worker)
-        if probe.get("schema") != "tda_whisper_runtime_probe_v1" or not probe.get("ready"):
+        if (
+            probe.get("schema") != "tda_whisper_runtime_probe_v1"
+            or not probe.get("ready")
+            or probe.get("whisper_model_imported") is not True
+        ):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
         bootstrap = _smoke_worker_bootstrap(worker)
         if probe.get("faster_whisper") != packages["faster-whisper"]:
