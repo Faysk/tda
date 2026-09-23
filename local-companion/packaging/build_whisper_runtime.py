@@ -94,6 +94,49 @@ def copy_runtime_dlls(python: Path, built: Path) -> dict[str, int]:
     return copied
 
 
+def _smoke_worker_bootstrap(worker: Path) -> dict:
+    command = json.dumps(
+        {
+            "protocol": "tda_worker_v1",
+            "type": "run",
+            "job_id": "runtime-bootstrap-smoke",
+            "attempt": 1,
+            "kind": "synthetic.fixture",
+            "payload": {"units": 1, "completed": 0},
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ) + "\n"
+    try:
+        result = subprocess.run(
+            [str(worker)],
+            input=command,
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("WHISPER_RUNTIME_BOOTSTRAP_TIMEOUT") from exc
+    if result.returncode != 0:
+        raise RuntimeError("WHISPER_RUNTIME_BOOTSTRAP_FAILED")
+    messages = []
+    for line in result.stdout.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("WHISPER_RUNTIME_BOOTSTRAP_PROTOCOL_INVALID") from exc
+        if isinstance(value, dict):
+            messages.append(value)
+    types = [str(value.get("type") or "") for value in messages]
+    if "ready" not in types or "result" not in types:
+        raise RuntimeError("WHISPER_RUNTIME_BOOTSTRAP_NOT_READY")
+    return {
+        "ready": True,
+        "message_types": types,
+    }
+
+
 def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
     sys.path.insert(0, str(ROOT / "local-companion"))
     from tda_companion.asr_runtime import (  # noqa: PLC0415
@@ -116,7 +159,8 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
         probe = json.loads(run(str(worker), "--probe"))
         if not probe.get("ready") or not probe.get("nvml"):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
-        return probe
+        bootstrap = _smoke_worker_bootstrap(worker)
+        return {"probe": probe, "bootstrap": bootstrap}
 
 
 def main() -> int:
@@ -166,6 +210,7 @@ def main() -> int:
         probe = json.loads(run(str(worker), "--probe"))
         if probe.get("schema") != "tda_whisper_runtime_probe_v1" or not probe.get("ready"):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
+        bootstrap = _smoke_worker_bootstrap(worker)
         if probe.get("faster_whisper") != packages["faster-whisper"]:
             raise RuntimeError("WHISPER_RUNTIME_FASTER_WHISPER_VERSION_MISMATCH")
         if probe.get("ctranslate2") != packages["ctranslate2"]:
@@ -185,6 +230,7 @@ def main() -> int:
             "packages": packages,
             "gpu": config["gpu"],
             "probe": probe,
+            "bootstrap": bootstrap,
             "required_dlls": list(REQUIRED_DLLS),
             "nvidia_dll_counts": copied_dlls,
         }
