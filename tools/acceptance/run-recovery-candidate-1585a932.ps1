@@ -236,8 +236,8 @@ function New-NoCompressionZip([string]$Root, [string]$Destination, [string[]]$Na
                 $entry = $zip.CreateEntry($name, [IO.Compression.CompressionLevel]::NoCompression)
                 $output = $entry.Open()
                 try {
-                    $input = [IO.File]::OpenRead($file)
-                    try { $input.CopyTo($output) } finally { $input.Dispose() }
+                    $inputStream = [IO.File]::OpenRead($file)
+                    try { $inputStream.CopyTo($output) } finally { $inputStream.Dispose() }
                 } finally { $output.Dispose() }
             }
         } finally { $zip.Dispose() }
@@ -641,8 +641,8 @@ function Assert-PhysicalReceipt([object]$Value) {
         throw "RECOVERY_PHYSICAL_RECEIPT_INVALID"
     }
     $profiles = @($Value.profiles | ForEach-Object { [string]$_ })
-    foreach ($profile in $RequiredProfiles) {
-        if ($profile -notin $profiles) { throw "RECOVERY_PHYSICAL_PROFILE_MISSING:$profile" }
+    foreach ($profileId in $RequiredProfiles) {
+        if ($profileId -notin $profiles) { throw "RECOVERY_PHYSICAL_PROFILE_MISSING:$profileId" }
     }
     if ([string]$Value.hardware.gpu_name -notmatch "(?i)RTX 4070") {
         throw "RECOVERY_PHYSICAL_GPU_INVALID"
