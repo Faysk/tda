@@ -350,6 +350,21 @@ jobs:
             }
           }
 
+          $installedSource = Get-Content -LiteralPath "local-companion/packaging/run-installed-acceptance.ps1" -Raw
+          if ($installedSource -match 'function\s+Wait-ProcessExit\s*\(\s*\[int\]\$Pid\b') {
+            throw "ACCEPTANCE_RESERVED_PID_PARAMETER_PRESENT"
+          }
+          . (Get-FunctionScriptBlock "local-companion/packaging/run-installed-acceptance.ps1" "Wait-ProcessExit")
+          $exitProbe = Start-Process -FilePath "powershell.exe" -ArgumentList @(
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Milliseconds 300"
+          ) -PassThru -WindowStyle Hidden
+          if (-not (Wait-ProcessExit ([int]$exitProbe.Id) 5)) {
+            try { Stop-Process -Id ([int]$exitProbe.Id) -Force -ErrorAction SilentlyContinue } catch {}
+            throw "ACCEPTANCE_WAIT_PROCESS_EXIT_FAILED"
+          }
+
           . (Get-FunctionScriptBlock "local-companion/packaging/run-installed-acceptance.ps1" "Get-TdaBitsSnapshot")
           $local = Join-Path $env:LOCALAPPDATA "TDA\Cache\acceptance-fixture.bin"
           $job = [pscustomobject]@{

@@ -17,12 +17,12 @@ New-Item -ItemType Directory -Force -Path $state, $data | Out-Null
 
 $process = $null
 try {
-    $args = @(
+    $processArguments = @(
         "--headless", "--state-root", $state, "--data-root", $data,
         "--origin", "https://dnd.faysk.dev", "--port", $Port,
         "--diagnostic-file", $diagnostic
     )
-    $process = Start-Process -FilePath $exe -ArgumentList $args -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath $exe -ArgumentList $processArguments -PassThru -WindowStyle Hidden
     $deadline = (Get-Date).AddSeconds(15)
     $health = $null
     $lastHttp = $null

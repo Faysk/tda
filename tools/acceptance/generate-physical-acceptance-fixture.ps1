@@ -386,12 +386,12 @@ function New-CraigFixture([string]$ZipPath, [string]$SpeechWavPath) {
                 [IO.Compression.CompressionLevel]::NoCompression
             )
             $entryStream = $entry.Open()
-            $input = $null
+            $inputStream = $null
             try {
-                $input = [IO.File]::OpenRead($flacPath)
-                $input.CopyTo($entryStream)
+                $inputStream = [IO.File]::OpenRead($flacPath)
+                $inputStream.CopyTo($entryStream)
             } finally {
-                if ($null -ne $input) { $input.Dispose() }
+                if ($null -ne $inputStream) { $inputStream.Dispose() }
                 $entryStream.Dispose()
             }
         } finally {
