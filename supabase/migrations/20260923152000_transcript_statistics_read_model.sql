@@ -4,7 +4,7 @@
 
 create table public.transcript_session_statistics (
   session_id uuid primary key references public.sessions(id) on delete cascade,
-  segment_count bigint not null check (segment_count > 0),
+  segment_count bigint not null check (segment_count >= 0),
   complete_text_count bigint not null check (
     complete_text_count >= 0 and complete_text_count <= segment_count
   ),
@@ -13,7 +13,7 @@ create table public.transcript_session_statistics (
 );
 
 comment on table public.transcript_session_statistics
-is 'Server-only read model for transcript statistics. One row per session with >=1 transcript segment; maintained transactionally from transcript_segments.';
+is 'Server-only read model for transcript statistics. Committed state keeps one row per session with >=1 transcript segment; trigger maintenance may transiently reach zero before deleting the row in the same transaction.';
 
 comment on column public.transcript_session_statistics.word_count
 is 'Sum of canonical whitespace-token counts for non-null segment text. Consumers must treat words as unknown when complete_text_count <> segment_count.';
