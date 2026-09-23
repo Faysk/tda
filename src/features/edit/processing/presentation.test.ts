@@ -142,7 +142,26 @@ describe("processing presentation", () => {
 	it("labels canonical processing stages", () => {
 		expect(stageLabels.transcription).toBe("Transcrição");
 		expect(stageLabels.runtime_bootstrap).toBe("Inicializando runtime local");
+		expect(stageLabels.runtime_fingerprint).toBe("Confirmando identidade do runtime");
+		expect(stageLabels.checkpoint_scan).toBe("Verificando checkpoints locais");
 		expect(stageLabels.energy_analysis).toBe("Analisando energia entre faixas");
+	});
+});
+
+
+
+it("presents ownership-safe Qwen alignment overflow without hiding fail-closed semantics", () => {
+	expect(
+		presentJobEvent({
+			seq: 40,
+			code: "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
+			at: "2026-09-23T00:00:00.000Z",
+			level: "warning",
+			data: { track: 2, window: 88, count: 1, stage: "alignment" },
+		}),
+	).toEqual({
+		title: "Um timestamp extrapolado no overlap vizinho foi ignorado com segurança.",
+		detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
 	});
 });
 
