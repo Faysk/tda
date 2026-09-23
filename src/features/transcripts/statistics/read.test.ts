@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { collectStatistics, type SessionRow, type SegmentRow } from "./read";
+import {
+	collectStatistics,
+	collectStatisticsReadModel,
+	type SegmentRow,
+	type SessionRow,
+	type StatisticsReadModelRow,
+} from "./read";
 import {
 	formatDuration,
 	recordedDuration,
@@ -164,5 +170,68 @@ describe("complete authorized dataset collector", () => {
 				segments: async () => [],
 			}),
 		).rejects.toThrow("Non-progressing");
+	});
+});
+
+
+describe("bounded statistics read model collector", () => {
+	const aggregate = (
+		id: string,
+		segment_count: number,
+		word_count: number,
+	): StatisticsReadModelRow => ({
+		id,
+		title: `Sessão ${id}`,
+		session_date: null,
+		duration_ms: 60_000,
+		segment_count,
+		word_count,
+	});
+
+	it("maps zero segments to unknown words and preserves aggregate totals", async () => {
+		const rows = [
+			aggregate("a", 0, 0),
+			aggregate("b", 3, 7),
+			aggregate("c", 1, 0),
+		];
+		const value = await collectStatisticsReadModel("campaign", {
+			sessions: async (_slug, after) => page(rows, after, 2),
+		});
+
+		expect(value.sessions.map((row) => row.words)).toEqual([null, 7, 0]);
+		expect(value.totals).toEqual({
+			sessions: 3,
+			words: 7,
+			durationMs: 180_000,
+			wordCoverage: 2,
+			durationCoverage: 3,
+		});
+	});
+
+	it("paginates only session aggregates, independent of segment volume", async () => {
+		const rows = Array.from({ length: 205 }, (_, index) =>
+			aggregate(String(index).padStart(4, "0"), 30_000 + index, 90_000 + index),
+		);
+		const sessions = vi.fn(async (_slug: string, after: string | null) =>
+			page(rows, after, 100),
+		);
+		const value = await collectStatisticsReadModel("campaign", { sessions });
+
+		expect(value.sessions).toHaveLength(205);
+		expect(sessions).toHaveBeenCalledTimes(4);
+		expect(value.totals.wordCoverage).toBe(205);
+	});
+
+	it.each([
+		[aggregate("a", -1, 0)],
+		[aggregate("a", 1, -1)],
+		[{ ...aggregate("a", 1, 2), segment_count: 1.5 }],
+		[{ ...aggregate("a", 0, 0), word_count: 1 }],
+	])("fails closed on inconsistent aggregate rows", async (row) => {
+		await expect(
+			collectStatisticsReadModel("campaign", {
+				sessions: async () => [row as StatisticsReadModelRow],
+			}),
+		).rejects.toThrow();
 	});
 });
