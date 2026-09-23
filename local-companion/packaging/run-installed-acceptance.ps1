@@ -300,12 +300,12 @@ function Write-AcceptanceSettings([string]$SettingsPath, [string]$CloseBehavior,
     Move-Item -LiteralPath $temporary -Destination $SettingsPath -Force
 }
 
-function Wait-ProcessExit([int]$Pid, [int]$TimeoutSeconds = 20) {
+function Wait-ProcessExit([int]$ProcessId, [int]$TimeoutSeconds = 20) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -ne (Get-Process -Id $Pid -ErrorAction SilentlyContinue)) {
+    while ([DateTimeOffset]::UtcNow -lt $deadline -and $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
         Start-Sleep -Milliseconds 200
     }
-    return $null -eq (Get-Process -Id $Pid -ErrorAction SilentlyContinue)
+    return $null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
 }
 
 function Get-Sha256Text([string]$Value) {
