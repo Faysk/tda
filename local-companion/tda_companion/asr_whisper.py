@@ -34,6 +34,14 @@ from .transcript import (
 
 ProgressCallback = Callable[[dict[str, Any]], None]
 CancelCallback = Callable[[], bool]
+_PRELOADED_WHISPER_MODEL_CLASS: Any | None = None
+
+
+def bind_preloaded_whisper_model_class(model_class: Any) -> None:
+    if not callable(model_class):
+        raise WhisperRuntimeError("WHISPER_RUNTIME_PRELOAD_INVALID")
+    global _PRELOADED_WHISPER_MODEL_CLASS
+    _PRELOADED_WHISPER_MODEL_CLASS = model_class
 
 
 class WhisperRuntimeError(RuntimeError):
@@ -178,17 +186,22 @@ def load_whisper_model(
             "type": "event",
             "code": "WHISPER_RUNTIME_IMPORT_STARTED",
             "stage": "model_load",
+            "preloaded": _PRELOADED_WHISPER_MODEL_CLASS is not None,
         }
     )
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError as exc:
-        raise WhisperRuntimeError("WHISPER_RUNTIME_NOT_INSTALLED") from exc
+    WhisperModel = _PRELOADED_WHISPER_MODEL_CLASS
+    if WhisperModel is None:
+        try:
+            from faster_whisper import WhisperModel as imported_whisper_model
+        except ImportError as exc:
+            raise WhisperRuntimeError("WHISPER_RUNTIME_NOT_INSTALLED") from exc
+        WhisperModel = imported_whisper_model
     report(
         {
             "type": "event",
             "code": "WHISPER_RUNTIME_IMPORT_READY",
             "stage": "model_load",
+            "preloaded": _PRELOADED_WHISPER_MODEL_CLASS is not None,
             "duration_ms": round((time.monotonic() - import_started) * 1000),
         }
     )
