@@ -1,13 +1,14 @@
 import {
 	isCompanionInstallableTag,
 	selectCompanionInstallableAssetInfo,
+	selectLatestCompanionTag,
 } from "@/features/edit/processing/companion-release";
-import { selectLatestCompanionStableRelease } from "@/features/edit/processing/companion-stable-release";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const RELEASES_URL = "https://api.github.com/repos/Faysk/tda/releases?per_page=100";
+const STABLE_REFS_URL =
+	"https://api.github.com/repos/Faysk/tda/git/matching-refs/tags/companion-v";
 const RELEASE_BY_TAG_URL = "https://api.github.com/repos/Faysk/tda/releases/tags/";
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const GITHUB_HEADERS = {
@@ -20,12 +21,26 @@ const NO_STORE_HEADERS = {
 };
 
 async function latestStable() {
-	const response = await fetch(RELEASES_URL, {
+	const refsResponse = await fetch(STABLE_REFS_URL, {
 		headers: GITHUB_HEADERS,
 		cache: "no-store",
 	});
-	if (!response.ok) throw new Error("COMPANION_RELEASE_LOOKUP_FAILED");
-	return selectLatestCompanionStableRelease(await response.json());
+	if (!refsResponse.ok) throw new Error("COMPANION_RELEASE_LOOKUP_FAILED");
+	const tag = selectLatestCompanionTag(await refsResponse.json());
+	if (!tag) return null;
+
+	const releaseResponse = await fetch(
+		`${RELEASE_BY_TAG_URL}${encodeURIComponent(tag)}`,
+		{
+			headers: GITHUB_HEADERS,
+			cache: "no-store",
+		},
+	);
+	if (releaseResponse.status === 404) return null;
+	if (!releaseResponse.ok) throw new Error("COMPANION_RELEASE_LOOKUP_FAILED");
+	const release = await releaseResponse.json();
+	const selected = selectCompanionInstallableAssetInfo(release, tag);
+	return selected?.channel === "stable" ? selected : null;
 }
 
 export async function GET(request: Request) {
