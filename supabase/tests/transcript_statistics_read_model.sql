@@ -93,7 +93,7 @@ update public.transcript_segments
 set text = 'um dois três quatro'
 where id = '99999999-9999-4999-8999-999999999999';
 
-do $$
+do $
 declare
   words integer;
   aggregate_words bigint;
@@ -108,7 +108,29 @@ begin
   where session_id = '22222222-2222-4222-8222-222222222222';
   if aggregate_words <> 7 then raise exception 'UPDATE_AGGREGATE'; end if;
 end
-$$;
+$;
+
+-- Even a privileged writer cannot drift the derived counter directly.
+update public.transcript_segments
+set text_words = 999
+where id = '99999999-9999-4999-8999-999999999999';
+
+do $
+declare
+  words integer;
+  aggregate_words bigint;
+begin
+  select text_words into words
+  from public.transcript_segments
+  where id = '99999999-9999-4999-8999-999999999999';
+  if words <> 4 then raise exception 'DIRECT_WORD_DRIFT_ACCEPTED'; end if;
+
+  select word_count into aggregate_words
+  from public.transcript_session_statistics
+  where session_id = '22222222-2222-4222-8222-222222222222';
+  if aggregate_words <> 7 then raise exception 'DIRECT_WORD_DRIFT_AGGREGATE'; end if;
+end
+$;
 
 update public.transcript_segments
 set session_id = '88888888-8888-4888-8888-888888888888'
