@@ -18,7 +18,7 @@ PART_BYTES = 1900 * 1024**2
 _COPY_CHUNK = 1024 * 1024
 
 
-def run(*args: str, cwd: Path | None = None) -> str:
+def run(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
     try:
         value = subprocess.run(
             args,
@@ -26,6 +26,7 @@ def run(*args: str, cwd: Path | None = None) -> str:
             check=True,
             text=True,
             capture_output=True,
+            timeout=timeout,
         )
     except subprocess.CalledProcessError as exc:
         if exc.stdout:
@@ -65,7 +66,11 @@ def _install_environment(python: Path, config: dict) -> None:
 
 
 def _probe(worker: Path) -> dict:
-    value = json.loads(run(str(worker), "--probe"))
+    try:
+        raw = run(str(worker), "--probe", timeout=90)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("QWEN_RUNTIME_PACKAGED_PROBE_TIMEOUT") from exc
+    value = json.loads(raw)
     if value.get("schema") != "tda_qwen_runtime_probe_v1" or value.get("ready") is not True:
         raise RuntimeError("QWEN_RUNTIME_PACKAGED_PROBE_NOT_READY")
     if value.get("qwen3_asr_native") is not True or value.get("forced_aligner_native") is not True:
@@ -73,6 +78,46 @@ def _probe(worker: Path) -> dict:
     if value.get("audio_decode_ready") is not True:
         raise RuntimeError("QWEN_RUNTIME_PACKAGED_AUDIO_DECODE_FAILED")
     return value
+
+
+def _smoke_worker_bootstrap(worker: Path) -> dict:
+    command = json.dumps(
+        {
+            "protocol": "tda_worker_v1",
+            "type": "run",
+            "job_id": "qwen-runtime-bootstrap-smoke",
+            "attempt": 1,
+            "kind": "synthetic.fixture",
+            "payload": {"units": 1, "completed": 0},
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ) + "\n"
+    try:
+        result = subprocess.run(
+            [str(worker)],
+            input=command,
+            text=True,
+            capture_output=True,
+            timeout=90,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("QWEN_RUNTIME_WORKER_BOOTSTRAP_TIMEOUT") from exc
+    if result.returncode != 0:
+        raise RuntimeError("QWEN_RUNTIME_WORKER_BOOTSTRAP_FAILED")
+    messages: list[dict] = []
+    for line in result.stdout.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("QWEN_RUNTIME_WORKER_BOOTSTRAP_PROTOCOL_INVALID") from exc
+        if isinstance(value, dict):
+            messages.append(value)
+    types = [str(value.get("type") or "") for value in messages]
+    if "ready" not in types or "result" not in types:
+        raise RuntimeError("QWEN_RUNTIME_WORKER_BOOTSTRAP_NOT_READY")
+    return {"ready": True, "message_types": types}
 
 
 def _write_zip(package_root: Path, archive: Path) -> None:
@@ -162,7 +207,10 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
         if state.get("status") != "ready" or state.get("version") != version:
             raise RuntimeError("QWEN_RUNTIME_INSTALL_SMOKE_FAILED")
         worker = Path(str(state["worker"]))
-        return _probe(worker)
+        return {
+            "probe": _probe(worker),
+            "bootstrap": _smoke_worker_bootstrap(worker),
+        }
 
 
 def main() -> int:
@@ -238,6 +286,7 @@ def main() -> int:
             raise RuntimeError("QWEN_RUNTIME_WORKER_NOT_CREATED")
 
         probe = _probe(worker)
+        bootstrap = _smoke_worker_bootstrap(worker)
         if not str(probe.get("python_packages", {}).get("torch", "")).startswith(
             str(config["torch"]["version"])
         ):
@@ -260,6 +309,7 @@ def main() -> int:
             "packages": config["packages"],
             "gpu": config["gpu"],
             "probe": probe,
+            "bootstrap": bootstrap,
             "physical_gpu_validated": False,
         }
         (built / "runtime-build.json").write_text(
@@ -283,6 +333,7 @@ def main() -> int:
             "parts": parts,
             "bundle_manifest": bundle_manifest.name,
             "probe": probe,
+            "bootstrap": bootstrap,
             "installed_probe": installed_probe,
             "physical_gpu_validated": False,
         }

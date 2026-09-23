@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import BinaryIO, TextIO
+from typing import BinaryIO, Callable, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
@@ -73,10 +73,17 @@ def _watch_cancel(stream: BinaryIO, command: WorkerRunCommand, cancelled: thread
         return
 
 
-def _run_fixture(command: WorkerRunCommand, emitter: _Emitter, cancelled: threading.Event) -> int:
+def _run_fixture(
+    command: WorkerRunCommand,
+    emitter: _Emitter,
+    cancelled: threading.Event,
+    *,
+    emit_ready: bool = True,
+) -> int:
     units = int(command.payload["units"])
     completed = int(command.payload.get("completed", 0))
-    emitter.emit("ready", {"kind": command.kind})
+    if emit_ready:
+        emitter.emit("ready", {"kind": command.kind})
     emitter.emit("stage", {"stage": "fixture", "label": "Synthetic fixture"})
 
     for current in range(completed + 1, units + 1):
@@ -115,11 +122,18 @@ def _stable_error_code(error: BaseException) -> str:
     return "WORKER_EXECUTION_FAILED"
 
 
-def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threading.Event) -> int:
-    emitter.emit(
-        "ready",
-        {"kind": command.kind, "profile_id": command.payload["profile_id"]},
-    )
+def _run_craig(
+    command: WorkerRunCommand,
+    emitter: _Emitter,
+    cancelled: threading.Event,
+    *,
+    emit_ready: bool = True,
+) -> int:
+    if emit_ready:
+        emitter.emit(
+            "ready",
+            {"kind": command.kind, "profile_id": command.payload["profile_id"]},
+        )
     heartbeat_stop = threading.Event()
 
     def heartbeat() -> None:
@@ -351,6 +365,9 @@ def _run_craig(command: WorkerRunCommand, emitter: _Emitter, cancelled: threadin
 def run_worker_stdio(
     stdin: BinaryIO | None = None,
     stdout: TextIO | None = None,
+    *,
+    pre_worker_bootstrap: Callable[[], None] | None = None,
+    bootstrap_stage: str = "runtime_bootstrap",
 ) -> int:
     input_stream = stdin or getattr(sys.stdin, "buffer", None)
     output_stream = stdout or sys.stdout
@@ -367,6 +384,33 @@ def run_worker_stdio(
 
     emitter = _Emitter(output_stream, command)
     cancelled = threading.Event()
+    ready_emitted = False
+
+    # Frozen Qwen/Torch initialization can legitimately take longer than the
+    # generic process startup budget and must happen before worker threads exist.
+    # Emit protocol ownership first, expose a bounded bootstrap stage to the
+    # supervisor, then perform the heavy single-threaded import. Cancellation
+    # remains safe because the supervisor can force-stop the isolated process.
+    if pre_worker_bootstrap is not None:
+        ready_payload = {"kind": command.kind}
+        profile_id = command.payload.get("profile_id")
+        if isinstance(profile_id, str) and profile_id:
+            ready_payload["profile_id"] = profile_id
+        try:
+            emitter.emit("ready", ready_payload)
+            emitter.emit("stage", {"stage": bootstrap_stage})
+            ready_emitted = True
+            pre_worker_bootstrap()
+        except BaseException:
+            try:
+                emitter.emit(
+                    "error",
+                    {"code": "WORKER_RUNTIME_BOOTSTRAP_FAILED", "recoverable": True},
+                )
+            except BaseException:
+                pass
+            return 70
+
     watcher = threading.Thread(
         target=_watch_cancel,
         args=(input_stream, command, cancelled),
@@ -377,9 +421,9 @@ def run_worker_stdio(
 
     try:
         if command.kind == "synthetic.fixture":
-            return _run_fixture(command, emitter, cancelled)
+            return _run_fixture(command, emitter, cancelled, emit_ready=not ready_emitted)
         if command.kind == "transcription.craig":
-            return _run_craig(command, emitter, cancelled)
+            return _run_craig(command, emitter, cancelled, emit_ready=not ready_emitted)
         emitter.emit("error", {"code": "WORKER_KIND_UNSUPPORTED", "recoverable": False})
         return 65
     except BaseException:
