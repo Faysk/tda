@@ -22,10 +22,27 @@ NVIDIA_DISTRIBUTIONS = (
 )
 
 
-def run(*args: str, cwd: Path | None = None) -> str:
-    value = subprocess.run(args, cwd=cwd or ROOT, check=True, text=True, capture_output=True)
+def run(
+    *args: str,
+    cwd: Path | None = None,
+    timeout: float | None = None,
+) -> str:
+    value = subprocess.run(
+        args,
+        cwd=cwd or ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+    )
     return value.stdout.strip()
 
+
+def _probe_worker(worker: Path) -> dict:
+    try:
+        return json.loads(run(str(worker), "--probe", timeout=30))
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("WHISPER_RUNTIME_PROBE_TIMEOUT") from exc
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -156,7 +173,7 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
         if state.get("status") != "ready" or state.get("version") != version:
             raise RuntimeError("WHISPER_RUNTIME_INSTALL_SMOKE_FAILED")
         worker = Path(str(state["worker"]))
-        probe = json.loads(run(str(worker), "--probe"))
+        probe = _probe_worker(worker)
         if not probe.get("ready") or not probe.get("nvml"):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
         bootstrap = _smoke_worker_bootstrap(worker)
@@ -207,7 +224,7 @@ def main() -> int:
             if not (built / name).is_file():
                 raise RuntimeError(f"WHISPER_RUNTIME_REQUIRED_DLL_MISSING:{name}")
 
-        probe = json.loads(run(str(worker), "--probe"))
+        probe = _probe_worker(worker)
         if probe.get("schema") != "tda_whisper_runtime_probe_v1" or not probe.get("ready"):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
         bootstrap = _smoke_worker_bootstrap(worker)
