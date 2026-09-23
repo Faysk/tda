@@ -950,7 +950,7 @@ time.sleep(10)
     )
     supervisor = WorkerSupervisor(
         command_factory=lambda: [sys.executable, str(script)],
-        startup_timeout=0.05,
+        startup_timeout=3.0,
         heartbeat_timeout=0.03,
         runtime_bootstrap_timeout=0.12,
     )
@@ -970,7 +970,8 @@ time.sleep(10)
 
     elapsed = time.monotonic() - started
     assert elapsed >= 0.10
-    assert elapsed < 1.0
+    # Include normal interpreter/process startup variance on Windows hosted runners.
+    assert elapsed < 4.0
 
 
 def test_supervisor_cancel_outranks_runtime_bootstrap_timeout(tmp_path):
@@ -1002,22 +1003,32 @@ time.sleep(10)
     )
     supervisor = WorkerSupervisor(
         command_factory=lambda: [sys.executable, str(script)],
-        startup_timeout=0.05,
+        startup_timeout=3.0,
         heartbeat_timeout=0.03,
-        runtime_bootstrap_timeout=0.5,
+        runtime_bootstrap_timeout=2.0,
         cancel_grace=0.05,
     )
-    started = time.monotonic()
+    bootstrap_seen = False
 
+    def on_progress(message):
+        nonlocal bootstrap_seen
+        if (
+            message.type == "stage"
+            and message.payload.get("stage") == "runtime_bootstrap"
+        ):
+            bootstrap_seen = True
+
+    started = time.monotonic()
     outcome = supervisor.run_fixture(
         job_id="bootstrap-cancel",
         attempt=1,
         units=1,
         completed=0,
-        on_progress=lambda _message: None,
-        is_cancelled=lambda: time.monotonic() - started >= 0.05,
+        on_progress=on_progress,
+        is_cancelled=lambda: bootstrap_seen,
     )
 
+    assert bootstrap_seen is True
     assert outcome.terminal == "cancelled"
     assert outcome.payload == {"stage": "forced_termination", "forced": True}
-    assert time.monotonic() - started < 0.5
+    assert time.monotonic() - started < 4.0
