@@ -834,7 +834,7 @@ def test_worker_pre_thread_bootstrap_emits_ready_and_stage_before_control_thread
         kind="synthetic.fixture",
         payload={"units": 1, "completed": 0},
     )
-    stdin = io.BytesIO(command.encode())
+    stdin = io.BytesIO(command.encode().encode("utf-8"))
     stdout = io.StringIO()
     bootstrapped = False
     original_thread = asr_worker_module.threading.Thread
