@@ -160,3 +160,37 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     assert companion_sign < zip_build
     assert helper_sign < zip_build
     assert msi_sign < msi_hash
+
+
+def test_acceptance_powershell_does_not_write_automatic_variables():
+    import re
+
+    automatic = (
+        "args",
+        "error",
+        "foreach",
+        "home",
+        "host",
+        "input",
+        "matches",
+        "pid",
+        "profile",
+        "pwd",
+        "switch",
+    )
+    names = "|".join(re.escape(name) for name in automatic)
+    assignment = re.compile(rf"(?i)^\s*\$(?:{names})\s*=")
+    foreach_binding = re.compile(rf"(?i)\bforeach\s*\(\s*\$(?:{names})\b")
+    typed_parameter = re.compile(rf"(?i)\[[^\]\r\n]+\]\s*\$(?:{names})\b")
+
+    scripts = sorted(
+        (REPO_ROOT / "local-companion" / "packaging").glob("*.ps1")
+    ) + sorted((REPO_ROOT / "tools" / "acceptance").glob("*.ps1"))
+
+    violations: list[str] = []
+    for script in scripts:
+        for number, line in enumerate(script.read_text(encoding="utf-8").splitlines(), start=1):
+            if assignment.search(line) or foreach_binding.search(line) or typed_parameter.search(line):
+                violations.append(f"{script.relative_to(REPO_ROOT)}:{number}:{line.strip()}")
+
+    assert violations == []
