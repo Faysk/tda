@@ -137,7 +137,7 @@ revoke execute on function public.maintain_transcript_session_statistics() from 
 -- Keep lock + backfill + trigger installation in one statement transaction.
 -- This remains race-free even when the migration runner uses autocommit per SQL
 -- statement: writes that arrive after the lock wait until the trigger is installed.
-do $
+do $stats_backfill$
 begin
   execute 'lock table public.transcript_segments in share row exclusive mode';
 
@@ -168,4 +168,4 @@ begin
     execute function public.maintain_transcript_session_statistics()
   $trigger$;
 end;
-$;
+$stats_backfill$;
