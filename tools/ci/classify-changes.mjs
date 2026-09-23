@@ -10,6 +10,7 @@ const CLASSIFIER_CONTRACT = new Set([
 const EXACT = {
 	db: new Set([
 		"tools/transcript-sync-db.py",
+		"tools/transcript-statistics-db.py",
 		"tools/world-layout-db.py",
 		"tools/world-entity-media-db.py",
 		"tools/test_world_layout_db.py",
