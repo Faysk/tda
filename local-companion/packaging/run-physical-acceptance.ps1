@@ -304,12 +304,12 @@ if ($qwen) { $probes.qwen = Invoke-JsonProcess -Executable $qwen.Worker -Argumen
 
 $results = [ordered]@{}
 $qwenGates = [ordered]@{}
-foreach ($profile in $Profiles) {
-    $isQwen = $profile -like "qwen-*"
+foreach ($profileId in $Profiles) {
+    $isQwen = $profileId -like "qwen-*"
     $selected = if ($isQwen) { $qwen } else { $whisper }
-    if (-not $selected) { throw "PROFILE_RUNTIME_MISSING:$profile" }
+    if (-not $selected) { throw "PROFILE_RUNTIME_MISSING:$profileId" }
     $arguments = [Collections.Generic.List[string]]::new()
-    foreach ($value in @("--acceptance", "--audio", $audioPath, "--models-root", $models, "--profile", $profile, "--require-gpu-name", $RequireGpuName)) {
+    foreach ($value in @("--acceptance", "--audio", $audioPath, "--models-root", $models, "--profile", $profileId, "--require-gpu-name", $RequireGpuName)) {
         $arguments.Add([string]$value)
     }
     if ($ContextFile) {
@@ -321,7 +321,7 @@ foreach ($profile in $Profiles) {
         $arguments.Add("--glossary-file"); $arguments.Add($glossary)
     }
     if ($WriteTranscripts) {
-        $transcriptPath = Join-Path $output "$profile-transcript.json"
+        $transcriptPath = Join-Path $output "$profileId-transcript.json"
         $arguments.Add("--transcript-out"); $arguments.Add($transcriptPath)
     }
     if ($isQwen) {
@@ -329,22 +329,22 @@ foreach ($profile in $Profiles) {
         $arguments.Add("--runtime-root"); $arguments.Add($runtime)
         $arguments.Add("--state-root"); $arguments.Add($state)
     }
-    Write-Host "Testing $profile on required GPU '$RequireGpuName'..."
-    $receipt = Invoke-JsonProcess -Executable $selected.Worker -Arguments $arguments.ToArray() -ErrorPrefix ("ACCEPTANCE_" + $profile.Replace("-", "_").ToUpperInvariant())
-    if ($receipt.pass -ne $true) { throw "ACCEPTANCE_FAILED:$profile" }
-    $results[$profile] = $receipt
+    Write-Host "Testing $profileId on required GPU '$RequireGpuName'..."
+    $receipt = Invoke-JsonProcess -Executable $selected.Worker -Arguments $arguments.ToArray() -ErrorPrefix ("ACCEPTANCE_" + $profileId.Replace("-", "_").ToUpperInvariant())
+    if ($receipt.pass -ne $true) { throw "ACCEPTANCE_FAILED:$profileId" }
+    $results[$profileId] = $receipt
     if ($isQwen) {
-        $gatePath = Join-Path (Join-Path $state "qwen-physical-gates") "$profile.json"
-        if (-not (Test-Path -LiteralPath $gatePath -PathType Leaf)) { throw "QWEN_GATE_MISSING:$profile" }
+        $gatePath = Join-Path (Join-Path $state "qwen-physical-gates") "$profileId.json"
+        if (-not (Test-Path -LiteralPath $gatePath -PathType Leaf)) { throw "QWEN_GATE_MISSING:$profileId" }
         try { $gate = Get-Content -LiteralPath $gatePath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 32 -ErrorAction Stop }
-        catch { throw "QWEN_GATE_INVALID:$profile" }
+        catch { throw "QWEN_GATE_INVALID:$profileId" }
         if (
             $gate.schema -ne "tda_qwen_physical_gate_v2" -or
-            [string]$gate.profile_id -ne $profile -or
+            [string]$gate.profile_id -ne $profileId -or
             $gate.contains_audio -ne $false -or
             $gate.contains_transcript -ne $false
-        ) { throw "QWEN_GATE_INVALID:$profile" }
-        $qwenGates[$profile] = $gate
+        ) { throw "QWEN_GATE_INVALID:$profileId" }
+        $qwenGates[$profileId] = $gate
     }
 }
 
@@ -354,9 +354,9 @@ if ($sealRuntimeReceipts) {
     $rawRoot = Join-Path $output ".runtime-evidence"
     New-Item -ItemType Directory -Force -Path $rawRoot | Out-Null
     $whisperReceiptPaths = [Collections.Generic.List[string]]::new()
-    foreach ($profile in @("whisper-turbo", "whisper-detailed")) {
-        $path = Join-Path $rawRoot "$profile.json"
-        Write-JsonEvidence $path $results[$profile]
+    foreach ($profileId in @("whisper-turbo", "whisper-detailed")) {
+        $path = Join-Path $rawRoot "$profileId.json"
+        Write-JsonEvidence $path $results[$profileId]
         $whisperReceiptPaths.Add($path)
     }
 
