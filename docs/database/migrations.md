@@ -1224,7 +1224,7 @@ Manutenção transacional:
 - trigger `AFTER INSERT/UPDATE OF session_id,text/DELETE` aplica deltas de `segment_count`, `complete_text_count` e `word_count`;
 - update que move um segmento entre sessões remove a contribuição antiga e adiciona a nova na mesma transação;
 - sessão que chega a zero segmentos tem a row agregada removida;
-- texto nulo permanece cobertura desconhecida; texto vazio não nulo conta como zero palavras;
+- o schema canônico exige `transcript_segments.text NOT NULL`; texto vazio conta como zero palavras; o contador de coverage permanece defensivo para detectar drift impossível;
 - a contagem SQL normaliza o mesmo conjunto de whitespace Unicode ECMAScript usado pelo contrato JS;
 - backfill inicial roda sob `SHARE ROW EXCLUSIVE` em `transcript_segments`, bloqueando writes concorrentes até o snapshot e o trigger estarem instalados.
 
