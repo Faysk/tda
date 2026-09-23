@@ -137,10 +137,29 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     value = (REPO_ROOT / "local-companion" / "packaging" / "build-windows.ps1").read_text(
         encoding="utf-8"
     )
+    assert '[ValidateSet("none", "certificate-store", "artifact-signing")]' in value
+    assert '[string]$AuthenticodeProvider = "certificate-store"' in value
     assert "[switch]$RequireAuthenticode" in value
     assert 'throw "AUTHENTICODE_REQUIRED"' in value
     assert 'throw "AUTHENTICODE_TIMESTAMP_REQUIRED"' in value
     assert 'throw "AUTHENTICODE_EXPECTED_SUBJECT_REQUIRED"' in value
+    assert "AUTHENTICODE_PROVIDER_ARGUMENT_CONFLICT" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_THUMBPRINT_UNSUPPORTED" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_DLIB_REQUIRED" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_REQUIRED" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_METADATA_KEY_INVALID" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_SIGNTOOL_TOO_OLD" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_ENDPOINT_INVALID" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_ACCOUNT_INVALID" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_EXCLUDE_CREDENTIALS_INVALID" in value
+    assert '"EnvironmentCredential"' in value
+    assert '$rawExcluded -is [string]' in value
+    assert '$rawExcluded -isnot [Collections.IEnumerable]' in value
+    assert "codesigning\\.azure\\.net" in value
+    assert '[Version]"10.0.2261.755"' in value
+    assert '"/dlib", $artifactSigningDlibPath' in value
+    assert '"/dmdf", $artifactSigningMetadataPath' in value
+    assert "Invoke-Expression" not in value
     assert "Get-AuthenticodeSignature" in value
     assert '"Valid"' in value
     assert "AUTHENTICODE_SIGNER_THUMBPRINT_MISMATCH" in value
@@ -148,6 +167,11 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     assert "AUTHENTICODE_TIMESTAMP_MISSING" in value
     assert "AUTHENTICODE_TRUST_VERIFY_FAILED" in value
     assert "& $signToolPath verify /pa /all /v $Path" in value
+
+    # Fixed thumbprint remains a certificate-store identity check only. Managed
+    # Artifact Signing uses short-lived leaf certificates and is bound through
+    # the typed provider metadata + stable expected subject/trust/timestamp.
+    assert "if ($certificateStoreEnabled -and $actualThumbprint -ne $normalizedThumbprint)" in value
 
     companion_sign = value.index('Invoke-AuthenticodeSign (Join-Path $appRoot "TDACompanion.exe")')
     helper_sign = value.index(
@@ -160,7 +184,6 @@ def test_windows_build_can_fail_closed_on_authenticode_and_signs_before_hashing(
     assert companion_sign < zip_build
     assert helper_sign < zip_build
     assert msi_sign < msi_hash
-
 
 def test_acceptance_powershell_does_not_write_automatic_variables():
     import re
@@ -194,3 +217,17 @@ def test_acceptance_powershell_does_not_write_automatic_variables():
                 violations.append(f"{script.relative_to(REPO_ROOT)}:{number}:{line.strip()}")
 
     assert violations == []
+
+def test_companion_windows_job_parses_the_build_harness_before_packaging():
+    value = _read("companion.yml")
+    parser_block = value[value.index("Validate PowerShell harness syntax"):value.index("Install WiX Toolset 5")]
+    assert '"local-companion/packaging/build-windows.ps1"' in parser_block
+
+def test_companion_windows_job_executes_signing_fail_closed_probes():
+    value = _read("companion.yml")
+    assert "Validate signing provider fail-closed contracts" in value
+    assert "AUTHENTICODE_REQUIRED" in value
+    assert "AUTHENTICODE_THUMBPRINT_INVALID" in value
+    assert "AUTHENTICODE_ARTIFACT_SIGNING_DLIB_REQUIRED" in value
+    assert "Assert-BuildFails" in value
+

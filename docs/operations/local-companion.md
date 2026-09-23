@@ -148,6 +148,50 @@ O teste versionado `tools/acceptance/verify-legacy-031-recovery.ps1` exercita es
 
 Isso é recuperação de bootstrap, não promoção de versão nova. Authenticode continua sendo um gate separado (#395); enquanto ele não estiver provisionado, o checksum publicado é obrigatório, mas não deve ser descrito como assinatura de publisher.
 
+## Assinatura Authenticode do release Windows
+
+O build suporta três modos explícitos em `build-windows.ps1`:
+
+- `none`: somente para build/teste não publicável;
+- `certificate-store`: certificado local/KSP, identificado por thumbprint configurada;
+- `artifact-signing`: Microsoft Artifact Signing via SignTool `/dlib` + `/dmdf`.
+
+Em modo publicável, assinatura é **fail-closed** e ocorre nesta ordem:
+
+```text
+TDACompanion.exe
+TDACompanionMaintenance.exe
+  -> assinar + verificar trust/subject/timestamp
+  -> montar ZIP/MSI
+TDACompanion-x64.msi
+  -> assinar + verificar
+  -> calcular SHA-256/payload/candidate evidence
+  -> acceptance físico nos mesmos bytes
+  -> promoção sem rebuild
+```
+
+O MSI de rollback probe é fixture de teste e não é publicado.
+
+Para Artifact Signing, o leaf certificate gerenciado é curto e pode rotacionar; portanto thumbprint fixa não é identidade configurável. A identidade estável é o provider/account/certificate profile mais o `ExpectedSubject`, cadeia Windows válida e timestamp. O thumbprint observado pertence à evidência do artifact.
+
+No GitHub Actions, o caminho preferido é **Microsoft Entra workload identity federation (OIDC)**:
+
+1. usar um GitHub Environment protegido para signing/release;
+2. federar exatamente o repositório/environment com uma app registration ou user-assigned managed identity;
+3. conceder somente `Artifact Signing Certificate Profile Signer` no escopo necessário;
+4. habilitar `id-token: write` somente no job confiável que realmente assina;
+5. evitar `AZURE_CLIENT_SECRET`; client/tenant/subscription IDs não substituem a credencial federada;
+6. PRs/forks não recebem acesso ao environment de signing.
+
+O metadata passado ao dlib contém somente configuração do Artifact Signing (endpoint HTTPS, account e certificate profile). Senhas, access tokens, refresh tokens e client secrets não pertencem ao arquivo e são rejeitados pelo build.
+
+A ativação real continua bloqueada até existir identidade/provider confiável (#395/#548). Não descrever MSI atual como publisher-signed antes de um build real passar `Get-AuthenticodeSignature` + `signtool verify /pa /all` e o acceptance físico dos mesmos bytes.
+
+Referências oficiais:
+- Microsoft Artifact Signing — signing integrations: https://learn.microsoft.com/azure/artifact-signing/how-to-signing-integrations
+- Microsoft Entra — workload identity federation: https://learn.microsoft.com/entra/workload-id/workload-identity-federation
+- Azure Login com OIDC no GitHub Actions: https://learn.microsoft.com/azure/developer/github/connect-from-azure-openid-connect
+
 ## Conexão local e segurança
 
 O token mestre do Companion continua local em `State`, protegido para o usuário do Windows, mas deixou de ser uma tarefa de produto. A Web não pede copiar/colar esse segredo.
