@@ -40,7 +40,7 @@ $$;
 
 drop trigger if exists transcript_segments_sync_words_v1 on public.transcript_segments;
 create trigger transcript_segments_sync_words_v1
-before insert or update of text
+before insert or update of text, text_words
 on public.transcript_segments
 for each row
 execute function public.sync_transcript_segment_words_v1();
@@ -199,7 +199,7 @@ $$;
 
 drop trigger if exists transcript_segments_apply_statistics_v1 on public.transcript_segments;
 create trigger transcript_segments_apply_statistics_v1
-after insert or update of session_id, text or delete
+after insert or update of session_id, text, text_words or delete
 on public.transcript_segments
 for each row
 execute function public.apply_transcript_session_statistics_v1();
