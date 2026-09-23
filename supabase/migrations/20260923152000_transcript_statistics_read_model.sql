@@ -134,29 +134,38 @@ revoke execute on function public.maintain_transcript_session_statistics() from 
 revoke execute on function public.maintain_transcript_session_statistics() from authenticated;
 revoke execute on function public.maintain_transcript_session_statistics() from service_role;
 
-lock table public.transcript_segments in share row exclusive mode;
+-- Keep lock + backfill + trigger installation in one statement transaction.
+-- This remains race-free even when the migration runner uses autocommit per SQL
+-- statement: writes that arrive after the lock wait until the trigger is installed.
+do $
+begin
+  execute 'lock table public.transcript_segments in share row exclusive mode';
 
-insert into public.transcript_session_statistics (
-  session_id,
-  segment_count,
-  complete_text_count,
-  word_count,
-  updated_at
-)
-select
-  ts.session_id,
-  count(*)::bigint,
-  count(ts.text)::bigint,
-  coalesce(
-    sum(coalesce(public.transcript_statistics_word_count(ts.text), 0)),
-    0
-  )::bigint,
-  now()
-from public.transcript_segments ts
-group by ts.session_id;
+  insert into public.transcript_session_statistics (
+    session_id,
+    segment_count,
+    complete_text_count,
+    word_count,
+    updated_at
+  )
+  select
+    ts.session_id,
+    count(*)::bigint,
+    count(ts.text)::bigint,
+    coalesce(
+      sum(coalesce(public.transcript_statistics_word_count(ts.text), 0)),
+      0
+    )::bigint,
+    now()
+  from public.transcript_segments ts
+  group by ts.session_id;
 
-create trigger transcript_session_statistics_after_write
-after insert or delete or update of session_id, text
-on public.transcript_segments
-for each row
-execute function public.maintain_transcript_session_statistics();
+  execute $trigger$
+    create trigger transcript_session_statistics_after_write
+    after insert or delete or update of session_id, text
+    on public.transcript_segments
+    for each row
+    execute function public.maintain_transcript_session_statistics()
+  $trigger$;
+end;
+$;
