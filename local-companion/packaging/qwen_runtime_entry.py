@@ -343,10 +343,9 @@ def main() -> int:
     if args.acceptance:
         return _acceptance(args)
 
-    _bootstrap_qwen_runtime()
     from tda_companion.asr_worker import run_worker_stdio
 
-    return run_worker_stdio()
+    return run_worker_stdio(pre_worker_bootstrap=_bootstrap_qwen_runtime)
 
 
 if __name__ == "__main__":
