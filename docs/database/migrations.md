@@ -1210,7 +1210,7 @@ Estado real observado antes do rollout:
 
 ### `20260923152000_transcript_statistics_read_model`
 
-**Estado:** migration versionada para #537; ainda não aplicada no Supabase canônico.
+**Estado:** aplicada em Production em 2026-09-23 pelo Production CD; integridade/backfill/trigger confirmados por read-back. Follow-up de grants em `20260923163000_harden_transcript_statistics_grants`.
 
 Objetivo:
 
@@ -1248,3 +1248,30 @@ Rollout/rollback:
 - aplicação e migration devem ser promovidas juntas: antes da migration a tabela agregada não existe;
 - após deploy, fazer read-back de schema/grants/trigger e benchmark autenticado Production antes de fechar #537;
 - rollback de aplicação deve preceder qualquer migration corretiva; não apagar transcript real para desfazer o read model.
+
+
+## 2026-09-23 — least privilege do read model de estatísticas
+
+### `20260923163000_harden_transcript_statistics_grants`
+
+**Estado:** migration corretiva versionada; rollout remoto pendente de CI/deploy governado.
+
+Motivo:
+
+- o read-back pós-rollout de `20260923152000_transcript_statistics_read_model` confirmou 11 rows agregadas, soma exata de 30.857 segmentos, zero textos nulos e trigger instalado;
+- porém `service_role` reteve privilégios `INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER` herdados dos default grants do Supabase para novas tabelas;
+- isso contrariava o contrato documentado de uso server-only **read-only** da tabela de estatísticas.
+
+Correção:
+
+- `REVOKE ALL` de `service_role` na tabela;
+- regrant somente de `SELECT`;
+- assertions SQL falham o rollout se qualquer DML/DDL-like table privilege reaparecer;
+- `anon` e `authenticated` permanecem sem `SELECT`;
+- manutenção do agregado continua exclusivamente pelo trigger `SECURITY DEFINER`, cujo `EXECUTE` permanece restrito ao owner PostgreSQL.
+
+Validação exigida:
+
+- PostgreSQL sintético deve provar `service_role=SELECT-only`;
+- após rollout, read-back de `information_schema.role_table_grants` deve retornar somente `SELECT` para `service_role` e zero grants para browser roles;
+- advisors devem ser reexecutados; o aviso `RLS enabled no policy` é esperado para esta tabela server-only sem grants de browser e não deve ser convertido em policy permissiva.
