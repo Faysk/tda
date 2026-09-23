@@ -147,29 +147,29 @@ function Get-ReadyProfileIds {
 
 function Ensure-AutomatedProfilesReady([string]$SourceId) {
     $profiles = @("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
-    foreach ($profile in $profiles) {
+    foreach ($profileId in $profiles) {
         $ready = @(Get-ReadyProfileIds)
-        if ($profile -in $ready) {
-            Write-Host "Profile already ready: $profile" -ForegroundColor DarkGreen
+        if ($profileId -in $ready) {
+            Write-Host "Profile already ready: $profileId" -ForegroundColor DarkGreen
             continue
         }
 
-        Write-Host "Preparing profile automatically: $profile" -ForegroundColor Cyan
+        Write-Host "Preparing profile automatically: $profileId" -ForegroundColor Cyan
         $started = Invoke-AgentJson "POST" "/preparation" @{
             source_id = $SourceId
-            profile_id = $profile
+            profile_id = $profileId
         }
         if (
             [string]$started.schema -ne "tda_profile_preparation_v1" -or
             [string]$started.source_id -ne $SourceId -or
-            [string]$started.profile_id -ne $profile
+            [string]$started.profile_id -ne $profileId
         ) {
-            throw "PROFILE_PREPARATION_START_INVALID:$profile"
+            throw "PROFILE_PREPARATION_START_INVALID:$profileId"
         }
 
         $operationId = [string]$started.operation_id
         if ($operationId -notmatch '^[a-f0-9]{32}$') {
-            throw "PROFILE_PREPARATION_OPERATION_INVALID:$profile"
+            throw "PROFILE_PREPARATION_OPERATION_INVALID:$profileId"
         }
 
         $deadline = [DateTimeOffset]::UtcNow.AddHours(2)
@@ -180,9 +180,9 @@ function Ensure-AutomatedProfilesReady([string]$SourceId) {
                 [string]$status.schema -ne "tda_profile_preparation_v1" -or
                 [string]$status.operation_id -ne $operationId -or
                 [string]$status.source_id -ne $SourceId -or
-                [string]$status.profile_id -ne $profile
+                [string]$status.profile_id -ne $profileId
             ) {
-                throw "PROFILE_PREPARATION_STATUS_INVALID:$profile"
+                throw "PROFILE_PREPARATION_STATUS_INVALID:$profileId"
             }
 
             switch ([string]$status.state) {
@@ -198,27 +198,27 @@ function Ensure-AutomatedProfilesReady([string]$SourceId) {
                     if ($code -notmatch '^[A-Z0-9_]{1,96}$') {
                         $code = "PROFILE_PREPARATION_FAILED"
                     }
-                    throw ($code + ":" + $profile)
+                    throw ($code + ":" + $profileId)
                 }
                 "running" {
                     Start-Sleep -Seconds 1
                 }
                 default {
-                    throw "PROFILE_PREPARATION_STATE_INVALID:$profile"
+                    throw "PROFILE_PREPARATION_STATE_INVALID:$profileId"
                 }
             }
         }
 
         if (-not $completed) {
-            throw "PROFILE_PREPARATION_TIMEOUT:$profile"
+            throw "PROFILE_PREPARATION_TIMEOUT:$profileId"
         }
 
         Start-Sleep -Milliseconds 500
         $ready = @(Get-ReadyProfileIds)
-        if ($profile -notin $ready) {
-            throw "PROFILE_PREPARATION_NOT_VISIBLE:$profile"
+        if ($profileId -notin $ready) {
+            throw "PROFILE_PREPARATION_NOT_VISIBLE:$profileId"
         }
-        Write-Host "Profile ready: $profile" -ForegroundColor Green
+        Write-Host "Profile ready: $profileId" -ForegroundColor Green
     }
 }
 
