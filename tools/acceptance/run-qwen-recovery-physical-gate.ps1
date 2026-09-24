@@ -260,6 +260,37 @@ function Get-MaxEventSequence([object[]]$Events) {
     return $maximum
 }
 
+function Assert-RetryCheckpointEvidence(
+    [object[]]$Events,
+    [int]$PreCrashMaxSeq,
+    [int[]]$PersistedTracks
+) {
+    $retryEvents = @($Events | Where-Object {
+        $sequence = Get-OptionalPropertyValue $_ "seq"
+        $null -ne $sequence -and [int]$sequence -gt $PreCrashMaxSeq
+    })
+    foreach ($track in @($PersistedTracks)) {
+        $reuseCount = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        $retranscribed = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
+        if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
+    }
+    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) {
+        Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED"
+    }
+    return $retryEvents
+}
+
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
     $sourceContext = Get-OptionalPropertyValue $Row "context"
@@ -823,26 +854,43 @@ try {
     $PairingToken = Get-PairingToken
 
     $craig = Upload-Craig $CraigResolved
-    $SourceId = [string]$craig.source_id
-    if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or [int]$craig.track_count -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
-    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{ track_count = [int]$craig.track_count; reused = [bool]$craig.reused })
+    $SourceId = [string](Get-OptionalPropertyValue $craig "source_id")
+    $craigTrackCount = Get-OptionalPropertyValue $craig "track_count"
+    $craigReused = Get-OptionalPropertyValue $craig "reused"
+    if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or $null -eq $craigTrackCount -or [int]$craigTrackCount -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
+    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{
+        track_count = [int]$craigTrackCount
+        reused = $(if ($null -eq $craigReused) { $null } else { [bool]$craigReused })
+    })
 
     Write-Host "Physical preparation: qwen-fast..." -ForegroundColor Cyan
     $prepFast = Wait-Preparation $SourceId "qwen-fast" 2400
     Write-Json (Join-Path $EvidenceRoot "preparation-qwen-fast.json") ([ordered]@{
-        state = [string]$prepFast.state; profile_id = [string]$prepFast.profile_id; stage = [string]$prepFast.stage; error_code = $prepFast.error_code; elapsed_seconds = $prepFast.elapsed_seconds
+        state = [string](Get-OptionalPropertyValue $prepFast "state")
+        profile_id = [string](Get-OptionalPropertyValue $prepFast "profile_id")
+        stage = [string](Get-OptionalPropertyValue $prepFast "stage")
+        error_code = Get-OptionalPropertyValue $prepFast "error_code"
+        elapsed_seconds = Get-OptionalPropertyValue $prepFast "elapsed_seconds"
     })
     Write-Host "Physical preparation: qwen-quality..." -ForegroundColor Cyan
     $prepQuality = Wait-Preparation $SourceId "qwen-quality" 2400
     Write-Json (Join-Path $EvidenceRoot "preparation-qwen-quality.json") ([ordered]@{
-        state = [string]$prepQuality.state; profile_id = [string]$prepQuality.profile_id; stage = [string]$prepQuality.stage; error_code = $prepQuality.error_code; elapsed_seconds = $prepQuality.elapsed_seconds
+        state = [string](Get-OptionalPropertyValue $prepQuality "state")
+        profile_id = [string](Get-OptionalPropertyValue $prepQuality "profile_id")
+        stage = [string](Get-OptionalPropertyValue $prepQuality "stage")
+        error_code = Get-OptionalPropertyValue $prepQuality "error_code"
+        elapsed_seconds = Get-OptionalPropertyValue $prepQuality "elapsed_seconds"
     })
 
     foreach ($profileId in @("qwen-fast", "qwen-quality")) {
         $gate = Join-Path $env:LOCALAPPDATA "TDA\State\qwen-physical-gates\$profileId.json"
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { Fail-Product "QWEN_GATE_RECEIPT_MISSING:$profileId" }
         $gateValue = Read-Json $gate "QWEN_GATE_RECEIPT_INVALID:$profileId"
-        if ([string]$gateValue.schema -ne "tda_qwen_physical_gate_v2" -or $gateValue.contains_audio -ne $false -or $gateValue.contains_transcript -ne $false) {
+        if (
+            [string](Get-OptionalPropertyValue $gateValue "schema") -ne "tda_qwen_physical_gate_v2" -or
+            (Get-OptionalPropertyValue $gateValue "contains_audio") -ne $false -or
+            (Get-OptionalPropertyValue $gateValue "contains_transcript") -ne $false
+        ) {
             Fail-Product "QWEN_GATE_RECEIPT_INVALID:$profileId"
         }
         Copy-Item -LiteralPath $gate -Destination (Join-Path $EvidenceRoot "physical-gate-$profileId.json") -Force
@@ -850,7 +898,7 @@ try {
 
     Write-Host "Normal qwen-quality worker + bounded cancel..." -ForegroundColor Cyan
     $quality = Submit-Transcription $SourceId "qwen-quality"
-    $QualityJobId = [string]$quality.id
+    $QualityJobId = [string](Get-OptionalPropertyValue $quality "id")
     if (-not $QualityJobId) { Fail-Product "QWEN_QUALITY_JOB_ID_MISSING" }
     [void](Wait-ForEvent $QualityJobId "QWEN_WINDOW_TRANSCRIBED" $null 1800)
     $cancelStarted = [DateTimeOffset]::UtcNow
@@ -866,7 +914,7 @@ try {
 
     Write-Host "qwen-fast checkpoint -> hard Agent crash -> retry..." -ForegroundColor Cyan
     $fast = Submit-Transcription $SourceId "qwen-fast"
-    $FastJobId = [string]$fast.id
+    $FastJobId = [string](Get-OptionalPropertyValue $fast "id")
     if (-not $FastJobId) { Fail-Product "QWEN_FAST_JOB_ID_MISSING" }
     [void](Wait-ForEvent $FastJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
     [void](Capture-Events $FastJobId)
@@ -919,27 +967,7 @@ try {
     [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
     $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
     $allFastEvents = @(Capture-Events $FastJobId)
-    $retryEvents = @($allFastEvents | Where-Object {
-        $sequence = Get-OptionalPropertyValue $_ "seq"
-        $null -ne $sequence -and [int]$sequence -gt $preCrashMaxSeq
-    })
-    foreach ($track in $persistedTracks) {
-        $reuseCount = @($retryEvents | Where-Object {
-            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
-            $eventData = Get-OptionalPropertyValue $_ "data"
-            $eventTrack = Get-OptionalPropertyValue $eventData "track"
-            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
-        }).Count
-        $retranscribed = @($retryEvents | Where-Object {
-            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
-            $eventData = Get-OptionalPropertyValue $_ "data"
-            $eventTrack = Get-OptionalPropertyValue $eventData "track"
-            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
-        }).Count
-        if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
-        if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
-    }
-    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
+    $retryEvents = @(Assert-RetryCheckpointEvidence $allFastEvents $preCrashMaxSeq $persistedTracks)
 
     $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
     $transcription = Get-OptionalPropertyValue $result "transcription"
