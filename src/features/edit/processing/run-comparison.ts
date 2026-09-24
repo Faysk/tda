@@ -136,10 +136,12 @@ function compareTrack(
 		return created;
 	};
 
-	left.forEach((segment, index) => bucket(set.find(index)).left.push(segment));
-	right.forEach((segment, index) =>
-		bucket(set.find(left.length + index)).right.push(segment),
-	);
+	left.forEach((segment, index) => {
+		bucket(set.find(index)).left.push(segment);
+	});
+	right.forEach((segment, index) => {
+		bucket(set.find(left.length + index)).right.push(segment);
+	});
 
 	return [...buckets.values()]
 		.map((value) => {
