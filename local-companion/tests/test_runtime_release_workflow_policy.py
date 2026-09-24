@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -60,33 +61,46 @@ def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
 
 
 
-def test_runtime_rc_drift_guard_is_scoped_to_family_build_inputs():
+def _first_trigger_paths(name: str) -> set[str]:
+    value = _workflow(name)
+    lines = value.splitlines()
+    inside_paths = False
+    paths: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "paths:" and not inside_paths:
+            inside_paths = True
+            continue
+        if inside_paths:
+            match = re.match(r"- ['\"](.+?)['\"]$", stripped)
+            if match:
+                path = match.group(1)
+                paths.add(path[:-3] if path.endswith("/**") else path)
+                continue
+            if stripped and not stripped.startswith("#"):
+                break
+    return paths
+
+
+def test_runtime_rc_drift_guard_matches_family_build_dependency_closure():
     value = _workflow("runtime-rc.yml")
-    drift = value[value.index('if [[ "$FAMILY" == "whisper" ]]; then', value.index("Require exact source and safe automatic ancestry")):value.index("Resolve exact successful runtime artifact")]
+    drift = value[
+        value.index('if [[ "$FAMILY" == "whisper" ]]; then', value.index("Require exact source and safe automatic ancestry")):
+        value.index("Resolve exact successful runtime artifact")
+    ]
 
-    assert 'RUNTIME_CONTRACT_PATHS=(' in drift
+    arrays = re.findall(r"RUNTIME_CONTRACT_PATHS=\((.*?)\n\s*\)", drift, flags=re.DOTALL)
+    assert len(arrays) == 2
+
+    def entries(block: str) -> set[str]:
+        return set(re.findall(r'"([^"]+)"', block))
+
+    whisper_contract, qwen_contract = map(entries, arrays)
+    assert whisper_contract == _first_trigger_paths("whisper-runtime.yml")
+    assert qwen_contract == _first_trigger_paths("qwen-runtime-package.yml")
     assert '"${RUNTIME_CONTRACT_PATHS[@]}"' in drift
+    assert "AUTO_RUNTIME_CONTRACT_DRIFT" in drift
     assert 'local-companion \\' not in drift
-
-    whisper_required = {
-        ".github/workflows/whisper-runtime.yml",
-        "local-companion/runtime",
-        "local-companion/packaging/build_whisper_runtime.py",
-        "local-companion/tda_companion/asr_whisper.py",
-        "local-companion/tda_companion/asr_worker.py",
-    }
-    qwen_required = {
-        ".github/workflows/qwen-runtime-package.yml",
-        "local-companion/runtime/qwen-windows-x64.json",
-        "local-companion/packaging/build_qwen_runtime.py",
-        "local-companion/tda_companion/asr_qwen_strict.py",
-        "local-companion/tda_companion/qwen_physical_gate.py",
-        "local-companion/tda_companion/asr_worker.py",
-    }
-    for path in whisper_required | qwen_required:
-        assert path in drift
-
-
 
 def test_runtime_stable_promotion_requires_physical_receipt_and_reuses_release_object():
     rc = _workflow("runtime-rc.yml")
