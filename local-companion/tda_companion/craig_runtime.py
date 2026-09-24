@@ -16,6 +16,7 @@ from .craig import (
     TRACK_NAME,
     physical_track_filename,
 )
+from .flac_metadata import flac_duration_seconds
 
 _MANIFEST_MAX_BYTES = 2 * 1024 * 1024
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -168,6 +169,22 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         if root not in candidate.parents or not candidate.is_file():
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_MISSING")
         stat = candidate.stat()
+
+        duration_value = item.get("duration_seconds")
+        duration_seconds: float | None
+        if duration_value is None:
+            duration_seconds = flac_duration_seconds(candidate)
+            if duration_seconds is not None:
+                item["duration_seconds"] = duration_seconds
+                metadata_refresh = True
+        elif (
+            isinstance(duration_value, bool)
+            or not isinstance(duration_value, (int, float))
+            or not 0 < float(duration_value) <= 7 * 24 * 60 * 60
+        ):
+            raise CraigPackageError("CRAIG_MANIFEST_TRACK_DURATION_INVALID")
+        else:
+            duration_seconds = round(float(duration_value), 3)
         if stat.st_size != size_bytes:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
         staged_mtime_ns = item.get("staged_mtime_ns")
@@ -208,6 +225,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 identity=_identity(item.get("identity")),
                 staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
+                duration_seconds=duration_seconds,
             )
         )
 
