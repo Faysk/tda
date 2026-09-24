@@ -282,6 +282,33 @@ function Upload-Craig([string]$Token, [string]$Path) {
     }
 }
 
+function Submit-Transcription([string]$Token, [string]$SourceId, [string]$IdempotencyKey) {
+    $body = @{
+        kind = "transcription.craig"
+        campaign_id = "stable-smoke"
+        session_id = "stable-smoke"
+        source_id = $SourceId
+        profile_id = "qwen-fast"
+        glossary = ""
+        context = ""
+        cpu = $false
+    } | ConvertTo-Json -Depth 16 -Compress
+    try {
+        return Invoke-RestMethod -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/jobs" -Headers @{
+            Origin = $Origin
+            Authorization = "Bearer $Token"
+            Accept = "application/json"
+            "Idempotency-Key" = $IdempotencyKey
+        } -ContentType "application/json" -Body $body -TimeoutSec 30
+    } catch {
+        $detail = [string]$_.ErrorDetails.Message
+        if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') {
+            Fail ("STABLE_SMOKE_JOB_SUBMIT_" + $Matches[1])
+        }
+        Fail "STABLE_SMOKE_JOB_SUBMIT_FAILED"
+    }
+}
+
 function Wait-JobSucceeded([string]$Token, [string]$JobId) {
     $deadline = [DateTimeOffset]::UtcNow.AddHours(1)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
@@ -440,21 +467,15 @@ try {
 
     $phase = "qwen_fast_processing"
     $idempotencyKey = "stable-smoke-" + [Guid]::NewGuid().ToString("N")
-    $job = Invoke-AgentJson $token "POST" "/jobs" @{
-        kind = "transcription.craig"
-        campaign_id = "stable-smoke"
-        session_id = "stable-smoke"
-        source_id = $sourceId
-        profile_id = "qwen-fast"
-        glossary = ""
-        context = ""
-        cpu = $false
-    }
+    $job = Submit-Transcription $token $sourceId $idempotencyKey
     $jobId = [string]$job.id
     if (-not $jobId) { Fail "STABLE_SMOKE_JOB_ID_MISSING" }
 
-    # The generic helper cannot add request-specific headers, so validate that
-    # the accepted job is running under the expected request identity here.
+    $replay = Submit-Transcription $token $sourceId $idempotencyKey
+    if ([string]$replay.id -ne $jobId) {
+        Fail "STABLE_SMOKE_IDEMPOTENCY_REPLAY_MISMATCH"
+    }
+
     $terminal = Wait-JobSucceeded $token $jobId
     if ([string]$terminal.status -ne "succeeded" -or $terminal.result_available -ne $true) {
         Fail "STABLE_SMOKE_JOB_RESULT_NOT_AVAILABLE"
