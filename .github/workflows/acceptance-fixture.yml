@@ -334,11 +334,23 @@ jobs:
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-OptionalPropertyValue")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-RequiredProductPropertyValue")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-RequiredHarnessPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-ErrorDetailMessage")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Job")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Event")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-LogRow")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-RetryCheckpointEvidence")
+
+          $errorWithoutDetails = [pscustomobject]@{ Exception = [Exception]::new("offline") }
+          if ([string](Get-ErrorDetailMessage $errorWithoutDetails) -ne "") {
+            throw "QWEN_RECOVERY_MISSING_ERROR_DETAILS_NOT_EMPTY"
+          }
+          $errorWithDetails = [pscustomobject]@{
+            ErrorDetails = [pscustomobject]@{ Message = '{"code":"JOB_NOT_RETRYABLE"}' }
+          }
+          if ([string](Get-ErrorDetailMessage $errorWithDetails) -ne '{"code":"JOB_NOT_RETRYABLE"}') {
+            throw "QWEN_RECOVERY_ERROR_DETAILS_READ_INVALID"
+          }
 
           $ordered = [ordered]@{ seq = 7; enabled = $false }
           if ([int](Get-OptionalPropertyValue $ordered "seq") -ne 7) {
@@ -480,6 +492,7 @@ jobs:
           $qwenRecoverySource = Get-Content -LiteralPath "tools/acceptance/run-qwen-recovery-physical-gate.ps1" -Raw
           foreach ($required in @(
             "Get-OptionalPropertyValue",
+            "Get-ErrorDetailMessage",
             "Assert-RetryCheckpointEvidence",
             "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
@@ -499,7 +512,13 @@ jobs:
             '$job.status',
             '$craig.source_id',
             '$quality.id',
-            '$fast.id'
+            '$fast.id',
+            '$_.ErrorDetails.Message',
+            '$last.product_id',
+            '$health.pid',
+            '$started.profile_id',
+            '$state.profile_id',
+            '$value.logs'
           )) {
             if ($qwenRecoverySource.Contains($forbidden)) {
               throw "QWEN_RECOVERY_FRAGILE_PROPERTY_ACCESS_PRESENT:$forbidden"
