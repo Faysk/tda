@@ -137,6 +137,10 @@
 	gap: 10px;
 }
 
+.connectionMain > div:last-child {
+	min-width: 0;
+}
+
 .computerGlyph {
 	position: relative;
 	width: 30px;
