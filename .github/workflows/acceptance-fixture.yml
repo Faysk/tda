@@ -338,6 +338,7 @@ jobs:
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Event")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-LogRow")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-RetryCheckpointEvidence")
 
           $ordered = [ordered]@{ seq = 7; enabled = $false }
           if ([int](Get-OptionalPropertyValue $ordered "seq") -ne 7) {
@@ -382,6 +383,41 @@ jobs:
             throw "QWEN_RECOVERY_REQUIRED_PRODUCT_PROPERTY_ACCEPTED"
           } catch {
             if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:QWEN_FAST_RESULT_TRANSCRIPTION_MISSING") { throw }
+          }
+
+          $retryFixture = @(
+            [ordered]@{ seq = 38; code = "ASR_TEXT_CHECKPOINT_SAVED"; data = [ordered]@{ track = 1 } },
+            [ordered]@{ seq = 39; code = "QUEUED" },
+            [ordered]@{ seq = 40; code = "ASR_TEXT_CHECKPOINT_REUSED"; data = [ordered]@{ track = 1 } },
+            [ordered]@{ seq = 41; code = "QWEN_WINDOW_TRANSCRIBED"; data = [ordered]@{ track = 2 } },
+            [ordered]@{ seq = 42; code = "RUN_COMMIT_FENCE_WON"; data = [ordered]@{} }
+          )
+          $retryAfterCrash = @(Assert-RetryCheckpointEvidence $retryFixture 38 @(1))
+          if ($retryAfterCrash.Count -ne 4) {
+            throw "QWEN_RECOVERY_RETRY_EVENT_FILTER_INVALID"
+          }
+
+          $badRetryFixture = @(
+            [ordered]@{ seq = 40; code = "ASR_TEXT_CHECKPOINT_REUSED"; data = [ordered]@{ track = 1 } },
+            [ordered]@{ seq = 41; code = "QWEN_WINDOW_TRANSCRIBED"; data = [ordered]@{ track = 1 } },
+            [ordered]@{ seq = 42; code = "RUN_COMMIT_FENCE_WON"; data = [ordered]@{} }
+          )
+          try {
+            [void](Assert-RetryCheckpointEvidence $badRetryFixture 38 @(1))
+            throw "QWEN_RECOVERY_RETRANSCRIPTION_ACCEPTED"
+          } catch {
+            if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:PERSISTED_TRACK_RETRANSCRIBED:track-1") { throw }
+          }
+
+          $missingReuseFixture = @(
+            [ordered]@{ seq = 40; code = "RUNNING"; data = [ordered]@{ attempt = 2 } },
+            [ordered]@{ seq = 41; code = "RUN_COMMIT_FENCE_WON"; data = [ordered]@{} }
+          )
+          try {
+            [void](Assert-RetryCheckpointEvidence $missingReuseFixture 38 @(1))
+            throw "QWEN_RECOVERY_MISSING_REUSE_ACCEPTED"
+          } catch {
+            if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:TEXT_CHECKPOINT_NOT_REUSED:track-1") { throw }
           }
 
           # Regression: the Agent middleware requires application/json on every
@@ -444,6 +480,7 @@ jobs:
           $qwenRecoverySource = Get-Content -LiteralPath "tools/acceptance/run-qwen-recovery-physical-gate.ps1" -Raw
           foreach ($required in @(
             "Get-OptionalPropertyValue",
+            "Assert-RetryCheckpointEvidence",
             "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
             "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
@@ -458,7 +495,11 @@ jobs:
             '$result.transcription',
             '$_.data.track',
             '$interrupted.error.code',
-            '$runMarker.run_id'
+            '$runMarker.run_id',
+            '$job.status',
+            '$craig.source_id',
+            '$quality.id',
+            '$fast.id'
           )) {
             if ($qwenRecoverySource.Contains($forbidden)) {
               throw "QWEN_RECOVERY_FRAGILE_PROPERTY_ACCESS_PRESENT:$forbidden"
