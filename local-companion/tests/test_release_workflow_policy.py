@@ -106,6 +106,14 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "'head_sha': os.environ['SOURCE_SHA']" in value
     assert "'head_branch': 'main'" in value
 
+
+def test_production_deploy_explicitly_enables_bounded_statistics_read_model_v2():
+    value = _read("production.yml")
+    assert 'TDA_STATS_READ_MODEL_V2_ENABLED: "true"' in value
+    assert "--env TDA_STATS_READ_MODEL_V2_ENABLED=true" in value
+    assert value.count("TDA_STATS_READ_MODEL_V2_ENABLED") == 2
+
+
 def test_physical_recovery_can_seal_both_runtime_receipts_from_same_gpu_run():
     physical = (REPO_ROOT / "local-companion" / "packaging" / "run-physical-acceptance.ps1").read_text(
         encoding="utf-8"
