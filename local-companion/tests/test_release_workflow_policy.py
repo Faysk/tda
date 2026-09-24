@@ -85,6 +85,21 @@ def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_r
     assert "actions/checkout@v7" not in value
 
 
+def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects():
+    value = _read("companion-promote.yml")
+
+    assert "Verify canonical Web resolves promoted Stable" in value
+    assert "https://dnd.faysk.dev" in value
+    assert "/api/downloads/companion/windows/manifest" in value
+    assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in value
+    assert "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH" in value
+    assert "CANONICAL_WEB_STABLE_VERIFIED" in value
+    assert 'value.get("channel") == "stable"' in value
+    assert 'asset.get("sha256") == expected_sha' in value
+    assert 'asset.get("size") == expected_size' in value
+    assert 'for suffix in ("", f"?tag={tag}")' in value
+
+
 def test_stable_promotion_requires_published_runtimes_meeting_companion_minimums():
     value = _read("companion-promote.yml")
     assert "Require compatible stable runtimes" in value
