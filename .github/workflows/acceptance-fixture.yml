@@ -326,6 +326,40 @@ jobs:
             return [scriptblock]::Create($functionAst.Extent.Text)
           }
 
+          # Regression: the Agent middleware requires application/json on every
+          # POST, even cancel/retry actions with no semantic body.
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Invoke-AgentJson")
+          $script:capturedAgentRequest = $null
+          function Invoke-RestMethod {
+            param(
+              [switch]$NoProxy,
+              [string]$Method,
+              [string]$Uri,
+              [hashtable]$Headers,
+              [int]$TimeoutSec,
+              [string]$ContentType,
+              [string]$Body
+            )
+            $script:capturedAgentRequest = [ordered]@{
+              method = $Method
+              content_type = $ContentType
+              body = $Body
+            }
+            return @{ ok = $true }
+          }
+          $PairingToken = "x" * 43
+          $Origin = "https://dnd.faysk.dev"
+          $Port = 18765
+          [void](Invoke-AgentJson "POST" "/jobs/test/cancel")
+          if (
+            [string]$script:capturedAgentRequest.method -ne "POST" -or
+            [string]$script:capturedAgentRequest.content_type -ne "application/json" -or
+            [string]$script:capturedAgentRequest.body -ne "{}"
+          ) {
+            throw "QWEN_RECOVERY_EMPTY_POST_JSON_CONTRACT_INVALID"
+          }
+          Remove-Item Function:\Invoke-RestMethod -Force
+
           . (Get-FunctionScriptBlock "local-companion/packaging/run-physical-acceptance.ps1" "Invoke-NativeProcessExitCode")
           $cmd = (Get-Command cmd.exe -ErrorAction Stop).Source
           $zero = Invoke-NativeProcessExitCode -Executable $cmd -Arguments @("/d", "/c", "exit 0") -ErrorPrefix "PHYSICAL_NATIVE_TEST"
