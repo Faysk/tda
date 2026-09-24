@@ -251,6 +251,67 @@ def test_transcription_retry_resets_uncheckpointed_progress(tmp_path: Path):
     assert retried["progress"] == {"completed": 0, "total": 2, "unit": "tracks"}
 
 
+def test_agent_restart_interrupted_job_retries_as_attempt_two(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+
+    store = Store(data_root)
+    body = {**_body(), "units": 2}
+    job = store.submit("restart-interrupted-retry", body)
+    job_id, attempt = store.claim()
+    assert job_id == job["id"]
+    assert attempt == 1
+    assert store.get(job_id)["status"] == "running"
+
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        interrupted = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        assert interrupted["status"] == "interrupted"
+        assert interrupted["attempt"] == 1
+        assert interrupted["error"] == {
+            "code": "PROCESS_INTERRUPTED",
+            "recoverable": True,
+        }
+
+        response = client.post(
+            f"/api/v1/jobs/{job_id}/retry",
+            headers=HEADERS,
+            json={},
+        )
+        assert response.status_code == 200
+        retried = response.json()
+        assert retried["status"] == "queued"
+        assert retried["attempt"] == 1
+        assert retried["error"] is None
+        assert retried["progress"] == {
+            "completed": 0,
+            "total": 2,
+            "unit": "tracks",
+        }
+
+        claimed = Store(data_root).claim()
+        assert claimed == (job_id, 2)
+        running = Store(data_root).get(job_id)
+        assert running["status"] == "running"
+        assert running["attempt"] == 2
+
+        events = client.get(
+            f"/api/v1/jobs/{job_id}/events",
+            headers=HEADERS,
+        ).json()["events"]
+        codes = [event["code"] for event in events]
+        assert "PROCESS_INTERRUPTED" in codes
+        assert "QUEUED" in codes
+        assert "RUNNING" in codes
+
+
 def test_worker_failure_immediately_recovers_valid_immutable_run(
     monkeypatch,
     tmp_path: Path,
