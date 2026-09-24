@@ -328,6 +328,23 @@ jobs:
 
           # Regression: the Agent middleware requires application/json on every
           # POST, even cancel/retry actions with no semantic body.
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
+          $orderedEvents = @(
+            [ordered]@{ seq = 3; code = "A" },
+            [ordered]@{ seq = 19; code = "B" },
+            [ordered]@{ seq = 7; code = "C" }
+          )
+          if ((Get-MaxEventSequence $orderedEvents) -ne 19) {
+            throw "QWEN_RECOVERY_ORDERED_EVENT_MAX_SEQUENCE_INVALID"
+          }
+          $genericEvents = [Collections.Generic.List[object]]::new()
+          $genericEvents.Add([ordered]@{ seq = 4; code = "A" })
+          $genericEvents.Add([ordered]@{ seq = 27; code = "B" })
+          $genericEvents.Add([ordered]@{ seq = 11; code = "C" })
+          if ((Get-MaxEventSequence @($genericEvents)) -ne 27) {
+            throw "QWEN_RECOVERY_GENERIC_EVENT_MAX_SEQUENCE_INVALID"
+          }
+
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Invoke-AgentJson")
           $script:capturedAgentRequest = $null
           function Invoke-RestMethod {

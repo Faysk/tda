@@ -218,6 +218,16 @@ function Sanitize-Event([object]$Event) {
     }
 }
 
+function Get-MaxEventSequence([object[]]$Events) {
+    [int]$maximum = 0
+    foreach ($event in @($Events)) {
+        if ($null -eq $event) { continue }
+        [int]$sequence = [int]$event.seq
+        if ($sequence -gt $maximum) { $maximum = $sequence }
+    }
+    return $maximum
+}
+
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
     foreach ($name in @("job_id", "attempt", "profile_id", "stage", "error_code")) {
@@ -807,7 +817,8 @@ try {
     [void](Wait-ForEvent $FastJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
     [void](Capture-Events $FastJobId)
     $preCrash = @(Capture-Events $FastJobId)
-    $preCrashMaxSeq = [int](($preCrash | Measure-Object -Property seq -Maximum).Maximum)
+    $preCrashMaxSeq = Get-MaxEventSequence $preCrash
+    if ($preCrashMaxSeq -le 0) { Fail-Harness "PRECRASH_EVENT_SEQUENCE_INVALID" }
     $persistedTracks = @($preCrash | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object { [int]$_.data.track } | Sort-Object -Unique)
     if (1 -notin $persistedTracks) { Fail-Product "TRACK1_TEXT_CHECKPOINT_NOT_DURABLE" }
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $FastJobId) })
