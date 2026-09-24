@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
+from .flac_metadata import flac_duration_seconds
+
 TRACK_NAME = re.compile(r"^(?P<track>[1-9][0-9]*)-(?P<speaker>.+)\.flac$", re.IGNORECASE)
 MAX_ENTRIES = 256
 MAX_INFO_BYTES = 1024 * 1024
@@ -43,6 +45,7 @@ class CraigTrack:
     identity: CraigIdentity | None
     staged_mtime_ns: int | None = None
     timeline_offset_seconds: float = 0.0
+    duration_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -325,6 +328,7 @@ def ingest_craig_zip(
                         sha256=digest,
                         identity=identity,
                         staged_mtime_ns=target.stat().st_mtime_ns,
+                        duration_seconds=flac_duration_seconds(target),
                     )
                 )
 
