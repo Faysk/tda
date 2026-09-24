@@ -60,6 +60,18 @@ def _summary(
     reused: bool,
     source_name: str | None = None,
 ) -> dict[str, object]:
+    durations = [
+        float(track.duration_seconds)
+        for track in package.tracks
+        if track.duration_seconds is not None
+    ]
+    durations_complete = len(durations) == len(package.tracks) and bool(durations)
+    audio_work_seconds = (
+        round(sum(durations), 3) if durations_complete else None
+    )
+    session_duration_seconds = (
+        round(max(durations), 3) if durations_complete else None
+    )
     return {
         "schema_version": CRAIG_UPLOAD_SCHEMA,
         "source_id": source_id,
@@ -67,11 +79,14 @@ def _summary(
         "source_name": source_name,
         "size_bytes": size_bytes,
         "track_count": len(package.tracks),
+        "audio_work_seconds": audio_work_seconds,
+        "session_duration_seconds": session_duration_seconds,
         "tracks": [
             {
                 "number": track.number,
                 "speaker": track.speaker,
                 "size_bytes": track.size_bytes,
+                "duration_seconds": track.duration_seconds,
             }
             for track in package.tracks
         ],
