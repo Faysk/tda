@@ -1,8 +1,10 @@
 // Isolated browser harness. Never included in the Next app or used as an auth bypass.
 import { createRoot } from "react-dom/client";
-import { ProcessingPanel } from "../../src/features/edit/processing/panel";
 import "../../src/app/design-tokens.css";
 import "../../src/app/design-system.css";
+import "../../src/app/globals.css";
+import { ProcessingPanel } from "../../src/features/edit/processing/panel";
+import processingStyles from "../../src/features/edit/processing/processing.module.css";
 
 const originalFetch = window.fetch.bind(window);
 // The integrated test selects a separate scratch service; real product endpoint stays fixed.
@@ -18,9 +20,22 @@ if (new URLSearchParams(location.search).has("integrated")) {
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
-	<main style={{ maxWidth: 1040, margin: "auto", padding: 20 }}>
-		<h1>Processamento local</h1>
-		<p>Ambiente isolado de testes sintéticos. Não é uma rota pública do TDA.</p>
+	<main className={processingStyles.page} data-processing-workspace="true">
+		<h1
+			style={{
+				position: "absolute",
+				width: 1,
+				height: 1,
+				padding: 0,
+				margin: -1,
+				overflow: "hidden",
+				clip: "rect(0 0 0 0)",
+				whiteSpace: "nowrap",
+				border: 0,
+			}}
+		>
+			Processamento
+		</h1>
 		<ProcessingPanel />
 	</main>,
 );
