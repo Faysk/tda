@@ -1,24 +1,52 @@
-.pageHeaderActions {
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: end;
-	gap: 12px;
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
 }
 
-.pageHeaderActions > div:first-child {
-	display: grid;
-	gap: 2px;
+.companionMaintenance {
+	margin-top: 10px;
+	padding-top: 8px;
+	border-top: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+}
+
+.companionMaintenance > summary {
+	width: fit-content;
+	cursor: pointer;
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 650;
+}
+
+.companionMaintenance > summary:hover {
+	color: var(--ds-foreground-soft);
+}
+
+.companionMaintenance > p {
+	max-width: 720px;
+	margin: 8px 0;
+	font-size: 0.68rem;
+	line-height: 1.5;
 }
 
 .companionDownloadGroup {
 	display: flex;
 	align-items: stretch;
-	justify-content: flex-end;
 	gap: 8px;
 	flex-wrap: wrap;
 }
 
 .companionDownload {
 	display: grid;
+	width: fit-content;
 	min-width: 176px;
 	min-height: 38px;
 	align-content: center;
@@ -48,7 +76,8 @@
 	background: var(--ds-accent-muted);
 }
 
-.companionDownload:focus-visible {
+.companionDownload:focus-visible,
+.companionMaintenance > summary:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
@@ -72,17 +101,14 @@
 	background: var(--ds-surface-hover);
 }
 
-@media (max-width: 720px) {
-	.pageHeaderActions {
-		grid-template-columns: 1fr;
-	}
-
+@media (max-width: 520px) {
 	.companionDownloadGroup {
-		justify-content: flex-start;
+		align-items: stretch;
+		flex-direction: column;
 	}
 
 	.companionDownload {
-		width: fit-content;
+		width: 100%;
 		min-width: 0;
 	}
 }
