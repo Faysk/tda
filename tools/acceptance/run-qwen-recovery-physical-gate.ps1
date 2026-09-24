@@ -69,6 +69,29 @@ function Read-Json([string]$Path, [string]$Code) {
     catch { Fail-Harness $Code }
 }
 
+function Get-OptionalPropertyValue([object]$Object, [string]$Name) {
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.Contains($Name)) { return $Object[$Name] }
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
+function Get-RequiredProductPropertyValue([object]$Object, [string]$Name, [string]$Code) {
+    $value = Get-OptionalPropertyValue $Object $Name
+    if ($null -eq $value) { Fail-Product $Code }
+    return $value
+}
+
+function Get-RequiredHarnessPropertyValue([object]$Object, [string]$Name, [string]$Code) {
+    $value = Get-OptionalPropertyValue $Object $Name
+    if ($null -eq $value) { Fail-Harness $Code }
+    return $value
+}
+
 function Get-GhJson([string]$Path, [string]$Code) {
     $raw = & gh api $Path 2>&1
     if ($LASTEXITCODE -ne 0) { Fail-Harness $Code }
@@ -188,32 +211,39 @@ function Download-ArtifactZip([long]$ArtifactId, [long]$ExpectedSize, [string]$E
 
 function Sanitize-Job([object]$Job) {
     if ($null -eq $Job) { return $null }
+    $attempt = Get-OptionalPropertyValue $Job "attempt"
+    $resultAvailable = Get-OptionalPropertyValue $Job "result_available"
     return [ordered]@{
-        id = [string]$Job.id
-        kind = [string]$Job.kind
-        status = [string]$Job.status
-        stage = [string]$Job.stage
-        attempt = [int]$Job.attempt
-        progress = $Job.progress
-        error = $Job.error
-        result_available = [bool]$Job.result_available
-        updated_at = [string]$Job.updated_at
+        id = [string](Get-OptionalPropertyValue $Job "id")
+        kind = [string](Get-OptionalPropertyValue $Job "kind")
+        status = [string](Get-OptionalPropertyValue $Job "status")
+        stage = [string](Get-OptionalPropertyValue $Job "stage")
+        attempt = $(if ($null -eq $attempt) { $null } else { [int]$attempt })
+        progress = Get-OptionalPropertyValue $Job "progress"
+        error = Get-OptionalPropertyValue $Job "error"
+        result_available = $(if ($null -eq $resultAvailable) { $null } else { [bool]$resultAvailable })
+        updated_at = [string](Get-OptionalPropertyValue $Job "updated_at")
     }
 }
 
 function Sanitize-Event([object]$Event) {
+    if ($null -eq $Event) { Fail-Product "JOB_EVENT_NULL" }
+    $sequence = Get-RequiredProductPropertyValue $Event "seq" "JOB_EVENT_SEQ_MISSING"
+    $code = Get-RequiredProductPropertyValue $Event "code" "JOB_EVENT_CODE_MISSING"
     $allowed = @("stage", "track", "total_tracks", "window", "attempt", "profile_id", "forced", "fence", "reason")
     $data = [ordered]@{}
-    if ($null -ne $Event.data) {
+    $sourceData = Get-OptionalPropertyValue $Event "data"
+    if ($null -ne $sourceData) {
         foreach ($name in $allowed) {
-            if ($null -ne $Event.data.PSObject.Properties[$name]) { $data[$name] = $Event.data.$name }
+            $value = Get-OptionalPropertyValue $sourceData $name
+            if ($null -ne $value) { $data[$name] = $value }
         }
     }
     return [ordered]@{
-        seq = [int]$Event.seq
-        code = [string]$Event.code
-        at = [string]$Event.at
-        level = [string]$Event.level
+        seq = [int]$sequence
+        code = [string]$code
+        at = [string](Get-OptionalPropertyValue $Event "at")
+        level = [string](Get-OptionalPropertyValue $Event "level")
         data = $data
     }
 }
@@ -222,7 +252,9 @@ function Get-MaxEventSequence([object[]]$Events) {
     [int]$maximum = 0
     foreach ($event in @($Events)) {
         if ($null -eq $event) { continue }
-        [int]$sequence = [int]$event.seq
+        $rawSequence = Get-OptionalPropertyValue $event "seq"
+        if ($null -eq $rawSequence) { Fail-Harness "SANITIZED_EVENT_SEQ_MISSING" }
+        [int]$sequence = [int]$rawSequence
         if ($sequence -gt $maximum) { $maximum = $sequence }
     }
     return $maximum
@@ -230,17 +262,17 @@ function Get-MaxEventSequence([object[]]$Events) {
 
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
+    $sourceContext = Get-OptionalPropertyValue $Row "context"
     foreach ($name in @("job_id", "attempt", "profile_id", "stage", "error_code")) {
-        if ($null -ne $Row.context -and $null -ne $Row.context.PSObject.Properties[$name]) {
-            $context[$name] = $Row.context.$name
-        }
+        $value = Get-OptionalPropertyValue $sourceContext $name
+        if ($null -ne $value) { $context[$name] = $value }
     }
     return [ordered]@{
-        at = [string]$Row.at
-        level = [string]$Row.level
-        component = [string]$Row.component
-        code = [string]$Row.code
-        message = [string]$Row.message
+        at = [string](Get-OptionalPropertyValue $Row "at")
+        level = [string](Get-OptionalPropertyValue $Row "level")
+        component = [string](Get-OptionalPropertyValue $Row "component")
+        code = [string](Get-OptionalPropertyValue $Row "code")
+        message = [string](Get-OptionalPropertyValue $Row "message")
         context = $context
     }
 }
@@ -325,8 +357,10 @@ function Capture-Events([string]$JobId) {
     if (-not $EventSeen.ContainsKey($JobId)) { $EventSeen[$JobId] = @{} }
     if (-not $EventCollectors.ContainsKey($JobId)) { $EventCollectors[$JobId] = [Collections.Generic.List[object]]::new() }
     $value = Invoke-AgentJson "GET" "/jobs/$JobId/events"
-    foreach ($event in @($value.events | Sort-Object { [int]$_.seq })) {
-        $key = [string]$event.seq
+    $rawEvents = Get-OptionalPropertyValue $value "events"
+    if ($null -eq $rawEvents) { Fail-Product "JOB_EVENTS_RESPONSE_INVALID" }
+    foreach ($event in @($rawEvents | Sort-Object { [int](Get-RequiredProductPropertyValue $_ "seq" "JOB_EVENT_SEQ_MISSING") })) {
+        $key = [string](Get-RequiredProductPropertyValue $event "seq" "JOB_EVENT_SEQ_MISSING")
         if (-not $EventSeen[$JobId].ContainsKey($key)) {
             $EventSeen[$JobId][$key] = $true
             $EventCollectors[$JobId].Add((Sanitize-Event $event))
@@ -394,7 +428,10 @@ function Wait-ForEvent([string]$JobId, [string]$Code, [Nullable[int]]$Track, [in
         $job = Get-Job $JobId
         $events = Capture-Events $JobId
         $match = @($events | Where-Object {
-            [string]$_.code -eq $Code -and ($null -eq $Track -or [int]$_.data.track -eq [int]$Track)
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq $Code -and ($null -eq $Track -or ($null -ne $eventTrack -and [int]$eventTrack -eq [int]$Track))
         } | Select-Object -Last 1)
         if ($match.Count -gt 0) { return $match[0] }
         if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
@@ -819,7 +856,12 @@ try {
     $preCrash = @(Capture-Events $FastJobId)
     $preCrashMaxSeq = Get-MaxEventSequence $preCrash
     if ($preCrashMaxSeq -le 0) { Fail-Harness "PRECRASH_EVENT_SEQUENCE_INVALID" }
-    $persistedTracks = @($preCrash | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object { [int]$_.data.track } | Sort-Object -Unique)
+    $persistedTracks = @($preCrash | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object {
+        $eventData = Get-OptionalPropertyValue $_ "data"
+        $trackValue = Get-OptionalPropertyValue $eventData "track"
+        if ($null -eq $trackValue) { Fail-Product "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING" }
+        [int]$trackValue
+    } | Sort-Object -Unique)
     if (1 -notin $persistedTracks) { Fail-Product "TRACK1_TEXT_CHECKPOINT_NOT_DURABLE" }
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $FastJobId) })
 
@@ -843,12 +885,16 @@ try {
     while ([DateTimeOffset]::UtcNow -lt $recoveredDeadline) {
         $candidate = Get-Job $FastJobId
         [void](Capture-Events $FastJobId)
-        if ([string]$candidate.status -eq "interrupted") { $interrupted = $candidate; break }
-        if ([string]$candidate.status -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$($candidate.status)" }
+        $candidateStatus = [string](Get-RequiredProductPropertyValue $candidate "status" "RECOVERY_JOB_STATUS_MISSING")
+        if ($candidateStatus -eq "interrupted") { $interrupted = $candidate; break }
+        if ($candidateStatus -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$candidateStatus" }
         Start-Sleep -Milliseconds 500
     }
     if ($null -eq $interrupted) { Fail-Product "PROCESS_INTERRUPTED_NOT_OBSERVED" }
-    if ($null -eq $interrupted.error -or [string]$interrupted.error.code -ne "PROCESS_INTERRUPTED" -or $interrupted.error.recoverable -ne $true) {
+    $interruptedError = Get-OptionalPropertyValue $interrupted "error"
+    $interruptedCode = [string](Get-OptionalPropertyValue $interruptedError "code")
+    $interruptedRecoverable = Get-OptionalPropertyValue $interruptedError "recoverable"
+    if ($null -eq $interruptedError -or $interruptedCode -ne "PROCESS_INTERRUPTED" -or $interruptedRecoverable -ne $true) {
         Fail-Product "PROCESS_INTERRUPTED_CONTRACT_INVALID"
     }
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-interrupted.json") (Sanitize-Job $interrupted)
@@ -856,22 +902,163 @@ try {
     [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
     $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
     $allFastEvents = @(Capture-Events $FastJobId)
-    $retryEvents = @($allFastEvents | Where-Object { [int]$_.seq -gt $preCrashMaxSeq })
+    $retryEvents = @($allFastEvents | Where-Object {
+        $sequence = Get-OptionalPropertyValue $_ "seq"
+        $null -ne $sequence -and [int]$sequence -gt $preCrashMaxSeq
+    })
     foreach ($track in $persistedTracks) {
-        $reuseCount = @($retryEvents | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_REUSED" -and [int]$_.data.track -eq $track }).Count
-        $retranscribed = @($retryEvents | Where-Object { [string]$_.code -eq "QWEN_WINDOW_TRANSCRIBED" -and [int]$_.data.track -eq $track }).Count
+        $reuseCount = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        $retranscribed = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
         if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
         if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
     }
-    if (@($retryEvents | Where-Object { [string]$_.code -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
+    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
 
     $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
-    $transcription = $result.transcription
-    if ($null -eq $transcription -or [string]$transcription.run_id -eq "" -or [string]$transcription.sha256 -notmatch '^[a-f0-9]{64}$') {
+    $transcription = Get-OptionalPropertyValue $result "transcription"
+    if ($null -eq $transcription) { Fail-Product "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING" }
+    $runId = [string](Get-OptionalPropertyValue $transcription "run_id")
+    $resultDigest = [string](Get-OptionalPropertyValue $transcription "sha256")
+    if ($runId -eq "" -or $resultDigest -notmatch '^[a-f0-9]{64}    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
+    $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
+    $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
+    $runMarkerPath = Join-Path $runRoot "run.json"
+    $runTranscriptPath = Join-Path $runRoot "transcript.json"
+    if (-not (Test-Path -LiteralPath $runMarkerPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_MARKER_MISSING" }
+    if (-not (Test-Path -LiteralPath $runTranscriptPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_MISSING" }
+    $runMarker = Read-Json $runMarkerPath "IMMUTABLE_RUN_MARKER_INVALID"
+    $finalAttempt = Get-RequiredProductPropertyValue $fastFinal "attempt" "QWEN_FAST_FINAL_ATTEMPT_MISSING"
+    if (
+        [string](Get-OptionalPropertyValue $runMarker "run_id") -ne $runId -or
+        [string](Get-OptionalPropertyValue $runMarker "job_id") -ne $FastJobId -or
+        [int](Get-OptionalPropertyValue $runMarker "attempt") -ne [int]$finalAttempt
+    ) {
+        Fail-Product "IMMUTABLE_RUN_IDENTITY_MISMATCH"
+    }
+    if (
+        [string](Get-OptionalPropertyValue $runMarker "profile_id") -ne "qwen-fast" -or
+        [string](Get-OptionalPropertyValue $runMarker "transcript_sha256") -ne $resultDigest
+    ) {
+        Fail-Product "IMMUTABLE_RUN_MANIFEST_MISMATCH"
+    }
+    $computedTranscriptDigest = Get-Sha256 $runTranscriptPath
+    if ($computedTranscriptDigest -ne $resultDigest) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_HASH_MISMATCH" }
+    Write-Json (Join-Path $EvidenceRoot "immutable-run-validation.json") ([ordered]@{
+        marker = "run.json"
+        run_id = $runId
+        job_id = $FastJobId
+        attempt = [int]$finalAttempt
+        profile_id = "qwen-fast"
+        transcript_sha256 = $resultDigest
+        computed_transcript_sha256 = $computedTranscriptDigest
+        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema")
+    })
+    Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
+        status = [string](Get-OptionalPropertyValue $fastFinal "status")
+        attempt = [int]$finalAttempt
+        persisted_tracks_before_crash = $persistedTracks
+        run_id = $runId
+        transcript_sha256 = $resultDigest
+    })
+    Save-JobEvidence $FastJobId "qwen-fast" $EvidenceRoot
+    Save-Logs $EvidenceRoot
+
+    $Verdict = "PASS"
+    $VerdictCode = "QWEN_PHYSICAL_RECOVERY_GATE_PASS"
+} catch {
+    $message = [string]$_.Exception.Message
+    if ($message -match '^PRODUCT_FAILED:(.+)$') { $Verdict = "PRODUCT_FAILED"; $VerdictCode = $Matches[1] }
+    elseif ($message -match '^BLOCKED:(.+)$') { $Verdict = "BLOCKED"; $VerdictCode = $Matches[1] }
+    elseif ($message -match '^HARNESS_FAILED:(.+)$') { $Verdict = "HARNESS_FAILED"; $VerdictCode = $Matches[1] }
+    else {
+        $Verdict = "HARNESS_FAILED"
+        $exceptionType = [string]$_.Exception.GetType().Name
+        $safeType = ($exceptionType -replace '[^A-Za-z0-9_]', '_').ToUpperInvariant()
+        $VerdictCode = "HARNESS_EXCEPTION_$safeType"
+        $scriptName = ""
+        $commandName = ""
+        [int]$lineNumber = 0
+        $errorId = ""
+        try {
+            $invocation = Get-OptionalPropertyValue $_ "InvocationInfo"
+            if ($null -ne $invocation) {
+                $scriptName = [IO.Path]::GetFileName([string](Get-OptionalPropertyValue $invocation "ScriptName"))
+                $lineValue = Get-OptionalPropertyValue $invocation "ScriptLineNumber"
+                if ($null -ne $lineValue) { $lineNumber = [int]$lineValue }
+                $myCommand = Get-OptionalPropertyValue $invocation "MyCommand"
+                $commandName = [string](Get-OptionalPropertyValue $myCommand "Name")
+            }
+            $errorId = [string](Get-OptionalPropertyValue $_ "FullyQualifiedErrorId")
+        } catch {}
+        Write-Json (Join-Path $EvidenceRoot "harness-error.json") ([ordered]@{
+            exception_type = $exceptionType
+            error_id = $errorId
+            script = $scriptName
+            line = $lineNumber
+            command = $commandName
+        })
+    }
+    try { Save-JobEvidence $QualityJobId "qwen-quality-failure" $EvidenceRoot } catch {}
+    try { Save-JobEvidence $FastJobId "qwen-fast-failure" $EvidenceRoot } catch {}
+    try { Save-Logs $EvidenceRoot } catch {}
+} finally {
+    try {
+        if ($null -ne $AgentProcess -and -not $AgentProcess.HasExited) { Stop-ProcessTree ([int]$AgentProcess.Id) }
+    } catch {}
+    try {
+        $scratchPrefix = $ScratchRoot
+        foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+            $path = [string]$process.ExecutablePath
+            if ($path -and $path.StartsWith($scratchPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                try { Stop-ProcessTree ([int]$process.ProcessId) } catch {}
+            }
+        }
+    } catch {}
+    $env:LOCALAPPDATA = $OriginalLocalAppData
+
+    $finished = [DateTimeOffset]::UtcNow
+    Write-Json (Join-Path $EvidenceRoot "verdict.json") ([ordered]@{
+        schema = $PackSchema
+        verdict = $Verdict
+        code = $VerdictCode
+        started_at = $StartedAt.ToString("o")
+        finished_at = $finished.ToString("o")
+        elapsed_seconds = [Math]::Round(($finished - $StartedAt).TotalSeconds, 3)
+    })
+    try { Assert-NoEvidenceLeak $EvidenceRoot $PairingToken $CraigResolved } catch {
+        $Verdict = "HARNESS_FAILED"
+        $VerdictCode = [string]$_.Exception.Message
+        Write-Json (Join-Path $EvidenceRoot "verdict.json") ([ordered]@{ schema = $PackSchema; verdict = $Verdict; code = $VerdictCode })
+    }
+    Write-EvidenceManifest $EvidenceRoot
+    $zip = "$EvidenceRoot.zip"
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    Compress-Archive -Path (Join-Path $EvidenceRoot "*") -DestinationPath $zip -CompressionLevel Optimal
+
+    try {
+        Remove-Item -LiteralPath $ScratchRoot -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {}
+
+    Write-Host ""
+    Write-Host "Qwen physical gate verdict: $Verdict / $VerdictCode" -ForegroundColor $(if ($Verdict -eq "PASS") { "Green" } else { "Yellow" })
+    Write-Host "Evidence: $zip"
+}
+
+if ($Verdict -ne "PASS") { exit 1 }
+exit 0
+) {
         Fail-Product "QWEN_FAST_RESULT_INVALID"
     }
-    $runId = [string]$transcription.run_id
-    $resultDigest = [string]$transcription.sha256
     if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
     $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
     $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
