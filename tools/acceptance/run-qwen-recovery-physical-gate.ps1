@@ -486,7 +486,7 @@ function Wait-Terminal([string]$JobId, [string[]]$Allowed, [int]$TimeoutSeconds)
             if ($jobStatus -notin $Allowed) {
                 $jobError = Get-OptionalPropertyValue $job "error"
                 $errorCode = if ($null -ne $jobError) { [string](Get-OptionalPropertyValue $jobError "code") } else { "none" }
-                Fail-Product "JOB_TERMINAL_UNEXPECTED:$jobStatus:$errorCode"
+                Fail-Product ("JOB_TERMINAL_UNEXPECTED:{0}:{1}" -f $jobStatus, $errorCode)
             }
             return $job
         }
