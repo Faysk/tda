@@ -307,6 +307,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          Set-StrictMode -Version Latest
 
           function Get-FunctionScriptBlock([string]$Path, [string]$Name) {
             $tokens = $null
@@ -326,9 +327,65 @@ jobs:
             return [scriptblock]::Create($functionAst.Extent.Text)
           }
 
+          # Recovery evidence runs under StrictMode. JSON fields may be optional,
+          # but missing fields must never surface as PropertyNotFoundException.
+          function Fail-Harness([string]$Code) { throw "HARNESS_FAILED:$Code" }
+          function Fail-Product([string]$Code) { throw "PRODUCT_FAILED:$Code" }
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-OptionalPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-RequiredProductPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-RequiredHarnessPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Job")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Event")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-LogRow")
+
+          $ordered = [ordered]@{ seq = 7; enabled = $false }
+          if ([int](Get-OptionalPropertyValue $ordered "seq") -ne 7) {
+            throw "QWEN_RECOVERY_ORDERED_PROPERTY_READ_INVALID"
+          }
+          if ((Get-OptionalPropertyValue $ordered "enabled") -ne $false) {
+            throw "QWEN_RECOVERY_FALSE_PROPERTY_READ_INVALID"
+          }
+          if ($null -ne (Get-OptionalPropertyValue $ordered "missing")) {
+            throw "QWEN_RECOVERY_MISSING_PROPERTY_NOT_NULL"
+          }
+
+          $minimalEvent = [pscustomobject]@{ seq = 9; code = "QUEUED" }
+          $sanitizedEvent = Sanitize-Event $minimalEvent
+          if (
+            [int]$sanitizedEvent.seq -ne 9 -or
+            [string]$sanitizedEvent.code -ne "QUEUED" -or
+            $sanitizedEvent.data.Count -ne 0
+          ) {
+            throw "QWEN_RECOVERY_OPTIONAL_EVENT_SANITIZE_INVALID"
+          }
+
+          $minimalJob = [pscustomobject]@{ id = "job-1"; status = "queued" }
+          $sanitizedJob = Sanitize-Job $minimalJob
+          if (
+            [string]$sanitizedJob.id -ne "job-1" -or
+            [string]$sanitizedJob.status -ne "queued" -or
+            $null -ne $sanitizedJob.error -or
+            $null -ne $sanitizedJob.attempt
+          ) {
+            throw "QWEN_RECOVERY_OPTIONAL_JOB_SANITIZE_INVALID"
+          }
+
+          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "ok" }
+          $sanitizedLog = Sanitize-LogRow $minimalLog
+          if ([string]$sanitizedLog.code -ne "TEST" -or $sanitizedLog.context.Count -ne 0) {
+            throw "QWEN_RECOVERY_OPTIONAL_LOG_SANITIZE_INVALID"
+          }
+
+          try {
+            [void](Get-RequiredProductPropertyValue ([pscustomobject]@{}) "transcription" "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING")
+            throw "QWEN_RECOVERY_REQUIRED_PRODUCT_PROPERTY_ACCEPTED"
+          } catch {
+            if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:QWEN_FAST_RESULT_TRANSCRIPTION_MISSING") { throw }
+          }
+
           # Regression: the Agent middleware requires application/json on every
           # POST, even cancel/retry actions with no semantic body.
-          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
           $orderedEvents = @(
             [ordered]@{ seq = 3; code = "A" },
             [ordered]@{ seq = 19; code = "B" },
@@ -383,6 +440,30 @@ jobs:
           if ([int]$zero -ne 0) { throw "PHYSICAL_NATIVE_ZERO_EXIT_INVALID" }
           $seven = Invoke-NativeProcessExitCode -Executable $cmd -Arguments @("/d", "/c", "exit 7") -ErrorPrefix "PHYSICAL_NATIVE_TEST"
           if ([int]$seven -ne 7) { throw "PHYSICAL_NATIVE_NONZERO_EXIT_INVALID" }
+
+          $qwenRecoverySource = Get-Content -LiteralPath "tools/acceptance/run-qwen-recovery-physical-gate.ps1" -Raw
+          foreach ($required in @(
+            "Get-OptionalPropertyValue",
+            "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
+            "JOB_EVENTS_RESPONSE_INVALID",
+            "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
+            "error_id =",
+            "Set-StrictMode -Version Latest"
+          )) {
+            if (-not $qwenRecoverySource.Contains($required)) {
+              throw "QWEN_RECOVERY_STRICTMODE_CONTRACT_MISSING:$required"
+            }
+          }
+          foreach ($forbidden in @(
+            '$result.transcription',
+            '$_.data.track',
+            '$interrupted.error.code',
+            '$runMarker.run_id'
+          )) {
+            if ($qwenRecoverySource.Contains($forbidden)) {
+              throw "QWEN_RECOVERY_FRAGILE_PROPERTY_ACCESS_PRESENT:$forbidden"
+            }
+          }
 
           $physicalHelper = Get-Content -LiteralPath "local-companion/packaging/run-physical-acceptance.ps1" -Raw
           $sealStart = $physicalHelper.IndexOf("function Invoke-RuntimePhysicalSeal")
