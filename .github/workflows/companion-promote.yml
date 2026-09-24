@@ -103,20 +103,27 @@ jobs:
               raise SystemExit('RC_EVIDENCE_TAG_MISMATCH')
           PY
 
-      - name: Require current main to contain identical Companion/release content
+      - name: Require current main to preserve the physically tested Companion bytes
         shell: bash
         run: |
           set -euo pipefail
           SOURCE_SHA="${{ steps.evidence.outputs.source_sha }}"
           git fetch --no-tags origin "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          if ! git diff --quiet "$SOURCE_SHA" HEAD -- local-companion \
-            .github/workflows/companion.yml \
-            .github/workflows/companion-rc.yml \
-            .github/workflows/companion-promote.yml \
-            .github/workflows/companion-dependency-freshness.yml; then
-            echo "::error::Companion or release workflow content differs from the physically tested source; create a new RC"
-            git diff --name-only "$SOURCE_SHA" HEAD -- local-companion .github/workflows/companion*.yml || true
+
+          # Only inputs that can alter the packaged EXE/MSI belong in this fence.
+          # Tests, external acceptance tooling, Web/docs and release orchestration
+          # may evolve after physical acceptance without changing candidate bytes.
+          COMPANION_PATHS=(
+            ".github/workflows/companion.yml"
+            "local-companion/pyproject.toml"
+            "local-companion/requirements-test.lock"
+            "local-companion/tda_companion/**"
+            "local-companion/packaging/**"
+          )
+          if ! git diff --quiet "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"; then
+            echo "::error::COMPANION_PROMOTION_PACKAGE_INPUT_DRIFT"
+            git diff --name-only "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"
             exit 1
           fi
 
