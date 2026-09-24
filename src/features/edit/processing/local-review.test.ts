@@ -59,6 +59,7 @@ function rawReview(
 			completed_at: "2026-09-21T00:00:00.000Z",
 		},
 		stats: {
+			audio_work_seconds: 60,
 			processing_seconds: 12,
 			session_duration_seconds: 60,
 			rtf: 0.2,
@@ -153,6 +154,7 @@ describe("local result/review contracts", () => {
 			transcript_sha256: transcriptSha,
 		},
 						stats: {
+							audio_work_seconds: 60,
 							processing_seconds: 12,
 							session_duration_seconds: 60,
 							rtf: 0.2,
@@ -181,6 +183,7 @@ describe("local result/review contracts", () => {
 				attempt: 1,
 			},
 			stats: {
+				audioWorkSeconds: 60,
 				processingSeconds: 12,
 				sessionDurationSeconds: 60,
 				rtf: 0.2,
