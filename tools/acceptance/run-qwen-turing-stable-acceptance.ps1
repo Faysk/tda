@@ -419,8 +419,8 @@ $passed = $false
 $phase = "preflight"
 $failureCode = $null
 $trackCount = $null
-$profileRuns = @()
-$gateMetrics = @()
+$profileRuns = [Collections.Generic.List[object]]::new()
+$gateMetrics = [Collections.Generic.List[object]]::new()
 
 try {
     Write-Host "TDA QWEN TURING STABLE ACCEPTANCE" -ForegroundColor Cyan
@@ -481,7 +481,7 @@ try {
         $phase = "prepare_" + $profileId
         [void](Ensure-ProfileReady $token $sourceId $profileId)
         $gateCopy = Join-Path $share ("physical-gate-" + $profileId + ".json")
-        $gateMetrics += ,(Assert-TuringGate $profileId $gateCopy)
+        $gateMetrics.Add((Assert-TuringGate $profileId $gateCopy))
 
         $phase = "full_craig_" + $profileId
         $submitted = Submit-Transcription $token $sourceId $profileId
@@ -490,13 +490,13 @@ try {
         $terminal = Wait-JobSucceeded $token $jobId $profileId
         $job = Get-OptionalPropertyValue $terminal "job"
         $verified = Verify-ImmutableRun $token $sourceId $jobId $profileId $job
-        $profileRuns += ,[ordered]@{
+        $profileRuns.Add([ordered]@{
             profile_id = $profileId
             status = [string](Get-OptionalPropertyValue $verified "status")
             attempt = [int](Get-OptionalPropertyValue $verified "attempt")
             elapsed_seconds = [double](Get-OptionalPropertyValue $terminal "elapsed_seconds")
             immutable_run_verified = $true
-        }
+        })
     }
 
     $phase = "crash_retry_recovery"
