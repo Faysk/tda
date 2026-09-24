@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
@@ -331,6 +337,30 @@ export function ProcessingPanel({
 		else await controller.jobAction(choice.id, choice.action);
 	}
 
+	function selectViewFromKeyboard(
+		event: ReactKeyboardEvent<HTMLButtonElement>,
+		index: number,
+	) {
+		let nextIndex: number | null = null;
+		if (event.key === "ArrowRight") {
+			nextIndex = (index + 1) % processingViews.length;
+		} else if (event.key === "ArrowLeft") {
+			nextIndex = (index - 1 + processingViews.length) % processingViews.length;
+		} else if (event.key === "Home") {
+			nextIndex = 0;
+		} else if (event.key === "End") {
+			nextIndex = processingViews.length - 1;
+		}
+		if (nextIndex === null) return;
+		event.preventDefault();
+		const next = processingViews[nextIndex];
+		if (!next) return;
+		setView(next.id);
+		requestAnimationFrame(() => {
+			document.getElementById(`processing-tab-${next.id}`)?.focus();
+		});
+	}
+
 	const renderRow = (job: LocalJob) => (
 		<JobRow
 			key={job.id}
@@ -351,7 +381,7 @@ export function ProcessingPanel({
 				aria-label="Áreas do processamento"
 				role="tablist"
 			>
-				{processingViews.map((item) => (
+				{processingViews.map((item, index) => (
 					<button
 						key={item.id}
 						id={`processing-tab-${item.id}`}
@@ -360,7 +390,9 @@ export function ProcessingPanel({
 						aria-selected={view === item.id}
 						aria-controls={`processing-view-${item.id}`}
 						data-active={view === item.id ? "true" : "false"}
+						tabIndex={view === item.id ? 0 : -1}
 						onClick={() => setView(item.id)}
+						onKeyDown={(event) => selectViewFromKeyboard(event, index)}
 					>
 						{item.label}
 					</button>
