@@ -273,12 +273,23 @@ function Assert-RuntimeCurrent(
     if ([string]$current.runtime_id -ne $RuntimeId -or [string]$current.version -ne $ExpectedVersion) {
         Fail ("RUNTIME_CURRENT_VERSION_MISMATCH:" + $Family)
     }
+
     $marker = Read-Json (Join-Path (Join-Path $root $ExpectedVersion) ".tda-runtime.json") ("RUNTIME_MARKER_INVALID:" + $Family)
     if (
         [string]$marker.runtime_id -ne $RuntimeId -or
         [string]$marker.version -ne $ExpectedVersion -or
         [string]$marker.archive_sha256 -ne $ExpectedArchiveSha256 -or
-        [string]$marker.worker_sha256 -notmatch '^[a-f0-9]{64}
+        [string]$marker.worker_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        Fail ("RUNTIME_MARKER_IDENTITY_MISMATCH:" + $Family)
+    }
+
+    return [ordered]@{
+        version = $ExpectedVersion
+        archive_sha256 = [string]$marker.archive_sha256
+        worker_sha256 = [string]$marker.worker_sha256
+    }
+}
 
 function Upload-Craig([string]$Token, [string]$Path) {
     try {
