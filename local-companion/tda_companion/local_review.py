@@ -294,6 +294,7 @@ def _response(
             "completed_at": manifest.get("completed_at"),
         },
         "stats": {
+            "audio_work_seconds": stats.get("audio_work_seconds"),
             "processing_seconds": stats.get("processing_seconds"),
             "session_duration_seconds": stats.get("session_duration_seconds"),
             "rtf": stats.get("rtf"),

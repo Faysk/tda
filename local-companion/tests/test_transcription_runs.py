@@ -76,6 +76,8 @@ def test_two_completed_runs_coexist_without_overwrite(tmp_path: Path):
     )
     first_path = package_root / "runs" / first["run_id"] / "transcript.json"
     first_bytes = first_path.read_bytes()
+    assert first["stats"]["audio_work_seconds"] == 60.0
+    assert first["stats"]["session_duration_seconds"] == 60.0
 
     second = write_completed_run(
         package_root,

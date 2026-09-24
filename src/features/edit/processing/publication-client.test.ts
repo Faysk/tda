@@ -26,6 +26,7 @@ const review: LocalReview = {
 		completedAt: "2026-09-21T11:59:00Z",
 	},
 	stats: {
+		audioWorkSeconds: 60,
 		processingSeconds: 12,
 		sessionDurationSeconds: 60,
 		rtf: 0.2,

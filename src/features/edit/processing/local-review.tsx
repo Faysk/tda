@@ -127,6 +127,7 @@ function RunCard({
 			<dl className={styles.runFacts}>
 				<div><dt>Concluído</dt><dd>{formatDate(run.completedAt)}</dd></div>
 				<div><dt>Duração da sessão</dt><dd>{formatSeconds(run.stats.sessionDurationSeconds)}</dd></div>
+				<div><dt>Trabalho de áudio</dt><dd>{formatSeconds(run.stats.audioWorkSeconds)}</dd></div>
 				<div><dt>Processamento</dt><dd>{formatSeconds(run.stats.processingSeconds)}</dd></div>
 				<div><dt>Velocidade</dt><dd>{formatRealtime(run.stats.rtf)}</dd></div>
 				<div><dt>RTF</dt><dd>{run.stats.rtf === null ? "—" : run.stats.rtf.toFixed(3)}</dd></div>
