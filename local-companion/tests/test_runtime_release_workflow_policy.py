@@ -95,6 +95,30 @@ def test_runtime_rc_source_drift_fence_is_family_scoped_to_real_runtime_inputs()
     assert "              local-companion \\" not in value
 
 
+def test_runtime_stable_promotion_drift_fence_matches_runtime_family_inputs():
+    promote = _workflow("runtime-promote.yml")
+
+    assert promote.count("RUNTIME_PATHS=(") == 2
+    assert 'git diff --quiet "$SOURCE_SHA" HEAD -- "${RUNTIME_PATHS[@]}"' in promote
+    assert 'git diff --name-only "$SOURCE_SHA" HEAD -- "${RUNTIME_PATHS[@]}"' in promote
+    assert "RUNTIME_PROMOTION_RUNTIME_INPUT_DRIFT" in promote
+    assert "RUNTIME_PROMOTION_FAMILY_INVALID" in promote
+
+    required = (
+        _push_paths("whisper-runtime.yml")
+        | _push_paths("qwen-runtime.yml")
+        | _push_paths("qwen-runtime-package.yml")
+    )
+    missing = sorted(path for path in required if f'"{path}"' not in promote)
+    assert missing == []
+
+    # Physical acceptance and test-only evolution must not force rebuilding
+    # immutable runtime bytes that have not changed.
+    assert '"local-companion/tests/test_qwen_physical_gate_harness.py"' not in promote
+    assert '"tools/acceptance/run-qwen-recovery-physical-gate.ps1"' not in promote
+    assert "            local-companion \\" not in promote
+
+
 def test_runtime_stable_promotion_requires_physical_receipt_and_reuses_release_object():
     rc = _workflow("runtime-rc.yml")
     promote = _workflow("runtime-promote.yml")
