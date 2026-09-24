@@ -801,7 +801,7 @@ jobs:
           foreach ($required in @(
             "run-final-current-source-acceptance.ps1",
             "run-qwen-recovery-physical-gate.ps1",
-            "companion-rc-v0.3.14-19d9b3b64238",
+            "companion-rc-v0.3.14-74a656021208",
             "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238",
             "CompanionExePath",
             "CompanionPayloadManifest",
