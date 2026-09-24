@@ -28,13 +28,20 @@ export default async function ProcessingPage() {
 			EDIT_CAPABILITIES.transcriptPublish,
 			CAMPAIGN_SLUG,
 		).ok;
+
 	return (
-		<section className={styles.page}>
-			<header className={`${styles.pageHeader} ${pageStyles.pageHeaderActions}`}>
-				<div>
-					<div className={styles.breadcrumb}>Edit / Processamento</div>
-					<h1>Processamento</h1>
-				</div>
+		<section className={styles.page} data-processing-workspace="true">
+			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
+
+			<ProcessingSubmission />
+			<ProcessingPanel publicationEnabled={publicationEnabled} />
+
+			<details className={pageStyles.companionMaintenance}>
+				<summary>Instalação e canais do TDA Companion</summary>
+				<p>
+					Use a versão Stable no uso normal. O canal RC permanece disponível
+					apenas para validação deliberada de candidatos.
+				</p>
 				<div className={pageStyles.companionDownloadGroup}>
 					<CompanionDownload className={pageStyles.companionDownload} />
 					<CompanionDownload
@@ -42,9 +49,7 @@ export default async function ProcessingPage() {
 						channel="rc"
 					/>
 				</div>
-			</header>
-			<ProcessingSubmission />
-			<ProcessingPanel publicationEnabled={publicationEnabled} />
+			</details>
 		</section>
 	);
 }
