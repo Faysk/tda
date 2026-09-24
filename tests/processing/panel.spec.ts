@@ -124,7 +124,10 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	await expect
 		.poll(() => state.job?.status)
 		.toBe("cancelled");
-	await expect(page.getByRole("listitem").getByText("Cancelado", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(
+		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+	).toBeVisible();
 });
 
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
@@ -136,6 +139,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
 		"não promete retomar do ponto exato",
