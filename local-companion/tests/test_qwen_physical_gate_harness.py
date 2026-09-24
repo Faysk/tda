@@ -10,6 +10,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "tools" / "acceptance" / "run-qwen-recovery-physical-gate.ps1"
+FIXTURE_GENERATOR = REPO_ROOT / "tools" / "acceptance" / "generate-physical-acceptance-fixture.ps1"
 
 
 def test_qwen_recovery_physical_gate_static_contract():
@@ -65,6 +66,26 @@ def test_qwen_recovery_physical_gate_does_not_target_default_agent_port_for_gate
     assert '"http://127.0.0.1:$Port/api/v1/' in text
 
 
+def test_qwen_recovery_physical_gate_defaults_to_two_track_synthetic_craig():
+    text = SCRIPT.read_text(encoding="utf-8")
+    generator = FIXTURE_GENERATOR.read_text(encoding="utf-8")
+
+    assert '[string]$CraigZip = ""' in text
+    assert "-CraigTrackCount 2" in text
+    assert "SYNTHETIC_CRAIG_GENERATOR_MISSING" in text
+    assert "SYNTHETIC_CRAIG_GENERATION_FAILED" in text
+    assert "SYNTHETIC_CRAIG_CONTRACT_INVALID" in text
+    assert "SYNTHETIC_CRAIG_HASH_MISMATCH" in text
+    assert 'craig_input = $CraigInput' in text
+    assert '"generated_synthetic"' in text
+
+    assert "[ValidateRange(1, 8)]" in generator
+    assert "[int]$CraigTrackCount = 1" in generator
+    assert "for ($track = 1; $track -le $TrackCount; $track++)" in generator
+    assert "track_count = $CraigTrackCount" in generator
+    assert '"1-Synthetic.flac"' in generator
+
+
 def test_qwen_recovery_physical_gate_uses_named_failure_classes_before_export():
     text = SCRIPT.read_text(encoding="utf-8")
     catch_pos = text.index("} catch {")
@@ -82,15 +103,16 @@ def test_qwen_recovery_physical_gate_parses_on_windows():
         "[System.Management.Automation.Language.Parser]::ParseFile($env:TDA_QWEN_GATE_SCRIPT,[ref]$tokens,[ref]$errors)|Out-Null;"
         "if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_.Message};exit 1}"
     )
-    env = os.environ.copy()
-    env["TDA_QWEN_GATE_SCRIPT"] = str(SCRIPT)
-    completed = subprocess.run(
-        [powershell, "-NoProfile", "-Command", command],
-        cwd=REPO_ROOT,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=30,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr or completed.stdout
+    for script in (SCRIPT, FIXTURE_GENERATOR):
+        env = os.environ.copy()
+        env["TDA_QWEN_GATE_SCRIPT"] = str(script)
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-Command", command],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr or completed.stdout

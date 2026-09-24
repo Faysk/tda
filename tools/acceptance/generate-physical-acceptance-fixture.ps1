@@ -1,7 +1,9 @@
 param(
     [string]$OutputRoot = (Join-Path $env:TEMP "tda-physical-acceptance-fixture"),
     [ValidateRange(65, 180)]
-    [int]$TargetSeconds = 80
+    [int]$TargetSeconds = 80,
+    [ValidateRange(1, 8)]
+    [int]$CraigTrackCount = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -360,7 +362,7 @@ function New-SyntheticSpeechFixture([string]$Path, [int]$DesiredSeconds) {
     throw "FIXTURE_AUDIO_DURATION_OUT_OF_RANGE"
 }
 
-function New-CraigFixture([string]$ZipPath, [string]$SpeechWavPath) {
+function New-CraigFixture([string]$ZipPath, [string]$SpeechWavPath, [int]$TrackCount) {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -381,18 +383,25 @@ function New-CraigFixture([string]$ZipPath, [string]$SpeechWavPath) {
                 [IO.Compression.ZipArchiveMode]::Create,
                 $false
             )
-            $entry = $archive.CreateEntry(
-                "1-Synthetic.flac",
-                [IO.Compression.CompressionLevel]::NoCompression
-            )
-            $entryStream = $entry.Open()
-            $inputStream = $null
-            try {
-                $inputStream = [IO.File]::OpenRead($flacPath)
-                $inputStream.CopyTo($entryStream)
-            } finally {
-                if ($null -ne $inputStream) { $inputStream.Dispose() }
-                $entryStream.Dispose()
+            for ($track = 1; $track -le $TrackCount; $track++) {
+                $entryName = if ($TrackCount -eq 1) {
+                    "1-Synthetic.flac"
+                } else {
+                    ("{0}-Synthetic-{0}.flac" -f $track)
+                }
+                $entry = $archive.CreateEntry(
+                    $entryName,
+                    [IO.Compression.CompressionLevel]::NoCompression
+                )
+                $entryStream = $entry.Open()
+                $inputStream = $null
+                try {
+                    $inputStream = [IO.File]::OpenRead($flacPath)
+                    $inputStream.CopyTo($entryStream)
+                } finally {
+                    if ($null -ne $inputStream) { $inputStream.Dispose() }
+                    $entryStream.Dispose()
+                }
             }
         } finally {
             if ($null -ne $archive) { $archive.Dispose() }
@@ -420,7 +429,7 @@ $craig = Join-Path $output "tda-installed-acceptance-craig.zip"
 $metadata = Join-Path $output "fixture.json"
 
 $speech = New-SyntheticSpeechFixture $audio $TargetSeconds
-$craigFixture = New-CraigFixture $craig $audio
+$craigFixture = New-CraigFixture $craig $audio $CraigTrackCount
 
 $value = [ordered]@{
     schema = "tda_physical_acceptance_fixture_v1"
@@ -436,7 +445,7 @@ $value = [ordered]@{
     craig = [ordered]@{
         file = [IO.Path]::GetFileName($craig)
         sha256 = Get-Sha256 $craig
-        track_count = 1
+        track_count = $CraigTrackCount
         embedded_flac_sha256 = $craigFixture.flac_sha256
         track_duration_seconds = $craigFixture.duration_seconds
         track_codec = "flac"
@@ -449,5 +458,6 @@ Write-Host "Audio: $audio"
 Write-Host "Craig: $craig"
 Write-Host "Metadata: $metadata"
 Write-Host "Duration: $($speech.duration_seconds)s"
+Write-Host "Craig tracks: $CraigTrackCount"
 Write-Host "Craig track duration: $($craigFixture.duration_seconds)s"
 Write-Host "Voice: $($speech.voice)"
