@@ -329,7 +329,10 @@ function Wait-AgentHealth([int]$TimeoutSeconds = 90) {
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         try {
             $last = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 2
-            if ([string]$last.product_id -eq "tda-companion" -and [string]$last.api_version -eq "1" -and [string]$last.lifecycle -eq "ready") { return $last }
+            $productId = [string](Get-OptionalPropertyValue $last "product_id")
+            $apiVersion = [string](Get-OptionalPropertyValue $last "api_version")
+            $lifecycle = [string](Get-OptionalPropertyValue $last "lifecycle")
+            if ($productId -eq "tda-companion" -and $apiVersion -eq "1" -and $lifecycle -eq "ready") { return $last }
         } catch {}
         Start-Sleep -Milliseconds 500
     }
@@ -340,7 +343,8 @@ function Start-GateAgent([string]$Executable) {
     $agentArguments = @("--headless", "--port", [string]$Port, "--origin", $Origin)
     $process = Start-Process -FilePath $Executable -ArgumentList $agentArguments -PassThru -WindowStyle Hidden
     $health = Wait-AgentHealth 90
-    if ([int]$health.pid -ne [int]$process.Id) {
+    $healthPid = Get-RequiredProductPropertyValue $health "pid" "AGENT_HEALTH_PID_MISSING"
+    if ([int]$healthPid -ne [int]$process.Id) {
         try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
         Fail-Product "AGENT_PORT_OWNERSHIP_MISMATCH"
     }
@@ -380,7 +384,8 @@ function Save-JobEvidence([string]$JobId, [string]$Name, [string]$EvidenceRoot) 
 function Save-Logs([string]$EvidenceRoot) {
     try {
         $value = Invoke-AgentJson "GET" "/logs"
-        $rows = @($value.logs)
+        $rawLogs = Get-OptionalPropertyValue $value "logs"
+        $rows = if ($null -eq $rawLogs) { @() } else { @($rawLogs) }
         $sanitized = @($rows | Select-Object -Last 100 | ForEach-Object { Sanitize-LogRow $_ })
         Write-Json (Join-Path $EvidenceRoot "agent-log-tail.json") $sanitized
     } catch {}
@@ -388,13 +393,21 @@ function Save-Logs([string]$EvidenceRoot) {
 
 function Wait-Preparation([string]$Source, [string]$ProfileId, [int]$TimeoutSeconds = 2400) {
     $started = Invoke-AgentJson "POST" "/preparation" @{ source_id = $Source; profile_id = $ProfileId }
-    if ([string]$started.profile_id -ne $ProfileId -or [string]$started.source_id -ne $Source) { Fail-Product "PREPARATION_START_IDENTITY_INVALID:$ProfileId" }
+    $startedProfile = [string](Get-RequiredProductPropertyValue $started "profile_id" "PREPARATION_START_PROFILE_MISSING:$ProfileId")
+    $startedSource = [string](Get-RequiredProductPropertyValue $started "source_id" "PREPARATION_START_SOURCE_MISSING:$ProfileId")
+    if ($startedProfile -ne $ProfileId -or $startedSource -ne $Source) { Fail-Product "PREPARATION_START_IDENTITY_INVALID:$ProfileId" }
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $state = Invoke-AgentJson "GET" "/preparation"
-        if ([string]$state.profile_id -ne $ProfileId) { Fail-Product "PREPARATION_PROFILE_DRIFT:$ProfileId" }
-        if ([string]$state.state -eq "completed") { return $state }
-        if ([string]$state.state -eq "failed") { Fail-Product ("PREPARATION_" + [string]$state.error_code + ":" + $ProfileId) }
+        $stateProfile = [string](Get-RequiredProductPropertyValue $state "profile_id" "PREPARATION_PROFILE_MISSING:$ProfileId")
+        $stateValue = [string](Get-RequiredProductPropertyValue $state "state" "PREPARATION_STATE_MISSING:$ProfileId")
+        if ($stateProfile -ne $ProfileId) { Fail-Product "PREPARATION_PROFILE_DRIFT:$ProfileId" }
+        if ($stateValue -eq "completed") { return $state }
+        if ($stateValue -eq "failed") {
+            $errorCode = [string](Get-OptionalPropertyValue $state "error_code")
+            if (-not $errorCode) { $errorCode = "FAILED_WITHOUT_CODE" }
+            Fail-Product ("PREPARATION_" + $errorCode + ":" + $ProfileId)
+        }
         Start-Sleep -Seconds 1
     }
     Fail-Product "PREPARATION_TIMEOUT:$ProfileId"
@@ -434,9 +447,11 @@ function Wait-ForEvent([string]$JobId, [string]$Code, [Nullable[int]]$Track, [in
             $eventCode -eq $Code -and ($null -eq $Track -or ($null -ne $eventTrack -and [int]$eventTrack -eq [int]$Track))
         } | Select-Object -Last 1)
         if ($match.Count -gt 0) { return $match[0] }
-        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
-            $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
-            Fail-Product ("JOB_TERMINAL_BEFORE_EVENT:{0}:{1}:{2}" -f $Code, [string]$job.status, $errorCode)
+        $jobStatus = [string](Get-RequiredProductPropertyValue $job "status" "JOB_STATUS_MISSING")
+        if ($jobStatus -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            $jobError = Get-OptionalPropertyValue $job "error"
+            $errorCode = if ($null -ne $jobError) { [string](Get-OptionalPropertyValue $jobError "code") } else { "none" }
+            Fail-Product ("JOB_TERMINAL_BEFORE_EVENT:{0}:{1}:{2}" -f $Code, $jobStatus, $errorCode)
         }
         Start-Sleep -Milliseconds 750
     }
@@ -448,10 +463,12 @@ function Wait-Terminal([string]$JobId, [string[]]$Allowed, [int]$TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $job = Get-Job $JobId
         [void](Capture-Events $JobId)
-        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
-            if ([string]$job.status -notin $Allowed) {
-                $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
-                Fail-Product "JOB_TERMINAL_UNEXPECTED:$($job.status):$errorCode"
+        $jobStatus = [string](Get-RequiredProductPropertyValue $job "status" "JOB_STATUS_MISSING")
+        if ($jobStatus -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            if ($jobStatus -notin $Allowed) {
+                $jobError = Get-OptionalPropertyValue $job "error"
+                $errorCode = if ($null -ne $jobError) { [string](Get-OptionalPropertyValue $jobError "code") } else { "none" }
+                Fail-Product ("JOB_TERMINAL_UNEXPECTED:{0}:{1}" -f $jobStatus, $errorCode)
             }
             return $job
         }
