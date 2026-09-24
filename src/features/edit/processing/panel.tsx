@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { supportsTerminalJobDelete } from "./compatibility";
@@ -22,6 +28,15 @@ import styles from "./processing.module.css";
 type Confirmation =
 	| { id: string; action: "cancel" | "retry" | "delete" }
 	| { action: "resume" };
+
+type ProcessingView = "overview" | "queue" | "results" | "diagnostics";
+
+const processingViews: readonly { id: ProcessingView; label: string }[] = [
+	{ id: "overview", label: "Visão geral" },
+	{ id: "queue", label: "Fila" },
+	{ id: "results", label: "Resultados" },
+	{ id: "diagnostics", label: "Diagnóstico" },
+];
 
 function jobTone(status: LocalJob["status"]): StatusTone {
 	if (status === "succeeded") return "success";
@@ -252,6 +267,7 @@ export function ProcessingPanel({
 		controller.serverSnapshot,
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+	const [view, setView] = useState<ProcessingView>("overview");
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -321,6 +337,30 @@ export function ProcessingPanel({
 		else await controller.jobAction(choice.id, choice.action);
 	}
 
+	function selectViewFromKeyboard(
+		event: ReactKeyboardEvent<HTMLButtonElement>,
+		index: number,
+	) {
+		let nextIndex: number | null = null;
+		if (event.key === "ArrowRight") {
+			nextIndex = (index + 1) % processingViews.length;
+		} else if (event.key === "ArrowLeft") {
+			nextIndex = (index - 1 + processingViews.length) % processingViews.length;
+		} else if (event.key === "Home") {
+			nextIndex = 0;
+		} else if (event.key === "End") {
+			nextIndex = processingViews.length - 1;
+		}
+		if (nextIndex === null) return;
+		event.preventDefault();
+		const next = processingViews[nextIndex];
+		if (!next) return;
+		setView(next.id);
+		requestAnimationFrame(() => {
+			document.getElementById(`processing-tab-${next.id}`)?.focus();
+		});
+	}
+
 	const renderRow = (job: LocalJob) => (
 		<JobRow
 			key={job.id}
@@ -336,6 +376,29 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
+			<div
+				className={styles.processingTabs}
+				aria-label="Áreas do processamento"
+				role="tablist"
+			>
+				{processingViews.map((item, index) => (
+					<button
+						key={item.id}
+						id={`processing-tab-${item.id}`}
+						type="button"
+						role="tab"
+						aria-selected={view === item.id}
+						aria-controls={`processing-view-${item.id}`}
+						data-active={view === item.id ? "true" : "false"}
+						tabIndex={view === item.id ? 0 : -1}
+						onClick={() => setView(item.id)}
+						onKeyDown={(event) => selectViewFromKeyboard(event, index)}
+					>
+						{item.label}
+					</button>
+				))}
+			</div>
+
 			<section className={styles.connection} aria-labelledby="local-computer">
 				<div className={styles.connectionMain}>
 					<div className={styles.computerGlyph} aria-hidden="true" />
@@ -460,13 +523,23 @@ export function ProcessingPanel({
 
 			{connected ? (
 				<>
-					<div className={styles.overviewTop}>
-						<section aria-labelledby="processing-now">
+					<section
+						id="processing-view-overview"
+						className={styles.viewPanel}
+						role="tabpanel"
+						aria-labelledby="processing-tab-overview"
+						hidden={view !== "overview"}
+					>
+						<div className={styles.overviewTop}>
+							<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
 									<h2 id="processing-now">Processando agora</h2>
 									{state.checkedAt ? (
 										<span>
-											Atualizado às <time dateTime={state.checkedAt}>{formatTime(state.checkedAt)}</time>
+											Atualizado às{" "}
+											<time dateTime={state.checkedAt}>
+												{formatTime(state.checkedAt)}
+											</time>
 										</span>
 									) : null}
 								</div>
@@ -474,21 +547,40 @@ export function ProcessingPanel({
 									<article className={styles.activeJob}>
 										<div className={styles.activeHeader}>
 											<div>
-												<span className={styles.overline}>{activeJob.context?.sessionId ? `Sessão ${activeJob.context.sessionId}` : "Trabalho local"}</span>
+												<span className={styles.overline}>
+													{activeJob.context?.sessionId
+														? `Sessão ${activeJob.context.sessionId}`
+														: "Trabalho local"}
+												</span>
 												<h3>{presentJobTitle(activeJob)}</h3>
 											</div>
 											<StatusPill tone="accent">Processando</StatusPill>
 										</div>
 										<div className={styles.activeMeta}>
-											<span>{stageLabels[activeJob.stage] ?? activeJob.stage}</span>
-											{trackContext?.track != null && trackContext.total != null ? (
-												<span>Arquivo {trackContext.track} de {trackContext.total}</span>
+											<span>
+												{stageLabels[activeJob.stage] ?? activeJob.stage}
+											</span>
+											{trackContext?.track != null &&
+											trackContext.total != null ? (
+												<span>
+													Arquivo {trackContext.track} de {trackContext.total}
+												</span>
 											) : null}
-											{trackContext?.speaker ? <span>Voz: {trackContext.speaker}</span> : null}
-											{trackContext?.window != null ? <span>Janela {trackContext.window}</span> : null}
-											{trackContext?.segment != null ? <span>Segmento {trackContext.segment}</span> : null}
-											{activeJob.attempt > 0 ? <span>Tentativa {activeJob.attempt}</span> : null}
-											<span>Worker ativo · {formatTime(activeJob.updated_at)}</span>
+											{trackContext?.speaker ? (
+												<span>Voz: {trackContext.speaker}</span>
+											) : null}
+											{trackContext?.window != null ? (
+												<span>Janela {trackContext.window}</span>
+											) : null}
+											{trackContext?.segment != null ? (
+												<span>Segmento {trackContext.segment}</span>
+											) : null}
+											{activeJob.attempt > 0 ? (
+												<span>Tentativa {activeJob.attempt}</span>
+											) : null}
+											<span>
+												Worker ativo · {formatTime(activeJob.updated_at)}
+											</span>
 										</div>
 										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
@@ -502,22 +594,52 @@ export function ProcessingPanel({
 											</div>
 										) : (
 											<p className={styles.noProgress}>
-												{activeJob.progress && activeJob.progress.completed > 0
+												{activeJob.progress &&
+												activeJob.progress.completed > 0
 													? `${progressCopy(activeJob)} concluídos · ${stageLabels[activeJob.stage] ?? activeJob.stage}.`
 													: "Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados."}
 											</p>
 										)}
-										<section className={styles.pipeline} aria-label="Etapa atual do processamento">
-											<span data-state={pipelineState(activeJob.stage, "preparation")}>Preparação</span>
-											<span data-state={pipelineState(activeJob.stage, "processing")}>Processamento</span>
-											<span data-state={pipelineState(activeJob.stage, "consolidation")}>Consolidação</span>
+										<section
+											className={styles.pipeline}
+											aria-label="Etapa atual do processamento"
+										>
+											<span
+												data-state={pipelineState(
+													activeJob.stage,
+													"preparation",
+												)}
+											>
+												Preparação
+											</span>
+											<span
+												data-state={pipelineState(
+													activeJob.stage,
+													"processing",
+												)}
+											>
+												Processamento
+											</span>
+											<span
+												data-state={pipelineState(
+													activeJob.stage,
+													"consolidation",
+												)}
+											>
+												Consolidação
+											</span>
 										</section>
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
 												className={styles.dangerAction}
 												disabled={state.busy}
-												onClick={() => setConfirmation({ id: activeJob.id, action: "cancel" })}
+												onClick={() =>
+													setConfirmation({
+														id: activeJob.id,
+														action: "cancel",
+													})
+												}
 											>
 												Cancelar trabalho
 											</Button>
@@ -526,22 +648,50 @@ export function ProcessingPanel({
 								) : (
 									<div className={styles.emptyState}>
 										<strong>Nada processando agora.</strong>
-										<span>{queued.length ? "Há trabalhos aguardando a próxima execução." : "A fila local está livre."}</span>
+										<span>
+											{queued.length
+												? "Há trabalhos aguardando a próxima execução."
+												: "A fila local está livre."}
+										</span>
 									</div>
 								)}
 							</section>
-						<ProcessingSubmission className={styles.submissionCard} compact />
-					</div>
+							<ProcessingSubmission
+								className={styles.submissionCard}
+								compact
+							/>
+						</div>
+					</section>
 
-					<div className={styles.workspace}>
-						<div className={styles.primaryColumn}>
+					<section
+						id="processing-view-queue"
+						className={styles.viewPanel}
+						role="tabpanel"
+						aria-labelledby="processing-tab-queue"
+						hidden={view !== "queue"}
+					>
+						<div className={styles.queueView}>
+							{running.length ? (
+								<section aria-labelledby="running-jobs">
+									<div className={styles.sectionHeading}>
+										<h2 id="running-jobs">Processando</h2>
+										<span>{running.length}</span>
+									</div>
+									<ul className={styles.compactJobs}>
+										{running.map(renderRow)}
+									</ul>
+								</section>
+							) : null}
+
 							{queued.length ? (
 								<section aria-labelledby="queued-jobs">
 									<div className={styles.sectionHeading}>
-										<h2 id="queued-jobs">A seguir na fila</h2>
+										<h2 id="queued-jobs">Na fila</h2>
 										<span>{queued.length}</span>
 									</div>
-									<ul className={styles.compactJobs}>{queued.map(renderRow)}</ul>
+									<ul className={styles.compactJobs}>
+										{queued.map(renderRow)}
+									</ul>
 								</section>
 							) : null}
 
@@ -549,8 +699,11 @@ export function ProcessingPanel({
 								<section aria-labelledby="attention-jobs">
 									<div className={styles.sectionHeading}>
 										<h2 id="attention-jobs">Precisam de atenção</h2>
+										<span>{attention.length}</span>
 									</div>
-									<ul className={styles.compactJobs}>{attention.map(renderRow)}</ul>
+									<ul className={styles.compactJobs}>
+										{attention.map(renderRow)}
+									</ul>
 								</section>
 							) : null}
 
@@ -560,33 +713,140 @@ export function ProcessingPanel({
 										<h2 id="recent-jobs">Finalizados recentemente</h2>
 										<span>{finished.length}</span>
 									</div>
-									<ul className={styles.compactJobs}>{finished.slice(0, 4).map(renderRow)}</ul>
+									<ul className={styles.compactJobs}>
+										{finished.map(renderRow)}
+									</ul>
 								</section>
 							) : null}
-						</div>
 
-						<aside className={styles.inspector} aria-labelledby="processing-details">
+							{!running.length &&
+							!queued.length &&
+							!attention.length &&
+							!finished.length ? (
+								<div className={styles.emptyState}>
+									<strong>A fila local está vazia.</strong>
+									<span>
+										Novos trabalhos enviados pela Visão geral aparecem aqui.
+									</span>
+								</div>
+							) : null}
+						</div>
+					</section>
+
+					<section
+						id="processing-view-results"
+						className={styles.viewPanel}
+						role="tabpanel"
+						aria-labelledby="processing-tab-results"
+						hidden={view !== "results"}
+					>
+						<LocalReviewWorkspace
+							runs={state.localRuns}
+							review={state.localReview}
+							busy={state.localReviewBusy || state.busy}
+							error={state.localReviewError}
+							publicationEnabled={publicationEnabled}
+							onOpen={(sourceId, runId) =>
+								controller.openLocalReview(sourceId, runId)
+							}
+							onSave={(revision, status, segments) =>
+								controller.saveLocalReview(revision, status, segments)
+							}
+							onClose={controller.closeLocalReview}
+							onPublish={(review, operationId) =>
+								publishApprovedLocalReview(review, operationId)
+							}
+						/>
+
+						<section className={styles.syncStrip} aria-labelledby="local-sync">
+							<div>
+								<h2 id="local-sync">Sincronização com o Edit</h2>
+								<p>
+									{publicationEnabled ? (
+										<>
+											<strong>Publicação revisionada disponível.</strong>{" "}
+											Somente um draft salvo como Aprovado localmente e uma
+											confirmação explícita podem publicar.
+										</>
+									) : (
+										<>
+											<strong>Sincronização não configurada.</strong>{" "}
+											Concluir localmente não significa enviar ou publicar.
+										</>
+									)}
+								</p>
+							</div>
+							{state.result ? (
+								<div className={styles.resultSummary} role="status">
+									<span>Resultado local</span>
+									<strong>{state.result.sessionId}</strong>
+									<small>
+										{state.result.runId
+											? `Run ${state.result.runId} · SHA ${state.result.transcriptSha256?.slice(0, 12) ?? "—"}…`
+											: `Pacote ${state.result.publicationId.slice(0, 12)}…`}
+									</small>
+								</div>
+							) : null}
+						</section>
+					</section>
+
+					<section
+						id="processing-view-diagnostics"
+						className={styles.viewPanel}
+						role="tabpanel"
+						aria-labelledby="processing-tab-diagnostics"
+						hidden={view !== "diagnostics"}
+					>
+						<aside
+							className={`${styles.inspector} ${styles.inspectorFull}`}
+							aria-labelledby="processing-details"
+						>
 							<div className={styles.inspectorHeader}>
 								<div>
 									<span className={styles.overline}>Trabalho observado</span>
-									<h2 id="processing-details">Detalhes do processamento</h2>
+									<h2 id="processing-details">
+										Detalhes do processamento
+									</h2>
 								</div>
 							</div>
 							{observedJob ? (
 								<dl className={styles.jobDetails}>
-									<div><dt>Trabalho</dt><dd>{presentJobTitle(observedJob)}</dd></div>
-									<div><dt>Estado</dt><dd>{jobLabels[observedJob.status]}</dd></div>
-									<div><dt>Etapa</dt><dd>{stageLabels[observedJob.stage] ?? observedJob.stage}</dd></div>
-									{observedJob.context?.sessionId ? <div><dt>Sessão</dt><dd>{observedJob.context.sessionId}</dd></div> : null}
-									<div><dt>ID local</dt><dd className={styles.mono}>{observedJob.id}</dd></div>
+									<div>
+										<dt>Trabalho</dt>
+										<dd>{presentJobTitle(observedJob)}</dd>
+									</div>
+									<div>
+										<dt>Estado</dt>
+										<dd>{jobLabels[observedJob.status]}</dd>
+									</div>
+									<div>
+										<dt>Etapa</dt>
+										<dd>
+											{stageLabels[observedJob.stage] ?? observedJob.stage}
+										</dd>
+									</div>
+									{observedJob.context?.sessionId ? (
+										<div>
+											<dt>Sessão</dt>
+											<dd>{observedJob.context.sessionId}</dd>
+										</div>
+									) : null}
+									<div>
+										<dt>ID local</dt>
+										<dd className={styles.mono}>{observedJob.id}</dd>
+									</div>
 								</dl>
 							) : (
-								<p className={styles.inspectorEmpty}>Nenhum trabalho observado.</p>
+								<p className={styles.inspectorEmpty}>
+									Nenhum trabalho observado.
+								</p>
 							)}
 
 							<div className={styles.logHeader}>
 								<h3>Log em tempo real</h3>
-								<span>{state.events.length ? "● ativo" : "sem eventos"}</span>
+								<span>
+									{state.events.length ? "● ativo" : "sem eventos"}
+								</span>
 							</div>
 							<div
 								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
@@ -595,102 +855,76 @@ export function ProcessingPanel({
 								aria-relevant="additions text"
 							>
 								{state.events.length ? (
-									state.events.slice(0, 24).map((event) => {
+									state.events.slice(0, 100).map((event) => {
 										const presented = presentJobEvent(event);
 										return (
-											<div className={styles.logEntry} key={event.seq} data-level={event.level}>
-												<time dateTime={event.at}>{formatTime(event.at)}</time>
+											<div
+												className={styles.logEntry}
+												key={event.seq}
+												data-level={event.level}
+											>
+												<time dateTime={event.at}>
+													{formatTime(event.at)}
+												</time>
 												<div>
 													<span>{presented.title}</span>
-													{presented.detail ? <small>{presented.detail}</small> : null}
+													{presented.detail ? (
+														<small>{presented.detail}</small>
+													) : null}
 												</div>
 											</div>
 										);
 									})
 								) : (
-									<p>Nenhum evento detalhado recebido para este trabalho.</p>
+									<p>
+										Nenhum evento detalhado recebido para este trabalho.
+									</p>
 								)}
 							</div>
 
-							{state.capabilities?.capabilities.includes("synthetic.fixture") ? (
+							{state.capabilities?.capabilities.includes(
+								"synthetic.fixture",
+							) ? (
 								<div className={styles.integrationTool}>
 									<div>
-										<strong>Diagnóstico</strong>
-										<span>Ensaio pequeno, sem áudio e sem publicação.</span>
+										<strong>Ensaio sintético</strong>
+										<span>
+											Diagnóstico pequeno, sem áudio e sem publicação.
+										</span>
 									</div>
 									<Button
 										size="sm"
-										disabled={state.busy || state.health?.lifecycle !== "ready"}
+										disabled={
+											state.busy ||
+											state.health?.lifecycle !== "ready"
+										}
 										onClick={() => void controller.synthetic()}
 									>
 										Executar ensaio sintético
 									</Button>
 								</div>
 							) : null}
+
 							{state.uncertainSubmission ? (
 								<p className={styles.connectionError} role="alert">
-									A resposta desta tentativa não chegou. Reconecte e consulte a fila antes de iniciar outra tentativa; a chave desta aba será reutilizada.
+									A resposta desta tentativa não chegou. Reconecte e
+									consulte a fila antes de iniciar outra tentativa; a chave
+									desta aba será reutilizada.
 								</p>
 							) : null}
 						</aside>
-					</div>
-
-					<LocalReviewWorkspace
-						runs={state.localRuns}
-						review={state.localReview}
-						busy={state.localReviewBusy || state.busy}
-						error={state.localReviewError}
-						publicationEnabled={publicationEnabled}
-						onOpen={(sourceId, runId) =>
-							controller.openLocalReview(sourceId, runId)
-						}
-						onSave={(revision, status, segments) =>
-							controller.saveLocalReview(revision, status, segments)
-						}
-						onClose={controller.closeLocalReview}
-						onPublish={(review, operationId) =>
-							publishApprovedLocalReview(review, operationId)
-						}
-					/>
-
-					<section className={styles.syncStrip} aria-labelledby="local-sync">
-						<div>
-							<h2 id="local-sync">Sincronização com o Edit</h2>
-							<p>
-								{publicationEnabled ? (
-									<>
-										<strong>Publicação revisionada disponível.</strong>{" "}
-										Somente um draft salvo como Aprovado localmente e uma confirmação explícita podem publicar.
-									</>
-								) : (
-									<>
-										<strong>Sincronização não configurada.</strong>{" "}
-										Concluir localmente não significa enviar ou publicar.
-									</>
-								)}
-							</p>
-						</div>
-						{state.result ? (
-							<div className={styles.resultSummary} role="status">
-								<span>Resultado local</span>
-								<strong>{state.result.sessionId}</strong>
-								<small>
-									{state.result.runId
-										? `Run ${state.result.runId} · SHA ${state.result.transcriptSha256?.slice(0, 12) ?? "—"}…`
-										: `Pacote ${state.result.publicationId.slice(0, 12)}…`}
-								</small>
-							</div>
-						) : null}
 					</section>
 				</>
 			) : (
 				<section className={styles.disconnectedQueue} aria-labelledby="local-queue">
 					<h2 id="local-queue">Fila local</h2>
 					<p>
-						Conecte o serviço para consultar a fila persistida. A ausência de conexão não significa que o processamento parou.
+						Conecte o serviço para consultar a fila persistida. A ausência de
+						conexão não significa que o processamento parou.
 					</p>
 				</section>
 			)}
+
 
 			<dialog
 				ref={dialog}

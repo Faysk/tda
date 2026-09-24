@@ -22,6 +22,7 @@ const EXACT = {
 	processing: new Set([
 		".github/workflows/ci.yml",
 		"playwright.processing.config.ts",
+		"playwright.processing-ux.config.ts",
 		"playwright.processing-integration.config.ts",
 		"tools/processing-ui-fixture.mjs",
 	]),
@@ -45,6 +46,7 @@ const PREFIX = {
 		"src/features/edit/processing/",
 		"src/app/edit/processamento/",
 		"tests/processing/",
+		"tests/processing-ux/",
 		"tests/processing-integration/",
 		"tests/processing-fixture/",
 		"local-companion/",

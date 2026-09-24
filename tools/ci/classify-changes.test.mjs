@@ -44,6 +44,8 @@ test("Processing Web paths activate the Processing E2E contract", () => {
 		true,
 	);
 	assert.equal(flags(["tests/processing/journey.spec.ts"]).processing, true);
+	assert.equal(flags(["tests/processing-ux/responsive.spec.ts"]).processing, true);
+	assert.equal(flags(["playwright.processing-ux.config.ts"]).processing, true);
 	assert.equal(
 		flags(["playwright.processing-integration.config.ts"]).processing,
 		true,
