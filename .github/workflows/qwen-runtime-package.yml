@@ -1,5 +1,6 @@
 name: Qwen Runtime Package
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
+# Runtime RC equivalence is scoped to this workflow's actual Qwen build inputs.
 
 on:
   workflow_dispatch:
