@@ -929,7 +929,10 @@ try {
     if ($null -eq $transcription) { Fail-Product "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING" }
     $runId = [string](Get-OptionalPropertyValue $transcription "run_id")
     $resultDigest = [string](Get-OptionalPropertyValue $transcription "sha256")
-    if ($runId -eq "" -or $resultDigest -notmatch '^[a-f0-9]{64}    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
+    if ($runId -eq "" -or $resultDigest -notmatch '^[a-f0-9]{64}$') {
+        Fail-Product "QWEN_FAST_RESULT_INVALID"
+    }
+    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
     $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
     $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
     $runMarkerPath = Join-Path $runRoot "run.json"
@@ -938,10 +941,12 @@ try {
     if (-not (Test-Path -LiteralPath $runTranscriptPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_MISSING" }
     $runMarker = Read-Json $runMarkerPath "IMMUTABLE_RUN_MARKER_INVALID"
     $finalAttempt = Get-RequiredProductPropertyValue $fastFinal "attempt" "QWEN_FAST_FINAL_ATTEMPT_MISSING"
+    $markerAttempt = Get-OptionalPropertyValue $runMarker "attempt"
     if (
         [string](Get-OptionalPropertyValue $runMarker "run_id") -ne $runId -or
         [string](Get-OptionalPropertyValue $runMarker "job_id") -ne $FastJobId -or
-        [int](Get-OptionalPropertyValue $runMarker "attempt") -ne [int]$finalAttempt
+        $null -eq $markerAttempt -or
+        [int]$markerAttempt -ne [int]$finalAttempt
     ) {
         Fail-Product "IMMUTABLE_RUN_IDENTITY_MISMATCH"
     }
