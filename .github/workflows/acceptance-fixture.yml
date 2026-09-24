@@ -7,10 +7,12 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
+      - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
       - "tools/acceptance/export-final-current-source-handoff.ps1"
       - "tools/acceptance/RUN-processing-final-acceptance.cmd"
+      - "tools/acceptance/RUN-processing-stable-smoke.cmd"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
@@ -22,10 +24,12 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
+      - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
       - "tools/acceptance/export-final-current-source-handoff.ps1"
       - "tools/acceptance/RUN-processing-final-acceptance.cmd"
+      - "tools/acceptance/RUN-processing-stable-smoke.cmd"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
@@ -52,6 +56,7 @@ jobs:
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "tools/acceptance/run-processing-final-acceptance.ps1",
+            "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/export-final-current-source-handoff.ps1",
@@ -759,10 +764,12 @@ jobs:
 
           foreach ($relative in @(
             "tools/acceptance/run-processing-final-acceptance.ps1",
+            "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/RUN-processing-final-acceptance.cmd",
+            "tools/acceptance/RUN-processing-stable-smoke.cmd",
             "tools/acceptance/RUN-final-current-source-acceptance.cmd"
           )) {
             $expected = (git rev-parse "$env:GITHUB_SHA`:$relative").Trim()
@@ -802,6 +809,38 @@ jobs:
           )) {
             if (-not $processing.Contains($required)) {
               throw ("HANDOFF_PROCESSING_CONTRACT_MISSING:" + $required)
+            }
+          }
+
+          $stableLauncher = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\RUN-processing-stable-smoke.cmd") -Raw
+          if (
+            -not $stableLauncher.Contains("pwsh.exe -NoProfile -ExecutionPolicy Bypass") -or
+            -not $stableLauncher.Contains("run-processing-stable-smoke.ps1")
+          ) {
+            throw "HANDOFF_STABLE_SMOKE_CMD_INVALID"
+          }
+
+          $stableSmoke = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-processing-stable-smoke.ps1") -Raw
+          foreach ($required in @(
+            "https://dnd.faysk.dev",
+            "/api/downloads/companion/windows/manifest",
+            'ExpectedStableVersion = "0.3.14"',
+            'ExpectedWhisperRuntimeVersion = "1.1.5"',
+            'ExpectedQwenRuntimeVersion = "1.0.10"',
+            "WEB_STABLE_MSI_HASH_MISMATCH",
+            "BROWSER_SESSION",
+            "Idempotency-Key",
+            "STABLE_SMOKE_IDEMPOTENCY_REPLAY_MISMATCH",
+            "QWEN_WINDOW_TRANSCRIBED",
+            "RUN_COMMIT_FENCE_WON",
+            "run.json",
+            "ExpectedArchiveSha256",
+            "replaced_superseded_same_version",
+            "tda_processing_stable_smoke_v1",
+            "PROCESSING STABLE SMOKE: PASS"
+          )) {
+            if (-not $stableSmoke.Contains($required)) {
+              throw ("HANDOFF_STABLE_SMOKE_CONTRACT_MISSING:" + $required)
             }
           }
 
