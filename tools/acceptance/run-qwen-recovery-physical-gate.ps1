@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$CraigZip,
+    [string]$CraigZip = "",
     [Parameter(Mandatory = $true)][string]$PrHeadSha,
     [Parameter(Mandatory = $true)][string]$TestedMergeSha,
     [Parameter(Mandatory = $true)][string]$SourceTreeSha,
@@ -32,6 +32,8 @@ $PairingToken = ""
 $SourceId = ""
 $QualityJobId = ""
 $FastJobId = ""
+$CraigResolved = ""
+$CraigInput = ""
 $EventSeen = @{}
 $EventCollectors = @{}
 $Verdict = "HARNESS_FAILED"
@@ -439,9 +441,6 @@ if ($null -eq (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { Fail-Blo
 & gh auth status 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) { Fail-Blocked "GH_AUTH_REQUIRED" }
 
-$CraigResolved = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
-if ([IO.Path]::GetExtension($CraigResolved).ToLowerInvariant() -ne ".zip") { Fail-Blocked "CRAIG_ZIP_REQUIRED" }
-
 $OutputBase = if ($OutputRoot) { [IO.Path]::GetFullPath($OutputRoot) } else { Join-Path $PSScriptRoot "results" }
 New-Item -ItemType Directory -Force -Path $OutputBase | Out-Null
 $RunStamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -457,6 +456,35 @@ $CompanionZip = Join-Path $Downloads "companion-actions-artifact.zip"
 New-Item -ItemType Directory -Force -Path $ScratchLocal, $Downloads, $CompanionExtract, $CompanionPortable | Out-Null
 
 try {
+    if ($CraigZip) {
+        $CraigResolved = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
+        if ([IO.Path]::GetExtension($CraigResolved).ToLowerInvariant() -ne ".zip") {
+            Fail-Blocked "CRAIG_ZIP_REQUIRED"
+        }
+        $CraigInput = "provided"
+    } else {
+        $fixtureScript = Join-Path $PSScriptRoot "generate-physical-acceptance-fixture.ps1"
+        if (-not (Test-Path -LiteralPath $fixtureScript -PathType Leaf)) {
+            Fail-Harness "SYNTHETIC_CRAIG_GENERATOR_MISSING"
+        }
+        $fixtureRoot = Join-Path $ScratchRoot "synthetic-craig"
+        try {
+            & $fixtureScript -OutputRoot $fixtureRoot -TargetSeconds 80 -CraigTrackCount 2
+        } catch {
+            Fail-Harness "SYNTHETIC_CRAIG_GENERATION_FAILED"
+        }
+        $fixtureMetadataPath = Join-Path $fixtureRoot "fixture.json"
+        $fixtureMetadata = Read-Json $fixtureMetadataPath "SYNTHETIC_CRAIG_METADATA_INVALID"
+        if ($fixtureMetadata.synthetic -ne $true -or [int]$fixtureMetadata.craig.track_count -lt 2) {
+            Fail-Harness "SYNTHETIC_CRAIG_CONTRACT_INVALID"
+        }
+        $CraigResolved = (Resolve-Path -LiteralPath (Join-Path $fixtureRoot "tda-installed-acceptance-craig.zip") -ErrorAction Stop).Path
+        if ((Get-Sha256 $CraigResolved) -ne [string]$fixtureMetadata.craig.sha256) {
+            Fail-Harness "SYNTHETIC_CRAIG_HASH_MISMATCH"
+        }
+        $CraigInput = "generated_synthetic"
+    }
+
     $head = Get-GhJson "repos/$Repository/commits/$PrHeadSha" "PR_HEAD_LOOKUP_FAILED"
     $merge = Get-GhJson "repos/$Repository/commits/$TestedMergeSha" "MERGE_LOOKUP_FAILED"
     if ([string]$head.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "PR_HEAD_TREE_MISMATCH" }
@@ -482,6 +510,7 @@ try {
         qwen_runtime_version = $QwenRuntimeVersion
         qwen_runtime_archive_sha256 = $QwenRuntimeArchiveSha256
         required_gpu_name = $RequireGpuName
+        craig_input = $CraigInput
         port = $Port
     })
     Write-Json (Join-Path $EvidenceRoot "environment.json") ([ordered]@{
