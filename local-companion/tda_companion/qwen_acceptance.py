@@ -233,7 +233,7 @@ def resolve_qwen_plan(profile_id: str, *, cuda_status: dict[str, Any] | None = N
     devices = status.get("devices") or []
     first = devices[0] if isinstance(devices, list) and devices else {}
     capability = str(first.get("compute_capability") or "")
-    if _capability_tuple(capability) < (8, 0):
+    if _capability_tuple(capability) < (7, 5):
         raise QwenAcceptanceError("QWEN_CUDA_CAPABILITY_UNSUPPORTED")
     dtype = "bfloat16" if bool(status.get("bf16_supported")) else "float16"
     return QwenPlan(profile_id=profile.id, device="cuda", dtype=dtype, compute_capability=capability)
@@ -374,6 +374,30 @@ def _model_is_cuda_only(model: Any) -> bool:
         has_offload = any(value.startswith("cpu") or value.startswith("disk") for value in values)
         return has_cuda and not has_offload
     return str(getattr(model, "device", "")).lower().startswith("cuda")
+
+
+def _effective_attention_backend(model: Any) -> str:
+    """Return the resolved Transformers attention implementation without model data."""
+    config = getattr(model, "config", None)
+    observed: list[str] = []
+    for label, candidate in (
+        ("model", config),
+        ("text", getattr(config, "text_config", None)),
+        ("audio", getattr(config, "audio_config", None)),
+    ):
+        if candidate is None:
+            continue
+        value = getattr(candidate, "_attn_implementation", None)
+        if value is None:
+            value = getattr(candidate, "attn_implementation", None)
+        backend = str(value or "").strip()
+        if backend and backend.casefold() not in {"none", "unknown"}:
+            observed.append(f"{label}:{backend[:48]}")
+    if not observed:
+        return "unknown"
+    if len(observed) == 1 and observed[0].startswith("model:"):
+        return observed[0].split(":", 1)[1]
+    return ",".join(observed)[:160]
 
 
 def _bounded_prompt(context: str, glossary: str) -> str:
@@ -543,6 +567,7 @@ def run_qwen_asr_sample(
         load_seconds = max(time.monotonic() - load_started, 0.0)
         if not _model_is_cuda_only(model):
             raise QwenAcceptanceError("QWEN_MODEL_NOT_GPU_RESIDENT")
+        attention_backend = _effective_attention_backend(model)
 
         inference_started = time.monotonic()
         audio = _decode_audio_array(audio_path)
@@ -563,6 +588,7 @@ def run_qwen_asr_sample(
             "text": text,
             "language": language,
             "compute_type": plan.dtype,
+            "attention_backend": attention_backend,
             "model_load_seconds": load_seconds,
             "inference_seconds": inference_seconds,
         }
@@ -603,6 +629,7 @@ def run_qwen_alignment_sample(
         load_seconds = max(time.monotonic() - load_started, 0.0)
         if not _model_is_cuda_only(model):
             raise QwenAcceptanceError("QWEN_ALIGNER_NOT_GPU_RESIDENT")
+        attention_backend = _effective_attention_backend(model)
 
         inference_started = time.monotonic()
         audio = _decode_audio_array(audio_path)
@@ -636,6 +663,7 @@ def run_qwen_alignment_sample(
         return {
             "words": words,
             "compute_type": plan.dtype,
+            "attention_backend": attention_backend,
             "model_load_seconds": load_seconds,
             "inference_seconds": inference_seconds,
         }
@@ -770,6 +798,7 @@ def run_qwen_gpu_acceptance(
         "inference": {
             "device": plan.device,
             "compute_type": str(asr_result.get("compute_type") or plan.dtype),
+            "attention_backend": str(asr_result.get("attention_backend") or "unknown"),
             "audio_seconds": round(duration_seconds, 3),
             "prepare_seconds": round(asr_prepare_seconds, 3),
             "model_load_seconds": round(float(asr_result.get("model_load_seconds") or 0.0), 3),
@@ -780,6 +809,7 @@ def run_qwen_gpu_acceptance(
         },
         "alignment": {
             "compute_type": str(alignment_result.get("compute_type") or plan.dtype),
+            "attention_backend": str(alignment_result.get("attention_backend") or "unknown"),
             "prepare_seconds": round(aligner_prepare_seconds, 3),
             "model_load_seconds": round(float(alignment_result.get("model_load_seconds") or 0.0), 3),
             "inference_seconds": round(alignment_inference, 3),

@@ -198,14 +198,45 @@ def _strict_alignment_segments(
     *,
     first: bool,
     last: bool,
-) -> tuple[TranscriptSegment, ...]:
+) -> tuple[tuple[TranscriptSegment, ...], int]:
     # Silence is a valid ASR outcome. Forced alignment is mandatory for actual
     # transcript text, but an empty/whitespace-only window has nothing to align
     # and must contribute zero segments instead of failing the whole session.
     if not pending.text.strip():
-        return ()
+        return (), 0
     try:
         aligned = aligner.align(window.audio, pending.text, pending.language)
+        ignored_trailing_overflow = 0
+        if not last:
+            ownership_right = window.end - QWEN_WINDOW_OVERLAP_SECONDS / 2.0
+            window_duration = window.end - window.start
+            filtered: list[dict[str, Any]] = []
+            for item in aligned:
+                if isinstance(item, dict):
+                    try:
+                        relative_start = float(item.get("start_time"))
+                        relative_end = float(item.get("end_time"))
+                    except (TypeError, ValueError):
+                        filtered.append(item)
+                        continue
+                    absolute_start = window.start + relative_start
+                    if (
+                        math.isfinite(relative_start)
+                        and math.isfinite(relative_end)
+                        and relative_end > window_duration + 0.25
+                        and absolute_start >= ownership_right
+                    ):
+                        # A non-final overlap window does not own audio after
+                        # ownership_right. If the aligner extrapolates a word
+                        # beyond the decoded window but that word starts entirely
+                        # inside the neighbor-owned trailing overlap, ignoring it
+                        # cannot remove content owned by this window.
+                        ignored_trailing_overflow += 1
+                        continue
+                filtered.append(item)
+            aligned = filtered
+        if not aligned and ignored_trailing_overflow:
+            return (), ignored_trailing_overflow
         words = _validated_words(aligned, window)
     except QwenRuntimeError as exc:
         raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED") from exc
@@ -214,12 +245,12 @@ def _strict_alignment_segments(
         # It is valid for an overlap-only window to contribute no owned words only
         # when the aligner returned words entirely in the neighbor-owned overlap.
         if words and (not first or not last):
-            return ()
+            return (), ignored_trailing_overflow
         raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
     segments = _segments_from_words(track_number, window, owned)
     if not segments:
         raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
-    return segments
+    return segments, ignored_trailing_overflow
 
 
 def transcribe_craig_package_qwen_strict(
@@ -269,13 +300,26 @@ def transcribe_craig_package_qwen_strict(
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": "strict-overlap-v2",
     }
+    report({"type": "stage", "stage": "runtime_fingerprint", "profile": profile.id})
+    fingerprint_started = time.monotonic()
+    runtime_fingerprint = _runtime_fingerprint()
+    report(
+        {
+            "type": "event",
+            "code": "QWEN_RUNTIME_FINGERPRINT_READY",
+            "stage": "runtime_fingerprint",
+            "duration_ms": round((time.monotonic() - fingerprint_started) * 1000.0, 2),
+        }
+    )
+    report({"type": "stage", "stage": "checkpoint_scan", "profile": profile.id})
+    checkpoint_scan_started = time.monotonic()
     signature = build_checkpoint_signature(
         package,
         profile,
         recipe=recipe,
         context=" ".join(context.split())[:2000].strip(),
         glossary=" ".join(glossary.split())[:2000].strip(),
-        runtime_fingerprint=_runtime_fingerprint(),
+        runtime_fingerprint=runtime_fingerprint,
     )
 
     cached_tracks: dict[int, TranscriptTrack] = {}
@@ -315,7 +359,10 @@ def transcribe_craig_package_qwen_strict(
     started = time.monotonic()
     pending_text: dict[int, list[QwenWindowTranscript]] = {}
     asr_tracks = []
+    text_checkpoint_reused = 0
     for track in pending_tracks:
+        if is_cancelled():
+            raise QwenRuntimeError("ASR_CANCELLED")
         cached_text = (
             load_qwen_text_checkpoint(package_root, signature, track)
             if checkpoints
@@ -338,6 +385,7 @@ def transcribe_craig_package_qwen_strict(
             )
             for item in cached_text
         ]
+        text_checkpoint_reused += 1
         report(
             {
                 "type": "event",
@@ -348,6 +396,19 @@ def transcribe_craig_package_qwen_strict(
                 "speaker": track.speaker,
             }
         )
+
+    report(
+        {
+            "type": "event",
+            "code": "ASR_CHECKPOINT_SCAN_COMPLETED",
+            "stage": "checkpoint_scan",
+            "track_count": total_tracks,
+            "aligned_reused": len(cached_tracks),
+            "text_reused": text_checkpoint_reused,
+            "pending_asr": len(asr_tracks),
+            "duration_ms": round((time.monotonic() - checkpoint_scan_started) * 1000.0, 2),
+        }
+    )
 
     if asr_tracks:
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
@@ -471,7 +532,7 @@ def transcribe_craig_package_qwen_strict(
                     if pending is None or not math.isclose(pending.start, window.start, abs_tol=0.001) or not math.isclose(pending.end, window.end, abs_tol=0.001):
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                     seen.add(window.index)
-                    window_segments = _strict_alignment_segments(
+                    window_segments, ignored_trailing_overflow = _strict_alignment_segments(
                         track.number,
                         window,
                         pending,
@@ -479,6 +540,17 @@ def transcribe_craig_package_qwen_strict(
                         first=window.index == expected[0].index,
                         last=window.index == last_index,
                     )
+                    if ignored_trailing_overflow:
+                        report(
+                            {
+                                "type": "event",
+                                "code": "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
+                                "stage": "alignment",
+                                "track": track.number,
+                                "window": window.index,
+                                "count": ignored_trailing_overflow,
+                            }
+                        )
                     segments.extend(window_segments)
                     for segment in window_segments:
                         key = (track.number, segment.id)

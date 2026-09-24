@@ -129,6 +129,8 @@ export const stageLabels: Record<string, string> = {
 	queued: "Aguardando execução",
 	runtime_validation: "Validando runtime e gate físico",
 	runtime_bootstrap: "Inicializando runtime local",
+	runtime_fingerprint: "Confirmando identidade do runtime",
+	checkpoint_scan: "Verificando checkpoints locais",
 	source_validation: "Validando sessão local",
 	fixture: "Ensaio sintético",
 	checking_model: "Verificando modelo",
@@ -224,6 +226,18 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			const window = numberData(event, "window");
 			return {
 				title: `Qwen concluiu uma janela de áudio${track !== null ? ` da faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
+			};
+		}
+		case "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED": {
+			const count = numberData(event, "count");
+			return {
+				title:
+					count === 1
+						? "Um timestamp extrapolado no overlap vizinho foi ignorado com segurança."
+						: count !== null
+							? `${count} timestamps extrapolados no overlap vizinho foram ignorados com segurança.`
+							: "Timestamps extrapolados no overlap vizinho foram ignorados com segurança.",
+				detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
 			};
 		}
 		case "ASR_CHECKPOINT_FAST_PATH":

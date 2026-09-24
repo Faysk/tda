@@ -241,7 +241,7 @@ def _validate_acceptance(
         if code not in {"QWEN_CUDA_DRIVER_INCOMPATIBLE", "QWEN_CUDA_EXECUTION_FAILED"}:
             code = "QWEN_CUDA_EXECUTION_FAILED"
         raise QwenPhysicalGateError(code)
-    if _capability_tuple(first.get("compute_capability")) < (8, 0):
+    if _capability_tuple(first.get("compute_capability")) < (7, 5):
         raise QwenPhysicalGateError("QWEN_GATE_GPU_UNSUPPORTED")
 
     required = (required_gpu_name or "").strip()
@@ -250,6 +250,15 @@ def _validate_acceptance(
     for value in (gpu, alignment_gpu):
         if not str(value.get("name") or "").strip():
             raise QwenPhysicalGateError("QWEN_GATE_GPU_INVALID")
+        if value.get("available") is not True:
+            raise QwenPhysicalGateError("QWEN_GATE_GPU_METRICS_REQUIRED")
+        try:
+            total_memory = int(value.get("memory_total_bytes") or 0)
+            peak_memory = int(value.get("peak_memory_used_bytes") or 0)
+        except (TypeError, ValueError) as exc:
+            raise QwenPhysicalGateError("QWEN_GATE_GPU_METRICS_REQUIRED") from exc
+        if total_memory <= 0 or peak_memory <= 0 or peak_memory > total_memory:
+            raise QwenPhysicalGateError("QWEN_GATE_GPU_METRICS_REQUIRED")
         if required:
             if value.get("required_name_match") is not True:
                 raise QwenPhysicalGateError("QWEN_GATE_GPU_NAME_MISMATCH")
@@ -258,6 +267,15 @@ def _validate_acceptance(
 
     inference = receipt.get("inference") if isinstance(receipt.get("inference"), dict) else {}
     alignment = receipt.get("alignment") if isinstance(receipt.get("alignment"), dict) else {}
+    attention_backend = str(inference.get("attention_backend") or "").strip()
+    alignment_attention_backend = str(alignment.get("attention_backend") or "").strip()
+    if (
+        not attention_backend
+        or attention_backend.casefold() == "unknown"
+        or not alignment_attention_backend
+        or alignment_attention_backend.casefold() == "unknown"
+    ):
+        raise QwenPhysicalGateError("QWEN_GATE_ATTENTION_BACKEND_REQUIRED")
     try:
         audio_seconds = float(inference.get("audio_seconds") or 0.0)
     except (TypeError, ValueError) as exc:
@@ -315,6 +333,7 @@ def record_qwen_physical_gate(
     aligner = _aligner_identity(models_root, verify_hash=True)
     binding = _binding_payload(profile_id, runtime, model, aligner)
     gpu = accepted["gpu"]
+    alignment_gpu = accepted["alignment_gpu"]
     cuda = accepted["cuda"]
     devices = cuda.get("devices") if isinstance(cuda.get("devices"), list) else []
     first = devices[0] if devices and isinstance(devices[0], dict) else {}
@@ -335,9 +354,15 @@ def record_qwen_physical_gate(
         },
         "metrics": {
             "compute_type": str(inference.get("compute_type") or ""),
+            "attention_backend": str(inference.get("attention_backend") or ""),
+            "alignment_attention_backend": str(alignment.get("attention_backend") or ""),
             "audio_seconds": float(inference.get("audio_seconds") or 0.0),
             "transcription_rtf": float(inference.get("rtf") or 0.0),
             "alignment_rtf": float(alignment.get("rtf") or 0.0),
+            "asr_peak_memory_used_bytes": int(gpu.get("peak_memory_used_bytes") or 0),
+            "alignment_peak_memory_used_bytes": int(
+                alignment_gpu.get("peak_memory_used_bytes") or 0
+            ),
             "word_count": int(alignment.get("word_count") or 0),
         },
         "contains_audio": False,

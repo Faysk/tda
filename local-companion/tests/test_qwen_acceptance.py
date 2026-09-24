@@ -69,6 +69,7 @@ def _asr(_model_root: Path, _audio: Path, plan, *, prompt: str) -> dict:
         "text": "segredo da mesa",
         "language": "Portuguese",
         "compute_type": "bfloat16",
+        "attention_backend": "sdpa",
         "model_load_seconds": 0.2,
         "inference_seconds": 0.5,
     }
@@ -85,6 +86,7 @@ def _align(_aligner_root: Path, _audio: Path, text: str, language: str, plan) ->
             {"text": "mesa", "start": 0.5, "end": 0.8},
         ],
         "compute_type": "bfloat16",
+        "attention_backend": "sdpa",
         "model_load_seconds": 0.1,
         "inference_seconds": 0.2,
     }
@@ -104,7 +106,7 @@ def _fake_qwen_modules(monkeypatch, processor):
         hf_device_map = {"": "cuda:0"}
         device = "cuda:0"
         dtype = "bfloat16"
-        config = SimpleNamespace(timestamp_token_id=1)
+        config = SimpleNamespace(timestamp_token_id=1, _attn_implementation="sdpa")
 
     class FakeAutoProcessor:
         @staticmethod
@@ -217,6 +219,10 @@ def test_qwen_receipt_proves_gpu_and_alignment_without_leaking_transcript(tmp_pa
     assert receipt["pass"] is True
     assert receipt["inference"]["device"] == "cuda"
     assert receipt["inference"]["compute_type"] == "bfloat16"
+    assert receipt["inference"]["attention_backend"] == "sdpa"
+    assert receipt["alignment"]["attention_backend"] == "sdpa"
+    assert receipt["gpu"]["peak_memory_used_bytes"] == 7 * 1024**3
+    assert receipt["alignment_gpu"]["peak_memory_used_bytes"] == 7 * 1024**3
     assert receipt["alignment"]["word_count"] == 3
     assert receipt["gpu"]["required_name_match"] is True
     assert receipt["alignment_gpu"]["required_name_match"] is True
@@ -272,21 +278,17 @@ def test_qwen_requires_cuda_capability_and_expected_gpu(tmp_path: Path):
             duration_reader=_duration,
         )
 
+    turing = _cuda()
+    turing["bf16_supported"] = False
+    turing["devices"] = [{**turing["devices"][0], "compute_capability": "7.5"}]
+    plan = acceptance.resolve_qwen_plan("qwen-fast", cuda_status=turing)
+    assert plan.compute_capability == "7.5"
+    assert plan.dtype == "float16"
+
     unsupported = _cuda()
-    unsupported["devices"] = [{**unsupported["devices"][0], "compute_capability": "7.5"}]
+    unsupported["devices"] = [{**unsupported["devices"][0], "compute_capability": "7.0"}]
     with pytest.raises(QwenAcceptanceError, match="QWEN_CUDA_CAPABILITY_UNSUPPORTED"):
-        run_qwen_gpu_acceptance(
-            audio,
-            tmp_path / "Models",
-            profile_id="qwen-fast",
-            cuda_status=unsupported,
-            prepare_model=_prepare_model,
-            prepare_aligner=_prepare_aligner,
-            asr_runner=_asr,
-            aligner_runner=_align,
-            monitor_factory=_Monitor,
-            duration_reader=_duration,
-        )
+        acceptance.resolve_qwen_plan("qwen-fast", cuda_status=unsupported)
 
     with pytest.raises(QwenAcceptanceError, match="QWEN_ACCEPTANCE_GPU_NAME_MISMATCH"):
         run_qwen_gpu_acceptance(
