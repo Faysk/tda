@@ -146,6 +146,7 @@ export type LocalRunSummary = {
 	transcriptSha256: string;
 	transcriptSizeBytes: number;
 	stats: {
+		audioWorkSeconds: number | null;
 		processingSeconds: number | null;
 		sessionDurationSeconds: number | null;
 		rtf: number | null;
@@ -188,6 +189,7 @@ export type LocalReview = {
 		completedAt: string | null;
 	};
 	stats: {
+		audioWorkSeconds: number | null;
 		processingSeconds: number | null;
 		sessionDurationSeconds: number | null;
 		rtf: number | null;
@@ -668,6 +670,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				return size;
 			})(),
 			stats: {
+				audioWorkSeconds: nullableMetric(stats.audio_work_seconds),
 				processingSeconds: nullableMetric(stats.processing_seconds),
 				sessionDurationSeconds: nullableMetric(stats.session_duration_seconds),
 				rtf: nullableMetric(stats.rtf),
@@ -747,6 +750,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 			completedAt: nullableIsoDate(lineage.completed_at),
 		},
 		stats: {
+			audioWorkSeconds: nullableNonNegativeNumber(stats.audio_work_seconds),
 			processingSeconds: nullableNonNegativeNumber(stats.processing_seconds),
 			sessionDurationSeconds: nullableNonNegativeNumber(stats.session_duration_seconds),
 			rtf: nullableNonNegativeNumber(stats.rtf),
