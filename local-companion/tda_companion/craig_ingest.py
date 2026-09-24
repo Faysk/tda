@@ -86,7 +86,6 @@ def _summary(
                 "number": track.number,
                 "speaker": track.speaker,
                 "size_bytes": track.size_bytes,
-                "duration_seconds": track.duration_seconds,
             }
             for track in package.tracks
         ],
