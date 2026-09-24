@@ -152,6 +152,36 @@
 	color: var(--ds-danger-foreground, #c33);
 }
 
+
+.card[data-layout="compact"] .heading {
+	align-items: flex-start;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.card[data-layout="compact"] .form {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card[data-layout="compact"] .fileField,
+.card[data-layout="compact"] .actions,
+.card[data-layout="compact"] .advanced,
+.card[data-layout="compact"] .notice,
+.card[data-layout="compact"] .error {
+	grid-column: 1 / -1;
+}
+
+.card[data-layout="compact"] .actions {
+	align-items: center;
+	justify-content: space-between;
+}
+
+.card[data-layout="compact"] .actions span {
+	max-width: 170px;
+	text-align: right;
+}
+
 @media (max-width: 1100px) {
 	.form {
 		grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -240,6 +240,29 @@
 	font-weight: 500;
 }
 
+.overviewTop {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+	align-items: stretch;
+	gap: 10px;
+	min-width: 0;
+}
+
+.overviewTop > section:first-child {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+}
+
+.overviewTop > section:first-child > :last-child {
+	flex: 1 1 auto;
+}
+
+.submissionCard {
+	height: 100%;
+	margin: 0;
+}
+
 .workspace {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(310px, 370px);
@@ -777,6 +800,7 @@
 }
 
 @media (max-width: 1180px) {
+	.overviewTop,
 	.workspace {
 		grid-template-columns: 1fr;
 	}

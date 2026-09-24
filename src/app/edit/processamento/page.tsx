@@ -6,7 +6,6 @@ import {
 } from "@/features/edit/access/policy";
 import { CompanionDownload } from "@/features/edit/processing/companion-download";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
-import { ProcessingSubmission } from "@/features/edit/processing/submission";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/processing/processing.module.css";
 import pageStyles from "./page.module.css";
@@ -33,7 +32,6 @@ export default async function ProcessingPage() {
 		<section className={styles.page} data-processing-workspace="true">
 			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
 
-			<ProcessingSubmission />
 			<ProcessingPanel publicationEnabled={publicationEnabled} />
 
 			<details className={pageStyles.companionMaintenance}>

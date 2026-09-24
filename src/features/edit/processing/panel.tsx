@@ -7,6 +7,7 @@ import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
 import { publishApprovedLocalReview } from "./publication-client";
+import { ProcessingSubmission } from "./submission";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -459,9 +460,8 @@ export function ProcessingPanel({
 
 			{connected ? (
 				<>
-					<div className={styles.workspace}>
-						<div className={styles.primaryColumn}>
-							<section aria-labelledby="processing-now">
+					<div className={styles.overviewTop}>
+						<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
 									<h2 id="processing-now">Processando agora</h2>
 									{state.checkedAt ? (
@@ -530,7 +530,11 @@ export function ProcessingPanel({
 									</div>
 								)}
 							</section>
+						<ProcessingSubmission className={styles.submissionCard} compact />
+					</div>
 
+					<div className={styles.workspace}>
+						<div className={styles.primaryColumn}>
 							{queued.length ? (
 								<section aria-labelledby="queued-jobs">
 									<div className={styles.sectionHeading}>
