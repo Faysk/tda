@@ -21,6 +21,35 @@ def test_qwen_physical_gate_matches_bounded_operational_window():
     assert QWEN_GATE_WINDOW_SECONDS == QWEN_WINDOW_SECONDS
 
 
+def test_qwen_probe_uses_cold_bootstrap_budget(monkeypatch, tmp_path: Path):
+    worker = tmp_path / "TDAQwenWorker.exe"
+    worker.write_bytes(b"worker")
+    monkeypatch.setattr(prepare, "current_qwen_worker", lambda _root: worker)
+    observed = {}
+
+    def runner(command, **kwargs):  # noqa: ANN001, ANN003
+        observed["command"] = command
+        observed["timeout"] = kwargs["timeout"]
+        return _result(
+            {
+                "schema": "tda_qwen_runtime_probe_v1",
+                "ready": True,
+                "audio_decode_ready": True,
+                "cuda_available": True,
+                "cuda_execution_ready": True,
+                "cuda_execution_error": None,
+                "driver_version": "570.144",
+                "long_track_acceptance_window": True,
+            }
+        )
+
+    value = probe_qwen_long_track_gate(tmp_path / "Runtime", runner=runner)
+
+    assert value["ready"] is True
+    assert observed["command"] == [str(worker), "--probe"]
+    assert observed["timeout"] == prepare.QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS == 120.0
+
+
 def test_probe_requires_runtime_long_track_gate_feature(monkeypatch, tmp_path: Path):
     worker = tmp_path / "TDAQwenWorker.exe"
     worker.write_bytes(b"worker")

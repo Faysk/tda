@@ -21,6 +21,10 @@ from .qwen_runtime import current_qwen_worker
 
 _MAX_STDOUT_BYTES = 64 * 1024
 _GATE_TIMEOUT_SECONDS = 2 * 60 * 60
+# Frozen Torch/Transformers/CUDA bootstrap is the same heavyweight boundary used
+# by the normal Qwen worker. Keep first-use preparation bounded, but give a cold
+# process the same budget as WorkerSupervisor.runtime_bootstrap_timeout.
+QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS = 120.0
 ProgressCallback = Callable[[str, dict[str, object]], None]
 
 _RETRYABLE_TRACK_ERRORS = {
@@ -141,7 +145,7 @@ def probe_qwen_long_track_gate(
         raise QwenDesktopPrepareError("QWEN_RUNTIME_UNAVAILABLE")
     result = _run(
         [str(worker), "--probe"],
-        timeout=30.0,
+        timeout=QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS,
         runner=runner,
         is_cancelled=is_cancelled,
     )

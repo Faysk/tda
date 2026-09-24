@@ -202,4 +202,4 @@ def test_qwen_diagnostic_passes_only_with_integrity_native_support_and_compatibl
     assert "RTX 4070" in result["detail"]
     assert "CC 8.9" in result["detail"]
     assert calls["command"][1] == "--probe"
-    assert calls["kwargs"]["timeout"] == 20
+    assert calls["kwargs"]["timeout"] == diagnostics.QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS == 120.0
