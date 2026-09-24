@@ -270,3 +270,92 @@ jobs:
           git fetch --force origin "refs/tags/$STABLE_TAG:refs/tags/$STABLE_TAG"
           [[ "$(git rev-list -n 1 "$STABLE_TAG")" == "$SOURCE_SHA" ]] || { echo "::error::Stable tag target mismatch"; exit 1; }
           echo "STABLE_PROMOTION_VERIFIED tag=$STABLE_TAG source=$SOURCE_SHA"
+
+      - name: Verify canonical Web resolves promoted Stable
+        shell: bash
+        env:
+          STABLE_TAG: ${{ steps.evidence.outputs.stable_tag }}
+          VERSION: ${{ steps.evidence.outputs.version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          base = "https://dnd.faysk.dev"
+          tag = os.environ["STABLE_TAG"]
+          version = os.environ["VERSION"]
+          promotion = json.load(open("prepared/TDACompanion-promotion.json", encoding="utf-8"))
+          expected_sha = promotion["assets"]["msi"]["sha256"]
+          expected_url = f"https://github.com/Faysk/tda/releases/download/{tag}/TDACompanion-x64.msi"
+          candidate = json.load(open("rc-assets/TDACompanion-candidate.json", encoding="utf-8"))
+          expected_size = candidate["assets"]["msi"]["size"]
+
+          headers = {
+              "Accept": "application/json",
+              "Cache-Control": "no-cache",
+              "Pragma": "no-cache",
+              "User-Agent": "tda-stable-promotion-smoke/1",
+          }
+
+          manifest = None
+          last_error = None
+          for _ in range(12):
+              try:
+                  request = urllib.request.Request(
+                      f"{base}/api/downloads/companion/windows/manifest",
+                      headers=headers,
+                  )
+                  with urllib.request.urlopen(request, timeout=15) as response:
+                      value = json.loads(response.read().decode("utf-8"))
+                  asset = value.get("asset") if isinstance(value, dict) else None
+                  if (
+                      value.get("channel") == "stable"
+                      and value.get("tag") == tag
+                      and value.get("version") == version
+                      and isinstance(asset, dict)
+                      and asset.get("sha256") == expected_sha
+                      and asset.get("size") == expected_size
+                  ):
+                      manifest = value
+                      break
+                  last_error = f"manifest identity mismatch: {value!r}"
+              except Exception as exc:
+                  last_error = f"{type(exc).__name__}: {exc}"
+              time.sleep(5)
+
+          if manifest is None:
+              raise SystemExit(f"CANONICAL_WEB_STABLE_MANIFEST_MISMATCH:{last_error}")
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect)
+          for suffix in ("", f"?tag={tag}"):
+              request = urllib.request.Request(
+                  f"{base}/api/downloads/companion/windows{suffix}",
+                  headers={**headers, "Accept": "*/*"},
+              )
+              try:
+                  opener.open(request, timeout=15)
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 307 or exc.headers.get("Location") != expected_url:
+                      raise SystemExit(
+                          "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH:"
+                          f"{suffix or 'default'}:{exc.code}:{exc.headers.get('Location')}"
+                      ) from exc
+              else:
+                  raise SystemExit(
+                      f"CANONICAL_WEB_STABLE_REDIRECT_MISSING:{suffix or 'default'}"
+                  )
+
+          print(
+              "CANONICAL_WEB_STABLE_VERIFIED "
+              f"tag={tag} version={version} sha256={expected_sha}"
+          )
+          PY
+
