@@ -1,8 +1,8 @@
-body:has([data-edit-shell="true"]) .site-header,
-body:has([data-edit-shell="true"]) .site-footer {
+/*
+ * Edit now shares the canonical TDA header instead of replacing it with a
+ * feature-specific rail. Operational workspaces may opt out of the public
+ * footer when they need the full remaining viewport.
+ */
+body:has([data-processing-workspace="true"]) .site-footer {
 	display: none;
-}
-
-body:has([data-edit-shell="true"]) #conteudo {
-	min-height: 100dvh;
 }
