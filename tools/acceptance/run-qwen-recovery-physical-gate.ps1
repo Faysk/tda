@@ -1,19 +1,28 @@
 [CmdletBinding()]
 param(
     [string]$CraigZip = "",
-    [Parameter(Mandatory = $true)][string]$PrHeadSha,
-    [Parameter(Mandatory = $true)][string]$TestedMergeSha,
-    [Parameter(Mandatory = $true)][string]$SourceTreeSha,
-    [Parameter(Mandatory = $true)][long]$CompanionWorkflowRunId,
-    [Parameter(Mandatory = $true)][long]$CompanionArtifactId,
-    [Parameter(Mandatory = $true)][long]$CompanionArtifactSize,
-    [Parameter(Mandatory = $true)][string]$CompanionArtifactSha256,
-    [Parameter(Mandatory = $true)][long]$QwenWorkflowRunId,
-    [Parameter(Mandatory = $true)][long]$QwenArtifactId,
-    [Parameter(Mandatory = $true)][long]$QwenArtifactSize,
-    [Parameter(Mandatory = $true)][string]$QwenArtifactSha256,
-    [Parameter(Mandatory = $true)][string]$QwenRuntimeVersion,
-    [Parameter(Mandatory = $true)][string]$QwenRuntimeArchiveSha256,
+    # Final release acceptance passes the exact RC bytes already installed and
+    # verified by run-final-current-source-acceptance.ps1. This avoids testing a
+    # superseded PR Actions artifact and avoids downloading the multi-GB Qwen
+    # bundle twice.
+    [string]$CompanionExePath = "",
+    [string]$CompanionPayloadManifest = "",
+    [string]$QwenRuntimeCandidateManifest = "",
+    [string]$QwenInstalledRuntimeRoot = "",
+    # Legacy PR-artifact mode remains available for development-only gates.
+    [string]$PrHeadSha = "",
+    [string]$TestedMergeSha = "",
+    [string]$SourceTreeSha = "",
+    [long]$CompanionWorkflowRunId = 0,
+    [long]$CompanionArtifactId = 0,
+    [long]$CompanionArtifactSize = 0,
+    [string]$CompanionArtifactSha256 = "",
+    [long]$QwenWorkflowRunId = 0,
+    [long]$QwenArtifactId = 0,
+    [long]$QwenArtifactSize = 0,
+    [string]$QwenArtifactSha256 = "",
+    [string]$QwenRuntimeVersion = "",
+    [string]$QwenRuntimeArchiveSha256 = "",
     [string]$RequireGpuName = "RTX 4070",
     [ValidateRange(1024, 65535)][int]$Port = 18765,
     [string]$Repository = "Faysk/tda",
@@ -142,7 +151,14 @@ function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, 
 
     $root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($ScratchPath))
     $drive = [IO.DriveInfo]::new($root)
-    [long]$requiredFree = $modelBytes + ($QwenArtifactSize * 3L) + ($CompanionArtifactSize * 2L) + 2GB
+    [long]$runtimeScratchBytes = if ($ExactRcMode) {
+        # One isolated copy of the already accepted runtime; there is no second
+        # Actions-artifact download/extract in exact-RC mode.
+        $QwenArtifactSize + $CompanionArtifactSize
+    } else {
+        ($QwenArtifactSize * 3L) + ($CompanionArtifactSize * 2L)
+    }
+    [long]$requiredFree = $modelBytes + $runtimeScratchBytes + 2GB
     if ([long]$drive.AvailableFreeSpace -lt $requiredFree) {
         Fail-Blocked "SCRATCH_DISK_SPACE_INSUFFICIENT"
     }
@@ -425,13 +441,89 @@ function Assert-NoEvidenceLeak([string]$EvidenceRoot, [string]$SecretToken, [str
     }
 }
 
-Assert-HexSha $PrHeadSha "PR_HEAD_SHA_INVALID"
-Assert-HexSha $TestedMergeSha "MERGE_SHA_INVALID"
-Assert-HexSha $SourceTreeSha "TREE_SHA_INVALID"
-Assert-HexSha256 $CompanionArtifactSha256 "COMPANION_ARTIFACT_SHA_INVALID"
-Assert-HexSha256 $QwenArtifactSha256 "QWEN_ARTIFACT_SHA_INVALID"
-Assert-HexSha256 $QwenRuntimeArchiveSha256 "QWEN_RUNTIME_ARCHIVE_SHA_INVALID"
-if ($QwenRuntimeVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Fail-Harness "QWEN_RUNTIME_VERSION_INVALID" }
+$ExactRcValues = @(
+    $CompanionExePath,
+    $CompanionPayloadManifest,
+    $QwenRuntimeCandidateManifest,
+    $QwenInstalledRuntimeRoot
+)
+$ExactRcProvided = @($ExactRcValues | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
+$ExactRcMode = $ExactRcProvided -eq $ExactRcValues.Count
+if ($ExactRcProvided -gt 0 -and -not $ExactRcMode) { Fail-Harness "EXACT_RC_INPUTS_INCOMPLETE" }
+
+$CompanionPayload = $null
+$QwenCandidate = $null
+$CompanionExeResolved = ""
+$QwenInstalledRuntimeResolved = ""
+if ($ExactRcMode) {
+    try {
+        $CompanionExeResolved = (Resolve-Path -LiteralPath $CompanionExePath -ErrorAction Stop).Path
+        $CompanionPayloadManifest = (Resolve-Path -LiteralPath $CompanionPayloadManifest -ErrorAction Stop).Path
+        $QwenRuntimeCandidateManifest = (Resolve-Path -LiteralPath $QwenRuntimeCandidateManifest -ErrorAction Stop).Path
+        $QwenInstalledRuntimeResolved = (Resolve-Path -LiteralPath $QwenInstalledRuntimeRoot -ErrorAction Stop).Path
+    } catch {
+        Fail-Harness "EXACT_RC_INPUT_PATH_MISSING"
+    }
+    if (-not (Test-Path -LiteralPath $CompanionExeResolved -PathType Leaf)) { Fail-Harness "EXACT_RC_COMPANION_EXE_MISSING" }
+    if (-not (Test-Path -LiteralPath $QwenInstalledRuntimeResolved -PathType Container)) { Fail-Harness "EXACT_RC_QWEN_RUNTIME_MISSING" }
+
+    $CompanionPayload = Read-Json $CompanionPayloadManifest "EXACT_RC_PAYLOAD_INVALID"
+    $QwenCandidate = Read-Json $QwenRuntimeCandidateManifest "EXACT_RC_QWEN_CANDIDATE_INVALID"
+    if (
+        [string]$CompanionPayload.schema -ne "tda_companion_payload_v1" -or
+        [string]$CompanionPayload.version -ne "0.3.14" -or
+        [string]$CompanionPayload.source_sha -notmatch '^[a-f0-9]{40}$' -or
+        [string]$CompanionPayload.source_tree_sha -notmatch '^[a-f0-9]{40}$'
+    ) { Fail-Harness "EXACT_RC_PAYLOAD_IDENTITY_INVALID" }
+    $exeMeta = $CompanionPayload.files.'TDACompanion.exe'
+    if ($null -eq $exeMeta -or [string]$exeMeta.sha256 -notmatch '^[a-f0-9]{64}$') {
+        Fail-Harness "EXACT_RC_COMPANION_EXE_IDENTITY_MISSING"
+    }
+    if ((Get-Sha256 $CompanionExeResolved) -ne [string]$exeMeta.sha256) {
+        Fail-Harness "EXACT_RC_COMPANION_EXE_HASH_MISMATCH"
+    }
+
+    if (
+        [string]$QwenCandidate.schema -ne "tda_runtime_candidate_v1" -or
+        [string]$QwenCandidate.family -ne "qwen" -or
+        [string]$QwenCandidate.runtime_id -ne "qwen3-transformers" -or
+        [string]$QwenCandidate.platform -ne "windows-x64" -or
+        [string]$QwenCandidate.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or
+        [string]$QwenCandidate.candidate_tag -notmatch '^companion-qwen-runtime-rc-v' -or
+        [string]$QwenCandidate.source_sha -notmatch '^[a-f0-9]{40}$' -or
+        [string]$QwenCandidate.source_tree_sha -notmatch '^[a-f0-9]{40}$' -or
+        [string]$QwenCandidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) { Fail-Harness "EXACT_RC_QWEN_CANDIDATE_IDENTITY_INVALID" }
+
+    $QwenRuntimeVersion = [string]$QwenCandidate.version
+    $QwenRuntimeArchiveSha256 = [string]$QwenCandidate.runtime_archive_sha256
+    if ([IO.Path]::GetFileName($QwenInstalledRuntimeResolved) -ne $QwenRuntimeVersion) {
+        Fail-Harness "EXACT_RC_QWEN_RUNTIME_PATH_VERSION_MISMATCH"
+    }
+    $installedMarkerPath = Join-Path $QwenInstalledRuntimeResolved ".tda-runtime.json"
+    $installedMarker = Read-Json $installedMarkerPath "EXACT_RC_QWEN_RUNTIME_MARKER_INVALID"
+    $installedWorker = Join-Path $QwenInstalledRuntimeResolved "TDAQwenWorker.exe"
+    if (
+        [string]$installedMarker.schema -ne "tda_asr_runtime_v1" -or
+        [string]$installedMarker.runtime_id -ne "qwen3-transformers" -or
+        [string]$installedMarker.version -ne $QwenRuntimeVersion -or
+        [string]$installedMarker.archive_sha256 -ne $QwenRuntimeArchiveSha256 -or
+        [string]$installedMarker.worker_sha256 -notmatch '^[a-f0-9]{64}$' -or
+        -not (Test-Path -LiteralPath $installedWorker -PathType Leaf) -or
+        (Get-Sha256 $installedWorker) -ne [string]$installedMarker.worker_sha256
+    ) { Fail-Harness "EXACT_RC_QWEN_RUNTIME_IDENTITY_MISMATCH" }
+
+    $CompanionArtifactSize = [long](Get-Item -LiteralPath $CompanionExeResolved).Length
+    $QwenArtifactSize = [long](Get-ChildItem -LiteralPath $QwenInstalledRuntimeResolved -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
+} else {
+    Assert-HexSha $PrHeadSha "PR_HEAD_SHA_INVALID"
+    Assert-HexSha $TestedMergeSha "MERGE_SHA_INVALID"
+    Assert-HexSha $SourceTreeSha "TREE_SHA_INVALID"
+    Assert-HexSha256 $CompanionArtifactSha256 "COMPANION_ARTIFACT_SHA_INVALID"
+    Assert-HexSha256 $QwenArtifactSha256 "QWEN_ARTIFACT_SHA_INVALID"
+    Assert-HexSha256 $QwenRuntimeArchiveSha256 "QWEN_RUNTIME_ARCHIVE_SHA_INVALID"
+    if ($QwenRuntimeVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Fail-Harness "QWEN_RUNTIME_VERSION_INVALID" }
+}
 if ($Repository -ne "Faysk/tda") { Fail-Harness "REPOSITORY_INVALID" }
 if ($Origin -ne "https://dnd.faysk.dev") { Fail-Harness "ORIGIN_INVALID" }
 if (-not $OriginalLocalAppData) { Fail-Blocked "LOCALAPPDATA_NOT_FOUND" }
@@ -485,14 +577,32 @@ try {
         $CraigInput = "generated_synthetic"
     }
 
-    $head = Get-GhJson "repos/$Repository/commits/$PrHeadSha" "PR_HEAD_LOOKUP_FAILED"
-    $merge = Get-GhJson "repos/$Repository/commits/$TestedMergeSha" "MERGE_LOOKUP_FAILED"
-    if ([string]$head.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "PR_HEAD_TREE_MISMATCH" }
-    if ([string]$merge.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "MERGE_TREE_MISMATCH" }
-    if (@($merge.parents | Where-Object { [string]$_.sha -eq $PrHeadSha }).Count -ne 1) { Fail-Harness "MERGE_PARENT_HEAD_MISSING" }
+    if ($ExactRcMode) {
+        $companionMeta = [ordered]@{
+            input_mode = "exact_installed_rc"
+            version = [string]$CompanionPayload.version
+            source_sha = [string]$CompanionPayload.source_sha
+            source_tree_sha = [string]$CompanionPayload.source_tree_sha
+            executable_sha256 = Get-Sha256 $CompanionExeResolved
+        }
+        $qwenMeta = [ordered]@{
+            input_mode = "exact_installed_rc"
+            candidate_tag = [string]$QwenCandidate.candidate_tag
+            version = [string]$QwenCandidate.version
+            source_sha = [string]$QwenCandidate.source_sha
+            source_tree_sha = [string]$QwenCandidate.source_tree_sha
+            runtime_archive_sha256 = [string]$QwenCandidate.runtime_archive_sha256
+        }
+    } else {
+        $head = Get-GhJson "repos/$Repository/commits/$PrHeadSha" "PR_HEAD_LOOKUP_FAILED"
+        $merge = Get-GhJson "repos/$Repository/commits/$TestedMergeSha" "MERGE_LOOKUP_FAILED"
+        if ([string]$head.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "PR_HEAD_TREE_MISMATCH" }
+        if ([string]$merge.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "MERGE_TREE_MISMATCH" }
+        if (@($merge.parents | Where-Object { [string]$_.sha -eq $PrHeadSha }).Count -ne 1) { Fail-Harness "MERGE_PARENT_HEAD_MISSING" }
 
-    $companionMeta = Assert-WorkflowArtifact $CompanionWorkflowRunId $CompanionArtifactId "TDACompanion-windows-x64" $CompanionArtifactSize $CompanionArtifactSha256
-    $qwenMeta = Assert-WorkflowArtifact $QwenWorkflowRunId $QwenArtifactId "TDAQwenRuntimeBundle-windows-x64" $QwenArtifactSize $QwenArtifactSha256
+        $companionMeta = Assert-WorkflowArtifact $CompanionWorkflowRunId $CompanionArtifactId "TDACompanion-windows-x64" $CompanionArtifactSize $CompanionArtifactSha256
+        $qwenMeta = Assert-WorkflowArtifact $QwenWorkflowRunId $QwenArtifactId "TDAQwenRuntimeBundle-windows-x64" $QwenArtifactSize $QwenArtifactSha256
+    }
 
     Assert-GatePortFree
 
@@ -502,9 +612,10 @@ try {
 
     Write-Json (Join-Path $EvidenceRoot "identity.json") ([ordered]@{
         schema = $PackSchema
-        pr_head_sha = $PrHeadSha
-        tested_merge_sha = $TestedMergeSha
-        source_tree_sha = $SourceTreeSha
+        input_mode = $(if ($ExactRcMode) { "exact_installed_rc" } else { "legacy_pr_artifact" })
+        pr_head_sha = $(if ($ExactRcMode) { $null } else { $PrHeadSha })
+        tested_merge_sha = $(if ($ExactRcMode) { $null } else { $TestedMergeSha })
+        source_tree_sha = $(if ($ExactRcMode) { [string]$CompanionPayload.source_tree_sha } else { $SourceTreeSha })
         companion_artifact = $companionMeta
         qwen_artifact = $qwenMeta
         qwen_runtime_version = $QwenRuntimeVersion
@@ -519,23 +630,28 @@ try {
         gpu = @($gpuRaw)
     })
 
-    Write-Host "Downloading exact Companion artifact $CompanionArtifactId..." -ForegroundColor Cyan
-    Download-ArtifactZip $CompanionArtifactId $CompanionArtifactSize $CompanionArtifactSha256 $CompanionZip
-    Write-Host "Downloading exact Qwen artifact $QwenArtifactId (~2.7 GB)..." -ForegroundColor Cyan
-    Download-ArtifactZip $QwenArtifactId $QwenArtifactSize $QwenArtifactSha256 $QwenZip
+    if ($ExactRcMode) {
+        Write-Host "Reusing exact installed Companion RC and Qwen Runtime RC bytes..." -ForegroundColor Cyan
+        $CompanionExe = $CompanionExeResolved
+    } else {
+        Write-Host "Downloading exact Companion artifact $CompanionArtifactId..." -ForegroundColor Cyan
+        Download-ArtifactZip $CompanionArtifactId $CompanionArtifactSize $CompanionArtifactSha256 $CompanionZip
+        Write-Host "Downloading exact Qwen artifact $QwenArtifactId (~2.7 GB)..." -ForegroundColor Cyan
+        Download-ArtifactZip $QwenArtifactId $QwenArtifactSize $QwenArtifactSha256 $QwenZip
 
-    Expand-Archive -LiteralPath $CompanionZip -DestinationPath $CompanionExtract -Force
-    $payloadPath = Join-Path $CompanionExtract "TDACompanion-payload-manifest.json"
-    $payload = Read-Json $payloadPath "COMPANION_PAYLOAD_INVALID"
-    if ([string]$payload.source_sha -ne $TestedMergeSha) { Fail-Harness "COMPANION_SOURCE_SHA_MISMATCH" }
-    if ([string]$payload.source_tree_sha -ne $SourceTreeSha) { Fail-Harness "COMPANION_TREE_SHA_MISMATCH" }
-    $portableZip = @(Get-ChildItem -LiteralPath $CompanionExtract -Filter "TDACompanion-*-windows-x64.zip" -File)
-    if ($portableZip.Count -ne 1) { Fail-Harness "COMPANION_PORTABLE_ZIP_INVALID" }
-    Expand-Archive -LiteralPath $portableZip[0].FullName -DestinationPath $CompanionPortable -Force
-    $CompanionExe = Join-Path $CompanionPortable "app\TDACompanion.exe"
-    if (-not (Test-Path -LiteralPath $CompanionExe -PathType Leaf)) { Fail-Harness "COMPANION_EXE_MISSING" }
-    $expectedExe = [string]$payload.files.'TDACompanion.exe'.sha256
-    if ((Get-Sha256 $CompanionExe) -ne $expectedExe) { Fail-Harness "COMPANION_EXE_HASH_MISMATCH" }
+        Expand-Archive -LiteralPath $CompanionZip -DestinationPath $CompanionExtract -Force
+        $payloadPath = Join-Path $CompanionExtract "TDACompanion-payload-manifest.json"
+        $payload = Read-Json $payloadPath "COMPANION_PAYLOAD_INVALID"
+        if ([string]$payload.source_sha -ne $TestedMergeSha) { Fail-Harness "COMPANION_SOURCE_SHA_MISMATCH" }
+        if ([string]$payload.source_tree_sha -ne $SourceTreeSha) { Fail-Harness "COMPANION_TREE_SHA_MISMATCH" }
+        $portableZip = @(Get-ChildItem -LiteralPath $CompanionExtract -Filter "TDACompanion-*-windows-x64.zip" -File)
+        if ($portableZip.Count -ne 1) { Fail-Harness "COMPANION_PORTABLE_ZIP_INVALID" }
+        Expand-Archive -LiteralPath $portableZip[0].FullName -DestinationPath $CompanionPortable -Force
+        $CompanionExe = Join-Path $CompanionPortable "app\TDACompanion.exe"
+        if (-not (Test-Path -LiteralPath $CompanionExe -PathType Leaf)) { Fail-Harness "COMPANION_EXE_MISSING" }
+        $expectedExe = [string]$payload.files.'TDACompanion.exe'.sha256
+        if ((Get-Sha256 $CompanionExe) -ne $expectedExe) { Fail-Harness "COMPANION_EXE_HASH_MISMATCH" }
+    }
 
     $ScratchTda = Join-Path $ScratchLocal "TDA"
     New-Item -ItemType Directory -Force -Path $ScratchTda | Out-Null
@@ -552,32 +668,73 @@ try {
     })
 
     $env:LOCALAPPDATA = $ScratchLocal
-    $installResult = Join-Path $ScratchRoot "qwen-install.json"
-    $installArgs = @(
-        "--install-rc-runtime", "qwen",
-        "--rc-artifact", $QwenZip,
-        "--rc-artifact-sha256", $QwenArtifactSha256,
-        "--rc-result-file", $installResult
-    )
-    $install = Start-Process -FilePath $CompanionExe -ArgumentList $installArgs -Wait -PassThru -WindowStyle Hidden
-    if (-not (Test-Path -LiteralPath $installResult -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_INSTALL_RESULT_MISSING" }
-    $installJson = Read-Json $installResult "QWEN_RUNTIME_INSTALL_RESULT_INVALID"
-    if ($install.ExitCode -ne 0 -or $installJson.ok -ne $true -or [string]$installJson.runtime -ne "qwen" -or [string]$installJson.status -ne "ready") {
-        $code = if ($installJson.error) { [string]$installJson.error } else { "QWEN_RUNTIME_INSTALL_FAILED" }
-        Fail-Product $code
-    }
-    if ([string]$installJson.version -ne $QwenRuntimeVersion) { Fail-Product "QWEN_RUNTIME_VERSION_MISMATCH" }
-    $runtimeMarkerPath = Join-Path $ScratchLocal ("TDA\Runtime\qwen\{0}\.tda-runtime.json" -f $QwenRuntimeVersion)
-    if (-not (Test-Path -LiteralPath $runtimeMarkerPath -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_MARKER_MISSING" }
-    $runtimeMarker = Read-Json $runtimeMarkerPath "QWEN_RUNTIME_MARKER_INVALID"
-    if (
-        [string]$runtimeMarker.schema -ne "tda_asr_runtime_v1" -or
-        [string]$runtimeMarker.runtime_id -ne "qwen3-transformers" -or
-        [string]$runtimeMarker.version -ne $QwenRuntimeVersion -or
-        [string]$runtimeMarker.archive_sha256 -ne $QwenRuntimeArchiveSha256 -or
-        [string]$runtimeMarker.worker_sha256 -notmatch '^[a-f0-9]{64}$'
-    ) {
-        Fail-Product "QWEN_RUNTIME_MARKER_IDENTITY_MISMATCH"
+    if ($ExactRcMode) {
+        $scratchRuntimeFamily = Join-Path $ScratchLocal "TDA\Runtime\qwen"
+        $scratchRuntimeVersion = Join-Path $scratchRuntimeFamily $QwenRuntimeVersion
+        New-Item -ItemType Directory -Force -Path $scratchRuntimeFamily | Out-Null
+        if (Test-Path -LiteralPath $scratchRuntimeVersion) { Remove-Item -LiteralPath $scratchRuntimeVersion -Recurse -Force }
+        Copy-Item -LiteralPath $QwenInstalledRuntimeResolved -Destination $scratchRuntimeVersion -Recurse -Force
+
+        $sourceCurrent = Join-Path (Split-Path -Parent $QwenInstalledRuntimeResolved) "current.json"
+        $scratchCurrent = Join-Path $scratchRuntimeFamily "current.json"
+        if (-not (Test-Path -LiteralPath $sourceCurrent -PathType Leaf)) { Fail-Harness "EXACT_RC_QWEN_CURRENT_MISSING" }
+        Copy-Item -LiteralPath $sourceCurrent -Destination $scratchCurrent -Force
+        $currentJson = Read-Json $scratchCurrent "EXACT_RC_QWEN_CURRENT_INVALID"
+        if (
+            [string]$currentJson.schema -ne "tda_asr_runtime_v1" -or
+            [string]$currentJson.runtime_id -ne "qwen3-transformers" -or
+            [string]$currentJson.version -ne $QwenRuntimeVersion
+        ) { Fail-Harness "EXACT_RC_QWEN_CURRENT_IDENTITY_MISMATCH" }
+
+        $runtimeMarkerPath = Join-Path $scratchRuntimeVersion ".tda-runtime.json"
+        $runtimeMarker = Read-Json $runtimeMarkerPath "QWEN_RUNTIME_MARKER_INVALID"
+        $scratchWorker = Join-Path $scratchRuntimeVersion "TDAQwenWorker.exe"
+        if (
+            [string]$runtimeMarker.schema -ne "tda_asr_runtime_v1" -or
+            [string]$runtimeMarker.runtime_id -ne "qwen3-transformers" -or
+            [string]$runtimeMarker.version -ne $QwenRuntimeVersion -or
+            [string]$runtimeMarker.archive_sha256 -ne $QwenRuntimeArchiveSha256 -or
+            [string]$runtimeMarker.worker_sha256 -notmatch '^[a-f0-9]{64}$' -or
+            -not (Test-Path -LiteralPath $scratchWorker -PathType Leaf) -or
+            (Get-Sha256 $scratchWorker) -ne [string]$runtimeMarker.worker_sha256
+        ) { Fail-Harness "EXACT_RC_QWEN_COPY_IDENTITY_MISMATCH" }
+
+        $installJson = [pscustomobject]@{
+            schema = "tda_runtime_exact_rc_copy_v1"
+            ok = $true
+            runtime = "qwen"
+            status = "ready"
+            version = $QwenRuntimeVersion
+            reused = $true
+        }
+    } else {
+        $installResult = Join-Path $ScratchRoot "qwen-install.json"
+        $installArgs = @(
+            "--install-rc-runtime", "qwen",
+            "--rc-artifact", $QwenZip,
+            "--rc-artifact-sha256", $QwenArtifactSha256,
+            "--rc-result-file", $installResult
+        )
+        $install = Start-Process -FilePath $CompanionExe -ArgumentList $installArgs -Wait -PassThru -WindowStyle Hidden
+        if (-not (Test-Path -LiteralPath $installResult -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_INSTALL_RESULT_MISSING" }
+        $installJson = Read-Json $installResult "QWEN_RUNTIME_INSTALL_RESULT_INVALID"
+        if ($install.ExitCode -ne 0 -or $installJson.ok -ne $true -or [string]$installJson.runtime -ne "qwen" -or [string]$installJson.status -ne "ready") {
+            $code = if ($installJson.error) { [string]$installJson.error } else { "QWEN_RUNTIME_INSTALL_FAILED" }
+            Fail-Product $code
+        }
+        if ([string]$installJson.version -ne $QwenRuntimeVersion) { Fail-Product "QWEN_RUNTIME_VERSION_MISMATCH" }
+        $runtimeMarkerPath = Join-Path $ScratchLocal ("TDA\Runtime\qwen\{0}\.tda-runtime.json" -f $QwenRuntimeVersion)
+        if (-not (Test-Path -LiteralPath $runtimeMarkerPath -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_MARKER_MISSING" }
+        $runtimeMarker = Read-Json $runtimeMarkerPath "QWEN_RUNTIME_MARKER_INVALID"
+        if (
+            [string]$runtimeMarker.schema -ne "tda_asr_runtime_v1" -or
+            [string]$runtimeMarker.runtime_id -ne "qwen3-transformers" -or
+            [string]$runtimeMarker.version -ne $QwenRuntimeVersion -or
+            [string]$runtimeMarker.archive_sha256 -ne $QwenRuntimeArchiveSha256 -or
+            [string]$runtimeMarker.worker_sha256 -notmatch '^[a-f0-9]{64}$'
+        ) {
+            Fail-Product "QWEN_RUNTIME_MARKER_IDENTITY_MISMATCH"
+        }
     }
     Write-Json (Join-Path $EvidenceRoot "qwen-runtime-install.json") ([ordered]@{
         schema = [string]$installJson.schema
@@ -586,6 +743,8 @@ try {
         status = [string]$installJson.status
         version = [string]$installJson.version
         reused = [bool]$installJson.reused
+        input_mode = $(if ($ExactRcMode) { "exact_installed_rc" } else { "legacy_pr_artifact" })
+        candidate_tag = $(if ($ExactRcMode) { [string]$QwenCandidate.candidate_tag } else { $null })
         archive_sha256 = [string]$runtimeMarker.archive_sha256
         worker_sha256 = [string]$runtimeMarker.worker_sha256
     })
