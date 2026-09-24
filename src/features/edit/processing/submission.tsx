@@ -126,7 +126,8 @@ function sourceMustBeRestaged(code: string | null): boolean {
 
 export function ProcessingSubmission({
 	className,
-}: Readonly<{ className?: string }> = {}) {
+	compact = false,
+}: Readonly<{ className?: string; compact?: boolean }> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -392,6 +393,7 @@ export function ProcessingSubmission({
 	return (
 		<section
 			className={className ? `${styles.card} ${className}` : styles.card}
+			data-layout={compact ? "compact" : "default"}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
