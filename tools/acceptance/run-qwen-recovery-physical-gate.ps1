@@ -990,12 +990,26 @@ try {
         $exceptionType = [string]$_.Exception.GetType().Name
         $safeType = ($exceptionType -replace '[^A-Za-z0-9_]', '_').ToUpperInvariant()
         $VerdictCode = "HARNESS_EXCEPTION_$safeType"
-        $scriptName = [IO.Path]::GetFileName([string]$_.InvocationInfo.ScriptName)
-        $commandName = [string]$_.InvocationInfo.MyCommand.Name
+        $scriptName = ""
+        $commandName = ""
+        [int]$lineNumber = 0
+        $errorId = ""
+        try {
+            $invocation = Get-OptionalPropertyValue $_ "InvocationInfo"
+            if ($null -ne $invocation) {
+                $scriptName = [IO.Path]::GetFileName([string](Get-OptionalPropertyValue $invocation "ScriptName"))
+                $lineValue = Get-OptionalPropertyValue $invocation "ScriptLineNumber"
+                if ($null -ne $lineValue) { $lineNumber = [int]$lineValue }
+                $myCommand = Get-OptionalPropertyValue $invocation "MyCommand"
+                $commandName = [string](Get-OptionalPropertyValue $myCommand "Name")
+            }
+            $errorId = [string](Get-OptionalPropertyValue $_ "FullyQualifiedErrorId")
+        } catch {}
         Write-Json (Join-Path $EvidenceRoot "harness-error.json") ([ordered]@{
             exception_type = $exceptionType
+            error_id = $errorId
             script = $scriptName
-            line = [int]$_.InvocationInfo.ScriptLineNumber
+            line = $lineNumber
             command = $commandName
         })
     }
