@@ -7,25 +7,9 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$CompanionRcTag = "companion-rc-v0.3.14-19d9b3b64238"
+$CompanionRcTag = "companion-rc-v0.3.14-74a656021208"
 $WhisperRuntimeRcTag = "companion-whisper-runtime-rc-v1.1.5-2579f7ec7b36"
 $QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238"
-
-$PrHeadSha = "b1c072311457b1be8e1cf3e6e78b9914f7a12144"
-$TestedMergeSha = "c7e74df88a09b3f7dd2cb688a312f2dc547f890d"
-$SourceTreeSha = "733505c0ee650c79c0f9355b616cb98c0671f866"
-
-$CompanionWorkflowRunId = 35941486263
-$CompanionArtifactId = 10785600787
-$CompanionArtifactSize = 83221539
-$CompanionArtifactSha256 = "042d4301098ddb814448a47f4d54b5fcc95bdf9b5c14679ae33b3116e43ea3b8"
-
-$QwenWorkflowRunId = 35941486132
-$QwenArtifactId = 10784868492
-$QwenArtifactSize = 2723915745
-$QwenArtifactSha256 = "b372dde1a6f200120a9342e60d3462f9680472f3aa6ce6955d92cfacc18493eb"
-$QwenRuntimeVersion = "1.0.10"
-$QwenRuntimeArchiveSha256 = "b2528830e7d78f21cd54e44c578fb32dc767009435fdc9ffdaf459f1056a3e4e"
 
 function Fail([string]$Code) {
     throw [InvalidOperationException]::new($Code)
@@ -35,6 +19,11 @@ function Write-Json([string]$Path, [object]$Value) {
     $parent = Split-Path -Parent $Path
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
     $Value | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Read-Json([string]$Path, [string]$Code) {
+    try { return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 64 }
+    catch { Fail $Code }
 }
 
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { Fail "WINDOWS_REQUIRED" }
@@ -103,22 +92,41 @@ try {
     & $releaseWideScript @releaseArgs
     if ($LASTEXITCODE -ne 0) { Fail "RELEASE_WIDE_ACCEPTANCE_FAILED" }
 
-    Write-Host "Phase 2/2: normal-Agent Qwen crash/retry recovery..." -ForegroundColor Cyan
+    # Phase 1 already installed and byte-verified the exact promotable RCs.
+    # Reuse those exact local bytes for the isolated recovery gate instead of
+    # downloading an older PR Actions artifact with a different archive/source identity.
+    $finalRuns = @(Get-ChildItem -LiteralPath $releaseWideRoot -Directory -Filter "FINAL-*" | Sort-Object Name)
+    if ($finalRuns.Count -ne 1) { Fail "RELEASE_WIDE_PRIVATE_HANDOFF_INVALID" }
+    $privateRoot = Join-Path $finalRuns[0].FullName "_private"
+    $downloadsRoot = Join-Path $privateRoot "downloads"
+    $companionPayloadPath = Join-Path $downloadsRoot "TDACompanion-payload-manifest.json"
+    $qwenCandidatePath = Join-Path $downloadsRoot "qwen-runtime-candidate.json"
+    foreach ($path in @($companionPayloadPath, $qwenCandidatePath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Fail "RELEASE_WIDE_EXACT_RC_HANDOFF_MISSING" }
+    }
+    $companionPayload = Read-Json $companionPayloadPath "RELEASE_WIDE_COMPANION_PAYLOAD_INVALID"
+    $qwenCandidate = Read-Json $qwenCandidatePath "RELEASE_WIDE_QWEN_CANDIDATE_INVALID"
+    if (
+        [string]$companionPayload.schema -ne "tda_companion_payload_v1" -or
+        [string]$companionPayload.source_tree_sha -notmatch '^[a-f0-9]{40}$' -or
+        [string]$qwenCandidate.schema -ne "tda_runtime_candidate_v1" -or
+        [string]$qwenCandidate.family -ne "qwen" -or
+        [string]$qwenCandidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) { Fail "RELEASE_WIDE_EXACT_RC_IDENTITY_INVALID" }
+
+    $companionExe = Join-Path $env:LOCALAPPDATA ("TDA\Companion\versions\{0}\TDACompanion.exe" -f [string]$companionPayload.version)
+    $qwenInstalledRuntime = Join-Path $env:LOCALAPPDATA ("TDA\Runtime\qwen\{0}" -f [string]$qwenCandidate.version)
+    if (-not (Test-Path -LiteralPath $companionExe -PathType Leaf)) { Fail "RELEASE_WIDE_COMPANION_EXE_MISSING" }
+    if (-not (Test-Path -LiteralPath $qwenInstalledRuntime -PathType Container)) { Fail "RELEASE_WIDE_QWEN_RUNTIME_MISSING" }
+    $releaseSourceTree = [string]$companionPayload.source_tree_sha
+
+    Write-Host "Phase 2/2: exact-RC normal-Agent Qwen crash/retry recovery..." -ForegroundColor Cyan
     $phase = "qwen_recovery_acceptance"
     $recoveryArgs = @{
-        PrHeadSha = $PrHeadSha
-        TestedMergeSha = $TestedMergeSha
-        SourceTreeSha = $SourceTreeSha
-        CompanionWorkflowRunId = $CompanionWorkflowRunId
-        CompanionArtifactId = $CompanionArtifactId
-        CompanionArtifactSize = $CompanionArtifactSize
-        CompanionArtifactSha256 = $CompanionArtifactSha256
-        QwenWorkflowRunId = $QwenWorkflowRunId
-        QwenArtifactId = $QwenArtifactId
-        QwenArtifactSize = $QwenArtifactSize
-        QwenArtifactSha256 = $QwenArtifactSha256
-        QwenRuntimeVersion = $QwenRuntimeVersion
-        QwenRuntimeArchiveSha256 = $QwenRuntimeArchiveSha256
+        CompanionExePath = $companionExe
+        CompanionPayloadManifest = $companionPayloadPath
+        QwenRuntimeCandidateManifest = $qwenCandidatePath
+        QwenInstalledRuntimeRoot = $qwenInstalledRuntime
         RequireGpuName = $RequireGpuName
         OutputRoot = $qwenRecoveryRoot
     }
@@ -143,7 +151,8 @@ try {
         companion_rc = $CompanionRcTag
         whisper_runtime_rc = $WhisperRuntimeRcTag
         qwen_runtime_rc = $QwenRuntimeRcTag
-        release_source_tree = $SourceTreeSha
+        release_source_tree = $(if ($null -ne (Get-Variable releaseSourceTree -ErrorAction SilentlyContinue)) { $releaseSourceTree } else { $null })
+        qwen_recovery_identity = "exact_installed_rc"
         qwen_recovery_input = "generated_synthetic"
         release_wide_results = "release-wide"
         qwen_recovery_results = "qwen-recovery"

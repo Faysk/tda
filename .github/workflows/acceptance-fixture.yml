@@ -801,14 +801,47 @@ jobs:
           foreach ($required in @(
             "run-final-current-source-acceptance.ps1",
             "run-qwen-recovery-physical-gate.ps1",
-            "companion-rc-v0.3.14-19d9b3b64238",
+            "companion-rc-v0.3.14-74a656021208",
             "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238",
+            "CompanionExePath",
+            "CompanionPayloadManifest",
+            "QwenRuntimeCandidateManifest",
+            "QwenInstalledRuntimeRoot",
+            'qwen_recovery_identity = "exact_installed_rc"',
+            "RELEASE_WIDE_EXACT_RC_HANDOFF_MISSING",
             "RELEASE_WIDE_ACCEPTANCE_FAILED",
             "QWEN_RECOVERY_ACCEPTANCE_FAILED",
             "PROCESSING FINAL ACCEPTANCE: PASS"
           )) {
             if (-not $processing.Contains($required)) {
               throw ("HANDOFF_PROCESSING_CONTRACT_MISSING:" + $required)
+            }
+          }
+          foreach ($forbidden in @(
+            "10784868492",
+            "10785600787",
+            "b2528830e7d78f21cd54e44c578fb32dc767009435fdc9ffdaf459f1056a3e4e",
+            "QwenArtifactId =",
+            "CompanionArtifactId ="
+          )) {
+            if ($processing.Contains($forbidden)) {
+              throw ("HANDOFF_PROCESSING_LEGACY_ARTIFACT_PIN_PRESENT:" + $forbidden)
+            }
+          }
+
+          $qwenRecovery = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-qwen-recovery-physical-gate.ps1") -Raw
+          foreach ($required in @(
+            '[string]$CompanionExePath',
+            '[string]$CompanionPayloadManifest',
+            '[string]$QwenRuntimeCandidateManifest',
+            '[string]$QwenInstalledRuntimeRoot',
+            '"exact_installed_rc"',
+            "EXACT_RC_QWEN_RUNTIME_IDENTITY_MISMATCH",
+            "EXACT_RC_QWEN_COPY_IDENTITY_MISMATCH",
+            "runtime_archive_sha256"
+          )) {
+            if (-not $qwenRecovery.Contains($required)) {
+              throw ("QWEN_RECOVERY_EXACT_RC_CONTRACT_MISSING:" + $required)
             }
           }
 
