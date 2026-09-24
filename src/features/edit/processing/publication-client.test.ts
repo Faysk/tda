@@ -23,6 +23,22 @@ const review: LocalReview = {
 		device: "cuda",
 		computeType: "float16",
 		alignment: "native",
+		executionLineage: {
+			schemaVersion: "tda_execution_lineage_v1",
+			companionVersion: "0.3.14",
+			runtimeFamily: "whisper",
+			runtimeVersion: "1.1.5",
+			device: "cuda",
+			computeType: "float16",
+			gpu: {
+				vendor: "NVIDIA",
+				index: 0,
+				model: "NVIDIA Test GPU",
+				vramTotalBytes: 8 * 1024 ** 3,
+				computeCapability: "8.9",
+				driverVersion: "600.12",
+			},
+		},
 		completedAt: "2026-09-21T11:59:00Z",
 	},
 	stats: {
@@ -112,6 +128,8 @@ describe("publication client", () => {
 				draftSha256: "c".repeat(64),
 			},
 		});
+		expect(body.review.lineage).not.toHaveProperty("executionLineage");
+		expect(JSON.stringify(body)).not.toContain("NVIDIA Test GPU");
 	});
 
 	it("uses receipt readback after an ambiguous network failure", async () => {
