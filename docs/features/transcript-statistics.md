@@ -1,8 +1,8 @@
 # Estatísticas privadas de transcrições
 
-> Status: read model bounded versionado; rollout e benchmark Production V2 pendentes
+> Status: read model bounded em Production; V2 habilitado no CD; benchmark autenticado pendente
 > Owner: transcrições / leitura e estatísticas
-> Última revisão: 2026-09-23
+> Última revisão: 2026-09-24
 > Fonte de verdade: `src/features/transcripts/statistics`, `public.sessions`, `public.transcript_segments` e `public.transcript_session_statistics`
 
 ## Superfície e conjunto
@@ -41,7 +41,7 @@ A leitura usa páginas de até 200 sessões e, por página, no máximo um lote d
 
 ### Observabilidade operacional
 
-`TDA_STATS_READ_MODEL_V2_ENABLED` é `false` por default. Enquanto estiver desabilitada, a aplicação preserva exatamente o caminho V1 e a telemetria `TDA_STATS_READ_V1`; isso permite merge/deploy do código antes da migration sem consultar uma tabela inexistente. O rollout correto é migration + read-back de tabela/grants/trigger -> habilitar flag em Production -> benchmark -> manter/rollback pela flag.
+`TDA_STATS_READ_MODEL_V2_ENABLED` permanece `false` por default no código. Ambientes que não fazem opt-in preservam exatamente o caminho V1 e a telemetria `TDA_STATS_READ_V1`, evitando dependência acidental de uma migration ausente. No Production CD canônico, depois da migration e do read-back de grants, o build e o deployment staged recebem explicitamente `TDA_STATS_READ_MODEL_V2_ENABLED=true`; o mesmo artifact testado é então promovido ao domínio canônico. O benchmark autenticado continua gate separado. Rollback funcional do read model é feito por um novo deployment com a flag desabilitada, sem precisar remover imediatamente o schema aditivo.
 
 A leitura bounded emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V2`. Ele registra somente outcome, duração total, quantidade de requests/rows de sessões e aggregates e tamanho UTF-8 aproximado dos payloads. Não registra campaign slug, usuário/profile, IDs de sessão, texto de transcrição, detalhes de erro ou credenciais. O benchmark V2 deve ser comparado à baseline V1 confirmada em Production em 2026-09-23: mediana 15,39 s, 30.857 segmentos e 49 requests de segmentos por leitura.
 
@@ -70,6 +70,6 @@ Inspeção read-only do Supabase canônico em 2026-09-07 confirmou tipos de colu
 
 Validação local concluída em 2026-09-07: `pnpm check` (173 Vitest + 24 testes Node), build otimizado, 75 testes E2E habituais e 8 E2E de estatísticas passaram. Capturas de desktop 1440px e mobile 390px inspecionadas, sem overflow/erro de página. A suíte habitual usou porta local isolada 3117 porque 3101 já estava ocupada por outro processo; nenhum processo alheio foi encerrado. CI permanece gate separado do commit final.
 
-Base sincronizada com `main@5f6be2e`, incluindo Auth #48. Não alterar permissões para fazer os testes passarem. Configuração real de Auth/claim e o fluxo de edição continuam com seus donos. Login OAuth real não foi exercitado nesta entrega.
+Estado Production revalidado em 2026-09-24: as migrations `20260923152000_transcript_statistics_read_model` e `20260923163000_harden_transcript_statistics_grants` estão aplicadas no Supabase canônico. `service_role` possui somente `SELECT` em `transcript_session_statistics`; `anon` e `authenticated` não possuem grant direto na tabela. O Production CD passou a fazer opt-in explícito do V2. Não alterar permissões para fazer benchmark passar. Login OAuth real e o benchmark de `/transcricoes` continuam gates humanos separados.
 
-Rollback de aplicação: retirar a rota/link/matcher e os módulos de estatísticas. Sem schema/dados a reverter. Não houve merge, deploy, DDL ou mutation de produção nesta rodada.
+Rollback operacional preferido: novo deployment com `TDA_STATS_READ_MODEL_V2_ENABLED=false`, retornando ao leitor V1 sem apagar o read model. A migration é aditiva e pode permanecer instalada durante o rollback de aplicação. Remoção física do schema, se algum dia necessária, exige migration própria e não faz parte do rollback normal.

@@ -1,5 +1,6 @@
 name: Qwen Runtime Package
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
+# #557 Runtime RC drift fencing mirrors this workflow's runtime inputs; keep the policy coverage aligned.
 
 on:
   workflow_dispatch:
