@@ -175,6 +175,7 @@ def _manifest_for_document(
         "created_at": document.created_at,
         "completed_at": utc_now(),
         "stats": {
+            "audio_work_seconds": stats.audio_work_seconds,
             "processing_seconds": stats.processing_seconds,
             "session_duration_seconds": stats.session_duration_seconds,
             "rtf": stats.rtf,
@@ -461,6 +462,7 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
                 **{
                     key: stats.get(key)
                     for key in (
+                        "audio_work_seconds",
                         "processing_seconds",
                         "session_duration_seconds",
                         "rtf",
