@@ -92,6 +92,11 @@ function Get-RequiredHarnessPropertyValue([object]$Object, [string]$Name, [strin
     return $value
 }
 
+function Get-ErrorDetailMessage([object]$ErrorRecord) {
+    $details = Get-OptionalPropertyValue $ErrorRecord "ErrorDetails"
+    return [string](Get-OptionalPropertyValue $details "Message")
+}
+
 function Get-GhJson([string]$Path, [string]$Code) {
     $raw = & gh api $Path 2>&1
     if ($LASTEXITCODE -ne 0) { Fail-Harness $Code }
@@ -336,7 +341,7 @@ function Invoke-AgentJson([string]$Method, [string]$Path, [object]$Body = $null,
     }
     try { return Invoke-RestMethod @params }
     catch {
-        $detail = [string]$_.ErrorDetails.Message
+        $detail = Get-ErrorDetailMessage $_
         if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("API_" + $Matches[1]) }
         Fail-Product "AGENT_API_UNAVAILABLE"
     }
@@ -348,7 +353,7 @@ function Upload-Craig([string]$Path) {
         $response = Invoke-WebRequest -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/sources/craig" -Headers $headers -ContentType "application/zip" -InFile $Path -TimeoutSec 900
         return $response.Content | ConvertFrom-Json -Depth 32
     } catch {
-        $detail = [string]$_.ErrorDetails.Message
+        $detail = Get-ErrorDetailMessage $_
         if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("CRAIG_" + $Matches[1]) }
         Fail-Product "CRAIG_UPLOAD_TRANSPORT_FAILED"
     }
@@ -360,7 +365,11 @@ function Wait-AgentHealth([int]$TimeoutSeconds = 90) {
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         try {
             $last = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 2
-            if ([string]$last.product_id -eq "tda-companion" -and [string]$last.api_version -eq "1" -and [string]$last.lifecycle -eq "ready") { return $last }
+            if (
+                [string](Get-OptionalPropertyValue $last "product_id") -eq "tda-companion" -and
+                [string](Get-OptionalPropertyValue $last "api_version") -eq "1" -and
+                [string](Get-OptionalPropertyValue $last "lifecycle") -eq "ready"
+            ) { return $last }
         } catch {}
         Start-Sleep -Milliseconds 500
     }
@@ -371,7 +380,12 @@ function Start-GateAgent([string]$Executable) {
     $agentArguments = @("--headless", "--port", [string]$Port, "--origin", $Origin)
     $process = Start-Process -FilePath $Executable -ArgumentList $agentArguments -PassThru -WindowStyle Hidden
     $health = Wait-AgentHealth 90
-    if ([int]$health.pid -ne [int]$process.Id) {
+    $healthPid = Get-OptionalPropertyValue $health "pid"
+    if ($null -eq $healthPid) {
+        try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
+        Fail-Product "AGENT_HEALTH_PID_MISSING"
+    }
+    if ([int]$healthPid -ne [int]$process.Id) {
         try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
         Fail-Product "AGENT_PORT_OWNERSHIP_MISMATCH"
     }
@@ -411,7 +425,9 @@ function Save-JobEvidence([string]$JobId, [string]$Name, [string]$EvidenceRoot) 
 function Save-Logs([string]$EvidenceRoot) {
     try {
         $value = Invoke-AgentJson "GET" "/logs"
-        $rows = @($value.logs)
+        $rawLogs = Get-OptionalPropertyValue $value "logs"
+        if ($null -eq $rawLogs) { return }
+        $rows = @($rawLogs)
         $sanitized = @($rows | Select-Object -Last 100 | ForEach-Object { Sanitize-LogRow $_ })
         Write-Json (Join-Path $EvidenceRoot "agent-log-tail.json") $sanitized
     } catch {}
@@ -419,13 +435,22 @@ function Save-Logs([string]$EvidenceRoot) {
 
 function Wait-Preparation([string]$Source, [string]$ProfileId, [int]$TimeoutSeconds = 2400) {
     $started = Invoke-AgentJson "POST" "/preparation" @{ source_id = $Source; profile_id = $ProfileId }
-    if ([string]$started.profile_id -ne $ProfileId -or [string]$started.source_id -ne $Source) { Fail-Product "PREPARATION_START_IDENTITY_INVALID:$ProfileId" }
+    if (
+        [string](Get-OptionalPropertyValue $started "profile_id") -ne $ProfileId -or
+        [string](Get-OptionalPropertyValue $started "source_id") -ne $Source
+    ) { Fail-Product "PREPARATION_START_IDENTITY_INVALID:$ProfileId" }
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $state = Invoke-AgentJson "GET" "/preparation"
-        if ([string]$state.profile_id -ne $ProfileId) { Fail-Product "PREPARATION_PROFILE_DRIFT:$ProfileId" }
-        if ([string]$state.state -eq "completed") { return $state }
-        if ([string]$state.state -eq "failed") { Fail-Product ("PREPARATION_" + [string]$state.error_code + ":" + $ProfileId) }
+        $stateProfile = [string](Get-OptionalPropertyValue $state "profile_id")
+        $stateName = [string](Get-OptionalPropertyValue $state "state")
+        if ($stateProfile -ne $ProfileId) { Fail-Product "PREPARATION_PROFILE_DRIFT:$ProfileId" }
+        if ($stateName -eq "completed") { return $state }
+        if ($stateName -eq "failed") {
+            $errorCode = [string](Get-OptionalPropertyValue $state "error_code")
+            if (-not $errorCode) { $errorCode = "UNKNOWN" }
+            Fail-Product ("PREPARATION_" + $errorCode + ":" + $ProfileId)
+        }
         Start-Sleep -Seconds 1
     }
     Fail-Product "PREPARATION_TIMEOUT:$ProfileId"
@@ -447,9 +472,9 @@ function Submit-Transcription([string]$Source, [string]$ProfileId) {
     try {
         return Invoke-RestMethod -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/jobs" -Headers $headers -ContentType "application/json" -Body $body -TimeoutSec 30
     } catch {
-        $detail = [string]$_.ErrorDetails.Message
+        $detail = Get-ErrorDetailMessage $_
         if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("JOB_SUBMIT_" + $Matches[1] + ":" + $ProfileId) }
-        throw
+        Fail-Product "JOB_SUBMIT_TRANSPORT_FAILED:$ProfileId"
     }
 }
 
