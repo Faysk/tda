@@ -79,6 +79,24 @@ function formatRunExecution(run: LocalRunSummary): string {
 	return values.length ? values.join(" · ") : "execução não registrada";
 }
 
+function formatVram(value: number | null | undefined): string {
+	if (value === null || value === undefined) return "—";
+	return `${(value / 1024 ** 3).toFixed(1)} GiB`;
+}
+
+function formatRuntime(run: LocalRunSummary): string {
+	const lineage = run.executionLineage;
+	if (!lineage) return "—";
+	const runtime = [lineage.runtimeFamily, lineage.runtimeVersion]
+		.filter(Boolean)
+		.join(" ");
+	return runtime || lineage.companionVersion
+		? [runtime || null, lineage.companionVersion ? `Companion ${lineage.companionVersion}` : null]
+				.filter(Boolean)
+				.join(" · ")
+		: "—";
+}
+
 function reviewError(code: string | null): string | null {
 	if (!code) return null;
 	return {
@@ -137,6 +155,10 @@ function RunCard({
 				<div><dt>Tracks</dt><dd>{run.stats.trackCount ?? "—"}</dd></div>
 				<div><dt>Deduplicados</dt><dd>{run.stats.deduplicatedSegmentCount ?? "—"}</dd></div>
 				<div><dt>Warnings</dt><dd>{run.stats.warningCount ?? "—"}</dd></div>
+				<div><dt>GPU</dt><dd>{run.executionLineage?.gpu?.model ?? "—"}</dd></div>
+				<div><dt>VRAM</dt><dd>{formatVram(run.executionLineage?.gpu?.vramTotalBytes)}</dd></div>
+				<div><dt>Runtime</dt><dd>{formatRuntime(run)}</dd></div>
+				<div><dt>Compute capability</dt><dd>{run.executionLineage?.gpu?.computeCapability ?? "—"}</dd></div>
 			</dl>
 			<div className={styles.runIdentity}>
 				<span title={run.sourceId}>Fonte {run.sourceId.slice(0, 22)}…</span>
@@ -407,7 +429,20 @@ function ReviewEditor({
 				<div><span>Participantes</span><strong>{participants}</strong><small>{review.stats.trackCount ?? "—"} tracks</small></div>
 				<div><span>Duração</span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong><small>Processamento {formatSeconds(review.stats.processingSeconds)}</small></div>
 				<div><span>Warnings</span><strong>{review.warnings.length}</strong><small>atalhos de atenção, não veredictos</small></div>
-				<div><span>Device</span><strong>{review.lineage.device ?? "—"}</strong><small>{[review.lineage.computeType, review.lineage.alignment].filter(Boolean).join(" · ") || "desconhecido"}</small></div>
+				<div>
+					<span>Hardware</span>
+					<strong>{review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</strong>
+					<small>
+						{[
+							review.lineage.executionLineage?.runtimeFamily,
+							review.lineage.executionLineage?.runtimeVersion,
+							review.lineage.computeType,
+							review.lineage.alignment,
+						]
+							.filter(Boolean)
+							.join(" · ") || "desconhecido"}
+					</small>
+				</div>
 			</div>
 
 			{review.warnings.length ? (

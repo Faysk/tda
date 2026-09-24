@@ -84,6 +84,7 @@ def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Pa
     )
     assert review["stats"]["audio_work_seconds"] == 3.0
     assert review["stats"]["session_duration_seconds"] == 3.0
+    assert review["lineage"]["execution_lineage"] is None
 
     assert review["schema_version"] == "tda_local_review_v1"
     assert review["source_id"] == source_id
