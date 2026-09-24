@@ -116,6 +116,7 @@ test("renders local resource telemetry and factual worker events after automatic
 	).toBeVisible();
 	await expect(page.getByText("Arquivo 1 de 4", { exact: true })).toBeVisible();
 	await expect(page.getByText("Voz: Yuhara", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 	await expect(page.getByRole("log")).toContainText(
 		"Processando voz — Yuhara · 82%.",
 	);

@@ -30,6 +30,9 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("tab", { name: "Visão geral" }),
+	).toHaveAttribute("aria-selected", "true");
 
 	const advanced = page.getByText("Opções avançadas", { exact: true });
 	await expect(advanced).toBeVisible();
@@ -55,12 +58,16 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 		page.getByText("Nova transcrição Craig", { exact: true }),
 		page.getByText("Computador local", { exact: true }),
 		page.getByText("Processando agora", { exact: true }),
-		page.getByText("Detalhes do processamento", { exact: true }),
 	]) {
 		const box = await locator.boundingBox();
 		expect(box).not.toBeNull();
 		expect((box?.y ?? 9999) + (box?.height ?? 0)).toBeLessThanOrEqual(900);
 	}
+
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	await expect(
+		page.getByText("Detalhes do processamento", { exact: true }),
+	).toBeVisible();
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -113,10 +120,13 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.jobStatusesServed).toContain("running");
 	expect(state.jobStatusesServed).toContain("succeeded");
 
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await expect(
 		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible();
 	await page.getByRole("button", { name: "Consultar resultado local" }).click();
+
+	await page.getByRole("tab", { name: "Resultados" }).click();
 	await expect(page.getByText("run-craig-job-1-a1", { exact: false })).toBeVisible();
 	await expect(page.getByText(TRANSCRIPT_SHA.slice(0, 12), { exact: false })).toBeVisible();
 
