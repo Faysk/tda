@@ -80,3 +80,24 @@ test("D reading mode exposes a compact chapter index on mobile", async ({ page, 
 	expect(new URL(page.url()).pathname).toBe(initialPath);
 	expect(new URL(page.url()).hash).toBe("#read-what-if");
 });
+
+
+test("D reading mode strips overlapping HTML comment delimiters until stable", async ({ page }) => {
+	await page.route("**/lore/d/historia-1.md", async (route) => {
+		const response = await route.fetch();
+		const markdown = await response.text();
+		await route.fulfill({
+			response,
+			body: `${markdown}\n\n<<!---->!-->-->\n`,
+		});
+	});
+
+	await page.goto("/lore/d");
+	await page.locator("#lore-mode-toggle").click();
+	const readingView = page.locator("#reading-view");
+	await expect(readingView).toBeVisible();
+
+	// A single comment-removal pass leaves "<!-->-->" behind. The parser must
+	// repeat sanitization until stable so overlapping delimiters cannot leak.
+	await expect(readingView).not.toContainText("<!-->-->");
+});

@@ -34,6 +34,15 @@ const storyMap = [
 ];
 
 function escapeHtml(value) { return value.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char])); }
+function stripHtmlComments(value) {
+  let previous;
+  let current = value;
+  do {
+    previous = current;
+    current = current.replace(/<!--[^]*?-->/g, '');
+  } while (current !== previous);
+  return current;
+}
 function inlineMarkdown(value) {
   let text = escapeHtml(value);
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -45,7 +54,7 @@ function splitChapterTitle(title) {
   return parts.length > 1 ? [parts.shift(), parts.join(' — ')] : ['', title];
 }
 function parseLongform(markdown) {
-  const clean = markdown.replace(/<!--[^]*?-->/g, '').split('## Frases centrais para a apresentação editorial')[0];
+  const clean = stripHtmlComments(markdown).split('## Frases centrais para a apresentação editorial')[0];
   const lines = clean.split(/\r?\n/);
   const chapters = [];
   let current = null;
