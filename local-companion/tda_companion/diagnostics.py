@@ -21,6 +21,7 @@ from .diagnostic_capabilities import build_capabilities, capability_rows, overal
 from .network import NetworkClient, NetworkError
 from .paths import CompanionPaths
 from .qwen_acceptance import ALIGNER_PROFILE
+from .qwen_desktop_prepare import QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_compat import (
@@ -292,7 +293,7 @@ def _qwen_runtime_check(paths: CompanionPaths) -> dict[str, Any]:
             text=True,
             encoding="utf-8",
             errors="strict",
-            timeout=20,
+            timeout=QWEN_RUNTIME_PROBE_TIMEOUT_SECONDS,
             check=False,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
