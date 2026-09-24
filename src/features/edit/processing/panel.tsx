@@ -530,7 +530,7 @@ export function ProcessingPanel({
 									</div>
 								)}
 							</section>
-						<ProcessingSubmission className={styles.submissionCard} />
+						<ProcessingSubmission className={styles.submissionCard} compact />
 					</div>
 
 					<div className={styles.workspace}>
