@@ -73,11 +73,30 @@ def test_two_completed_runs_coexist_without_overwrite(tmp_path: Path):
         attempt=1,
         context="contexto A",
         glossary="Valyndra",
+        execution_lineage={
+            "schema_version": "tda_execution_lineage_v1",
+            "companion_version": "0.3.14",
+            "runtime_family": "whisper",
+            "runtime_version": "1.1.5",
+            "device": "cuda",
+            "compute_type": "float16",
+            "gpu": {
+                "vendor": "NVIDIA",
+                "index": 0,
+                "model": "NVIDIA Test GPU",
+                "vram_total_bytes": 8 * 1024**3,
+                "compute_capability": "8.9",
+                "driver_version": "600.12",
+            },
+        },
     )
     first_path = package_root / "runs" / first["run_id"] / "transcript.json"
     first_bytes = first_path.read_bytes()
     assert first["stats"]["audio_work_seconds"] == 60.0
     assert first["stats"]["session_duration_seconds"] == 60.0
+    assert first["execution_lineage"]["gpu"]["model"] == "NVIDIA Test GPU"
+    listed = list_runs(package_root, verify_content=True)
+    assert listed[0]["execution_lineage"]["runtime_version"] == "1.1.5"
 
     second = write_completed_run(
         package_root,
