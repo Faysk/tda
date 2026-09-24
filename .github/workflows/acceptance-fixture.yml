@@ -525,6 +525,72 @@ jobs:
             }
           }
 
+          # Stable smoke consumes public/web/Agent JSON under StrictMode too.
+          # Missing optional properties must not become PowerShell exceptions.
+          . (Get-FunctionScriptBlock "tools/acceptance/run-processing-stable-smoke.ps1" "Get-OptionalPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-processing-stable-smoke.ps1" "Get-NestedPropertyValue")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-processing-stable-smoke.ps1" "Get-ErrorDetailMessage")
+
+          $stableOrdered = [ordered]@{
+            asset = [ordered]@{
+              sha256 = "a" * 64
+              size = 123
+            }
+            enabled = $false
+          }
+          if ([string](Get-NestedPropertyValue $stableOrdered @("asset", "sha256")) -ne ("a" * 64)) {
+            throw "STABLE_SMOKE_NESTED_PROPERTY_READ_INVALID"
+          }
+          if ($null -ne (Get-NestedPropertyValue $stableOrdered @("asset", "missing"))) {
+            throw "STABLE_SMOKE_NESTED_MISSING_PROPERTY_NOT_NULL"
+          }
+          if ((Get-OptionalPropertyValue $stableOrdered "enabled") -ne $false) {
+            throw "STABLE_SMOKE_FALSE_PROPERTY_READ_INVALID"
+          }
+
+          $stableErrorWithoutDetails = [pscustomobject]@{ Exception = [Exception]::new("offline") }
+          if ([string](Get-ErrorDetailMessage $stableErrorWithoutDetails) -ne "") {
+            throw "STABLE_SMOKE_MISSING_ERROR_DETAILS_NOT_EMPTY"
+          }
+          $stableErrorWithDetails = [pscustomobject]@{
+            ErrorDetails = [pscustomobject]@{ Message = '{"code":"JOB_NOT_RETRYABLE"}' }
+          }
+          if ([string](Get-ErrorDetailMessage $stableErrorWithDetails) -ne '{"code":"JOB_NOT_RETRYABLE"}') {
+            throw "STABLE_SMOKE_ERROR_DETAILS_READ_INVALID"
+          }
+
+          $stableSmokeSource = Get-Content -LiteralPath "tools/acceptance/run-processing-stable-smoke.ps1" -Raw
+          foreach ($required in @(
+            "Get-OptionalPropertyValue",
+            "Get-NestedPropertyValue",
+            "Get-ErrorDetailMessage",
+            "STABLE_SMOKE_RESULT_TRANSCRIPTION_MISSING",
+            "STABLE_SMOKE_EVENTS_RESPONSE_INVALID",
+            "ACTIVE_WORK_JOBS_RESPONSE_INVALID",
+            "Set-StrictMode -Version Latest"
+          )) {
+            if (-not $stableSmokeSource.Contains($required)) {
+              throw "STABLE_SMOKE_STRICTMODE_CONTRACT_MISSING:$required"
+            }
+          }
+          foreach ($forbidden in @(
+            '$_.ErrorDetails.Message',
+            '$manifest.asset',
+            '$candidate.assets.msi',
+            '$craig.source_id',
+            '$job.status',
+            '$result.transcription',
+            '$marker.run_id',
+            '$value.product_id',
+            '$asset.browser_download_url',
+            '$started.schema',
+            '$status.profile_id'
+          )) {
+            if ($stableSmokeSource.Contains($forbidden)) {
+              throw "STABLE_SMOKE_FRAGILE_PROPERTY_ACCESS_PRESENT:$forbidden"
+            }
+          }
+
           $physicalHelper = Get-Content -LiteralPath "local-companion/packaging/run-physical-acceptance.ps1" -Raw
           $sealStart = $physicalHelper.IndexOf("function Invoke-RuntimePhysicalSeal")
           $jsonStart = $physicalHelper.IndexOf("function Invoke-JsonProcess")
