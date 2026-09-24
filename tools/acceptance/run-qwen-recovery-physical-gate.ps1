@@ -252,6 +252,11 @@ function Invoke-AgentJson([string]$Method, [string]$Path, [object]$Body = $null,
         Headers = $headers
         TimeoutSec = $TimeoutSec
     }
+    # The Agent requires every POST to carry application/json, including
+    # action endpoints whose logical payload is empty (cancel/retry).
+    if ($Method -eq "POST" -and $null -eq $Body) {
+        $Body = [ordered]@{}
+    }
     if ($null -ne $Body) {
         $params.ContentType = "application/json"
         $params.Body = ($Body | ConvertTo-Json -Depth 16 -Compress)
