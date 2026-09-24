@@ -44,6 +44,14 @@ class SystemTelemetry:
                 self._nvml_initialized = True
 
             rows: list[dict[str, Any]] = []
+            driver_version: str | None = None
+            driver_reader = getattr(pynvml, "nvmlSystemGetDriverVersion", None)
+            if callable(driver_reader):
+                try:
+                    driver_version = self._text(driver_reader())
+                except Exception:
+                    driver_version = None
+
             count = min(int(pynvml.nvmlDeviceGetCount()), 16)
             for index in range(count):
                 handle = pynvml.nvmlDeviceGetHandleByIndex(index)
@@ -52,15 +60,27 @@ class SystemTelemetry:
                     name = name.decode("utf-8", errors="replace")
                 memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
                 utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                rows.append(
-                    {
-                        "index": index,
-                        "name": self._text(name) or f"GPU {index}",
-                        "utilization_percent": max(0, min(100, int(utilization.gpu))),
-                        "memory_used_bytes": max(0, int(memory.used)),
-                        "memory_total_bytes": max(0, int(memory.total)),
-                    }
+                row = {
+                    "index": index,
+                    "name": self._text(name) or f"GPU {index}",
+                    "utilization_percent": max(0, min(100, int(utilization.gpu))),
+                    "memory_used_bytes": max(0, int(memory.used)),
+                    "memory_total_bytes": max(0, int(memory.total)),
+                }
+                capability_reader = getattr(
+                    pynvml,
+                    "nvmlDeviceGetCudaComputeCapability",
+                    None,
                 )
+                if callable(capability_reader):
+                    try:
+                        major, minor = capability_reader(handle)
+                        row["compute_capability"] = f"{int(major)}.{int(minor)}"
+                    except Exception:
+                        pass
+                if driver_version:
+                    row["driver_version"] = driver_version
+                rows.append(row)
             return rows
         except Exception:
             # A driver reset or transient NVML failure must not disable telemetry forever.
