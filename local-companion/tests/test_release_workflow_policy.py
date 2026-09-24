@@ -60,8 +60,19 @@ def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_r
     assert "ASR physical acceptance receipt SHA-256" in value
     assert "git merge-base --is-ancestor" not in value
     assert 'git fetch --no-tags origin "$SOURCE_SHA"' in value
-    assert 'git diff --quiet "$SOURCE_SHA" HEAD -- local-companion' in value
-    assert ".github/workflows/companion-rc.yml" in value
+    assert "COMPANION_PATHS=(" in value
+    assert 'git diff --quiet "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"' in value
+    assert "COMPANION_PROMOTION_PACKAGE_INPUT_DRIFT" in value
+    for path in (
+        ".github/workflows/companion.yml",
+        "local-companion/pyproject.toml",
+        "local-companion/requirements-test.lock",
+        "local-companion/tda_companion/**",
+        "local-companion/packaging/**",
+    ):
+        assert f'"{path}"' in value
+    assert '"local-companion/tests/**"' not in value
+    assert '"tools/acceptance/**"' not in value
     assert "TDACompanion-payload-manifest.json" in value
     assert "gh release edit \"$RC_TAG\"" in value
     assert "--tag \"$STABLE_TAG\"" in value
