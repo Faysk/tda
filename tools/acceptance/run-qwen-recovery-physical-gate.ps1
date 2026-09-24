@@ -856,7 +856,12 @@ try {
     $preCrash = @(Capture-Events $FastJobId)
     $preCrashMaxSeq = Get-MaxEventSequence $preCrash
     if ($preCrashMaxSeq -le 0) { Fail-Harness "PRECRASH_EVENT_SEQUENCE_INVALID" }
-    $persistedTracks = @($preCrash | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object { [int]$_.data.track } | Sort-Object -Unique)
+    $persistedTracks = @($preCrash | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object {
+        $eventData = Get-OptionalPropertyValue $_ "data"
+        $trackValue = Get-OptionalPropertyValue $eventData "track"
+        if ($null -eq $trackValue) { Fail-Product "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING" }
+        [int]$trackValue
+    } | Sort-Object -Unique)
     if (1 -notin $persistedTracks) { Fail-Product "TRACK1_TEXT_CHECKPOINT_NOT_DURABLE" }
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $FastJobId) })
 
@@ -880,12 +885,16 @@ try {
     while ([DateTimeOffset]::UtcNow -lt $recoveredDeadline) {
         $candidate = Get-Job $FastJobId
         [void](Capture-Events $FastJobId)
-        if ([string]$candidate.status -eq "interrupted") { $interrupted = $candidate; break }
-        if ([string]$candidate.status -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$($candidate.status)" }
+        $candidateStatus = [string](Get-RequiredProductPropertyValue $candidate "status" "RECOVERY_JOB_STATUS_MISSING")
+        if ($candidateStatus -eq "interrupted") { $interrupted = $candidate; break }
+        if ($candidateStatus -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$candidateStatus" }
         Start-Sleep -Milliseconds 500
     }
     if ($null -eq $interrupted) { Fail-Product "PROCESS_INTERRUPTED_NOT_OBSERVED" }
-    if ($null -eq $interrupted.error -or [string]$interrupted.error.code -ne "PROCESS_INTERRUPTED" -or $interrupted.error.recoverable -ne $true) {
+    $interruptedError = Get-OptionalPropertyValue $interrupted "error"
+    $interruptedCode = [string](Get-OptionalPropertyValue $interruptedError "code")
+    $interruptedRecoverable = Get-OptionalPropertyValue $interruptedError "recoverable"
+    if ($null -eq $interruptedError -or $interruptedCode -ne "PROCESS_INTERRUPTED" -or $interruptedRecoverable -ne $true) {
         Fail-Product "PROCESS_INTERRUPTED_CONTRACT_INVALID"
     }
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-interrupted.json") (Sanitize-Job $interrupted)
@@ -893,22 +902,36 @@ try {
     [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
     $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
     $allFastEvents = @(Capture-Events $FastJobId)
-    $retryEvents = @($allFastEvents | Where-Object { [int]$_.seq -gt $preCrashMaxSeq })
+    $retryEvents = @($allFastEvents | Where-Object {
+        $sequence = Get-OptionalPropertyValue $_ "seq"
+        $null -ne $sequence -and [int]$sequence -gt $preCrashMaxSeq
+    })
     foreach ($track in $persistedTracks) {
-        $reuseCount = @($retryEvents | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_REUSED" -and [int]$_.data.track -eq $track }).Count
-        $retranscribed = @($retryEvents | Where-Object { [string]$_.code -eq "QWEN_WINDOW_TRANSCRIBED" -and [int]$_.data.track -eq $track }).Count
+        $reuseCount = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        $retranscribed = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
         if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
         if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
     }
-    if (@($retryEvents | Where-Object { [string]$_.code -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
+    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
 
     $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
-    $transcription = $result.transcription
-    if ($null -eq $transcription -or [string]$transcription.run_id -eq "" -or [string]$transcription.sha256 -notmatch '^[a-f0-9]{64}$') {
+    $transcription = Get-OptionalPropertyValue $result "transcription"
+    if ($null -eq $transcription) { Fail-Product "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING" }
+    $runId = [string](Get-OptionalPropertyValue $transcription "run_id")
+    $resultDigest = [string](Get-OptionalPropertyValue $transcription "sha256")
+    if ($runId -eq "" -or $resultDigest -notmatch '^[a-f0-9]{64}$') {
         Fail-Product "QWEN_FAST_RESULT_INVALID"
     }
-    $runId = [string]$transcription.run_id
-    $resultDigest = [string]$transcription.sha256
     if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
     $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
     $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
@@ -917,10 +940,20 @@ try {
     if (-not (Test-Path -LiteralPath $runMarkerPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_MARKER_MISSING" }
     if (-not (Test-Path -LiteralPath $runTranscriptPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_MISSING" }
     $runMarker = Read-Json $runMarkerPath "IMMUTABLE_RUN_MARKER_INVALID"
-    if ([string]$runMarker.run_id -ne $runId -or [string]$runMarker.job_id -ne $FastJobId -or [int]$runMarker.attempt -ne [int]$fastFinal.attempt) {
+    $finalAttempt = Get-RequiredProductPropertyValue $fastFinal "attempt" "QWEN_FAST_FINAL_ATTEMPT_MISSING"
+    $markerAttempt = Get-OptionalPropertyValue $runMarker "attempt"
+    if (
+        [string](Get-OptionalPropertyValue $runMarker "run_id") -ne $runId -or
+        [string](Get-OptionalPropertyValue $runMarker "job_id") -ne $FastJobId -or
+        $null -eq $markerAttempt -or
+        [int]$markerAttempt -ne [int]$finalAttempt
+    ) {
         Fail-Product "IMMUTABLE_RUN_IDENTITY_MISMATCH"
     }
-    if ([string]$runMarker.profile_id -ne "qwen-fast" -or [string]$runMarker.transcript_sha256 -ne $resultDigest) {
+    if (
+        [string](Get-OptionalPropertyValue $runMarker "profile_id") -ne "qwen-fast" -or
+        [string](Get-OptionalPropertyValue $runMarker "transcript_sha256") -ne $resultDigest
+    ) {
         Fail-Product "IMMUTABLE_RUN_MANIFEST_MISMATCH"
     }
     $computedTranscriptDigest = Get-Sha256 $runTranscriptPath
@@ -929,15 +962,15 @@ try {
         marker = "run.json"
         run_id = $runId
         job_id = $FastJobId
-        attempt = [int]$fastFinal.attempt
+        attempt = [int]$finalAttempt
         profile_id = "qwen-fast"
         transcript_sha256 = $resultDigest
         computed_transcript_sha256 = $computedTranscriptDigest
-        marker_schema = [string]$runMarker.schema
+        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema")
     })
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
-        status = [string]$fastFinal.status
-        attempt = [int]$fastFinal.attempt
+        status = [string](Get-OptionalPropertyValue $fastFinal "status")
+        attempt = [int]$finalAttempt
         persisted_tracks_before_crash = $persistedTracks
         run_id = $runId
         transcript_sha256 = $resultDigest
