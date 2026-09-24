@@ -14,6 +14,7 @@ from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .execution_lineage import capture_execution_lineage
 from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
@@ -265,6 +266,7 @@ def _run_craig(
                 },
             )
 
+        execution_lineage = capture_execution_lineage(document)
         manifest = write_completed_run(
             package_root,
             document,
@@ -272,6 +274,7 @@ def _run_craig(
             attempt=command.attempt,
             glossary=str(command.payload.get("glossary") or ""),
             context=str(command.payload.get("context") or ""),
+            execution_lineage=execution_lineage,
             before_commit=reserve_run_commit,
         )
         run_id = str(manifest["run_id"])
