@@ -1,30 +1,8 @@
 .page {
-	width: min(1920px, calc(100% - 28px));
+	width: min(100%, var(--ds-layout-max));
 	margin: 0 auto;
-	padding: 14px 0 24px;
+	padding: 10px var(--ds-page-gutter) 18px;
 	font-family: var(--ds-font-ui);
-}
-
-.pageHeader {
-	display: grid;
-	gap: 2px;
-	margin-bottom: 10px;
-}
-
-.breadcrumb {
-	color: var(--ds-foreground-muted);
-	font-size: 0.68rem;
-	font-weight: 650;
-	letter-spacing: 0.02em;
-}
-
-.pageHeader h1 {
-	margin: 0;
-	font-family: var(--ds-font-display);
-	font-size: clamp(1.8rem, 2.4vw, 2.35rem);
-	font-weight: 500;
-	line-height: 1.02;
-	letter-spacing: -0.025em;
 }
 
 .panel {
@@ -815,8 +793,7 @@
 
 @media (max-width: 900px) {
 	.page {
-		width: min(100% - 20px, 1920px);
-		padding-top: 10px;
+		padding-top: 8px;
 	}
 
 	.connection {
@@ -888,12 +865,7 @@
 
 @media (max-width: 520px) {
 	.page {
-		width: min(100% - 14px, 1920px);
 		padding-bottom: 14px;
-	}
-
-	.pageHeader h1 {
-		font-size: 1.7rem;
 	}
 
 	.metricsStrip {
