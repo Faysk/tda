@@ -74,6 +74,44 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	).toBe(true);
 });
 
+test("queue filters and diagnostics keep operational detail scoped", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const runningFilter = page.getByRole("button", { name: /Processando 1/u });
+	await expect(runningFilter).toHaveAttribute("aria-pressed", "false");
+	await runningFilter.click();
+	await expect(runningFilter).toHaveAttribute("aria-pressed", "true");
+	await expect(page.getByRole("heading", { name: "Processando" })).toBeVisible();
+
+	const queuedFilter = page.getByRole("button", { name: /Na fila 0/u });
+	await queuedFilter.click();
+	await expect(queuedFilter).toHaveAttribute("aria-pressed", "true");
+	await expect(page.getByText(/Nenhum trabalho em “Na fila”/u)).toBeVisible();
+
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	await expect(page.getByText("Companion", { exact: true })).toBeVisible();
+	await expect(page.getByText("Sistema atual", { exact: true })).toBeVisible();
+	await expect(page.getByText("Windows 11", { exact: true })).toBeVisible();
+	await expect(page.getByText("Synthetic CPU", { exact: true })).toBeVisible();
+	await expect(page.getByText("qwen-quality", { exact: true })).toBeVisible();
+	await expect(page.getByText("QWEN_WINDOW_TRANSCRIBED", { exact: true })).toBeVisible();
+
+	const errorFilter = page.getByRole("button", { name: "Erros" });
+	await errorFilter.click();
+	await expect(errorFilter).toHaveAttribute("aria-pressed", "true");
+	await expect(
+		page.getByText("Nenhum evento corresponde a este filtro.", { exact: true }),
+	).toBeVisible();
+});
+
+
 test("automatic session → Craig staging → preparation → queue → progress → result", async ({
 	page,
 }) => {
