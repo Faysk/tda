@@ -125,7 +125,7 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
 	await expect(
-		page.locator("dd").filter({ hasText: "synthetic-session" }),
+		page.getByRole("status").filter({ hasText: "synthetic-session" }),
 	).toBeVisible();
 
 	const sessionsBeforeRestart = posts.filter(
