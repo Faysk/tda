@@ -69,6 +69,29 @@ function Read-Json([string]$Path, [string]$Code) {
     catch { Fail-Harness $Code }
 }
 
+function Get-OptionalPropertyValue([object]$Object, [string]$Name) {
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.Contains($Name)) { return $Object[$Name] }
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
+function Get-RequiredProductPropertyValue([object]$Object, [string]$Name, [string]$Code) {
+    $value = Get-OptionalPropertyValue $Object $Name
+    if ($null -eq $value) { Fail-Product $Code }
+    return $value
+}
+
+function Get-RequiredHarnessPropertyValue([object]$Object, [string]$Name, [string]$Code) {
+    $value = Get-OptionalPropertyValue $Object $Name
+    if ($null -eq $value) { Fail-Harness $Code }
+    return $value
+}
+
 function Get-GhJson([string]$Path, [string]$Code) {
     $raw = & gh api $Path 2>&1
     if ($LASTEXITCODE -ne 0) { Fail-Harness $Code }
@@ -188,32 +211,39 @@ function Download-ArtifactZip([long]$ArtifactId, [long]$ExpectedSize, [string]$E
 
 function Sanitize-Job([object]$Job) {
     if ($null -eq $Job) { return $null }
+    $attempt = Get-OptionalPropertyValue $Job "attempt"
+    $resultAvailable = Get-OptionalPropertyValue $Job "result_available"
     return [ordered]@{
-        id = [string]$Job.id
-        kind = [string]$Job.kind
-        status = [string]$Job.status
-        stage = [string]$Job.stage
-        attempt = [int]$Job.attempt
-        progress = $Job.progress
-        error = $Job.error
-        result_available = [bool]$Job.result_available
-        updated_at = [string]$Job.updated_at
+        id = [string](Get-OptionalPropertyValue $Job "id")
+        kind = [string](Get-OptionalPropertyValue $Job "kind")
+        status = [string](Get-OptionalPropertyValue $Job "status")
+        stage = [string](Get-OptionalPropertyValue $Job "stage")
+        attempt = $(if ($null -eq $attempt) { $null } else { [int]$attempt })
+        progress = Get-OptionalPropertyValue $Job "progress"
+        error = Get-OptionalPropertyValue $Job "error"
+        result_available = $(if ($null -eq $resultAvailable) { $null } else { [bool]$resultAvailable })
+        updated_at = [string](Get-OptionalPropertyValue $Job "updated_at")
     }
 }
 
 function Sanitize-Event([object]$Event) {
+    if ($null -eq $Event) { Fail-Product "JOB_EVENT_NULL" }
+    $sequence = Get-RequiredProductPropertyValue $Event "seq" "JOB_EVENT_SEQ_MISSING"
+    $code = Get-RequiredProductPropertyValue $Event "code" "JOB_EVENT_CODE_MISSING"
     $allowed = @("stage", "track", "total_tracks", "window", "attempt", "profile_id", "forced", "fence", "reason")
     $data = [ordered]@{}
-    if ($null -ne $Event.data) {
+    $sourceData = Get-OptionalPropertyValue $Event "data"
+    if ($null -ne $sourceData) {
         foreach ($name in $allowed) {
-            if ($null -ne $Event.data.PSObject.Properties[$name]) { $data[$name] = $Event.data.$name }
+            $value = Get-OptionalPropertyValue $sourceData $name
+            if ($null -ne $value) { $data[$name] = $value }
         }
     }
     return [ordered]@{
-        seq = [int]$Event.seq
-        code = [string]$Event.code
-        at = [string]$Event.at
-        level = [string]$Event.level
+        seq = [int]$sequence
+        code = [string]$code
+        at = [string](Get-OptionalPropertyValue $Event "at")
+        level = [string](Get-OptionalPropertyValue $Event "level")
         data = $data
     }
 }
@@ -222,7 +252,9 @@ function Get-MaxEventSequence([object[]]$Events) {
     [int]$maximum = 0
     foreach ($event in @($Events)) {
         if ($null -eq $event) { continue }
-        [int]$sequence = [int]$event.seq
+        $rawSequence = Get-OptionalPropertyValue $event "seq"
+        if ($null -eq $rawSequence) { Fail-Harness "SANITIZED_EVENT_SEQ_MISSING" }
+        [int]$sequence = [int]$rawSequence
         if ($sequence -gt $maximum) { $maximum = $sequence }
     }
     return $maximum
@@ -230,17 +262,17 @@ function Get-MaxEventSequence([object[]]$Events) {
 
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
+    $sourceContext = Get-OptionalPropertyValue $Row "context"
     foreach ($name in @("job_id", "attempt", "profile_id", "stage", "error_code")) {
-        if ($null -ne $Row.context -and $null -ne $Row.context.PSObject.Properties[$name]) {
-            $context[$name] = $Row.context.$name
-        }
+        $value = Get-OptionalPropertyValue $sourceContext $name
+        if ($null -ne $value) { $context[$name] = $value }
     }
     return [ordered]@{
-        at = [string]$Row.at
-        level = [string]$Row.level
-        component = [string]$Row.component
-        code = [string]$Row.code
-        message = [string]$Row.message
+        at = [string](Get-OptionalPropertyValue $Row "at")
+        level = [string](Get-OptionalPropertyValue $Row "level")
+        component = [string](Get-OptionalPropertyValue $Row "component")
+        code = [string](Get-OptionalPropertyValue $Row "code")
+        message = [string](Get-OptionalPropertyValue $Row "message")
         context = $context
     }
 }
@@ -325,8 +357,10 @@ function Capture-Events([string]$JobId) {
     if (-not $EventSeen.ContainsKey($JobId)) { $EventSeen[$JobId] = @{} }
     if (-not $EventCollectors.ContainsKey($JobId)) { $EventCollectors[$JobId] = [Collections.Generic.List[object]]::new() }
     $value = Invoke-AgentJson "GET" "/jobs/$JobId/events"
-    foreach ($event in @($value.events | Sort-Object { [int]$_.seq })) {
-        $key = [string]$event.seq
+    $rawEvents = Get-OptionalPropertyValue $value "events"
+    if ($null -eq $rawEvents) { Fail-Product "JOB_EVENTS_RESPONSE_INVALID" }
+    foreach ($event in @($rawEvents | Sort-Object { [int](Get-RequiredProductPropertyValue $_ "seq" "JOB_EVENT_SEQ_MISSING") })) {
+        $key = [string](Get-RequiredProductPropertyValue $event "seq" "JOB_EVENT_SEQ_MISSING")
         if (-not $EventSeen[$JobId].ContainsKey($key)) {
             $EventSeen[$JobId][$key] = $true
             $EventCollectors[$JobId].Add((Sanitize-Event $event))
@@ -394,7 +428,10 @@ function Wait-ForEvent([string]$JobId, [string]$Code, [Nullable[int]]$Track, [in
         $job = Get-Job $JobId
         $events = Capture-Events $JobId
         $match = @($events | Where-Object {
-            [string]$_.code -eq $Code -and ($null -eq $Track -or [int]$_.data.track -eq [int]$Track)
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq $Code -and ($null -eq $Track -or ($null -ne $eventTrack -and [int]$eventTrack -eq [int]$Track))
         } | Select-Object -Last 1)
         if ($match.Count -gt 0) { return $match[0] }
         if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
