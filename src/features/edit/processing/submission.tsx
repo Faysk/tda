@@ -124,7 +124,9 @@ function sourceMustBeRestaged(code: string | null): boolean {
 	);
 }
 
-export function ProcessingSubmission() {
+export function ProcessingSubmission({
+	className,
+}: Readonly<{ className?: string }> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -388,7 +390,10 @@ export function ProcessingSubmission() {
 	}
 
 	return (
-		<section className={styles.card} aria-labelledby="new-local-transcription">
+		<section
+			className={className ? `${styles.card} ${className}` : styles.card}
+			aria-labelledby="new-local-transcription"
+		>
 			<div className={styles.heading}>
 				<div>
 					<span>Processamento real</span>
