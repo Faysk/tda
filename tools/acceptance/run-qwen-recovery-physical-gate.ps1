@@ -1,0 +1,775 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][string]$CraigZip,
+    [Parameter(Mandatory = $true)][string]$PrHeadSha,
+    [Parameter(Mandatory = $true)][string]$TestedMergeSha,
+    [Parameter(Mandatory = $true)][string]$SourceTreeSha,
+    [Parameter(Mandatory = $true)][long]$CompanionWorkflowRunId,
+    [Parameter(Mandatory = $true)][long]$CompanionArtifactId,
+    [Parameter(Mandatory = $true)][long]$CompanionArtifactSize,
+    [Parameter(Mandatory = $true)][string]$CompanionArtifactSha256,
+    [Parameter(Mandatory = $true)][long]$QwenWorkflowRunId,
+    [Parameter(Mandatory = $true)][long]$QwenArtifactId,
+    [Parameter(Mandatory = $true)][long]$QwenArtifactSize,
+    [Parameter(Mandatory = $true)][string]$QwenArtifactSha256,
+    [Parameter(Mandatory = $true)][string]$QwenRuntimeVersion,
+    [Parameter(Mandatory = $true)][string]$QwenRuntimeArchiveSha256,
+    [string]$RequireGpuName = "RTX 4070",
+    [ValidateRange(1024, 65535)][int]$Port = 18765,
+    [string]$Repository = "Faysk/tda",
+    [string]$Origin = "https://dnd.faysk.dev",
+    [string]$OutputRoot = ""
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$PackSchema = "tda_qwen_recovery_physical_gate_v1"
+$StartedAt = [DateTimeOffset]::UtcNow
+$OriginalLocalAppData = [string]$env:LOCALAPPDATA
+$AgentProcess = $null
+$PairingToken = ""
+$SourceId = ""
+$QualityJobId = ""
+$FastJobId = ""
+$EventSeen = @{}
+$EventCollectors = @{}
+$Verdict = "HARNESS_FAILED"
+$VerdictCode = "HARNESS_UNCLASSIFIED"
+
+function Fail-Harness([string]$Code) { throw [InvalidOperationException]::new("HARNESS_FAILED:$Code") }
+function Fail-Product([string]$Code) { throw [InvalidOperationException]::new("PRODUCT_FAILED:$Code") }
+function Fail-Blocked([string]$Code) { throw [InvalidOperationException]::new("BLOCKED:$Code") }
+
+function Get-Sha256([string]$Path) {
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Write-Json([string]$Path, [object]$Value) {
+    $parent = Split-Path -Parent $Path
+    if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    $temporary = "$Path.partial"
+    $Value | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $temporary -Encoding UTF8
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
+function Read-Json([string]$Path, [string]$Code) {
+    try { return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 64 }
+    catch { Fail-Harness $Code }
+}
+
+function Get-GhJson([string]$Path, [string]$Code) {
+    $raw = & gh api $Path 2>&1
+    if ($LASTEXITCODE -ne 0) { Fail-Harness $Code }
+    try { return ($raw | Out-String) | ConvertFrom-Json -Depth 64 }
+    catch { Fail-Harness $Code }
+}
+
+function Assert-HexSha([string]$Value, [string]$Code) {
+    if ($Value.ToLowerInvariant() -notmatch '^[a-f0-9]{40}$') { Fail-Harness $Code }
+}
+
+function Assert-HexSha256([string]$Value, [string]$Code) {
+    if ($Value.ToLowerInvariant() -notmatch '^[a-f0-9]{64}$') { Fail-Harness $Code }
+}
+
+function Assert-WorkflowArtifact(
+    [long]$WorkflowRunId,
+    [long]$ArtifactId,
+    [string]$ExpectedName,
+    [long]$ExpectedSize,
+    [string]$ExpectedDigest
+) {
+    $run = Get-GhJson "repos/$Repository/actions/runs/$WorkflowRunId" "WORKFLOW_RUN_LOOKUP_FAILED"
+    if ([long]$run.id -ne $WorkflowRunId) { Fail-Harness "WORKFLOW_RUN_ID_MISMATCH" }
+    if ([string]$run.status -ne "completed" -or [string]$run.conclusion -ne "success") {
+        Fail-Blocked "WORKFLOW_RUN_NOT_SUCCESSFUL:$WorkflowRunId"
+    }
+    if ([string]$run.event -ne "pull_request") { Fail-Harness "WORKFLOW_RUN_EVENT_INVALID:$WorkflowRunId" }
+    if ([string]$run.head_sha -ne $PrHeadSha) { Fail-Harness "WORKFLOW_RUN_HEAD_MISMATCH:$WorkflowRunId" }
+
+    $collection = Get-GhJson "repos/$Repository/actions/runs/$WorkflowRunId/artifacts?per_page=100" "WORKFLOW_ARTIFACT_LIST_FAILED"
+    $artifactMatches = @($collection.artifacts | Where-Object { [long]$_.id -eq $ArtifactId })
+    if ($artifactMatches.Count -ne 1) { Fail-Harness ("ARTIFACT_NOT_BOUND_TO_WORKFLOW:{0}:{1}" -f $WorkflowRunId, $ArtifactId) }
+    $value = $artifactMatches[0]
+    if ([string]$value.name -ne $ExpectedName) { Fail-Harness "ARTIFACT_NAME_MISMATCH" }
+    if ([long]$value.size_in_bytes -ne $ExpectedSize) { Fail-Harness "ARTIFACT_SIZE_METADATA_MISMATCH" }
+    if ([string]$value.digest -ne "sha256:$ExpectedDigest") { Fail-Harness "ARTIFACT_DIGEST_METADATA_MISMATCH" }
+    if ($value.expired -eq $true) { Fail-Blocked "ARTIFACT_EXPIRED" }
+    return [ordered]@{
+        workflow_run_id = $WorkflowRunId
+        workflow_name = [string]$run.name
+        workflow_event = [string]$run.event
+        workflow_head_sha = [string]$run.head_sha
+        id = $ArtifactId
+        name = $ExpectedName
+        size = $ExpectedSize
+        digest = "sha256:$ExpectedDigest"
+        created_at = [string]$value.created_at
+        expires_at = [string]$value.expires_at
+    }
+}
+
+function Assert-GatePortFree {
+    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+    if ($listeners.Count -gt 0) { Fail-Blocked "GATE_PORT_IN_USE:$Port" }
+}
+
+function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, [string]$ScratchPath) {
+    $directories = @(
+        "qwen3-asr-0.6b-hf",
+        "qwen3-asr-1.7b-hf",
+        "qwen3-forced-aligner-0.6b-hf"
+    )
+    $sources = [Collections.Generic.List[object]]::new()
+    [long]$modelBytes = 0
+    foreach ($name in $directories) {
+        $source = Join-Path $SourceRoot $name
+        if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            Fail-Blocked "QWEN_MODEL_DIRECTORY_MISSING:$name"
+        }
+        $marker = Join-Path $source ".tda-model.json"
+        if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) {
+            Fail-Blocked "QWEN_MODEL_MARKER_MISSING:$name"
+        }
+        $bytes = [long](Get-ChildItem -LiteralPath $source -File -Recurse -Force | Measure-Object -Property Length -Sum).Sum
+        if ($bytes -le 0) { Fail-Blocked "QWEN_MODEL_DIRECTORY_EMPTY:$name" }
+        $modelBytes += $bytes
+        $sources.Add([ordered]@{ name = $name; path = $source; bytes = $bytes })
+    }
+
+    $root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($ScratchPath))
+    $drive = [IO.DriveInfo]::new($root)
+    [long]$requiredFree = $modelBytes + ($QwenArtifactSize * 3L) + ($CompanionArtifactSize * 2L) + 2GB
+    if ([long]$drive.AvailableFreeSpace -lt $requiredFree) {
+        Fail-Blocked "SCRATCH_DISK_SPACE_INSUFFICIENT"
+    }
+
+    New-Item -ItemType Directory -Force -Path $DestinationRoot | Out-Null
+    foreach ($row in $sources) {
+        Write-Host ("Copying isolated model {0} ({1:N2} GB)..." -f $row.name, ($row.bytes / 1GB)) -ForegroundColor DarkCyan
+        Copy-Item -LiteralPath $row.path -Destination $DestinationRoot -Recurse -Force -ErrorAction Stop
+        $copied = Join-Path $DestinationRoot $row.name
+        if (-not (Test-Path -LiteralPath $copied -PathType Container)) { Fail-Harness "QWEN_MODEL_COPY_MISSING:$($row.name)" }
+        if (((Get-Item -LiteralPath $copied -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Fail-Harness "QWEN_MODEL_COPY_REPARSE_POINT:$($row.name)"
+        }
+    }
+    return [ordered]@{ model_bytes = $modelBytes; required_free_bytes = $requiredFree; free_bytes_before = [long]$drive.AvailableFreeSpace }
+}
+
+function Download-ArtifactZip([long]$ArtifactId, [long]$ExpectedSize, [string]$ExpectedDigest, [string]$Destination) {
+    Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+    & gh api "repos/$Repository/actions/artifacts/$ArtifactId/zip" > $Destination
+    if ($LASTEXITCODE -ne 0) { Fail-Harness "ARTIFACT_DOWNLOAD_FAILED:$ArtifactId" }
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) { Fail-Harness "ARTIFACT_DOWNLOAD_MISSING:$ArtifactId" }
+    $item = Get-Item -LiteralPath $Destination
+    if ([long]$item.Length -ne $ExpectedSize) { Fail-Harness "ARTIFACT_DOWNLOAD_SIZE_MISMATCH:$ArtifactId" }
+    if ((Get-Sha256 $Destination) -ne $ExpectedDigest) { Fail-Harness "ARTIFACT_DOWNLOAD_HASH_MISMATCH:$ArtifactId" }
+}
+
+function Sanitize-Job([object]$Job) {
+    if ($null -eq $Job) { return $null }
+    return [ordered]@{
+        id = [string]$Job.id
+        kind = [string]$Job.kind
+        status = [string]$Job.status
+        stage = [string]$Job.stage
+        attempt = [int]$Job.attempt
+        progress = $Job.progress
+        error = $Job.error
+        result_available = [bool]$Job.result_available
+        updated_at = [string]$Job.updated_at
+    }
+}
+
+function Sanitize-Event([object]$Event) {
+    $allowed = @("stage", "track", "total_tracks", "window", "attempt", "profile_id", "forced", "fence", "reason")
+    $data = [ordered]@{}
+    if ($null -ne $Event.data) {
+        foreach ($name in $allowed) {
+            if ($null -ne $Event.data.PSObject.Properties[$name]) { $data[$name] = $Event.data.$name }
+        }
+    }
+    return [ordered]@{
+        seq = [int]$Event.seq
+        code = [string]$Event.code
+        at = [string]$Event.at
+        level = [string]$Event.level
+        data = $data
+    }
+}
+
+function Sanitize-LogRow([object]$Row) {
+    $context = [ordered]@{}
+    foreach ($name in @("job_id", "attempt", "profile_id", "stage", "error_code")) {
+        if ($null -ne $Row.context -and $null -ne $Row.context.PSObject.Properties[$name]) {
+            $context[$name] = $Row.context.$name
+        }
+    }
+    return [ordered]@{
+        at = [string]$Row.at
+        level = [string]$Row.level
+        component = [string]$Row.component
+        code = [string]$Row.code
+        message = [string]$Row.message
+        context = $context
+    }
+}
+
+function Get-PairingToken {
+    $path = Join-Path $env:LOCALAPPDATA "TDA\State\pairing-token.txt"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Fail-Harness "PAIRING_TOKEN_FILE_MISSING" }
+    $value = (Get-Content -LiteralPath $path -Raw -Encoding UTF8).Trim()
+    if ($value.Length -lt 43) { Fail-Harness "PAIRING_TOKEN_INVALID" }
+    return $value
+}
+
+function Invoke-AgentJson([string]$Method, [string]$Path, [object]$Body = $null, [int]$TimeoutSec = 30) {
+    $headers = @{ Authorization = "Bearer $PairingToken"; Accept = "application/json"; Origin = $Origin }
+    $params = @{
+        NoProxy = $true
+        Method = $Method
+        Uri = "http://127.0.0.1:$Port/api/v1$Path"
+        Headers = $headers
+        TimeoutSec = $TimeoutSec
+    }
+    if ($null -ne $Body) {
+        $params.ContentType = "application/json"
+        $params.Body = ($Body | ConvertTo-Json -Depth 16 -Compress)
+    }
+    try { return Invoke-RestMethod @params }
+    catch {
+        $detail = [string]$_.ErrorDetails.Message
+        if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("API_" + $Matches[1]) }
+        Fail-Product "AGENT_API_UNAVAILABLE"
+    }
+}
+
+function Upload-Craig([string]$Path) {
+    $headers = @{ Authorization = "Bearer $PairingToken"; Accept = "application/json"; Origin = $Origin }
+    try {
+        $response = Invoke-WebRequest -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/sources/craig" -Headers $headers -ContentType "application/zip" -InFile $Path -TimeoutSec 900
+        return $response.Content | ConvertFrom-Json -Depth 32
+    } catch {
+        $detail = [string]$_.ErrorDetails.Message
+        if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("CRAIG_" + $Matches[1]) }
+        Fail-Product "CRAIG_UPLOAD_TRANSPORT_FAILED"
+    }
+}
+
+function Wait-AgentHealth([int]$TimeoutSeconds = 90) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $last = $null
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        try {
+            $last = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 2
+            if ([string]$last.product_id -eq "tda-companion" -and [string]$last.api_version -eq "1" -and [string]$last.lifecycle -eq "ready") { return $last }
+        } catch {}
+        Start-Sleep -Milliseconds 500
+    }
+    Fail-Product "AGENT_START_TIMEOUT"
+}
+
+function Start-GateAgent([string]$Executable) {
+    $agentArguments = @("--headless", "--port", [string]$Port, "--origin", $Origin)
+    $process = Start-Process -FilePath $Executable -ArgumentList $agentArguments -PassThru -WindowStyle Hidden
+    $health = Wait-AgentHealth 90
+    if ([int]$health.pid -ne [int]$process.Id) {
+        try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
+        Fail-Product "AGENT_PORT_OWNERSHIP_MISMATCH"
+    }
+    return $process
+}
+
+function Stop-ProcessTree([int]$ProcessId) {
+    if ($ProcessId -le 0) { return }
+    & taskkill.exe /PID $ProcessId /T /F 2>$null | Out-Null
+    Start-Sleep -Milliseconds 500
+}
+
+function Capture-Events([string]$JobId) {
+    if (-not $EventSeen.ContainsKey($JobId)) { $EventSeen[$JobId] = @{} }
+    if (-not $EventCollectors.ContainsKey($JobId)) { $EventCollectors[$JobId] = [Collections.Generic.List[object]]::new() }
+    $value = Invoke-AgentJson "GET" "/jobs/$JobId/events"
+    foreach ($event in @($value.events | Sort-Object { [int]$_.seq })) {
+        $key = [string]$event.seq
+        if (-not $EventSeen[$JobId].ContainsKey($key)) {
+            $EventSeen[$JobId][$key] = $true
+            $EventCollectors[$JobId].Add((Sanitize-Event $event))
+        }
+    }
+    return @($EventCollectors[$JobId])
+}
+
+function Get-Job([string]$JobId) { return Invoke-AgentJson "GET" "/jobs/$JobId" }
+
+function Save-JobEvidence([string]$JobId, [string]$Name, [string]$EvidenceRoot) {
+    if (-not $JobId) { return }
+    try { Write-Json (Join-Path $EvidenceRoot "$Name-job.json") (Sanitize-Job (Get-Job $JobId)) } catch {}
+    try { Write-Json (Join-Path $EvidenceRoot "$Name-events.json") @(Capture-Events $JobId) } catch {}
+}
+
+function Save-Logs([string]$EvidenceRoot) {
+    try {
+        $value = Invoke-AgentJson "GET" "/logs"
+        $rows = @($value.logs)
+        $sanitized = @($rows | Select-Object -Last 100 | ForEach-Object { Sanitize-LogRow $_ })
+        Write-Json (Join-Path $EvidenceRoot "agent-log-tail.json") $sanitized
+    } catch {}
+}
+
+function Wait-Preparation([string]$Source, [string]$ProfileId, [int]$TimeoutSeconds = 2400) {
+    $started = Invoke-AgentJson "POST" "/preparation" @{ source_id = $Source; profile_id = $ProfileId }
+    if ([string]$started.profile_id -ne $ProfileId -or [string]$started.source_id -ne $Source) { Fail-Product "PREPARATION_START_IDENTITY_INVALID:$ProfileId" }
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $state = Invoke-AgentJson "GET" "/preparation"
+        if ([string]$state.profile_id -ne $ProfileId) { Fail-Product "PREPARATION_PROFILE_DRIFT:$ProfileId" }
+        if ([string]$state.state -eq "completed") { return $state }
+        if ([string]$state.state -eq "failed") { Fail-Product ("PREPARATION_" + [string]$state.error_code + ":" + $ProfileId) }
+        Start-Sleep -Seconds 1
+    }
+    Fail-Product "PREPARATION_TIMEOUT:$ProfileId"
+}
+
+function Submit-Transcription([string]$Source, [string]$ProfileId) {
+    $key = "gate-$ProfileId-" + [Guid]::NewGuid().ToString("N")
+    $headers = @{ Authorization = "Bearer $PairingToken"; Accept = "application/json"; Origin = $Origin; "Idempotency-Key" = $key }
+    $body = @{
+        kind = "transcription.craig"
+        campaign_id = "physical-gate"
+        session_id = ("gate-" + $ProfileId)
+        source_id = $Source
+        profile_id = $ProfileId
+        glossary = ""
+        context = ""
+        cpu = $false
+    } | ConvertTo-Json -Compress
+    try {
+        return Invoke-RestMethod -NoProxy -Method Post -Uri "http://127.0.0.1:$Port/api/v1/jobs" -Headers $headers -ContentType "application/json" -Body $body -TimeoutSec 30
+    } catch {
+        $detail = [string]$_.ErrorDetails.Message
+        if ($detail -match '"code"\s*:\s*"([A-Z0-9_]+)"') { Fail-Product ("JOB_SUBMIT_" + $Matches[1] + ":" + $ProfileId) }
+        throw
+    }
+}
+
+function Wait-ForEvent([string]$JobId, [string]$Code, [Nullable[int]]$Track, [int]$TimeoutSeconds) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $job = Get-Job $JobId
+        $events = Capture-Events $JobId
+        $match = @($events | Where-Object {
+            [string]$_.code -eq $Code -and ($null -eq $Track -or [int]$_.data.track -eq [int]$Track)
+        } | Select-Object -Last 1)
+        if ($match.Count -gt 0) { return $match[0] }
+        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
+            Fail-Product ("JOB_TERMINAL_BEFORE_EVENT:{0}:{1}:{2}" -f $Code, [string]$job.status, $errorCode)
+        }
+        Start-Sleep -Milliseconds 750
+    }
+    Fail-Product "JOB_EVENT_TIMEOUT:$Code"
+}
+
+function Wait-Terminal([string]$JobId, [string[]]$Allowed, [int]$TimeoutSeconds) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $job = Get-Job $JobId
+        [void](Capture-Events $JobId)
+        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            if ([string]$job.status -notin $Allowed) {
+                $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
+                Fail-Product "JOB_TERMINAL_UNEXPECTED:$($job.status):$errorCode"
+            }
+            return $job
+        }
+        Start-Sleep -Seconds 1
+    }
+    Fail-Product "JOB_TERMINAL_TIMEOUT"
+}
+
+function Wait-QwenWorkersGone([string]$ScratchPrefix, [int]$TimeoutSeconds = 20) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $rows = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $path = [string]$_.ExecutablePath
+            $path -and $path.StartsWith($ScratchPrefix, [StringComparison]::OrdinalIgnoreCase) -and $path -match 'Qwen'
+        })
+        if ($rows.Count -eq 0) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    Fail-Product "QWEN_WORKER_NOT_STOPPED"
+}
+
+function Write-EvidenceManifest([string]$EvidenceRoot) {
+    $entries = [Collections.Generic.List[object]]::new()
+    foreach ($file in Get-ChildItem -LiteralPath $EvidenceRoot -File -Recurse | Sort-Object FullName) {
+        if ($file.Name -eq "manifest.json") { continue }
+        $relative = [IO.Path]::GetRelativePath($EvidenceRoot, $file.FullName).Replace('\\', '/')
+        $entries.Add([ordered]@{ path = $relative; size = [long]$file.Length; sha256 = Get-Sha256 $file.FullName })
+    }
+    Write-Json (Join-Path $EvidenceRoot "manifest.json") ([ordered]@{ schema = "tda_qwen_gate_evidence_manifest_v1"; files = @($entries) })
+}
+
+function Assert-NoEvidenceLeak([string]$EvidenceRoot, [string]$SecretToken, [string]$PrivatePath) {
+    $privateName = [IO.Path]::GetFileName($PrivatePath)
+    foreach ($file in Get-ChildItem -LiteralPath $EvidenceRoot -File -Recurse) {
+        if ($file.Extension -notin @(".json", ".txt")) { continue }
+        $text = [string](Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue)
+        if ($SecretToken -and $text.Contains($SecretToken)) { Fail-Harness "EVIDENCE_PAIRING_TOKEN_LEAK" }
+        if ($privateName -and $text.Contains($privateName)) { Fail-Harness "EVIDENCE_PRIVATE_FILENAME_LEAK" }
+    }
+}
+
+Assert-HexSha $PrHeadSha "PR_HEAD_SHA_INVALID"
+Assert-HexSha $TestedMergeSha "MERGE_SHA_INVALID"
+Assert-HexSha $SourceTreeSha "TREE_SHA_INVALID"
+Assert-HexSha256 $CompanionArtifactSha256 "COMPANION_ARTIFACT_SHA_INVALID"
+Assert-HexSha256 $QwenArtifactSha256 "QWEN_ARTIFACT_SHA_INVALID"
+Assert-HexSha256 $QwenRuntimeArchiveSha256 "QWEN_RUNTIME_ARCHIVE_SHA_INVALID"
+if ($QwenRuntimeVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Fail-Harness "QWEN_RUNTIME_VERSION_INVALID" }
+if ($Repository -ne "Faysk/tda") { Fail-Harness "REPOSITORY_INVALID" }
+if ($Origin -ne "https://dnd.faysk.dev") { Fail-Harness "ORIGIN_INVALID" }
+if (-not $OriginalLocalAppData) { Fail-Blocked "LOCALAPPDATA_NOT_FOUND" }
+if ($PSVersionTable.PSVersion -lt [Version]"7.4") { Fail-Blocked "POWERSHELL_7_4_REQUIRED" }
+if ($null -eq (Get-Command gh -ErrorAction SilentlyContinue)) { Fail-Blocked "GH_CLI_REQUIRED" }
+if ($null -eq (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { Fail-Blocked "NVIDIA_SMI_REQUIRED" }
+& gh auth status 1>$null 2>$null
+if ($LASTEXITCODE -ne 0) { Fail-Blocked "GH_AUTH_REQUIRED" }
+
+$CraigResolved = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
+if ([IO.Path]::GetExtension($CraigResolved).ToLowerInvariant() -ne ".zip") { Fail-Blocked "CRAIG_ZIP_REQUIRED" }
+
+$OutputBase = if ($OutputRoot) { [IO.Path]::GetFullPath($OutputRoot) } else { Join-Path $PSScriptRoot "results" }
+New-Item -ItemType Directory -Force -Path $OutputBase | Out-Null
+$RunStamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+$EvidenceRoot = Join-Path $OutputBase "TDA-QWEN-GATE-EVIDENCE-$RunStamp"
+New-Item -ItemType Directory -Force -Path $EvidenceRoot | Out-Null
+$ScratchRoot = Join-Path $env:TEMP ("TDA-QWEN-GATE-" + $RunStamp)
+$ScratchLocal = Join-Path $ScratchRoot "LocalAppData"
+$Downloads = Join-Path $ScratchRoot "downloads"
+$CompanionExtract = Join-Path $ScratchRoot "companion-artifact"
+$CompanionPortable = Join-Path $ScratchRoot "companion-portable"
+$QwenZip = Join-Path $Downloads "qwen-actions-artifact.zip"
+$CompanionZip = Join-Path $Downloads "companion-actions-artifact.zip"
+New-Item -ItemType Directory -Force -Path $ScratchLocal, $Downloads, $CompanionExtract, $CompanionPortable | Out-Null
+
+try {
+    $head = Get-GhJson "repos/$Repository/commits/$PrHeadSha" "PR_HEAD_LOOKUP_FAILED"
+    $merge = Get-GhJson "repos/$Repository/commits/$TestedMergeSha" "MERGE_LOOKUP_FAILED"
+    if ([string]$head.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "PR_HEAD_TREE_MISMATCH" }
+    if ([string]$merge.commit.tree.sha -ne $SourceTreeSha) { Fail-Harness "MERGE_TREE_MISMATCH" }
+    if (@($merge.parents | Where-Object { [string]$_.sha -eq $PrHeadSha }).Count -ne 1) { Fail-Harness "MERGE_PARENT_HEAD_MISSING" }
+
+    $companionMeta = Assert-WorkflowArtifact $CompanionWorkflowRunId $CompanionArtifactId "TDACompanion-windows-x64" $CompanionArtifactSize $CompanionArtifactSha256
+    $qwenMeta = Assert-WorkflowArtifact $QwenWorkflowRunId $QwenArtifactId "TDAQwenRuntimeBundle-windows-x64" $QwenArtifactSize $QwenArtifactSha256
+
+    Assert-GatePortFree
+
+    $gpuRaw = @(& nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader,nounits 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $gpuRaw.Count -eq 0) { Fail-Blocked "NVIDIA_GPU_QUERY_FAILED" }
+    if (@($gpuRaw | Where-Object { $_ -like "*$RequireGpuName*" }).Count -eq 0) { Fail-Blocked "REQUIRED_GPU_NOT_FOUND" }
+
+    Write-Json (Join-Path $EvidenceRoot "identity.json") ([ordered]@{
+        schema = $PackSchema
+        pr_head_sha = $PrHeadSha
+        tested_merge_sha = $TestedMergeSha
+        source_tree_sha = $SourceTreeSha
+        companion_artifact = $companionMeta
+        qwen_artifact = $qwenMeta
+        qwen_runtime_version = $QwenRuntimeVersion
+        qwen_runtime_archive_sha256 = $QwenRuntimeArchiveSha256
+        required_gpu_name = $RequireGpuName
+        port = $Port
+    })
+    Write-Json (Join-Path $EvidenceRoot "environment.json") ([ordered]@{
+        windows = [Environment]::OSVersion.VersionString
+        powershell = $PSVersionTable.PSVersion.ToString()
+        gpu = @($gpuRaw)
+    })
+
+    Write-Host "Downloading exact Companion artifact $CompanionArtifactId..." -ForegroundColor Cyan
+    Download-ArtifactZip $CompanionArtifactId $CompanionArtifactSize $CompanionArtifactSha256 $CompanionZip
+    Write-Host "Downloading exact Qwen artifact $QwenArtifactId (~2.7 GB)..." -ForegroundColor Cyan
+    Download-ArtifactZip $QwenArtifactId $QwenArtifactSize $QwenArtifactSha256 $QwenZip
+
+    Expand-Archive -LiteralPath $CompanionZip -DestinationPath $CompanionExtract -Force
+    $payloadPath = Join-Path $CompanionExtract "TDACompanion-payload-manifest.json"
+    $payload = Read-Json $payloadPath "COMPANION_PAYLOAD_INVALID"
+    if ([string]$payload.source_sha -ne $TestedMergeSha) { Fail-Harness "COMPANION_SOURCE_SHA_MISMATCH" }
+    if ([string]$payload.source_tree_sha -ne $SourceTreeSha) { Fail-Harness "COMPANION_TREE_SHA_MISMATCH" }
+    $portableZip = @(Get-ChildItem -LiteralPath $CompanionExtract -Filter "TDACompanion-*-windows-x64.zip" -File)
+    if ($portableZip.Count -ne 1) { Fail-Harness "COMPANION_PORTABLE_ZIP_INVALID" }
+    Expand-Archive -LiteralPath $portableZip[0].FullName -DestinationPath $CompanionPortable -Force
+    $CompanionExe = Join-Path $CompanionPortable "app\TDACompanion.exe"
+    if (-not (Test-Path -LiteralPath $CompanionExe -PathType Leaf)) { Fail-Harness "COMPANION_EXE_MISSING" }
+    $expectedExe = [string]$payload.files.'TDACompanion.exe'.sha256
+    if ((Get-Sha256 $CompanionExe) -ne $expectedExe) { Fail-Harness "COMPANION_EXE_HASH_MISMATCH" }
+
+    $ScratchTda = Join-Path $ScratchLocal "TDA"
+    New-Item -ItemType Directory -Force -Path $ScratchTda | Out-Null
+    $RealModels = Join-Path $OriginalLocalAppData "TDA\Models"
+    $ScratchModels = Join-Path $ScratchTda "Models"
+    if (-not (Test-Path -LiteralPath $RealModels -PathType Container)) { Fail-Blocked "EXISTING_MODELS_ROOT_REQUIRED" }
+    $modelCopy = Copy-IsolatedQwenModels $RealModels $ScratchModels $ScratchRoot
+    Write-Json (Join-Path $EvidenceRoot "model-copy.json") ([ordered]@{
+        isolated_copy = $true
+        model_bytes = [long]$modelCopy.model_bytes
+        required_free_bytes = [long]$modelCopy.required_free_bytes
+        free_bytes_before = [long]$modelCopy.free_bytes_before
+        directories = @("qwen3-asr-0.6b-hf", "qwen3-asr-1.7b-hf", "qwen3-forced-aligner-0.6b-hf")
+    })
+
+    $env:LOCALAPPDATA = $ScratchLocal
+    $installResult = Join-Path $ScratchRoot "qwen-install.json"
+    $installArgs = @(
+        "--install-rc-runtime", "qwen",
+        "--rc-artifact", $QwenZip,
+        "--rc-artifact-sha256", $QwenArtifactSha256,
+        "--rc-result-file", $installResult
+    )
+    $install = Start-Process -FilePath $CompanionExe -ArgumentList $installArgs -Wait -PassThru -WindowStyle Hidden
+    if (-not (Test-Path -LiteralPath $installResult -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_INSTALL_RESULT_MISSING" }
+    $installJson = Read-Json $installResult "QWEN_RUNTIME_INSTALL_RESULT_INVALID"
+    if ($install.ExitCode -ne 0 -or $installJson.ok -ne $true -or [string]$installJson.runtime -ne "qwen" -or [string]$installJson.status -ne "ready") {
+        $code = if ($installJson.error) { [string]$installJson.error } else { "QWEN_RUNTIME_INSTALL_FAILED" }
+        Fail-Product $code
+    }
+    if ([string]$installJson.version -ne $QwenRuntimeVersion) { Fail-Product "QWEN_RUNTIME_VERSION_MISMATCH" }
+    $runtimeMarkerPath = Join-Path $ScratchLocal ("TDA\Runtime\qwen\{0}\.tda-runtime.json" -f $QwenRuntimeVersion)
+    if (-not (Test-Path -LiteralPath $runtimeMarkerPath -PathType Leaf)) { Fail-Product "QWEN_RUNTIME_MARKER_MISSING" }
+    $runtimeMarker = Read-Json $runtimeMarkerPath "QWEN_RUNTIME_MARKER_INVALID"
+    if (
+        [string]$runtimeMarker.schema -ne "tda_asr_runtime_v1" -or
+        [string]$runtimeMarker.runtime_id -ne "qwen3-transformers" -or
+        [string]$runtimeMarker.version -ne $QwenRuntimeVersion -or
+        [string]$runtimeMarker.archive_sha256 -ne $QwenRuntimeArchiveSha256 -or
+        [string]$runtimeMarker.worker_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        Fail-Product "QWEN_RUNTIME_MARKER_IDENTITY_MISMATCH"
+    }
+    Write-Json (Join-Path $EvidenceRoot "qwen-runtime-install.json") ([ordered]@{
+        schema = [string]$installJson.schema
+        ok = [bool]$installJson.ok
+        runtime = [string]$installJson.runtime
+        status = [string]$installJson.status
+        version = [string]$installJson.version
+        reused = [bool]$installJson.reused
+        archive_sha256 = [string]$runtimeMarker.archive_sha256
+        worker_sha256 = [string]$runtimeMarker.worker_sha256
+    })
+
+    Assert-GatePortFree
+    $AgentProcess = Start-GateAgent $CompanionExe
+    $PairingToken = Get-PairingToken
+
+    $craig = Upload-Craig $CraigResolved
+    $SourceId = [string]$craig.source_id
+    if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or [int]$craig.track_count -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
+    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{ track_count = [int]$craig.track_count; reused = [bool]$craig.reused })
+
+    Write-Host "Physical preparation: qwen-fast..." -ForegroundColor Cyan
+    $prepFast = Wait-Preparation $SourceId "qwen-fast" 2400
+    Write-Json (Join-Path $EvidenceRoot "preparation-qwen-fast.json") ([ordered]@{
+        state = [string]$prepFast.state; profile_id = [string]$prepFast.profile_id; stage = [string]$prepFast.stage; error_code = $prepFast.error_code; elapsed_seconds = $prepFast.elapsed_seconds
+    })
+    Write-Host "Physical preparation: qwen-quality..." -ForegroundColor Cyan
+    $prepQuality = Wait-Preparation $SourceId "qwen-quality" 2400
+    Write-Json (Join-Path $EvidenceRoot "preparation-qwen-quality.json") ([ordered]@{
+        state = [string]$prepQuality.state; profile_id = [string]$prepQuality.profile_id; stage = [string]$prepQuality.stage; error_code = $prepQuality.error_code; elapsed_seconds = $prepQuality.elapsed_seconds
+    })
+
+    foreach ($profileId in @("qwen-fast", "qwen-quality")) {
+        $gate = Join-Path $env:LOCALAPPDATA "TDA\State\qwen-physical-gates\$profileId.json"
+        if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { Fail-Product "QWEN_GATE_RECEIPT_MISSING:$profileId" }
+        $gateValue = Read-Json $gate "QWEN_GATE_RECEIPT_INVALID:$profileId"
+        if ([string]$gateValue.schema -ne "tda_qwen_physical_gate_v2" -or $gateValue.contains_audio -ne $false -or $gateValue.contains_transcript -ne $false) {
+            Fail-Product "QWEN_GATE_RECEIPT_INVALID:$profileId"
+        }
+        Copy-Item -LiteralPath $gate -Destination (Join-Path $EvidenceRoot "physical-gate-$profileId.json") -Force
+    }
+
+    Write-Host "Normal qwen-quality worker + bounded cancel..." -ForegroundColor Cyan
+    $quality = Submit-Transcription $SourceId "qwen-quality"
+    $QualityJobId = [string]$quality.id
+    if (-not $QualityJobId) { Fail-Product "QWEN_QUALITY_JOB_ID_MISSING" }
+    [void](Wait-ForEvent $QualityJobId "QWEN_WINDOW_TRANSCRIBED" $null 1800)
+    $cancelStarted = [DateTimeOffset]::UtcNow
+    [void](Invoke-AgentJson "POST" "/jobs/$QualityJobId/cancel")
+    $qualityTerminal = Wait-Terminal $QualityJobId @("cancelled") 30
+    $cancelSeconds = ([DateTimeOffset]::UtcNow - $cancelStarted).TotalSeconds
+    Wait-QwenWorkersGone $ScratchRoot 20
+    Write-Json (Join-Path $EvidenceRoot "qwen-quality-cancel.json") ([ordered]@{
+        job = Sanitize-Job $qualityTerminal
+        cancel_settle_seconds = [Math]::Round($cancelSeconds, 3)
+    })
+    Save-JobEvidence $QualityJobId "qwen-quality" $EvidenceRoot
+
+    Write-Host "qwen-fast checkpoint -> hard Agent crash -> retry..." -ForegroundColor Cyan
+    $fast = Submit-Transcription $SourceId "qwen-fast"
+    $FastJobId = [string]$fast.id
+    if (-not $FastJobId) { Fail-Product "QWEN_FAST_JOB_ID_MISSING" }
+    [void](Wait-ForEvent $FastJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
+    [void](Capture-Events $FastJobId)
+    $preCrash = @(Capture-Events $FastJobId)
+    $preCrashMaxSeq = [int](($preCrash | Measure-Object -Property seq -Maximum).Maximum)
+    $persistedTracks = @($preCrash | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object { [int]$_.data.track } | Sort-Object -Unique)
+    if (1 -notin $persistedTracks) { Fail-Product "TRACK1_TEXT_CHECKPOINT_NOT_DURABLE" }
+    Write-Json (Join-Path $EvidenceRoot "qwen-fast-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $FastJobId) })
+
+    $crashedPid = [int]$AgentProcess.Id
+    Stop-ProcessTree $crashedPid
+    $AgentProcess = $null
+    Start-Sleep -Seconds 2
+    $agentStillAlive = $false
+    try {
+        $still = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 2
+        if ($null -ne $still) { $agentStillAlive = $true }
+    } catch {}
+    if ($agentStillAlive) { Fail-Harness "SCRATCH_AGENT_SURVIVED_HARD_CRASH" }
+    Wait-QwenWorkersGone $ScratchRoot 20
+    Assert-GatePortFree
+
+    $AgentProcess = Start-GateAgent $CompanionExe
+    $PairingToken = Get-PairingToken
+    $recoveredDeadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
+    $interrupted = $null
+    while ([DateTimeOffset]::UtcNow -lt $recoveredDeadline) {
+        $candidate = Get-Job $FastJobId
+        [void](Capture-Events $FastJobId)
+        if ([string]$candidate.status -eq "interrupted") { $interrupted = $candidate; break }
+        if ([string]$candidate.status -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$($candidate.status)" }
+        Start-Sleep -Milliseconds 500
+    }
+    if ($null -eq $interrupted) { Fail-Product "PROCESS_INTERRUPTED_NOT_OBSERVED" }
+    if ($null -eq $interrupted.error -or [string]$interrupted.error.code -ne "PROCESS_INTERRUPTED" -or $interrupted.error.recoverable -ne $true) {
+        Fail-Product "PROCESS_INTERRUPTED_CONTRACT_INVALID"
+    }
+    Write-Json (Join-Path $EvidenceRoot "qwen-fast-interrupted.json") (Sanitize-Job $interrupted)
+
+    [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
+    $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
+    $allFastEvents = @(Capture-Events $FastJobId)
+    $retryEvents = @($allFastEvents | Where-Object { [int]$_.seq -gt $preCrashMaxSeq })
+    foreach ($track in $persistedTracks) {
+        $reuseCount = @($retryEvents | Where-Object { [string]$_.code -eq "ASR_TEXT_CHECKPOINT_REUSED" -and [int]$_.data.track -eq $track }).Count
+        $retranscribed = @($retryEvents | Where-Object { [string]$_.code -eq "QWEN_WINDOW_TRANSCRIBED" -and [int]$_.data.track -eq $track }).Count
+        if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
+        if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
+    }
+    if (@($retryEvents | Where-Object { [string]$_.code -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
+
+    $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
+    $transcription = $result.transcription
+    if ($null -eq $transcription -or [string]$transcription.run_id -eq "" -or [string]$transcription.sha256 -notmatch '^[a-f0-9]{64}$') {
+        Fail-Product "QWEN_FAST_RESULT_INVALID"
+    }
+    $runId = [string]$transcription.run_id
+    $resultDigest = [string]$transcription.sha256
+    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
+    $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
+    $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
+    $runMarkerPath = Join-Path $runRoot "run.json"
+    $runTranscriptPath = Join-Path $runRoot "transcript.json"
+    if (-not (Test-Path -LiteralPath $runMarkerPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_MARKER_MISSING" }
+    if (-not (Test-Path -LiteralPath $runTranscriptPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_MISSING" }
+    $runMarker = Read-Json $runMarkerPath "IMMUTABLE_RUN_MARKER_INVALID"
+    if ([string]$runMarker.run_id -ne $runId -or [string]$runMarker.job_id -ne $FastJobId -or [int]$runMarker.attempt -ne [int]$fastFinal.attempt) {
+        Fail-Product "IMMUTABLE_RUN_IDENTITY_MISMATCH"
+    }
+    if ([string]$runMarker.profile_id -ne "qwen-fast" -or [string]$runMarker.transcript_sha256 -ne $resultDigest) {
+        Fail-Product "IMMUTABLE_RUN_MANIFEST_MISMATCH"
+    }
+    $computedTranscriptDigest = Get-Sha256 $runTranscriptPath
+    if ($computedTranscriptDigest -ne $resultDigest) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_HASH_MISMATCH" }
+    Write-Json (Join-Path $EvidenceRoot "immutable-run-validation.json") ([ordered]@{
+        marker = "run.json"
+        run_id = $runId
+        job_id = $FastJobId
+        attempt = [int]$fastFinal.attempt
+        profile_id = "qwen-fast"
+        transcript_sha256 = $resultDigest
+        computed_transcript_sha256 = $computedTranscriptDigest
+        marker_schema = [string]$runMarker.schema
+    })
+    Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
+        status = [string]$fastFinal.status
+        attempt = [int]$fastFinal.attempt
+        persisted_tracks_before_crash = $persistedTracks
+        run_id = $runId
+        transcript_sha256 = $resultDigest
+    })
+    Save-JobEvidence $FastJobId "qwen-fast" $EvidenceRoot
+    Save-Logs $EvidenceRoot
+
+    $Verdict = "PASS"
+    $VerdictCode = "QWEN_PHYSICAL_RECOVERY_GATE_PASS"
+} catch {
+    $message = [string]$_.Exception.Message
+    if ($message -match '^PRODUCT_FAILED:(.+)$') { $Verdict = "PRODUCT_FAILED"; $VerdictCode = $Matches[1] }
+    elseif ($message -match '^BLOCKED:(.+)$') { $Verdict = "BLOCKED"; $VerdictCode = $Matches[1] }
+    elseif ($message -match '^HARNESS_FAILED:(.+)$') { $Verdict = "HARNESS_FAILED"; $VerdictCode = $Matches[1] }
+    else {
+        $Verdict = "HARNESS_FAILED"
+        $exceptionType = [string]$_.Exception.GetType().Name
+        $safeType = ($exceptionType -replace '[^A-Za-z0-9_]', '_').ToUpperInvariant()
+        $VerdictCode = "HARNESS_EXCEPTION_$safeType"
+        $scriptName = [IO.Path]::GetFileName([string]$_.InvocationInfo.ScriptName)
+        $commandName = [string]$_.InvocationInfo.MyCommand.Name
+        Write-Json (Join-Path $EvidenceRoot "harness-error.json") ([ordered]@{
+            exception_type = $exceptionType
+            script = $scriptName
+            line = [int]$_.InvocationInfo.ScriptLineNumber
+            command = $commandName
+        })
+    }
+    try { Save-JobEvidence $QualityJobId "qwen-quality-failure" $EvidenceRoot } catch {}
+    try { Save-JobEvidence $FastJobId "qwen-fast-failure" $EvidenceRoot } catch {}
+    try { Save-Logs $EvidenceRoot } catch {}
+} finally {
+    try {
+        if ($null -ne $AgentProcess -and -not $AgentProcess.HasExited) { Stop-ProcessTree ([int]$AgentProcess.Id) }
+    } catch {}
+    try {
+        $scratchPrefix = $ScratchRoot
+        foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+            $path = [string]$process.ExecutablePath
+            if ($path -and $path.StartsWith($scratchPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                try { Stop-ProcessTree ([int]$process.ProcessId) } catch {}
+            }
+        }
+    } catch {}
+    $env:LOCALAPPDATA = $OriginalLocalAppData
+
+    $finished = [DateTimeOffset]::UtcNow
+    Write-Json (Join-Path $EvidenceRoot "verdict.json") ([ordered]@{
+        schema = $PackSchema
+        verdict = $Verdict
+        code = $VerdictCode
+        started_at = $StartedAt.ToString("o")
+        finished_at = $finished.ToString("o")
+        elapsed_seconds = [Math]::Round(($finished - $StartedAt).TotalSeconds, 3)
+    })
+    try { Assert-NoEvidenceLeak $EvidenceRoot $PairingToken $CraigResolved } catch {
+        $Verdict = "HARNESS_FAILED"
+        $VerdictCode = [string]$_.Exception.Message
+        Write-Json (Join-Path $EvidenceRoot "verdict.json") ([ordered]@{ schema = $PackSchema; verdict = $Verdict; code = $VerdictCode })
+    }
+    Write-EvidenceManifest $EvidenceRoot
+    $zip = "$EvidenceRoot.zip"
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    Compress-Archive -Path (Join-Path $EvidenceRoot "*") -DestinationPath $zip -CompressionLevel Optimal
+
+    try {
+        Remove-Item -LiteralPath $ScratchRoot -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {}
+
+    Write-Host ""
+    Write-Host "Qwen physical gate verdict: $Verdict / $VerdictCode" -ForegroundColor $(if ($Verdict -eq "PASS") { "Green" } else { "Yellow" })
+    Write-Host "Evidence: $zip"
+}
+
+if ($Verdict -ne "PASS") { exit 1 }
+exit 0
