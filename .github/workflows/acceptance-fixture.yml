@@ -824,9 +824,9 @@ jobs:
           foreach ($required in @(
             "https://dnd.faysk.dev",
             "/api/downloads/companion/windows/manifest",
-            "companion-v0.3.14",
-            "companion-whisper-runtime-v1.1.5",
-            "companion-qwen-runtime-v1.0.10",
+            'ExpectedStableVersion = "0.3.14"',
+            'ExpectedWhisperRuntimeVersion = "1.1.5"',
+            'ExpectedQwenRuntimeVersion = "1.0.10"',
             "WEB_STABLE_MSI_HASH_MISMATCH",
             "BROWSER_SESSION",
             "Idempotency-Key",
