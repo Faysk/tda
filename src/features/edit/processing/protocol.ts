@@ -131,6 +131,22 @@ export type LocalPublicationTarget = {
 	jobId: string;
 	attempt: number;
 };
+export type LocalExecutionLineage = {
+	schemaVersion: "tda_execution_lineage_v1";
+	companionVersion: string | null;
+	runtimeFamily: string | null;
+	runtimeVersion: string | null;
+	device: string | null;
+	computeType: string | null;
+	gpu: {
+		vendor: string | null;
+		index: number | null;
+		model: string | null;
+		vramTotalBytes: number | null;
+		computeCapability: string | null;
+		driverVersion: string | null;
+	} | null;
+};
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -141,6 +157,7 @@ export type LocalRunSummary = {
 	device: string | null;
 	computeType: string | null;
 	alignment: string | null;
+	executionLineage: LocalExecutionLineage | null;
 	language: string | null;
 	completedAt: string | null;
 	transcriptSha256: string;
@@ -186,6 +203,7 @@ export type LocalReview = {
 		device: string | null;
 		computeType: string | null;
 		alignment: string | null;
+		executionLineage: LocalExecutionLineage | null;
 		completedAt: string | null;
 	};
 	stats: {
@@ -605,6 +623,38 @@ export function parseLocalSources(value: unknown): LocalSourceSummary[] {
 	return sources;
 }
 
+
+function parseExecutionLineage(value: unknown): LocalExecutionLineage | null {
+	if (value === null || value === undefined) return null;
+	const row = record(value);
+	if (row.schema_version !== "tda_execution_lineage_v1") return invalid();
+	const rawGpu = row.gpu;
+	let gpu: LocalExecutionLineage["gpu"] = null;
+	if (rawGpu !== null && rawGpu !== undefined) {
+		const item = record(rawGpu);
+		gpu = {
+			vendor: nullableText(item.vendor, 64),
+			index:
+				item.index === null || item.index === undefined
+					? null
+					: nonNegativeInteger(item.index),
+			model: nullableText(item.model, 160),
+			vramTotalBytes: nullableNonNegativeNumber(item.vram_total_bytes),
+			computeCapability: nullableText(item.compute_capability, 32),
+			driverVersion: nullableText(item.driver_version, 64),
+		};
+	}
+	return {
+		schemaVersion: "tda_execution_lineage_v1",
+		companionVersion: nullableText(row.companion_version, 64),
+		runtimeFamily: nullableText(row.runtime_family, 64),
+		runtimeVersion: nullableText(row.runtime_version, 128),
+		device: nullableText(row.device, 64),
+		computeType: nullableText(row.compute_type, 64),
+		gpu,
+	};
+}
+
 function parsePublicationTarget(
 	value: unknown,
 	expected: {
@@ -661,6 +711,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			device: nullableText(item.device, 64),
 			computeType: nullableText(item.compute_type, 64),
 			alignment: nullableText(item.alignment, 128),
+			executionLineage: parseExecutionLineage(item.execution_lineage),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
 			transcriptSha256,
@@ -747,6 +798,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 			device: nullableText(lineage.device, 64),
 			computeType: nullableText(lineage.compute_type, 64),
 			alignment: nullableText(lineage.alignment, 128),
+			executionLineage: parseExecutionLineage(lineage.execution_lineage),
 			completedAt: nullableIsoDate(lineage.completed_at),
 		},
 		stats: {
