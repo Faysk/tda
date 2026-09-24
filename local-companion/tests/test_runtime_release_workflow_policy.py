@@ -11,6 +11,18 @@ def _workflow(name: str) -> str:
     return (WORKFLOWS / name).read_text(encoding="utf-8")
 
 
+def _push_paths(name: str) -> set[str]:
+    value = _workflow(name)
+    start = value.index("  push:")
+    end = value.index("\nconcurrency:", start)
+    block = value[start:end]
+    return {
+        line.strip()[2:].strip("'\"")
+        for line in block.splitlines()
+        if line.strip().startswith("- '") or line.strip().startswith('- "')
+    }
+
+
 def test_whisper_runtime_workflow_is_build_only_and_keeps_candidate_long_enough():
     value = _workflow("whisper-runtime.yml")
 
@@ -57,6 +69,30 @@ def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
         value = _workflow(name)
         for path in required:
             assert value.count(path) == 2, f"{name} must watch {path} on PR and push"
+
+
+
+def test_runtime_rc_source_drift_fence_is_family_scoped_to_real_runtime_inputs():
+    value = _workflow("runtime-rc.yml")
+
+    assert value.count("RUNTIME_PATHS=(") == 2
+    assert 'git diff --quiet "$SOURCE_SHA" origin/main -- "${RUNTIME_PATHS[@]}"' in value
+    assert 'git diff --name-only "$SOURCE_SHA" origin/main -- "${RUNTIME_PATHS[@]}"' in value
+
+    # The RC fence must keep up with every file that can trigger an actual runtime
+    # build on main, rather than conservatively invalidating the whole Companion tree.
+    required = (
+        _push_paths("whisper-runtime.yml")
+        | _push_paths("qwen-runtime.yml")
+        | _push_paths("qwen-runtime-package.yml")
+    )
+    missing = sorted(path for path in required if f'"{path}"' not in value)
+    assert missing == []
+
+    # Test/acceptance-only changes do not alter packaged runtime bytes.
+    assert '"local-companion/tests/test_qwen_physical_gate_harness.py"' not in value
+    assert '"tools/acceptance/run-qwen-recovery-physical-gate.ps1"' not in value
+    assert "              local-companion \\" not in value
 
 
 def test_runtime_stable_promotion_requires_physical_receipt_and_reuses_release_object():
