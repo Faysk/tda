@@ -438,8 +438,8 @@ try {
         "-Port", [string]$Port,
         "-ResultsRoot", $stableRoot
     )
-    $stableProcess = Start-Process -FilePath $pwsh -ArgumentList $stableArgs -Wait -PassThru -NoNewWindow
-    if ($stableProcess.ExitCode -ne 0) { Fail "OFFICIAL_STABLE_SMOKE_FAILED" }
+    & $pwsh @stableArgs
+    if ($LASTEXITCODE -ne 0) { Fail "OFFICIAL_STABLE_SMOKE_FAILED" }
 
     $stableRuns = @(Get-ChildItem -LiteralPath $stableRoot -Directory -Filter "STABLE-*" | Sort-Object Name -Descending)
     if ($stableRuns.Count -lt 1) { Fail "STABLE_SMOKE_HANDOFF_MISSING" }
@@ -512,8 +512,8 @@ try {
         "-Port", [string]$RecoveryPort,
         "-OutputRoot", $recoveryRoot
     )
-    $recoveryProcess = Start-Process -FilePath $pwsh -ArgumentList $recoveryArgs -Wait -PassThru -NoNewWindow
-    if ($recoveryProcess.ExitCode -ne 0) { Fail "QWEN_RECOVERY_GATE_FAILED" }
+    & $pwsh @recoveryArgs
+    if ($LASTEXITCODE -ne 0) { Fail "QWEN_RECOVERY_GATE_FAILED" }
 
     $recoveryRuns = @(Get-ChildItem -LiteralPath $recoveryRoot -Directory -Filter "TDA-QWEN-GATE-EVIDENCE-*" | Sort-Object Name -Descending)
     if ($recoveryRuns.Count -lt 1) { Fail "QWEN_RECOVERY_EVIDENCE_MISSING" }
@@ -570,7 +570,7 @@ try {
     Write-EvidenceManifest $share
     $zipPath = $share + ".zip"
     Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
-    Compress-Archive -LiteralPath (Join-Path $share "*") -DestinationPath $zipPath -CompressionLevel Optimal
+    Compress-Archive -Path (Join-Path $share "*") -DestinationPath $zipPath -CompressionLevel Optimal
     Write-Host ("Sanitized evidence: " + $zipPath) -ForegroundColor Cyan
 }
 
