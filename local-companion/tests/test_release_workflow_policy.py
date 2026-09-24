@@ -100,14 +100,16 @@ def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects
     assert 'for suffix in ("", f"?tag={tag}")' in value
 
 
-def test_stable_promotion_requires_published_runtimes_meeting_companion_minimums():
+def test_stable_promotion_requires_the_exact_physically_accepted_runtime_versions():
     value = _read("companion-promote.yml")
-    assert "Require compatible stable runtimes" in value
-    assert "MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION" in value
-    assert "MIN_COMPATIBLE_QWEN_RUNTIME_VERSION" in value
+    assert "Require the exact physically accepted Stable runtime set" in value
+    assert "RC_WHISPER_VERSION" in value
+    assert "RC_QWEN_VERSION" in value
     assert "companion-whisper-runtime-v" in value
     assert "companion-qwen-runtime-v" in value
-    assert "COMPANION_STABLE_{family.upper()}_RUNTIME_INCOMPATIBLE" in value
+    assert "COMPANION_STABLE_{family.upper()}_RUNTIME_NOT_PHYSICALLY_ACCEPTED" in value
+    assert "latest != expected" in value
+    assert "STABLE_RUNTIME_PHYSICAL_IDENTITY_OK" in value
 
 
 def test_runtime_builds_allow_explicit_main_exact_source_dispatch():
