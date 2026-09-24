@@ -434,9 +434,11 @@ function Wait-ForEvent([string]$JobId, [string]$Code, [Nullable[int]]$Track, [in
             $eventCode -eq $Code -and ($null -eq $Track -or ($null -ne $eventTrack -and [int]$eventTrack -eq [int]$Track))
         } | Select-Object -Last 1)
         if ($match.Count -gt 0) { return $match[0] }
-        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
-            $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
-            Fail-Product ("JOB_TERMINAL_BEFORE_EVENT:{0}:{1}:{2}" -f $Code, [string]$job.status, $errorCode)
+        $jobStatus = [string](Get-RequiredProductPropertyValue $job "status" "JOB_STATUS_MISSING")
+        if ($jobStatus -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            $jobError = Get-OptionalPropertyValue $job "error"
+            $errorCode = if ($null -ne $jobError) { [string](Get-OptionalPropertyValue $jobError "code") } else { "none" }
+            Fail-Product ("JOB_TERMINAL_BEFORE_EVENT:{0}:{1}:{2}" -f $Code, $jobStatus, $errorCode)
         }
         Start-Sleep -Milliseconds 750
     }
@@ -448,10 +450,12 @@ function Wait-Terminal([string]$JobId, [string[]]$Allowed, [int]$TimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $job = Get-Job $JobId
         [void](Capture-Events $JobId)
-        if ([string]$job.status -in @("succeeded", "failed", "interrupted", "cancelled")) {
-            if ([string]$job.status -notin $Allowed) {
-                $errorCode = if ($null -ne $job.error) { [string]$job.error.code } else { "none" }
-                Fail-Product "JOB_TERMINAL_UNEXPECTED:$($job.status):$errorCode"
+        $jobStatus = [string](Get-RequiredProductPropertyValue $job "status" "JOB_STATUS_MISSING")
+        if ($jobStatus -in @("succeeded", "failed", "interrupted", "cancelled")) {
+            if ($jobStatus -notin $Allowed) {
+                $jobError = Get-OptionalPropertyValue $job "error"
+                $errorCode = if ($null -ne $jobError) { [string](Get-OptionalPropertyValue $jobError "code") } else { "none" }
+                Fail-Product "JOB_TERMINAL_UNEXPECTED:$jobStatus:$errorCode"
             }
             return $job
         }
@@ -806,26 +810,40 @@ try {
     $PairingToken = Get-PairingToken
 
     $craig = Upload-Craig $CraigResolved
-    $SourceId = [string]$craig.source_id
-    if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or [int]$craig.track_count -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
-    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{ track_count = [int]$craig.track_count; reused = [bool]$craig.reused })
+    $SourceId = [string](Get-OptionalPropertyValue $craig "source_id")
+    $craigTrackCount = Get-OptionalPropertyValue $craig "track_count"
+    $craigReused = Get-OptionalPropertyValue $craig "reused"
+    if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or $null -eq $craigTrackCount -or [int]$craigTrackCount -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
+    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{ track_count = [int]$craigTrackCount; reused = $(if ($null -eq $craigReused) { $null } else { [bool]$craigReused }) })
 
     Write-Host "Physical preparation: qwen-fast..." -ForegroundColor Cyan
     $prepFast = Wait-Preparation $SourceId "qwen-fast" 2400
     Write-Json (Join-Path $EvidenceRoot "preparation-qwen-fast.json") ([ordered]@{
-        state = [string]$prepFast.state; profile_id = [string]$prepFast.profile_id; stage = [string]$prepFast.stage; error_code = $prepFast.error_code; elapsed_seconds = $prepFast.elapsed_seconds
+        state = [string](Get-OptionalPropertyValue $prepFast "state")
+        profile_id = [string](Get-OptionalPropertyValue $prepFast "profile_id")
+        stage = [string](Get-OptionalPropertyValue $prepFast "stage")
+        error_code = Get-OptionalPropertyValue $prepFast "error_code"
+        elapsed_seconds = Get-OptionalPropertyValue $prepFast "elapsed_seconds"
     })
     Write-Host "Physical preparation: qwen-quality..." -ForegroundColor Cyan
     $prepQuality = Wait-Preparation $SourceId "qwen-quality" 2400
     Write-Json (Join-Path $EvidenceRoot "preparation-qwen-quality.json") ([ordered]@{
-        state = [string]$prepQuality.state; profile_id = [string]$prepQuality.profile_id; stage = [string]$prepQuality.stage; error_code = $prepQuality.error_code; elapsed_seconds = $prepQuality.elapsed_seconds
+        state = [string](Get-OptionalPropertyValue $prepQuality "state")
+        profile_id = [string](Get-OptionalPropertyValue $prepQuality "profile_id")
+        stage = [string](Get-OptionalPropertyValue $prepQuality "stage")
+        error_code = Get-OptionalPropertyValue $prepQuality "error_code"
+        elapsed_seconds = Get-OptionalPropertyValue $prepQuality "elapsed_seconds"
     })
 
     foreach ($profileId in @("qwen-fast", "qwen-quality")) {
         $gate = Join-Path $env:LOCALAPPDATA "TDA\State\qwen-physical-gates\$profileId.json"
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { Fail-Product "QWEN_GATE_RECEIPT_MISSING:$profileId" }
         $gateValue = Read-Json $gate "QWEN_GATE_RECEIPT_INVALID:$profileId"
-        if ([string]$gateValue.schema -ne "tda_qwen_physical_gate_v2" -or $gateValue.contains_audio -ne $false -or $gateValue.contains_transcript -ne $false) {
+        if (
+            [string](Get-OptionalPropertyValue $gateValue "schema") -ne "tda_qwen_physical_gate_v2" -or
+            (Get-OptionalPropertyValue $gateValue "contains_audio") -ne $false -or
+            (Get-OptionalPropertyValue $gateValue "contains_transcript") -ne $false
+        ) {
             Fail-Product "QWEN_GATE_RECEIPT_INVALID:$profileId"
         }
         Copy-Item -LiteralPath $gate -Destination (Join-Path $EvidenceRoot "physical-gate-$profileId.json") -Force
@@ -833,7 +851,7 @@ try {
 
     Write-Host "Normal qwen-quality worker + bounded cancel..." -ForegroundColor Cyan
     $quality = Submit-Transcription $SourceId "qwen-quality"
-    $QualityJobId = [string]$quality.id
+    $QualityJobId = [string](Get-OptionalPropertyValue $quality "id")
     if (-not $QualityJobId) { Fail-Product "QWEN_QUALITY_JOB_ID_MISSING" }
     [void](Wait-ForEvent $QualityJobId "QWEN_WINDOW_TRANSCRIBED" $null 1800)
     $cancelStarted = [DateTimeOffset]::UtcNow
@@ -849,7 +867,7 @@ try {
 
     Write-Host "qwen-fast checkpoint -> hard Agent crash -> retry..." -ForegroundColor Cyan
     $fast = Submit-Transcription $SourceId "qwen-fast"
-    $FastJobId = [string]$fast.id
+    $FastJobId = [string](Get-OptionalPropertyValue $fast "id")
     if (-not $FastJobId) { Fail-Product "QWEN_FAST_JOB_ID_MISSING" }
     [void](Wait-ForEvent $FastJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
     [void](Capture-Events $FastJobId)
