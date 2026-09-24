@@ -292,6 +292,11 @@ def _response(
             "compute_type": manifest.get("compute_type"),
             "alignment": manifest.get("alignment"),
             "completed_at": manifest.get("completed_at"),
+            "execution_lineage": (
+                manifest.get("execution_lineage")
+                if isinstance(manifest.get("execution_lineage"), dict)
+                else None
+            ),
         },
         "stats": {
             "audio_work_seconds": stats.get("audio_work_seconds"),

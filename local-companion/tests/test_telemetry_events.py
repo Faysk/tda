@@ -99,6 +99,14 @@ def test_gpu_telemetry_recovers_after_transient_nvml_failure(monkeypatch):
         def nvmlDeviceGetUtilizationRates(_handle: int) -> SimpleNamespace:
             return SimpleNamespace(gpu=37)
 
+        @staticmethod
+        def nvmlDeviceGetCudaComputeCapability(_handle: int) -> tuple[int, int]:
+            return (8, 9)
+
+        @staticmethod
+        def nvmlSystemGetDriverVersion() -> bytes:
+            return b"600.12"
+
     fake_nvml = RecoveringNvml()
     monkeypatch.setattr(telemetry_module, "pynvml", fake_nvml)
 
@@ -113,6 +121,8 @@ def test_gpu_telemetry_recovers_after_transient_nvml_failure(monkeypatch):
             "utilization_percent": 37,
             "memory_used_bytes": 1024,
             "memory_total_bytes": 4096,
+            "compute_capability": "8.9",
+            "driver_version": "600.12",
         }
     ]
     assert fake_nvml.init_calls == 2
