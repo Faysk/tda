@@ -6,8 +6,11 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-processing-final-acceptance.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
+      - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
       - "tools/acceptance/export-final-current-source-handoff.ps1"
+      - "tools/acceptance/RUN-processing-final-acceptance.cmd"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
@@ -18,8 +21,11 @@ on:
       - "tools/acceptance/generate-physical-acceptance-fixture.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
+      - "tools/acceptance/run-processing-final-acceptance.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
+      - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
       - "tools/acceptance/export-final-current-source-handoff.ps1"
+      - "tools/acceptance/RUN-processing-final-acceptance.cmd"
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
@@ -45,7 +51,9 @@ jobs:
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
+            "tools/acceptance/run-processing-final-acceptance.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
+            "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/export-final-current-source-handoff.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1",
             "local-companion/packaging/run-physical-acceptance.ps1"
@@ -750,8 +758,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "HANDOFF_EXPORT_FAILED" }
 
           foreach ($relative in @(
+            "tools/acceptance/run-processing-final-acceptance.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
+            "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/generate-physical-acceptance-fixture.ps1",
+            "tools/acceptance/RUN-processing-final-acceptance.cmd",
             "tools/acceptance/RUN-final-current-source-acceptance.cmd"
           )) {
             $expected = (git rev-parse "$env:GITHUB_SHA`:$relative").Trim()
@@ -769,6 +780,29 @@ jobs:
           $launcher = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\RUN-final-current-source-acceptance.cmd") -Raw
           if (-not $launcher.Contains("pwsh.exe -NoProfile -ExecutionPolicy Bypass")) {
             throw "HANDOFF_CMD_EXECUTION_POLICY_BYPASS_MISSING"
+          }
+
+          $processingLauncher = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\RUN-processing-final-acceptance.cmd") -Raw
+          if (
+            -not $processingLauncher.Contains("pwsh.exe -NoProfile -ExecutionPolicy Bypass") -or
+            -not $processingLauncher.Contains("run-processing-final-acceptance.ps1")
+          ) {
+            throw "HANDOFF_PROCESSING_CMD_INVALID"
+          }
+
+          $processing = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-processing-final-acceptance.ps1") -Raw
+          foreach ($required in @(
+            "run-final-current-source-acceptance.ps1",
+            "run-qwen-recovery-physical-gate.ps1",
+            "companion-rc-v0.3.14-19d9b3b64238",
+            "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238",
+            "RELEASE_WIDE_ACCEPTANCE_FAILED",
+            "QWEN_RECOVERY_ACCEPTANCE_FAILED",
+            "PROCESSING FINAL ACCEPTANCE: PASS"
+          )) {
+            if (-not $processing.Contains($required)) {
+              throw ("HANDOFF_PROCESSING_CONTRACT_MISSING:" + $required)
+            }
           }
 
           $manifest = Get-Content -LiteralPath (Join-Path $out "HANDOFF-MANIFEST.json") -Raw | ConvertFrom-Json

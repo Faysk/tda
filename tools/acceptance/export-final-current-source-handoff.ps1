@@ -7,8 +7,11 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RequiredFiles = @(
+  "tools/acceptance/run-processing-final-acceptance.ps1",
   "tools/acceptance/run-final-current-source-acceptance.ps1",
+  "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
   "tools/acceptance/generate-physical-acceptance-fixture.ps1",
+  "tools/acceptance/RUN-processing-final-acceptance.cmd",
   "tools/acceptance/RUN-final-current-source-acceptance.cmd"
 )
 
