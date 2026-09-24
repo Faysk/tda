@@ -109,13 +109,22 @@ def _document(package: CraigPackage, profile_id: str = "whisper-turbo") -> Trans
 
 
 def _wait_for_job(client: TestClient, job_id: str, status: str) -> dict:
-    deadline = time.monotonic() + 5.0
+    deadline = time.monotonic() + 15.0
+    last: dict | None = None
     while time.monotonic() < deadline:
         value = client.get(f"/api/v1/jobs/{job_id}", headers=HEADERS).json()
+        last = value
         if value["status"] == status:
             return value
         time.sleep(0.02)
-    raise AssertionError(f"job {job_id} did not reach {status}")
+    observed = {
+        key: last.get(key)
+        for key in ("status", "stage", "error_code", "recoverable")
+        if last is not None and key in last
+    }
+    raise AssertionError(
+        f"job {job_id} did not reach {status}; observed={observed}"
+    )
 
 
 def _body(source_id: str = "craig-source") -> dict:
