@@ -48,7 +48,10 @@ class SystemTelemetry:
             driver_reader = getattr(pynvml, "nvmlSystemGetDriverVersion", None)
             if callable(driver_reader):
                 try:
-                    driver_version = self._text(driver_reader())
+                    driver_value = driver_reader()
+                    if isinstance(driver_value, bytes):
+                        driver_value = driver_value.decode("utf-8", errors="replace")
+                    driver_version = self._text(driver_value)
                 except Exception:
                     driver_version = None
 
