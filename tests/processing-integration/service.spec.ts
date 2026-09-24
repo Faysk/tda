@@ -140,6 +140,7 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	// observe 401, bootstrap a new origin-bound session and replay the read.
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await expect(
 		page.getByText("Concluído", { exact: true }).first(),
 	).toBeVisible();
