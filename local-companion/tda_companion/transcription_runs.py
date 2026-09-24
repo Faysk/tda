@@ -145,11 +145,12 @@ def _manifest_for_document(
     transcript_size_bytes: int,
     glossary: str,
     context: str,
+    execution_lineage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     document.validate()
     engine = document.engine
     stats = document.stats
-    return {
+    manifest = {
         "schema_version": RUN_SCHEMA_VERSION,
         "run_id": run_id,
         "origin": "asr",
@@ -187,6 +188,9 @@ def _manifest_for_document(
             "warning_count": len(document.warnings),
         },
     }
+    if execution_lineage is not None:
+        manifest["execution_lineage"] = execution_lineage
+    return manifest
 
 
 def write_completed_run(
@@ -198,6 +202,7 @@ def write_completed_run(
     source_id: str | None = None,
     glossary: str = "",
     context: str = "",
+    execution_lineage: dict[str, Any] | None = None,
     before_commit: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Persist one immutable completed ASR run.
@@ -226,6 +231,7 @@ def write_completed_run(
             transcript_size_bytes=size,
             glossary=glossary,
             context=context,
+            execution_lineage=execution_lineage,
         )
         # The caller may reserve the cross-process attempt outcome immediately
         # before the immutable run.json commit marker is written. If cancellation
@@ -360,6 +366,11 @@ def _public_summary(value: dict[str, Any]) -> dict[str, Any]:
         "created_at": value.get("created_at"),
         "completed_at": value.get("completed_at"),
         "stats": value.get("stats") if isinstance(value.get("stats"), dict) else {},
+        "execution_lineage": (
+            value.get("execution_lineage")
+            if isinstance(value.get("execution_lineage"), dict)
+            else None
+        ),
     }
 
 
