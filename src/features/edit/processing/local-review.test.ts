@@ -135,6 +135,9 @@ describe("local result/review contracts", () => {
 						engine: "faster-whisper",
 						model: "large-v3",
 						model_revision: null,
+						device: "cuda",
+						compute_type: "float16",
+						alignment: "native",
 						language: "pt",
 						completed_at: "2026-09-21T00:00:00.000Z",
 						transcript_sha256: transcriptSha,
@@ -151,10 +154,13 @@ describe("local result/review contracts", () => {
 		},
 						stats: {
 							processing_seconds: 12,
+							session_duration_seconds: 60,
 							rtf: 0.2,
 							word_count: 10,
 							segment_count: 2,
 							track_count: 1,
+							turn_count: 8,
+							deduplicated_segment_count: 1,
 							warning_count: 3,
 						},
 					},
@@ -164,6 +170,9 @@ describe("local result/review contracts", () => {
 			runId,
 			sourceId,
 			profileId: "legacy-profile",
+			device: "cuda",
+			computeType: "float16",
+			alignment: "native",
 			transcriptSha256: transcriptSha,
 			publicationTarget: {
 				campaignSlug: "yuhara-main",
@@ -171,7 +180,17 @@ describe("local result/review contracts", () => {
 				jobId: "job-review",
 				attempt: 1,
 			},
-			stats: { warningCount: 3 },
+			stats: {
+				processingSeconds: 12,
+				sessionDurationSeconds: 60,
+				rtf: 0.2,
+				wordCount: 10,
+				segmentCount: 2,
+				trackCount: 1,
+				turnCount: 8,
+				deduplicatedSegmentCount: 1,
+				warningCount: 3,
+			},
 		});
 	});
 

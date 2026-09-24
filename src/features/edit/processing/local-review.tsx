@@ -68,6 +68,17 @@ function formatTimestamp(value: number): string {
 	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
+function formatRealtime(rtf: number | null): string {
+	if (rtf === null || rtf <= 0) return "—";
+	const speed = 1 / rtf;
+	return `${speed >= 10 ? speed.toFixed(1) : speed.toFixed(2)}×`;
+}
+
+function formatRunExecution(run: LocalRunSummary): string {
+	const values = [run.device, run.computeType, run.alignment].filter(Boolean);
+	return values.length ? values.join(" · ") : "execução não registrada";
+}
+
 function reviewError(code: string | null): string | null {
 	if (!code) return null;
 	return {
@@ -110,14 +121,21 @@ function RunCard({
 			<p className={styles.runModel}>
 				{model}
 				{run.modelRevision ? ` · rev ${run.modelRevision}` : ""}
+				{" · "}
+				{formatRunExecution(run)}
 			</p>
 			<dl className={styles.runFacts}>
 				<div><dt>Concluído</dt><dd>{formatDate(run.completedAt)}</dd></div>
+				<div><dt>Duração da sessão</dt><dd>{formatSeconds(run.stats.sessionDurationSeconds)}</dd></div>
 				<div><dt>Processamento</dt><dd>{formatSeconds(run.stats.processingSeconds)}</dd></div>
+				<div><dt>Velocidade</dt><dd>{formatRealtime(run.stats.rtf)}</dd></div>
+				<div><dt>RTF</dt><dd>{run.stats.rtf === null ? "—" : run.stats.rtf.toFixed(3)}</dd></div>
 				<div><dt>Palavras</dt><dd>{run.stats.wordCount ?? "—"}</dd></div>
 				<div><dt>Segmentos</dt><dd>{run.stats.segmentCount ?? "—"}</dd></div>
+				<div><dt>Turnos</dt><dd>{run.stats.turnCount ?? "—"}</dd></div>
+				<div><dt>Tracks</dt><dd>{run.stats.trackCount ?? "—"}</dd></div>
+				<div><dt>Deduplicados</dt><dd>{run.stats.deduplicatedSegmentCount ?? "—"}</dd></div>
 				<div><dt>Warnings</dt><dd>{run.stats.warningCount ?? "—"}</dd></div>
-				<div><dt>RTF</dt><dd>{run.stats.rtf === null ? "—" : run.stats.rtf.toFixed(3)}</dd></div>
 			</dl>
 			<div className={styles.runIdentity}>
 				<span title={run.sourceId}>Fonte {run.sourceId.slice(0, 22)}…</span>

@@ -138,16 +138,22 @@ export type LocalRunSummary = {
 	engine: string | null;
 	model: string | null;
 	modelRevision: string | null;
+	device: string | null;
+	computeType: string | null;
+	alignment: string | null;
 	language: string | null;
 	completedAt: string | null;
 	transcriptSha256: string;
 	transcriptSizeBytes: number;
 	stats: {
 		processingSeconds: number | null;
+		sessionDurationSeconds: number | null;
 		rtf: number | null;
 		wordCount: number | null;
 		segmentCount: number | null;
 		trackCount: number | null;
+		turnCount: number | null;
+		deduplicatedSegmentCount: number | null;
 		warningCount: number | null;
 	};
 	publicationTarget: LocalPublicationTarget | null;
@@ -650,6 +656,9 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),
 			modelRevision: nullableText(item.model_revision, 256),
+			device: nullableText(item.device, 64),
+			computeType: nullableText(item.compute_type, 64),
+			alignment: nullableText(item.alignment, 128),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
 			transcriptSha256,
@@ -660,10 +669,15 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			})(),
 			stats: {
 				processingSeconds: nullableMetric(stats.processing_seconds),
+				sessionDurationSeconds: nullableMetric(stats.session_duration_seconds),
 				rtf: nullableMetric(stats.rtf),
 				wordCount: nullableCount(stats.word_count),
 				segmentCount: nullableCount(stats.segment_count),
 				trackCount: nullableCount(stats.track_count),
+				turnCount: nullableCount(stats.turn_count),
+				deduplicatedSegmentCount: nullableCount(
+					stats.deduplicated_segment_count,
+				),
 				warningCount: nullableCount(stats.warning_count),
 			},
 			publicationTarget: parsePublicationTarget(item.publication_target, {
