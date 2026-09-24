@@ -205,7 +205,18 @@ function Get-StableRuntimeIdentity(
         [string]$candidate.family -ne $Family -or
         [string]$candidate.runtime_id -ne $ExpectedRuntimeId -or
         [string]$candidate.version -ne $ExpectedVersion -or
-        [string]$candidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}
+        [string]$candidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$'
+    ) {
+        Fail ("STABLE_RUNTIME_CANDIDATE_IDENTITY_INVALID:" + $Family)
+    }
+    return [ordered]@{
+        version = $ExpectedVersion
+        runtime_id = $ExpectedRuntimeId
+        archive_sha256 = [string]$candidate.runtime_archive_sha256
+    }
+}
+
+function Wait-ExactAgent([int]$Seconds = 60) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($Seconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         $health = Get-AgentHealth
