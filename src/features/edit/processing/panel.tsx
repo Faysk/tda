@@ -346,7 +346,7 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
-			<nav
+			<div
 				className={styles.processingTabs}
 				aria-label="Áreas do processamento"
 				role="tablist"
@@ -365,7 +365,7 @@ export function ProcessingPanel({
 						{item.label}
 					</button>
 				))}
-			</nav>
+			</div>
 
 			<section className={styles.connection} aria-labelledby="local-computer">
 				<div className={styles.connectionMain}>
@@ -868,7 +868,7 @@ export function ProcessingPanel({
 										}
 										onClick={() => void controller.synthetic()}
 									>
-										Executar ensaio
+										Executar ensaio sintético
 									</Button>
 								</div>
 							) : null}
