@@ -218,6 +218,8 @@ jobs:
       - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
       - name: Browser contract E2E
         run: pnpm test:processing
+      - name: Responsive UX matrix
+        run: pnpm test:processing:ux
       - name: Scratch Companion integration
         run: pnpm test:processing:integration
         env:
