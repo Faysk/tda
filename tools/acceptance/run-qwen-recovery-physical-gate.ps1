@@ -260,6 +260,37 @@ function Get-MaxEventSequence([object[]]$Events) {
     return $maximum
 }
 
+function Assert-RetryCheckpointEvidence(
+    [object[]]$Events,
+    [int]$PreCrashMaxSeq,
+    [int[]]$PersistedTracks
+) {
+    $retryEvents = @($Events | Where-Object {
+        $sequence = Get-OptionalPropertyValue $_ "seq"
+        $null -ne $sequence -and [int]$sequence -gt $PreCrashMaxSeq
+    })
+    foreach ($track in @($PersistedTracks)) {
+        $reuseCount = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        $retranscribed = @($retryEvents | Where-Object {
+            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
+            $eventData = Get-OptionalPropertyValue $_ "data"
+            $eventTrack = Get-OptionalPropertyValue $eventData "track"
+            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
+        }).Count
+        if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
+        if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
+    }
+    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) {
+        Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED"
+    }
+    return $retryEvents
+}
+
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
     $sourceContext = Get-OptionalPropertyValue $Row "context"
@@ -920,27 +951,7 @@ try {
     [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
     $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
     $allFastEvents = @(Capture-Events $FastJobId)
-    $retryEvents = @($allFastEvents | Where-Object {
-        $sequence = Get-OptionalPropertyValue $_ "seq"
-        $null -ne $sequence -and [int]$sequence -gt $preCrashMaxSeq
-    })
-    foreach ($track in $persistedTracks) {
-        $reuseCount = @($retryEvents | Where-Object {
-            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
-            $eventData = Get-OptionalPropertyValue $_ "data"
-            $eventTrack = Get-OptionalPropertyValue $eventData "track"
-            $eventCode -eq "ASR_TEXT_CHECKPOINT_REUSED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
-        }).Count
-        $retranscribed = @($retryEvents | Where-Object {
-            $eventCode = [string](Get-OptionalPropertyValue $_ "code")
-            $eventData = Get-OptionalPropertyValue $_ "data"
-            $eventTrack = Get-OptionalPropertyValue $eventData "track"
-            $eventCode -eq "QWEN_WINDOW_TRANSCRIBED" -and $null -ne $eventTrack -and [int]$eventTrack -eq $track
-        }).Count
-        if ($reuseCount -lt 1) { Fail-Product "TEXT_CHECKPOINT_NOT_REUSED:track-$track" }
-        if ($retranscribed -ne 0) { Fail-Product "PERSISTED_TRACK_RETRANSCRIBED:track-$track" }
-    }
-    if (@($retryEvents | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "RUN_COMMIT_FENCE_WON" }).Count -lt 1) { Fail-Product "RUN_COMMIT_FENCE_NOT_OBSERVED" }
+    $retryEvents = @(Assert-RetryCheckpointEvidence $allFastEvents $preCrashMaxSeq $persistedTracks)
 
     $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
     $transcription = Get-OptionalPropertyValue $result "transcription"
