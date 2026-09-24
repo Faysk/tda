@@ -103,24 +103,31 @@ jobs:
               raise SystemExit('RC_EVIDENCE_TAG_MISMATCH')
           PY
 
-      - name: Require current main to contain identical Companion/release content
+      - name: Require current main to preserve the physically tested Companion bytes
         shell: bash
         run: |
           set -euo pipefail
           SOURCE_SHA="${{ steps.evidence.outputs.source_sha }}"
           git fetch --no-tags origin "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          if ! git diff --quiet "$SOURCE_SHA" HEAD -- local-companion \
-            .github/workflows/companion.yml \
-            .github/workflows/companion-rc.yml \
-            .github/workflows/companion-promote.yml \
-            .github/workflows/companion-dependency-freshness.yml; then
-            echo "::error::Companion or release workflow content differs from the physically tested source; create a new RC"
-            git diff --name-only "$SOURCE_SHA" HEAD -- local-companion .github/workflows/companion*.yml || true
+
+          # Only inputs that can alter the packaged EXE/MSI belong in this fence.
+          # Tests, external acceptance tooling, Web/docs and release orchestration
+          # may evolve after physical acceptance without changing candidate bytes.
+          COMPANION_PATHS=(
+            ".github/workflows/companion.yml"
+            "local-companion/pyproject.toml"
+            "local-companion/requirements-test.lock"
+            "local-companion/tda_companion/**"
+            "local-companion/packaging/**"
+          )
+          if ! git diff --quiet "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"; then
+            echo "::error::COMPANION_PROMOTION_PACKAGE_INPUT_DRIFT"
+            git diff --name-only "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"
             exit 1
           fi
 
-      - name: Require compatible stable runtimes
+      - name: Require the exact physically accepted Stable runtime set
         shell: bash
         run: |
           set -euo pipefail
@@ -128,24 +135,21 @@ jobs:
           PYTHONPATH=local-companion python - <<'PY'
           import json
           import re
-          from tda_companion.runtime_compat import (
-              MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
-              MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
-              version_tuple,
-          )
+          from tda_companion.rc_runtime_artifacts import RC_QWEN_VERSION, RC_WHISPER_VERSION
+          from tda_companion.runtime_compat import version_tuple
 
           releases = json.load(open('stable-runtime-releases.json', encoding='utf-8'))
           families = {
               'whisper': (
                   re.compile(r'^companion-whisper-runtime-v(\d+\.\d+\.\d+)$'),
-                  MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+                  RC_WHISPER_VERSION,
               ),
               'qwen': (
                   re.compile(r'^companion-qwen-runtime-v(\d+\.\d+\.\d+)$'),
-                  MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+                  RC_QWEN_VERSION,
               ),
           }
-          for family, (pattern, minimum) in families.items():
+          for family, (pattern, expected) in families.items():
               versions = []
               for release in releases:
                   if release.get('isDraft') is not False or release.get('isPrerelease') is not False:
@@ -154,12 +158,12 @@ jobs:
                   if match:
                       versions.append(match.group(1))
               latest = max(versions, key=version_tuple) if versions else None
-              if latest is None or version_tuple(latest) < version_tuple(minimum):
+              if latest != expected:
                   raise SystemExit(
-                      f'COMPANION_STABLE_{family.upper()}_RUNTIME_INCOMPATIBLE:'
-                      f'latest={latest or "missing"}:minimum={minimum}'
+                      f'COMPANION_STABLE_{family.upper()}_RUNTIME_NOT_PHYSICALLY_ACCEPTED:'
+                      f'latest={latest or "missing"}:expected={expected}'
                   )
-              print(f'STABLE_RUNTIME_COMPATIBLE family={family} latest={latest} minimum={minimum}')
+              print(f'STABLE_RUNTIME_PHYSICAL_IDENTITY_OK family={family} version={latest}')
           PY
 
       - name: Verify RC tag and release target resolve to tested source
@@ -263,3 +267,92 @@ jobs:
           git fetch --force origin "refs/tags/$STABLE_TAG:refs/tags/$STABLE_TAG"
           [[ "$(git rev-list -n 1 "$STABLE_TAG")" == "$SOURCE_SHA" ]] || { echo "::error::Stable tag target mismatch"; exit 1; }
           echo "STABLE_PROMOTION_VERIFIED tag=$STABLE_TAG source=$SOURCE_SHA"
+
+      - name: Verify canonical Web resolves promoted Stable
+        shell: bash
+        env:
+          STABLE_TAG: ${{ steps.evidence.outputs.stable_tag }}
+          VERSION: ${{ steps.evidence.outputs.version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          base = "https://dnd.faysk.dev"
+          tag = os.environ["STABLE_TAG"]
+          version = os.environ["VERSION"]
+          promotion = json.load(open("prepared/TDACompanion-promotion.json", encoding="utf-8"))
+          expected_sha = promotion["assets"]["msi"]["sha256"]
+          expected_url = f"https://github.com/Faysk/tda/releases/download/{tag}/TDACompanion-x64.msi"
+          candidate = json.load(open("rc-assets/TDACompanion-candidate.json", encoding="utf-8"))
+          expected_size = candidate["assets"]["msi"]["size"]
+
+          headers = {
+              "Accept": "application/json",
+              "Cache-Control": "no-cache",
+              "Pragma": "no-cache",
+              "User-Agent": "tda-stable-promotion-smoke/1",
+          }
+
+          manifest = None
+          last_error = None
+          for _ in range(12):
+              try:
+                  request = urllib.request.Request(
+                      f"{base}/api/downloads/companion/windows/manifest",
+                      headers=headers,
+                  )
+                  with urllib.request.urlopen(request, timeout=15) as response:
+                      value = json.loads(response.read().decode("utf-8"))
+                  asset = value.get("asset") if isinstance(value, dict) else None
+                  if (
+                      value.get("channel") == "stable"
+                      and value.get("tag") == tag
+                      and value.get("version") == version
+                      and isinstance(asset, dict)
+                      and asset.get("sha256") == expected_sha
+                      and asset.get("size") == expected_size
+                  ):
+                      manifest = value
+                      break
+                  last_error = f"manifest identity mismatch: {value!r}"
+              except Exception as exc:
+                  last_error = f"{type(exc).__name__}: {exc}"
+              time.sleep(5)
+
+          if manifest is None:
+              raise SystemExit(f"CANONICAL_WEB_STABLE_MANIFEST_MISMATCH:{last_error}")
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect)
+          for suffix in ("", f"?tag={tag}"):
+              request = urllib.request.Request(
+                  f"{base}/api/downloads/companion/windows{suffix}",
+                  headers={**headers, "Accept": "*/*"},
+              )
+              try:
+                  opener.open(request, timeout=15)
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 307 or exc.headers.get("Location") != expected_url:
+                      raise SystemExit(
+                          "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH:"
+                          f"{suffix or 'default'}:{exc.code}:{exc.headers.get('Location')}"
+                      ) from exc
+              else:
+                  raise SystemExit(
+                      f"CANONICAL_WEB_STABLE_REDIRECT_MISSING:{suffix or 'default'}"
+                  )
+
+          print(
+              "CANONICAL_WEB_STABLE_VERIFIED "
+              f"tag={tag} version={version} sha256={expected_sha}"
+          )
+          PY
+

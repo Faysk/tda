@@ -60,8 +60,19 @@ def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_r
     assert "ASR physical acceptance receipt SHA-256" in value
     assert "git merge-base --is-ancestor" not in value
     assert 'git fetch --no-tags origin "$SOURCE_SHA"' in value
-    assert 'git diff --quiet "$SOURCE_SHA" HEAD -- local-companion' in value
-    assert ".github/workflows/companion-rc.yml" in value
+    assert "COMPANION_PATHS=(" in value
+    assert 'git diff --quiet "$SOURCE_SHA" HEAD -- "${COMPANION_PATHS[@]}"' in value
+    assert "COMPANION_PROMOTION_PACKAGE_INPUT_DRIFT" in value
+    for path in (
+        ".github/workflows/companion.yml",
+        "local-companion/pyproject.toml",
+        "local-companion/requirements-test.lock",
+        "local-companion/tda_companion/**",
+        "local-companion/packaging/**",
+    ):
+        assert f'"{path}"' in value
+    assert '"local-companion/tests/**"' not in value
+    assert '"tools/acceptance/**"' not in value
     assert "TDACompanion-payload-manifest.json" in value
     assert "gh release edit \"$RC_TAG\"" in value
     assert "--tag \"$STABLE_TAG\"" in value
@@ -74,14 +85,31 @@ def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_r
     assert "actions/checkout@v7" not in value
 
 
-def test_stable_promotion_requires_published_runtimes_meeting_companion_minimums():
+def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects():
     value = _read("companion-promote.yml")
-    assert "Require compatible stable runtimes" in value
-    assert "MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION" in value
-    assert "MIN_COMPATIBLE_QWEN_RUNTIME_VERSION" in value
+
+    assert "Verify canonical Web resolves promoted Stable" in value
+    assert "https://dnd.faysk.dev" in value
+    assert "/api/downloads/companion/windows/manifest" in value
+    assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in value
+    assert "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH" in value
+    assert "CANONICAL_WEB_STABLE_VERIFIED" in value
+    assert 'value.get("channel") == "stable"' in value
+    assert 'asset.get("sha256") == expected_sha' in value
+    assert 'asset.get("size") == expected_size' in value
+    assert 'for suffix in ("", f"?tag={tag}")' in value
+
+
+def test_stable_promotion_requires_the_exact_physically_accepted_runtime_versions():
+    value = _read("companion-promote.yml")
+    assert "Require the exact physically accepted Stable runtime set" in value
+    assert "RC_WHISPER_VERSION" in value
+    assert "RC_QWEN_VERSION" in value
     assert "companion-whisper-runtime-v" in value
     assert "companion-qwen-runtime-v" in value
-    assert "COMPANION_STABLE_{family.upper()}_RUNTIME_INCOMPATIBLE" in value
+    assert "COMPANION_STABLE_{family.upper()}_RUNTIME_NOT_PHYSICALLY_ACCEPTED" in value
+    assert "latest != expected" in value
+    assert "STABLE_RUNTIME_PHYSICAL_IDENTITY_OK" in value
 
 
 def test_runtime_builds_allow_explicit_main_exact_source_dispatch():
