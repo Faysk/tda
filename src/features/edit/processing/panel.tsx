@@ -378,6 +378,118 @@ export function ProcessingPanel({
 							</StatusPill>
 						</div>
 						{connected ? (
+							<p className={styles.connectionMeta}>
+								{state.capabilities?.device.label} · API v1 · serviço {state.health?.service_version}
+								{state.system?.host.os ? ` · ${state.system.host.os}` : ""}
+							</p>
+						) : (
+							<p className={styles.connectionMeta}>
+								O processamento e os áudios permanecem neste computador.
+							</p>
+						)}
+					</div>
+				</div>
+
+				{connected ? (
+					<>
+						<section className={styles.metricsStrip} aria-label="Uso e fila do computador local">
+							{gpu ? <GpuMetric gpu={gpu} /> : null}
+							<Metric
+								label="CPU"
+								value={formatPercent(state.system?.cpu.utilizationPercent ?? null)}
+								detail={state.system?.host.cpu ?? undefined}
+							/>
+							<Metric
+								label="RAM"
+								value={formatPercent(state.system?.memory.percent ?? null)}
+								detail={
+									state.system
+										? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)}`
+										: "Telemetria indisponível"
+								}
+							/>
+							<Metric label="Processando" value={String(running.length)} />
+							<Metric label="Na fila" value={String(queued.length)} />
+							<Metric label="Concluídos" value={String(succeeded.length)} />
+							<Metric label="Atenção" value={String(attention.length)} />
+						</section>
+						<div className={styles.connectionActions}>
+							<Button size="sm" disabled={state.busy} onClick={() => void controller.refresh()}>
+								Atualizar estado
+							</Button>
+							{state.health?.lifecycle === "paused" ? (
+								<Button size="sm" disabled={state.busy} onClick={() => setConfirmation({ action: "resume" })}>
+									Retomar fila
+								</Button>
+							) : state.health?.lifecycle === "ready" ? (
+								<Button size="sm" disabled={state.busy} onClick={() => void controller.lifecycle("pause")}>
+									Pausar novas execuções
+								</Button>
+							) : null}
+						</div>
+					</>
+				) : (
+					<div className={styles.pairing}>
+						<strong>
+							{state.connection === "connecting"
+								? "Conectando ao TDA Companion…"
+								: state.error === "version_incompatible"
+									? "TDA Companion precisa ser atualizado."
+									: state.error === "api_incompatible" || state.error === "session_incompatible"
+										? "TDA Companion incompatível com esta tela."
+										: "TDA Companion não está conectado."}
+						</strong>
+						<p className={styles.pairingHelp}>
+							{state.error === "version_incompatible"
+								? "Instale uma versão compatível e tente novamente."
+								: state.error === "api_incompatible" || state.error === "session_incompatible"
+									? "Atualize o aplicativo local antes de tentar conectar novamente."
+									: "Se o aplicativo estiver aberto, esta página conecta automaticamente. Se estiver fechado, abra o Companion e tente novamente."}
+						</p>
+						<div className={styles.pairingControls}>
+							<Button
+								type="button"
+								size="sm"
+								disabled={state.busy}
+								onClick={() => {
+									window.location.href = "tda-companion://open";
+									void (async () => {
+										// Cold-starting WebView/Agent can take more than a single
+										// fixed delay. Retry a few bounded times; stop as soon as
+										// the loopback session is healthy.
+										for (const delay of [1200, 2200, 3500]) {
+											await new Promise((resolve) => window.setTimeout(resolve, delay));
+											await controller.connect();
+											if (controller.snapshot().connection === "connected") break;
+										}
+									})();
+								}}
+							>
+								Abrir TDA Companion
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={state.busy}
+								onClick={() => void controller.connect()}
+							>
+								Tentar novamente
+							</Button>
+						</div>
+					</div>
+				)}
+				{state.error ? (
+					<p className={styles.connectionError} role="alert">
+						{state.serverError
+							? presentJobError(state.serverError)
+							: presentConnectionError(state.error, state.errorDetails)}{" "}
+						<small>Código: {state.serverError ?? state.error}</small>
+					</p>
+				) : null}
+			</section>
+
+			{connected ? (
 				<>
 					<section
 						id="processing-view-overview"
@@ -780,6 +892,7 @@ export function ProcessingPanel({
 					</p>
 				</section>
 			)}
+
 
 			<dialog
 				ref={dialog}
