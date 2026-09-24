@@ -312,8 +312,8 @@ function Wait-JobSucceeded([string]$Token, [string]$JobId, [string]$ProfileId) {
             }
         }
         if ($status -in @("failed", "cancelled", "interrupted")) {
-            $error = Get-OptionalPropertyValue $job "error"
-            $errorCode = [string](Get-OptionalPropertyValue $error "code")
+            $jobError = Get-OptionalPropertyValue $job "error"
+            $errorCode = [string](Get-OptionalPropertyValue $jobError "code")
             if (-not $errorCode) { $errorCode = $status.ToUpperInvariant() }
             Fail ("JOB_TERMINAL_" + $errorCode + ":" + $ProfileId)
         }
