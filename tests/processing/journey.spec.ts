@@ -6,8 +6,9 @@ import {
 } from "./companion-fixture";
 
 async function selectCraig(page: import("@playwright/test").Page) {
-	await page.getByLabel("Sessão").fill("sessao-42");
-	await page.getByLabel("Export do Craig").setInputFiles({
+	const composer = page.locator("[data-craig-composer='true']");
+	await composer.locator("[data-craig-session-id='true']").fill("sessao-42");
+	await composer.getByLabel("Export do Craig").setInputFiles({
 		name: "sessao-42.zip",
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK synthetic Craig fixture"),
