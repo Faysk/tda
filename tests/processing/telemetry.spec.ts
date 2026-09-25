@@ -114,6 +114,14 @@ test("renders local resource telemetry and factual worker events after automatic
 	const commandBar = page.getByRole("region", {
 		name: "Estado e comandos do TDA Companion",
 	});
+	const statusIndicator = commandBar.locator(
+		"[data-processing-status-indicator='true']",
+	);
+	expect(
+		await statusIndicator.evaluate(
+			(element) => getComputedStyle(element).transitionDuration,
+		),
+	).toContain("0.18s");
 	await expect(commandBar).toContainText("RTX 4070 · 78% · 6.4/8.0 GB");
 	await expect(commandBar).not.toContainText("Intel Core i7-14700HX");
 	await expect(page.getByText("Windows 11", { exact: false })).not.toBeVisible();
@@ -316,6 +324,14 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	});
 
 	await page.goto("/");
+	const statusIndicator = page.locator(
+		"[data-processing-status-indicator='true']",
+	);
+	expect(
+		await statusIndicator.evaluate(
+			(element) => getComputedStyle(element).transitionDuration,
+		),
+	).toBe("0s");
 	const gpuMetric = page.locator(
 		"[data-animated-metric='true'][data-metric-label='Uso da GPU']",
 	);
