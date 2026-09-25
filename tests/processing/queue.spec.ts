@@ -77,14 +77,22 @@ test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão"
 		.getByRole("row")
 		.filter({ hasText: "sessao-running" });
 	await expect(runningRow.getByText("Qwen Quality", { exact: true })).toBeVisible();
-	await expect(runningRow.getByText("Processando", { exact: true })).toBeVisible();
+	await expect(
+		runningRow
+			.locator('td[data-label="Estado"]')
+			.getByText("Processando", { exact: true }),
+	).toBeVisible();
 	await expect(
 		runningRow.getByRole("button", { name: "Cancelar trabalho" }),
 	).toBeVisible();
 
 	const queuedRow = queue.getByRole("row").filter({ hasText: "sessao-queued" });
 	await expect(queuedRow.getByText("Whisper Turbo", { exact: true })).toBeVisible();
-	await expect(queuedRow.getByText("Na fila", { exact: true })).toBeVisible();
+	await expect(
+		queuedRow
+			.locator('td[data-label="Estado"]')
+			.getByText("Na fila", { exact: true }),
+	).toBeVisible();
 });
 
 test("filtros, busca e ordenação operam localmente sem perder running no topo", async ({
@@ -155,7 +163,11 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
 
 	const row = queue.getByRole("row").filter({ hasText: "sessao-failed" }).first();
-	await expect(row.getByText("Falhou", { exact: true })).toBeVisible();
+	await expect(
+		row
+			.locator('td[data-label="Estado"]')
+			.getByText("Falhou", { exact: true }),
+	).toBeVisible();
 	await expect(
 		row
 			.locator('td[data-label="Estado"]')
