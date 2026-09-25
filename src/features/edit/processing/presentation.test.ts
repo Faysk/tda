@@ -176,6 +176,25 @@ it("presents actionable terminal copy for Qwen runtime failures", () => {
 });
 
 
+it("presents sealed Qwen runtime identity without local paths", () => {
+	expect(
+		presentJobEvent({
+			seq: 40,
+			code: "QWEN_RUNTIME_FINGERPRINT_READY",
+			at: "2026-09-25T00:00:00.000Z",
+			level: "info",
+			data: {
+				runtime_version: "1.0.11",
+				worker_sha256: "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			},
+		}),
+	).toEqual({
+		title: "Runtime Qwen 1.0.11 identificado e validado.",
+		detail: "Worker selado · SHA-256 abcdef123456…",
+	});
+});
+
+
 it("presents sanitized Qwen alignment failure context", () => {
 	expect(
 		presentJobEvent({
