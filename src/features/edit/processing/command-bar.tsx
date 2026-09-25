@@ -74,12 +74,14 @@ export function ProcessingCommandBar({
 	onDiagnostics,
 }: Props) {
 	const gpu = system?.gpus[0] ?? null;
-	const gpuMemoryReady =
+	const gpuMemory =
 		gpu?.memoryUsedBytes !== null &&
 		gpu?.memoryUsedBytes !== undefined &&
 		gpu?.memoryTotalBytes !== null &&
 		gpu?.memoryTotalBytes !== undefined &&
-		gpu.memoryTotalBytes > 0;
+		gpu.memoryTotalBytes > 0
+			? { used: gpu.memoryUsedBytes, total: gpu.memoryTotalBytes }
+			: null;
 	const stale = Boolean(refreshError);
 	const gpuUnavailable = connected && Boolean(system) && system?.gpus.length === 0;
 	const partialTelemetry =
@@ -137,19 +139,19 @@ export function ProcessingCommandBar({
 								/>
 							</>
 						) : null}
-						{gpuMemoryReady ? (
+						{gpuMemory ? (
 							<>
 								{" · "}
 								<AnimatedMetric
-									value={gpu.memoryUsedBytes as number}
+									value={gpuMemory.used}
 									min={0}
-									max={gpu.memoryTotalBytes as number}
+									max={gpuMemory.total}
 									format={compactMemoryValue}
 									ariaValueText={(value) => `${compactMemoryValue(value)} GB usados`}
 									ariaLabel="VRAM usada"
 									minWidthCh={3.2}
 								/>
-								/{compactMemoryValue(gpu.memoryTotalBytes as number)} GB
+								/{compactMemoryValue(gpuMemory.total)} GB
 							</>
 						) : null}
 					</span>
