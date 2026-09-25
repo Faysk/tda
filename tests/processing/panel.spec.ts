@@ -193,6 +193,81 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 	).toBeVisible();
 });
 
+test("atenção na command bar abre a fila já focada no problema", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "1 atenção", exact: true }).click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText("Mostrando somente trabalhos que precisam de atenção.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "Precisam de atenção" }),
+	).toBeVisible();
+	await expect(page.getByText("Falhou", { exact: true })).toBeVisible();
+});
+
+test("telemetry stale preserva o último snapshot e orienta sem zerar valores", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 61,
+					memoryUsedBytes: 5 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+	let reads = 0;
+	await page.route(`${LOCAL_API}/system`, async (route) => {
+		reads += 1;
+		if (reads > 1) return route.abort("failed");
+		return route.fallback();
+	});
+
+	await page.goto("/");
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
+	});
+	await expect(commandBar).toContainText("Synthetic GPU · 61% · 5.0/8.0 GB");
+
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(commandBar).toContainText("Dados desatualizados");
+	await expect(commandBar).toContainText("O último snapshot válido foi preservado.");
+	await expect(commandBar).toContainText("Synthetic GPU · 61% · 5.0/8.0 GB");
+	await expect(commandBar).not.toContainText("Synthetic GPU · 0%");
+});
+
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
@@ -225,7 +300,7 @@ test("fila pausada continua distinta de falha e pode ser retomada", async ({ pag
 	await page.goto("/");
 	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
 
-	await page.getByRole("button", { name: "Retomar fila" }).click();
+	await page.getByRole("button", { name: "Retomar novas execuções" }).click();
 	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 
