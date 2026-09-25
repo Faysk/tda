@@ -105,7 +105,7 @@ describe("processing presentation", () => {
 				seq: 21,
 				code: "WORKER_RESULT_TEARDOWN_FORCED",
 				at: "2026-09-19T12:00:01Z",
-				level: "info",
+				level: "warning",
 				data: {},
 			}).detail,
 		).toContain("run imutável");
@@ -158,7 +158,7 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 			seq: 40,
 			code: "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
 			at: "2026-09-23T00:00:00.000Z",
-			level: "warning",
+			level: "info",
 			data: { track: 2, window: 88, count: 1, stage: "alignment" },
 		}),
 	).toEqual({
