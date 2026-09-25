@@ -207,7 +207,7 @@ test("operational grammar keeps state semantics distinct and essential text read
 	const commandBar = page.locator("[data-processing-command-bar='true']");
 	const operationalVisual = await commandBar.evaluate((element) => {
 		const style = getComputedStyle(element);
-		const counter = element.querySelector("[aria-label='Resumo da fila'] span");
+		const counter = element.querySelector("[data-processing-counters='true'] span");
 		return {
 			borderTopWidth: style.borderTopWidth,
 			borderBottomWidth: style.borderBottomWidth,
