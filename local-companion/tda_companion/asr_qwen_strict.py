@@ -229,6 +229,8 @@ def _alignment_timestamp_diagnostic(
             return "QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START", details
         if end < start:
             return "QWEN_ALIGNMENT_TIMESTAMP_REVERSED", details
+        if start > window.end + 0.25:
+            return "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW", details
         if end > window.end + 0.25:
             details["overflow_seconds"] = round(end - window.end, 3)
             return "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW", details
@@ -259,7 +261,10 @@ def _safe_neighbor_owned_trailing_overflow(
     ):
         return False
     window_duration = window.end - window.start
-    if relative_end <= window_duration + 0.25:
+    if (
+        relative_end <= window_duration + 0.25
+        or relative_end > window_duration + QWEN_WINDOW_OVERLAP_SECONDS + 0.25
+    ):
         return False
     # The canonical ownership rule uses the word midpoint. Permit pre-validation
     # filtering only when the extrapolated word begins inside the decoded trailing
