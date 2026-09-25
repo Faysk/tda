@@ -816,6 +816,8 @@ def create_app(
                                         "previous_end_seconds",
                                         "aligned_word_count",
                                         "owned_word_count",
+                                        "runtime_version",
+                                        "worker_sha256",
                                     }
                                 }
                                 log(
