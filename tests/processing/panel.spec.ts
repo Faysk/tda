@@ -130,6 +130,41 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	).toBeVisible();
 });
 
+test("ações locais e refresh não emitem loading global dentro da workspace", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobReadDelayMs: 800,
+	});
+	await page.addInitScript(() => {
+		const starts: string[] = [];
+		(window as Window & { __globalLoadingStarts?: string[] }).__globalLoadingStarts = starts;
+		window.addEventListener("tda:global-loading-start", (event) => {
+			const detail = (event as CustomEvent<{ id?: string }>).detail;
+			starts.push(detail?.id ?? "unknown");
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
+
+	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect.poll(() => state.job?.status).toBe("cancelled");
+	expect(
+		await page.evaluate(
+			() =>
+				(window as Window & { __globalLoadingStarts?: string[] })
+					.__globalLoadingStarts ?? [],
+		),
+	).toEqual([]);
+});
+
 test("refresh atrasado mantém ação do job clicável e não regride o estado novo", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
