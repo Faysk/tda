@@ -594,9 +594,12 @@ export function ProcessingSubmission({
 					</div>
 
 					<div className={styles.coreFields}>
-						<label className={styles.sessionField}>
-							<span>Sessão</span>
+						<div className={styles.sessionField}>
+							<label htmlFor="processing-session-id">
+								<span>Sessão</span>
+							</label>
 							<input
+								id="processing-session-id"
 								value={sessionId}
 								onChange={(event) => setSessionId(event.target.value.trim())}
 								pattern="[A-Za-z0-9_-]{1,128}"
@@ -619,11 +622,14 @@ export function ProcessingSubmission({
 									Usar última sessão: {lastSession}
 								</button>
 							) : null}
-						</label>
+						</div>
 
-						<label className={styles.profileField}>
-							<span>Profile</span>
+						<div className={styles.profileField}>
+							<label htmlFor="processing-profile">
+								<span>Profile</span>
+							</label>
 							<select
+								id="processing-profile"
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
 								disabled={busy}
@@ -649,7 +655,7 @@ export function ProcessingSubmission({
 									<small>Ainda sem calibração de tempo nesta máquina.</small>
 								</div>
 							) : null}
-						</label>
+						</div>
 					</div>
 
 					<div className={styles.submitRow}>
