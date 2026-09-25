@@ -10,6 +10,7 @@ from typing import Any, Iterable
 from .asr_checkpoints import (
     QwenTextCheckpointWindow,
     build_checkpoint_signature,
+    load_compatible_qwen_text_checkpoint,
     load_qwen_text_checkpoint,
     load_track_checkpoint,
     save_qwen_text_checkpoint,
@@ -49,6 +50,8 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
+QWEN_ALIGNMENT_POLICY = "strict-overlap-v3"
+QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
 _CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
@@ -190,6 +193,90 @@ def _owned_words(
     ]
 
 
+def _alignment_required(
+    failure_class: str,
+    **diagnostics: int | float | bool,
+) -> QwenRuntimeError:
+    error = QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
+    error.alignment_failure_class = failure_class
+    error.alignment_diagnostics = diagnostics
+    return error
+
+
+def _alignment_timestamp_diagnostic(
+    items: list[dict[str, Any]],
+    window: AudioWindow,
+) -> tuple[str, dict[str, int | float | bool]]:
+    previous_end = window.start
+    for item_index, item in enumerate(items, start=1):
+        if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+            continue
+        details: dict[str, int | float | bool] = {"aligned_item": item_index}
+        try:
+            relative_start = float(item.get("start_time"))
+            relative_end = float(item.get("end_time"))
+        except (TypeError, ValueError):
+            return "QWEN_ALIGNMENT_TIMESTAMP_PARSE_INVALID", details
+        if math.isfinite(relative_start):
+            details["relative_start_seconds"] = round(relative_start, 3)
+        if math.isfinite(relative_end):
+            details["relative_end_seconds"] = round(relative_end, 3)
+        if not math.isfinite(relative_start) or not math.isfinite(relative_end):
+            return "QWEN_ALIGNMENT_TIMESTAMP_NONFINITE", details
+        start = window.start + relative_start
+        end = window.start + relative_end
+        if relative_start < -0.05:
+            return "QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START", details
+        if end < start:
+            return "QWEN_ALIGNMENT_TIMESTAMP_REVERSED", details
+        if end > window.end + 0.25:
+            details["overflow_seconds"] = round(end - window.end, 3)
+            return "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW", details
+        if start + 0.05 < previous_end:
+            details["previous_end_seconds"] = round(previous_end, 3)
+            return "QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC", details
+        previous_end = max(previous_end, end)
+    return "QWEN_ALIGNMENT_TIMESTAMPS_INVALID", {}
+
+
+def _safe_neighbor_owned_trailing_overflow(
+    item: dict[str, Any],
+    window: AudioWindow,
+    *,
+    last: bool,
+) -> bool:
+    if last:
+        return False
+    try:
+        relative_start = float(item.get("start_time"))
+        relative_end = float(item.get("end_time"))
+    except (TypeError, ValueError):
+        return False
+    if (
+        not math.isfinite(relative_start)
+        or not math.isfinite(relative_end)
+        or relative_end <= relative_start
+    ):
+        return False
+    window_duration = window.end - window.start
+    if relative_end <= window_duration + 0.25:
+        return False
+    # The canonical ownership rule uses the word midpoint. Permit pre-validation
+    # filtering only when the extrapolated word begins inside the decoded trailing
+    # overlap and its midpoint belongs to the next window. This is narrower than
+    # dropping arbitrary overflow and keeps owned-region anomalies fail-closed.
+    overlap_left = window.end - QWEN_WINDOW_OVERLAP_SECONDS
+    ownership_right = window.end - QWEN_WINDOW_OVERLAP_SECONDS / 2.0
+    absolute_start = window.start + relative_start
+    absolute_end = window.start + relative_end
+    midpoint = (absolute_start + absolute_end) / 2.0
+    return (
+        absolute_start >= overlap_left - 0.05
+        and absolute_start <= window.end + 0.25
+        and midpoint >= ownership_right
+    )
+
+
 def _strict_alignment_segments(
     track_number: int,
     window: AudioWindow,
@@ -204,52 +291,47 @@ def _strict_alignment_segments(
     # and must contribute zero segments instead of failing the whole session.
     if not pending.text.strip():
         return (), 0
+    aligned: list[dict[str, Any]] = []
     try:
         aligned = aligner.align(window.audio, pending.text, pending.language)
         ignored_trailing_overflow = 0
         if not last:
-            ownership_right = window.end - QWEN_WINDOW_OVERLAP_SECONDS / 2.0
-            window_duration = window.end - window.start
             filtered: list[dict[str, Any]] = []
             for item in aligned:
-                if isinstance(item, dict):
-                    try:
-                        relative_start = float(item.get("start_time"))
-                        relative_end = float(item.get("end_time"))
-                    except (TypeError, ValueError):
-                        filtered.append(item)
-                        continue
-                    absolute_start = window.start + relative_start
-                    if (
-                        math.isfinite(relative_start)
-                        and math.isfinite(relative_end)
-                        and relative_end > window_duration + 0.25
-                        and absolute_start >= ownership_right
-                    ):
-                        # A non-final overlap window does not own audio after
-                        # ownership_right. If the aligner extrapolates a word
-                        # beyond the decoded window but that word starts entirely
-                        # inside the neighbor-owned trailing overlap, ignoring it
-                        # cannot remove content owned by this window.
-                        ignored_trailing_overflow += 1
-                        continue
+                if isinstance(item, dict) and _safe_neighbor_owned_trailing_overflow(
+                    item,
+                    window,
+                    last=last,
+                ):
+                    ignored_trailing_overflow += 1
+                    continue
                 filtered.append(item)
             aligned = filtered
         if not aligned and ignored_trailing_overflow:
             return (), ignored_trailing_overflow
         words = _validated_words(aligned, window)
     except QwenRuntimeError as exc:
-        raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED") from exc
+        failure_class = exc.code
+        diagnostics: dict[str, int | float | bool] = {}
+        if exc.code == "QWEN_ALIGNMENT_TIMESTAMPS_INVALID":
+            failure_class, diagnostics = _alignment_timestamp_diagnostic(aligned, window)
+        raise _alignment_required(failure_class, **diagnostics) from exc
     owned = _owned_words(words, window, first=first, last=last)
     if not owned:
         # It is valid for an overlap-only window to contribute no owned words only
         # when the aligner returned words entirely in the neighbor-owned overlap.
         if words and (not first or not last):
             return (), ignored_trailing_overflow
-        raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
+        raise _alignment_required(
+            "QWEN_ALIGNMENT_NO_OWNED_WORDS",
+            aligned_word_count=len(words),
+        )
     segments = _segments_from_words(track_number, window, owned)
     if not segments:
-        raise QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
+        raise _alignment_required(
+            "QWEN_ALIGNMENT_NO_SEGMENTS",
+            owned_word_count=len(owned),
+        )
     return segments, ignored_trailing_overflow
 
 
@@ -298,7 +380,11 @@ def transcribe_craig_package_qwen_strict(
         "device": plan.device,
         "dtype": plan.dtype,
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
-        "alignment_policy": "strict-overlap-v2",
+        "alignment_policy": QWEN_ALIGNMENT_POLICY,
+    }
+    legacy_text_recipe = {
+        **recipe,
+        "alignment_policy": QWEN_LEGACY_TEXT_ALIGNMENT_POLICY,
     }
     report({"type": "stage", "stage": "runtime_fingerprint", "profile": profile.id})
     fingerprint_started = time.monotonic()
@@ -313,12 +399,22 @@ def transcribe_craig_package_qwen_strict(
     )
     report({"type": "stage", "stage": "checkpoint_scan", "profile": profile.id})
     checkpoint_scan_started = time.monotonic()
+    normalized_context = " ".join(context.split())[:2000].strip()
+    normalized_glossary = " ".join(glossary.split())[:2000].strip()
     signature = build_checkpoint_signature(
         package,
         profile,
         recipe=recipe,
-        context=" ".join(context.split())[:2000].strip(),
-        glossary=" ".join(glossary.split())[:2000].strip(),
+        context=normalized_context,
+        glossary=normalized_glossary,
+        runtime_fingerprint=runtime_fingerprint,
+    )
+    legacy_text_signature = build_checkpoint_signature(
+        package,
+        profile,
+        recipe=legacy_text_recipe,
+        context=normalized_context,
+        glossary=normalized_glossary,
         runtime_fingerprint=runtime_fingerprint,
     )
 
@@ -360,6 +456,7 @@ def transcribe_craig_package_qwen_strict(
     pending_text: dict[int, list[QwenWindowTranscript]] = {}
     asr_tracks = []
     text_checkpoint_reused = 0
+    text_checkpoint_compat_reused = 0
     for track in pending_tracks:
         if is_cancelled():
             raise QwenRuntimeError("ASR_CANCELLED")
@@ -368,6 +465,15 @@ def transcribe_craig_package_qwen_strict(
             if checkpoints
             else None
         )
+        compatibility_reuse = False
+        if cached_text is None and checkpoints:
+            cached_text = load_compatible_qwen_text_checkpoint(
+                package_root,
+                signature,
+                track,
+                templates=(legacy_text_signature,),
+            )
+            compatibility_reuse = cached_text is not None
         if cached_text is None:
             asr_tracks.append(track)
             continue
@@ -386,10 +492,16 @@ def transcribe_craig_package_qwen_strict(
             for item in cached_text
         ]
         text_checkpoint_reused += 1
+        if compatibility_reuse:
+            text_checkpoint_compat_reused += 1
         report(
             {
                 "type": "event",
-                "code": "ASR_TEXT_CHECKPOINT_REUSED",
+                "code": (
+                    "ASR_TEXT_CHECKPOINT_COMPAT_REUSED"
+                    if compatibility_reuse
+                    else "ASR_TEXT_CHECKPOINT_REUSED"
+                ),
                 "stage": "source_validation",
                 "track": track.number,
                 "total_tracks": total_tracks,
@@ -405,6 +517,7 @@ def transcribe_craig_package_qwen_strict(
             "track_count": total_tracks,
             "aligned_reused": len(cached_tracks),
             "text_reused": text_checkpoint_reused,
+            "text_compat_reused": text_checkpoint_compat_reused,
             "pending_asr": len(asr_tracks),
             "duration_ms": round((time.monotonic() - checkpoint_scan_started) * 1000.0, 2),
         }
@@ -532,14 +645,64 @@ def transcribe_craig_package_qwen_strict(
                     if pending is None or not math.isclose(pending.start, window.start, abs_tol=0.001) or not math.isclose(pending.end, window.end, abs_tol=0.001):
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                     seen.add(window.index)
-                    window_segments, ignored_trailing_overflow = _strict_alignment_segments(
-                        track.number,
-                        window,
-                        pending,
-                        aligner,
-                        first=window.index == expected[0].index,
-                        last=window.index == last_index,
-                    )
+                    first_window = window.index == expected[0].index
+                    last_window = window.index == last_index
+                    try:
+                        window_segments, ignored_trailing_overflow = _strict_alignment_segments(
+                            track.number,
+                            window,
+                            pending,
+                            aligner,
+                            first=first_window,
+                            last=last_window,
+                        )
+                    except QwenRuntimeError as exc:
+                        if exc.code == "QWEN_ALIGNMENT_REQUIRED":
+                            failure_data: dict[str, Any] = {
+                                "type": "event",
+                                "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
+                                "stage": "alignment",
+                                "track": track.number,
+                                "window": window.index,
+                                "failure_class": str(
+                                    getattr(
+                                        exc,
+                                        "alignment_failure_class",
+                                        "QWEN_ALIGNMENT_REQUIRED",
+                                    )
+                                )[:96],
+                                "window_start_seconds": round(window.start, 3),
+                                "window_end_seconds": round(window.end, 3),
+                                "ownership_left_seconds": round(
+                                    window.start
+                                    if first_window
+                                    else window.start + QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
+                                    3,
+                                ),
+                                "ownership_right_seconds": round(
+                                    window.end
+                                    if last_window
+                                    else window.end - QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
+                                    3,
+                                ),
+                                "first_window": first_window,
+                                "last_window": last_window,
+                            }
+                            diagnostics = getattr(exc, "alignment_diagnostics", {})
+                            if isinstance(diagnostics, dict):
+                                for key, value in diagnostics.items():
+                                    if (
+                                        isinstance(key, str)
+                                        and isinstance(value, (int, float, bool))
+                                        and not isinstance(value, float)
+                                        or (
+                                            isinstance(value, float)
+                                            and math.isfinite(value)
+                                        )
+                                    ):
+                                        failure_data[key] = value
+                            report(failure_data)
+                        raise
                     if ignored_trailing_overflow:
                         report(
                             {
@@ -662,7 +825,7 @@ def transcribe_craig_package_qwen_strict(
             profile=profile.id,
             device=plan.device,
             compute_type=plan.dtype,
-            alignment=f"{QWEN_FORCED_ALIGNER_MODEL_ID}+strict-overlap-v2",
+            alignment=f"{QWEN_FORCED_ALIGNER_MODEL_ID}+{QWEN_ALIGNMENT_POLICY}",
             model_revision=profile.revision,
         ),
         tracks=transcript_tracks,
