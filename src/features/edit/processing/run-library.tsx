@@ -325,7 +325,7 @@ export function RunLibrary({
 				</div>
 			) : (
 				<div className={styles.workspace}>
-					<div className={styles.master} aria-label="Runs concluídos">
+					<div className={styles.master}>
 						<div className={styles.masterList}>
 							{visible.map((run) => {
 								const isSelected = selected?.runId === run.runId;
