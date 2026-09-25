@@ -312,6 +312,7 @@ export function ProcessingSubmission({
 		if (validation) {
 			setFile(null);
 			setFileError(validation);
+			if (fileInput.current) fileInput.current.value = "";
 			return;
 		}
 		setFile(nextFile);
