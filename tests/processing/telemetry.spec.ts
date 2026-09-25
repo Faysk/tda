@@ -200,6 +200,23 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
 	await expect(visual).toHaveText("25%", { timeout: 2_000 });
 	await expect(gpu).toHaveAttribute("data-animated-running", "false");
+
+	const progress = page.getByRole("progressbar", {
+		name: "Progresso do trabalho craig-job-1",
+	});
+	const fill = progress.locator("span[aria-hidden='true']");
+	expect(
+		await fill.evaluate((element) => getComputedStyle(element).transitionDuration),
+	).toBe("0.48s");
+
+	state.setJob(
+		fixtureJob("running", {
+			progress: { completed: 2, total: 2, unit: "tracks" },
+		}),
+	);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(progress).toHaveAttribute("aria-valuenow", "2");
+	await expect(progress).toHaveAttribute("data-progress-target", "1");
 });
 
 test("reduced motion salta telemetry ao target factual e desliga transição de progresso", async ({
