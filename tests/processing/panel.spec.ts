@@ -227,7 +227,12 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 	await expect(
 		page.getByRole("heading", { name: "Precisam de atenção" }),
 	).toBeVisible();
-	await expect(page.getByText("Falhou", { exact: true })).toBeVisible();
+	await expect(
+		page
+			.getByRole("tabpanel", { name: "Fila" })
+			.getByRole("listitem")
+			.getByText("Falhou", { exact: true }),
+	).toBeVisible();
 });
 
 test("telemetry stale preserva o último snapshot e orienta sem zerar valores", async ({ page }) => {
