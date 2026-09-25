@@ -10,7 +10,6 @@ from typing import Any, Iterable
 from .asr_checkpoints import (
     QwenTextCheckpointWindow,
     build_checkpoint_signature,
-    load_compatible_qwen_text_checkpoint,
     load_qwen_text_checkpoint,
     load_track_checkpoint,
     save_qwen_text_checkpoint,
@@ -46,6 +45,7 @@ from .asr_qwen import (
 from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
 from .craig import CraigPackage, CraigPackageError, CraigTrack
 from .qwen_acceptance import QwenPlan
+from .qwen_checkpoint_compat import load_compatible_qwen_text_checkpoint
 from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment, TranscriptTrack, TranscriptWord, stats_for_tracks
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
@@ -462,6 +462,7 @@ def transcribe_craig_package_qwen_strict(
     asr_tracks = []
     text_checkpoint_reused = 0
     text_checkpoint_compat_reused = 0
+    compatibility_warnings: set[str] = set()
     for track in pending_tracks:
         if is_cancelled():
             raise QwenRuntimeError("ASR_CANCELLED")
@@ -485,6 +486,11 @@ def transcribe_craig_package_qwen_strict(
                 compatibility_reuse = True
                 compatibility_source_runtime_version = compatible.source_runtime_version
                 compatibility_source_signature_sha256 = compatible.source_signature_sha256
+                compatibility_warnings.add(
+                    "qwen_text_checkpoint_compat_reused:"
+                    f"runtime={compatible.source_runtime_version};"
+                    f"signature={compatible.source_signature_sha256}"
+                )
         if cached_text is None:
             asr_tracks.append(track)
             continue
@@ -853,7 +859,7 @@ def transcribe_craig_package_qwen_strict(
             turn_count=len(turns),
             deduplicated_segment_count=len(decisions),
         ),
-        warnings=(),
+        warnings=tuple(sorted(compatibility_warnings)),
     )
     report({"type": "stage", "stage": "result_prepare", "profile": profile.id})
     document.validate()
