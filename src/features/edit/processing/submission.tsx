@@ -525,7 +525,12 @@ export function ProcessingSubmission({
 						<span>{capabilityError}</span>
 					</div>
 					{onOpenDiagnostics ? (
-						<Button size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+						<Button
+							type="button"
+							size="sm"
+							variant="tertiary"
+							onClick={onOpenDiagnostics}
+						>
 							Abrir Diagnóstico
 						</Button>
 					) : null}
@@ -543,7 +548,12 @@ export function ProcessingSubmission({
 						</span>
 					</div>
 					{onOpenDiagnostics ? (
-						<Button size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+						<Button
+							type="button"
+							size="sm"
+							variant="tertiary"
+							onClick={onOpenDiagnostics}
+						>
 							Abrir Diagnóstico
 						</Button>
 					) : null}
@@ -555,20 +565,6 @@ export function ProcessingSubmission({
 						data-craig-dropzone="true"
 						data-active={dragActive ? "true" : "false"}
 						data-selected={file ? "true" : "false"}
-						onDragEnter={(event) => {
-							event.preventDefault();
-							if (!busy) setDragActive(true);
-						}}
-						onDragOver={(event) => {
-							event.preventDefault();
-							if (!busy) setDragActive(true);
-						}}
-						onDragLeave={(event) => {
-							if (event.currentTarget.contains(event.relatedTarget as Node | null))
-								return;
-							setDragActive(false);
-						}}
-						onDrop={handleDrop}
 					>
 						<input
 							ref={fileInput}
@@ -582,8 +578,27 @@ export function ProcessingSubmission({
 						<button
 							type="button"
 							className={styles.dropAction}
+							data-craig-drop-target="true"
 							disabled={busy}
 							onClick={() => fileInput.current?.click()}
+							onDragEnter={(event) => {
+								event.preventDefault();
+								if (!busy) setDragActive(true);
+							}}
+							onDragOver={(event) => {
+								event.preventDefault();
+								if (!busy) setDragActive(true);
+							}}
+							onDragLeave={(event) => {
+								if (
+									event.currentTarget.contains(
+										event.relatedTarget as Node | null,
+									)
+								)
+									return;
+								setDragActive(false);
+							}}
+							onDrop={handleDrop}
 						>
 							<span className={styles.dropGlyph} aria-hidden="true">
 								{file ? "✓" : "ZIP"}
@@ -700,6 +715,7 @@ export function ProcessingSubmission({
 							</div>
 							{profileBlocked && onOpenDiagnostics ? (
 								<Button
+									type="button"
 									size="sm"
 									variant="tertiary"
 									onClick={onOpenDiagnostics}
