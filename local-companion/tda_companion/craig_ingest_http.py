@@ -15,7 +15,7 @@ from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
 from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
-from .local_review import LocalReviewError, open_review, save_review
+from .local_review import LocalReviewError, open_review, review_listing_summary, save_review
 from .publication_target import PublicationTargetError, load_publication_target
 from .system_log import SystemLog
 from .transcription_runs import (
@@ -230,7 +230,19 @@ class CraigIngestBoundary:
                     # A corrupt/mismatched target can never make a run publishable.
                     # Keep the immutable local result visible and fail the target closed.
                     target = None
-                enriched.append({**item, "publication_target": target})
+                review_summary = review_listing_summary(
+                    package_root,
+                    source_id=source_id,
+                    run_id=str(item.get("run_id") or ""),
+                    transcript_sha256=str(item.get("transcript_sha256") or ""),
+                )
+                enriched.append(
+                    {
+                        **item,
+                        "publication_target": target,
+                        "review_summary": review_summary,
+                    }
+                )
             return {**value, "runs": enriched}
 
     def _review_value(
