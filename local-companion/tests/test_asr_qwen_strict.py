@@ -468,7 +468,7 @@ def test_strict_qwen_reuses_1_0_10_text_checkpoint_after_1_0_11_alignment_upgrad
     monkeypatch.setattr(
         asr_qwen_strict,
         "_runtime_fingerprint",
-        lambda: "checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("a" * 64),
+        lambda: "checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e",
     )
     with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
         transcribe_craig_package_qwen_strict(
