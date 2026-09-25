@@ -87,6 +87,50 @@
 	min-width: 0;
 }
 
+.filterBar {
+	display: flex;
+	min-width: 0;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.filterButton {
+	display: inline-flex;
+	min-height: 36px;
+	align-items: center;
+	gap: 7px;
+	padding: 6px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: 999px;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.68rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.filterButton span {
+	min-width: 1.35rem;
+	padding: 1px 5px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-foreground) 7%, transparent);
+	color: var(--ds-foreground-soft);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.filterButton[data-active="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 48%, var(--ds-border));
+	background: var(--ds-accent-muted);
+	color: var(--ds-foreground);
+}
+
+.filterButton:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
 .inspectorFull {
 	position: static;
 	max-height: none;
@@ -662,6 +706,49 @@
 	min-width: 0;
 }
 
+.diagnosticGrid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.diagnosticGrid > section {
+	display: grid;
+	min-width: 0;
+	gap: 7px;
+	padding: 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.diagnosticWide {
+	grid-column: 1 / -1;
+}
+
+.technicalDetails {
+	color: var(--ds-foreground-muted);
+	font-size: 0.67rem;
+}
+
+.technicalDetails summary {
+	min-height: 32px;
+	cursor: pointer;
+	color: var(--ds-foreground-soft);
+	font-weight: 650;
+}
+
+.technicalDetails summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.technicalDetails p {
+	margin: 4px 0 0;
+	overflow-wrap: anywhere;
+	line-height: 1.45;
+}
+
 .jobDetails dt {
 	color: var(--ds-foreground-muted);
 	font-size: 0.59rem;
@@ -777,6 +864,12 @@
 	font-size: 0.61rem;
 	font-style: italic;
 	line-height: 1.3;
+}
+
+.logEntry small.mono {
+	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+	font-size: 0.56rem;
+	font-style: normal;
 }
 
 .integrationTool {
@@ -977,7 +1070,8 @@
 		grid-template-columns: 1fr;
 	}
 
-	.jobDetails {
+	.jobDetails,
+	.diagnosticGrid {
 		grid-template-columns: 1fr;
 	}
 }
@@ -994,7 +1088,8 @@
 	.connectionActions,
 	.pairingControls,
 	.syncStrip,
-	.integrationTool {
+	.integrationTool,
+	.filterBar {
 		align-items: stretch;
 		flex-direction: column;
 	}
