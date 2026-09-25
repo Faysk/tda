@@ -143,6 +143,7 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
             headers=headers,
         )
         assert listing.status_code == 200
+        assert listing.json()["runs"][0]["review_summary"] is None
         assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(listing.json())
 
         review = client.get(
@@ -155,6 +156,14 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert opened["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
         assert opened["sync"] == {"status": "not_configured"}
         assert str(tmp_path) not in json.dumps(opened)
+
+        listed_draft = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=headers,
+        ).json()["runs"][0]["review_summary"]
+        assert listed_draft["status"] == "draft"
+        assert listed_draft["draft_revision"] == 0
+        assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(listed_draft)
 
         segments = [dict(item) for item in opened["segments"]]
         segments[0]["text"] = "Texto revisado"
@@ -176,6 +185,14 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert value["review"]["review_percent"] == 100.0
         assert value["review"]["edited_segments"] == 1
         assert raw_path.read_bytes() == raw_before
+
+        listed_approved = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=headers,
+        ).json()["runs"][0]["review_summary"]
+        assert listed_approved["status"] == "approved_local"
+        assert listed_approved["draft_revision"] == 1
+        assert listed_approved["updated_at"] == value["updated_at"]
 
         reopened = client.get(
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
