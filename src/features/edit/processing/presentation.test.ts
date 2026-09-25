@@ -251,12 +251,14 @@ it("presents sanitized Qwen alignment failure context", () => {
 				track: 1,
 				window: 89,
 				failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				runtime_version: "1.0.11",
+				worker_sha256: "a".repeat(64),
 			},
 		}),
 	).toEqual({
 		title: "Falha de alinhamento Qwen · faixa 1 · janela 89.",
 		detail:
-			"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+			"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger. Identidade da execução: runtime 1.0.11 · worker SHA-256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
 	});
 });
 
