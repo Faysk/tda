@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import {
 	BROWSER_TOKEN,
+	fixtureJob,
+	installCompanionFixture,
 	LOCAL_API,
 	UI_ORIGIN,
 } from "./companion-fixture";
@@ -128,4 +130,134 @@ test("renders local resource telemetry and factual worker events after automatic
 		"Processando voz — Yuhara · 82%.",
 	);
 	await expect(page.getByRole("log")).not.toContainText("cachorro");
+});
+
+
+test("telemetry atualiza o target factual antes do tween visual e rebaseia no sample novo", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			cpuPercent: 20,
+			memoryPercent: 30,
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 40,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	const gpu = page.getByRole("meter", { name: "Uso da GPU" });
+	const visual = gpu.locator("[data-animated-metric-visual='true']");
+	await expect(gpu).toHaveAttribute("aria-valuenow", "40");
+	await expect(visual).toHaveText("40%");
+
+	state.setSystem({
+		cpuPercent: 60,
+		memoryPercent: 70,
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 100,
+				memoryUsedBytes: 6 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
+	await expect(gpu).toHaveAttribute("aria-valuetext", "100%");
+	await expect(gpu).toHaveAttribute("data-animated-running", "true");
+	expect(await visual.textContent()).not.toBe("100%");
+
+	state.setSystem({
+		cpuPercent: 15,
+		memoryPercent: 25,
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 25,
+				memoryUsedBytes: 3 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpu).toHaveAttribute("aria-valuenow", "25");
+	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
+	await expect(visual).toHaveText("25%", { timeout: 2_000 });
+	await expect(gpu).toHaveAttribute("data-animated-running", "false");
+});
+
+test("reduced motion salta telemetry ao target factual e desliga transição de progresso", async ({
+	page,
+}) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 40,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	const gpu = page.getByRole("meter", { name: "Uso da GPU" });
+	const visual = gpu.locator("[data-animated-metric-visual='true']");
+	const progress = page.getByRole("progressbar", {
+		name: "Progresso do trabalho craig-job-1",
+	});
+	const fill = progress.locator("span[aria-hidden='true']");
+
+	state.setSystem({
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 100,
+				memoryUsedBytes: 7 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
+	await expect(gpu).toHaveAttribute("data-animated-running", "false");
+	await expect(visual).toHaveText("100%");
+	expect(
+		await fill.evaluate((element) => getComputedStyle(element).transitionDuration),
+	).toBe("0s");
+
+	state.setJob(
+		fixtureJob("running", {
+			progress: { completed: 2, total: 2, unit: "tracks" },
+		}),
+	);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(progress).toHaveAttribute("aria-valuenow", "2");
+	await expect(progress).toHaveAttribute("aria-valuemax", "2");
+	await expect(progress).toHaveAttribute("data-progress-target", "1");
 });
