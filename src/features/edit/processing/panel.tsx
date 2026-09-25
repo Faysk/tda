@@ -31,6 +31,14 @@ type Confirmation =
 	| { action: "resume" };
 
 type ProcessingView = "overview" | "queue" | "results" | "diagnostics";
+type QueueFilter =
+	| "all"
+	| "running"
+	| "queued"
+	| "attention"
+	| "succeeded"
+	| "cancelled";
+type EventFilter = "all" | "warning" | "error";
 
 const processingViews: readonly { id: ProcessingView; label: string }[] = [
 	{ id: "overview", label: "Visão geral" },
@@ -38,6 +46,21 @@ const processingViews: readonly { id: ProcessingView; label: string }[] = [
 	{ id: "results", label: "Resultados" },
 	{ id: "diagnostics", label: "Diagnóstico" },
 ];
+
+const queueFilterLabels: Readonly<Record<QueueFilter, string>> = {
+	all: "Todos",
+	running: "Processando",
+	queued: "Na fila",
+	attention: "Atenção",
+	succeeded: "Concluídos",
+	cancelled: "Cancelados",
+};
+
+const eventFilterLabels: Readonly<Record<EventFilter, string>> = {
+	all: "Todos",
+	warning: "Avisos",
+	error: "Erros",
+};
 
 function jobTone(status: LocalJob["status"]): StatusTone {
 	if (status === "succeeded") return "success";
@@ -269,6 +292,8 @@ export function ProcessingPanel({
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 	const [view, setView] = useState<ProcessingView>("overview");
+	const [queueFilter, setQueueFilter] = useState<QueueFilter>("all");
+	const [eventFilter, setEventFilter] = useState<EventFilter>("all");
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -322,12 +347,37 @@ export function ProcessingPanel({
 				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
 		);
 	const succeeded = state.jobs.filter((job) => job.status === "succeeded");
+	const cancelled = state.jobs.filter((job) => job.status === "cancelled");
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
 	const finished = state.jobs.filter((job) =>
 		["succeeded", "cancelled"].includes(job.status),
 	);
+	const queueGroups: readonly {
+		id: Exclude<QueueFilter, "all">;
+		title: string;
+		jobs: readonly LocalJob[];
+	}[] = [
+		{ id: "running", title: "Processando", jobs: running },
+		{ id: "queued", title: "Na fila", jobs: queued },
+		{ id: "attention", title: "Precisam de atenção", jobs: attention },
+		{ id: "succeeded", title: "Concluídos", jobs: succeeded },
+		{ id: "cancelled", title: "Cancelados", jobs: cancelled },
+	];
+	const visibleQueueGroups =
+		queueFilter === "all"
+			? queueGroups
+			: queueGroups.filter((group) => group.id === queueFilter);
+	const visibleQueueCount = visibleQueueGroups.reduce(
+		(total, group) => total + group.jobs.length,
+		0,
+	);
+	const filteredEvents =
+		eventFilter === "all"
+			? state.events
+			: state.events.filter((event) => event.level === eventFilter);
+
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
@@ -711,62 +761,60 @@ export function ProcessingPanel({
 						hidden={view !== "queue"}
 					>
 						<div className={styles.queueView}>
-							{running.length ? (
-								<section aria-labelledby="running-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="running-jobs">Processando</h2>
-										<span>{running.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{running.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
+							<div
+								className={styles.filterBar}
+								role="group"
+								aria-label="Filtrar trabalhos da fila"
+							>
+								{(
+									Object.keys(queueFilterLabels) as QueueFilter[]
+								).map((filter) => {
+									const count =
+										filter === "all"
+											? state.jobs.length
+											: queueGroups.find((group) => group.id === filter)?.jobs
+													.length ?? 0;
+									return (
+										<button
+											key={filter}
+											type="button"
+											className={styles.filterButton}
+											data-active={queueFilter === filter ? "true" : "false"}
+											aria-pressed={queueFilter === filter}
+											onClick={() => setQueueFilter(filter)}
+										>
+											{queueFilterLabels[filter]}
+											<span>{count}</span>
+										</button>
+									);
+								})}
+							</div>
 
-							{queued.length ? (
-								<section aria-labelledby="queued-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="queued-jobs">Na fila</h2>
-										<span>{queued.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{queued.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
+							{visibleQueueGroups.map((group) =>
+								group.jobs.length ? (
+									<section key={group.id} aria-labelledby={`queue-${group.id}`}>
+										<div className={styles.sectionHeading}>
+											<h2 id={`queue-${group.id}`}>{group.title}</h2>
+											<span>{group.jobs.length}</span>
+										</div>
+										<ul className={styles.compactJobs}>
+											{group.jobs.map(renderRow)}
+										</ul>
+									</section>
+								) : null,
+							)}
 
-							{attention.length ? (
-								<section aria-labelledby="attention-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="attention-jobs">Precisam de atenção</h2>
-										<span>{attention.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{attention.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
-
-							{finished.length ? (
-								<section aria-labelledby="recent-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="recent-jobs">Finalizados recentemente</h2>
-										<span>{finished.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{finished.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
-
-							{!running.length &&
-							!queued.length &&
-							!attention.length &&
-							!finished.length ? (
+							{visibleQueueCount === 0 ? (
 								<div className={styles.emptyState}>
-									<strong>A fila local está vazia.</strong>
+									<strong>
+										{queueFilter === "all"
+											? "A fila local está vazia."
+											: `Nenhum trabalho em “${queueFilterLabels[queueFilter]}”.`}
+									</strong>
 									<span>
-										Novos trabalhos enviados pela Visão geral aparecem aqui.
+										{queueFilter === "all"
+											? "Novos trabalhos enviados pela Visão geral aparecem aqui."
+											: "Troque o filtro para consultar outros estados locais."}
 									</span>
 								</div>
 							) : null}
@@ -849,6 +897,84 @@ export function ProcessingPanel({
 									</h2>
 								</div>
 							</div>
+							<div className={styles.diagnosticGrid}>
+								<section>
+									<span className={styles.overline}>Companion</span>
+									<dl className={styles.jobDetails}>
+										<div>
+											<dt>Conexão</dt>
+											<dd>{label}</dd>
+										</div>
+										<div>
+											<dt>API</dt>
+											<dd>{state.health?.api_version ? `v${state.health.api_version}` : "—"}</dd>
+										</div>
+										<div>
+											<dt>Serviço</dt>
+											<dd>{state.health?.service_version ?? "—"}</dd>
+										</div>
+										<div>
+											<dt>Lifecycle</dt>
+											<dd>{state.health?.lifecycle ?? "—"}</dd>
+										</div>
+										<div>
+											<dt>Dispositivo</dt>
+											<dd>{state.capabilities?.device.label ?? "—"}</dd>
+										</div>
+										<div>
+											<dt>Última leitura</dt>
+											<dd>{state.checkedAt ? formatTime(state.checkedAt) : "—"}</dd>
+										</div>
+									</dl>
+									<details className={styles.technicalDetails}>
+										<summary>Capabilities anunciadas</summary>
+										<p className={styles.mono}>
+											{state.capabilities?.capabilities.length
+												? state.capabilities.capabilities.join(" · ")
+												: "Nenhuma capability disponível."}
+										</p>
+									</details>
+								</section>
+								<section>
+									<span className={styles.overline}>Sistema atual</span>
+									<dl className={styles.jobDetails}>
+										<div>
+											<dt>SO</dt>
+											<dd>{state.system?.host.os ?? "—"}</dd>
+										</div>
+										<div>
+											<dt>CPU</dt>
+											<dd>{state.system?.host.cpu ?? "—"}</dd>
+										</div>
+										<div>
+											<dt>Uso CPU</dt>
+											<dd>{formatPercent(state.system?.cpu.utilizationPercent ?? null)}</dd>
+										</div>
+										<div>
+											<dt>RAM</dt>
+											<dd>
+												{state.system
+													? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)} · ${formatPercent(state.system.memory.percent)}`
+													: "—"}
+											</dd>
+										</div>
+										<div className={styles.diagnosticWide}>
+											<dt>GPU(s)</dt>
+											<dd>
+												{state.system?.gpus.length
+													? state.system.gpus
+															.map(
+																(item) =>
+																	`#${item.index} ${item.name} · ${formatPercent(item.utilizationPercent)} · ${formatBytes(item.memoryUsedBytes)} / ${formatBytes(item.memoryTotalBytes)}`,
+															)
+															.join(" | ")
+													: "—"}
+											</dd>
+										</div>
+									</dl>
+								</section>
+							</div>
+
 							{observedJob ? (
 								<dl className={styles.jobDetails}>
 									<div>
@@ -872,6 +998,36 @@ export function ProcessingPanel({
 										</div>
 									) : null}
 									<div>
+										<dt>Tentativa</dt>
+										<dd>{observedJob.attempt || "—"}</dd>
+									</div>
+									{observedJob.context?.profileId ? (
+										<div>
+											<dt>Perfil</dt>
+											<dd>{observedJob.context.profileId}</dd>
+										</div>
+									) : null}
+									{observedJob.context?.sourceId ? (
+										<div>
+											<dt>Fonte</dt>
+											<dd className={styles.mono}>{observedJob.context.sourceId}</dd>
+										</div>
+									) : null}
+									<div>
+										<dt>Resultado</dt>
+										<dd>{observedJob.result_available ? "Disponível" : "Não disponível"}</dd>
+									</div>
+									{observedJob.error ? (
+										<div className={styles.diagnosticWide}>
+											<dt>Erro</dt>
+											<dd>
+												{presentJobError(observedJob.error.code)} · código{" "}
+												<span className={styles.mono}>{observedJob.error.code}</span>
+												{observedJob.error.recoverable ? " · recuperável" : ""}
+											</dd>
+										</div>
+									) : null}
+									<div>
 										<dt>ID local</dt>
 										<dd className={styles.mono}>{observedJob.id}</dd>
 									</div>
@@ -885,8 +1041,30 @@ export function ProcessingPanel({
 							<div className={styles.logHeader}>
 								<h3>Log em tempo real</h3>
 								<span>
-									{state.events.length ? "● ativo" : "sem eventos"}
+									{state.events.length
+										? `${filteredEvents.length} de ${state.events.length} eventos`
+										: "sem eventos"}
 								</span>
+							</div>
+							<div
+								className={styles.filterBar}
+								role="group"
+								aria-label="Filtrar eventos do processamento"
+							>
+								{(
+									Object.keys(eventFilterLabels) as EventFilter[]
+								).map((filter) => (
+									<button
+										key={filter}
+										type="button"
+										className={styles.filterButton}
+										data-active={eventFilter === filter ? "true" : "false"}
+										aria-pressed={eventFilter === filter}
+										onClick={() => setEventFilter(filter)}
+									>
+										{eventFilterLabels[filter]}
+									</button>
+								))}
 							</div>
 							<div
 								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
@@ -894,8 +1072,8 @@ export function ProcessingPanel({
 								aria-label="Eventos do processamento local"
 								aria-relevant="additions text"
 							>
-								{state.events.length ? (
-									state.events.slice(0, 100).map((event) => {
+								{filteredEvents.length ? (
+									filteredEvents.slice(0, 100).map((event) => {
 										const presented = presentJobEvent(event);
 										return (
 											<div
@@ -911,13 +1089,16 @@ export function ProcessingPanel({
 													{presented.detail ? (
 														<small>{presented.detail}</small>
 													) : null}
+													<small className={styles.mono}>{event.code}</small>
 												</div>
 											</div>
 										);
 									})
 								) : (
 									<p>
-										Nenhum evento detalhado recebido para este trabalho.
+										{state.events.length
+											? "Nenhum evento corresponde a este filtro."
+											: "Nenhum evento detalhado recebido para este trabalho."}
 									</p>
 								)}
 							</div>
