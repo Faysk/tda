@@ -5,7 +5,7 @@ import {
 	TRANSCRIPT_SHA,
 } from "./companion-fixture";
 
-async function selectCraig(page: import("@playwright/test").Page) {
+function localComputer(page: import("@playwright/test").Page) {\n\treturn page.getByRole("region", { name: "Computador local" });\n}\n\nasync function selectCraig(page: import("@playwright/test").Page) {
 	await page.getByLabel("ID da sessão").fill("sessao-42");
 	await page.getByLabel("Export do Craig").setInputFiles({
 		name: "sessao-42.zip",
@@ -29,7 +29,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 		advanceJobs: false,
 	});
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(
 		page.getByRole("tab", { name: "Visão geral" }),
 	).toHaveAttribute("aria-selected", "true");
@@ -81,7 +81,7 @@ test("queue filters and diagnostics keep operational detail scoped", async ({ pa
 		initialJobs: [fixtureJob("running")],
 	});
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	const runningFilter = page.getByRole("button", { name: /Processando 1/u });
@@ -123,7 +123,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	page.on("pageerror", (error) => errors.push(error.message));
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByText("Nova transcrição Craig", { exact: true })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
@@ -198,7 +198,7 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 		ambiguousJobPostOnce: true,
 	});
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 
 	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
@@ -222,7 +222,7 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 }) => {
 	const state = await installCompanionFixture(page, { profileReady: true });
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 	await page.getByText("Opções avançadas", { exact: true }).click();
 	await page.getByLabel("Contexto opcional").fill("😀".repeat(1200));
@@ -244,7 +244,7 @@ test("all authenticated local mutations use the browser session, never a master 
 }) => {
 	const state = await installCompanionFixture(page, { profileReady: true });
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 
 	const authenticated = state.requests.filter(
 		(request) =>
