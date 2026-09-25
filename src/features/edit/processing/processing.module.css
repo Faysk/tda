@@ -377,6 +377,19 @@
 	min-width: 0;
 }
 
+.overviewTop[data-running="false"] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.overviewTop[data-running="false"] .submissionCard {
+	order: 1;
+	height: auto;
+}
+
+.overviewTop[data-running="false"] > section:first-child {
+	order: 2;
+}
+
 .overviewTop > section:first-child {
 	display: flex;
 	min-width: 0;
