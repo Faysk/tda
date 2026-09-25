@@ -142,6 +142,28 @@ def test_review_listing_summary_never_creates_draft_and_tracks_saved_state(tmp_p
     }
 
 
+def test_review_listing_summary_treats_broken_symlink_as_invalid(tmp_path: Path):
+    package_root, source_id, run = _package(tmp_path)
+    draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+    draft_path.parent.mkdir(parents=True)
+    try:
+        draft_path.symlink_to(package_root / "missing-review.json")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable on this platform")
+
+    assert review_listing_summary(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        transcript_sha256=run["transcript_sha256"],
+    ) == {
+        "schema_version": "tda_local_review_summary_v1",
+        "status": "invalid",
+        "draft_revision": None,
+        "updated_at": None,
+    }
+
+
 def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Path):
     package_root, source_id, run = _package(tmp_path)
     transcript = package_root / "runs" / run["run_id"] / "transcript.json"
