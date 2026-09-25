@@ -338,6 +338,9 @@ export function ProcessingPanel({
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
+	const observedJobLive =
+		observedJob !== null &&
+		["queued", "running"].includes(observedJob.status);
 	const gpu = state.system?.gpus[0] ?? null;
 	const trackContext =
 		activeJob && state.observedJobId === activeJob.id
@@ -888,6 +891,10 @@ export function ProcessingPanel({
 										</div>
 									) : null}
 									<div>
+										<dt>Tentativa</dt>
+										<dd>{observedJob.attempt}</dd>
+									</div>
+									<div>
 										<dt>ID local</dt>
 										<dd className={styles.mono}>{observedJob.id}</dd>
 									</div>
@@ -899,9 +906,15 @@ export function ProcessingPanel({
 							)}
 
 							<div className={styles.logHeader}>
-								<h3>Log em tempo real</h3>
+								<h3>
+									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
+								</h3>
 								<span>
-									{state.events.length ? "● ativo" : "sem eventos"}
+									{state.events.length
+										? observedJobLive
+											? "● ativo"
+											: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
+										: "sem eventos"}
 								</span>
 							</div>
 							<div
@@ -933,7 +946,7 @@ export function ProcessingPanel({
 									})
 								) : (
 									<p>
-										Nenhum evento detalhado recebido para este trabalho.
+										Nenhum evento detalhado disponível para este trabalho.
 									</p>
 								)}
 							</div>
