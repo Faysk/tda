@@ -18,7 +18,7 @@ CHECKPOINT_SCHEMA = "tda_asr_track_checkpoint_v1"
 QWEN_TEXT_CHECKPOINT_SCHEMA = "tda_qwen_text_checkpoint_v1"
 QWEN_TEXT_CHECKPOINT_NAMESPACE = "qwen-text-v1"
 MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
-_QWEN_RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\\.[0-9]+\\.[0-9]+)(?:;|$)")
+_QWEN_RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _QWEN_TEXT_RUNTIME_COMPATIBILITY = frozenset({("1.0.10", "1.0.11")})
 _SHA256_DIRECTORY = re.compile(r"^[0-9a-f]{64}$")
 _MAX_COMPATIBLE_CHECKPOINT_ROOTS = 256
