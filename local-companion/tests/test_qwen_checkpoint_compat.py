@@ -141,6 +141,65 @@ def test_compat_bridge_reuses_only_declared_1_0_10_to_1_0_11_transition(tmp_path
     ) is None
 
 
+def test_compat_bridge_reuses_stable_1_0_10_text_when_only_policy_changes(
+    tmp_path: Path,
+):
+    track = _track()
+    worker = "8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e"
+    old = _signature(
+        runtime=f"checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256={worker}",
+        alignment_policy="strict-overlap-v2",
+    )
+    current = _signature(
+        runtime=f"checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256={worker}",
+        alignment_policy="strict-overlap-v3",
+    )
+    legacy_template = _signature(
+        runtime=current.runtime_fingerprint,
+        alignment_policy="strict-overlap-v2",
+    )
+    save_qwen_text_checkpoint(tmp_path, old, track, _windows())
+
+    compatible = load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        current,
+        track,
+        templates=(legacy_template,),
+    )
+
+    assert compatible is not None
+    assert compatible.windows == _windows()
+    assert compatible.source_runtime_version == "1.0.10"
+    assert compatible.source_signature_sha256 == old.digest()
+
+
+def test_compat_bridge_rejects_same_version_worker_drift(tmp_path: Path):
+    track = _track()
+    accepted = (
+        "8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e"
+    )
+    old = _signature(
+        runtime=f"checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256={accepted}",
+        alignment_policy="strict-overlap-v2",
+    )
+    current = _signature(
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("f" * 64),
+        alignment_policy="strict-overlap-v3",
+    )
+    legacy_template = _signature(
+        runtime=current.runtime_fingerprint,
+        alignment_policy="strict-overlap-v2",
+    )
+    save_qwen_text_checkpoint(tmp_path, old, track, _windows())
+
+    assert load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        current,
+        track,
+        templates=(legacy_template,),
+    ) is None
+
+
 def test_compat_bridge_uses_exact_signature_even_with_many_stale_checkpoint_roots(
     tmp_path: Path,
 ):
