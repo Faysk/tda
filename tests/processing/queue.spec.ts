@@ -164,6 +164,7 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 		advanceJobs: false,
 		initialJobs: [
 			failedJob({
+				id: "job-failed",
 				context: context("sessao-failed", "source-failed", "qwen-quality"),
 			}),
 		],
