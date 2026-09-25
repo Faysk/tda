@@ -145,6 +145,7 @@ def test_compat_bridge_rejects_unaccepted_1_0_10_worker(tmp_path: Path):
         templates=(legacy_template,),
     ) is None
 
+
 def test_compat_bridge_delegates_corrupt_content_to_canonical_validation(tmp_path: Path):
     track = _track()
     old = _signature(
