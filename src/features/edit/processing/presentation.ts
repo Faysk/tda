@@ -284,7 +284,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: sourceRuntime
 					? `Texto Qwen do runtime ${sourceRuntime} reutilizado com validação de integridade.`
 					: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
-				detail: "O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
+				detail: "A transcrição compatível não rodou de novo; o processamento retomou a partir do alinhamento.",
 			};
 		}
 		case "ASR_CHECKPOINT_SAVED":
