@@ -198,6 +198,20 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [failedJob()],
+		jobEvents: [
+			{
+				seq: 91,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-25T12:00:00Z",
+				level: "error",
+				data: {
+					stage: "alignment",
+					track: 1,
+					window: 89,
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				},
+			},
+		],
 	});
 
 	await page.goto("/");
@@ -211,6 +225,12 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await expect(
 		page.getByRole("heading", { name: "Detalhes do processamento" }),
 	).toBeVisible();
+	await expect(page.getByRole("log")).toContainText(
+		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+	);
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
