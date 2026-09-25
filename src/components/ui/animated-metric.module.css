@@ -1,0 +1,8 @@
+.metric {
+	display: inline-block;
+	min-width: var(--animated-metric-width, auto);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+	white-space: nowrap;
+}
