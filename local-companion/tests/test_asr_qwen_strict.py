@@ -380,6 +380,7 @@ def test_strict_qwen_reports_safe_overflow_then_later_owned_failure_and_reuses_t
             asr_session_factory=lambda _root, _plan: Asr(),
             aligner_session_factory=lambda _root, _plan: SequenceAligner(),
             window_reader=_two_windows,
+            energy_reader=lambda *_args: -12.0,
             report=first_reports.append,
         )
 
@@ -414,6 +415,7 @@ def test_strict_qwen_reports_safe_overflow_then_later_owned_failure_and_reuses_t
             asr_session_factory=forbidden,
             aligner_session_factory=lambda _root, _plan: SequenceAligner(),
             window_reader=_two_windows,
+            energy_reader=lambda *_args: -12.0,
             report=second_reports.append,
         )
 
