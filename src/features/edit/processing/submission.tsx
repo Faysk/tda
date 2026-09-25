@@ -15,6 +15,7 @@ import {
 	type PreparationStatus,
 	type TranscriptionProfileId,
 } from "./protocol";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
@@ -195,7 +196,7 @@ export function ProcessingSubmission({
 		void refreshCapabilities();
 		const timer = window.setInterval(() => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
-		}, 30_000);
+		}, PROCESSING_REFRESH_POLICY.capabilitiesPollMs);
 		const visible = () => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
 		};
