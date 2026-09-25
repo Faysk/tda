@@ -6,7 +6,11 @@ import {
 	TRANSCRIPT_SHA,
 } from "./companion-fixture";
 
-function localComputer(page: import("@playwright/test").Page) {\n\treturn page.getByRole("region", { name: "Computador local" });\n}\n\nasync function selectCraig(page: import("@playwright/test").Page) {
+function localComputer(page: import("@playwright/test").Page) {
+	return page.getByRole("region", { name: "Computador local" });
+}
+
+async function selectCraig(page: import("@playwright/test").Page) {
 	await page.getByLabel("ID da sessão").fill("sessao-42");
 	await page.getByLabel("Export do Craig").setInputFiles({
 		name: "sessao-42.zip",
