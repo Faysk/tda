@@ -84,6 +84,15 @@ function messageFor(code: string): string {
 
 function localOperationMessage(code: string | null): string {
 	if (!code) return "A operação local não foi concluída.";
+	if (code === "CRAIG_ARCHIVE_INVALID")
+		return "O arquivo não é um ZIP Craig válido ou está corrompido.";
+	if (code === "CRAIG_ARCHIVE_NO_TRACKS")
+		return "O ZIP não contém tracks FLAC reconhecidas do Craig.";
+	if (
+		code.startsWith("CRAIG_ARCHIVE_") ||
+		code.startsWith("CRAIG_TRACK_")
+	)
+		return "O ZIP Craig foi recusado por formato, limites ou segurança. Exporte a sessão novamente e tente com o arquivo original.";
 	return {
 		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
 			"Já existe outra preparação em andamento neste computador.",
@@ -111,6 +120,12 @@ function localOperationMessage(code: string | null): string {
 			"O Companion não conseguiu gravar o ZIP no armazenamento local.",
 		CRAIG_UPLOAD_SIZE_LIMIT:
 			"O ZIP ultrapassa o limite aceito pelo Companion.",
+		CRAIG_UPLOAD_EMPTY:
+			"O ZIP recebido pelo Companion está vazio.",
+		CRAIG_SOURCE_CHANGED:
+			"O arquivo mudou durante o envio. Selecione o ZIP original novamente.",
+		CRAIG_SOURCE_ID_COLLISION:
+			"O conteúdo colidiu com uma fonte local diferente. Reimporte o ZIP original antes de continuar.",
 		CRAIG_ZIP_REQUIRED:
 			"Escolha um arquivo ZIP exportado pelo Craig.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
