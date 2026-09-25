@@ -881,6 +881,46 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
     assert asr_calls == 3
 
 
+@pytest.mark.parametrize(
+    "runtime_code",
+    (
+        "QWEN_CUDA_DRIVER_INCOMPATIBLE",
+        "QWEN_ASR_GPU_MEMORY_EXHAUSTED",
+        "QWEN_ASR_CUDA_FAILED",
+        "QWEN_ASR_RUNTIME_API_FAILED",
+    ),
+)
+def test_strict_alignment_preserves_actionable_runtime_failures(runtime_code: str):
+    window = AudioWindow(index=7, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=7,
+        start=0.0,
+        end=60.0,
+        text="texto",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError(runtime_code)
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match=runtime_code) as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=True,
+            last=True,
+        )
+
+    assert caught.value.code == runtime_code
+    assert not hasattr(caught.value, "alignment_failure_class")
+
+
 def test_alignment_failure_class_rejects_arbitrary_private_text():
     error = asr_qwen_strict._alignment_required(
         "C:\\private\\session\\secret.flac",
