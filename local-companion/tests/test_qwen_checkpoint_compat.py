@@ -122,6 +122,30 @@ def test_compat_bridge_reuses_only_declared_1_0_10_to_1_0_11_transition(tmp_path
     ) is None
 
 
+def test_compat_bridge_requires_sealed_current_worker_identity(tmp_path: Path):
+    track = _track()
+    old = _signature(
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e",
+        alignment_policy="strict-overlap-v2",
+    )
+    unsealed_current = _signature(
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.11;torch=dev;transformers=dev",
+        alignment_policy="strict-overlap-v3",
+    )
+    legacy_template = _signature(
+        runtime=unsealed_current.runtime_fingerprint,
+        alignment_policy="strict-overlap-v2",
+    )
+    save_qwen_text_checkpoint(tmp_path, old, track, _windows())
+
+    assert load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        unsealed_current,
+        track,
+        templates=(legacy_template,),
+    ) is None
+
+
 def test_compat_bridge_rejects_unaccepted_1_0_10_worker(tmp_path: Path):
     track = _track()
     current = _signature(
