@@ -387,6 +387,14 @@
 	flex: 1 1 auto;
 }
 
+.overviewTop[data-mode="idle"] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.overviewTop[data-mode="idle"] > section:first-child {
+	display: none;
+}
+
 .submissionCard {
 	height: 100%;
 	margin: 0;
