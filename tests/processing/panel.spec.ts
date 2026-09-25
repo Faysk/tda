@@ -203,6 +203,15 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Ver diagnóstico" }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByRole("heading", { name: "Detalhes do processamento" }),
+	).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
 		"checkpoints compatíveis serão reutilizados quando disponíveis",
