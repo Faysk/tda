@@ -257,6 +257,10 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW: "Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
 				QWEN_ALIGNMENT_NO_OWNED_WORDS: "O alinhamento não deixou nenhuma palavra pertencente a esta janela.",
 				QWEN_ALIGNMENT_NO_SEGMENTS: "As palavras alinhadas não formaram nenhum segmento válido.",
+				QWEN_CUDA_DRIVER_INCOMPATIBLE: "O alinhador encontrou um driver CUDA incompatível nesta janela.",
+				QWEN_ASR_GPU_MEMORY_EXHAUSTED: "A GPU ficou sem VRAM enquanto o alinhador processava esta janela.",
+				QWEN_ASR_CUDA_FAILED: "O alinhador encontrou uma falha CUDA nesta janela.",
+				QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen falhou ao executar a API de alinhamento desta janela.",
 			};
 			return {
 				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
