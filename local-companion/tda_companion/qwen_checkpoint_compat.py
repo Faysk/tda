@@ -124,7 +124,11 @@ def load_compatible_qwen_text_checkpoint(
     is only for an explicitly approved runtime/policy transition and delegates
     full checkpoint content/track/hash validation back to the canonical loader.
     """
-    if signature.engine != "qwen3" or _runtime_version(signature.runtime_fingerprint) is None:
+    if (
+        signature.engine != "qwen3"
+        or _runtime_version(signature.runtime_fingerprint) is None
+        or _worker_sha256(signature.runtime_fingerprint) is None
+    ):
         return None
     candidates = tuple(templates)
     if not candidates:
