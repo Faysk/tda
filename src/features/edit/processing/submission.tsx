@@ -195,7 +195,7 @@ export function ProcessingSubmission({
 		void refreshCapabilities();
 		const timer = window.setInterval(() => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
-		}, 3000);
+		}, 30_000);
 		const visible = () => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
 		};
