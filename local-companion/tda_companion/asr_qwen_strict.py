@@ -768,6 +768,7 @@ def transcribe_craig_package_qwen_strict(
                                 ),
                                 "first_window": first_window,
                                 "last_window": last_window,
+                                **_runtime_identity_metadata(runtime_fingerprint),
                             }
                             diagnostics = getattr(exc, "alignment_diagnostics", {})
                             if isinstance(diagnostics, dict):
