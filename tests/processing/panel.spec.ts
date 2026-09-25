@@ -222,11 +222,12 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
-	await page.getByLabel("Buscar").fill("busca-antiga-sem-match");
+	const queue = page.locator("[data-processing-queue='true']");
+	await queue.getByLabel("Buscar").fill("busca-antiga-sem-match");
 	await page.getByRole("tab", { name: "Visão geral" }).click();
 	await page.getByRole("button", { name: "1 atenção", exact: true }).click();
 
-	await expect(page.getByLabel("Buscar")).toHaveValue("");
+	await expect(queue.getByLabel("Buscar")).toHaveValue("");
 	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
 		"aria-selected",
 		"true",
