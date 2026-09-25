@@ -126,8 +126,11 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 		.toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Cancelados" }).click();
+	const queuePanel = page.getByRole("tabpanel", { name: "Fila" });
 	await expect(
-		page.getByRole("row").getByText("Cancelado", { exact: true }),
+		queuePanel
+			.locator('td[data-label="Estado"]')
+			.getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -190,8 +193,11 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Cancelados" }).click();
+	const queuePanel = page.getByRole("tabpanel", { name: "Fila" });
 	await expect(
-		page.getByRole("row").getByText("Cancelado", { exact: true }),
+		queuePanel
+			.locator('td[data-label="Estado"]')
+			.getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -225,7 +231,9 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 		"aria-selected",
 		"true",
 	);
-	await expect(page.getByRole("button", { name: "Atenção" })).toHaveAttribute(
+	await expect(
+		page.getByRole("button", { name: "Atenção", exact: true }),
+	).toHaveAttribute(
 		"aria-pressed",
 		"true",
 	);
@@ -285,6 +293,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Atenção", exact: true }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
 		"não promete retomar do ponto exato",
@@ -296,7 +305,10 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
 	await expect(
-		page.getByRole("row").getByText("Na fila", { exact: true }),
+		page
+			.getByRole("tabpanel", { name: "Fila" })
+			.locator('td[data-label="Estado"]')
+			.getByText("Na fila", { exact: true }),
 	).toBeVisible();
 });
 
