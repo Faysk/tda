@@ -105,10 +105,13 @@
 
 .tableFrame {
 	min-width: 0;
+	max-height: min(62dvh, 680px);
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
-	overflow-x: auto;
+	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
 }
 
 .table {
@@ -121,7 +124,7 @@
 
 .table th {
 	position: sticky;
-	top: 68px;
+	top: 0;
 	z-index: 3;
 	padding: 7px 9px;
 	border-bottom: 1px solid var(--ds-border);
@@ -523,9 +526,11 @@
 	}
 
 	.tableFrame {
+		max-height: none;
 		border: 0;
 		background: transparent;
 		overflow: visible;
+		overscroll-behavior: auto;
 	}
 
 	.table,
