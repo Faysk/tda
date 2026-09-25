@@ -544,7 +544,11 @@ def transcribe_craig_package_qwen_strict(
             "track_count": total_tracks,
             "aligned_reused": len(cached_tracks),
             "text_reused": text_checkpoint_reused,
-            "text_compat_reused": text_checkpoint_compat_reused,
+            **(
+                {"text_compat_reused": text_checkpoint_compat_reused}
+                if text_checkpoint_compat_reused
+                else {}
+            ),
             "pending_asr": len(asr_tracks),
             "duration_ms": round((time.monotonic() - checkpoint_scan_started) * 1000.0, 2),
         }
