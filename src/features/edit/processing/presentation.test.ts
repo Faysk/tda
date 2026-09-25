@@ -228,7 +228,7 @@ it("explains compatibility reuse without implying a completed run", () => {
 	).toEqual({
 		title: "Texto Qwen do runtime 1.0.10 reutilizado com validação de integridade.",
 		detail:
-			"O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
+			"A transcrição compatível não rodou de novo; o processamento retomou a partir do alinhamento.",
 	});
 });
 
