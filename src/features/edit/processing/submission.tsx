@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+	type DragEvent,
+	type FormEvent,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
@@ -22,6 +30,15 @@ import {
 	TRANSCRIPTION_TEXT_MAX_CHARS,
 	truncateUnicodeScalars,
 } from "./request-budget";
+import {
+	formatLocalBytes,
+	LAST_SESSION_STORAGE_KEY,
+	profileEngineLabel,
+	profileModeLabel,
+	safeStoredSession,
+	validateCraigFileMeta,
+	validSessionId,
+} from "./submission-model";
 import styles from "./submission.module.css";
 
 const profileLabels: Record<TranscriptionProfileId, string> = {
@@ -128,7 +145,12 @@ function sourceMustBeRestaged(code: string | null): boolean {
 export function ProcessingSubmission({
 	className,
 	compact = false,
-}: Readonly<{ className?: string; compact?: boolean }> = {}) {
+	onDiagnostics,
+}: Readonly<{
+	className?: string;
+	compact?: boolean;
+	onDiagnostics?: () => void;
+}> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -143,8 +165,14 @@ export function ProcessingSubmission({
 	const [file, setFile] = useState<File | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [phase, setPhase] = useState<
+		"idle" | "uploading" | "preparing" | "queueing"
+	>("idle");
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [fileError, setFileError] = useState<string | null>(null);
+	const [dragActive, setDragActive] = useState(false);
+	const [lastSession, setLastSession] = useState<string | null>(null);
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
 	const request = useRef<AbortController | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
@@ -152,6 +180,12 @@ export function ProcessingSubmission({
 
 	useEffect(() => {
 		return () => request.current?.abort();
+	}, []);
+
+	useEffect(() => {
+		setLastSession(
+			safeStoredSession(window.localStorage.getItem(LAST_SESSION_STORAGE_KEY)),
+		);
 	}, []);
 
 	useEffect(() => {
@@ -225,6 +259,10 @@ export function ProcessingSubmission({
 		[capabilities],
 	);
 
+	const selectedProfile = useMemo(
+		() => availableProfiles.find((item) => item.id === profile) ?? null,
+		[availableProfiles, profile],
+	);
 	const canSubmit = useMemo(
 		() =>
 			Boolean(
@@ -236,7 +274,7 @@ export function ProcessingSubmission({
 		[availableProfiles, capabilities],
 	);
 	const requestBytes = useMemo(() => {
-		if (!profile || !/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) return null;
+		if (!profile || !validSessionId(sessionId)) return null;
 		return craigTranscriptionRequestByteLength({
 			campaignId: CAMPAIGN_SLUG,
 			sessionId,
@@ -249,17 +287,48 @@ export function ProcessingSubmission({
 	const requestTooLarge =
 		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
 
+	function acceptFile(next: File | null, count = next ? 1 : 0) {
+		const nextError = next
+			? validateCraigFileMeta(next.name, next.size, count)
+			: "Escolha um ZIP exportado pelo Craig.";
+		setDragActive(false);
+		setSource(null);
+		setStatus(null);
+		setError(null);
+		setFileError(nextError);
+		setFile(nextError ? null : next);
+		if (nextError && fileInput.current) fileInput.current.value = "";
+	}
+
+	function handleDrop(event: DragEvent<HTMLButtonElement>) {
+		event.preventDefault();
+		if (busy) return;
+		const files = Array.from(event.dataTransfer.files);
+		acceptFile(files[0] ?? null, files.length);
+	}
+
+	const submitLabel = busy
+		? phase === "uploading"
+			? "Enviando ao Companion…"
+			: phase === "preparing"
+				? "Preparando profile…"
+				: "Adicionando à fila…"
+		: selectedProfile && !selectedProfile.ready
+			? "Preparar profile"
+			: "Adicionar à fila";
+
 	if (!paired) return null;
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (busy || !file || !profile || !canSubmit) return;
-		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
+		if (!validSessionId(sessionId)) {
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
 		}
-		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
-			setError("Escolha um ZIP válido exportado pelo Craig.");
+		const selectedFileError = validateCraigFileMeta(file.name, file.size);
+		if (selectedFileError) {
+			setFileError(selectedFileError);
 			return;
 		}
 		if (requestTooLarge) {
@@ -273,11 +342,13 @@ export function ProcessingSubmission({
 		request.current?.abort();
 		request.current = controller;
 		setBusy(true);
+		setPhase(source ? "queueing" : "uploading");
 		setError(null);
+		setFileError(null);
 		setStatus(
 			source
 				? "Reutilizando a fonte já verificada neste Companion…"
-				: "Enviando o ZIP diretamente para o Companion local…",
+				: "Enviando o ZIP diretamente para o Companion local; a validação acontece no Agent.",
 		);
 		try {
 			const staged = source ?? (await bridge.craigSource(file, controller.signal));
@@ -310,6 +381,7 @@ export function ProcessingSubmission({
 				return;
 			}
 			if (!selectedProfile.ready) {
+				setPhase("preparing");
 				setStatus("Preparando o perfil no Agent local…");
 				let preparation: PreparationStatus = await bridge.prepareProfile(
 					staged.sourceId,
@@ -342,6 +414,7 @@ export function ProcessingSubmission({
 				}
 			}
 
+			setPhase("queueing");
 			const signature = JSON.stringify([
 				CAMPAIGN_SLUG,
 				sessionId,
@@ -368,6 +441,8 @@ export function ProcessingSubmission({
 			);
 			pending.current = null;
 			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`);
+			window.localStorage.setItem(LAST_SESSION_STORAGE_KEY, sessionId);
+			setLastSession(sessionId);
 			setFile(null);
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
@@ -387,6 +462,7 @@ export function ProcessingSubmission({
 					: null,
 			);
 		} finally {
+			setPhase("idle");
 			setBusy(false);
 		}
 	}
@@ -410,68 +486,182 @@ export function ProcessingSubmission({
 					Lendo os perfis disponíveis no Companion…
 				</p>
 			) : !canSubmit ? (
-				<p className={styles.notice} role="status">
-					Este Companion não anunciou um fluxo de transcrição/preparação compatível. Atualize o aplicativo local.
-				</p>
+				<div className={styles.blocked} role="status">
+					<strong>Este Companion não oferece um fluxo compatível.</strong>
+					<span>
+						Atualize o aplicativo local ou abra o diagnóstico para ver a capacidade anunciada.
+					</span>
+					{onDiagnostics ? (
+						<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+							Abrir Diagnóstico
+						</Button>
+					) : null}
+				</div>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
-					<label>
-						<span>ID da sessão</span>
-						<input
-							value={sessionId}
-							onChange={(event) => setSessionId(event.target.value.trim())}
-							pattern="[A-Za-z0-9_-]{1,128}"
-							maxLength={128}
-							required
-							disabled={busy}
-							placeholder="sessao-42"
-						/>
-					</label>
-					<label>
-						<span>Perfil</span>
-						<select
-							value={profile}
-							onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-							disabled={busy}
-							required
-						>
-							{availableProfiles.map((item) => (
-								<option key={item.id} value={item.id}>
-									{profileLabels[item.id]}{item.ready ? "" : " · preparar no primeiro uso"}
-								</option>
-							))}
-						</select>
-					</label>
-					<label className={styles.fileField}>
-						<span>Export do Craig</span>
+					<div className={styles.fileArea}>
 						<input
 							ref={fileInput}
+							className={styles.fileInput}
 							type="file"
 							accept=".zip,application/zip"
-							required
+							tabIndex={-1}
+							aria-hidden="true"
 							disabled={busy}
-							onChange={(event) => {
-								setFile(event.target.files?.[0] ?? null);
-								setSource(null);
-								setStatus(null);
-								setError(null);
-							}}
+							onChange={(event) =>
+								acceptFile(
+									event.target.files?.[0] ?? null,
+									event.target.files?.length ?? 0,
+								)
+							}
 						/>
-					</label>
-					<div className={styles.actions}>
+						<button
+							type="button"
+							className={styles.dropzone}
+							data-drag-active={dragActive ? "true" : "false"}
+							disabled={busy}
+							onClick={() => fileInput.current?.click()}
+							onDragEnter={(event) => {
+								event.preventDefault();
+								if (!busy) setDragActive(true);
+							}}
+							onDragOver={(event) => {
+								event.preventDefault();
+								if (!busy) {
+									event.dataTransfer.dropEffect = "copy";
+									setDragActive(true);
+								}
+							}}
+							onDragLeave={(event) => {
+								if (
+									!event.currentTarget.contains(
+										event.relatedTarget as Node | null,
+									)
+								)
+									setDragActive(false);
+							}}
+							onDrop={handleDrop}
+						>
+							<span className={styles.dropIcon} aria-hidden="true">ZIP</span>
+							<span className={styles.dropCopy}>
+								<strong>
+									{file ? "Trocar ZIP do Craig" : "Arraste o ZIP do Craig aqui"}
+								</strong>
+								<small>
+									{file
+										? "Clique ou solte outro arquivo para substituir."
+										: "ou pressione Enter/Espaço para escolher o arquivo"}
+								</small>
+							</span>
+						</button>
+						{file ? (
+							<div className={styles.fileSummary} data-selected-file="true">
+								<div>
+									<strong title={file.name}>{file.name}</strong>
+									<span>{formatLocalBytes(file.size)} · ZIP selecionado</span>
+								</div>
+								{source ? (
+									<div>
+										<strong>{source.trackCount} tracks</strong>
+										<span>
+											{formatLocalBytes(source.sizeBytes)} ·{" "}
+											{source.reused ? "fonte local reutilizada" : "fonte local validada"}
+										</span>
+									</div>
+								) : (
+									<span className={styles.pendingMeta}>
+										Tracks, duração e participantes só aparecem quando o Companion expõe esses fatos.
+									</span>
+								)}
+							</div>
+						) : null}
+						{fileError ? (
+							<p className={styles.inlineError} role="alert">{fileError}</p>
+						) : null}
+					</div>
+
+					<div className={styles.coreFields}>
+						<label className={styles.sessionField}>
+							<span>Sessão</span>
+							<input
+								value={sessionId}
+								onChange={(event) => setSessionId(event.target.value.trim())}
+								pattern="[A-Za-z0-9_-]{1,128}"
+								maxLength={128}
+								required
+								disabled={busy}
+								placeholder="sessao-42"
+								aria-describedby="processing-session-help"
+							/>
+							<small id="processing-session-help">
+								Editável sempre; nunca é vinculado automaticamente a um destino cloud.
+							</small>
+							{!sessionId && lastSession ? (
+								<button
+									type="button"
+									className={styles.sessionSuggestion}
+									disabled={busy}
+									onClick={() => setSessionId(lastSession)}
+								>
+									Usar última sessão: {lastSession}
+								</button>
+							) : null}
+						</label>
+
+						<label className={styles.profileField}>
+							<span>Profile</span>
+							<select
+								value={profile}
+								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
+								disabled={busy}
+								required
+							>
+								{availableProfiles.map((item) => (
+									<option key={item.id} value={item.id}>
+										{profileLabels[item.id]}
+									</option>
+								))}
+							</select>
+							{selectedProfile ? (
+								<div className={styles.profileMeta}>
+									<strong>
+										{profileEngineLabel(selectedProfile.engine)} ·{" "}
+										{profileModeLabel(selectedProfile.id)}
+									</strong>
+									<span>
+										{selectedProfile.ready
+											? "Profile pronto neste Companion."
+											: "Preparação local necessária antes do primeiro job."}
+									</span>
+									<small>Ainda sem calibração de tempo nesta máquina.</small>
+								</div>
+							) : null}
+						</label>
+					</div>
+
+					<div className={styles.submitRow}>
+						<div className={styles.privacy}>
+							<strong>🔒 Áudio permanece nesta máquina.</strong>
+							<details>
+								<summary>Como funciona</summary>
+								<p>
+									O navegador envia o ZIP somente ao Companion em loopback. A publicação editorial continua uma ação separada e explícita.
+								</p>
+							</details>
+						</div>
 						<Button
 							type="submit"
 							variant="primary"
-							disabled={busy || !file || !profile || requestTooLarge}
+							disabled={busy || !file || !profile || requestTooLarge || Boolean(fileError)}
 						>
-							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
+							{submitLabel}
 						</Button>
-						<span>O áudio não é enviado para o cloud.</span>
 					</div>
+
 					<details className={styles.advanced}>
 						<summary>
-							<span>Opções avançadas</span>
-							<small>Contexto e glossário</small>
+							<span>Contexto e glossário</span>
+							<small>opcional</small>
 						</summary>
 						<div className={styles.advancedGrid}>
 							<label>
@@ -508,24 +698,22 @@ export function ProcessingSubmission({
 							</label>
 						</div>
 					</details>
+
 					{requestTooLarge ? (
 						<p className={styles.error} role="alert">
 							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
 						</p>
 					) : null}
-					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
+					{selectedProfile && !selectedProfile.ready ? (
 						<p className={styles.notice} role="status">
-							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
+							{selectedProfile.reason
+								? localOperationMessage(selectedProfile.reason)
+								: "Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job."}
 						</p>
 					) : null}
 				</form>
 			)}
 
-			{source ? (
-				<p className={styles.source}>
-					Fonte {source.sourceId.slice(0, 18)}… · {source.trackCount} tracks · {(source.sizeBytes / 1024 ** 2).toFixed(1)} MB
-				</p>
-			) : null}
 			{status ? <p className={styles.status} role="status">{status}</p> : null}
 			{capabilityError ? <p className={styles.error} role="alert">{capabilityError}</p> : null}
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
