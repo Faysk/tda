@@ -496,8 +496,22 @@ export class ProcessingController {
 		this.update({ localReviewBusy: true, localReviewError: null });
 		try {
 			const localReview = await action(signal);
-			if (epoch === this.#epoch && !signal.aborted)
-				this.update({ localReview, localReviewError: null });
+			if (epoch === this.#epoch && !signal.aborted) {
+				const localRuns = this.#state.localRuns.map((run) =>
+					run.sourceId === localReview.sourceId &&
+					run.runId === localReview.runId
+						? {
+								...run,
+								reviewSummary: {
+									status: localReview.status,
+									draftRevision: localReview.draftRevision,
+									updatedAt: localReview.updatedAt,
+								},
+							}
+						: run,
+				);
+				this.update({ localReview, localReviewError: null, localRuns });
+			}
 		} catch (error) {
 			if (epoch === this.#epoch && !signal.aborted) {
 				this.update({
