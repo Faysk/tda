@@ -33,6 +33,10 @@
     "torch": {
       "version": "2.13.0",
       "reason": "Use the official Windows CUDA 12.6 wheel until the supported physical RTX 4070 baseline is moved to an NVIDIA driver compatible with CUDA 13.x."
+    },
+    "uv": {
+      "version": "0.12.18",
+      "reason": "Keep the existing reproducible Companion and ASR build-tool pin during the focused Qwen 1.0.11 recovery release; validate the 0.12.19 toolchain change separately so this alignment fix does not create unrelated runtime byte drift."
     }
   }
 }
