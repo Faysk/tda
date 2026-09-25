@@ -481,6 +481,7 @@ export function ProcessingSubmission({
 	return (
 		<section
 			className={className ? `${styles.card} ${className}` : styles.card}
+			data-processing-composer="true"
 			data-layout={compact ? "compact" : "default"}
 			aria-labelledby="new-local-transcription"
 		>
