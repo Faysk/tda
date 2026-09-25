@@ -27,6 +27,17 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
@@ -44,19 +55,20 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(page.getByLabel("Glossário opcional")).toBeVisible();
 	await advanced.click();
 
-	const statusStrip = page.getByRole("region", {
-		name: "Uso e fila do computador local",
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
 	});
-	await expect(statusStrip).toContainText("CPU");
-	await expect(statusStrip).toContainText("RAM");
-	await expect(statusStrip).toContainText("Processando");
-	await expect(statusStrip).toContainText("Na fila");
-	await expect(statusStrip).toContainText("Concluídos");
-	await expect(statusStrip).toContainText("Atenção");
+	await expect(commandBar).toContainText("Companion · Pronto");
+	await expect(commandBar).toContainText("Synthetic GPU · 25% · 4.0/8.0 GB");
+	await expect(commandBar).toContainText("0 processando");
+	await expect(commandBar).toContainText("0 na fila");
+	await expect(commandBar).toContainText("0 atenção");
+	await expect(commandBar).not.toContainText("Concluídos");
+	await expect(commandBar).not.toContainText("Synthetic CPU");
 
 	for (const locator of [
 		page.getByText("Nova transcrição Craig", { exact: true }),
-		page.getByText("Computador local", { exact: true }),
+		commandBar,
 		page.getByText("Processando agora", { exact: true }),
 	]) {
 		const box = await locator.boundingBox();
@@ -68,6 +80,9 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(
 		page.getByText("Detalhes do processamento", { exact: true }),
 	).toBeVisible();
+	await page.getByText("Companion e máquina", { exact: true }).click();
+	await expect(page.getByText("Synthetic CPU", { exact: true })).toBeVisible();
+	await expect(page.getByText("0.3.14", { exact: true })).toBeVisible();
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
