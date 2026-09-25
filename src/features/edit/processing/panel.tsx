@@ -994,7 +994,7 @@ export function ProcessingPanel({
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
 										? `O trabalho ${confirmation.id}, seus eventos e eventual resultado local serão excluídos do histórico. Modelos, sessão Craig e checkpoints não serão apagados.`
-										: `Uma nova tentativa será criada para ${confirmation.id}; repetir não promete retomar do ponto exato.`}
+										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
