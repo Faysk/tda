@@ -174,9 +174,10 @@ test("pending local mostra validar → preparar → enviar e resume fonte reutil
 	expect(state.jobPostCount).toBe(1);
 });
 
-test("idle expande composer; running mantém composer compacto ao lado do cockpit", async ({
+test("idle expande composer; running mantém composer em ~1/3 ao lado do cockpit", async ({
 	page,
 }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -220,6 +221,16 @@ test("idle expande composer; running mantém composer compacto ao lado do cockpi
 		"true",
 	);
 	await expect(composer).toHaveAttribute("data-layout", "compact");
+	const runningOverview = page.locator(
+		"#processing-view-overview > div[data-running='true']",
+	);
+	const runningBox = await runningOverview.boundingBox();
+	const composerBox = await composer.boundingBox();
+	expect(runningBox).not.toBeNull();
+	expect(composerBox).not.toBeNull();
+	const share = (composerBox?.width ?? 0) / (runningBox?.width ?? 1);
+	expect(share).toBeGreaterThanOrEqual(0.28);
+	expect(share).toBeLessThanOrEqual(0.38);
 });
 
 test("mobile mantém ordem arquivo → sessão → profile → calibração → CTA → advanced", async ({
