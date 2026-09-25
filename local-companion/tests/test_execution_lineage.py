@@ -92,6 +92,24 @@ def test_execution_lineage_captures_sanitized_runtime_and_selected_gpu():
     assert "utilization_percent" not in serialized
 
 
+def test_execution_lineage_records_reused_qwen_text_provenance_without_private_data():
+    value = capture_execution_lineage(
+        _document("cuda:0"),
+        snapshot={"gpus": []},
+        environ={
+            "TDA_ASR_RUNTIME_FAMILY": "qwen",
+            "TDA_ASR_RUNTIME_VERSION": "1.0.11",
+        },
+        asr_text_runtime_versions=("1.0.10", "invalid/private/path"),
+        asr_text_checkpoint_signatures=("a" * 64, "NOT-A-SHA"),
+    )
+
+    assert value["runtime_version"] == "1.0.11"
+    assert value["asr_text_runtime_versions"] == ["1.0.10"]
+    assert value["asr_text_checkpoint_signatures"] == ["a" * 64]
+    assert "invalid/private/path" not in repr(value)
+
+
 def test_execution_lineage_keeps_cpu_runs_gpu_free():
     value = capture_execution_lineage(
         _document("cpu"),
