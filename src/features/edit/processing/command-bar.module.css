@@ -144,6 +144,22 @@
 	white-space: nowrap;
 }
 
+.degraded {
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding-top: 6px;
+	border-top: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+}
+
+.degraded strong {
+	color: var(--ds-accent-strong);
+	font-weight: 700;
+}
+
 @media (max-width: 1500px) {
 	.secondaryTelemetry {
 		display: none;
@@ -206,6 +222,11 @@
 
 	.counters::-webkit-scrollbar {
 		display: none;
+	}
+
+	.degraded {
+		display: grid;
+		gap: 2px;
 	}
 }
 
