@@ -18,7 +18,9 @@ async function openQueue(page: import("@playwright/test").Page) {
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
-	await expect(page.locator("[data-processing-queue='true']")).toBeVisible();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await expect(queue.locator("[data-processing-queue='true']")).toBeVisible();
+	return queue;
 }
 
 test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão", async ({
@@ -55,23 +57,23 @@ test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão"
 		],
 	});
 
-	await openQueue(page);
+	const queue = await openQueue(page);
 
-	await expect(page.getByRole("columnheader", { name: "Sessão / source" })).toBeVisible();
-	await expect(page.getByRole("columnheader", { name: "Profile" })).toBeVisible();
-	await expect(page.getByRole("columnheader", { name: "Etapa / progresso" })).toBeVisible();
-	await expect(page.getByRole("columnheader", { name: "Estado" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Sessão / source" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Profile" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Etapa / progresso" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Estado" })).toBeVisible();
 
-	await expect(page.getByRole("button", { name: /Ativos/ })).toHaveAttribute(
+	await expect(queue.getByRole("button", { name: /Ativos/ })).toHaveAttribute(
 		"aria-pressed",
 		"true",
 	);
-	await expect(page.getByText("sessao-running", { exact: true })).toBeVisible();
-	await expect(page.getByText("sessao-queued", { exact: true })).toBeVisible();
-	await expect(page.getByText("sessao-cancelled", { exact: true })).not.toBeVisible();
-	await expect(page.getByText("sessao-done", { exact: true })).not.toBeVisible();
+	await expect(queue.getByText("sessao-running", { exact: true })).toBeVisible();
+	await expect(queue.getByText("sessao-queued", { exact: true })).toBeVisible();
+	await expect(queue.getByText("sessao-cancelled", { exact: true })).not.toBeVisible();
+	await expect(queue.getByText("sessao-done", { exact: true })).not.toBeVisible();
 
-	const runningRow = page
+	const runningRow = queue
 		.getByRole("row")
 		.filter({ hasText: "sessao-running" });
 	await expect(runningRow.getByText("Qwen Quality", { exact: true })).toBeVisible();
@@ -80,7 +82,7 @@ test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão"
 		runningRow.getByRole("button", { name: "Cancelar trabalho" }),
 	).toBeVisible();
 
-	const queuedRow = page.getByRole("row").filter({ hasText: "sessao-queued" });
+	const queuedRow = queue.getByRole("row").filter({ hasText: "sessao-queued" });
 	await expect(queuedRow.getByText("Whisper Turbo", { exact: true })).toBeVisible();
 	await expect(queuedRow.getByText("Na fila", { exact: true })).toBeVisible();
 });
@@ -114,26 +116,26 @@ test("filtros, busca e ordenação operam localmente sem perder running no topo"
 		],
 	});
 
-	await openQueue(page);
-	await page.getByRole("button", { name: /Todos/ }).click();
+	const queue = await openQueue(page);
+	await queue.getByRole("button", { name: /Todos/ }).click();
 
-	const dataRows = page.locator("tbody > tr[data-status]");
+	const dataRows = queue.locator("tbody > tr[data-status]");
 	await expect(dataRows).toHaveCount(4);
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
 	await page.getByLabel("Ordenar").selectOption("session");
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
-	const search = page.getByLabel("Buscar");
+	const search = queue.getByLabel("Buscar");
 	await search.fill("Whisper Turbo");
-	await expect(page.getByText("sessao-alpha", { exact: true })).toBeVisible();
-	await expect(page.getByText("sessao-zulu", { exact: true })).not.toBeVisible();
-	await expect(page.getByText("1 de 4 jobs", { exact: true })).toBeVisible();
+	await expect(queue.getByText("sessao-alpha", { exact: true })).toBeVisible();
+	await expect(queue.getByText("sessao-zulu", { exact: true })).not.toBeVisible();
+	await expect(queue.getByText("1 de 4 jobs", { exact: true })).toBeVisible();
 
 	await search.fill("");
-	await page.getByRole("button", { name: /Atenção/ }).click();
-	await expect(page.getByText("sessao-beta", { exact: true })).toBeVisible();
-	await expect(page.getByText("sessao-alpha", { exact: true })).not.toBeVisible();
+	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+	await expect(queue.getByText("sessao-beta", { exact: true })).toBeVisible();
+	await expect(queue.getByText("sessao-alpha", { exact: true })).not.toBeVisible();
 });
 
 test("atenção mostra erro em uma linha e move ações raras para overflow", async ({
@@ -149,12 +151,16 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 		],
 	});
 
-	await openQueue(page);
-	await page.getByRole("button", { name: /Atenção/ }).click();
+	const queue = await openQueue(page);
+	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
 
-	const row = page.getByRole("row").filter({ hasText: "sessao-failed" }).first();
+	const row = queue.getByRole("row").filter({ hasText: "sessao-failed" }).first();
 	await expect(row.getByText("Falhou", { exact: true })).toBeVisible();
-	await expect(row.getByText(/Alinhamento|Qwen|alignment/i)).toBeVisible();
+	await expect(
+		row
+			.locator('td[data-label="Estado"]')
+			.getByText(/não conseguiu gerar o alinhamento/i),
+	).toBeVisible();
 	await expect(
 		row.getByRole("button", { name: "Repetir trabalho" }),
 	).toBeVisible();
@@ -165,8 +171,8 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 	await expect(row.getByRole("button", { name: "Excluir" })).toBeVisible();
 
 	await row.getByRole("button", { name: "Detalhes" }).click();
-	await expect(page.getByText("QWEN_ALIGNMENT_REQUIRED", { exact: false })).toBeVisible();
-	await expect(page.getByText("job-failed", { exact: false })).toBeVisible();
+	await expect(queue.getByText("QWEN_ALIGNMENT_REQUIRED", { exact: false })).toBeVisible();
+	await expect(queue.getByText("job-failed", { exact: false })).toBeVisible();
 });
 
 test("mobile empilha rows e mantém busca, filtros e ações sem overflow horizontal", async ({
@@ -191,16 +197,16 @@ test("mobile empilha rows e mantém busca, filtros e ações sem overflow horizo
 		],
 	});
 
-	await openQueue(page);
+	const queue = await openQueue(page);
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBe(true);
-	await expect(page.getByLabel("Buscar")).toBeVisible();
-	await expect(page.getByLabel("Ordenar")).toBeVisible();
-	await expect(page.getByRole("button", { name: /Ativos/ })).toBeVisible();
+	await expect(queue.getByLabel("Buscar")).toBeVisible();
+	await expect(queue.getByLabel("Ordenar")).toBeVisible();
+	await expect(queue.getByRole("button", { name: /Ativos/ })).toBeVisible();
 
-	const row = page.getByRole("row").filter({ hasText: "sessao-mobile" }).first();
+	const row = queue.getByRole("row").filter({ hasText: "sessao-mobile" }).first();
 	await expect(row).toBeVisible();
 	await expect(
 		row.getByRole("button", { name: "Cancelar trabalho" }),
