@@ -112,7 +112,7 @@ export function ProcessingCommandBar({
 				<span className={styles.statusDot} aria-hidden="true" />
 				<div className={styles.statusCopy}>
 					<strong>
-						Companion <span className={styles.stateLabel}>{connectionLabel}</span>
+						Companion · <span className={styles.stateLabel}>{connectionLabel}</span>
 					</strong>
 					<span>{freshness(checkedAt, stale)}</span>
 					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
@@ -154,6 +154,7 @@ export function ProcessingCommandBar({
 					<Button
 						size="sm"
 						variant="tertiary"
+						className={styles.refreshAction}
 						disabled={refreshing}
 						onClick={onRefresh}
 						aria-label="Atualizar estado do Companion"
