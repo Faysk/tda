@@ -197,28 +197,9 @@ def _run_craig(
             source_sha256=package.source_sha256,
         )
 
-        qwen_text_source_runtime_versions: set[str] = set()
-        qwen_text_checkpoint_signatures: set[str] = set()
-
         def report(value: dict) -> None:
             event_type = value.get("type")
             payload = {key: item for key, item in value.items() if key != "type"}
-            if (
-                event_type == "event"
-                and payload.get("code") == "ASR_TEXT_CHECKPOINT_COMPAT_REUSED"
-            ):
-                source_runtime = payload.get("source_runtime_version")
-                source_signature = payload.get("source_signature_sha256")
-                if (
-                    isinstance(source_runtime, str)
-                    and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", source_runtime)
-                ):
-                    qwen_text_source_runtime_versions.add(source_runtime)
-                if (
-                    isinstance(source_signature, str)
-                    and re.fullmatch(r"[0-9a-f]{64}", source_signature)
-                ):
-                    qwen_text_checkpoint_signatures.add(source_signature)
             if event_type == "stage":
                 emitter.emit("stage", payload)
             elif event_type == "progress":
@@ -285,11 +266,7 @@ def _run_craig(
                 },
             )
 
-        execution_lineage = capture_execution_lineage(
-            document,
-            asr_text_runtime_versions=tuple(sorted(qwen_text_source_runtime_versions)),
-            asr_text_checkpoint_signatures=tuple(sorted(qwen_text_checkpoint_signatures)),
-        )
+        execution_lineage = capture_execution_lineage(document)
         manifest = write_completed_run(
             package_root,
             document,
