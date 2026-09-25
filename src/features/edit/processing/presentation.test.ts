@@ -66,7 +66,9 @@ describe("processing presentation", () => {
 	});
 
 	it("explains physical ASR execution failures", () => {
-		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toContain("alinhamento");
+		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toBe(
+			"O alinhamento obrigatório falhou. Consulte o evento de alinhamento no Diagnóstico para ver a faixa, a janela e a causa específica; nenhum resultado parcial foi publicado.",
+		);
 		expect(presentJobError("QWEN_MODEL_NOT_GPU_RESIDENT")).toContain("GPU");
 		expect(presentJobError("WHISPER_CUDA_UNAVAILABLE")).toContain("CUDA");
 		expect(presentJobError("WHISPER_RUNTIME_NOT_INSTALLED")).toContain(
