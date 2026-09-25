@@ -682,6 +682,18 @@
 	margin-bottom: 9px;
 }
 
+.systemDetails .jobDetails {
+	padding-bottom: 0;
+	border-bottom: 0;
+}
+
+.systemDetails .jobDetails dd {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
+}
+
 .jobDetails {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
