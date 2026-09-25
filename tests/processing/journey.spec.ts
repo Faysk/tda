@@ -6,7 +6,7 @@ import {
 } from "./companion-fixture";
 
 async function selectCraig(page: import("@playwright/test").Page) {
-	await page.getByLabel("ID da sessão").fill("sessao-42");
+	await page.getByLabel("Sessão").fill("sessao-42");
 	await page.getByLabel("Export do Craig").setInputFiles({
 		name: "sessao-42.zip",
 		mimeType: "application/zip",
