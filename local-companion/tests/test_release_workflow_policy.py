@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -89,7 +90,15 @@ def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects
     value = _read("companion-promote.yml")
 
     assert "Verify canonical Web resolves promoted Stable" in value
-    assert "https://dnd.faysk.dev" in value
+    assert any(
+        parsed.scheme == "https" and parsed.hostname == "dnd.faysk.dev"
+        for parsed in (
+            urlparse(token)
+            for line in value.splitlines()
+            for token in line.replace('"', " ").replace("'", " ").split()
+            if token.startswith("http://") or token.startswith("https://")
+        )
+    )
     assert "/api/downloads/companion/windows/manifest" in value
     assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in value
     assert "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH" in value
