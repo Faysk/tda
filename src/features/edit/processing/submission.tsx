@@ -512,6 +512,8 @@ export function ProcessingSubmission({
 				<form className={styles.form} onSubmit={submit}>
 					<div
 						className={styles.dropZone}
+						role="group"
+						aria-label="Seleção do ZIP Craig"
 						data-craig-dropzone="true"
 						data-dragging={dragging ? "true" : "false"}
 						data-has-file={file ? "true" : "false"}
