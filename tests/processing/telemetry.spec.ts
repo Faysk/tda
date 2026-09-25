@@ -161,7 +161,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	);
 	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
 	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
-	await expect(gpu).toHaveAttribute("aria-valuenow", "40");
+	await expect(gpu).toHaveAttribute("value", "40");
 	await expect(visual).toHaveText("40%");
 
 	state.setSystem({
@@ -179,7 +179,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	});
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
-	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
+	await expect(gpu).toHaveAttribute("value", "100");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "100%");
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
 	expect(await visual.textContent()).not.toBe("100%");
@@ -199,7 +199,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	});
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
-	await expect(gpu).toHaveAttribute("aria-valuenow", "25");
+	await expect(gpu).toHaveAttribute("value", "25");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
 	await expect(visual).toHaveText("25%", { timeout: 2_000 });
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
@@ -221,8 +221,64 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 		}),
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
-	await expect(progress).toHaveAttribute("aria-valuenow", "2");
+	await expect(progress).toHaveAttribute("value", "2");
 	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
+});
+
+test("aba oculta encerra o frame loop sem alterar o target factual", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 40,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	const gpuMetric = page.locator(
+		"[data-animated-metric='true'][data-metric-label='Uso da GPU']",
+	);
+	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
+	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
+
+	state.setSystem({
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 100,
+				memoryUsedBytes: 7 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpu).toHaveAttribute("value", "100");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
+
+	await page.evaluate(() => {
+		Object.defineProperty(document, "hidden", {
+			configurable: true,
+			value: true,
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
+	await expect(gpu).toHaveAttribute("value", "100");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
+	await expect(visual).toHaveText("100%");
 });
 
 test("reduced motion salta telemetry ao target factual e desliga transição de progresso", async ({
@@ -273,7 +329,7 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	});
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
-	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
+	await expect(gpu).toHaveAttribute("value", "100");
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 	await expect(visual).toHaveText("100%");
 	expect(
@@ -286,7 +342,7 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 		}),
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
-	await expect(progress).toHaveAttribute("aria-valuenow", "2");
-	await expect(progress).toHaveAttribute("aria-valuemax", "2");
+	await expect(progress).toHaveAttribute("value", "2");
+	await expect(progress).toHaveAttribute("max", "2");
 	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
 });
