@@ -178,6 +178,48 @@ it("presents actionable terminal copy for Qwen runtime failures", () => {
 });
 
 
+it("explains checkpoint durability and retry cost honestly", () => {
+	expect(
+		presentJobEvent({
+			seq: 44,
+			code: "ASR_TEXT_CHECKPOINT_SAVED",
+			at: "2026-09-25T00:00:03.000Z",
+			level: "info",
+			data: { track: 1, stage: "transcription" },
+		}),
+	).toEqual({
+		title: "Texto Qwen pré-alinhamento salvo em checkpoint.",
+		detail:
+			"Se o alinhamento falhar, uma nova tentativa compatível pode evitar retranscrever esta faixa.",
+	});
+	expect(
+		presentJobEvent({
+			seq: 45,
+			code: "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
+			at: "2026-09-25T00:00:04.000Z",
+			level: "warning",
+			data: { track: 1, stage: "transcription" },
+		}),
+	).toEqual({
+		title: "Não foi possível salvar o checkpoint de texto desta faixa.",
+		detail:
+			"A execução atual continua, mas uma nova tentativa pode precisar retranscrever esta faixa.",
+	});
+	expect(
+		presentJobEvent({
+			seq: 46,
+			code: "ASR_CHECKPOINT_WRITE_SKIPPED",
+			at: "2026-09-25T00:00:05.000Z",
+			level: "warning",
+			data: { track: 1, stage: "alignment" },
+		}),
+	).toEqual({
+		title: "Não foi possível salvar o checkpoint final desta faixa.",
+		detail:
+			"O resultado em andamento não foi marcado como concluído; uma nova tentativa pode refazer trabalho desta faixa.",
+	});
+});
+
 it("presents sealed Qwen runtime identity without local paths", () => {
 	expect(
 		presentJobEvent({
