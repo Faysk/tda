@@ -167,7 +167,9 @@
 	gap: 8px;
 }
 
-.form label {
+.form label,
+.sessionField,
+.profileField {
 	display: grid;
 	gap: 5px;
 	min-width: 0;
