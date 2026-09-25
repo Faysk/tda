@@ -1256,6 +1256,38 @@ def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
     assert segments[0].text == "owned"
 
 
+def test_strict_alignment_does_not_hide_empty_text_as_safe_neighbor_overflow():
+    window = AudioWindow(index=87, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=87,
+        start=0.0,
+        end=60.0,
+        text="texto esperado",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "   ", "start_time": 56.8, "end_time": 61.4},
+            ]
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=False,
+            last=False,
+        )
+
+    assert caught.value.alignment_failure_class == "QWEN_ALIGNMENT_EMPTY"
+
+
 def test_strict_alignment_ignores_neighbor_owned_overflow_that_crosses_ownership_boundary():
     window = AudioWindow(index=88, start=0.0, end=60.0, audio="window")
     pending = QwenWindowTranscript(
