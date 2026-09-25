@@ -147,6 +147,15 @@ export type LocalExecutionLineage = {
 		driverVersion: string | null;
 	} | null;
 };
+export type LocalReviewListingStatus =
+	| LocalReviewStatus
+	| "invalid";
+export type LocalReviewSummary = {
+	status: LocalReviewListingStatus;
+	draftRevision: number | null;
+	updatedAt: string | null;
+};
+
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -175,6 +184,7 @@ export type LocalRunSummary = {
 		warningCount: number | null;
 	};
 	publicationTarget: LocalPublicationTarget | null;
+	reviewSummary: LocalReviewSummary | null;
 };
 export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
 export type LocalReviewSegment = {
@@ -685,6 +695,24 @@ function parsePublicationTarget(
 	};
 }
 
+function parseLocalReviewSummary(value: unknown): LocalReviewSummary | null {
+	if (value === null || value === undefined) return null;
+	const row = record(value);
+	if (row.schema_version !== "tda_local_review_summary_v1") return invalid();
+	const status = text(row.status, 32);
+	if (!["draft", "reviewed", "approved_local", "invalid"].includes(status))
+		return invalid();
+	if (status === "invalid") {
+		if (row.draft_revision !== null || row.updated_at !== null) return invalid();
+		return { status: "invalid", draftRevision: null, updatedAt: null };
+	}
+	return {
+		status: status as LocalReviewStatus,
+		draftRevision: nonNegativeInteger(row.draft_revision),
+		updatedAt: isoDate(row.updated_at),
+	};
+}
+
 export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 	const row = record(value);
 	if (row.schema_version !== "tda_transcription_runs_v1") return invalid();
@@ -739,6 +767,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				runId,
 				transcriptSha256,
 			}),
+			reviewSummary: parseLocalReviewSummary(item.review_summary),
 		};
 	});
 }
