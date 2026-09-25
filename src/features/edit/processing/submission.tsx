@@ -516,7 +516,19 @@ export function ProcessingSubmission({
 				<small>Craig ZIP → Companion → GPU local</small>
 			</div>
 
-			{!capabilities ? (
+			{!capabilities && capabilityError ? (
+				<div className={styles.blocked} role="alert">
+					<div>
+						<strong>Não foi possível ler os profiles locais.</strong>
+						<span>{capabilityError}</span>
+					</div>
+					{onOpenDiagnostics ? (
+						<Button size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+							Abrir Diagnóstico
+						</Button>
+					) : null}
+				</div>
+			) : !capabilities ? (
 				<p className={styles.notice} role="status">
 					Lendo os profiles disponíveis no Companion…
 				</p>
@@ -784,7 +796,7 @@ export function ProcessingSubmission({
 					{status}
 				</p>
 			) : null}
-			{capabilityError ? (
+			{capabilityError && capabilities ? (
 				<p className={styles.inlineError} role="alert">
 					{capabilityError}
 				</p>
