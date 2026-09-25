@@ -383,7 +383,11 @@ def load_compatible_qwen_text_checkpoint(
         )
         if template is None or not isinstance(candidate_signature, dict):
             continue
-        if value.get("signature_sha256") != _canonical_json_hash(candidate_signature):
+        candidate_digest = _canonical_json_hash(candidate_signature)
+        if (
+            value.get("signature_sha256") != candidate_digest
+            or root.name != candidate_digest
+        ):
             continue
         if value.get("track") != descriptor:
             continue
