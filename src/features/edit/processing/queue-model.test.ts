@@ -82,6 +82,8 @@ describe("queue model", () => {
 
 	test("human presentation helpers stay deterministic", () => {
 		expect(queueProfileLabel("qwen-quality")).toBe("Qwen Quality");
+		expect(queueProfileLabel("qwen-fast")).toBe("Qwen Fast");
+		expect(queueProfileLabel("whisper-detailed")).toBe("Whisper Detailed");
 		expect(queueProfileLabel("custom-fast_profile")).toBe("Custom Fast Profile");
 		expect(queuePrimaryIdentity(jobs[0]!)).toBe("sessao-z");
 		expect(compactQueueId("abcdefghijklmnopqrstuvwxyz", 6, 4)).toBe("abcdef…wxyz");
