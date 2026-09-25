@@ -240,6 +240,29 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
 			};
 		}
+		case "QWEN_ALIGNMENT_WINDOW_FAILED": {
+			const failureClass = textData(event, "failure_class");
+			const track = numberData(event, "track");
+			const window = numberData(event, "window");
+			const details: Record<string, string> = {
+				QWEN_ALIGNMENT_FAILED: "O Forced Aligner não conseguiu sincronizar esta janela.",
+				QWEN_ALIGNMENT_EMPTY: "O Forced Aligner não retornou palavras utilizáveis nesta janela.",
+				QWEN_ALIGNMENT_TIMESTAMP_PARSE_INVALID: "O alinhador retornou um timestamp que não pôde ser interpretado.",
+				QWEN_ALIGNMENT_TIMESTAMP_NONFINITE: "O alinhador retornou um timestamp não finito.",
+				QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START: "O alinhador retornou uma palavra antes do início permitido da janela.",
+				QWEN_ALIGNMENT_TIMESTAMP_REVERSED: "O alinhador retornou um intervalo de palavra invertido.",
+				QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC: "Os timestamps retornados ficaram fora de ordem.",
+				QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW: "Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+				QWEN_ALIGNMENT_NO_OWNED_WORDS: "O alinhamento não deixou nenhuma palavra pertencente a esta janela.",
+				QWEN_ALIGNMENT_NO_SEGMENTS: "As palavras alinhadas não formaram nenhum segmento válido.",
+			};
+			return {
+				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
+				detail:
+					(failureClass ? details[failureClass] : undefined) ??
+					"O resultado ficou fail-closed; o texto pré-alinhamento permanece preservado para um retry compatível.",
+			};
+		}
 		case "ASR_CHECKPOINT_FAST_PATH":
 			return {
 				title: "Todas as faixas foram recuperadas de checkpoints compatíveis.",
@@ -247,6 +270,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			};
 		case "ASR_CHECKPOINT_REUSED":
 			return { title: "Checkpoint local reutilizado; esta faixa não precisa ser refeita." };
+		case "ASR_TEXT_CHECKPOINT_COMPAT_REUSED":
+			return {
+				title: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
+				detail: "O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
+			};
 		case "ASR_CHECKPOINT_SAVED":
 			return { title: "Checkpoint da faixa salvo com sucesso." };
 		case "QUEUED":
