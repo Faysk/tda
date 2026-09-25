@@ -185,26 +185,38 @@
 
 @media (max-width: 720px) {
 	.bar {
-		grid-template-columns: 1fr auto;
-		gap: 6px 10px;
+		grid-template-columns: 1fr;
+		gap: 6px;
 		padding-block: 8px;
 	}
 
 	.statusCluster {
+		grid-column: 1;
 		flex-wrap: wrap;
 	}
 
-	.gpuCluster {
+	.gpuCluster,
+	.secondaryTelemetry {
 		flex-basis: calc(100% - 16px);
 		margin-left: 16px;
 	}
 
-	.actions {
-		align-self: start;
+	.counters {
+		grid-column: 1;
+		grid-row: auto;
+		overflow-x: auto;
+		scrollbar-width: none;
 	}
 
-	.actions .refreshAction {
+	.counters::-webkit-scrollbar {
 		display: none;
+	}
+
+	.actions {
+		grid-column: 1;
+		grid-row: auto;
+		justify-content: flex-start;
+		flex-wrap: wrap;
 	}
 
 	.actionLong {
@@ -213,15 +225,6 @@
 
 	.actionShort {
 		display: inline;
-	}
-
-	.counters {
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-
-	.counters::-webkit-scrollbar {
-		display: none;
 	}
 
 	.degraded {
