@@ -137,7 +137,7 @@ export function ProcessingCommandBar({
 			</div>
 
 			{connected ? (
-				<div className={styles.counters} aria-label="Resumo da fila">
+				<div className={styles.counters} role="group" aria-label="Resumo da fila">
 					<span>{countLabel(runningCount, "processando", "processando")}</span>
 					<span>{countLabel(queuedCount, "na fila", "na fila")}</span>
 					{attentionCount > 0 ? (
