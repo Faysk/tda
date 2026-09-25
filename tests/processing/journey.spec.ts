@@ -255,6 +255,27 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(errors).toEqual([]);
 });
 
+test("Craig archive without FLAC is rejected inline with an actionable message", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		craigUploadErrorCode: "CRAIG_ARCHIVE_NO_TRACKS",
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await selectCraig(page);
+
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
+
+	await expect(page.getByRole("alert")).toContainText(
+		"não contém tracks FLAC reconhecidas do Craig",
+	);
+	expect(state.uploadCount).toBe(1);
+	expect(state.jobPostCount).toBe(0);
+});
+
 test("ambiguous job response reuses the same idempotency key without re-uploading Craig", async ({
 	page,
 }) => {
