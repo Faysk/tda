@@ -78,7 +78,10 @@ for (const viewport of viewports) {
 				viewport.width + 1,
 			);
 			await expect(
-				page.getByRole("button", { name: "Pausar", exact: true }),
+				page.getByRole("button", { name: "Atualizar estado", exact: true }),
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Pausar novas execuções", exact: true }),
 			).toBeVisible();
 			await expect(
 				page.getByRole("button", { name: "Diagnóstico", exact: true }),
