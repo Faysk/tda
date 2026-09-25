@@ -59,6 +59,21 @@ for (const viewport of viewports) {
 		const tabBox = await selectedTab.boundingBox();
 		expect(tabBox?.height ?? 0).toBeGreaterThanOrEqual(40);
 
+		if (viewport.name === "mobile-320") {
+			const commandBar = page.locator("[data-processing-command-bar='true']");
+			const barBox = await commandBar.boundingBox();
+			expect(barBox).not.toBeNull();
+			expect((barBox?.x ?? 0) + (barBox?.width ?? 0)).toBeLessThanOrEqual(
+				viewport.width + 1,
+			);
+			await expect(
+				page.getByRole("button", { name: "Pausar", exact: true }),
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Diagnóstico", exact: true }),
+			).toBeVisible();
+		}
+
 		if (viewport.name === "full-hd") {
 			const vertical = await page.evaluate(() => ({
 				scrollHeight: document.documentElement.scrollHeight,
