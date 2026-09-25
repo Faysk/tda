@@ -101,7 +101,7 @@ export function presentJobError(code: string): string {
 		QWEN_ASR_CUDA_FAILED: "O Qwen encontrou uma falha CUDA durante a execução.",
 		QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen encontrou uma falha interna ao executar a API de inferência/alinhamento.",
 		QWEN_ASR_INFERENCE_FAILED: "O Qwen não conseguiu concluir a inferência desta faixa.",
-		QWEN_ALIGNMENT_REQUIRED: "O alinhamento obrigatório falhou. Consulte o evento de alinhamento no Diagnóstico para ver a faixa, a janela e a causa específica; nenhum resultado parcial foi publicado.",
+		QWEN_ALIGNMENT_REQUIRED: "O alinhamento obrigatório falhou. Abra Diagnóstico para ver a faixa, a janela e a causa específica. Nenhum resultado parcial foi publicado.",
 		QWEN_ALIGNMENT_FAILED: "O alinhador do Qwen falhou ao sincronizar as palavras com o áudio.",
 		QWEN_AUDIO_DECODE_FAILED: "O Qwen não conseguiu decodificar uma das faixas de áudio.",
 		QWEN_AUDIO_EMPTY: "Uma das faixas chegou vazia ao pipeline de áudio do Qwen.",
@@ -251,7 +251,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						: count !== null
 							? `${count} timestamps extrapolados no overlap vizinho foram ignorados com segurança.`
 							: "Timestamps extrapolados no overlap vizinho foram ignorados com segurança.",
-				detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
+				detail: "Esse trecho pertence à janela vizinha; palavras da janela atual continuam sob validação estrita.",
 			};
 		}
 		case "QWEN_ALIGNMENT_WINDOW_FAILED": {
@@ -280,7 +280,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
 				detail:
 					(failureClass ? details[failureClass] : undefined) ??
-					"O resultado ficou fail-closed; o texto pré-alinhamento permanece preservado para um retry compatível.",
+					"O TDA interrompeu esta janela sem publicar resultado parcial; o texto pré-alinhamento continua preservado para uma nova tentativa compatível.",
 			};
 		}
 		case "ASR_CHECKPOINT_FAST_PATH":
