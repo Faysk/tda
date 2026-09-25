@@ -178,7 +178,8 @@ export function ProcessingQueueView({
 	return (
 		<div className={styles.queue} data-processing-queue="true">
 			<div className={styles.toolbar}>
-				<div className={styles.filters} role="group" aria-label="Filtrar fila">
+				<fieldset className={styles.filters}>
+					<legend className={styles.filterLegend}>Filtrar fila</legend>
 					{queueFilters.map((item) => (
 						<Button
 							key={item.id}
@@ -192,7 +193,7 @@ export function ProcessingQueueView({
 							<span aria-hidden="true">{queueFilterCount(jobs, item.id)}</span>
 						</Button>
 					))}
-				</div>
+				</fieldset>
 
 				<label className={styles.search}>
 					<span>Buscar</span>
