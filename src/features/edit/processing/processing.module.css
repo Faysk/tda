@@ -772,6 +772,7 @@
 }
 
 .logEntry small {
+	overflow-wrap: anywhere;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-body);
 	font-size: 0.61rem;
