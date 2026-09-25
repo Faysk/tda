@@ -25,6 +25,17 @@ async function openRunningWorkspace(
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
