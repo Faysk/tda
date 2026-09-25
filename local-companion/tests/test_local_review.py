@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from tda_companion.local_review import LocalReviewError, open_review, save_review
+from tda_companion.local_review import (
+    LocalReviewError,
+    open_review,
+    review_listing_summary,
+    save_review,
+)
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -70,6 +75,70 @@ def _package(tmp_path: Path) -> tuple[Path, str, dict]:
         attempt=1,
     )
     return package_root, source_id, run
+
+
+def test_review_listing_summary_never_creates_draft_and_tracks_saved_state(tmp_path: Path):
+    package_root, source_id, run = _package(tmp_path)
+
+    assert review_listing_summary(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        transcript_sha256=run["transcript_sha256"],
+    ) is None
+    assert not (package_root / "revisions" / run["run_id"] / "draft.json").exists()
+
+    opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
+    draft_summary = review_listing_summary(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        transcript_sha256=run["transcript_sha256"],
+    )
+    assert draft_summary == {
+        "schema_version": "tda_local_review_summary_v1",
+        "status": "draft",
+        "draft_revision": 0,
+        "updated_at": opened["updated_at"],
+    }
+
+    saved = save_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        value={
+            "expected_draft_revision": 0,
+            "status": "approved_local",
+            "segments": opened["segments"],
+        },
+    )
+    assert review_listing_summary(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        transcript_sha256=run["transcript_sha256"],
+    ) == {
+        "schema_version": "tda_local_review_summary_v1",
+        "status": "approved_local",
+        "draft_revision": 1,
+        "updated_at": saved["updated_at"],
+    }
+
+    draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+    tampered = __import__("json").loads(draft_path.read_text(encoding="utf-8"))
+    tampered["base_transcript_sha256"] = "0" * 64
+    draft_path.write_text(__import__("json").dumps(tampered), encoding="utf-8")
+    assert review_listing_summary(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        transcript_sha256=run["transcript_sha256"],
+    ) == {
+        "schema_version": "tda_local_review_summary_v1",
+        "status": "invalid",
+        "draft_revision": None,
+        "updated_at": None,
+    }
 
 
 def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Path):
