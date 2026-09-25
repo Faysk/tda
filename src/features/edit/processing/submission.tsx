@@ -183,9 +183,15 @@ export function ProcessingSubmission({
 	}, []);
 
 	useEffect(() => {
-		setLastSession(
-			safeStoredSession(window.localStorage.getItem(LAST_SESSION_STORAGE_KEY)),
-		);
+		try {
+			setLastSession(
+				safeStoredSession(
+					window.localStorage.getItem(LAST_SESSION_STORAGE_KEY),
+				),
+			);
+		} catch {
+			setLastSession(null);
+		}
 	}, []);
 
 	useEffect(() => {
@@ -441,7 +447,11 @@ export function ProcessingSubmission({
 			);
 			pending.current = null;
 			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`);
-			window.localStorage.setItem(LAST_SESSION_STORAGE_KEY, sessionId);
+			try {
+				window.localStorage.setItem(LAST_SESSION_STORAGE_KEY, sessionId);
+			} catch {
+				// Suggestion persistence is optional; never fail a local job because of storage.
+			}
 			setLastSession(sessionId);
 			setFile(null);
 			setSource(null);
