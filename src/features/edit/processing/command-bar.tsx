@@ -188,9 +188,11 @@ export function ProcessingCommandBar({
 						</span>
 					</Button>
 				) : null}
-				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
-					Diagnóstico
-				</Button>
+				{connected ? (
+					<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+						Diagnóstico
+					</Button>
+				) : null}
 			</div>
 		</section>
 	);
