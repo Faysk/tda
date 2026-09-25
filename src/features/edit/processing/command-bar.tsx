@@ -141,7 +141,12 @@ export function ProcessingCommandBar({
 					<span>{countLabel(runningCount, "processando", "processando")}</span>
 					<span>{countLabel(queuedCount, "na fila", "na fila")}</span>
 					{attentionCount > 0 ? (
-						<button type="button" className={styles.attention} onClick={onAttention}>
+						<button
+							type="button"
+							className={styles.attention}
+							aria-label={countLabel(attentionCount, "atenção", "atenções")}
+							onClick={onAttention}
+						>
 							{countLabel(attentionCount, "atenção", "atenções")}
 						</button>
 					) : (
@@ -157,15 +162,30 @@ export function ProcessingCommandBar({
 						variant="tertiary"
 						className={styles.refreshAction}
 						disabled={refreshing}
+						aria-label={refreshing ? "Atualizando…" : "Atualizar estado"}
 						onClick={onRefresh}
 					>
-						{refreshing ? "Atualizando…" : "Atualizar estado"}
+						<span className={styles.actionLong}>
+							{refreshing ? "Atualizando…" : "Atualizar estado"}
+						</span>
+						<span className={styles.actionShort}>
+							{refreshing ? "Atualizando…" : "Atualizar"}
+						</span>
 					</Button>
 				) : null}
 				{connected && primaryLifecycleAction ? (
 					<Button
 						size="sm"
 						disabled={pendingLifecycle === primaryLifecycleAction}
+						aria-label={
+							primaryLifecycleAction === "pause"
+								? pendingLifecycle === "pause"
+									? "Pausando…"
+									: "Pausar novas execuções"
+								: pendingLifecycle === "resume"
+									? "Retomando…"
+									: "Retomar novas execuções"
+						}
 						onClick={onToggleLifecycle}
 					>
 						<span className={styles.actionLong}>
