@@ -715,11 +715,13 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
 	const reviewPercent = nonNegativeNumber(row.review_percent);
 	if (reviewPercent > 100) return invalid();
+	const updatedAt = nullableIsoDate(row.updated_at);
+	if (updatedAt === null) return invalid();
 	return {
 		status: status as LocalReviewStatus,
 		draftRevision: nonNegativeInteger(row.draft_revision),
 		reviewPercent,
-		updatedAt: nullableIsoDate(row.updated_at),
+		updatedAt,
 	};
 }
 
