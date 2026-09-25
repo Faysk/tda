@@ -20,6 +20,7 @@ type Props = Readonly<{
 	min: number;
 	max: number;
 	format: (value: number) => string;
+	ariaValueText?: (value: number) => string;
 	ariaLabel: string;
 	className?: string;
 	minWidthCh?: number;
@@ -31,6 +32,7 @@ export function AnimatedMetric({
 	min,
 	max,
 	format,
+	ariaValueText,
 	ariaLabel,
 	className,
 	minWidthCh,
@@ -117,7 +119,7 @@ export function AnimatedMetric({
 			aria-valuemin={min}
 			aria-valuemax={max}
 			aria-valuenow={target}
-			aria-valuetext={format(target)}
+			aria-valuetext={(ariaValueText ?? format)(target)}
 			data-animated-metric="true"
 			data-animated-target={target}
 		>
