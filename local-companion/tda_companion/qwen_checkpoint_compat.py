@@ -14,7 +14,6 @@ from .craig import CraigTrack
 
 _RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _WORKER_SHA256 = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
-_RUNTIME_COMPATIBILITY = frozenset({("1.0.10", "1.0.11")})
 # Exact worker accepted and promoted as companion-qwen-runtime-v1.0.10.
 # Receipt: docs/companion/runtime-acceptance/
 # companion-qwen-runtime-rc-v1.0.10-19d9b3b64238.json
@@ -108,13 +107,11 @@ def load_compatible_qwen_text_checkpoint(
         return None
 
     matches: list[CompatibleQwenTextCheckpoint] = []
-    for source_version, target_version in sorted(_RUNTIME_COMPATIBILITY):
+    for (source_version, target_version), accepted_workers in sorted(
+        _ACCEPTED_SOURCE_WORKERS.items()
+    ):
         if target_version != current_version:
             continue
-        accepted_workers = _ACCEPTED_SOURCE_WORKERS.get(
-            (source_version, target_version),
-            frozenset(),
-        )
         for worker_sha256 in sorted(accepted_workers):
             for template in legacy_templates:
                 if not _same_text_lineage(signature, template):
