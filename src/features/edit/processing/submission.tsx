@@ -606,7 +606,7 @@ export function ProcessingSubmission({
 					) : null}
 
 					{file ? (
-						<dl className={styles.fileFacts} aria-label="Resumo do arquivo selecionado">
+						<dl className={styles.fileFacts}>
 							<div>
 								<dt>Arquivo</dt>
 								<dd title={file.name}>{file.name}</dd>
