@@ -402,6 +402,7 @@ export function ProcessingPanel({
 			</div>
 
 			<ProcessingCommandBar
+				connection={state.connection}
 				connected={connected}
 				connectionLabel={label}
 				health={state.health}
