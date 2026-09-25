@@ -235,16 +235,6 @@ export function ProcessingQueueView({
 			{rows.length ? (
 				<div className={styles.tableFrame}>
 					<table className={styles.table}>
-						<colgroup>
-							<col className={styles.identityCol} />
-							<col className={styles.profileCol} />
-							<col className={styles.stageCol} />
-							<col className={styles.statusCol} />
-							<col className={styles.updatedCol} />
-							<col className={styles.attemptCol} />
-							<col className={styles.errorCol} />
-							<col className={styles.actionsCol} />
-						</colgroup>
 						<thead>
 							<tr>
 								<th scope="col">Sessão / source</th>
