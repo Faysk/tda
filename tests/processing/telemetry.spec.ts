@@ -22,7 +22,11 @@ const job = {
 	},
 };
 
-function localComputer(page: import("@playwright/test").Page) {\n\treturn page.getByRole("region", { name: "Computador local" });\n}\n\ntest("renders local resource telemetry and factual worker events after automatic session", async ({
+function localComputer(page: import("@playwright/test").Page) {
+	return page.getByRole("region", { name: "Computador local" });
+}
+
+test("renders local resource telemetry and factual worker events after automatic session", async ({
 	page,
 }) => {
 	await page.route(`${LOCAL_API}/**`, async (route) => {
