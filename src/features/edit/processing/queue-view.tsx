@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
@@ -123,6 +123,7 @@ type Props = Readonly<{
 	jobs: readonly LocalJob[];
 	filter: QueueFilter;
 	onFilterChange: (filter: QueueFilter) => void;
+	resetSearchKey: number;
 	mutation: Readonly<{ kind: string; targetId?: string }> | null;
 	canDelete: boolean;
 	onCancel: (job: LocalJob) => void;
@@ -136,6 +137,7 @@ export function ProcessingQueueView({
 	jobs,
 	filter,
 	onFilterChange,
+	resetSearchKey,
 	mutation,
 	canDelete,
 	onCancel,
@@ -148,6 +150,10 @@ export function ProcessingQueueView({
 	const [sort, setSort] = useState<QueueSort>("updated");
 	const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 	const [copiedId, setCopiedId] = useState<string | null>(null);
+
+	useEffect(() => {
+		setQuery("");
+	}, [resetSearchKey]);
 
 	const rows = useMemo(
 		() => selectQueueJobs(jobs, filter, query, sort),
