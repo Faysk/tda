@@ -166,6 +166,16 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 });
 
 
+it("presents actionable terminal copy for Qwen runtime failures", () => {
+	expect(presentJobError("QWEN_CUDA_DRIVER_INCOMPATIBLE")).toBe(
+		"O driver NVIDIA/CUDA não é compatível com este runtime Qwen.",
+	);
+	expect(presentJobError("QWEN_ASR_RUNTIME_API_FAILED")).toBe(
+		"O runtime Qwen encontrou uma falha interna ao executar a API de inferência/alinhamento.",
+	);
+});
+
+
 it("presents sanitized Qwen alignment failure context", () => {
 	expect(
 		presentJobEvent({
