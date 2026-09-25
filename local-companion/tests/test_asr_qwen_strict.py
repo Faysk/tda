@@ -303,6 +303,66 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert document.stats.word_count == 0
 
 
+def test_alignment_failure_event_allowlists_diagnostic_metadata(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.5}]
+
+        def close(self):
+            pass
+
+    def fail_with_extra_metadata(*_args, **_kwargs):
+        raise asr_qwen_strict._alignment_required(
+            "QWEN_ALIGNMENT_FAILED",
+            aligned_item=2,
+            private_counter=999,
+        )
+
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_strict_alignment_segments",
+        fail_with_extra_metadata,
+    )
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=lambda _path: iter(
+                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+            ),
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    failure = next(
+        item for item in reports if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert failure["aligned_item"] == 2
+    assert "private_counter" not in failure
+
+
 def test_strict_qwen_reports_alignment_window_context_for_vram_failure(tmp_path: Path):
     package, root = _package(tmp_path)
     reports: list[dict] = []
