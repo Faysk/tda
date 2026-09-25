@@ -444,6 +444,7 @@ export function ProcessingSubmission({
 			window.localStorage.setItem(LAST_SESSION_STORAGE_KEY, sessionId);
 			setLastSession(sessionId);
 			setFile(null);
+			setSource(null);
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -506,7 +507,7 @@ export function ProcessingSubmission({
 							type="file"
 							accept=".zip,application/zip"
 							tabIndex={-1}
-							aria-hidden="true"
+							aria-label="Export do Craig"
 							disabled={busy}
 							onChange={(event) =>
 								acceptFile(
