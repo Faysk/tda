@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+	type DragEvent,
+	type FormEvent,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
@@ -22,14 +30,16 @@ import {
 	TRANSCRIPTION_TEXT_MAX_CHARS,
 	truncateUnicodeScalars,
 } from "./request-budget";
+import {
+	formatSubmissionBytes,
+	profileReadinessCopy,
+	submissionCtaLabel,
+	submissionEngineLabel,
+	submissionProfileLabel,
+	suggestSessionIdFromFilename,
+	validateCraigFile,
+} from "./submission-model";
 import styles from "./submission.module.css";
-
-const profileLabels: Record<TranscriptionProfileId, string> = {
-	"whisper-turbo": "Whisper Turbo",
-	"whisper-detailed": "Whisper Detalhado",
-	"qwen-fast": "Qwen Fast",
-	"qwen-quality": "Qwen Quality",
-};
 
 function messageFor(code: string): string {
 	return {
@@ -51,7 +61,7 @@ function messageFor(code: string): string {
 
 function localOperationMessage(code: string | null): string {
 	if (!code) return "A operação local não foi concluída.";
-	return {
+	const known = {
 		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
 			"Já existe outra preparação em andamento neste computador.",
 		TRANSCRIPTION_PREPARATION_CANCELLED:
@@ -59,9 +69,9 @@ function localOperationMessage(code: string | null): string {
 		TRANSCRIPTION_PREPARATION_TIMEOUT:
 			"A preparação local atingiu o limite de 2 horas e foi encerrada.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB:
-			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro perfil.",
+			"Já existe um trabalho local na fila ou em execução. Aguarde antes de preparar outro profile.",
 		TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
-			"Espere o trabalho atual terminar antes de preparar outro perfil.",
+			"Espere o trabalho atual terminar antes de preparar outro profile.",
 		TRANSCRIPTION_WORK_ALREADY_ACTIVE:
 			"Já existe uma transcrição equivalente na fila ou em execução.",
 		CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB:
@@ -77,9 +87,15 @@ function localOperationMessage(code: string | null): string {
 		CRAIG_UPLOAD_STORAGE_FAILED:
 			"O Companion não conseguiu gravar o ZIP no armazenamento local.",
 		CRAIG_UPLOAD_SIZE_LIMIT:
-			"O ZIP ultrapassa o limite aceito pelo Companion.",
+			"O ZIP ultrapassa o limite local de 64 GiB.",
+		CRAIG_UPLOAD_EMPTY:
+			"O ZIP selecionado está vazio.",
 		CRAIG_ZIP_REQUIRED:
 			"Escolha um arquivo ZIP exportado pelo Craig.",
+		CRAIG_ARCHIVE_INVALID:
+			"O arquivo não é um ZIP Craig válido.",
+		CRAIG_ARCHIVE_NO_TRACKS:
+			"O ZIP não contém faixas de áudio reconhecidas pelo fluxo Craig.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
 			"O Qwen precisa ser preparado e validado novamente nesta GPU antes de entrar na fila.",
 		WHISPER_MODEL_PREPARATION_REQUIRED:
@@ -108,13 +124,23 @@ function localOperationMessage(code: string | null): string {
 			"A preparação do modelo Whisper excedeu o limite de tempo.",
 		BODY_TOO_LARGE:
 			"Contexto e glossário excedem o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de enviar.",
-	}[code] ?? `Operação local não concluída · ${code}`;
+	}[code as keyof typeof known];
+	if (known) return known;
+	if (code.startsWith("CRAIG_ARCHIVE_"))
+		return "O ZIP foi recusado pela validação segura do Craig. Verifique o export original antes de repetir.";
+	if (code.startsWith("CRAIG_TRACK_"))
+		return "Uma faixa do ZIP Craig é inválida ou excede os limites aceitos.";
+	if (code.startsWith("CRAIG_MANIFEST_"))
+		return "A cópia local da fonte não corresponde mais ao manifesto verificado. Reenvie o ZIP original.";
+	return `Operação local não concluída · ${code}`;
 }
 
 type PendingSubmission = {
 	key: string;
 	signature: string;
 };
+
+type PendingStage = "validating" | "preparing" | "submitting";
 
 function sourceMustBeRestaged(code: string | null): boolean {
 	if (!code) return false;
@@ -128,7 +154,12 @@ function sourceMustBeRestaged(code: string | null): boolean {
 export function ProcessingSubmission({
 	className,
 	compact = false,
-}: Readonly<{ className?: string; compact?: boolean }> = {}) {
+	onOpenDiagnostics,
+}: Readonly<{
+	className?: string;
+	compact?: boolean;
+	onOpenDiagnostics?: () => void;
+}> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -141,8 +172,11 @@ export function ProcessingSubmission({
 	const [context, setContext] = useState("");
 	const [glossary, setGlossary] = useState("");
 	const [file, setFile] = useState<File | null>(null);
+	const [fileError, setFileError] = useState<string | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
+	const [dragActive, setDragActive] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
@@ -186,7 +220,11 @@ export function ProcessingSubmission({
 				setCapabilityError(null);
 			} catch (cause) {
 				if (!stopped && !controller.signal.aborted) {
-					setCapabilityError(messageFor(cause instanceof BridgeError ? cause.code : "service_error"));
+					setCapabilityError(
+						messageFor(
+							cause instanceof BridgeError ? cause.code : "service_error",
+						),
+					);
 				}
 			} finally {
 				reading = false;
@@ -225,6 +263,15 @@ export function ProcessingSubmission({
 		[capabilities],
 	);
 
+	const selectedProfile = useMemo(
+		() => availableProfiles.find((item) => item.id === profile) ?? null,
+		[availableProfiles, profile],
+	);
+	const profileBlocked = Boolean(
+		selectedProfile &&
+			!selectedProfile.ready &&
+			!selectedProfile.preparationRequired,
+	);
 	const canSubmit = useMemo(
 		() =>
 			Boolean(
@@ -251,15 +298,56 @@ export function ProcessingSubmission({
 
 	if (!paired) return null;
 
-	async function submit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (busy || !file || !profile || !canSubmit) return;
-		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
-			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
+	function applyFile(nextFile: File | null) {
+		setSource(null);
+		setStatus(null);
+		setError(null);
+		pending.current = null;
+		if (!nextFile) {
+			setFile(null);
+			setFileError(null);
 			return;
 		}
-		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
-			setError("Escolha um ZIP válido exportado pelo Craig.");
+		const validation = validateCraigFile(nextFile);
+		if (validation) {
+			setFile(null);
+			setFileError(validation);
+			return;
+		}
+		setFile(nextFile);
+		setFileError(null);
+		if (!sessionId) {
+			const suggestion = suggestSessionIdFromFilename(nextFile.name);
+			if (suggestion) setSessionId(suggestion);
+		}
+	}
+
+	function handleDrop(event: DragEvent<HTMLDivElement>) {
+		event.preventDefault();
+		setDragActive(false);
+		if (busy) return;
+		applyFile(event.dataTransfer.files.item(0));
+	}
+
+	async function submit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (
+			busy ||
+			!file ||
+			!profile ||
+			!canSubmit ||
+			profileBlocked
+		)
+			return;
+		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
+			setError(
+				"Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.",
+			);
+			return;
+		}
+		const fileValidation = validateCraigFile(file);
+		if (fileValidation) {
+			setFileError(fileValidation);
 			return;
 		}
 		if (requestTooLarge) {
@@ -273,11 +361,13 @@ export function ProcessingSubmission({
 		request.current?.abort();
 		request.current = controller;
 		setBusy(true);
+		setPendingStage("validating");
 		setError(null);
+		setFileError(null);
 		setStatus(
 			source
-				? "Reutilizando a fonte já verificada neste Companion…"
-				: "Enviando o ZIP diretamente para o Companion local…",
+				? "Revalidando a fonte já verificada neste Companion…"
+				: "Validando e copiando o ZIP pelo loopback local…",
 		);
 		try {
 			const staged = source ?? (await bridge.craigSource(file, controller.signal));
@@ -288,9 +378,6 @@ export function ProcessingSubmission({
 					: `ZIP verificado · ${staged.trackCount} tracks.`,
 			);
 
-			// Uploads grandes can take long enough for runtime/model readiness to
-			// change. Decide preparation from a fresh Agent snapshot, not from the
-			// render that existed when the user clicked submit.
 			const currentCapabilities = await bridge.capabilities(controller.signal);
 			setCapabilities(currentCapabilities);
 			const currentProfiles = currentCapabilities.transcription.catalog.length
@@ -304,13 +391,22 @@ export function ProcessingSubmission({
 						preparationRequired: false,
 						reason: null,
 					}));
-			const selectedProfile = currentProfiles.find((item) => item.id === profile);
-			if (!selectedProfile) {
-				setError("O perfil selecionado não está disponível neste Companion.");
+			const currentProfile = currentProfiles.find((item) => item.id === profile);
+			if (!currentProfile) {
+				setError("O profile selecionado não está disponível neste Companion.");
 				return;
 			}
-			if (!selectedProfile.ready) {
-				setStatus("Preparando o perfil no Agent local…");
+			if (!currentProfile.ready && !currentProfile.preparationRequired) {
+				setError(
+					currentProfile.reason
+						? localOperationMessage(currentProfile.reason)
+						: "O profile selecionado está indisponível neste Companion.",
+				);
+				return;
+			}
+			if (!currentProfile.ready) {
+				setPendingStage("preparing");
+				setStatus("Preparando o profile no Agent local…");
 				let preparation: PreparationStatus = await bridge.prepareProfile(
 					staged.sourceId,
 					profile,
@@ -333,11 +429,15 @@ export function ProcessingSubmission({
 					setError(localOperationMessage(preparation.errorCode));
 					return;
 				}
-				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
+				setStatus(
+					"Profile preparado e validado. Confirmando capacidade do Agent…",
+				);
 				const refreshed = await bridge.capabilities(controller.signal);
 				setCapabilities(refreshed);
 				if (!refreshed.transcription.profiles.includes(profile)) {
-					setError("O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.");
+					setError(
+						"O Agent concluiu a preparação, mas ainda não anunciou o profile como pronto.",
+					);
 					return;
 				}
 			}
@@ -354,6 +454,8 @@ export function ProcessingSubmission({
 				pending.current = { key: crypto.randomUUID(), signature };
 			}
 
+			setPendingStage("submitting");
+			setStatus("Enviando o pedido ao Companion local…");
 			const job = await bridge.transcription(
 				{
 					campaignId: CAMPAIGN_SLUG,
@@ -369,6 +471,7 @@ export function ProcessingSubmission({
 			pending.current = null;
 			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`);
 			setFile(null);
+			setSource(null);
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -388,8 +491,15 @@ export function ProcessingSubmission({
 			);
 		} finally {
 			setBusy(false);
+			setPendingStage(null);
 		}
 	}
+
+	const readiness = profileReadinessCopy(selectedProfile);
+	const readinessReason =
+		selectedProfile?.reason && !selectedProfile.ready
+			? localOperationMessage(selectedProfile.reason)
+			: null;
 
 	return (
 		<section
@@ -399,79 +509,229 @@ export function ProcessingSubmission({
 		>
 			<div className={styles.heading}>
 				<div>
-					<span>Processamento real</span>
-					<h2 id="new-local-transcription">Nova transcrição Craig</h2>
+					<span>Processamento local</span>
+					<h2 id="new-local-transcription">Nova transcrição</h2>
 				</div>
-				<small>ZIP → loopback → GPU local</small>
+				<small>Craig ZIP → Companion → GPU local</small>
 			</div>
 
 			{!capabilities ? (
 				<p className={styles.notice} role="status">
-					Lendo os perfis disponíveis no Companion…
+					Lendo os profiles disponíveis no Companion…
 				</p>
 			) : !canSubmit ? (
-				<p className={styles.notice} role="status">
-					Este Companion não anunciou um fluxo de transcrição/preparação compatível. Atualize o aplicativo local.
-				</p>
+				<div className={styles.blocked} role="status">
+					<div>
+						<strong>Transcrição local indisponível.</strong>
+						<span>
+							Este Companion não anunciou um fluxo de transcrição ou preparação compatível.
+						</span>
+					</div>
+					{onOpenDiagnostics ? (
+						<Button size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+							Abrir Diagnóstico
+						</Button>
+					) : null}
+				</div>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
-					<label>
-						<span>ID da sessão</span>
-						<input
-							value={sessionId}
-							onChange={(event) => setSessionId(event.target.value.trim())}
-							pattern="[A-Za-z0-9_-]{1,128}"
-							maxLength={128}
-							required
-							disabled={busy}
-							placeholder="sessao-42"
-						/>
-					</label>
-					<label>
-						<span>Perfil</span>
-						<select
-							value={profile}
-							onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-							disabled={busy}
-							required
-						>
-							{availableProfiles.map((item) => (
-								<option key={item.id} value={item.id}>
-									{profileLabels[item.id]}{item.ready ? "" : " · preparar no primeiro uso"}
-								</option>
-							))}
-						</select>
-					</label>
-					<label className={styles.fileField}>
-						<span>Export do Craig</span>
+					<div
+						className={styles.dropZone}
+						data-active={dragActive ? "true" : "false"}
+						data-selected={file ? "true" : "false"}
+						onDragEnter={(event) => {
+							event.preventDefault();
+							if (!busy) setDragActive(true);
+						}}
+						onDragOver={(event) => {
+							event.preventDefault();
+							if (!busy) setDragActive(true);
+						}}
+						onDragLeave={(event) => {
+							if (event.currentTarget.contains(event.relatedTarget as Node | null))
+								return;
+							setDragActive(false);
+						}}
+						onDrop={handleDrop}
+					>
 						<input
 							ref={fileInput}
+							className={styles.fileInput}
 							type="file"
 							accept=".zip,application/zip"
-							required
+							aria-label="Export do Craig"
 							disabled={busy}
-							onChange={(event) => {
-								setFile(event.target.files?.[0] ?? null);
-								setSource(null);
-								setStatus(null);
-								setError(null);
-							}}
+							onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
 						/>
-					</label>
-					<div className={styles.actions}>
+						<button
+							type="button"
+							className={styles.dropAction}
+							disabled={busy}
+							onClick={() => fileInput.current?.click()}
+						>
+							<span className={styles.dropGlyph} aria-hidden="true">
+								{file ? "✓" : "ZIP"}
+							</span>
+							<span className={styles.dropCopy}>
+								<strong>
+									{file ? file.name : "Arraste o ZIP do Craig aqui"}
+								</strong>
+								<span>
+									{file
+										? `${formatSubmissionBytes(file.size)} · escolher outro arquivo`
+										: "ou escolher arquivo"}
+								</span>
+							</span>
+						</button>
+					</div>
+
+					{fileError ? (
+						<p className={styles.inlineError} role="alert">
+							{fileError}
+						</p>
+					) : null}
+
+					{file ? (
+						<dl className={styles.fileFacts} aria-label="Resumo do arquivo selecionado">
+							<div>
+								<dt>Arquivo</dt>
+								<dd title={file.name}>{file.name}</dd>
+							</div>
+							<div>
+								<dt>Tamanho</dt>
+								<dd>{formatSubmissionBytes(file.size)}</dd>
+							</div>
+							{source ? (
+								<>
+									<div>
+										<dt>Tracks</dt>
+										<dd>{source.trackCount}</dd>
+									</div>
+									<div>
+										<dt>Fonte</dt>
+										<dd>{source.reused ? "Já verificada" : "Verificada agora"}</dd>
+									</div>
+								</>
+							) : null}
+						</dl>
+					) : null}
+
+					<div className={styles.identityGrid}>
+						<label>
+							<span>Sessão</span>
+							<input
+								value={sessionId}
+								onChange={(event) => setSessionId(event.target.value.trim())}
+								pattern="[A-Za-z0-9_-]{1,128}"
+								maxLength={128}
+								required
+								disabled={busy}
+								placeholder="sessao-42"
+								aria-describedby="session-id-help"
+							/>
+							<small id="session-id-help">
+								Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável.
+							</small>
+						</label>
+
+						<label>
+							<span>Profile</span>
+							<select
+								value={profile}
+								onChange={(event) =>
+									setProfile(event.target.value as TranscriptionProfileId)
+								}
+								disabled={busy}
+								required
+							>
+								{availableProfiles.map((item) => (
+									<option key={item.id} value={item.id}>
+										{submissionProfileLabel(item.id)}
+										{item.ready ? "" : item.preparationRequired ? " · preparar" : " · indisponível"}
+									</option>
+								))}
+							</select>
+						</label>
+					</div>
+
+					{selectedProfile ? (
+						<div
+							className={styles.profileSummary}
+							data-ready={selectedProfile.ready ? "true" : "false"}
+						>
+							<div>
+								<strong>{submissionProfileLabel(selectedProfile.id)}</strong>
+								<span>
+									{submissionEngineLabel(selectedProfile)}
+									{selectedProfile.ready
+										? " · pronto neste Companion"
+										: selectedProfile.preparationRequired
+											? " · preparação necessária"
+											: " · indisponível"}
+								</span>
+							</div>
+							<small>Ainda sem calibração nesta máquina.</small>
+						</div>
+					) : null}
+
+					{readiness ? (
+						<div className={profileBlocked ? styles.blocked : styles.readiness}>
+							<div>
+								<strong>{readiness}</strong>
+								{readinessReason && readinessReason !== readiness ? (
+									<span>{readinessReason}</span>
+								) : null}
+							</div>
+							{profileBlocked && onOpenDiagnostics ? (
+								<Button
+									size="sm"
+									variant="tertiary"
+									onClick={onOpenDiagnostics}
+								>
+									Abrir Diagnóstico
+								</Button>
+							) : null}
+						</div>
+					) : null}
+
+					<div className={styles.submitRow}>
 						<Button
 							type="submit"
 							variant="primary"
-							disabled={busy || !file || !profile || requestTooLarge}
+							disabled={
+								busy ||
+								!file ||
+								!profile ||
+								requestTooLarge ||
+								profileBlocked
+							}
 						>
-							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
+							{submissionCtaLabel(selectedProfile, pendingStage)}
 						</Button>
-						<span>O áudio não é enviado para o cloud.</span>
+						{requestTooLarge ? (
+							<span className={styles.budgetWarning}>
+								{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
+							</span>
+						) : null}
 					</div>
+
+					<div className={styles.privacy}>
+						<strong>
+							<span aria-hidden="true">🔒</span> Áudio permanece nesta máquina.
+						</strong>
+						<details>
+							<summary>Como funciona</summary>
+							<p>
+								O ZIP é enviado somente por loopback ao TDA Companion local.
+								Resultados ficam locais até uma ação editorial explícita de publicação.
+							</p>
+						</details>
+					</div>
+
 					<details className={styles.advanced}>
 						<summary>
-							<span>Opções avançadas</span>
-							<small>Contexto e glossário</small>
+							<span>Contexto e glossário</span>
+							<small>opcional</small>
 						</summary>
 						<div className={styles.advancedGrid}>
 							<label>
@@ -508,27 +768,30 @@ export function ProcessingSubmission({
 							</label>
 						</div>
 					</details>
+
 					{requestTooLarge ? (
-						<p className={styles.error} role="alert">
-							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
-						</p>
-					) : null}
-					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
-						<p className={styles.notice} role="status">
-							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
+						<p className={styles.inlineError} role="alert">
+							Contexto e glossário excedem o orçamento local. Reduza o texto antes de enviar.
 						</p>
 					) : null}
 				</form>
 			)}
 
-			{source ? (
-				<p className={styles.source}>
-					Fonte {source.sourceId.slice(0, 18)}… · {source.trackCount} tracks · {(source.sizeBytes / 1024 ** 2).toFixed(1)} MB
+			{status ? (
+				<p className={styles.status} role="status">
+					{status}
 				</p>
 			) : null}
-			{status ? <p className={styles.status} role="status">{status}</p> : null}
-			{capabilityError ? <p className={styles.error} role="alert">{capabilityError}</p> : null}
-			{error ? <p className={styles.error} role="alert">{error}</p> : null}
+			{capabilityError ? (
+				<p className={styles.inlineError} role="alert">
+					{capabilityError}
+				</p>
+			) : null}
+			{error ? (
+				<p className={styles.inlineError} role="alert">
+					{error}
+				</p>
+			) : null}
 		</section>
 	);
 }
