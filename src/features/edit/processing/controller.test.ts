@@ -105,6 +105,65 @@ describe("processing state", () => {
 		controller.disconnect();
 	});
 
+	it("keeps telemetry and events when a secondary background read fails", async () => {
+		const telemetryCaps = {
+			...caps,
+			capabilities: ["system.telemetry", "job.events"],
+		};
+		let systemReads = 0;
+		let eventReads = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(telemetryCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [job] });
+			if (value.endsWith("/system")) {
+				systemReads += 1;
+				if (systemReads > 1) throw new TypeError("telemetry hiccup");
+				return Response.json({
+					sampled_at: "2026-09-25T00:00:00Z",
+					host: { os: "Windows 11", cpu: "Synthetic CPU" },
+					cpu: { utilization_percent: 42 },
+					memory: {
+						used_bytes: 8 * 1024 ** 3,
+						total_bytes: 32 * 1024 ** 3,
+						percent: 25,
+					},
+					gpus: [],
+				});
+			}
+			if (value.endsWith("/jobs/test-job/events")) {
+				eventReads += 1;
+				if (eventReads > 1) throw new TypeError("events hiccup");
+				return Response.json({
+					events: [
+						{
+							seq: 1,
+							code: "QWEN_WINDOW_TRANSCRIBED",
+							at: "2026-09-25T00:00:01Z",
+							level: "info",
+							data: { track: 1, total_tracks: 2 },
+						},
+					],
+				});
+			}
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		const system = controller.snapshot().system;
+		const events = controller.snapshot().events;
+		expect(system).not.toBeNull();
+		expect(events).toHaveLength(1);
+
+		await controller.refresh("background");
+
+		expect(controller.snapshot().system).toEqual(system);
+		expect(controller.snapshot().events).toEqual(events);
+		expect(controller.snapshot().connection).toBe("connected");
+	});
+
 	it("preserves version compatibility details for actionable UI diagnosis", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
