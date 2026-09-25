@@ -46,6 +46,7 @@ export type CompanionFixtureOptions = {
 	profileReady?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
+	craigUploadErrorCode?: string;
 	jobReadDelayMs?: number;
 	system?: FixtureSystemSnapshot;
 	localRuns?: Record<string, unknown>[];
@@ -539,6 +540,8 @@ export async function installCompanionFixture(
 			if (!body || body.length === 0)
 				return invalidRequest(route, "CRAIG_UPLOAD_EMPTY");
 			state.uploadCount += 1;
+			if (options.craigUploadErrorCode)
+				return invalidRequest(route, options.craigUploadErrorCode);
 			return json(route, {
 				schema_version: "tda_craig_ingest_v1",
 				source_id: CRAIG_SOURCE_ID,
