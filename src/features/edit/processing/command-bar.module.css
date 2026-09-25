@@ -203,8 +203,8 @@
 		align-self: start;
 	}
 
-	.refreshAction {
-		display: none !important;
+	.actions .refreshAction {
+		display: none;
 	}
 
 	.actionLong {
