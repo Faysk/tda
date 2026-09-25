@@ -307,6 +307,11 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
+			.getByRole("button", { name: "Ativos", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(
+		page
+			.getByRole("tabpanel", { name: "Fila" })
 			.locator('td[data-label="Estado"]')
 			.getByText("Na fila", { exact: true }),
 	).toBeVisible();
