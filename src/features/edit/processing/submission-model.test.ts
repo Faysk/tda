@@ -27,7 +27,7 @@ describe("processing submission model", () => {
 	test("formats only factual local byte counts", () => {
 		expect(formatLocalBytes(900)).toBe("900 B");
 		expect(formatLocalBytes(1536)).toBe("1.5 KB");
-		expect(formatLocalBytes(8 * 1024 ** 2)).toBe("8 MB");
+		expect(formatLocalBytes(8 * 1024 ** 2)).toBe("8.0 MB");
 	});
 
 	test("presents profile engine and mode without quality ranking", () => {
