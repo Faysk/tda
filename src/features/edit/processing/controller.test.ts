@@ -161,7 +161,10 @@ describe("processing state", () => {
 
 		expect(controller.snapshot().system).toEqual(system);
 		expect(controller.snapshot().events).toEqual(events);
-		expect(controller.snapshot().connection).toBe("connected");
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			refreshError: "unreachable",
+		});
 	});
 
 	it("preserves version compatibility details for actionable UI diagnosis", async () => {
