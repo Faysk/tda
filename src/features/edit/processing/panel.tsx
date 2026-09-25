@@ -7,6 +7,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
+import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import { ProcessingCommandBar } from "./command-bar";
@@ -190,10 +191,11 @@ function JobRow({
 			<div className={styles.jobRowProgress}>
 				{job.progress && percent !== null ? (
 					<>
-						<progress
-							aria-label={`Progresso do trabalho ${job.id}`}
+						<AnimatedProgress
+							ariaLabel={`Progresso do trabalho ${job.id}`}
 							value={job.progress.completed}
 							max={job.progress.total}
+							valueText={progressCopy(job)}
 						/>
 						<span>{percent}%</span>
 					</>
@@ -553,10 +555,11 @@ export function ProcessingPanel({
 										</div>
 										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
-												<progress
-													aria-label={`Progresso do trabalho ${activeJob.id}`}
+												<AnimatedProgress
+													ariaLabel={`Progresso do trabalho ${activeJob.id}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
+													valueText={progressCopy(activeJob)}
 												/>
 												<strong>{activePercent}%</strong>
 												<span>{progressCopy(activeJob)}</span>
