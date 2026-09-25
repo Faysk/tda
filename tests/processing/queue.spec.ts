@@ -141,7 +141,7 @@ test("filtros, busca e ordenação operam localmente sem perder running no topo"
 	await expect(dataRows).toHaveCount(4);
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
-	await page.getByLabel("Ordenar").selectOption("session");
+	await queue.getByLabel("Ordenar").selectOption("session");
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
 	const search = queue.getByLabel("Buscar");
