@@ -231,7 +231,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 					? `Runtime Qwen ${runtimeVersion} identificado e validado.`
 					: "Identidade do runtime Qwen confirmada.",
 				detail: workerSha
-					? `Worker selado · SHA-256 ${workerSha.slice(0, 12)}…`
+					? `Worker selado · SHA-256 ${workerSha}`
 					: undefined,
 			};
 		}
