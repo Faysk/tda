@@ -404,6 +404,8 @@ export function ProcessingPanel({
 									? styles.overviewTop
 									: `${styles.overviewTop} ${styles.overviewTopIdle}`
 							}
+							data-processing-overview-top="true"
+							data-active-job={activeJob ? "true" : "false"}
 						>
 							<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
