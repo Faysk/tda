@@ -183,7 +183,7 @@ function GpuMetric({ gpu }: { gpu: SystemGpu }) {
 
 function JobRow({
 	job,
-	busy,
+	pendingAction,
 	canDelete,
 	onCancel,
 	onRetry,
@@ -191,7 +191,7 @@ function JobRow({
 	onDelete,
 }: {
 	job: LocalJob;
-	busy: boolean;
+	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
 	canDelete: boolean;
 	onCancel: () => void;
 	onRetry: () => void;
@@ -232,24 +232,24 @@ function JobRow({
 			<time dateTime={job.updated_at}>{formatDateTime(job.updated_at)}</time>
 			<div className={styles.rowActions}>
 				{["queued", "running"].includes(job.status) ? (
-					<Button size="sm" disabled={busy} onClick={onCancel}>
-						Cancelar trabalho
+					<Button size="sm" disabled={pendingAction === "cancel"} onClick={onCancel}>
+						{pendingAction === "cancel" ? "Cancelando…" : "Cancelar trabalho"}
 					</Button>
 				) : null}
 				{["failed", "interrupted"].includes(job.status) && job.error?.recoverable ? (
-					<Button size="sm" disabled={busy} onClick={onRetry}>
-						Repetir trabalho
+					<Button size="sm" disabled={pendingAction === "retry"} onClick={onRetry}>
+						{pendingAction === "retry" ? "Repetindo…" : "Repetir trabalho"}
 					</Button>
 				) : null}
 				{job.status === "succeeded" && job.result_available ? (
-					<Button size="sm" disabled={busy} onClick={onResult}>
-						Consultar resultado local
+					<Button size="sm" disabled={pendingAction === "result"} onClick={onResult}>
+						{pendingAction === "result" ? "Consultando…" : "Consultar resultado local"}
 					</Button>
 				) : null}
 				{canDelete &&
 				["succeeded", "failed", "interrupted", "cancelled"].includes(job.status) ? (
-					<Button size="sm" variant="tertiary" disabled={busy} onClick={onDelete}>
-						Excluir
+					<Button size="sm" variant="tertiary" disabled={pendingAction === "delete"} onClick={onDelete}>
+						{pendingAction === "delete" ? "Excluindo…" : "Excluir"}
 					</Button>
 				) : null}
 			</div>
@@ -275,19 +275,23 @@ export function ProcessingPanel({
 		return () => controller.disconnect();
 	}, [controller]);
 	useEffect(() => {
-		if (state.connection !== "connected" || state.busy) return;
-		const timer = setTimeout(() => {
-			if (document.visibilityState === "visible") void controller.refresh();
-		}, 3000);
+		if (state.connection !== "connected" || state.mutation) return;
+		const hasActiveWork = state.jobs.some((job) => job.status === "running");
+		const delay = hasActiveWork ? 1500 : 6000;
+		const timer = window.setTimeout(() => {
+			if (document.visibilityState === "visible")
+				void controller.refresh("background");
+		}, delay);
 		const visible = () => {
-			if (document.visibilityState === "visible") void controller.refresh();
+			if (document.visibilityState === "visible")
+				void controller.refresh("background");
 		};
 		document.addEventListener("visibilitychange", visible);
 		return () => {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", visible);
 		};
-	}, [controller, state.connection, state.busy]);
+	}, [controller, state.connection, state.jobs, state.mutation]);
 	useEffect(() => {
 		if (confirmation) dialog.current?.showModal();
 		else dialog.current?.close();
@@ -337,6 +341,11 @@ export function ProcessingPanel({
 		else await controller.jobAction(choice.id, choice.action);
 	}
 
+	function activateView(next: ProcessingView) {
+		setView(next);
+		if (next === "results") void controller.refresh("results");
+	}
+
 	function selectViewFromKeyboard(
 		event: ReactKeyboardEvent<HTMLButtonElement>,
 		index: number,
@@ -355,7 +364,7 @@ export function ProcessingPanel({
 		event.preventDefault();
 		const next = processingViews[nextIndex];
 		if (!next) return;
-		setView(next.id);
+		activateView(next.id);
 		requestAnimationFrame(() => {
 			document.getElementById(`processing-tab-${next.id}`)?.focus();
 		});
@@ -365,7 +374,12 @@ export function ProcessingPanel({
 		<JobRow
 			key={job.id}
 			job={job}
-			busy={state.busy}
+			pendingAction={
+				state.mutation?.targetId === job.id &&
+				["cancel", "retry", "result", "delete"].includes(state.mutation.kind)
+					? (state.mutation.kind as "cancel" | "retry" | "result" | "delete")
+					: null
+			}
 			canDelete={canDeleteJobs}
 			onCancel={() => setConfirmation({ id: job.id, action: "cancel" })}
 			onRetry={() => setConfirmation({ id: job.id, action: "retry" })}
@@ -391,7 +405,7 @@ export function ProcessingPanel({
 						aria-controls={`processing-view-${item.id}`}
 						data-active={view === item.id ? "true" : "false"}
 						tabIndex={view === item.id ? 0 : -1}
-						onClick={() => setView(item.id)}
+						onClick={() => activateView(item.id)}
 						onKeyDown={(event) => selectViewFromKeyboard(event, index)}
 					>
 						{item.label}
@@ -408,6 +422,11 @@ export function ProcessingPanel({
 							<StatusPill tone={connected ? "success" : state.error ? "danger" : "neutral"}>
 								{label}
 							</StatusPill>
+							{connected && state.refreshError ? (
+								<span className={styles.staleData}>
+									Dados temporariamente desatualizados
+								</span>
+							) : null}
 						</div>
 						{connected ? (
 							<p className={styles.connectionMeta}>
@@ -446,16 +465,28 @@ export function ProcessingPanel({
 							<Metric label="Atenção" value={String(attention.length)} />
 						</section>
 						<div className={styles.connectionActions}>
-							<Button size="sm" disabled={state.busy} onClick={() => void controller.refresh()}>
-								Atualizar estado
+							<Button
+								size="sm"
+								disabled={state.refreshing}
+								onClick={() => void controller.refresh("manual")}
+							>
+								{state.refreshing ? "Atualizando…" : "Atualizar estado"}
 							</Button>
 							{state.health?.lifecycle === "paused" ? (
-								<Button size="sm" disabled={state.busy} onClick={() => setConfirmation({ action: "resume" })}>
-									Retomar fila
+								<Button
+									size="sm"
+									disabled={state.mutation?.kind === "resume"}
+									onClick={() => setConfirmation({ action: "resume" })}
+								>
+									{state.mutation?.kind === "resume" ? "Retomando…" : "Retomar fila"}
 								</Button>
 							) : state.health?.lifecycle === "ready" ? (
-								<Button size="sm" disabled={state.busy} onClick={() => void controller.lifecycle("pause")}>
-									Pausar novas execuções
+								<Button
+									size="sm"
+									disabled={state.mutation?.kind === "pause"}
+									onClick={() => void controller.lifecycle("pause")}
+								>
+									{state.mutation?.kind === "pause" ? "Pausando…" : "Pausar novas execuções"}
 								</Button>
 							) : null}
 						</div>
@@ -482,7 +513,7 @@ export function ProcessingPanel({
 							<Button
 								type="button"
 								size="sm"
-								disabled={state.busy}
+								disabled={state.connection === "connecting"}
 								onClick={() => {
 									window.location.href = "tda-companion://open";
 									void (async () => {
@@ -503,7 +534,7 @@ export function ProcessingPanel({
 								type="button"
 								size="sm"
 								variant="tertiary"
-								disabled={state.busy}
+								disabled={state.connection === "connecting"}
 								onClick={() => void controller.connect()}
 							>
 								Tentar novamente
@@ -633,7 +664,10 @@ export function ProcessingPanel({
 											<Button
 												size="sm"
 												className={styles.dangerAction}
-												disabled={state.busy}
+												disabled={
+													state.mutation?.kind === "cancel" &&
+													state.mutation.targetId === activeJob.id
+												}
 												onClick={() =>
 													setConfirmation({
 														id: activeJob.id,
@@ -641,7 +675,10 @@ export function ProcessingPanel({
 													})
 												}
 											>
-												Cancelar trabalho
+												{state.mutation?.kind === "cancel" &&
+												state.mutation.targetId === activeJob.id
+													? "Cancelando…"
+													: "Cancelar trabalho"}
 											</Button>
 										</div>
 									</article>
@@ -743,7 +780,7 @@ export function ProcessingPanel({
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							review={state.localReview}
-							busy={state.localReviewBusy || state.busy}
+							busy={state.localReviewBusy}
 							error={state.localReviewError}
 							publicationEnabled={publicationEnabled}
 							onOpen={(sourceId, runId) =>
@@ -895,12 +932,14 @@ export function ProcessingPanel({
 									<Button
 										size="sm"
 										disabled={
-											state.busy ||
+											state.mutation?.kind === "synthetic" ||
 											state.health?.lifecycle !== "ready"
 										}
 										onClick={() => void controller.synthetic()}
 									>
-										Executar ensaio sintético
+										{state.mutation?.kind === "synthetic"
+											? "Executando…"
+											: "Executar ensaio sintético"}
 									</Button>
 								</div>
 							) : null}
