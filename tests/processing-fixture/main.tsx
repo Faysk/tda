@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import "../../src/app/design-tokens.css";
 import "../../src/app/design-system.css";
 import "../../src/app/globals.css";
-import { GlobalLoadingProvider } from "../../src/components/global-loading/global-loading";
 import { ProcessingPanel } from "../../src/features/edit/processing/panel";
 import processingStyles from "../../src/features/edit/processing/processing.module.css";
 
@@ -21,24 +20,22 @@ if (new URLSearchParams(location.search).has("integrated")) {
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
-	<GlobalLoadingProvider>
-		<main className={processingStyles.page} data-processing-workspace="true">
-			<h1
-				style={{
-					position: "absolute",
-					width: 1,
-					height: 1,
-					padding: 0,
-					margin: -1,
-					overflow: "hidden",
-					clip: "rect(0 0 0 0)",
-					whiteSpace: "nowrap",
-					border: 0,
-				}}
-			>
-				Processamento
-			</h1>
-			<ProcessingPanel />
-		</main>
-	</GlobalLoadingProvider>,
+	<main className={processingStyles.page} data-processing-workspace="true">
+		<h1
+			style={{
+				position: "absolute",
+				width: 1,
+				height: 1,
+				padding: 0,
+				margin: -1,
+				overflow: "hidden",
+				clip: "rect(0 0 0 0)",
+				whiteSpace: "nowrap",
+				border: 0,
+			}}
+		>
+			Processamento
+		</h1>
+		<ProcessingPanel />
+	</main>,
 );
