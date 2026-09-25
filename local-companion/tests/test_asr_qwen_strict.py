@@ -898,6 +898,15 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
         ([], "QWEN_ALIGNMENT_EMPTY"),
     ),
 )
+def test_alignment_failure_class_rejects_arbitrary_private_text():
+    error = asr_qwen_strict._alignment_required(
+        "C:\\private\\session\\secret.flac",
+        aligned_item=3,
+    )
+    assert error.alignment_failure_class == "QWEN_ALIGNMENT_REQUIRED"
+    assert error.alignment_diagnostics == {"aligned_item": 3}
+
+
 def test_strict_alignment_classifies_failures_without_transcript_payload(
     aligned,
     failure_class: str,
