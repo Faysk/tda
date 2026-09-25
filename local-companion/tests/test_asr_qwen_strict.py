@@ -327,6 +327,16 @@ def test_alignment_failure_event_allowlists_diagnostic_metadata(
 ):
     package, root = _package(tmp_path)
     reports: list[dict] = []
+    sealed_worker = "a" * 64
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_runtime_fingerprint",
+        lambda: (
+            "checkpoint=qwen-track-v3;"
+            "runtime=1.0.11;"
+            f"worker_sha256={sealed_worker}"
+        ),
+    )
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
@@ -378,6 +388,8 @@ def test_alignment_failure_event_allowlists_diagnostic_metadata(
         item for item in reports if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
     )
     assert failure["aligned_item"] == 2
+    assert failure["runtime_version"] == "1.0.11"
+    assert failure["worker_sha256"] == sealed_worker
     assert "private_counter" not in failure
 
 
