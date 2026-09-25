@@ -45,12 +45,12 @@ test("dropzone aceita drag/drop e teclado, sugere sessão segura e mantém priva
 	});
 
 	await expect(dropzone).toHaveAttribute("data-selected", "true");
-	await expect(composer.getByLabel("Sessão")).toHaveValue("Sessao-epica-42");
+	await expect(composer.locator("[data-craig-session-id='true']")).toHaveValue("Sessao-epica-42");
 	await expect(composer).toContainText("Sessão épica #42.zip");
 	await expect(composer).toContainText("Qwen3-ASR · pronto neste Companion");
 	await expect(composer).toContainText("Ainda sem calibração nesta máquina.");
 	await expect(
-		composer.getByText("Áudio permanece nesta máquina.", { exact: true }),
+		composer.getByText(/Áudio permanece nesta máquina\./u),
 	).toBeVisible();
 	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
 
@@ -67,7 +67,7 @@ test("dropzone aceita drag/drop e teclado, sugere sessão segura e mantém priva
 		buffer: Buffer.from("PK replacement"),
 	});
 	await expect(composer).toContainText("sessao-42.zip");
-	await expect(composer.getByLabel("Sessão")).toHaveValue("Sessao-epica-42");
+	await expect(composer.locator("[data-craig-session-id='true']")).toHaveValue("Sessao-epica-42");
 
 	await composer.getByText("Contexto e glossário", { exact: true }).click();
 	await expect(composer.getByLabel("Contexto opcional")).toBeVisible();
@@ -80,7 +80,7 @@ test("composer preserva arquivo, sessão, contexto e glossário ao trocar tabs",
 	await installCompanionFixture(page, { profileReady: true });
 	const composer = await openComposer(page);
 	await chooseZip(composer);
-	await composer.getByLabel("Sessão").fill("sessao-persistente");
+	await composer.locator("[data-craig-session-id='true']").fill("sessao-persistente");
 	await composer.getByText("Contexto e glossário", { exact: true }).click();
 	await composer.getByLabel("Contexto opcional").fill("Contexto preservado");
 	await composer.getByLabel("Glossário opcional").fill("Yuhara; Pipipi");
@@ -89,7 +89,7 @@ test("composer preserva arquivo, sessão, contexto e glossário ao trocar tabs",
 	await page.getByRole("tab", { name: "Visão geral" }).click();
 
 	await expect(composer).toContainText("sessao-42.zip");
-	await expect(composer.getByLabel("Sessão")).toHaveValue("sessao-persistente");
+	await expect(composer.locator("[data-craig-session-id='true']")).toHaveValue("sessao-persistente");
 	await expect(composer.getByLabel("Contexto opcional")).toHaveValue(
 		"Contexto preservado",
 	);
@@ -121,7 +121,7 @@ test("validação local bloqueia arquivo incorreto antes do Companion e archive 
 	).toBeDisabled();
 
 	await chooseZip(composer);
-	await composer.getByLabel("Sessão").fill("sessao-42");
+	await composer.locator("[data-craig-session-id='true']").fill("sessao-42");
 	await composer
 		.getByRole("button", { name: "Adicionar à fila", exact: true })
 		.click();
@@ -143,7 +143,7 @@ test("pending local mostra validar → preparar → enviar e resume fonte reutil
 		advanceJobs: false,
 	});
 	const composer = await openComposer(page);
-	await composer.getByLabel("Sessão").fill("sessao-42");
+	await composer.locator("[data-craig-session-id='true']").fill("sessao-42");
 	await chooseZip(composer);
 
 	const initial = composer.getByRole("button", {
@@ -243,7 +243,7 @@ test("mobile mantém ordem arquivo → sessão → profile → calibração → 
 	await chooseZip(composer);
 
 	const drop = composer.locator("[data-craig-dropzone='true']");
-	const session = composer.getByLabel("Sessão");
+	const session = composer.locator("[data-craig-session-id='true']");
 	const profile = composer.getByLabel("Profile");
 	const estimate = composer.getByText("Ainda sem calibração nesta máquina.", {
 		exact: true,
