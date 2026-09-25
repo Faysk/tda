@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+	fixtureJob,
 	installCompanionFixture,
 	LOCAL_API,
 	TRANSCRIPT_SHA,
@@ -161,26 +162,7 @@ test("running workspace keeps the composer compact while preserving the primary 
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
-		initialJobs: [
-			{
-				id: "job-running-composer",
-				type: "craig_transcription",
-				status: "running",
-				stage: "transcribing",
-				title: "Transcrição em andamento",
-				detail: "Processando localmente",
-				created_at: "2026-09-25T10:00:00Z",
-				updated_at: "2026-09-25T10:01:00Z",
-				progress: { completed: 1, total: 4, unit: "tracks" },
-				attempt: 1,
-				context: {
-					campaignId: "yuhara-main",
-					sessionId: "sessao-running",
-					sourceId: "craig-" + "a".repeat(64),
-					profileId: "qwen-quality",
-				},
-			},
-		],
+		initialJobs: [fixtureJob("running")],
 	});
 	await page.goto("/");
 	await expect(page.getByText("Processando agora", { exact: true })).toBeVisible();
