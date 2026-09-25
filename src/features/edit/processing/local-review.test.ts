@@ -185,6 +185,12 @@ describe("local result/review contracts", () => {
 			attempt: 1,
 			transcript_sha256: transcriptSha,
 		},
+						review_summary: {
+							schema_version: "tda_local_review_summary_v1",
+							status: "reviewed",
+							draft_revision: 3,
+							updated_at: "2026-09-21T00:30:00.000Z",
+						},
 						stats: {
 							audio_work_seconds: 60,
 							processing_seconds: 12,
@@ -230,6 +236,11 @@ describe("local result/review contracts", () => {
 				jobId: "job-review",
 				attempt: 1,
 			},
+			reviewSummary: {
+				status: "reviewed",
+				draftRevision: 3,
+				updatedAt: "2026-09-21T00:30:00.000Z",
+			},
 			stats: {
 				audioWorkSeconds: 60,
 				processingSeconds: 12,
@@ -242,6 +253,45 @@ describe("local result/review contracts", () => {
 				deduplicatedSegmentCount: 1,
 				warningCount: 3,
 			},
+		});
+	});
+
+	it("parses invalid review summaries distinctly instead of pretending there is no draft", () => {
+		const parsed = parseLocalRuns({
+			schema_version: "tda_transcription_runs_v1",
+			source_id: sourceId,
+			runs: [
+				{
+					run_id: runId,
+					status: "completed",
+					source_id: sourceId,
+					profile_id: "qwen-quality",
+					engine: "qwen3",
+					model: "qwen",
+					model_revision: null,
+					device: "cuda",
+					compute_type: "float16",
+					alignment: "forced",
+					execution_lineage: null,
+					language: "pt",
+					completed_at: "2026-09-21T00:00:00.000Z",
+					transcript_sha256: transcriptSha,
+					transcript_size_bytes: 1200,
+					stats: {},
+					publication_target: null,
+					review_summary: {
+						schema_version: "tda_local_review_summary_v1",
+						status: "invalid",
+						draft_revision: null,
+						updated_at: null,
+					},
+				},
+			],
+		});
+		expect(parsed[0]?.reviewSummary).toEqual({
+			status: "invalid",
+			draftRevision: null,
+			updatedAt: null,
 		});
 	});
 
