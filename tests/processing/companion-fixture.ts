@@ -46,6 +46,10 @@ export type CompanionFixtureOptions = {
 	profileReady?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
+	craigUploadDelayMs?: number;
+	craigUploadErrorCode?: string;
+	craigReused?: boolean;
+	jobPostDelayMs?: number;
 	jobReadDelayMs?: number;
 	system?: FixtureSystemSnapshot;
 	localRuns?: Record<string, unknown>[];
@@ -538,14 +542,29 @@ export async function installCompanionFixture(
 			const body = request.postDataBuffer();
 			if (!body || body.length === 0)
 				return invalidRequest(route, "CRAIG_UPLOAD_EMPTY");
+			if (options.craigUploadDelayMs)
+				await new Promise((resolve) =>
+					setTimeout(resolve, options.craigUploadDelayMs),
+				);
 			state.uploadCount += 1;
+			if (options.craigUploadErrorCode)
+				return json(
+					route,
+					{
+						error: {
+							code: options.craigUploadErrorCode,
+							recoverable: false,
+						},
+					},
+					422,
+				);
 			return json(route, {
 				schema_version: "tda_craig_ingest_v1",
 				source_id: CRAIG_SOURCE_ID,
 				source_sha256: sourceSha,
 				size_bytes: 2048,
 				track_count: 2,
-				reused: false,
+				reused: options.craigReused ?? false,
 			});
 		}
 		if (path === "/preparation" && request.method() === "POST") {
@@ -600,6 +619,10 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
+			if (options.jobPostDelayMs)
+				await new Promise((resolve) =>
+					setTimeout(resolve, options.jobPostDelayMs),
+				);
 			let payload: unknown;
 			try {
 				payload = request.postDataJSON();
