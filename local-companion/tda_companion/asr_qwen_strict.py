@@ -62,6 +62,17 @@ _ALIGNMENT_RUNTIME_PASSTHROUGH = frozenset(
         "QWEN_ASR_RUNTIME_API_FAILED",
     }
 )
+_ALIGNMENT_DIAGNOSTIC_KEYS = frozenset(
+    {
+        "aligned_item",
+        "relative_start_seconds",
+        "relative_end_seconds",
+        "overflow_seconds",
+        "previous_end_seconds",
+        "aligned_word_count",
+        "owned_word_count",
+    }
+)
 _CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
@@ -747,7 +758,7 @@ def transcribe_craig_package_qwen_strict(
                             diagnostics = getattr(exc, "alignment_diagnostics", {})
                             if isinstance(diagnostics, dict):
                                 for key, value in diagnostics.items():
-                                    if not isinstance(key, str):
+                                    if key not in _ALIGNMENT_DIAGNOSTIC_KEYS:
                                         continue
                                     if isinstance(value, bool) or isinstance(value, int):
                                         failure_data[key] = value
