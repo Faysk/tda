@@ -17,16 +17,12 @@
 }
 
 .heading span,
-.heading small,
-.form label > span,
-.actions span,
-.source {
+.heading small {
 	color: var(--ds-foreground-muted);
 	font-size: 0.72rem;
 }
 
-.heading span,
-.form label > span {
+.heading span {
 	font-weight: 700;
 	letter-spacing: 0.025em;
 }
@@ -40,8 +36,132 @@
 
 .form {
 	display: grid;
-	grid-template-columns: minmax(150px, 0.7fr) minmax(170px, 0.68fr) minmax(260px, 1.3fr) auto;
-	align-items: end;
+	gap: 10px;
+	min-width: 0;
+}
+
+.fileArea {
+	display: grid;
+	gap: 7px;
+	min-width: 0;
+}
+
+.fileInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.dropzone {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 82px;
+	padding: 12px;
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	cursor: pointer;
+	font: inherit;
+	text-align: left;
+	transition:
+		border-color 140ms ease,
+		background-color 140ms ease,
+		transform 140ms ease;
+}
+
+.dropzone:hover,
+.dropzone[data-drag-active="true"] {
+	border-color: var(--ds-accent);
+	background: var(--ds-accent-muted);
+}
+
+.dropzone[data-drag-active="true"] {
+	transform: translateY(-1px);
+}
+
+.dropzone:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.dropzone:disabled {
+	cursor: not-allowed;
+	opacity: 0.65;
+}
+
+.dropIcon {
+	display: grid;
+	width: 42px;
+	height: 42px;
+	flex: 0 0 auto;
+	place-items: center;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+	color: var(--ds-accent);
+	font-size: 0.7rem;
+	font-weight: 850;
+	letter-spacing: 0.08em;
+}
+
+.dropCopy {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.dropCopy strong {
+	font-size: 0.82rem;
+}
+
+.dropCopy small,
+.fileSummary span,
+.pendingMeta {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.35;
+}
+
+.fileSummary {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface-elevated);
+}
+
+.fileSummary > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.fileSummary strong {
+	overflow: hidden;
+	font-size: 0.75rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pendingMeta {
+	grid-column: 1 / -1;
+}
+
+.coreFields {
+	display: grid;
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+	align-items: start;
 	gap: 8px;
 }
 
@@ -51,13 +171,20 @@
 	min-width: 0;
 }
 
+.form label > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.025em;
+}
+
 .form input,
 .form select,
 .form textarea {
 	width: 100%;
 	min-height: 36px;
 	padding: 6px 8px;
-	border: 1px solid var(--ds-border);
+	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-canvas-subtle);
 	color: var(--ds-foreground);
@@ -72,53 +199,121 @@
 .form input:focus-visible,
 .form select:focus-visible,
 .form textarea:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
-.actions {
+.sessionField > small,
+.profileMeta > span,
+.profileMeta > small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+	line-height: 1.35;
+}
+
+.sessionSuggestion {
+	justify-self: start;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--ds-accent);
+	cursor: pointer;
+	font: inherit;
+	font-size: 0.6875rem;
+	font-weight: 650;
+	text-align: left;
+}
+
+.sessionSuggestion:hover {
+	text-decoration: underline;
+}
+
+.sessionSuggestion:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.profileMeta {
+	display: grid;
+	gap: 2px;
+	padding: 7px 8px;
+	border-left: 2px solid var(--ds-border);
+	background: var(--ds-canvas-subtle);
+}
+
+.profileMeta strong {
+	color: var(--ds-foreground-soft);
+	font-size: 0.72rem;
+}
+
+.profileMeta small {
+	font-style: italic;
+}
+
+.submitRow {
 	display: flex;
-	align-items: end;
-	justify-content: flex-end;
-	gap: 8px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-top: 2px;
+}
+
+.privacy {
+	display: grid;
+	gap: 2px;
 	min-width: 0;
 }
 
-.actions span {
-	max-width: 118px;
+.privacy > strong {
+	color: var(--ds-foreground-soft);
+	font-size: 0.75rem;
+}
+
+.privacy details {
+	color: var(--ds-foreground-muted);
 	font-size: 0.6875rem;
-	line-height: 1.25;
+}
+
+.privacy summary {
+	cursor: pointer;
+	font-weight: 650;
+}
+
+.privacy summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.privacy p {
+	max-width: 56ch;
+	margin: 4px 0 0;
+	line-height: 1.4;
 }
 
 .advanced {
-	grid-column: 1 / -1;
-	margin-top: 1px;
 	border-top: 1px solid var(--ds-border-subtle);
 }
 
 .advanced summary {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
+	gap: 7px;
 	min-height: 30px;
-	padding: 5px 2px 0;
+	padding: 6px 2px 0;
 	color: var(--ds-foreground-soft);
 	cursor: pointer;
-	font-size: 0.7rem;
+	font-size: 0.72rem;
 	font-weight: 700;
-	list-style-position: inside;
 }
 
 .advanced summary small {
-	margin-left: auto;
 	color: var(--ds-foreground-muted);
 	font-size: 0.6875rem;
 	font-weight: 500;
 }
 
 .advanced summary:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -130,17 +325,12 @@
 }
 
 .notice,
-.error {
-	grid-column: 1 / -1;
-}
-
-.notice,
-.status,
 .error,
-.source {
-	margin: 9px 0 0;
-	font-size: 0.76rem;
-	line-height: 1.45;
+.inlineError,
+.status {
+	margin: 0;
+	font-size: 0.74rem;
+	line-height: 1.42;
 }
 
 .notice,
@@ -148,58 +338,77 @@
 	color: var(--ds-foreground-muted);
 }
 
-.error {
+.error,
+.inlineError {
 	color: var(--ds-danger-foreground, #c33);
 }
 
+.blocked {
+	display: grid;
+	gap: 5px;
+	padding: 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.blocked strong {
+	font-size: 0.8rem;
+}
+
+.blocked span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.blocked :global(.ds-action) {
+	justify-self: start;
+}
 
 .card[data-layout="compact"] .heading {
 	align-items: flex-start;
 	flex-direction: column;
-	gap: 4px;
-	margin-bottom: 10px;
+	gap: 3px;
+	margin-bottom: 9px;
 }
 
-.card[data-layout="compact"] .form {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+.card[data-layout="compact"] .dropzone {
+	min-height: 70px;
+	padding: 10px;
 }
 
-.card[data-layout="compact"] .fileField,
-.card[data-layout="compact"] .actions,
-.card[data-layout="compact"] .advanced,
-.card[data-layout="compact"] .notice,
-.card[data-layout="compact"] .error {
-	grid-column: 1 / -1;
+.card[data-layout="compact"] .fileSummary,
+.card[data-layout="compact"] .coreFields {
+	grid-template-columns: 1fr;
 }
 
-.card[data-layout="compact"] .actions {
-	align-items: center;
-	justify-content: space-between;
+.card[data-layout="compact"] .submitRow {
+	align-items: stretch;
+	flex-direction: column;
 }
 
-.card[data-layout="compact"] .actions span {
-	max-width: 170px;
-	text-align: right;
+.card[data-layout="compact"] .submitRow :global(.ds-action) {
+	width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dropzone {
+		transition: none;
+	}
 }
 
 @media (max-width: 1100px) {
-	.form {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+	.coreFields {
+		grid-template-columns: 1fr;
 	}
 
-	.fileField,
-	.actions,
-	.advanced {
-		grid-column: 1 / -1;
+	.fileSummary {
+		grid-template-columns: 1fr;
 	}
 
-	.actions {
-		align-items: center;
-		justify-content: flex-start;
-	}
-
-	.actions span {
-		max-width: none;
+	.pendingMeta {
+		grid-column: auto;
 	}
 }
 
@@ -213,33 +422,21 @@
 		flex-direction: column;
 	}
 
-	.form,
+	.dropzone {
+		min-height: 76px;
+	}
+
+	.submitRow,
 	.advancedGrid {
+		display: grid;
 		grid-template-columns: 1fr;
 	}
 
-	.fileField,
-	.actions,
-	.advanced,
-	.notice,
-	.error {
-		grid-column: auto;
-	}
-
-	.actions {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
-	.actions :global(.ds-action) {
+	.submitRow :global(.ds-action) {
 		width: 100%;
 	}
 
-	.advanced summary {
-		align-items: flex-start;
-	}
-
 	.advanced summary small {
-		display: none;
+		display: inline;
 	}
 }
