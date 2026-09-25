@@ -225,6 +225,49 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 	await expect(page.getByRole("button", { name: "Revisar", exact: true })).toBeVisible();
 });
 
+test("salvar revisão atualiza o badge do run imediatamente sem refetch da biblioteca", async ({
+	page,
+}) => {
+	const run = fixtureRun("run-save-state", {
+		review_summary: reviewSummary("draft", 0),
+	});
+	const review = fixtureReview("run-save-state");
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		localRuns: [run],
+		localReviews: { "run-save-state": review },
+	});
+
+	await openResults(page);
+	await page.getByRole("button", { name: "Revisar", exact: true }).click();
+
+	await page.getByLabel("Estado do draft").selectOption("approved_local");
+	await page.getByRole("button", { name: "Salvar revisão" }).click();
+	await expect(
+		page.getByText("Draft salvo localmente.", { exact: true }),
+	).toBeVisible();
+
+	const libraryReadsBefore = state.requests.filter(
+		(item) => item.path === "/sources" || /\/sources\/[^/]+\/runs$/u.test(item.path),
+	).length;
+
+	await page.getByRole("button", { name: "Voltar aos resultados" }).click();
+
+	await expect(
+		page.getByText("Aprovado localmente", { exact: true }).first(),
+	).toBeVisible();
+	const libraryReadsAfter = state.requests.filter(
+		(item) => item.path === "/sources" || /\/sources\/[^/]+\/runs$/u.test(item.path),
+	).length;
+	expect(libraryReadsAfter).toBe(libraryReadsBefore);
+	expect(
+		state.requests.filter(
+			(item) => item.method === "POST" && item.path.endsWith("/review"),
+		),
+	).toHaveLength(1);
+});
+
 test("mobile usa lista → detalhe → voltar sem split comprimido", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 780 });
 	await installCompanionFixture(page, {
