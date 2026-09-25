@@ -102,6 +102,9 @@ test("biblioteca escala para dezenas de runs e mantém detalhe somente no seleci
 		library.getByRole("button", { name: /sessao-30/i }),
 	).toBeVisible();
 
+	if ((page.viewportSize()?.width ?? 1024) <= 760)
+		await library.getByRole("button", { name: /sessao-01/i }).click();
+
 	await expect(page.getByRole("heading", { name: "Performance" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Output" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Execution" })).toBeVisible();
@@ -159,9 +162,9 @@ test("search filtros review/lineage e sorting usam somente fatos do run", async 
 
 	await library.getByLabel("Revisão").selectOption("all");
 	await library.getByLabel("Lineage").selectOption("legacy");
-	await expect(
-		library.getByRole("button", { name: /craig-/i }),
-	).toHaveCount(1);
+	const legacyRun = library.getByRole("button", { name: /craig-/i });
+	await expect(legacyRun).toHaveCount(1);
+	await legacyRun.click();
 	await expect(
 		page.getByText("Lineage histórico não registrado.", { exact: true }),
 	).toBeVisible();
@@ -193,7 +196,9 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 	await openResults(page);
 
 	expect(state.requests.filter((item) => item.path.endsWith("/review"))).toHaveLength(0);
-	await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+	const selectedRun = page.getByRole("button", { name: /sessao-42/i });
+	if ((page.viewportSize()?.width ?? 1024) <= 760) await selectedRun.click();
+	await expect(selectedRun).toContainText("Draft");
 
 	await page.getByRole("button", { name: "Revisar", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Qwen Quality" })).toBeVisible();
@@ -240,6 +245,8 @@ test("salvar revisão atualiza o badge do run imediatamente sem refetch da bibli
 	});
 
 	await openResults(page);
+	const selectedRun = page.getByRole("button", { name: /sessao-42/i });
+	if ((page.viewportSize()?.width ?? 1024) <= 760) await selectedRun.click();
 	await page.getByRole("button", { name: "Revisar", exact: true }).click();
 
 	await page.getByLabel("Estado do draft").selectOption("approved_local");
@@ -255,8 +262,8 @@ test("salvar revisão atualiza o badge do run imediatamente sem refetch da bibli
 	await page.getByRole("button", { name: "Voltar aos resultados" }).click();
 
 	await expect(
-		page.getByText("Aprovado localmente", { exact: true }).first(),
-	).toBeVisible();
+		page.getByRole("button", { name: /sessao-42/i }),
+	).toContainText("Aprovado localmente");
 	const libraryReadsAfter = state.requests.filter(
 		(item) => item.path === "/sources" || /\/sources\/[^/]+\/runs$/u.test(item.path),
 	).length;
