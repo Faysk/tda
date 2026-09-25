@@ -504,6 +504,7 @@ export function ProcessingSubmission({
 	return (
 		<section
 			className={className ? `${styles.card} ${className}` : styles.card}
+			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
 			aria-labelledby="new-local-transcription"
 		>
@@ -537,6 +538,7 @@ export function ProcessingSubmission({
 				<form className={styles.form} onSubmit={submit}>
 					<div
 						className={styles.dropZone}
+						data-craig-dropzone="true"
 						data-active={dragActive ? "true" : "false"}
 						data-selected={file ? "true" : "false"}
 						onDragEnter={(event) => {
