@@ -205,7 +205,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
-		"não promete retomar do ponto exato",
+		"checkpoints compatíveis serão reutilizados quando disponíveis",
 	);
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 
