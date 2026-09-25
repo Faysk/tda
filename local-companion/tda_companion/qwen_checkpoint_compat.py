@@ -17,8 +17,17 @@ from .asr_checkpoints import (
 from .craig import CraigTrack
 
 _RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
+_WORKER_SHA256 = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RUNTIME_COMPATIBILITY = frozenset({("1.0.10", "1.0.11")})
+# Exact worker accepted and promoted as companion-qwen-runtime-v1.0.10.
+# Receipt: docs/companion/runtime-acceptance/
+# companion-qwen-runtime-rc-v1.0.10-19d9b3b64238.json
+_ACCEPTED_SOURCE_WORKERS = {
+    ("1.0.10", "1.0.11"): frozenset(
+        {"8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e"}
+    )
+}
 _MAX_CHECKPOINT_ROOTS = 256
 
 
@@ -36,6 +45,13 @@ def _runtime_version(value: str) -> str | None:
     return None if match is None else match.group(1)
 
 
+def _worker_sha256(value: str) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = _WORKER_SHA256.search(value)
+    return None if match is None else match.group(1)
+
+
 def _compatible_signature(
     candidate: CheckpointSignature,
     *,
@@ -44,10 +60,17 @@ def _compatible_signature(
 ) -> bool:
     current_version = _runtime_version(current.runtime_fingerprint)
     candidate_version = _runtime_version(candidate.runtime_fingerprint)
+    candidate_worker = _worker_sha256(candidate.runtime_fingerprint)
+    transition = (
+        (candidate_version, current_version)
+        if candidate_version is not None and current_version is not None
+        else None
+    )
     if (
-        current_version is None
-        or candidate_version is None
-        or (candidate_version, current_version) not in _RUNTIME_COMPATIBILITY
+        transition is None
+        or transition not in _RUNTIME_COMPATIBILITY
+        or candidate_worker is None
+        or candidate_worker not in _ACCEPTED_SOURCE_WORKERS.get(transition, frozenset())
     ):
         return False
     candidate_value = candidate.as_dict()
