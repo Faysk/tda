@@ -6,7 +6,7 @@ import {
 } from "./companion-fixture";
 
 async function selectCraig(page: import("@playwright/test").Page) {
-	await page.getByLabel("ID da sessão").fill("sessao-42");
+	await page.getByLabel("Sessão").fill("sessao-42");
 	await page.getByLabel("Export do Craig").setInputFiles({
 		name: "sessao-42.zip",
 		mimeType: "application/zip",
@@ -45,7 +45,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 		page.getByRole("tab", { name: "Visão geral" }),
 	).toHaveAttribute("aria-selected", "true");
 
-	const advanced = page.getByText("Opções avançadas", { exact: true });
+	const advanced = page.getByText("Contexto e glossário", { exact: true });
 	await expect(advanced).toBeVisible();
 	await expect(page.getByLabel("Contexto opcional")).not.toBeVisible();
 	await expect(page.getByLabel("Glossário opcional")).not.toBeVisible();
@@ -67,7 +67,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(commandBar).not.toContainText("Synthetic CPU");
 
 	for (const locator of [
-		page.getByText("Nova transcrição Craig", { exact: true }),
+		page.getByText("Nova transcrição", { exact: true }),
 		commandBar,
 		page.getByText("Processando agora", { exact: true }),
 	]) {
@@ -101,7 +101,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Nova transcrição Craig", { exact: true })).toBeVisible();
+	await expect(page.getByText("Nova transcrição", { exact: true })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
 	const session = state.requests.find((request) => request.path === "/session");
@@ -110,7 +110,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Preparar profile" }).click();
 
 	await expect
 		.poll(() => state.uploadCount)
@@ -183,13 +183,13 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
 	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
 
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect
 		.poll(() => state.jobPostCount)
 		.toBe(2);
@@ -206,12 +206,12 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
-	await page.getByText("Opções avançadas", { exact: true }).click();
+	await page.getByText("Contexto e glossário", { exact: true }).click();
 	await page.getByLabel("Contexto opcional").fill("😀".repeat(1200));
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Adicionar à fila" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(
