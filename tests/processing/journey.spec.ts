@@ -45,7 +45,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 		page.getByRole("tab", { name: "Visão geral" }),
 	).toHaveAttribute("aria-selected", "true");
 
-	const advanced = page.getByText("Opções avançadas", { exact: true });
+	const advanced = page.getByText("Contexto e glossário", { exact: true });
 	await expect(advanced).toBeVisible();
 	await expect(page.getByLabel("Contexto opcional")).not.toBeVisible();
 	await expect(page.getByLabel("Glossário opcional")).not.toBeVisible();
@@ -66,10 +66,18 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(commandBar).not.toContainText("Concluídos");
 	await expect(commandBar).not.toContainText("Synthetic CPU");
 
+	await expect(page.getByText("Processando agora", { exact: true })).not.toBeVisible();
+	const composer = page.locator("[data-processing-submission='true']");
+	await expect(composer).toHaveAttribute("data-layout", "default");
+	await expect(page.getByText("Áudio permanece nesta máquina.", { exact: false })).toBeVisible();
+	await expect(
+		page.getByText("Sem estimativa calibrada nesta máquina.", { exact: true }),
+	).toBeVisible();
+
 	for (const locator of [
-		page.getByText("Nova transcrição Craig", { exact: true }),
+		page.getByText("Nova transcrição", { exact: true }),
 		commandBar,
-		page.getByText("Processando agora", { exact: true }),
+		composer,
 	]) {
 		const box = await locator.boundingBox();
 		expect(box).not.toBeNull();
@@ -89,6 +97,100 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	).toBe(true);
 });
 
+test("Craig picker, drag/drop, inline validation and tab persistence stay local", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const composer = page.locator("[data-processing-submission='true']");
+	const chooser = composer.getByRole("button", { name: "Escolher ZIP" });
+	await chooser.focus();
+	await expect(chooser).toBeFocused();
+
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "nao-e-craig.txt",
+		mimeType: "text/plain",
+		buffer: Buffer.from("nope"),
+	});
+	await expect(composer.getByRole("alert")).toContainText(
+		"Escolha um arquivo .zip",
+	);
+	await expect(
+		composer.getByRole("button", { name: "Adicionar à fila" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+
+	const dataTransfer = await page.evaluateHandle(() => {
+		const value = new DataTransfer();
+		value.items.add(
+			new File(["PK synthetic drag fixture"], "arrastado.zip", {
+				type: "application/zip",
+			}),
+		);
+		return value;
+	});
+	await composer
+		.locator("[data-craig-dropzone='true']")
+		.dispatchEvent("drop", { dataTransfer });
+	await expect(composer.getByText("arrastado.zip", { exact: true })).toBeVisible();
+	await expect(composer).toContainText("validação real acontece no Companion");
+
+	await composer.getByLabel("ID da sessão").fill("sessao-persistida");
+	await composer.getByText("Contexto e glossário", { exact: true }).click();
+	await composer.getByLabel("Contexto opcional").fill("Contexto persistente");
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+
+	await expect(composer.getByLabel("ID da sessão")).toHaveValue("sessao-persistida");
+	await expect(composer.getByText("arrastado.zip", { exact: true })).toBeVisible();
+	await expect(composer.getByLabel("Contexto opcional")).toHaveValue(
+		"Contexto persistente",
+	);
+	expect(state.uploadCount).toBe(0);
+});
+
+test("running workspace keeps the composer compact while preserving the primary CTA", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			{
+				id: "job-running-composer",
+				type: "craig_transcription",
+				status: "running",
+				stage: "transcribing",
+				title: "Transcrição em andamento",
+				detail: "Processando localmente",
+				created_at: "2026-09-25T10:00:00Z",
+				updated_at: "2026-09-25T10:01:00Z",
+				progress: { completed: 1, total: 4, unit: "tracks" },
+				attempt: 1,
+				context: {
+					campaignId: "yuhara-main",
+					sessionId: "sessao-running",
+					sourceId: "craig-" + "a".repeat(64),
+					profileId: "qwen-quality",
+				},
+			},
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Processando agora", { exact: true })).toBeVisible();
+	const composer = page.locator("[data-processing-submission='true']");
+	await expect(composer).toHaveAttribute("data-layout", "compact");
+	await expect(
+		composer.getByRole("button", { name: "Adicionar à fila" }),
+	).toBeVisible();
+});
+
 test("automatic session → Craig staging → preparation → queue → progress → result", async ({
 	page,
 }) => {
@@ -101,7 +203,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Nova transcrição Craig", { exact: true })).toBeVisible();
+	await expect(page.getByText("Nova transcrição", { exact: true })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
 	const session = state.requests.find((request) => request.path === "/session");
@@ -110,7 +212,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 
 	await expect
 		.poll(() => state.uploadCount)
@@ -183,13 +285,13 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
 	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
 
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect
 		.poll(() => state.jobPostCount)
 		.toBe(2);
@@ -206,12 +308,12 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
-	await page.getByText("Opções avançadas", { exact: true }).click();
+	await page.getByText("Contexto e glossário", { exact: true }).click();
 	await page.getByLabel("Contexto opcional").fill("😀".repeat(1200));
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Adicionar à fila" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(
