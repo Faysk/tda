@@ -219,7 +219,7 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("tab", { name: "Resultados" }).click();
-	await expect(page.getByLabel("Texto").first()).toHaveValue(
+	await expect(editor.getByLabel("Texto").first()).toHaveValue(
 		"Texto alterado e ainda não salvo",
 	);
 
