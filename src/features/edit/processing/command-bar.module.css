@@ -59,6 +59,11 @@
 	font-weight: 720;
 }
 
+.statusCopy strong .stateLabel {
+	color: inherit;
+	font: inherit;
+}
+
 .statusCopy span {
 	color: var(--ds-foreground-muted);
 	font-size: 0.6875rem;
