@@ -1,6 +1,7 @@
 import { beginInteractiveGlobalLoading } from "../../../components/global-loading/events";
 import { LocalBridge } from "./bridge";
 import { supportsTerminalJobDelete } from "./compatibility";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	BridgeError,
 	type BridgeErrorCode,
@@ -18,9 +19,25 @@ import {
 	type SystemSnapshot,
 } from "./protocol";
 
+export type ProcessingMutationKind =
+	| "pause"
+	| "resume"
+	| "cancel"
+	| "retry"
+	| "delete"
+	| "synthetic"
+	| "result";
+
+export type ProcessingMutation = Readonly<{
+	kind: ProcessingMutationKind;
+	targetId?: string;
+}>;
+
 export type ProcessingState = Readonly<{
 	connection: "disconnected" | "connecting" | "connected" | "error";
-	busy: boolean;
+	refreshing: boolean;
+	refreshError: BridgeErrorCode | null;
+	mutation: ProcessingMutation | null;
 	health: Health | null;
 	capabilities: Capabilities | null;
 	jobs: readonly LocalJob[];
@@ -42,7 +59,9 @@ export type ProcessingState = Readonly<{
 
 const initial: ProcessingState = {
 	connection: "disconnected",
-	busy: false,
+	refreshing: false,
+	refreshError: null,
+	mutation: null,
 	health: null,
 	capabilities: null,
 	jobs: [],
@@ -67,6 +86,9 @@ export class ProcessingController {
 	#listeners = new Set<() => void>();
 	#request = new AbortController();
 	#epoch = 0;
+	#readSequence = 0;
+	#refreshSequence = 0;
+	#lastDeepReadAt = 0;
 	#submissionKey: string | null = null;
 
 	constructor(private readonly bridge = new LocalBridge()) {}
@@ -88,6 +110,7 @@ export class ProcessingController {
 
 	private resetRequest() {
 		this.#epoch++;
+		this.#readSequence++;
 		this.#request.abort();
 		this.#request = new AbortController();
 	}
@@ -102,18 +125,24 @@ export class ProcessingController {
 		});
 	};
 
-	private async run(action: (signal: AbortSignal) => Promise<void>) {
-		if (this.#state.busy) return;
+	private async runOperation(
+		mutation: ProcessingMutation | null,
+		action: (signal: AbortSignal) => Promise<void>,
+	) {
+		if (mutation && this.#state.mutation) return;
 
-		/*
-		 * A request born from a real user activation participates in the global
-		 * loader. Timed refreshes/polling reach this method without transient user
-		 * activation and therefore remain silent.
-		 */
 		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
-		this.update({ busy: true, error: null, errorDetails: null, serverError: null });
+		// A user mutation wins over any older background read that may still be
+		// completing. We do not need to abort the read; its result becomes stale.
+		this.#readSequence++;
+		this.update({
+			...(mutation ? { mutation } : {}),
+			error: null,
+			errorDetails: null,
+			serverError: null,
+		});
 
 		try {
 			await action(signal);
@@ -150,7 +179,6 @@ export class ProcessingController {
 					this.update({
 						...initial,
 						connection: "error",
-						busy: true,
 						error: code,
 						errorDetails,
 						serverError,
@@ -161,14 +189,27 @@ export class ProcessingController {
 				}
 			}
 		} finally {
-			if (epoch === this.#epoch) this.update({ busy: false });
+			if (epoch === this.#epoch && mutation)
+				this.update({ mutation: null });
 			stopGlobalLoading();
 		}
 	}
 
-	private async read(signal: AbortSignal) {
-		const health = await this.bridge.health(signal);
-		const capabilities = await this.bridge.capabilities(signal);
+	private async read(
+		signal: AbortSignal,
+		options: Readonly<{ deep?: boolean; includeLibrary?: boolean }> = {},
+	) {
+		const sequence = ++this.#readSequence;
+		const previous = this.#state;
+		const deep = options.deep ?? true;
+		const health =
+			deep || !previous.health
+				? await this.bridge.health(signal)
+				: previous.health;
+		const capabilities =
+			deep || !previous.capabilities
+				? await this.bridge.capabilities(signal)
+				: previous.capabilities;
 		const jobs = await this.bridge.jobs(signal);
 		const nextQueued =
 			jobs
@@ -186,56 +227,154 @@ export class ProcessingController {
 
 		const reviewEnabled =
 			capabilities.capabilities.includes("transcription.review");
-		const [system, events, localSources] = await Promise.all([
+		let secondaryRefreshError: BridgeErrorCode | null = null;
+		const preserveSecondary = async <T,>(
+			work: Promise<T>,
+			fallback: T,
+		): Promise<T> => {
+			try {
+				return await work;
+			} catch (error) {
+				secondaryRefreshError ??=
+					error instanceof BridgeError ? error.code : "service_error";
+				return fallback;
+			}
+		};
+		const [system, events] = await Promise.all([
 			capabilities.capabilities.includes("system.telemetry")
-				? this.bridge.system(signal).catch(() => null)
+				? preserveSecondary(this.bridge.system(signal), previous.system)
 				: Promise.resolve(null),
 			observedJob && capabilities.capabilities.includes("job.events")
-				? this.bridge.events(observedJob.id, signal).catch(() => [])
+				? preserveSecondary(
+						this.bridge.events(observedJob.id, signal),
+						previous.observedJobId === observedJob.id
+							? previous.events
+							: [],
+					)
 				: Promise.resolve([] as JobEvent[]),
-			reviewEnabled
-				? this.bridge.localSources(signal).catch(() => [])
-				: Promise.resolve([] as LocalSourceSummary[]),
 		]);
 
-		const loadRunBatch = async (offset: number): Promise<LocalRunSummary[]> => {
-			if (!reviewEnabled || signal.aborted || offset >= localSources.length)
-				return [];
-			const batch = await Promise.all(
-				localSources.slice(offset, offset + 8).map((source) =>
-					this.bridge.localRuns(source.sourceId, signal).catch(() => []),
-				),
-			);
-			if (signal.aborted) return [];
-			return [...batch.flat(), ...(await loadRunBatch(offset + 8))];
-		};
-		const localRuns =
-			reviewEnabled && !signal.aborted ? await loadRunBatch(0) : [];
-		localRuns.sort((left, right) => {
-			const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
-			const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
-			return rightTime - leftTime;
+		const terminalStatuses = new Set([
+			"succeeded",
+			"failed",
+			"interrupted",
+			"cancelled",
+		]);
+		const terminalTransition = jobs.some((next) => {
+			if (!terminalStatuses.has(next.status)) return false;
+			const before = previous.jobs.find((job) => job.id === next.id);
+			return !before || !terminalStatuses.has(before.status);
 		});
+		const reloadLibrary =
+			reviewEnabled && ((options.includeLibrary ?? true) || terminalTransition);
 
-		if (!signal.aborted)
+		let localSources: readonly LocalSourceSummary[] = reviewEnabled
+			? previous.localSources
+			: [];
+		let localRuns: LocalRunSummary[] = reviewEnabled
+			? [...previous.localRuns]
+			: [];
+		if (reloadLibrary) {
+			try {
+				localSources = await this.bridge.localSources(signal);
+				const loadRunBatch = async (
+					offset: number,
+				): Promise<LocalRunSummary[]> => {
+					if (signal.aborted || offset >= localSources.length) return [];
+					const batch = await Promise.all(
+						localSources.slice(offset, offset + 8).map((source) =>
+							preserveSecondary(
+								this.bridge.localRuns(source.sourceId, signal),
+								previous.localRuns.filter(
+									(run) => run.sourceId === source.sourceId,
+								),
+							),
+						),
+					);
+					if (signal.aborted) return [];
+					return [
+						...batch.flat(),
+						...(await loadRunBatch(offset + 8)),
+					];
+				};
+				localRuns = await loadRunBatch(0);
+				localRuns.sort((left, right) => {
+					const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+					const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+					return rightTime - leftTime;
+				});
+			} catch (error) {
+				// A library read is secondary to the operational snapshot. Keep the
+				// previous successful catalog until a later refresh succeeds.
+				secondaryRefreshError ??=
+					error instanceof BridgeError ? error.code : "service_error";
+				localSources = previous.localSources;
+				localRuns = [...previous.localRuns];
+			}
+		}
+
+		if (signal.aborted || sequence !== this.#readSequence) return false;
+		this.update({
+			connection: "connected",
+			health,
+			capabilities,
+			jobs,
+			localSources,
+			localRuns,
+			system,
+			events,
+			observedJobId: observedJob?.id ?? null,
+			checkedAt: new Date().toISOString(),
+			refreshError: secondaryRefreshError,
+		});
+		if (deep) this.#lastDeepReadAt = Date.now();
+		return true;
+	}
+
+	private refreshFailure(error: unknown) {
+		const code = error instanceof BridgeError ? error.code : "service_error";
+		const hardFailure = [
+			"unauthorized",
+			"forbidden",
+			"api_incompatible",
+			"version_incompatible",
+			"session_incompatible",
+			"incompatible",
+		].includes(code);
+		const serverError = error instanceof BridgeError ? error.serverCode : null;
+		const errorDetails = error instanceof BridgeError ? error.details : null;
+
+		if (hardFailure) {
+			if (
+				[
+					"forbidden",
+					"api_incompatible",
+					"version_incompatible",
+					"session_incompatible",
+					"incompatible",
+				].includes(code)
+			)
+				this.bridge.disconnect();
 			this.update({
-				connection: "connected",
-				health,
-				capabilities,
-				jobs,
-				localSources,
-				localRuns,
-				system,
-				events,
-				observedJobId: observedJob?.id ?? null,
-				checkedAt: new Date().toISOString(),
+				...initial,
+				connection: "error",
+				error: code,
+				errorDetails,
+				serverError,
+				uncertainSubmission: this.#submissionKey !== null,
 			});
+			return;
+		}
+
+		// A polling failure is stale data, not an instruction to erase the last
+		// valid operational snapshot.
+		this.update({ refreshError: code });
 	}
 
 	connect = async (legacyToken?: string) => {
 		this.disconnect();
 		this.update({ connection: "connecting" });
-		await this.run(async (signal) => {
+		await this.runOperation(null, async (signal) => {
 			if (legacyToken) {
 				// Compatibility path for tests/support tooling only. Product UI uses
 				// automatic browser sessions and never asks the user to copy a token.
@@ -246,39 +385,51 @@ export class ProcessingController {
 				await this.bridge.bootstrap(signal);
 			}
 			if (signal.aborted) return;
-			await this.read(signal);
+			await this.read(signal, { deep: true, includeLibrary: true });
 		});
 	};
 
-	private renewBrowserSession = async () => {
-		this.resetRequest();
-		this.update({ connection: "connecting" });
-		await this.run(async (signal) => {
-			// Bootstrap is public. Keep the previous bearer alive until pair() swaps in
-			// the replacement so sibling local operations never observe a false
-			// unpaired gap during normal session renewal.
-			await this.bridge.bootstrap(signal);
-			if (signal.aborted) return;
-			await this.read(signal);
-		});
-	};
+	refresh = async (
+		reason: "background" | "manual" | "results" = "manual",
+	) => {
+		if (
+			this.#state.connection !== "connected" ||
+			this.#state.refreshing
+		)
+			return;
 
-	refresh = async () => {
-		if (this.#state.connection !== "connected") return;
-		await this.run((signal) => this.read(signal));
-		// Browser sessions are deliberately ephemeral. Re-read through the public
-		// snapshot after the awaited operation because run() may have transitioned
-		// the controller from connected to error.
-		const current = this.snapshot();
-		if (current.connection === "error" && current.error === "unauthorized")
-			await this.renewBrowserSession();
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		const refreshSequence = ++this.#refreshSequence;
+		const active = this.#state.jobs.some((job) => job.status === "running");
+		const deepEveryMs = active
+			? PROCESSING_REFRESH_POLICY.activeDeepRefreshMs
+			: PROCESSING_REFRESH_POLICY.idleDeepRefreshMs;
+		const deep =
+			reason !== "background" ||
+			Date.now() - this.#lastDeepReadAt >= deepEveryMs;
+		const includeLibrary = reason === "manual" || reason === "results";
+
+		this.update({ refreshing: true });
+		try {
+			await this.read(signal, { deep, includeLibrary });
+		} catch (error) {
+			if (epoch === this.#epoch && !signal.aborted)
+				this.refreshFailure(error);
+		} finally {
+			if (
+				epoch === this.#epoch &&
+				refreshSequence === this.#refreshSequence
+			)
+				this.update({ refreshing: false });
+		}
 	};
 
 	lifecycle = async (action: "pause" | "resume") => {
 		if (this.#state.connection !== "connected") return;
-		await this.run(async (signal) => {
+		await this.runOperation({ kind: action }, async (signal) => {
 			await this.bridge.lifecycle(action, signal);
-			await this.read(signal);
+			await this.read(signal, { deep: true, includeLibrary: false });
 		});
 	};
 
@@ -294,9 +445,9 @@ export class ProcessingController {
 		)
 			return;
 
-		await this.run(async (signal) => {
+		await this.runOperation({ kind: action, targetId: id }, async (signal) => {
 			await this.bridge.jobAction(id, action, signal);
-			await this.read(signal);
+			await this.read(signal, { deep: false, includeLibrary: false });
 		});
 	};
 
@@ -309,11 +460,11 @@ export class ProcessingController {
 		const job = this.#state.jobs.find((candidate) => candidate.id === id);
 		if (!job || ["queued", "running"].includes(job.status)) return;
 
-		await this.run(async (signal) => {
+		await this.runOperation({ kind: "delete", targetId: id }, async (signal) => {
 			await this.bridge.deleteJob(id, signal);
 			if (!signal.aborted && this.#state.result?.jobId === id)
 				this.update({ result: null });
-			await this.read(signal);
+			await this.read(signal, { deep: false, includeLibrary: true });
 		});
 	};
 
@@ -325,13 +476,13 @@ export class ProcessingController {
 		)
 			return;
 
-		await this.run(async (signal) => {
+		await this.runOperation({ kind: "synthetic" }, async (signal) => {
 			this.#submissionKey ??= crypto.randomUUID();
 			await this.bridge.synthetic(this.#submissionKey, signal);
 			if (signal.aborted) return;
 			this.#submissionKey = null;
 			this.update({ uncertainSubmission: false });
-			await this.read(signal);
+			await this.read(signal, { deep: false, includeLibrary: false });
 		});
 	};
 
@@ -415,7 +566,7 @@ export class ProcessingController {
 		)
 			return;
 
-		await this.run(async (signal) => {
+		await this.runOperation({ kind: "result", targetId: id }, async (signal) => {
 			const result = await this.bridge.result(id, signal);
 			if (!signal.aborted) this.update({ result });
 		});

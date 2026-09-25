@@ -44,7 +44,7 @@ function fixture() {
 	};
 }
 describe("processing state", () => {
-	it("never probes until explicitly paired and discards status on transport loss", async () => {
+	it("never probes until paired and keeps the last snapshot on transient refresh loss", async () => {
 		const { request, controller } = fixture();
 		expect(request).not.toHaveBeenCalled();
 		await controller.refresh();
@@ -57,12 +57,13 @@ describe("processing state", () => {
 		request.mockRejectedValue(new TypeError("CORS"));
 		await controller.refresh();
 		expect(controller.snapshot()).toMatchObject({
-			connection: "error",
-			error: "unreachable",
-			health: null,
-			capabilities: null,
-			jobs: [],
-			busy: false,
+			connection: "connected",
+			refreshError: "unreachable",
+			health,
+			capabilities: caps,
+			jobs: [job],
+			refreshing: false,
+			mutation: null,
 		});
 	});
 	it("preserves connected state when a local operation returns conflict", async () => {
@@ -82,7 +83,8 @@ describe("processing state", () => {
 			error: "conflict",
 			serverError: "AGENT_BUSY",
 			jobs: [job],
-			busy: false,
+			refreshing: false,
+			mutation: null,
 		});
 	});
 
@@ -95,11 +97,74 @@ describe("processing state", () => {
 		await controller.refresh();
 
 		expect(controller.snapshot()).toMatchObject({
-			connection: "error",
-			error: "unreachable",
+			connection: "connected",
+			refreshError: "unreachable",
+			jobs: [job],
 		});
 		expect(localBridgePaired()).toBe(true);
 		controller.disconnect();
+	});
+
+	it("keeps telemetry and events when a secondary background read fails", async () => {
+		const telemetryCaps = {
+			...caps,
+			capabilities: ["system.telemetry", "job.events"],
+		};
+		let systemReads = 0;
+		let eventReads = 0;
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(telemetryCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [job] });
+			if (value.endsWith("/system")) {
+				systemReads += 1;
+				if (systemReads > 1) throw new TypeError("telemetry hiccup");
+				return Response.json({
+					sampled_at: "2026-09-25T00:00:00Z",
+					host: { os: "Windows 11", cpu: "Synthetic CPU" },
+					cpu: { utilization_percent: 42 },
+					memory: {
+						used_bytes: 8 * 1024 ** 3,
+						total_bytes: 32 * 1024 ** 3,
+						percent: 25,
+					},
+					gpus: [],
+				});
+			}
+			if (value.endsWith("/jobs/test-job/events")) {
+				eventReads += 1;
+				if (eventReads > 1) throw new TypeError("events hiccup");
+				return Response.json({
+					events: [
+						{
+							seq: 1,
+							code: "QWEN_WINDOW_TRANSCRIBED",
+							at: "2026-09-25T00:00:01Z",
+							level: "info",
+							data: { track: 1, total_tracks: 2 },
+						},
+					],
+				});
+			}
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		const system = controller.snapshot().system;
+		const events = controller.snapshot().events;
+		expect(system).not.toBeNull();
+		expect(events).toHaveLength(1);
+
+		await controller.refresh("background");
+
+		expect(controller.snapshot().system).toEqual(system);
+		expect(controller.snapshot().events).toEqual(events);
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			refreshError: "unreachable",
+		});
 	});
 
 	it("preserves version compatibility details for actionable UI diagnosis", async () => {
@@ -303,24 +368,68 @@ describe("processing state", () => {
 		expect(controller.snapshot().connection).toBe("disconnected");
 		expect(request).toHaveBeenCalledTimes(1);
 	});
-	it("serializes actions and prevents retry of an active job", async () => {
+	it("keeps mutations available during background refresh and ignores late stale reads", async () => {
 		const { request, controller } = fixture();
 		await controller.connect(token);
 		request.mockClear();
+
 		await controller.jobAction(job.id, "retry");
 		expect(request).not.toHaveBeenCalled();
-		let finish: ((value: Response) => void) | undefined;
-		request.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					finish = resolve;
-				}),
-		);
-		const pending = controller.refresh();
+
+		const fresherJob = {
+			...job,
+			updated_at: "2026-09-07T12:01:00Z",
+		};
+		let delayedJobs = true;
+		let finishBackground: ((value: Response) => void) | undefined;
+		request.mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/jobs") && init?.method === "POST")
+				return Response.json({
+					...job,
+					id: "synthetic-job",
+					status: "queued",
+					stage: "queued",
+					progress: { completed: 0, total: 3, unit: "items" },
+				});
+			if (value.endsWith("/jobs") && delayedJobs) {
+				delayedJobs = false;
+				return new Promise((resolve) => {
+					finishBackground = resolve;
+				});
+			}
+			return Response.json({ jobs: [fresherJob] });
+		});
+
+		const background = controller.refresh("background");
+		expect(controller.snapshot()).toMatchObject({
+			refreshing: true,
+			mutation: null,
+			jobs: [job],
+		});
+
 		await controller.synthetic();
-		expect(request).toHaveBeenCalledTimes(1);
-		finish?.(Response.json(health));
-		await pending;
+		expect(
+			request.mock.calls.some(
+				([url, init]) =>
+					String(url).endsWith("/jobs") && init?.method === "POST",
+			),
+		).toBe(true);
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			jobs: [fresherJob],
+			mutation: null,
+		});
+
+		finishBackground?.(Response.json({ jobs: [job] }));
+		await background;
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			jobs: [fresherJob],
+			refreshing: false,
+		});
 	});
 	it("observes the oldest queued job because that is the next one executed", async () => {
 		const newer = {
@@ -500,6 +609,18 @@ describe("processing state", () => {
 			localRuns: [{ sourceId, runId }],
 			localReview: null,
 		});
+		const libraryReadsBefore = request.mock.calls.filter(
+			([url]) =>
+				String(url).endsWith("/sources") ||
+				String(url).endsWith(`/sources/${sourceId}/runs`),
+		).length;
+		await controller.refresh("background");
+		const libraryReadsAfter = request.mock.calls.filter(
+			([url]) =>
+				String(url).endsWith("/sources") ||
+				String(url).endsWith(`/sources/${sourceId}/runs`),
+		).length;
+		expect(libraryReadsAfter).toBe(libraryReadsBefore);
 		expect(
 			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
 		).toBe(false);
