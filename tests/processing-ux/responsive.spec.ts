@@ -242,8 +242,9 @@ test("queued and paused states do not masquerade as running or healthy", async (
 	});
 	await page.goto("/");
 
-	const paused = page.getByText("Fila pausada", { exact: true });
-	await expect(paused).toHaveClass(/ds-status--warning/);
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	await expect(commandBar).toHaveAttribute("data-tone", "warning");
+	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	const queued = page.getByRole("listitem").getByText("Na fila", { exact: true });
