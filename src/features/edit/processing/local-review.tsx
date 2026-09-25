@@ -12,6 +12,7 @@ import type {
 	LocalReviewStatus,
 	LocalRunSummary,
 } from "./protocol";
+import { runProfileLabel } from "./results-model";
 import { RunLibrary } from "./run-library";
 import styles from "./local-review.module.css";
 
@@ -215,7 +216,7 @@ function ReviewEditor({
 			<div className={styles.editorHeader}>
 				<div>
 					<span className={styles.eyebrow}>Revisão local derivada</span>
-					<h2 id="local-review-title">{review.lineage.profileId}</h2>
+					<h2 id="local-review-title">{runProfileLabel(review.lineage.profileId)}</h2>
 					<p>
 						Run bruto imutável · draft r{review.draftRevision} · SHA{" "}
 						{review.baseTranscriptSha256.slice(0, 12)}…
