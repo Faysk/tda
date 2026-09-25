@@ -5,6 +5,7 @@ import type { Health, SystemSnapshot } from "./protocol";
 import styles from "./command-bar.module.css";
 
 type Props = Readonly<{
+	connection: "disconnected" | "connecting" | "connected" | "error";
 	connected: boolean;
 	connectionLabel: string;
 	health: Health | null;
@@ -54,6 +55,7 @@ function countLabel(value: number, singular: string, plural: string): string {
 }
 
 export function ProcessingCommandBar({
+	connection,
 	connected,
 	connectionLabel,
 	health,
@@ -75,13 +77,27 @@ export function ProcessingCommandBar({
 		? compactMemory(gpu.memoryUsedBytes, gpu.memoryTotalBytes)
 		: null;
 	const stale = Boolean(refreshError);
-	const tone = !connected
-		? "danger"
-		: stale || health?.lifecycle === "paused"
-			? "warning"
-			: health?.lifecycle === "ready"
-				? "success"
-				: "neutral";
+	const gpuUnavailable = connected && Boolean(system) && system?.gpus.length === 0;
+	const partialTelemetry =
+		Boolean(gpu) &&
+		(gpu?.utilizationPercent === null ||
+			gpu?.memoryUsedBytes === null ||
+			gpu?.memoryTotalBytes === null);
+	const degradedHint = stale
+		? "Dados desatualizados"
+		: gpuUnavailable
+			? "GPU não detectada"
+			: partialTelemetry
+				? "Telemetria parcial"
+				: null;
+	const tone =
+		connection === "error"
+			? "danger"
+			: stale || gpuUnavailable || partialTelemetry || health?.lifecycle === "paused"
+				? "warning"
+				: health?.lifecycle === "ready"
+					? "success"
+					: "neutral";
 	const lifecycleLabel =
 		health?.lifecycle === "paused"
 			? "Companion pausado"
@@ -105,6 +121,7 @@ export function ProcessingCommandBar({
 				<div className={styles.statusCopy}>
 					<strong>{lifecycleLabel}</strong>
 					<span>{freshness(checkedAt, stale)}</span>
+					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
 				</div>
 				{connected && gpu ? (
 					<span className={styles.gpuCluster} title={gpu.name}>
@@ -156,13 +173,24 @@ export function ProcessingCommandBar({
 						disabled={pendingLifecycle === primaryLifecycleAction}
 						onClick={onToggleLifecycle}
 					>
-						{primaryLifecycleAction === "pause"
-							? pendingLifecycle === "pause"
-								? "Pausando…"
-								: "Pausar novas execuções"
-							: pendingLifecycle === "resume"
-								? "Retomando…"
-								: "Retomar novas execuções"}
+						<span className={styles.actionLong}>
+							{primaryLifecycleAction === "pause"
+								? pendingLifecycle === "pause"
+									? "Pausando…"
+									: "Pausar novas execuções"
+								: pendingLifecycle === "resume"
+									? "Retomando…"
+									: "Retomar novas execuções"}
+						</span>
+						<span className={styles.actionShort}>
+							{primaryLifecycleAction === "pause"
+								? pendingLifecycle === "pause"
+									? "Pausando…"
+									: "Pausar"
+								: pendingLifecycle === "resume"
+									? "Retomando…"
+									: "Retomar"}
+						</span>
 					</Button>
 				) : null}
 				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
