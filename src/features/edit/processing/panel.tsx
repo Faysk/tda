@@ -157,7 +157,7 @@ function eventTrackContext(events: readonly JobEvent[]) {
 	return null;
 }
 
-function JobRow(function JobRow({
+function JobRow({
 	job,
 	pendingAction,
 	canDelete,
