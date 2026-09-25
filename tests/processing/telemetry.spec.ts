@@ -144,6 +144,7 @@ test("renders local resource telemetry and factual worker events after automatic
 test("telemetry atualiza o target factual antes do tween visual e rebaseia no sample novo", async ({
 	page,
 }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -169,7 +170,16 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	);
 	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
 	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
+	const vram = page.getByRole("meter", { name: "VRAM usada" });
+	const cpu = page.getByRole("meter", { name: "Uso da CPU" });
+	const ram = page.getByRole("meter", { name: "Uso da RAM" });
+	const gpuCluster = page.getByTitle("Synthetic GPU");
+	const initialClusterBox = await gpuCluster.boundingBox();
+
 	await expect(gpu).toHaveAttribute("value", "40");
+	await expect(vram).toHaveAttribute("aria-valuetext", "4.0 GB usados");
+	await expect(cpu).toHaveAttribute("value", "20");
+	await expect(ram).toHaveAttribute("value", "30");
 	await expect(visual).toHaveText("40%");
 
 	state.setSystem({
@@ -189,8 +199,17 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 
 	await expect(gpu).toHaveAttribute("value", "100");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "100%");
+	await expect(vram).toHaveAttribute("aria-valuetext", "6.0 GB usados");
+	await expect(cpu).toHaveAttribute("value", "60");
+	await expect(ram).toHaveAttribute("value", "70");
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
 	expect(await visual.textContent()).not.toBe("100%");
+	const updatedClusterBox = await gpuCluster.boundingBox();
+	expect(initialClusterBox).not.toBeNull();
+	expect(updatedClusterBox).not.toBeNull();
+	expect(
+		Math.abs((updatedClusterBox?.width ?? 0) - (initialClusterBox?.width ?? 0)),
+	).toBeLessThanOrEqual(2);
 
 	state.setSystem({
 		cpuPercent: 15,
@@ -209,6 +228,9 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 
 	await expect(gpu).toHaveAttribute("value", "25");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
+	await expect(vram).toHaveAttribute("aria-valuetext", "3.0 GB usados");
+	await expect(cpu).toHaveAttribute("value", "15");
+	await expect(ram).toHaveAttribute("value", "25");
 	expect(await visual.textContent()).not.toBe("100%");
 	expect(await visual.textContent()).not.toBe("25%");
 	await expect(visual).toHaveText("25%", { timeout: 2_000 });
