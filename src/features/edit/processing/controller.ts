@@ -1,6 +1,7 @@
 import { beginInteractiveGlobalLoading } from "../../../components/global-loading/events";
 import { LocalBridge } from "./bridge";
 import { supportsTerminalJobDelete } from "./compatibility";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	BridgeError,
 	type BridgeErrorCode,
@@ -226,12 +227,26 @@ export class ProcessingController {
 
 		const reviewEnabled =
 			capabilities.capabilities.includes("transcription.review");
+		let secondaryRefreshError: BridgeErrorCode | null = null;
+		const preserveSecondary = async <T,>(
+			work: Promise<T>,
+			fallback: T,
+		): Promise<T> => {
+			try {
+				return await work;
+			} catch (error) {
+				secondaryRefreshError ??=
+					error instanceof BridgeError ? error.code : "service_error";
+				return fallback;
+			}
+		};
 		const [system, events] = await Promise.all([
 			capabilities.capabilities.includes("system.telemetry")
-				? this.bridge.system(signal).catch(() => previous.system)
+				? preserveSecondary(this.bridge.system(signal), previous.system)
 				: Promise.resolve(null),
 			observedJob && capabilities.capabilities.includes("job.events")
-				? this.bridge.events(observedJob.id, signal).catch(() =>
+				? preserveSecondary(
+						this.bridge.events(observedJob.id, signal),
 						previous.observedJobId === observedJob.id
 							? previous.events
 							: [],
@@ -268,7 +283,8 @@ export class ProcessingController {
 					if (signal.aborted || offset >= localSources.length) return [];
 					const batch = await Promise.all(
 						localSources.slice(offset, offset + 8).map((source) =>
-							this.bridge.localRuns(source.sourceId, signal).catch(() =>
+							preserveSecondary(
+								this.bridge.localRuns(source.sourceId, signal),
 								previous.localRuns.filter(
 									(run) => run.sourceId === source.sourceId,
 								),
@@ -287,9 +303,11 @@ export class ProcessingController {
 					const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
 					return rightTime - leftTime;
 				});
-			} catch {
+			} catch (error) {
 				// A library read is secondary to the operational snapshot. Keep the
 				// previous successful catalog until a later refresh succeeds.
+				secondaryRefreshError ??=
+					error instanceof BridgeError ? error.code : "service_error";
 				localSources = previous.localSources;
 				localRuns = [...previous.localRuns];
 			}
@@ -307,7 +325,7 @@ export class ProcessingController {
 			events,
 			observedJobId: observedJob?.id ?? null,
 			checkedAt: new Date().toISOString(),
-			refreshError: null,
+			refreshError: secondaryRefreshError,
 		});
 		if (deep) this.#lastDeepReadAt = Date.now();
 		return true;
@@ -384,7 +402,9 @@ export class ProcessingController {
 		const signal = this.#request.signal;
 		const refreshSequence = ++this.#refreshSequence;
 		const active = this.#state.jobs.some((job) => job.status === "running");
-		const deepEveryMs = active ? 15_000 : 30_000;
+		const deepEveryMs = active
+			? PROCESSING_REFRESH_POLICY.activeDeepRefreshMs
+			: PROCESSING_REFRESH_POLICY.idleDeepRefreshMs;
 		const deep =
 			reason !== "background" ||
 			Date.now() - this.#lastDeepReadAt >= deepEveryMs;
