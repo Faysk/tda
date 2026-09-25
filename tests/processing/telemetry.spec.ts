@@ -156,8 +156,11 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	});
 
 	await page.goto("/");
-	const gpu = page.getByRole("meter", { name: "Uso da GPU" });
-	const visual = gpu.locator("[data-animated-metric-visual='true']");
+	const gpuMetric = page.locator(
+		"[data-animated-metric='true'][data-metric-label='Uso da GPU']",
+	);
+	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
+	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
 	await expect(gpu).toHaveAttribute("aria-valuenow", "40");
 	await expect(visual).toHaveText("40%");
 
@@ -178,7 +181,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 
 	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "100%");
-	await expect(gpu).toHaveAttribute("data-animated-running", "true");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
 	expect(await visual.textContent()).not.toBe("100%");
 
 	state.setSystem({
@@ -199,12 +202,15 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	await expect(gpu).toHaveAttribute("aria-valuenow", "25");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
 	await expect(visual).toHaveText("25%", { timeout: 2_000 });
-	await expect(gpu).toHaveAttribute("data-animated-running", "false");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 
-	const progress = page.getByRole("progressbar", {
+	const progressVisual = page.locator(
+		"[data-animated-progress='true'][data-progress-label='Progresso do trabalho craig-job-1']",
+	).first();
+	const progress = progressVisual.getByRole("progressbar", {
 		name: "Progresso do trabalho craig-job-1",
 	});
-	const fill = progress.locator("span[aria-hidden='true']");
+	const fill = progressVisual.locator("span[aria-hidden='true']");
 	expect(
 		await fill.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0.48s");
@@ -216,7 +222,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("aria-valuenow", "2");
-	await expect(progress).toHaveAttribute("data-progress-target", "1");
+	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
 });
 
 test("reduced motion salta telemetry ao target factual e desliga transição de progresso", async ({
@@ -241,12 +247,18 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	});
 
 	await page.goto("/");
-	const gpu = page.getByRole("meter", { name: "Uso da GPU" });
-	const visual = gpu.locator("[data-animated-metric-visual='true']");
-	const progress = page.getByRole("progressbar", {
+	const gpuMetric = page.locator(
+		"[data-animated-metric='true'][data-metric-label='Uso da GPU']",
+	);
+	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
+	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
+	const progressVisual = page.locator(
+		"[data-animated-progress='true'][data-progress-label='Progresso do trabalho craig-job-1']",
+	).first();
+	const progress = progressVisual.getByRole("progressbar", {
 		name: "Progresso do trabalho craig-job-1",
 	});
-	const fill = progress.locator("span[aria-hidden='true']");
+	const fill = progressVisual.locator("span[aria-hidden='true']");
 
 	state.setSystem({
 		gpus: [
@@ -262,7 +274,7 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
 	await expect(gpu).toHaveAttribute("aria-valuenow", "100");
-	await expect(gpu).toHaveAttribute("data-animated-running", "false");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 	await expect(visual).toHaveText("100%");
 	expect(
 		await fill.evaluate((element) => getComputedStyle(element).transitionDuration),
@@ -276,5 +288,5 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("aria-valuenow", "2");
 	await expect(progress).toHaveAttribute("aria-valuemax", "2");
-	await expect(progress).toHaveAttribute("data-progress-target", "1");
+	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
 });
