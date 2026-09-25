@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -125,9 +126,9 @@ def test_review_listing_summary_never_creates_draft_and_tracks_saved_state(tmp_p
     }
 
     draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
-    tampered = __import__("json").loads(draft_path.read_text(encoding="utf-8"))
+    tampered = json.loads(draft_path.read_text(encoding="utf-8"))
     tampered["base_transcript_sha256"] = "0" * 64
-    draft_path.write_text(__import__("json").dumps(tampered), encoding="utf-8")
+    draft_path.write_text(json.dumps(tampered), encoding="utf-8")
     assert review_listing_summary(
         package_root,
         source_id=source_id,
