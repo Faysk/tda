@@ -312,7 +312,7 @@ def test_agent_restart_interrupted_job_retries_as_attempt_two(tmp_path: Path):
         assert "RUNNING" in codes
 
 
-def test_worker_alignment_diagnostics_preserve_warning_and_error_levels(
+def test_worker_alignment_diagnostics_distinguish_safe_recovery_from_failure(
     monkeypatch,
     tmp_path: Path,
 ):
@@ -377,7 +377,7 @@ def test_worker_alignment_diagnostics_preserve_warning_and_error_levels(
             headers=HEADERS,
         ).json()["events"]
         by_code = {event["code"]: event for event in events}
-        assert by_code["QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED"]["level"] == "warning"
+        assert by_code["QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED"]["level"] == "info"
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["level"] == "error"
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["track"] == 1
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["window"] == 89
