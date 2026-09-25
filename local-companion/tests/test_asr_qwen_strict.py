@@ -202,6 +202,24 @@ def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
     ]
 
 
+def test_runtime_identity_metadata_accepts_only_sealed_runtime_fingerprint():
+    sealed = (
+        "checkpoint=qwen-track-v3;"
+        "runtime=1.0.11;"
+        "worker_sha256=" + ("a" * 64)
+    )
+    assert asr_qwen_strict._runtime_identity_metadata(sealed) == {
+        "runtime_version": "1.0.11",
+        "worker_sha256": "a" * 64,
+    }
+    assert asr_qwen_strict._runtime_identity_metadata(
+        "checkpoint=qwen-track-v3;runtime=development;torch=2.13.0"
+    ) == {}
+    assert asr_qwen_strict._runtime_identity_metadata(
+        "checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=C:\\private\\secret"
+    ) == {}
+
+
 def test_strict_qwen_exposes_fingerprint_and_checkpoint_scan_before_model_load(
     monkeypatch,
     tmp_path: Path,
