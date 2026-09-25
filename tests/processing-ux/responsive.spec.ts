@@ -25,6 +25,17 @@ async function openRunningWorkspace(
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
@@ -59,6 +70,21 @@ for (const viewport of viewports) {
 		const tabBox = await selectedTab.boundingBox();
 		expect(tabBox?.height ?? 0).toBeGreaterThanOrEqual(40);
 
+		if (viewport.name === "mobile-320") {
+			const commandBar = page.locator("[data-processing-command-bar='true']");
+			const barBox = await commandBar.boundingBox();
+			expect(barBox).not.toBeNull();
+			expect((barBox?.x ?? 0) + (barBox?.width ?? 0)).toBeLessThanOrEqual(
+				viewport.width + 1,
+			);
+			await expect(
+				page.getByRole("button", { name: "Pausar", exact: true }),
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Diagnóstico", exact: true }),
+			).toBeVisible();
+		}
+
 		if (viewport.name === "full-hd") {
 			const vertical = await page.evaluate(() => ({
 				scrollHeight: document.documentElement.scrollHeight,
@@ -78,6 +104,16 @@ for (const viewport of viewports) {
 		}
 	});
 }
+
+test("healthy desktop command bar stays within the compact height budget", async ({ page }) => {
+	await openRunningWorkspace(page, 1440, 900);
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	const box = await commandBar.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.height ?? 999).toBeLessThanOrEqual(52);
+	await expect(commandBar).toContainText("Synthetic GPU · 25% · 4.0/8.0 GB");
+	await expect(commandBar).not.toContainText("Concluídos");
+});
 
 test("workspace tabs implement roving keyboard navigation", async ({ page }) => {
 	await openRunningWorkspace(page, 1366, 768);
@@ -168,19 +204,21 @@ test("operational grammar keeps state semantics distinct and essential text read
 	expect(activeVisual.boxShadow).toBe("none");
 	expect(activeVisual.borderLeftWidth).toBe("1px");
 
-	const cpuMetric = page.getByText("CPU", { exact: true }).locator("..");
-	const metricVisual = await cpuMetric.evaluate((element) => {
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	const operationalVisual = await commandBar.evaluate((element) => {
 		const style = getComputedStyle(element);
-		const label = element.querySelector("span");
+		const counter = element.querySelector("[aria-label='Resumo da fila'] span");
 		return {
-			background: style.backgroundColor,
 			borderTopWidth: style.borderTopWidth,
-			labelFontSize: label ? Number.parseFloat(getComputedStyle(label).fontSize) : 0,
+			borderBottomWidth: style.borderBottomWidth,
+			counterFontSize: counter
+				? Number.parseFloat(getComputedStyle(counter).fontSize)
+				: 0,
 		};
 	});
-	expect(metricVisual.background).toBe("rgba(0, 0, 0, 0)");
-	expect(metricVisual.borderTopWidth).toBe("0px");
-	expect(metricVisual.labelFontSize).toBeGreaterThanOrEqual(11);
+	expect(operationalVisual.borderTopWidth).toBe("1px");
+	expect(operationalVisual.borderBottomWidth).toBe("1px");
+	expect(operationalVisual.counterFontSize).toBeGreaterThanOrEqual(11);
 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 	const logTime = page.getByRole("log").locator("time").first();
