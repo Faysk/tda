@@ -398,7 +398,13 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-overview"
 						hidden={view !== "overview"}
 					>
-						<div className={styles.overviewTop}>
+						<div
+							className={
+								activeJob
+									? styles.overviewTop
+									: `${styles.overviewTop} ${styles.overviewTopIdle}`
+							}
+						>
 							<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
 									<h2 id="processing-now">Processando agora</h2>
@@ -533,7 +539,8 @@ export function ProcessingPanel({
 							</section>
 							<ProcessingSubmission
 								className={styles.submissionCard}
-								compact
+								compact={Boolean(activeJob)}
+								onDiagnostics={() => activateView("diagnostics")}
 							/>
 						</div>
 					</section>
