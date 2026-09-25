@@ -9,12 +9,14 @@ import {
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
-import { StatusPill, type StatusTone } from "@/components/ui/status";
+import { StatusPill } from "@/components/ui/status";
 import { ProcessingCommandBar } from "./command-bar";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
 import { publishApprovedLocalReview } from "./publication-client";
+import type { QueueFilter } from "./queue-model";
+import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
@@ -41,14 +43,6 @@ const processingViews: readonly { id: ProcessingView; label: string }[] = [
 	{ id: "diagnostics", label: "Diagnóstico" },
 ];
 
-function jobTone(status: LocalJob["status"]): StatusTone {
-	if (status === "succeeded") return "success";
-	if (status === "failed") return "danger";
-	if (status === "interrupted") return "warning";
-	if (status === "running") return "accent";
-	return "neutral";
-}
-
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
 	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
@@ -72,15 +66,6 @@ function formatTime(value: string): string {
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
-	});
-}
-
-function formatDateTime(value: string): string {
-	return new Date(value).toLocaleString("pt-BR", {
-		day: "2-digit",
-		month: "short",
-		hour: "2-digit",
-		minute: "2-digit",
 	});
 }
 
@@ -159,83 +144,6 @@ function eventTrackContext(events: readonly JobEvent[]) {
 	return null;
 }
 
-function JobRow({
-	job,
-	pendingAction,
-	canDelete,
-	onCancel,
-	onRetry,
-	onResult,
-	onDelete,
-}: {
-	job: LocalJob;
-	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
-	canDelete: boolean;
-	onCancel: () => void;
-	onRetry: () => void;
-	onResult: () => void;
-	onDelete: () => void;
-}) {
-	const percent = progressPercent(job);
-	return (
-		<li className={styles.jobRow} data-status={job.status}>
-			<div className={styles.jobRowMain}>
-				<strong>{presentJobTitle(job)}</strong>
-				<span>
-					{job.context?.sessionId ? `Sessão ${job.context.sessionId} · ` : ""}
-					{job.error
-						? presentJobError(job.error.code)
-						: (stageLabels[job.stage] ?? job.stage)}
-				</span>
-			</div>
-			<div className={styles.jobRowProgress}>
-				{job.progress && percent !== null ? (
-					<>
-						<AnimatedProgress
-							ariaLabel={`Progresso do trabalho ${job.id}`}
-							value={job.progress.completed}
-							max={job.progress.total}
-							valueText={progressCopy(job)}
-						/>
-						<span>{percent}%</span>
-					</>
-				) : (
-					<span>
-						{job.progress && job.progress.completed > 0
-							? progressCopy(job)
-							: "Sem medida de progresso nesta etapa."}
-					</span>
-				)}
-			</div>
-			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
-			<time dateTime={job.updated_at}>{formatDateTime(job.updated_at)}</time>
-			<div className={styles.rowActions}>
-				{["queued", "running"].includes(job.status) ? (
-					<Button size="sm" disabled={pendingAction === "cancel"} onClick={onCancel}>
-						{pendingAction === "cancel" ? "Cancelando…" : "Cancelar trabalho"}
-					</Button>
-				) : null}
-				{["failed", "interrupted"].includes(job.status) && job.error?.recoverable ? (
-					<Button size="sm" disabled={pendingAction === "retry"} onClick={onRetry}>
-						{pendingAction === "retry" ? "Repetindo…" : "Repetir trabalho"}
-					</Button>
-				) : null}
-				{job.status === "succeeded" && job.result_available ? (
-					<Button size="sm" disabled={pendingAction === "result"} onClick={onResult}>
-						{pendingAction === "result" ? "Consultando…" : "Consultar resultado local"}
-					</Button>
-				) : null}
-				{canDelete &&
-				["succeeded", "failed", "interrupted", "cancelled"].includes(job.status) ? (
-					<Button size="sm" variant="tertiary" disabled={pendingAction === "delete"} onClick={onDelete}>
-						{pendingAction === "delete" ? "Excluindo…" : "Excluir"}
-					</Button>
-				) : null}
-			</div>
-		</li>
-	);
-}
-
 export function ProcessingPanel({
 	publicationEnabled = false,
 }: Readonly<{ publicationEnabled?: boolean }>) {
@@ -247,7 +155,7 @@ export function ProcessingPanel({
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 	const [view, setView] = useState<ProcessingView>("overview");
-	const [queueScope, setQueueScope] = useState<"all" | "attention">("all");
+	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -303,9 +211,6 @@ export function ProcessingPanel({
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
-	const finished = state.jobs.filter((job) =>
-		["succeeded", "cancelled"].includes(job.status),
-	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
@@ -323,15 +228,14 @@ export function ProcessingPanel({
 
 	function activateView(next: ProcessingView) {
 		setView(next);
-		if (next === "queue") setQueueScope("all");
 		if (next === "results") void controller.refresh("results");
 	}
 
 	function openAttentionQueue() {
-		setQueueScope("attention");
+		setQueueFilter("attention");
 		setView("queue");
 		requestAnimationFrame(() => {
-			document.getElementById("attention-jobs")?.scrollIntoView({
+			document.querySelector("[data-processing-queue='true']")?.scrollIntoView({
 				block: "nearest",
 			});
 		});
@@ -360,24 +264,6 @@ export function ProcessingPanel({
 			document.getElementById(`processing-tab-${next.id}`)?.focus();
 		});
 	}
-
-	const renderRow = (job: LocalJob) => (
-		<JobRow
-			key={job.id}
-			job={job}
-			pendingAction={
-				state.mutation?.targetId === job.id &&
-				["cancel", "retry", "result", "delete"].includes(state.mutation.kind)
-					? (state.mutation.kind as "cancel" | "retry" | "result" | "delete")
-					: null
-			}
-			canDelete={canDeleteJobs}
-			onCancel={() => setConfirmation({ id: job.id, action: "cancel" })}
-			onRetry={() => setConfirmation({ id: job.id, action: "retry" })}
-			onResult={() => void controller.result(job.id)}
-			onDelete={() => setConfirmation({ id: job.id, action: "delete" })}
-		/>
-	);
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
@@ -648,81 +534,24 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-queue"
 						hidden={view !== "queue"}
 					>
-						<div className={styles.queueView}>
-							{queueScope === "attention" ? (
-								<div className={styles.queueScope} role="status">
-									<span>Mostrando somente trabalhos que precisam de atenção.</span>
-									<Button size="sm" variant="tertiary" onClick={() => setQueueScope("all")}>
-										Mostrar fila completa
-									</Button>
-								</div>
-							) : null}
-							{queueScope === "all" && running.length ? (
-								<section aria-labelledby="running-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="running-jobs">Processando</h2>
-										<span>{running.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{running.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
-
-							{queueScope === "all" && queued.length ? (
-								<section aria-labelledby="queued-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="queued-jobs">Na fila</h2>
-										<span>{queued.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{queued.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
-
-							{attention.length ? (
-								<section aria-labelledby="attention-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="attention-jobs">Precisam de atenção</h2>
-										<span>{attention.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{attention.map(renderRow)}
-									</ul>
-								</section>
-							) : queueScope === "attention" ? (
-								<div className={styles.emptyState}>
-									<strong>Nenhum trabalho precisa de atenção.</strong>
-									<span>A fila não possui falhas ou interrupções recuperáveis neste momento.</span>
-								</div>
-							) : null}
-
-							{queueScope === "all" && finished.length ? (
-								<section aria-labelledby="recent-jobs">
-									<div className={styles.sectionHeading}>
-										<h2 id="recent-jobs">Finalizados recentemente</h2>
-										<span>{finished.length}</span>
-									</div>
-									<ul className={styles.compactJobs}>
-										{finished.map(renderRow)}
-									</ul>
-								</section>
-							) : null}
-
-							{queueScope === "all" &&
-							!running.length &&
-							!queued.length &&
-							!attention.length &&
-							!finished.length ? (
-								<div className={styles.emptyState}>
-									<strong>A fila local está vazia.</strong>
-									<span>
-										Novos trabalhos enviados pela Visão geral aparecem aqui.
-									</span>
-								</div>
-							) : null}
-						</div>
+						<ProcessingQueueView
+							jobs={state.jobs}
+							filter={queueFilter}
+							onFilterChange={setQueueFilter}
+							mutation={state.mutation}
+							canDelete={canDeleteJobs}
+							onCancel={(job) =>
+								setConfirmation({ id: job.id, action: "cancel" })
+							}
+							onRetry={(job) =>
+								setConfirmation({ id: job.id, action: "retry" })
+							}
+							onResult={(job) => void controller.result(job.id)}
+							onDelete={(job) =>
+								setConfirmation({ id: job.id, action: "delete" })
+							}
+							onDiagnostics={() => activateView("diagnostics")}
+						/>
 					</section>
 
 					<section
