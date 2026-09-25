@@ -98,14 +98,6 @@ export function ProcessingCommandBar({
 				: health?.lifecycle === "ready"
 					? "success"
 					: "neutral";
-	const lifecycleLabel =
-		health?.lifecycle === "paused"
-			? "Companion pausado"
-			: health?.lifecycle === "ready"
-				? "Companion pronto"
-				: connected
-					? "Companion em preparação"
-					: connectionLabel;
 	const primaryLifecycleAction =
 		health?.lifecycle === "paused" ? "resume" : health?.lifecycle === "ready" ? "pause" : null;
 
@@ -119,7 +111,9 @@ export function ProcessingCommandBar({
 			<div className={styles.statusCluster}>
 				<span className={styles.statusDot} aria-hidden="true" />
 				<div className={styles.statusCopy}>
-					<strong>{lifecycleLabel}</strong>
+					<strong>
+						Companion <span className={styles.stateLabel}>{connectionLabel}</span>
+					</strong>
 					<span>{freshness(checkedAt, stale)}</span>
 					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
 				</div>
