@@ -280,7 +280,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
 				detail:
 					(failureClass ? details[failureClass] : undefined) ??
-					"O TDA interrompeu esta janela sem publicar resultado parcial; o texto pré-alinhamento continua preservado para uma nova tentativa compatível.",
+					"O TDA interrompeu esta janela sem publicar resultado parcial. Uma nova tentativa compatível reutilizará o texto pré-alinhamento se o checkpoint estiver disponível.",
 			};
 		}
 		case "ASR_CHECKPOINT_FAST_PATH":
@@ -299,8 +299,23 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				detail: "A transcrição compatível não rodou de novo; o processamento retomou a partir do alinhamento.",
 			};
 		}
+		case "ASR_TEXT_CHECKPOINT_SAVED":
+			return {
+				title: "Texto Qwen pré-alinhamento salvo em checkpoint.",
+				detail: "Se o alinhamento falhar, uma nova tentativa compatível pode evitar retranscrever esta faixa.",
+			};
+		case "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED":
+			return {
+				title: "Não foi possível salvar o checkpoint de texto desta faixa.",
+				detail: "A execução atual continua, mas uma nova tentativa pode precisar retranscrever esta faixa.",
+			};
 		case "ASR_CHECKPOINT_SAVED":
 			return { title: "Checkpoint da faixa salvo com sucesso." };
+		case "ASR_CHECKPOINT_WRITE_SKIPPED":
+			return {
+				title: "Não foi possível salvar o checkpoint final desta faixa.",
+				detail: "O resultado em andamento não foi marcado como concluído; uma nova tentativa pode refazer trabalho desta faixa.",
+			};
 		case "QUEUED":
 			return { title: "Trabalho adicionado à fila." };
 		case "RUNNING":
