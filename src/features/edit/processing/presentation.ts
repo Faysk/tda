@@ -314,7 +314,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 		case "ASR_CHECKPOINT_WRITE_SKIPPED":
 			return {
 				title: "Não foi possível salvar o checkpoint final desta faixa.",
-				detail: "O resultado em andamento não foi marcado como concluído; uma nova tentativa pode refazer trabalho desta faixa.",
+				detail: "A faixa continua nesta execução, mas uma nova tentativa pode precisar refazer este trabalho.",
 			};
 		case "QUEUED":
 			return { title: "Trabalho adicionado à fila." };
