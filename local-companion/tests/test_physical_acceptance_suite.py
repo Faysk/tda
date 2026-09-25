@@ -19,6 +19,10 @@ from tda_companion.physical_acceptance_suite import (
     verify_physical_acceptance_suite,
 )
 from tda_companion.qwen_physical_gate import GATE_SCHEMA as QWEN_GATE_SCHEMA
+from tda_companion.runtime_compat import (
+    MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+)
 
 SOURCE_SHA = "1" * 40
 TREE_SHA = "2" * 40
@@ -220,12 +224,12 @@ def _qwen_gate(
 
 def _receipt() -> dict[str, object]:
     whisper_runtime = {
-        "version": "1.1.4",
+        "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
         "worker_sha256": "0" * 64,
         "archive_sha256": "1" * 64,
     }
     qwen_runtime = {
-        "version": "1.0.7",
+        "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
         "worker_sha256": "2" * 64,
         "archive_sha256": "3" * 64,
     }
