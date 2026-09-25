@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/status";
 import {
 	PublicationClientError,
 	type PublicationReceiptView,
@@ -13,6 +12,7 @@ import type {
 	LocalReviewStatus,
 	LocalRunSummary,
 } from "./protocol";
+import { RunLibrary } from "./run-library";
 import styles from "./local-review.module.css";
 
 type Props = Readonly<{
@@ -36,17 +36,6 @@ type Props = Readonly<{
 
 const PAGE_SIZE = 25;
 
-function formatDate(value: string | null): string {
-	if (!value) return "data desconhecida";
-	return new Date(value).toLocaleString("pt-BR", {
-		day: "2-digit",
-		month: "short",
-		year: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
-
 function formatSeconds(value: number | null): string {
 	if (value === null) return "—";
 	const seconds = Math.round(value);
@@ -68,35 +57,6 @@ function formatTimestamp(value: number): string {
 	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
-function formatRealtime(rtf: number | null): string {
-	if (rtf === null || rtf <= 0) return "—";
-	const speed = 1 / rtf;
-	return `${speed >= 10 ? speed.toFixed(1) : speed.toFixed(2)}×`;
-}
-
-function formatRunExecution(run: LocalRunSummary): string {
-	const values = [run.device, run.computeType, run.alignment].filter(Boolean);
-	return values.length ? values.join(" · ") : "execução não registrada";
-}
-
-function formatVram(value: number | null | undefined): string {
-	if (value === null || value === undefined) return "—";
-	return `${(value / 1024 ** 3).toFixed(1)} GiB`;
-}
-
-function formatRuntime(run: LocalRunSummary): string {
-	const lineage = run.executionLineage;
-	if (!lineage) return "—";
-	const runtime = [lineage.runtimeFamily, lineage.runtimeVersion]
-		.filter(Boolean)
-		.join(" ");
-	return runtime || lineage.companionVersion
-		? [runtime || null, lineage.companionVersion ? `Companion ${lineage.companionVersion}` : null]
-				.filter(Boolean)
-				.join(" · ")
-		: "—";
-}
-
 function reviewError(code: string | null): string | null {
 	if (!code) return null;
 	return {
@@ -115,68 +75,6 @@ function reviewError(code: string | null): string | null {
 		invalid_response:
 			"O Companion respondeu com um contrato de revisão inválido.",
 	}[code] ?? `Não foi possível concluir a revisão local · ${code}`;
-}
-
-function RunCard({
-	run,
-	busy,
-	onOpen,
-}: Readonly<{
-	run: LocalRunSummary;
-	busy: boolean;
-	onOpen: () => void;
-}>) {
-	const model = [run.engine, run.model].filter(Boolean).join(" · ") || "modelo desconhecido";
-	return (
-		<article className={styles.runCard}>
-			<div className={styles.runHeader}>
-				<div>
-					<span className={styles.eyebrow}>Resultado local</span>
-					<h3>{run.profileId}</h3>
-				</div>
-				<StatusPill tone="success">Concluído</StatusPill>
-			</div>
-			<p className={styles.runModel}>
-				{model}
-				{run.modelRevision ? ` · rev ${run.modelRevision}` : ""}
-				{" · "}
-				{formatRunExecution(run)}
-			</p>
-			<dl className={styles.runFacts}>
-				<div><dt>Concluído</dt><dd>{formatDate(run.completedAt)}</dd></div>
-				<div><dt>Duração da sessão</dt><dd>{formatSeconds(run.stats.sessionDurationSeconds)}</dd></div>
-				<div><dt>Trabalho de áudio</dt><dd>{formatSeconds(run.stats.audioWorkSeconds)}</dd></div>
-				<div><dt>Processamento</dt><dd>{formatSeconds(run.stats.processingSeconds)}</dd></div>
-				<div><dt>Velocidade</dt><dd>{formatRealtime(run.stats.rtf)}</dd></div>
-				<div><dt>RTF</dt><dd>{run.stats.rtf === null ? "—" : run.stats.rtf.toFixed(3)}</dd></div>
-				<div><dt>Palavras</dt><dd>{run.stats.wordCount ?? "—"}</dd></div>
-				<div><dt>Segmentos</dt><dd>{run.stats.segmentCount ?? "—"}</dd></div>
-				<div><dt>Turnos</dt><dd>{run.stats.turnCount ?? "—"}</dd></div>
-				<div><dt>Tracks</dt><dd>{run.stats.trackCount ?? "—"}</dd></div>
-				<div><dt>Deduplicados</dt><dd>{run.stats.deduplicatedSegmentCount ?? "—"}</dd></div>
-				<div><dt>Warnings</dt><dd>{run.stats.warningCount ?? "—"}</dd></div>
-				<div><dt>GPU</dt><dd>{run.executionLineage?.gpu?.model ?? "—"}</dd></div>
-				<div><dt>VRAM</dt><dd>{formatVram(run.executionLineage?.gpu?.vramTotalBytes)}</dd></div>
-				<div><dt>Runtime</dt><dd>{formatRuntime(run)}</dd></div>
-				<div><dt>Compute capability</dt><dd>{run.executionLineage?.gpu?.computeCapability ?? "—"}</dd></div>
-			</dl>
-			<div className={styles.runIdentity}>
-				<span title={run.sourceId}>Fonte {run.sourceId.slice(0, 22)}…</span>
-				<span title={run.transcriptSha256}>SHA {run.transcriptSha256.slice(0, 12)}…</span>
-				{run.publicationTarget ? (
-					<span>
-						Destino {run.publicationTarget.campaignSlug} · sessão{" "}
-						{run.publicationTarget.sourceSessionId}
-					</span>
-				) : (
-					<span>Sem destino cloud vinculado</span>
-				)}
-			</div>
-			<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
-				Revisar resultado
-			</Button>
-		</article>
-	);
 }
 
 function ReviewEditor({
@@ -571,6 +469,12 @@ export function LocalReviewWorkspace({
 	onClose,
 	onPublish,
 }: Props) {
+	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (review) setSelectedRunId(review.runId);
+	}, [review]);
+
 	if (review) {
 		return (
 			<ReviewEditor
@@ -587,39 +491,12 @@ export function LocalReviewWorkspace({
 	}
 
 	return (
-		<section
-			className={`${styles.library} ${runs.length ? "" : styles.libraryCompact}`}
-			aria-labelledby="local-results-title"
-		>
-			<div className={styles.libraryHeader}>
-				<div>
-					<span className={styles.eyebrow}>Biblioteca local</span>
-					<h2 id="local-results-title">Resultados locais</h2>
-				</div>
-				<span>{runs.length} {runs.length === 1 ? "resultado" : "resultados"}</span>
-			</div>
-			{runs.length ? (
-				<>
-					<p className={styles.libraryIntro}>
-						Runs concluídos ficam separados da fila operacional. O transcript só é carregado quando você abre uma revisão.
-					</p>
-					<div className={styles.runGrid}>
-						{runs.map((run) => (
-							<RunCard
-								key={`${run.sourceId}-${run.runId}`}
-								run={run}
-								busy={busy}
-								onOpen={() => void onOpen(run.sourceId, run.runId)}
-							/>
-						))}
-					</div>
-				</>
-			) : (
-				<p className={styles.emptyCompact}>
-					Nenhum resultado local concluído ainda.
-					<span> Runs concluídos aparecem aqui sem publicação automática.</span>
-				</p>
-			)}
-		</section>
+		<RunLibrary
+			runs={runs}
+			selectedRunId={selectedRunId}
+			busy={busy}
+			onSelectRun={setSelectedRunId}
+			onOpen={onOpen}
+		/>
 	);
 }
