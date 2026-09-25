@@ -39,5 +39,7 @@ export function supportsAutomaticLoopbackSession(
 export function supportsQwenAlignmentRuntime(
 	runtimeVersion: string | null | undefined,
 ): boolean {
+	if (!runtimeVersion || !/^\d+\.\d+\.\d+$/u.test(runtimeVersion.trim()))
+		return false;
 	return atLeast(runtimeVersion, QWEN_ALIGNMENT_RUNTIME_MINIMUM);
 }
