@@ -312,6 +312,81 @@ def test_agent_restart_interrupted_job_retries_as_attempt_two(tmp_path: Path):
         assert "RUNNING" in codes
 
 
+def test_worker_alignment_diagnostics_preserve_warning_and_error_levels(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        kwargs["on_event"](
+            WorkerMessage.create(
+                job_id=kwargs["job_id"],
+                attempt=kwargs["attempt"],
+                seq=1,
+                type="event",
+                payload={
+                    "code": "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
+                    "stage": "alignment",
+                    "track": 1,
+                    "window": 88,
+                    "count": 1,
+                },
+            )
+        )
+        kwargs["on_event"](
+            WorkerMessage.create(
+                job_id=kwargs["job_id"],
+                attempt=kwargs["attempt"],
+                seq=2,
+                type="event",
+                payload={
+                    "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
+                    "stage": "alignment",
+                    "track": 1,
+                    "window": 89,
+                    "failure_class": "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+                    "overflow_seconds": 1.25,
+                },
+            )
+        )
+        raise WorkerProcessError("QWEN_ALIGNMENT_REQUIRED", recoverable=True)
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        queued = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "alignment-event-levels"},
+            json=_body(),
+        ).json()
+        _wait_for_job(client, queued["id"], "failed")
+        events = client.get(
+            f"/api/v1/jobs/{queued['id']}/events",
+            headers=HEADERS,
+        ).json()["events"]
+        by_code = {event["code"]: event for event in events}
+        assert by_code["QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED"]["level"] == "warning"
+        assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["level"] == "error"
+        assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["track"] == 1
+        assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["window"] == 89
+        assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["failure_class"] == (
+            "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+        )
+        assert by_code["QWEN_ALIGNMENT_REQUIRED"]["level"] == "error"
+
+
 def test_worker_failure_immediately_recovers_valid_immutable_run(
     monkeypatch,
     tmp_path: Path,
