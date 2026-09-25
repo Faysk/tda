@@ -9,6 +9,7 @@ import tda_companion.asr_checkpoints as checkpoints_module
 from tda_companion.asr_checkpoints import (
     QwenTextCheckpointWindow,
     build_checkpoint_signature,
+    load_compatible_qwen_text_checkpoint,
     load_qwen_text_checkpoint,
     load_track_checkpoint,
     save_qwen_text_checkpoint,
@@ -103,7 +104,12 @@ def _signature(*, context: str = "mesa"):
     )
 
 
-def _qwen_signature(*, context: str = "mesa"):
+def _qwen_signature(
+    *,
+    context: str = "mesa",
+    runtime: str = "qwen-runtime-a",
+    alignment_policy: str = "strict-overlap-v2",
+):
     track = _source_track()
     return build_checkpoint_signature(
         _package(track),
@@ -111,11 +117,11 @@ def _qwen_signature(*, context: str = "mesa"):
         recipe={
             "window_seconds": 60.0,
             "window_overlap_seconds": 6.0,
-            "alignment_policy": "strict-overlap-v2",
+            "alignment_policy": alignment_policy,
         },
         context=context,
         glossary="Yuhara",
-        runtime_fingerprint="qwen-runtime-a",
+        runtime_fingerprint=runtime,
     )
 
 
@@ -163,6 +169,67 @@ def test_qwen_text_checkpoint_roundtrip_requires_exact_signature_and_track(tmp_p
     ) is None
     changed_track = CraigTrack(**{**track.__dict__, "sha256": "c" * 64})
     assert load_qwen_text_checkpoint(tmp_path, signature, changed_track) is None
+
+
+def test_qwen_text_checkpoint_compatibility_bridge_reuses_only_declared_transition(
+    tmp_path: Path,
+):
+    track = _source_track()
+    expected = _text_windows()
+    old_runtime = "checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("a" * 64)
+    new_runtime = "checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=" + ("b" * 64)
+    old_signature = _qwen_signature(runtime=old_runtime, alignment_policy="strict-overlap-v2")
+    current_signature = _qwen_signature(runtime=new_runtime, alignment_policy="strict-overlap-v3")
+    legacy_template = _qwen_signature(runtime=new_runtime, alignment_policy="strict-overlap-v2")
+
+    save_qwen_text_checkpoint(tmp_path, old_signature, track, expected)
+
+    assert load_qwen_text_checkpoint(tmp_path, current_signature, track) is None
+    assert load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        current_signature,
+        track,
+        templates=(legacy_template,),
+    ) == expected
+
+    future_signature = _qwen_signature(
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.12;worker_sha256=" + ("c" * 64),
+        alignment_policy="strict-overlap-v3",
+    )
+    future_template = _qwen_signature(
+        runtime=future_signature.runtime_fingerprint,
+        alignment_policy="strict-overlap-v2",
+    )
+    assert load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        future_signature,
+        track,
+        templates=(future_template,),
+    ) is None
+
+
+def test_qwen_text_checkpoint_compatibility_bridge_rejects_ambiguous_lineage(
+    tmp_path: Path,
+):
+    track = _source_track()
+    expected = _text_windows()
+    new_runtime = "checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=" + ("c" * 64)
+    current_signature = _qwen_signature(runtime=new_runtime, alignment_policy="strict-overlap-v3")
+    legacy_template = _qwen_signature(runtime=new_runtime, alignment_policy="strict-overlap-v2")
+
+    for worker in ("a", "b"):
+        old_signature = _qwen_signature(
+            runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + (worker * 64),
+            alignment_policy="strict-overlap-v2",
+        )
+        save_qwen_text_checkpoint(tmp_path, old_signature, track, expected)
+
+    assert load_compatible_qwen_text_checkpoint(
+        tmp_path,
+        current_signature,
+        track,
+        templates=(legacy_template,),
+    ) is None
 
 
 def test_qwen_text_checkpoint_rejects_corruption_tampering_and_partial_files(tmp_path: Path):
