@@ -253,8 +253,12 @@ export class ProcessingController {
 		const reloadLibrary =
 			reviewEnabled && ((options.includeLibrary ?? true) || terminalTransition);
 
-		let localSources = reviewEnabled ? previous.localSources : [];
-		let localRuns = reviewEnabled ? previous.localRuns : [];
+		let localSources: readonly LocalSourceSummary[] = reviewEnabled
+			? previous.localSources
+			: [];
+		let localRuns: LocalRunSummary[] = reviewEnabled
+			? [...previous.localRuns]
+			: [];
 		if (reloadLibrary) {
 			try {
 				localSources = await this.bridge.localSources(signal);
@@ -287,7 +291,7 @@ export class ProcessingController {
 				// A library read is secondary to the operational snapshot. Keep the
 				// previous successful catalog until a later refresh succeeds.
 				localSources = previous.localSources;
-				localRuns = previous.localRuns;
+				localRuns = [...previous.localRuns];
 			}
 		}
 
