@@ -160,13 +160,13 @@ test("operational grammar keeps state semantics distinct and essential text read
 	const activeSurface = page.locator("article").first();
 	const activeVisual = await activeSurface.evaluate((element) => {
 		const style = getComputedStyle(element);
-		const root = getComputedStyle(document.documentElement);
 		return {
-			borderLeftColor: style.borderLeftColor,
-			accent: root.getPropertyValue("--ds-accent").trim(),
+			boxShadow: style.boxShadow,
+			borderLeftWidth: style.borderLeftWidth,
 		};
 	});
-	expect(activeVisual.borderLeftColor).not.toBe(activeVisual.accent);
+	expect(activeVisual.boxShadow).toBe("none");
+	expect(activeVisual.borderLeftWidth).toBe("1px");
 
 	const cpuMetric = page.getByText("CPU", { exact: true }).locator("..");
 	const metricVisual = await cpuMetric.evaluate((element) => {
