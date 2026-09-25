@@ -240,7 +240,7 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
-			.getByRole("row")
+			.locator('td[data-label="Estado"]')
 			.getByText("Falhou", { exact: true }),
 	).toBeVisible();
 });
