@@ -144,6 +144,7 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         )
         assert listing.status_code == 200
         assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(listing.json())
+        assert listing.json()["runs"][0]["review"] is None
 
         review = client.get(
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
@@ -155,6 +156,19 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert opened["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
         assert opened["sync"] == {"status": "not_configured"}
         assert str(tmp_path) not in json.dumps(opened)
+
+        after_open = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=headers,
+        )
+        assert after_open.status_code == 200
+        assert after_open.json()["runs"][0]["review"] == {
+            "status": "draft",
+            "draft_revision": 0,
+            "review_percent": 0.0,
+            "updated_at": opened["updated_at"],
+        }
+        assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(after_open.json())
 
         segments = [dict(item) for item in opened["segments"]]
         segments[0]["text"] = "Texto revisado"
@@ -176,6 +190,19 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert value["review"]["review_percent"] == 100.0
         assert value["review"]["edited_segments"] == 1
         assert raw_path.read_bytes() == raw_before
+
+        after_save = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers=headers,
+        )
+        assert after_save.status_code == 200
+        assert after_save.json()["runs"][0]["review"] == {
+            "status": "approved_local",
+            "draft_revision": 1,
+            "review_percent": 100.0,
+            "updated_at": value["updated_at"],
+        }
+        assert "Texto revisado" not in json.dumps(after_save.json())
 
         reopened = client.get(
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
