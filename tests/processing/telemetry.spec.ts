@@ -201,6 +201,8 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 
 	await expect(gpu).toHaveAttribute("value", "25");
 	await expect(gpu).toHaveAttribute("aria-valuetext", "25%");
+	expect(await visual.textContent()).not.toBe("100%");
+	expect(await visual.textContent()).not.toBe("25%");
 	await expect(visual).toHaveText("25%", { timeout: 2_000 });
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 
@@ -223,6 +225,17 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("value", "2");
 	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
+
+	state.setJob(
+		fixtureJob("running", {
+			attempt: 2,
+			progress: { completed: 1, total: 2, unit: "tracks" },
+		}),
+	);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(progress).toHaveAttribute("value", "1");
+	await expect(progress).toHaveAttribute("max", "2");
+	await expect(progressVisual).toHaveAttribute("data-progress-target", "0.5");
 });
 
 test("aba oculta encerra o frame loop sem alterar o target factual", async ({
