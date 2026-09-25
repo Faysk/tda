@@ -1,6 +1,6 @@
 .card {
 	margin-block: 10px;
-	padding: 14px;
+	padding: 16px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-lg);
 	background: var(--ds-surface);
@@ -10,17 +10,15 @@
 
 .heading {
 	display: flex;
-	align-items: end;
+	align-items: flex-end;
 	justify-content: space-between;
 	gap: 14px;
-	margin-bottom: 12px;
+	margin-bottom: 14px;
 }
 
 .heading span,
 .heading small,
-.form label > span,
-.actions span,
-.source {
+.form label > span {
 	color: var(--ds-foreground-muted);
 	font-size: 0.72rem;
 }
@@ -34,15 +32,87 @@
 .heading h2 {
 	margin: 2px 0 0;
 	font-family: var(--ds-font-display);
-	font-size: 1.1rem;
-	font-weight: 500;
+	font-size: 1.2rem;
+	font-weight: 540;
 }
 
 .form {
 	display: grid;
-	grid-template-columns: minmax(150px, 0.7fr) minmax(170px, 0.68fr) minmax(260px, 1.3fr) auto;
-	align-items: end;
-	gap: 8px;
+	gap: 10px;
+	width: min(100%, 1180px);
+}
+
+.dropZone {
+	position: relative;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 16px;
+	min-height: 104px;
+	padding: 16px 18px;
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+	transition:
+		border-color 140ms ease,
+		background 140ms ease,
+		box-shadow 140ms ease;
+}
+
+.dropZone[data-dragging="true"] {
+	border-color: var(--ds-accent);
+	background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-canvas-subtle));
+	box-shadow: inset 0 0 0 1px var(--ds-accent);
+}
+
+.dropZone[data-has-file="true"] {
+	border-style: solid;
+}
+
+.fileInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.dropCopy {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.dropCopy strong {
+	overflow: hidden;
+	font-size: 0.92rem;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dropCopy > span:last-child {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.dropEyebrow {
+	color: var(--ds-foreground-soft);
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.coreFields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
 }
 
 .form label {
@@ -55,9 +125,9 @@
 .form select,
 .form textarea {
 	width: 100%;
-	min-height: 36px;
-	padding: 6px 8px;
-	border: 1px solid var(--ds-border);
+	min-height: 38px;
+	padding: 7px 9px;
+	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-canvas-subtle);
 	color: var(--ds-foreground);
@@ -65,81 +135,135 @@
 }
 
 .form textarea {
-	min-height: 64px;
+	min-height: 78px;
 	resize: vertical;
 }
 
 .form input:focus-visible,
 .form select:focus-visible,
 .form textarea:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
+}
+
+.profileSummary,
+.sourceSummary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	min-width: 0;
+	padding: 9px 11px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.profileSummary > div,
+.sourceSummary {
+	min-width: 0;
+}
+
+.profileSummary > div {
+	display: grid;
+	gap: 2px;
+}
+
+.profileSummary strong,
+.sourceSummary strong {
+	font-size: 0.78rem;
+	font-weight: 720;
+}
+
+.profileSummary span,
+.sourceSummary span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.35;
+}
+
+.estimate {
+	flex: 0 1 auto;
+	max-width: 300px;
+	text-align: right;
 }
 
 .actions {
 	display: flex;
-	align-items: end;
-	justify-content: flex-end;
-	gap: 8px;
-	min-width: 0;
+	align-items: center;
+	gap: 12px;
+	padding-top: 2px;
 }
 
-.actions span {
-	max-width: 118px;
-	font-size: 0.6875rem;
-	line-height: 1.25;
+.actions :global(.ds-action) {
+	min-width: 148px;
 }
 
+.privacy {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.35;
+}
+
+.privacyDetails,
 .advanced {
-	grid-column: 1 / -1;
-	margin-top: 1px;
 	border-top: 1px solid var(--ds-border-subtle);
 }
 
-.advanced summary {
+.privacyDetails > summary,
+.advanced > summary {
+	min-height: 32px;
+	padding: 7px 2px 0;
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	font-size: 0.71rem;
+	font-weight: 700;
+}
+
+.privacyDetails > summary:focus-visible,
+.advanced > summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.privacyDetails p {
+	margin: 8px 0 0;
+	max-width: 760px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.5;
+}
+
+.advanced > summary {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 10px;
-	min-height: 30px;
-	padding: 5px 2px 0;
-	color: var(--ds-foreground-soft);
-	cursor: pointer;
-	font-size: 0.7rem;
-	font-weight: 700;
-	list-style-position: inside;
 }
 
-.advanced summary small {
+.advanced > summary small {
 	margin-left: auto;
 	color: var(--ds-foreground-muted);
 	font-size: 0.6875rem;
 	font-weight: 500;
 }
 
-.advanced summary:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
-	outline-offset: 2px;
-}
-
 .advancedGrid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px;
-	padding-top: 8px;
-}
-
-.notice,
-.error {
-	grid-column: 1 / -1;
+	gap: 10px;
+	padding-top: 9px;
 }
 
 .notice,
 .status,
 .error,
-.source {
-	margin: 9px 0 0;
-	font-size: 0.76rem;
+.inlineError {
+	margin: 8px 0 0;
+	font-size: 0.75rem;
 	line-height: 1.45;
 }
 
@@ -148,59 +272,74 @@
 	color: var(--ds-foreground-muted);
 }
 
-.error {
+.error,
+.inlineError {
 	color: var(--ds-danger-foreground, #c33);
 }
 
+.inlineError {
+	margin: -2px 0 0;
+}
+
+.card[data-layout="compact"] {
+	padding: 13px;
+}
 
 .card[data-layout="compact"] .heading {
 	align-items: flex-start;
 	flex-direction: column;
-	gap: 4px;
+	gap: 3px;
 	margin-bottom: 10px;
 }
 
-.card[data-layout="compact"] .form {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+.card[data-layout="compact"] .heading small {
+	display: none;
 }
 
-.card[data-layout="compact"] .fileField,
-.card[data-layout="compact"] .actions,
-.card[data-layout="compact"] .advanced,
-.card[data-layout="compact"] .notice,
-.card[data-layout="compact"] .error {
-	grid-column: 1 / -1;
+.card[data-layout="compact"] .form {
+	gap: 8px;
+}
+
+.card[data-layout="compact"] .dropZone {
+	grid-template-columns: 1fr;
+	gap: 8px;
+	min-height: 0;
+	padding: 11px;
+}
+
+.card[data-layout="compact"] .dropCopy strong {
+	font-size: 0.82rem;
+}
+
+.card[data-layout="compact"] .dropZone :global(.ds-action) {
+	justify-self: start;
+}
+
+.card[data-layout="compact"] .coreFields,
+.card[data-layout="compact"] .advancedGrid {
+	grid-template-columns: 1fr;
+}
+
+.card[data-layout="compact"] .profileSummary,
+.card[data-layout="compact"] .sourceSummary {
+	align-items: flex-start;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.card[data-layout="compact"] .estimate {
+	max-width: none;
+	text-align: left;
 }
 
 .card[data-layout="compact"] .actions {
-	align-items: center;
-	justify-content: space-between;
+	align-items: stretch;
+	flex-direction: column;
+	gap: 7px;
 }
 
-.card[data-layout="compact"] .actions span {
-	max-width: 170px;
-	text-align: right;
-}
-
-@media (max-width: 1100px) {
-	.form {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.fileField,
-	.actions,
-	.advanced {
-		grid-column: 1 / -1;
-	}
-
-	.actions {
-		align-items: center;
-		justify-content: flex-start;
-	}
-
-	.actions span {
-		max-width: none;
-	}
+.card[data-layout="compact"] .actions :global(.ds-action) {
+	width: 100%;
 }
 
 @media (max-width: 720px) {
@@ -211,35 +350,48 @@
 	.heading {
 		align-items: flex-start;
 		flex-direction: column;
+		gap: 4px;
 	}
 
-	.form,
+	.dropZone {
+		grid-template-columns: 1fr;
+		gap: 10px;
+		min-height: 0;
+		padding: 13px;
+	}
+
+	.dropZone :global(.ds-action) {
+		justify-self: start;
+	}
+
+	.coreFields,
 	.advancedGrid {
 		grid-template-columns: 1fr;
 	}
 
-	.fileField,
-	.actions,
-	.advanced,
-	.notice,
-	.error {
-		grid-column: auto;
+	.profileSummary,
+	.sourceSummary {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.estimate {
+		max-width: none;
+		text-align: left;
 	}
 
 	.actions {
 		align-items: stretch;
 		flex-direction: column;
+		gap: 8px;
 	}
 
 	.actions :global(.ds-action) {
 		width: 100%;
 	}
 
-	.advanced summary {
-		align-items: flex-start;
-	}
-
-	.advanced summary small {
+	.advanced > summary small {
 		display: none;
 	}
 }
