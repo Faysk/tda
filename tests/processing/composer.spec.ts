@@ -263,11 +263,36 @@ test("última sessão vira somente sugestão explícita após submissão bem-suc
 	await expect(page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true })).toHaveValue("sessao-42");
 });
 
+test("incompatible bloqueia o composer e leva ao Diagnóstico", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: false,
+		transcriptionUnavailable: true,
+		advanceJobs: false,
+	});
+	await openComposer(page);
+
+	const composer = page.locator("[data-processing-composer='true']");
+	await expect(composer).toContainText(
+		"Este Companion não oferece um fluxo compatível.",
+	);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila" }),
+	).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Abrir Diagnóstico" }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+});
+
 test("running mantém composer compacto e idle permite o composer crescer", async ({
 	page,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await installCompanionFixture(page, {
+	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [fixtureJob("running")],
@@ -275,12 +300,20 @@ test("running mantém composer compacto e idle permite o composer crescer", asyn
 	await openComposer(page);
 
 	const top = page.locator("[data-processing-overview-top='true']");
-	const runningComposer = top.locator("section[data-layout='compact']");
+	const runningComposer = top.locator("[data-processing-composer='true']");
 	await expect(top).toHaveAttribute("data-active-job", "true");
-	await expect(runningComposer).toBeVisible();
+	await expect(runningComposer).toHaveAttribute("data-layout", "compact");
 	const topBox = await top.boundingBox();
 	const compactBox = await runningComposer.boundingBox();
 	expect(topBox).not.toBeNull();
 	expect(compactBox).not.toBeNull();
 	expect((compactBox?.width ?? 0) / (topBox?.width ?? 1)).toBeLessThanOrEqual(0.4);
+
+	state.setJob(null);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(top).toHaveAttribute("data-active-job", "false");
+	await expect(runningComposer).toHaveAttribute("data-layout", "default");
+	const idleBox = await runningComposer.boundingBox();
+	expect(idleBox).not.toBeNull();
+	expect((idleBox?.width ?? 0) / (topBox?.width ?? 1)).toBeGreaterThanOrEqual(0.55);
 });
