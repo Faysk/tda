@@ -345,6 +345,32 @@ def test_worker_alignment_diagnostics_distinguish_safe_recovery_from_failure(
                 seq=2,
                 type="event",
                 payload={
+                    "code": "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
+                    "stage": "transcription",
+                    "track": 1,
+                },
+            )
+        )
+        kwargs["on_event"](
+            WorkerMessage.create(
+                job_id=kwargs["job_id"],
+                attempt=kwargs["attempt"],
+                seq=3,
+                type="event",
+                payload={
+                    "code": "ASR_CHECKPOINT_WRITE_SKIPPED",
+                    "stage": "alignment",
+                    "track": 1,
+                },
+            )
+        )
+        kwargs["on_event"](
+            WorkerMessage.create(
+                job_id=kwargs["job_id"],
+                attempt=kwargs["attempt"],
+                seq=4,
+                type="event",
+                payload={
                     "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
                     "stage": "alignment",
                     "track": 1,
@@ -378,6 +404,8 @@ def test_worker_alignment_diagnostics_distinguish_safe_recovery_from_failure(
         ).json()["events"]
         by_code = {event["code"]: event for event in events}
         assert by_code["QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED"]["level"] == "info"
+        assert by_code["ASR_TEXT_CHECKPOINT_WRITE_SKIPPED"]["level"] == "warning"
+        assert by_code["ASR_CHECKPOINT_WRITE_SKIPPED"]["level"] == "warning"
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["level"] == "error"
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["track"] == 1
         assert by_code["QWEN_ALIGNMENT_WINDOW_FAILED"]["data"]["window"] == 89
