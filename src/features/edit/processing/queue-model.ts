@@ -28,10 +28,10 @@ const statusOrder: Record<LocalJob["status"], number> = {
 };
 
 const knownProfiles: Record<string, string> = {
+	"qwen-fast": "Qwen Fast",
 	"qwen-quality": "Qwen Quality",
+	"whisper-detailed": "Whisper Detailed",
 	"whisper-turbo": "Whisper Turbo",
-	"whisper-quality": "Whisper Quality",
-	"whisper-fast": "Whisper Fast",
 };
 
 function normalized(value: string | null | undefined): string {
