@@ -136,10 +136,11 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.jobStatusesServed).toContain("succeeded");
 
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Concluídos" }).click();
 	await expect(
-		page.getByText("Concluído", { exact: true }).first(),
+		page.getByRole("row").getByText("Concluído", { exact: true }),
 	).toBeVisible();
-	await page.getByRole("button", { name: "Consultar resultado local" }).click();
+	await page.getByRole("button", { name: "Abrir resultado" }).click();
 
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	await expect(page.getByText("run-craig-job-1-a1", { exact: false })).toBeVisible();
