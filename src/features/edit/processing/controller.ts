@@ -1,4 +1,3 @@
-import { beginInteractiveGlobalLoading } from "../../../components/global-loading/events";
 import { LocalBridge } from "./bridge";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
@@ -130,8 +129,6 @@ export class ProcessingController {
 		action: (signal: AbortSignal) => Promise<void>,
 	) {
 		if (mutation && this.#state.mutation) return;
-
-		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
 		// A user mutation wins over any older background read that may still be
@@ -191,7 +188,6 @@ export class ProcessingController {
 		} finally {
 			if (epoch === this.#epoch && mutation)
 				this.update({ mutation: null });
-			stopGlobalLoading();
 		}
 	}
 
@@ -496,7 +492,6 @@ export class ProcessingController {
 			return;
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
-		const stopGlobalLoading = beginInteractiveGlobalLoading();
 		this.update({ localReviewBusy: true, localReviewError: null });
 		try {
 			const localReview = await action(signal);
@@ -514,7 +509,6 @@ export class ProcessingController {
 		} finally {
 			if (epoch === this.#epoch)
 				this.update({ localReviewBusy: false });
-			stopGlobalLoading();
 		}
 	}
 
