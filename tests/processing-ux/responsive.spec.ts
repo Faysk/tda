@@ -105,6 +105,16 @@ for (const viewport of viewports) {
 	});
 }
 
+test("healthy desktop command bar stays within the compact height budget", async ({ page }) => {
+	await openRunningWorkspace(page, 1440, 900);
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	const box = await commandBar.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.height ?? 999).toBeLessThanOrEqual(52);
+	await expect(commandBar).toContainText("Synthetic GPU · 25% · 4.0/8.0 GB");
+	await expect(commandBar).not.toContainText("Concluídos");
+});
+
 test("workspace tabs implement roving keyboard navigation", async ({ page }) => {
 	await openRunningWorkspace(page, 1366, 768);
 	const overview = page.getByRole("tab", { name: "Visão geral" });
