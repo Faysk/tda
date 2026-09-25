@@ -131,6 +131,7 @@ export async function installCompanionFixture(
 	options: CompanionFixtureOptions = {},
 ): Promise<CompanionFixtureState> {
 	let lifecycle = options.lifecycle ?? "ready";
+	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
 	let preparationReads = 0;
@@ -391,7 +392,14 @@ export async function installCompanionFixture(
 			const status = state.job?.status;
 			if (typeof status === "string") state.jobStatusesServed.push(status);
 			return json(route, {
-				jobs: state.job ? [state.job] : (options.initialJobs ?? []),
+				jobs: state.job
+					? [
+							state.job,
+							...additionalJobs.filter(
+								(job) => job.id !== state.job?.id,
+							),
+						]
+					: additionalJobs,
 			});
 		}
 		if (path === "/jobs/craig-job-1/events") {
