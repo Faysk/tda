@@ -522,10 +522,14 @@ def test_strict_qwen_reuses_1_0_10_text_checkpoint_after_1_0_11_alignment_upgrad
     assert asr_calls == 1
     assert document.tracks[0].segments[0].text == "texto"
     assert "strict-overlap-v3" in document.engine.alignment
-    assert sum(
-        item.get("code") == "ASR_TEXT_CHECKPOINT_COMPAT_REUSED"
+    compat_event = next(
+        item
         for item in second_reports
-    ) == 1
+        if item.get("code") == "ASR_TEXT_CHECKPOINT_COMPAT_REUSED"
+    )
+    assert compat_event["source_runtime_version"] == "1.0.10"
+    assert len(compat_event["source_signature_sha256"]) == 64
+    assert set(compat_event["source_signature_sha256"]) <= set("0123456789abcdef")
     stages = [
         item.get("stage")
         for item in second_reports
