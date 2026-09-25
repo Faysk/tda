@@ -1032,6 +1032,15 @@
 }
 
 @media (max-width: 520px) {
+	.queueScope {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.queueScope :global(.ds-action) {
+		width: 100%;
+	}
+
 	.page {
 		padding-bottom: 14px;
 	}
