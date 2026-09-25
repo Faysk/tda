@@ -7,7 +7,11 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 
-function localComputer(page: import("@playwright/test").Page) {\n\treturn page.getByRole("region", { name: "Computador local" });\n}\n\nfunction fulfillJson(
+function localComputer(page: import("@playwright/test").Page) {
+	return page.getByRole("region", { name: "Computador local" });
+}
+
+function fulfillJson(
 	route: import("@playwright/test").Route,
 	value: unknown,
 	status = 200,
