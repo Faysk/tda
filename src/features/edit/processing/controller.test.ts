@@ -626,6 +626,166 @@ describe("processing state", () => {
 		).toBe(false);
 	});
 
+	it("updates the run review badge immediately after a successful save", async () => {
+		const sourceSha = "f".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const runId = "run-review-success-a1";
+		const transcriptSha = "1".repeat(64);
+		const reviewCaps = {
+			...caps,
+			capabilities: ["transcription.review"],
+		};
+		const baseReview = {
+			schema_version: "tda_local_review_v1",
+			source_id: sourceId,
+			run_id: runId,
+			base_transcript_sha256: transcriptSha,
+			draft_revision: 0,
+			draft_sha256: "2".repeat(64),
+			status: "draft",
+			created_at: "2026-09-21T00:00:00Z",
+			updated_at: "2026-09-21T00:00:00Z",
+			lineage: {
+				profile_id: "whisper-detailed",
+				engine: "faster-whisper",
+				model: "large-v3",
+				model_revision: "rev",
+				device: "cuda",
+				compute_type: "float16",
+				alignment: "native",
+				execution_lineage: null,
+				completed_at: "2026-09-21T00:00:00Z",
+			},
+			stats: {
+				audio_work_seconds: 2,
+				processing_seconds: 1,
+				session_duration_seconds: 2,
+				rtf: 0.5,
+				word_count: 2,
+				segment_count: 1,
+				track_count: 1,
+			},
+			warnings: [],
+			publication_target: null,
+			review: {
+				reviewed_segments: 0,
+				total_segments: 1,
+				review_percent: 0,
+				edited_segments: 0,
+				word_count: 2,
+				warning_count: 0,
+			},
+			segments: [
+				{
+					track_number: 1,
+					segment_id: "1-0",
+					start: 0,
+					end: 1,
+					text: "Texto local",
+					speaker: "Alice",
+					reviewed: false,
+				},
+			],
+			sync: { status: "not_configured" },
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [
+						{
+							source_id: sourceId,
+							source_sha256: sourceSha,
+							recording_id: null,
+							track_count: 1,
+						},
+					],
+				});
+			if (value.endsWith(`/sources/${sourceId}/runs`))
+				return Response.json({
+					schema_version: "tda_transcription_runs_v1",
+					source_id: sourceId,
+					runs: [
+						{
+							run_id: runId,
+							status: "completed",
+							source_id: sourceId,
+							profile_id: "whisper-detailed",
+							engine: "faster-whisper",
+							model: "large-v3",
+							model_revision: "rev",
+							device: "cuda",
+							compute_type: "float16",
+							alignment: "native",
+							execution_lineage: null,
+							language: "pt",
+							completed_at: "2026-09-21T00:00:00Z",
+							transcript_sha256: transcriptSha,
+							transcript_size_bytes: 1200,
+							stats: {},
+							publication_target: null,
+							review_summary: null,
+						},
+					],
+				});
+			if (value.endsWith("/review") && init?.method === "GET")
+				return Response.json(baseReview);
+			if (value.endsWith("/review") && init?.method === "POST")
+				return Response.json({
+					...baseReview,
+					draft_revision: 1,
+					draft_sha256: "3".repeat(64),
+					status: "approved_local",
+					updated_at: "2026-09-21T00:05:00Z",
+					review: {
+						...baseReview.review,
+						reviewed_segments: 1,
+						review_percent: 100,
+					},
+					segments: [
+						{
+							...baseReview.segments[0],
+							reviewed: true,
+						},
+					],
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+		await controller.connect(token);
+		await controller.openLocalReview(sourceId, runId);
+		const current = controller.snapshot().localReview;
+		if (!current) throw new Error("review did not open");
+
+		await controller.saveLocalReview(
+			current.draftRevision,
+			"approved_local",
+			current.segments.map((segment) => ({ ...segment, reviewed: true })),
+		);
+
+		expect(controller.snapshot()).toMatchObject({
+			localReview: {
+				status: "approved_local",
+				draftRevision: 1,
+				updatedAt: "2026-09-21T00:05:00Z",
+			},
+			localRuns: [
+				{
+					runId,
+					reviewSummary: {
+						status: "approved_local",
+						draftRevision: 1,
+						updatedAt: "2026-09-21T00:05:00Z",
+					},
+				},
+			],
+		});
+	});
+
 	it("opens review only on explicit action and keeps stale-save conflict local to the editor", async () => {
 		const sourceSha = "c".repeat(64);
 		const sourceId = `craig-${sourceSha}`;
@@ -739,10 +899,23 @@ describe("processing state", () => {
 		expect(controller.snapshot().localReview).toBeNull();
 
 		await controller.openLocalReview(sourceId, runId);
-		expect(controller.snapshot().localReview).toMatchObject({
-			sourceId,
-			runId,
-			draftRevision: 0,
+		expect(controller.snapshot()).toMatchObject({
+			localReview: {
+				sourceId,
+				runId,
+				draftRevision: 0,
+			},
+			localRuns: [
+				{
+					sourceId,
+					runId,
+					reviewSummary: {
+						status: "draft",
+						draftRevision: 0,
+						updatedAt: "2026-09-21T00:00:00Z",
+					},
+				},
+			],
 		});
 
 		const current = controller.snapshot().localReview;
