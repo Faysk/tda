@@ -5,6 +5,19 @@
 	font-family: var(--ds-font-ui);
 }
 
+.panel :global(.ds-status) {
+	transition:
+		border-color 180ms ease,
+		background-color 180ms ease,
+		color 180ms ease;
+}
+
+.panel :global(.ds-status)::before {
+	transition:
+		background-color 180ms ease,
+		opacity 180ms ease;
+}
+
 .panel {
 	display: grid;
 	gap: 10px;
@@ -1095,6 +1108,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.panel :global(.ds-status),
+	.panel :global(.ds-status)::before {
+		transition: none;
+	}
+
 	.panel *,
 	.panel *::before,
 	.panel *::after {
