@@ -30,15 +30,17 @@ export function AnimatedProgress({
 	return (
 		<span
 			className={classNames(styles.progress, className)}
-			role="progressbar"
-			aria-label={ariaLabel}
-			aria-valuemin={0}
-			aria-valuemax={safeMax}
-			aria-valuenow={safeValue}
-			aria-valuetext={valueText}
 			data-animated-progress="true"
+			data-progress-label={ariaLabel}
 			data-progress-target={ratio}
 		>
+			<progress
+				className={styles.accessibleProgress}
+				max={safeMax}
+				value={safeValue}
+				aria-label={ariaLabel}
+				aria-valuetext={valueText}
+			/>
 			<span className={styles.fill} style={style} aria-hidden="true" />
 		</span>
 	);
