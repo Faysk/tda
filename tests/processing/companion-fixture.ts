@@ -47,6 +47,7 @@ export type CompanionFixtureOptions = {
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
+	uploadDelayMs?: number;
 	system?: FixtureSystemSnapshot;
 	localRuns?: Record<string, unknown>[];
 	localReviews?: Record<string, Record<string, unknown>>;
@@ -528,6 +529,8 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
+			if (options.uploadDelayMs)
+				await new Promise((resolve) => setTimeout(resolve, options.uploadDelayMs));
 			const contentType = request.headers()["content-type"] ?? "";
 			if (!contentType.startsWith("application/zip"))
 				return json(
