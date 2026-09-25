@@ -303,6 +303,51 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert document.stats.word_count == 0
 
 
+def test_strict_qwen_reports_alignment_window_context_for_vram_failure(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class OomAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ASR_GPU_MEMORY_EXHAUSTED")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_GPU_MEMORY_EXHAUSTED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: OomAligner(),
+            window_reader=lambda _path: iter(
+                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+            ),
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    failure = next(
+        item for item in reports if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert failure["track"] == 1
+    assert failure["window"] == 1
+    assert failure["failure_class"] == "QWEN_ASR_GPU_MEMORY_EXHAUSTED"
+
+
 def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path):
     package, root = _package(tmp_path)
 
