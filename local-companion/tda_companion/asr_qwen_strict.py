@@ -472,6 +472,7 @@ def transcribe_craig_package_qwen_strict(
         )
         compatibility_reuse = False
         compatibility_source_runtime_version: str | None = None
+        compatibility_source_signature_sha256: str | None = None
         if cached_text is None and checkpoints:
             compatible = load_compatible_qwen_text_checkpoint(
                 package_root,
@@ -483,6 +484,7 @@ def transcribe_craig_package_qwen_strict(
                 cached_text = compatible.windows
                 compatibility_reuse = True
                 compatibility_source_runtime_version = compatible.source_runtime_version
+                compatibility_source_signature_sha256 = compatible.source_signature_sha256
         if cached_text is None:
             asr_tracks.append(track)
             continue
@@ -516,9 +518,13 @@ def transcribe_craig_package_qwen_strict(
                 "total_tracks": total_tracks,
                 "speaker": track.speaker,
                 **(
-                    {"source_runtime_version": compatibility_source_runtime_version}
+                    {
+                        "source_runtime_version": compatibility_source_runtime_version,
+                        "source_signature_sha256": compatibility_source_signature_sha256,
+                    }
                     if compatibility_reuse
                     and compatibility_source_runtime_version is not None
+                    and compatibility_source_signature_sha256 is not None
                     else {}
                 ),
             }
