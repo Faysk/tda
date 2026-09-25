@@ -770,10 +770,7 @@ def create_app(
                                 "error"
                                 if code == "QWEN_ALIGNMENT_WINDOW_FAILED"
                                 else "warning"
-                                if code in {
-                                    "COMPATIBILITY_MIRROR_WRITE_FAILED",
-                                    "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
-                                }
+                                if code == "COMPATIBILITY_MIRROR_WRITE_FAILED"
                                 else "info"
                             )
                             store.record_worker_event(
