@@ -115,7 +115,11 @@ export function ProcessingCommandBar({
 			aria-label="Estado e comandos do TDA Companion"
 		>
 			<div className={styles.statusCluster}>
-				<span className={styles.statusDot} aria-hidden="true" />
+				<span
+					className={styles.statusDot}
+					data-processing-status-indicator="true"
+					aria-hidden="true"
+				/>
 				<div className={styles.statusCopy}>
 					<strong>
 						Companion · <span className={styles.stateLabel}>{connectionLabel}</span>
