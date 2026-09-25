@@ -54,6 +54,8 @@ QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
+_RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
+_RUNTIME_WORKER_SHA256_FIELD = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
 _ALIGNMENT_RUNTIME_PASSTHROUGH = frozenset(
     {
         "QWEN_CUDA_DRIVER_INCOMPATIBLE",
@@ -74,6 +76,17 @@ _ALIGNMENT_DIAGNOSTIC_KEYS = frozenset(
     }
 )
 _CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
+
+
+def _runtime_identity_metadata(fingerprint: str) -> dict[str, str]:
+    version = _RUNTIME_VERSION_FIELD.search(fingerprint)
+    worker = _RUNTIME_WORKER_SHA256_FIELD.search(fingerprint)
+    if version is None or worker is None:
+        return {}
+    return {
+        "runtime_version": version.group(1),
+        "worker_sha256": worker.group(1),
+    }
 
 
 def _verify_checkpoint_source_bytes(path: Path, track: CraigTrack) -> None:
@@ -431,6 +444,7 @@ def transcribe_craig_package_qwen_strict(
             "type": "event",
             "code": "QWEN_RUNTIME_FINGERPRINT_READY",
             "stage": "runtime_fingerprint",
+            **_runtime_identity_metadata(runtime_fingerprint),
             "duration_ms": round((time.monotonic() - fingerprint_started) * 1000.0, 2),
         }
     )
