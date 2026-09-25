@@ -10,14 +10,14 @@ async function openComposer(page: import("@playwright/test").Page) {
 	await expect(
 		page.getByRole("heading", { name: "Nova transcrição Craig" }),
 	).toBeVisible();
-	return page.locator("section[data-layout]");
+	return page.locator("[data-processing-composer='true']");
 }
 
 async function chooseZip(
 	page: import("@playwright/test").Page,
 	name = "sessao-42.zip",
 ) {
-	await page.getByLabel("Export do Craig").setInputFiles({
+	await page.locator("[data-processing-composer='true']").getByLabel("Export do Craig").setInputFiles({
 		name,
 		mimeType: name.endsWith(".zip") ? "application/zip" : "audio/wav",
 		buffer: Buffer.from("PK synthetic Craig fixture"),
@@ -53,7 +53,7 @@ test("dropzone keyboard seleciona ZIP sem native input dominar a superfície", a
 	await expect(composer.locator("[data-selected-file='true']")).toContainText(
 		"ZIP selecionado",
 	);
-	await expect(page.getByLabel("Export do Craig")).toHaveCount(1);
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Export do Craig")).toHaveCount(1);
 });
 
 test("drag and drop aceita um ZIP e rejeita extensão inválida antes do upload", async ({
@@ -120,11 +120,11 @@ test("composer mostra apenas fatos disponíveis, privacy e ausência explícita 
 	await expect(composer).toContainText("🔒 Áudio permanece nesta máquina.");
 	await expect(composer).not.toContainText(/recomendado|melhor profile|score/i);
 
-	await expect(page.getByLabel("Contexto opcional")).not.toBeVisible();
-	await expect(page.getByLabel("Glossário opcional")).not.toBeVisible();
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Contexto opcional")).not.toBeVisible();
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Glossário opcional")).not.toBeVisible();
 	await page.getByText("Contexto e glossário", { exact: true }).click();
-	await expect(page.getByLabel("Contexto opcional")).toBeVisible();
-	await expect(page.getByLabel("Glossário opcional")).toBeVisible();
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Contexto opcional")).toBeVisible();
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Glossário opcional")).toBeVisible();
 
 	await page.getByText("Como funciona", { exact: true }).click();
 	await expect(composer).toContainText(
@@ -139,20 +139,20 @@ test("estado do composer sobrevive à troca de tabs", async ({ page }) => {
 	});
 	await openComposer(page);
 	await chooseZip(page, "persistente.zip");
-	await page.getByLabel("Sessão").fill("sessao-persistente");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("sessao-persistente");
 	await page.getByText("Contexto e glossário", { exact: true }).click();
-	await page.getByLabel("Contexto opcional").fill("contexto que precisa sobreviver");
-	await page.getByLabel("Glossário opcional").fill("Yuhara, Dandelion");
+	await page.locator("[data-processing-composer='true']").getByLabel("Contexto opcional").fill("contexto que precisa sobreviver");
+	await page.locator("[data-processing-composer='true']").getByLabel("Glossário opcional").fill("Yuhara, Dandelion");
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("tab", { name: "Visão geral" }).click();
 
-	await expect(page.getByLabel("Sessão")).toHaveValue("sessao-persistente");
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true })).toHaveValue("sessao-persistente");
 	await expect(page.getByText("persistente.zip", { exact: true })).toBeVisible();
-	await expect(page.getByLabel("Contexto opcional")).toHaveValue(
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Contexto opcional")).toHaveValue(
 		"contexto que precisa sobreviver",
 	);
-	await expect(page.getByLabel("Glossário opcional")).toHaveValue(
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Glossário opcional")).toHaveValue(
 		"Yuhara, Dandelion",
 	);
 });
@@ -173,7 +173,7 @@ test("pending é local e mostra fase de envio ao Companion", async ({ page }) =>
 		uploadDelayMs: 700,
 	});
 	await openComposer(page);
-	await page.getByLabel("Sessão").fill("sessao-42");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("sessao-42");
 	await chooseZip(page);
 
 	const submit = page.getByRole("button", { name: "Adicionar à fila" });
@@ -202,7 +202,7 @@ test("profile não pronto comunica preparação antes do clique e mantém estima
 	});
 	const composer = await openComposer(page);
 	await chooseZip(page);
-	await page.getByLabel("Sessão").fill("sessao-42");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("sessao-42");
 
 	await expect(
 		page.getByRole("button", { name: "Preparar profile" }),
@@ -223,7 +223,7 @@ test("source validada mostra track count factual e retry ambíguo reaproveita a 
 		ambiguousJobPostOnce: true,
 	});
 	await openComposer(page);
-	await page.getByLabel("Sessão").fill("sessao-42");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("sessao-42");
 	await chooseZip(page);
 
 	await page.getByRole("button", { name: "Adicionar à fila" }).click();
@@ -248,19 +248,19 @@ test("última sessão vira somente sugestão explícita após submissão bem-suc
 		advanceJobs: false,
 	});
 	await openComposer(page);
-	await page.getByLabel("Sessão").fill("sessao-42");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("sessao-42");
 	await chooseZip(page);
 	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect.poll(() => state.jobPostCount).toBe(1);
 
-	await page.getByLabel("Sessão").fill("");
-	await expect(page.getByLabel("Sessão")).toHaveValue("");
+	await page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true }).fill("");
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true })).toHaveValue("");
 	const suggestion = page.getByRole("button", {
 		name: "Usar última sessão: sessao-42",
 	});
 	await expect(suggestion).toBeVisible();
 	await suggestion.click();
-	await expect(page.getByLabel("Sessão")).toHaveValue("sessao-42");
+	await expect(page.locator("[data-processing-composer='true']").getByLabel("Sessão", { exact: true })).toHaveValue("sessao-42");
 });
 
 test("running mantém composer compacto e idle permite o composer crescer", async ({
