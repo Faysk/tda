@@ -37,6 +37,10 @@
     "uv": {
       "version": "0.12.18",
       "reason": "Keep the existing reproducible Companion and ASR build-tool pin during the focused Qwen 1.0.11 recovery release; validate the 0.12.19 toolchain change separately so this alignment fix does not create unrelated runtime byte drift."
+    },
+    "uvicorn": {
+      "version": "0.53.0",
+      "reason": "Keep the already validated Companion HTTP server pin during the focused Qwen 1.0.11 alignment recovery; validate Uvicorn 0.54.0 separately so this runtime fix does not expand into an unrelated Agent transport dependency change."
     }
   }
 }
