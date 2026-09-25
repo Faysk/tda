@@ -519,6 +519,7 @@ export function ProcessingSubmission({
 						<button
 							type="button"
 							className={styles.dropzone}
+							data-craig-dropzone="true"
 							data-drag-active={dragActive ? "true" : "false"}
 							disabled={busy}
 							onClick={() => fileInput.current?.click()}
