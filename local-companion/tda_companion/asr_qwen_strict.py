@@ -287,7 +287,7 @@ def _safe_neighbor_owned_trailing_overflow(
     *,
     last: bool,
 ) -> bool:
-    if last:
+    if last or not str(item.get("text") or "").strip():
         return False
     try:
         relative_start = float(item.get("start_time"))
