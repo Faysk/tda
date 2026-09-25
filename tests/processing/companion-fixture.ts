@@ -7,6 +7,8 @@ export const BROWSER_TOKEN = "browser_session_fixture_12345678901234567890123456
 const sourceSha = "a".repeat(64);
 export const CRAIG_SOURCE_ID = `craig-${sourceSha}`;
 export const TRANSCRIPT_SHA = "b".repeat(64);
+export const SECOND_SOURCE_SHA = "c".repeat(64);
+export const SECOND_SOURCE_ID = `craig-${SECOND_SOURCE_SHA}`;
 
 export type FixtureJobStatus =
 	| "queued"
@@ -46,6 +48,8 @@ export type CompanionFixtureOptions = {
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
 	system?: FixtureSystemSnapshot;
+	localRuns?: Record<string, unknown>[];
+	localReviews?: Record<string, Record<string, unknown>>;
 };
 
 export type CompanionFixtureState = {
@@ -60,6 +64,7 @@ export type CompanionFixtureState = {
 	setJob(job: Record<string, unknown> | null): void;
 	setLifecycle(value: "preparing" | "ready" | "paused"): void;
 	setSystem(value: FixtureSystemSnapshot | undefined): void;
+	setLocalReview(runId: string, value: Record<string, unknown>): void;
 };
 
 export function fixtureJob(
@@ -93,6 +98,137 @@ export function fixtureJob(
 			source_id: CRAIG_SOURCE_ID,
 			profile_id: "qwen-quality",
 		},
+		...overrides,
+	};
+}
+
+export function fixtureRun(
+	runId: string,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		run_id: runId,
+		status: "completed",
+		source_id: CRAIG_SOURCE_ID,
+		profile_id: "qwen-quality",
+		engine: "qwen3",
+		model: "Qwen3-ASR",
+		model_revision: "test-rev",
+		device: "cuda",
+		compute_type: "float16",
+		alignment: "forced",
+		execution_lineage: {
+			schema_version: "tda_execution_lineage_v1",
+			companion_version: "0.3.14",
+			runtime_family: "qwen",
+			runtime_version: "1.0.0",
+			device: "cuda",
+			compute_type: "float16",
+			gpu: {
+				vendor: "NVIDIA",
+				index: 0,
+				model: "Synthetic GPU",
+				vram_total_bytes: 8 * 1024 ** 3,
+				compute_capability: "8.9",
+				driver_version: "600.12",
+			},
+		},
+		language: "pt",
+		completed_at: "2026-09-25T10:00:00Z",
+		transcript_sha256: TRANSCRIPT_SHA,
+		transcript_size_bytes: 4096,
+		stats: {
+			audio_work_seconds: 3600,
+			processing_seconds: 600,
+			session_duration_seconds: 1800,
+			rtf: 1 / 6,
+			word_count: 12000,
+			segment_count: 800,
+			track_count: 4,
+			turn_count: 320,
+			deduplicated_segment_count: 12,
+			warning_count: 0,
+		},
+		publication_target: {
+			schema_version: "tda_publication_target_v1",
+			campaign_slug: "yuhara-main",
+			source_session_id: "sessao-42",
+			source_id: CRAIG_SOURCE_ID,
+			run_id: runId,
+			job_id: "craig-job-1",
+			attempt: 1,
+			transcript_sha256: TRANSCRIPT_SHA,
+		},
+		review_summary: null,
+		...overrides,
+	};
+}
+
+export function fixtureReview(
+	runId: string,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		schema_version: "tda_local_review_v1",
+		source_id: CRAIG_SOURCE_ID,
+		run_id: runId,
+		base_transcript_sha256: TRANSCRIPT_SHA,
+		draft_revision: 0,
+		draft_sha256: "d".repeat(64),
+		status: "draft",
+		created_at: "2026-09-25T10:01:00Z",
+		updated_at: "2026-09-25T10:01:00Z",
+		lineage: {
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			model: "Qwen3-ASR",
+			model_revision: "test-rev",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "forced",
+			execution_lineage: null,
+			completed_at: "2026-09-25T10:00:00Z",
+		},
+		stats: {
+			audio_work_seconds: 3600,
+			processing_seconds: 600,
+			session_duration_seconds: 1800,
+			rtf: 1 / 6,
+			word_count: 4,
+			segment_count: 2,
+			track_count: 1,
+		},
+		warnings: [],
+		publication_target: null,
+		review: {
+			reviewed_segments: 0,
+			total_segments: 2,
+			review_percent: 0,
+			edited_segments: 0,
+			word_count: 4,
+			warning_count: 0,
+		},
+		segments: [
+			{
+				track_number: 1,
+				segment_id: "1-0",
+				start: 0,
+				end: 1,
+				text: "Texto local um",
+				speaker: "Alice",
+				reviewed: false,
+			},
+			{
+				track_number: 1,
+				segment_id: "1-1",
+				start: 1.2,
+				end: 2.4,
+				text: "Texto local dois",
+				speaker: "Bob",
+				reviewed: false,
+			},
+		],
+		sync: { status: "not_configured" },
 		...overrides,
 	};
 }
@@ -133,6 +269,10 @@ export async function installCompanionFixture(
 	let lifecycle = options.lifecycle ?? "ready";
 	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
+	const localRuns = [...(options.localRuns ?? [])];
+	const localReviews = new Map(
+		Object.entries(options.localReviews ?? {}),
+	);
 	let prepared = options.profileReady ?? false;
 	let preparationReads = 0;
 	let jobsReads = 0;
@@ -158,6 +298,9 @@ export async function installCompanionFixture(
 		},
 		setSystem(value) {
 			systemState = value;
+		},
+		setLocalReview(runId, value) {
+			localReviews.set(runId, value);
 		},
 	};
 
@@ -219,6 +362,7 @@ export async function installCompanionFixture(
 					"transcription.prepare",
 					"job.events",
 					"system.telemetry",
+					...(localRuns.length ? ["transcription.review"] : []),
 				],
 				sync: false,
 				device: { id: "fixture-pc", label: "PC sintético" },
@@ -236,6 +380,120 @@ export async function installCompanionFixture(
 				},
 			});
 		}
+		if (path === "/sources" && request.method() === "GET") {
+			const sources = Array.from(
+				new Set(
+					localRuns
+						.map((run) => run.source_id)
+						.filter((value): value is string => typeof value === "string"),
+				),
+			).map((sourceId) => {
+				const sha = sourceId.startsWith("craig-")
+					? sourceId.slice("craig-".length)
+					: "";
+				const tracks = localRuns
+					.filter((run) => run.source_id === sourceId)
+					.map((run) => {
+						const stats = run.stats;
+						return stats && typeof stats === "object" && !Array.isArray(stats)
+							? (stats as Record<string, unknown>).track_count
+							: null;
+					})
+					.find((value) => typeof value === "number");
+				return {
+					source_id: sourceId,
+					source_sha256: sha,
+					recording_id: null,
+					track_count: typeof tracks === "number" && tracks > 0 ? tracks : 1,
+				};
+			});
+			return json(route, {
+				schema_version: "tda_craig_sources_v1",
+				sources,
+			});
+		}
+
+		const localRunsMatch = path.match(/^\/sources\/([^/]+)\/runs$/u);
+		if (localRunsMatch && request.method() === "GET") {
+			const sourceId = localRunsMatch[1];
+			return json(route, {
+				schema_version: "tda_transcription_runs_v1",
+				source_id: sourceId,
+				runs: localRuns.filter((run) => run.source_id === sourceId),
+			});
+		}
+
+		const localReviewMatch = path.match(
+			/^\/sources\/([^/]+)\/runs\/([^/]+)\/review$/u,
+		);
+		if (localReviewMatch && request.method() === "GET") {
+			const [, sourceId, runId] = localReviewMatch;
+			const review = localReviews.get(runId);
+			if (!review || review.source_id !== sourceId)
+				return json(
+					route,
+					{ error: { code: "LOCAL_REVIEW_RUN_NOT_VISIBLE", recoverable: false } },
+					404,
+				);
+			return json(route, review);
+		}
+		if (localReviewMatch && request.method() === "POST") {
+			const [, sourceId, runId] = localReviewMatch;
+			const review = localReviews.get(runId);
+			if (!review || review.source_id !== sourceId)
+				return json(
+					route,
+					{ error: { code: "LOCAL_REVIEW_RUN_NOT_VISIBLE", recoverable: false } },
+					404,
+				);
+			const payload = request.postDataJSON() as {
+				expected_draft_revision?: number;
+				status?: string;
+				segments?: unknown[];
+			};
+			if (
+				payload.expected_draft_revision !== review.draft_revision ||
+				!["draft", "reviewed", "approved_local"].includes(
+					String(payload.status),
+				) ||
+				!Array.isArray(payload.segments)
+			)
+				return invalidRequest(route, "LOCAL_REVIEW_DRAFT_CONFLICT");
+			const nextRevision = Number(review.draft_revision) + 1;
+			const next = {
+				...review,
+				draft_revision: nextRevision,
+				draft_sha256: "e".repeat(64),
+				status: payload.status,
+				updated_at: "2026-09-25T10:05:00Z",
+				segments: payload.segments,
+				review: {
+					...(review.review as Record<string, unknown>),
+					reviewed_segments: payload.segments.filter(
+						(item) =>
+							item &&
+							typeof item === "object" &&
+							!Array.isArray(item) &&
+							(item as Record<string, unknown>).reviewed === true,
+					).length,
+					review_percent:
+						payload.segments.length === 0
+							? 100
+							: (payload.segments.filter(
+									(item) =>
+										item &&
+										typeof item === "object" &&
+										!Array.isArray(item) &&
+										(item as Record<string, unknown>).reviewed === true,
+								).length /
+									payload.segments.length) *
+								100,
+				},
+			};
+			localReviews.set(runId, next);
+			return json(route, next);
+		}
+
 		if (path === "/system") {
 			const system = systemState;
 			return json(route, {
