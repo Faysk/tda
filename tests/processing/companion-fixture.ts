@@ -44,6 +44,7 @@ export type CompanionFixtureOptions = {
 	initialJobs?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	transcriptionUnavailable?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -357,28 +358,34 @@ export async function installCompanionFixture(
 		}
 
 		if (path === "/capabilities") {
+			const transcriptionUnavailable = options.transcriptionUnavailable ?? false;
 			return json(route, {
 				capabilities: [
-					"transcription.craig",
-					"transcription.prepare",
+					...(transcriptionUnavailable
+						? []
+						: ["transcription.craig", "transcription.prepare"]),
 					"job.events",
 					"system.telemetry",
 					...(localRuns.length ? ["transcription.review"] : []),
 				],
 				sync: false,
 				device: { id: "fixture-pc", label: "PC sintético" },
-				transcription: {
-					profiles: prepared ? ["qwen-quality"] : [],
-					catalog: [
-						{
-							id: "qwen-quality",
-							engine: "qwen3",
-							ready: prepared,
-							preparation_required: !prepared,
-							reason: prepared ? null : "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
+				transcription: transcriptionUnavailable
+					? { profiles: [], catalog: [] }
+					: {
+							profiles: prepared ? ["qwen-quality"] : [],
+							catalog: [
+								{
+									id: "qwen-quality",
+									engine: "qwen3",
+									ready: prepared,
+									preparation_required: !prepared,
+									reason: prepared
+										? null
+										: "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
+								},
+							],
 						},
-					],
-				},
 			});
 		}
 		if (path === "/sources" && request.method() === "GET") {
