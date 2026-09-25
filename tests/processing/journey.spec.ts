@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+	fixtureJob,
 	installCompanionFixture,
 	LOCAL_API,
 	TRANSCRIPT_SHA,
