@@ -125,8 +125,9 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 		.poll(() => state.job?.status)
 		.toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Cancelados" }).click();
 	await expect(
-		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+		page.getByRole("row").getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -188,8 +189,9 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Cancelados" }).click();
 	await expect(
-		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+		page.getByRole("row").getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -219,18 +221,14 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 		"aria-selected",
 		"true",
 	);
-	await expect(
-		page.getByText("Mostrando somente trabalhos que precisam de atenção.", {
-			exact: true,
-		}),
-	).toBeVisible();
-	await expect(
-		page.getByRole("heading", { name: "Precisam de atenção" }),
-	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Atenção" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
-			.getByRole("listitem")
+			.getByRole("row")
 			.getByText("Falhou", { exact: true }),
 	).toBeVisible();
 });
@@ -294,7 +292,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
 	await expect(
-		page.getByRole("listitem").getByText("Na fila", { exact: true }),
+		page.getByRole("row").getByText("Na fila", { exact: true }),
 	).toBeVisible();
 });
 
