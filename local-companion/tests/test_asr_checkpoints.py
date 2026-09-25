@@ -185,12 +185,16 @@ def test_qwen_text_checkpoint_compatibility_bridge_reuses_only_declared_transiti
     save_qwen_text_checkpoint(tmp_path, old_signature, track, expected)
 
     assert load_qwen_text_checkpoint(tmp_path, current_signature, track) is None
-    assert load_compatible_qwen_text_checkpoint(
+    compatible = load_compatible_qwen_text_checkpoint(
         tmp_path,
         current_signature,
         track,
         templates=(legacy_template,),
-    ) == expected
+    )
+    assert compatible is not None
+    assert compatible.windows == expected
+    assert compatible.source_runtime_version == "1.0.10"
+    assert compatible.source_signature_sha256 == old_signature.digest()
 
     future_signature = _qwen_signature(
         runtime="checkpoint=qwen-track-v3;runtime=1.0.12;worker_sha256=" + ("c" * 64),
