@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -52,6 +53,7 @@ QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
+_ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
@@ -198,7 +200,13 @@ def _alignment_required(
     **diagnostics: int | float | bool,
 ) -> QwenRuntimeError:
     error = QwenRuntimeError("QWEN_ALIGNMENT_REQUIRED")
-    error.alignment_failure_class = failure_class
+    safe_failure_class = (
+        failure_class
+        if isinstance(failure_class, str)
+        and _ALIGNMENT_FAILURE_CLASS.fullmatch(failure_class)
+        else "QWEN_ALIGNMENT_REQUIRED"
+    )
+    error.alignment_failure_class = safe_failure_class
     error.alignment_diagnostics = diagnostics
     return error
 
@@ -694,13 +702,11 @@ def transcribe_craig_package_qwen_strict(
                                 "stage": "alignment",
                                 "track": track.number,
                                 "window": window.index,
-                                "failure_class": str(
-                                    getattr(
-                                        exc,
-                                        "alignment_failure_class",
-                                        "QWEN_ALIGNMENT_REQUIRED",
-                                    )
-                                )[:96],
+                                "failure_class": getattr(
+                                    exc,
+                                    "alignment_failure_class",
+                                    "QWEN_ALIGNMENT_REQUIRED",
+                                ),
                                 "window_start_seconds": round(window.start, 3),
                                 "window_end_seconds": round(window.end, 3),
                                 "ownership_left_seconds": round(
