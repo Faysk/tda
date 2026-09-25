@@ -130,6 +130,34 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	).toBeVisible();
 });
 
+test("refresh atrasado mantém ação do job clicável e não regride o estado novo", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobReadDelayMs: 800,
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const refresh = page.getByRole("button", { name: "Atualizar estado" });
+	const cancel = page.getByRole("button", { name: "Cancelar trabalho" }).first();
+	await refresh.click();
+	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
+	await expect(cancel).toBeEnabled();
+
+	await cancel.click();
+	await expect(page.getByRole("dialog")).toContainText("craig-job-1");
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect.poll(() => state.job?.status).toBe("cancelled");
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(
+		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+	).toBeVisible();
+});
+
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
