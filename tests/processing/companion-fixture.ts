@@ -21,6 +21,7 @@ export type CompanionFixtureOptions = {
 	serviceVersion?: string;
 	lifecycle?: "preparing" | "ready" | "paused";
 	initialJobs?: Record<string, unknown>[];
+	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
 	qwenRuntimeVersion?: string;
@@ -369,7 +370,8 @@ export async function installCompanionFixture(
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
 				events:
-					state.job?.status === "running"
+					options.jobEvents ??
+					(state.job?.status === "running"
 						? [
 								{
 									seq: 2,
@@ -384,7 +386,7 @@ export async function installCompanionFixture(
 									},
 								},
 							]
-						: [],
+						: []),
 			});
 		}
 		if (path === "/jobs/craig-job-1/result") {
