@@ -1,7 +1,7 @@
 import type { HTMLAttributes } from "react";
 import { classNames } from "./class-names";
 
-export type StatusTone = "accent" | "success" | "danger" | "neutral";
+export type StatusTone = "accent" | "success" | "warning" | "danger" | "neutral";
 
 type StatusPillProps = HTMLAttributes<HTMLSpanElement> &
 	Readonly<{
