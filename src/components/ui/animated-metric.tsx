@@ -122,6 +122,9 @@ export function AnimatedMetric({
 			aria-valuetext={(ariaValueText ?? format)(target)}
 			data-animated-metric="true"
 			data-animated-target={target}
+			data-animated-running={
+				Math.abs(displayValue - target) > 0.0001 ? "true" : "false"
+			}
 		>
 			<span aria-hidden="true" data-animated-metric-visual="true">
 				{format(displayValue)}
