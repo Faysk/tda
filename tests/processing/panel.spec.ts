@@ -130,6 +130,68 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	).toBeVisible();
 });
 
+test("command bar prioriza GPU e move detalhes completos para Diagnóstico", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			cpuModel: "AMD Ryzen 9 7950X Synthetic CPU",
+			cpuPercent: 18,
+			memoryPercent: 31,
+			gpus: [
+				{
+					index: 0,
+					name: "NVIDIA GeForce RTX 4070 Laptop GPU",
+					utilizationPercent: 34,
+					memoryUsedBytes: 5.7 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	const bar = page.locator("[data-processing-command-bar='true']");
+	await expect(bar).toBeVisible();
+	await expect(bar).toContainText("RTX 4070 · 34% · 5.7/8.0 GB");
+	await expect(bar).toContainText("1 processando");
+	await expect(bar).toContainText("0 na fila");
+	await expect(bar).not.toContainText("7950X");
+	const box = await bar.boundingBox();
+	expect(box?.height ?? 999).toBeLessThanOrEqual(52);
+
+	await page.getByRole("button", { name: "Diagnóstico", exact: true }).click();
+	await page.getByText("Companion e máquina", { exact: true }).click();
+	await expect(page.getByText("AMD Ryzen 9 7950X Synthetic CPU", { exact: true })).toBeVisible();
+	await expect(page.getByText("NVIDIA GeForce RTX 4070 Laptop GPU", { exact: false })).toBeVisible();
+});
+
+test("atenção na command bar abre a Fila já focada nos trabalhos problemáticos", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+	});
+
+	await page.goto("/");
+	await page.getByRole("button", { name: "1 atenção", exact: true }).click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText("Mostrando somente trabalhos que precisam de atenção.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Precisam de atenção" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Repetir trabalho" })).toBeVisible();
+	await expect(page.getByText("Finalizados recentemente", { exact: true })).toHaveCount(0);
+});
+
 test("ações locais e refresh não cobrem a workspace com o loader universal", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
