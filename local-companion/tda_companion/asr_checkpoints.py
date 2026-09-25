@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 import os
-import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -18,10 +17,6 @@ CHECKPOINT_SCHEMA = "tda_asr_track_checkpoint_v1"
 QWEN_TEXT_CHECKPOINT_SCHEMA = "tda_qwen_text_checkpoint_v1"
 QWEN_TEXT_CHECKPOINT_NAMESPACE = "qwen-text-v1"
 MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
-_QWEN_RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
-_QWEN_TEXT_RUNTIME_COMPATIBILITY = frozenset({("1.0.10", "1.0.11")})
-_SHA256_DIRECTORY = re.compile(r"^[0-9a-f]{64}$")
-_MAX_COMPATIBLE_CHECKPOINT_ROOTS = 256
 
 
 @dataclass(frozen=True)
@@ -31,13 +26,6 @@ class QwenTextCheckpointWindow:
     end: float
     text: str
     language: str
-
-
-@dataclass(frozen=True)
-class CompatibleQwenTextCheckpoint:
-    windows: tuple[QwenTextCheckpointWindow, ...]
-    source_runtime_version: str
-    source_signature_sha256: str
 
 
 @dataclass(frozen=True)
@@ -282,148 +270,6 @@ def load_qwen_text_checkpoint(
         return _validated_qwen_text_windows(windows_value)
     except (TypeError, ValueError):
         return None
-
-
-def _runtime_version_from_fingerprint(value: str) -> str | None:
-    if not isinstance(value, str):
-        return None
-    match = _QWEN_RUNTIME_VERSION.search(value)
-    return None if match is None else match.group(1)
-
-
-def _compatible_qwen_text_signature(
-    candidate: object,
-    *,
-    current: CheckpointSignature,
-    template: CheckpointSignature,
-) -> bool:
-    if not isinstance(candidate, dict):
-        return False
-    template_value = template.as_dict()
-    if set(candidate) != set(template_value):
-        return False
-    current_version = _runtime_version_from_fingerprint(current.runtime_fingerprint)
-    candidate_version = _runtime_version_from_fingerprint(str(candidate.get("runtime_fingerprint") or ""))
-    if (
-        current_version is None
-        or candidate_version is None
-        or (candidate_version, current_version) not in _QWEN_TEXT_RUNTIME_COMPATIBILITY
-    ):
-        return False
-    return all(
-        candidate.get(key) == value
-        for key, value in template_value.items()
-        if key != "runtime_fingerprint"
-    )
-
-
-def load_compatible_qwen_text_checkpoint(
-    package_root: Path,
-    signature: CheckpointSignature,
-    track: CraigTrack,
-    *,
-    templates: Iterable[CheckpointSignature],
-) -> CompatibleQwenTextCheckpoint | None:
-    """Load one explicitly compatible pre-alignment checkpoint.
-
-    This bridge is deliberately narrow: it only permits a declared runtime
-    transition and compares every lineage field except the runtime fingerprint
-    against an explicit legacy template. Post-alignment track checkpoints never
-    use this path.
-    """
-    if signature.engine != "qwen3":
-        return None
-    current_version = _runtime_version_from_fingerprint(signature.runtime_fingerprint)
-    if current_version is None:
-        return None
-    legacy_templates = tuple(templates)
-    if not legacy_templates:
-        return None
-
-    base = package_root.resolve() / ".checkpoints"
-    try:
-        if base.is_symlink() or not base.is_dir():
-            return None
-        roots = sorted(base.iterdir(), key=lambda item: item.name)
-    except OSError:
-        return None
-    if len(roots) > _MAX_COMPATIBLE_CHECKPOINT_ROOTS:
-        return None
-
-    descriptor = _track_descriptor(track)
-    matches: list[CompatibleQwenTextCheckpoint] = []
-    for root in roots:
-        if (
-            root.is_symlink()
-            or not root.is_dir()
-            or _SHA256_DIRECTORY.fullmatch(root.name) is None
-        ):
-            continue
-        namespace = root / QWEN_TEXT_CHECKPOINT_NAMESPACE
-        path = namespace / f"track-{track.number:04d}.json"
-        try:
-            if namespace.is_symlink() or path.is_symlink():
-                continue
-            stat = path.stat()
-        except (FileNotFoundError, OSError):
-            continue
-        if stat.st_size <= 0 or stat.st_size > MAX_CHECKPOINT_BYTES:
-            continue
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
-        if not isinstance(value, dict) or value.get("schema") != QWEN_TEXT_CHECKPOINT_SCHEMA:
-            continue
-        candidate_signature = value.get("signature")
-        template = next(
-            (
-                item
-                for item in legacy_templates
-                if _compatible_qwen_text_signature(
-                    candidate_signature,
-                    current=signature,
-                    template=item,
-                )
-            ),
-            None,
-        )
-        if template is None or not isinstance(candidate_signature, dict):
-            continue
-        candidate_digest = _canonical_json_hash(candidate_signature)
-        if (
-            value.get("signature_sha256") != candidate_digest
-            or root.name != candidate_digest
-        ):
-            continue
-        if value.get("track") != descriptor:
-            continue
-        windows_value = value.get("windows")
-        content = {"track": descriptor, "windows": windows_value}
-        if value.get("content_sha256") != _canonical_json_hash(content):
-            continue
-        try:
-            windows = _validated_qwen_text_windows(windows_value)
-        except (TypeError, ValueError):
-            continue
-        source_runtime_version = _runtime_version_from_fingerprint(
-            str(candidate_signature.get("runtime_fingerprint") or "")
-        )
-        if source_runtime_version is None:
-            continue
-        matches.append(
-            CompatibleQwenTextCheckpoint(
-                windows=windows,
-                source_runtime_version=source_runtime_version,
-                source_signature_sha256=candidate_digest,
-            )
-        )
-        if len(matches) > 1:
-            # Multiple compatible lineages are ambiguous. Fail closed instead of
-            # guessing which ASR text should seed a new alignment result.
-            return None
-
-    return matches[0] if matches else None
 
 
 def save_qwen_text_checkpoint(
