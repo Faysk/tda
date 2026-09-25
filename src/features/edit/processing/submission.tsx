@@ -510,10 +510,8 @@ export function ProcessingSubmission({
 				</p>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
-					<div
+					<fieldset
 						className={styles.dropZone}
-						role="group"
-						aria-label="Seleção do ZIP Craig"
 						data-craig-dropzone="true"
 						data-dragging={dragging ? "true" : "false"}
 						data-has-file={file ? "true" : "false"}
@@ -522,6 +520,7 @@ export function ProcessingSubmission({
 						onDragLeave={leave}
 						onDrop={drop}
 					>
+						<legend className={styles.srOnly}>Seleção do ZIP Craig</legend>
 						<input
 							ref={fileInput}
 							className={styles.fileInput}
@@ -554,7 +553,7 @@ export function ProcessingSubmission({
 						>
 							{file ? "Trocar ZIP" : "Escolher ZIP"}
 						</Button>
-					</div>
+					</fieldset>
 
 					{fileError ? (
 						<p className={styles.inlineError} role="alert">
