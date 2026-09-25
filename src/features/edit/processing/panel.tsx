@@ -400,6 +400,7 @@ export function ProcessingPanel({
 					>
 						<div
 							className={styles.overviewTop}
+							data-processing-overview-top="true"
 							data-mode={activeJob ? "running" : "idle"}
 						>
 							<section aria-labelledby="processing-now">
