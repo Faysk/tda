@@ -190,7 +190,6 @@ test("idle expande composer; running mantém composer compacto ao lado do cockpi
 	expect(idleBox).not.toBeNull();
 	expect(idleBox?.width ?? 0).toBeGreaterThan(700);
 
-	await page.reload();
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -214,6 +213,7 @@ test("idle expande composer; running mantém composer compacto ao lado do cockpi
 			},
 		],
 	});
+	await page.reload();
 	composer = await openComposer(page);
 	await expect(page.locator("[data-running]")).toHaveAttribute(
 		"data-running",
