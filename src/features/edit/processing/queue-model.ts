@@ -60,11 +60,9 @@ export function compactQueueId(value: string, head = 12, tail = 6): string {
 }
 
 export function queuePrimaryIdentity(job: LocalJob): string {
-	return (
-		job.context?.sessionId ??
-		job.context?.sourceId ??
-		compactQueueId(job.id)
-	);
+	if (job.context?.sessionId) return job.context.sessionId;
+	if (job.context?.sourceId) return compactQueueId(job.context.sourceId);
+	return compactQueueId(job.id);
 }
 
 export function queueSupportingIdentity(job: LocalJob): string | null {
