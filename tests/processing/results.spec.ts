@@ -198,7 +198,9 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 	expect(state.requests.filter((item) => item.path.endsWith("/review"))).toHaveLength(0);
 	const selectedRun = page.getByRole("button", { name: /sessao-42/i });
 	if ((page.viewportSize()?.width ?? 1024) <= 760) await selectedRun.click();
-	await expect(selectedRun).toContainText("Draft");
+	await expect(
+		page.locator("[data-results-detail='true']"),
+	).toContainText("Draft");
 
 	await page.getByRole("button", { name: "Revisar", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Qwen Quality" })).toBeVisible();
@@ -210,7 +212,8 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 		),
 	).toHaveLength(1);
 
-	const text = page.getByLabel("Texto").first();
+	const editor = page.locator("section[aria-labelledby='local-review-title']");
+	const text = editor.getByLabel("Texto").first();
 	await text.fill("Texto alterado e ainda não salvo");
 	await expect(page.getByText("Alterações não salvas neste draft.", { exact: true })).toBeVisible();
 
@@ -223,10 +226,15 @@ test("run listing não carrega transcript e revisar preserva seleção e dirty s
 	page.once("dialog", (dialog) => dialog.accept());
 	await page.getByRole("button", { name: "Voltar aos resultados" }).click();
 
-	await expect(page.getByRole("button", { name: /sessao-42/i })).toHaveAttribute(
-		"aria-current",
+	await expect(page.locator("[data-results-library='true']")).toHaveAttribute(
+		"data-detail-open",
 		"true",
 	);
+	await expect(
+		page.locator("[data-results-detail='true']").getByRole("heading", {
+			name: "sessao-42",
+		}),
+	).toBeVisible();
 	await expect(page.getByRole("button", { name: "Revisar", exact: true })).toBeVisible();
 });
 
@@ -262,7 +270,7 @@ test("salvar revisão atualiza o badge do run imediatamente sem refetch da bibli
 	await page.getByRole("button", { name: "Voltar aos resultados" }).click();
 
 	await expect(
-		page.getByRole("button", { name: /sessao-42/i }),
+		page.locator("[data-results-detail='true']"),
 	).toContainText("Aprovado localmente");
 	const libraryReadsAfter = state.requests.filter(
 		(item) => item.path === "/sources" || /\/sources\/[^/]+\/runs$/u.test(item.path),
