@@ -615,7 +615,9 @@
 
 .rowActions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
+	gap: 6px;
 }
 
 .rowActions :global(.ds-action) {
@@ -772,6 +774,7 @@
 }
 
 .logEntry small {
+	overflow-wrap: anywhere;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-body);
 	font-size: 0.61rem;

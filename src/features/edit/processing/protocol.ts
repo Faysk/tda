@@ -1,3 +1,5 @@
+import { supportsQwenAlignmentRuntime } from "./compatibility";
+
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
 export type TranscriptionProfileId =
@@ -371,6 +373,32 @@ export function parseCapabilities(value: unknown): Capabilities {
 	let catalog: TranscriptionProfileState[] = [];
 	if (row.transcription !== undefined && row.transcription !== null) {
 		const transcription = record(row.transcription);
+		const qwenGateState = new Map<
+			TranscriptionProfileId,
+			{ ready: boolean; runtimeVersion: string | null; reason: string | null }
+		>();
+		if (transcription.qwen_physical_gate !== undefined) {
+			const gates = record(transcription.qwen_physical_gate);
+			for (const profileId of ["qwen-fast", "qwen-quality"] as const) {
+				if (gates[profileId] === undefined) continue;
+				const gate = record(gates[profileId]);
+				if (transcriptionProfile(gate.profile_id) !== profileId) return invalid();
+				const ready = boolean(gate.ready);
+				const runtimeVersion =
+					gate.runtime_version === null || gate.runtime_version === undefined
+						? null
+						: text(gate.runtime_version, 32);
+				if (ready && runtimeVersion === null) return invalid();
+				qwenGateState.set(profileId, {
+					ready,
+					runtimeVersion,
+					reason:
+						gate.reason === null || gate.reason === undefined
+							? null
+							: text(gate.reason, 96),
+				});
+			}
+		}
 		if (!Array.isArray(transcription.profiles) || transcription.profiles.length > 8)
 			return invalid();
 		profiles = transcription.profiles.map(transcriptionProfile);
@@ -406,6 +434,33 @@ export function parseCapabilities(value: unknown): Capabilities {
 				reason: null,
 			}));
 		}
+
+		const qwenBlocked = new Set<TranscriptionProfileId>();
+		catalog = catalog.map((item) => {
+			if (item.engine !== "qwen3") return item;
+			const gate = qwenGateState.get(item.id);
+			if (!gate) return item;
+			if (!gate.ready) {
+				qwenBlocked.add(item.id);
+				return {
+					...item,
+					ready: false,
+					preparationRequired: true,
+					reason: gate.reason ?? "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
+				};
+			}
+			if (!supportsQwenAlignmentRuntime(gate.runtimeVersion)) {
+				qwenBlocked.add(item.id);
+				return {
+					...item,
+					ready: false,
+					preparationRequired: false,
+					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+				};
+			}
+			return item;
+		});
+		profiles = profiles.filter((profileId) => !qwenBlocked.has(profileId));
 	}
 	return {
 		capabilities: row.capabilities.map((value) => text(value)),
