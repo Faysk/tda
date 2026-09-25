@@ -114,18 +114,21 @@ export function AnimatedMetric({
 		<span
 			className={classNames(styles.metric, className)}
 			style={style}
-			role="meter"
-			aria-label={ariaLabel}
-			aria-valuemin={min}
-			aria-valuemax={max}
-			aria-valuenow={target}
-			aria-valuetext={(ariaValueText ?? format)(target)}
 			data-animated-metric="true"
+			data-metric-label={ariaLabel}
 			data-animated-target={target}
 			data-animated-running={
 				Math.abs(displayValue - target) > 0.0001 ? "true" : "false"
 			}
 		>
+			<meter
+				className={styles.accessibleMeter}
+				min={min}
+				max={max}
+				value={target}
+				aria-label={ariaLabel}
+				aria-valuetext={(ariaValueText ?? format)(target)}
+			/>
 			<span aria-hidden="true" data-animated-metric-visual="true">
 				{format(displayValue)}
 			</span>
