@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from . import VERSION
@@ -35,6 +35,8 @@ def capture_execution_lineage(
     *,
     snapshot: Mapping[str, Any] | None = None,
     environ: Mapping[str, str] | None = None,
+    asr_text_runtime_versions: Iterable[str] | None = None,
+    asr_text_checkpoint_signatures: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Capture a sanitized, best-effort execution fingerprint at run commit time.
 
@@ -90,7 +92,7 @@ def capture_execution_lineage(
                     "driver_version": _bounded_text(row.get("driver_version"), 64),
                 }
 
-    return {
+    lineage: dict[str, Any] = {
         "schema_version": EXECUTION_LINEAGE_SCHEMA_VERSION,
         "companion_version": VERSION,
         "runtime_family": runtime_family,
@@ -99,3 +101,25 @@ def capture_execution_lineage(
         "compute_type": _bounded_text(engine.compute_type, 64),
         "gpu": gpu,
     }
+
+    reused_runtime_versions = sorted(
+        {
+            value
+            for raw in (asr_text_runtime_versions or ())
+            if (value := _bounded_text(raw, 32)) is not None
+            and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value)
+        }
+    )
+    reused_checkpoint_signatures = sorted(
+        {
+            value.lower()
+            for raw in (asr_text_checkpoint_signatures or ())
+            if (value := _bounded_text(raw, 64)) is not None
+            and re.fullmatch(r"[0-9a-fA-F]{64}", value)
+        }
+    )
+    if reused_runtime_versions:
+        lineage["asr_text_runtime_versions"] = reused_runtime_versions[:8]
+    if reused_checkpoint_signatures:
+        lineage["asr_text_checkpoint_signatures"] = reused_checkpoint_signatures[:8]
+    return lineage
