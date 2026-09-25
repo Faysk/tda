@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
 	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION,
 	supportsAutomaticLoopbackSession,
+	supportsQwenAlignmentRuntime,
 	supportsTerminalJobDelete,
 } from "./compatibility";
 
 describe("processing compatibility", () => {
+	it("fails closed on the known-buggy Qwen runtime and accepts repaired versions", () => {
+		expect(QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION).toBe("1.0.11");
+		expect(supportsQwenAlignmentRuntime("1.0.10")).toBe(false);
+		expect(supportsQwenAlignmentRuntime("1.0.11")).toBe(true);
+		expect(supportsQwenAlignmentRuntime("1.0.12")).toBe(true);
+		expect(supportsQwenAlignmentRuntime("development")).toBe(false);
+	});
+
 	it("publishes one minimum version for the automatic browser-session contract", () => {
 		expect(AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION).toBe("0.3.14");
 	});
