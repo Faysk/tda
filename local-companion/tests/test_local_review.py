@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
-from tda_companion.local_review import LocalReviewError, open_review, save_review
+from tda_companion.local_review import (
+    LocalReviewError,
+    open_review,
+    review_summary,
+    save_review,
+)
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -176,6 +182,73 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
     assert after_failure["draft_revision"] == 1
     assert after_failure["draft_sha256"] == saved["draft_sha256"]
     assert not list((package_root / "revisions" / run["run_id"]).glob("*.partial"))
+
+
+def test_review_summary_tracks_status_without_mutating_raw_run(tmp_path: Path):
+    package_root, source_id, run = _package(tmp_path)
+    run_manifest = package_root / "runs" / run["run_id"] / "run.json"
+    raw_run_before = run_manifest.read_bytes()
+
+    assert review_summary(package_root, run["run_id"]) is None
+
+    opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
+    assert review_summary(package_root, run["run_id"]) == {
+        "status": "draft",
+        "draft_revision": 0,
+        "review_percent": 0.0,
+        "updated_at": opened["updated_at"],
+    }
+
+    segments = [dict(item) for item in opened["segments"]]
+    segments[0]["reviewed"] = True
+    saved = save_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        value={
+            "expected_draft_revision": 0,
+            "status": "reviewed",
+            "segments": segments,
+        },
+    )
+    assert review_summary(package_root, run["run_id"]) == {
+        "status": "reviewed",
+        "draft_revision": 1,
+        "review_percent": 50.0,
+        "updated_at": saved["updated_at"],
+    }
+    assert run_manifest.read_bytes() == raw_run_before
+
+
+def test_review_summary_never_reads_draft_payload_and_stale_metadata_fails_safe(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package_root, source_id, run = _package(tmp_path)
+    open_review(package_root, source_id=source_id, run_id=run["run_id"])
+    draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+
+    original_read_text = Path.read_text
+
+    def guarded_read_text(path: Path, *args, **kwargs):
+        if path.name == "draft.json":
+            raise AssertionError("run listing must not read the review draft payload")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", guarded_read_text)
+    assert review_summary(package_root, run["run_id"])["status"] == "draft"
+
+    stat = draft_path.stat()
+    os.utime(
+        draft_path,
+        ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000),
+    )
+    assert review_summary(package_root, run["run_id"]) == {
+        "status": "unknown",
+        "draft_revision": None,
+        "review_percent": None,
+        "updated_at": None,
+    }
 
 
 def test_stale_review_save_conflicts_without_overwrite(tmp_path: Path):
