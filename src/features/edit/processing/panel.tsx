@@ -224,7 +224,16 @@ export function ProcessingPanel({
 		if (!choice) return;
 		if (choice.action === "resume") await controller.lifecycle("resume");
 		else if (choice.action === "delete") await controller.deleteJob(choice.id);
-		else await controller.jobAction(choice.id, choice.action);
+		else {
+			await controller.jobAction(choice.id, choice.action);
+			if (choice.action === "retry") {
+				const retried = controller
+					.snapshot()
+					.jobs.find((job) => job.id === choice.id);
+				if (retried && ["queued", "running"].includes(retried.status))
+					setQueueFilter("active");
+			}
+		}
 	}
 
 	function activateView(next: ProcessingView) {
