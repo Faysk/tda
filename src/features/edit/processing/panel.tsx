@@ -40,8 +40,9 @@ const processingViews: readonly { id: ProcessingView; label: string }[] = [
 
 function jobTone(status: LocalJob["status"]): StatusTone {
 	if (status === "succeeded") return "success";
-	if (status === "failed" || status === "interrupted") return "danger";
-	if (status === "running" || status === "queued") return "accent";
+	if (status === "failed") return "danger";
+	if (status === "interrupted") return "warning";
+	if (status === "running") return "accent";
 	return "neutral";
 }
 
@@ -307,6 +308,15 @@ export function ProcessingPanel({
 					: state.error === "session_incompatible" || state.error === "incompatible"
 						? "Companion incompatível"
 						: "Serviço desconectado";
+	const connectionTone: StatusTone = connected
+		? state.health?.lifecycle === "ready"
+			? "success"
+			: state.health?.lifecycle === "paused"
+				? "warning"
+				: "accent"
+		: state.error
+			? "danger"
+			: "neutral";
 	const running = state.jobs.filter((job) => job.status === "running");
 	const queued = state.jobs
 		.filter((job) => job.status === "queued")
@@ -405,7 +415,7 @@ export function ProcessingPanel({
 					<div>
 						<div className={styles.connectionTitle}>
 							<h2 id="local-computer">Computador local</h2>
-							<StatusPill tone={connected ? "success" : state.error ? "danger" : "neutral"}>
+							<StatusPill tone={connectionTone}>
 								{label}
 							</StatusPill>
 						</div>
