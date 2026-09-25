@@ -80,7 +80,7 @@ def test_compat_bridge_reuses_only_declared_1_0_10_to_1_0_11_transition(tmp_path
     track = _track()
     expected = _windows()
     old = _signature(
-        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("a" * 64),
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e",
         alignment_policy="strict-overlap-v2",
     )
     current = _signature(
@@ -122,9 +122,8 @@ def test_compat_bridge_reuses_only_declared_1_0_10_to_1_0_11_transition(tmp_path
     ) is None
 
 
-def test_compat_bridge_rejects_ambiguous_old_lineage(tmp_path: Path):
+def test_compat_bridge_rejects_unaccepted_1_0_10_worker(tmp_path: Path):
     track = _track()
-    expected = _windows()
     current = _signature(
         runtime="checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=" + ("c" * 64),
         alignment_policy="strict-overlap-v3",
@@ -133,13 +132,11 @@ def test_compat_bridge_rejects_ambiguous_old_lineage(tmp_path: Path):
         runtime=current.runtime_fingerprint,
         alignment_policy="strict-overlap-v2",
     )
-
-    for worker in ("a", "b"):
-        old = _signature(
-            runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + (worker * 64),
-            alignment_policy="strict-overlap-v2",
-        )
-        save_qwen_text_checkpoint(tmp_path, old, track, expected)
+    unaccepted = _signature(
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("d" * 64),
+        alignment_policy="strict-overlap-v2",
+    )
+    save_qwen_text_checkpoint(tmp_path, unaccepted, track, _windows())
 
     assert load_compatible_qwen_text_checkpoint(
         tmp_path,
@@ -148,11 +145,10 @@ def test_compat_bridge_rejects_ambiguous_old_lineage(tmp_path: Path):
         templates=(legacy_template,),
     ) is None
 
-
 def test_compat_bridge_delegates_corrupt_content_to_canonical_validation(tmp_path: Path):
     track = _track()
     old = _signature(
-        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=" + ("a" * 64),
+        runtime="checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e",
         alignment_policy="strict-overlap-v2",
     )
     current = _signature(
