@@ -251,6 +251,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				QWEN_ALIGNMENT_TIMESTAMP_NONFINITE: "O alinhador retornou um timestamp não finito.",
 				QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START: "O alinhador retornou uma palavra antes do início permitido da janela.",
 				QWEN_ALIGNMENT_TIMESTAMP_REVERSED: "O alinhador retornou um intervalo de palavra invertido.",
+				QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW: "O alinhador posicionou uma palavra completamente fora da janela de áudio.",
 				QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC: "Os timestamps retornados ficaram fora de ordem.",
 				QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW: "Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
 				QWEN_ALIGNMENT_NO_OWNED_WORDS: "O alinhamento não deixou nenhuma palavra pertencente a esta janela.",
