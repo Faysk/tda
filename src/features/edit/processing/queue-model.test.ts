@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { LocalJob } from "./protocol";
+import type { LocalJob, TranscriptionProfileId } from "./protocol";
 import {
 	compactQueueId,
 	queueFilterCount,
@@ -12,7 +12,7 @@ function job(
 	id: string,
 	status: LocalJob["status"],
 	sessionId: string,
-	profileId: string,
+	profileId: TranscriptionProfileId,
 	updated_at: string,
 ): LocalJob {
 	return {
