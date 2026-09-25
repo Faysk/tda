@@ -691,15 +691,11 @@ def transcribe_craig_package_qwen_strict(
                             diagnostics = getattr(exc, "alignment_diagnostics", {})
                             if isinstance(diagnostics, dict):
                                 for key, value in diagnostics.items():
-                                    if (
-                                        isinstance(key, str)
-                                        and isinstance(value, (int, float, bool))
-                                        and not isinstance(value, float)
-                                        or (
-                                            isinstance(value, float)
-                                            and math.isfinite(value)
-                                        )
-                                    ):
+                                    if not isinstance(key, str):
+                                        continue
+                                    if isinstance(value, bool) or isinstance(value, int):
+                                        failure_data[key] = value
+                                    elif isinstance(value, float) and math.isfinite(value):
                                         failure_data[key] = value
                             report(failure_data)
                         raise
