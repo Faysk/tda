@@ -54,6 +54,14 @@ QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
+_ALIGNMENT_RUNTIME_PASSTHROUGH = frozenset(
+    {
+        "QWEN_CUDA_DRIVER_INCOMPATIBLE",
+        "QWEN_ASR_GPU_MEMORY_EXHAUSTED",
+        "QWEN_ASR_CUDA_FAILED",
+        "QWEN_ASR_RUNTIME_API_FAILED",
+    }
+)
 _CHECKPOINT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
@@ -324,6 +332,11 @@ def _strict_alignment_segments(
             return (), ignored_trailing_overflow
         words = _validated_words(aligned, window)
     except QwenRuntimeError as exc:
+        if exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH:
+            # Resource/runtime failures are not transcript-integrity failures.
+            # Preserve the actionable terminal code while the caller still adds
+            # track/window context through the sanitized diagnostic event.
+            raise
         failure_class = exc.code
         diagnostics: dict[str, int | float | bool] = {}
         if exc.code == "QWEN_ALIGNMENT_TIMESTAMPS_INVALID":
@@ -695,17 +708,24 @@ def transcribe_craig_package_qwen_strict(
                             last=last_window,
                         )
                     except QwenRuntimeError as exc:
-                        if exc.code == "QWEN_ALIGNMENT_REQUIRED":
+                        if (
+                            exc.code == "QWEN_ALIGNMENT_REQUIRED"
+                            or exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
+                        ):
                             failure_data: dict[str, Any] = {
                                 "type": "event",
                                 "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
                                 "stage": "alignment",
                                 "track": track.number,
                                 "window": window.index,
-                                "failure_class": getattr(
-                                    exc,
-                                    "alignment_failure_class",
-                                    "QWEN_ALIGNMENT_REQUIRED",
+                                "failure_class": (
+                                    exc.code
+                                    if exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
+                                    else getattr(
+                                        exc,
+                                        "alignment_failure_class",
+                                        "QWEN_ALIGNMENT_REQUIRED",
+                                    )
                                 ),
                                 "window_start_seconds": round(window.start, 3),
                                 "window_end_seconds": round(window.end, 3),
