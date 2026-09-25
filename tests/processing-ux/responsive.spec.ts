@@ -108,6 +108,64 @@ for (const viewport of viewports) {
 	});
 }
 
+test("running composer stays near one third of the overview while cockpit dominates", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1440, 900);
+	const overview = page.locator("[data-processing-overview-top='true']");
+	const composer = page.locator("[data-processing-submission='true']");
+	const [overviewBox, composerBox] = await Promise.all([
+		overview.boundingBox(),
+		composer.boundingBox(),
+	]);
+	expect(overviewBox).not.toBeNull();
+	expect(composerBox).not.toBeNull();
+	const ratio = (composerBox?.width ?? 0) / (overviewBox?.width ?? 1);
+	expect(ratio).toBeGreaterThanOrEqual(0.28);
+	expect(ratio).toBeLessThanOrEqual(0.38);
+	await expect(composer).toHaveAttribute("data-layout", "compact");
+});
+
+test("mobile idle composer follows file → session → profile → estimate → CTA → advanced order", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 780 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const overview = page.locator("[data-processing-overview-top='true']");
+	const composer = page.locator("[data-processing-submission='true']");
+	await expect(overview).toHaveAttribute("data-mode", "idle");
+	await expect(composer).toHaveAttribute("data-layout", "default");
+	await expect(page.getByText("Processando agora", { exact: true })).not.toBeVisible();
+
+	const elements = [
+		composer.locator("[data-craig-dropzone='true']"),
+		composer.getByLabel("ID da sessão"),
+		composer.getByLabel("Perfil"),
+		composer.getByText("Sem estimativa calibrada nesta máquina.", { exact: true }),
+		composer.getByRole("button", { name: "Adicionar à fila" }),
+		composer.getByText("Contexto e glossário", { exact: true }),
+	];
+	const boxes = [];
+	for (const element of elements) {
+		await element.scrollIntoViewIfNeeded();
+		const box = await element.boundingBox();
+		expect(box).not.toBeNull();
+		boxes.push(box);
+	}
+	for (let index = 1; index < boxes.length; index += 1)
+		expect(boxes[index]?.y ?? 0).toBeGreaterThanOrEqual(boxes[index - 1]?.y ?? 0);
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBe(true);
+});
+
 test("healthy desktop command bar stays within the compact height budget", async ({ page }) => {
 	await openRunningWorkspace(page, 1440, 900);
 	const commandBar = page.locator("[data-processing-command-bar='true']");
