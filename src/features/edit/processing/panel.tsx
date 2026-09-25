@@ -190,6 +190,7 @@ function JobRow({
 	onRetry,
 	onResult,
 	onDelete,
+	onInspect,
 }: {
 	job: LocalJob;
 	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
@@ -198,6 +199,7 @@ function JobRow({
 	onRetry: () => void;
 	onResult: () => void;
 	onDelete: () => void;
+	onInspect: () => void;
 }) {
 	const percent = progressPercent(job);
 	return (
@@ -232,6 +234,11 @@ function JobRow({
 			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
 			<time dateTime={job.updated_at}>{formatDateTime(job.updated_at)}</time>
 			<div className={styles.rowActions}>
+				{["failed", "interrupted"].includes(job.status) ? (
+					<Button size="sm" variant="tertiary" onClick={onInspect}>
+						Ver diagnóstico
+					</Button>
+				) : null}
 				{["queued", "running"].includes(job.status) ? (
 					<Button size="sm" disabled={pendingAction === "cancel"} onClick={onCancel}>
 						{pendingAction === "cancel" ? "Cancelando…" : "Cancelar trabalho"}
@@ -332,7 +339,10 @@ export function ProcessingPanel({
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const gpu = state.system?.gpus[0] ?? null;
-	const trackContext = eventTrackContext(state.events);
+	const trackContext =
+		activeJob && state.observedJobId === activeJob.id
+			? eventTrackContext(state.events)
+			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 
 	async function confirm() {
@@ -345,7 +355,9 @@ export function ProcessingPanel({
 	}
 
 	function activateView(next: ProcessingView) {
+		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
 		setView(next);
+		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
 	}
 
@@ -388,6 +400,10 @@ export function ProcessingPanel({
 			onRetry={() => setConfirmation({ id: job.id, action: "retry" })}
 			onResult={() => void controller.result(job.id)}
 			onDelete={() => setConfirmation({ id: job.id, action: "delete" })}
+			onInspect={() => {
+				activateView("diagnostics");
+				void controller.observeJob(job.id);
+			}}
 		/>
 	);
 
