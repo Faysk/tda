@@ -151,15 +151,17 @@ test("mobile idle composer follows file → session → profile → estimate →
 		composer.getByRole("button", { name: "Adicionar à fila" }),
 		composer.getByText("Contexto e glossário", { exact: true }),
 	];
-	const boxes = [];
+	const documentY = [];
 	for (const element of elements) {
-		await element.scrollIntoViewIfNeeded();
-		const box = await element.boundingBox();
-		expect(box).not.toBeNull();
-		boxes.push(box);
+		const y = await element.evaluate(
+			(node) => node.getBoundingClientRect().top + window.scrollY,
+		);
+		documentY.push(y);
 	}
-	for (let index = 1; index < boxes.length; index += 1)
-		expect(boxes[index]?.y ?? 0).toBeGreaterThanOrEqual(boxes[index - 1]?.y ?? 0);
+	for (let index = 1; index < documentY.length; index += 1)
+		expect(documentY[index] ?? 0).toBeGreaterThanOrEqual(
+			documentY[index - 1] ?? 0,
+		);
 
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
