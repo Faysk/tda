@@ -190,7 +190,8 @@ it("presents sealed Qwen runtime identity without local paths", () => {
 		}),
 	).toEqual({
 		title: "Runtime Qwen 1.0.11 identificado e validado.",
-		detail: "Worker selado · SHA-256 abcdef123456…",
+		detail:
+			"Worker selado · SHA-256 abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 	});
 });
 
