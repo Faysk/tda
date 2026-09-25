@@ -24,6 +24,17 @@ export type FixtureSystemGpu = {
 	memoryTotalBytes: number | null;
 };
 
+export type FixtureSystemSnapshot = {
+	sampledAt?: string;
+	os?: string;
+	cpuModel?: string | null;
+	cpuPercent?: number | null;
+	memoryUsedBytes?: number | null;
+	memoryTotalBytes?: number | null;
+	memoryPercent?: number | null;
+	gpus?: FixtureSystemGpu[];
+};
+
 export type CompanionFixtureOptions = {
 	apiVersion?: string;
 	serviceVersion?: string;
@@ -34,16 +45,7 @@ export type CompanionFixtureOptions = {
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
-	system?: {
-		sampledAt?: string;
-		os?: string;
-		cpuModel?: string | null;
-		cpuPercent?: number | null;
-		memoryUsedBytes?: number | null;
-		memoryTotalBytes?: number | null;
-		memoryPercent?: number | null;
-		gpus?: FixtureSystemGpu[];
-	};
+	system?: FixtureSystemSnapshot;
 };
 
 export type CompanionFixtureState = {
@@ -57,6 +59,7 @@ export type CompanionFixtureState = {
 	job: Record<string, unknown> | null;
 	setJob(job: Record<string, unknown> | null): void;
 	setLifecycle(value: "preparing" | "ready" | "paused"): void;
+	setSystem(value: FixtureSystemSnapshot | undefined): void;
 };
 
 export function fixtureJob(
@@ -128,6 +131,7 @@ export async function installCompanionFixture(
 	options: CompanionFixtureOptions = {},
 ): Promise<CompanionFixtureState> {
 	let lifecycle = options.lifecycle ?? "ready";
+	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
 	let preparationReads = 0;
 	let jobsReads = 0;
@@ -150,6 +154,9 @@ export async function installCompanionFixture(
 		},
 		setLifecycle(value) {
 			lifecycle = value;
+		},
+		setSystem(value) {
+			systemState = value;
 		},
 	};
 
@@ -229,7 +236,7 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/system") {
-			const system = options.system;
+			const system = systemState;
 			return json(route, {
 				sampled_at: system?.sampledAt ?? "2026-09-20T18:00:00Z",
 				host: {
