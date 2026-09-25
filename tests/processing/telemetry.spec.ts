@@ -109,14 +109,21 @@ test("renders local resource telemetry and factual worker events after automatic
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Windows 11", { exact: false })).toBeVisible();
-	await expect(page.getByText("78%", { exact: true })).toBeVisible();
-	await expect(
-		page.getByText("6.4 GB / 8.0 GB VRAM", { exact: true }),
-	).toBeVisible();
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
+	});
+	await expect(commandBar).toContainText("RTX 4070 · 78% · 6.4/8.0 GB");
+	await expect(commandBar).not.toContainText("Intel Core i7-14700HX");
+	await expect(page.getByText("Windows 11", { exact: false })).not.toBeVisible();
 	await expect(page.getByText("Arquivo 1 de 4", { exact: true })).toBeVisible();
 	await expect(page.getByText("Voz: Yuhara", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	await page.getByText("Companion e máquina", { exact: true }).click();
+	await expect(page.getByText("Windows 11", { exact: true })).toBeVisible();
+	await expect(page.getByText("Intel Core i7-14700HX", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText("NVIDIA GeForce RTX 4070 Laptop GPU", { exact: false }),
+	).toBeVisible();
 	await expect(page.getByRole("log")).toContainText(
 		"Processando voz — Yuhara · 82%.",
 	);
