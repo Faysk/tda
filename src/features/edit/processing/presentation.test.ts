@@ -67,7 +67,7 @@ describe("processing presentation", () => {
 
 	it("explains physical ASR execution failures", () => {
 		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toBe(
-			"O alinhamento obrigatório falhou. Consulte o evento de alinhamento no Diagnóstico para ver a faixa, a janela e a causa específica; nenhum resultado parcial foi publicado.",
+			"O alinhamento obrigatório falhou. Abra Diagnóstico para ver a faixa, a janela e a causa específica. Nenhum resultado parcial foi publicado.",
 		);
 		expect(presentJobError("QWEN_MODEL_NOT_GPU_RESIDENT")).toContain("GPU");
 		expect(presentJobError("WHISPER_CUDA_UNAVAILABLE")).toContain("CUDA");
@@ -105,7 +105,7 @@ describe("processing presentation", () => {
 				seq: 21,
 				code: "WORKER_RESULT_TEARDOWN_FORCED",
 				at: "2026-09-19T12:00:01Z",
-				level: "warning",
+				level: "info",
 				data: {},
 			}).detail,
 		).toContain("run imutável");
@@ -163,7 +163,7 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 		}),
 	).toEqual({
 		title: "Um timestamp extrapolado no overlap vizinho foi ignorado com segurança.",
-		detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
+		detail: "Esse trecho pertence à janela vizinha; palavras da janela atual continuam sob validação estrita.",
 	});
 });
 
