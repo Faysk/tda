@@ -377,6 +377,10 @@
 	min-width: 0;
 }
 
+.overviewTopIdle {
+	grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.28fr);
+}
+
 .overviewTop > section:first-child {
 	display: flex;
 	min-width: 0;
