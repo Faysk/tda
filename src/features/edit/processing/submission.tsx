@@ -652,6 +652,7 @@ export function ProcessingSubmission({
 							<span>Sessão</span>
 							<input
 								value={sessionId}
+								data-craig-session-id="true"
 								onChange={(event) => setSessionId(event.target.value.trim())}
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
