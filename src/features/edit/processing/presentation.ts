@@ -252,6 +252,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START: "O alinhador retornou uma palavra antes do início permitido da janela.",
 				QWEN_ALIGNMENT_TIMESTAMP_REVERSED: "O alinhador retornou um intervalo de palavra invertido.",
 				QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW: "O alinhador posicionou uma palavra completamente fora da janela de áudio.",
+				QWEN_ALIGNMENT_TIMESTAMPS_INVALID: "O alinhador retornou timestamps inválidos que não puderam ser classificados com segurança.",
 				QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC: "Os timestamps retornados ficaram fora de ordem.",
 				QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW: "Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
 				QWEN_ALIGNMENT_NO_OWNED_WORDS: "O alinhamento não deixou nenhuma palavra pertencente a esta janela.",
@@ -271,11 +272,15 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			};
 		case "ASR_CHECKPOINT_REUSED":
 			return { title: "Checkpoint local reutilizado; esta faixa não precisa ser refeita." };
-		case "ASR_TEXT_CHECKPOINT_COMPAT_REUSED":
+		case "ASR_TEXT_CHECKPOINT_COMPAT_REUSED": {
+			const sourceRuntime = textData(event, "source_runtime_version");
 			return {
-				title: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
+				title: sourceRuntime
+					? `Texto Qwen do runtime ${sourceRuntime} reutilizado com validação de integridade.`
+					: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
 				detail: "O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
 			};
+		}
 		case "ASR_CHECKPOINT_SAVED":
 			return { title: "Checkpoint da faixa salvo com sucesso." };
 		case "QUEUED":
