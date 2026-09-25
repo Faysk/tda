@@ -348,6 +348,19 @@ def test_physical_suite_rejects_identity_hardware_model_and_privacy_drift(
         verify_physical_acceptance_suite(receipt, _candidate())
 
 
+def test_physical_suite_rejects_qwen_runtime_below_companion_floor():
+    receipt = _receipt()
+    receipt["runtimes"]["qwen"]["version"] = "1.0.10"
+    for profile_id in ("qwen-fast", "qwen-quality"):
+        receipt["qwen_gates"][profile_id]["runtime"]["version"] = "1.0.10"
+
+    with pytest.raises(
+        PhysicalAcceptanceSuiteError,
+        match="PHYSICAL_ACCEPTANCE_QWEN_RUNTIME_INCOMPATIBLE",
+    ):
+        verify_physical_acceptance_suite(receipt, _candidate())
+
+
 def test_physical_suite_rejects_private_payload_even_when_proof_flags_are_false():
     receipt = _receipt()
     receipt["results"]["qwen-quality"]["text"] = "private transcript"
