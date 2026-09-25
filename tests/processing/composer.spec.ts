@@ -26,8 +26,9 @@ test("dropzone aceita drag/drop e teclado, sugere sessão segura e mantém priva
 	await installCompanionFixture(page, { profileReady: true });
 	const composer = await openComposer(page);
 	const dropzone = composer.locator("[data-craig-dropzone='true']");
+	const dropTarget = composer.locator("[data-craig-drop-target='true']");
 
-	await dropzone.evaluate((element) => {
+	await dropTarget.evaluate((element) => {
 		const transfer = new DataTransfer();
 		transfer.items.add(
 			new File(["PK synthetic"], "Sessão épica #42.zip", {
