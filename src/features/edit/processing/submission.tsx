@@ -61,7 +61,7 @@ function messageFor(code: string): string {
 
 function localOperationMessage(code: string | null): string {
 	if (!code) return "A operação local não foi concluída.";
-	const known = {
+	const known: Record<string, string> = {
 		TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
 			"Já existe outra preparação em andamento neste computador.",
 		TRANSCRIPTION_PREPARATION_CANCELLED:
@@ -124,8 +124,9 @@ function localOperationMessage(code: string | null): string {
 			"A preparação do modelo Whisper excedeu o limite de tempo.",
 		BODY_TOO_LARGE:
 			"Contexto e glossário excedem o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de enviar.",
-	}[code as keyof typeof known];
-	if (known) return known;
+	};
+	const knownMessage = known[code];
+	if (knownMessage) return knownMessage;
 	if (code.startsWith("CRAIG_ARCHIVE_"))
 		return "O ZIP foi recusado pela validação segura do Craig. Verifique o export original antes de repetir.";
 	if (code.startsWith("CRAIG_TRACK_"))
