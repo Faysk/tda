@@ -14,6 +14,7 @@ from .transcription_runs import TranscriptionRunError, load_run, run_root
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
+REVIEW_LIST_SUMMARY_SCHEMA_VERSION = "tda_local_review_summary_v1"
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
 _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -95,6 +96,65 @@ def _bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
     if not isinstance(value, dict):
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
     return value, payload
+
+
+def review_listing_summary(
+    package_root: Path,
+    *,
+    source_id: str,
+    run_id: str,
+    transcript_sha256: str,
+) -> dict[str, Any] | None:
+    """Return sanitized draft metadata without opening or creating a review."""
+
+    path = _review_path(package_root, run_id)
+    if not path.exists():
+        return None
+    try:
+        draft, _payload = _bounded_json(path)
+    except LocalReviewError:
+        return {
+            "schema_version": REVIEW_LIST_SUMMARY_SCHEMA_VERSION,
+            "status": "invalid",
+            "draft_revision": None,
+            "updated_at": None,
+        }
+
+    revision = draft.get("draft_revision")
+    status = draft.get("status")
+    updated_at = draft.get("updated_at")
+    valid_updated = False
+    if isinstance(updated_at, str) and 0 < len(updated_at) <= 64:
+        try:
+            datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            valid_updated = True
+        except ValueError:
+            valid_updated = False
+
+    if (
+        draft.get("schema_version") != REVIEW_SCHEMA_VERSION
+        or draft.get("source_id") != source_id
+        or draft.get("run_id") != run_id
+        or draft.get("base_transcript_sha256") != transcript_sha256
+        or isinstance(revision, bool)
+        or not isinstance(revision, int)
+        or revision < 0
+        or status not in _ALLOWED_STATUS
+        or not valid_updated
+    ):
+        return {
+            "schema_version": REVIEW_LIST_SUMMARY_SCHEMA_VERSION,
+            "status": "invalid",
+            "draft_revision": None,
+            "updated_at": None,
+        }
+
+    return {
+        "schema_version": REVIEW_LIST_SUMMARY_SCHEMA_VERSION,
+        "status": status,
+        "draft_revision": revision,
+        "updated_at": updated_at,
+    }
 
 
 def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
