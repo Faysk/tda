@@ -804,7 +804,8 @@ export function ProcessingSubmission({
 
 					{requestTooLarge ? (
 						<p className={styles.inlineError} role="alert">
-							Contexto e glossário excedem o orçamento local. Reduza o texto antes de enviar.
+							Contexto e glossário excedem o orçamento local: {requestBytes} /{" "}
+							{LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8. Reduza o texto antes de enviar.
 						</p>
 					) : null}
 				</form>
