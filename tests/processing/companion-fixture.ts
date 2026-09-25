@@ -475,11 +475,14 @@ export async function installCompanionFixture(
 	return state;
 }
 
-export function failedJob(): Record<string, unknown> {
+export function failedJob(
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
 	return fixtureJob("failed", {
 		stage: "failed",
 		progress: { completed: 1, total: 2, unit: "tracks" },
 		error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
 		result_available: false,
+		...overrides,
 	});
 }
