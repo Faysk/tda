@@ -384,6 +384,15 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
         item.get("code") == "ASR_TEXT_CHECKPOINT_SAVED"
         for item in first_reports
     ) == 2
+    first_failure = next(
+        item
+        for item in first_reports
+        if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert first_failure["track"] == 1
+    assert first_failure["window"] == 1
+    assert first_failure["failure_class"] == "QWEN_ALIGNMENT_FAILED"
+    assert "text" not in first_failure
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("retry must reuse durable Qwen text instead of loading ASR")
@@ -408,6 +417,14 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
         item.get("code") == "ASR_TEXT_CHECKPOINT_REUSED"
         for item in second_reports
     ) == 2
+    second_failure = next(
+        item
+        for item in second_reports
+        if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert second_failure["track"] == 1
+    assert second_failure["window"] == 1
+    assert second_failure["failure_class"] == "QWEN_ALIGNMENT_FAILED"
     stages = [
         item.get("stage")
         for item in second_reports
@@ -694,6 +711,43 @@ def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
     assert segments[0].text == "owned"
 
 
+def test_strict_alignment_ignores_neighbor_owned_overflow_that_crosses_ownership_boundary():
+    window = AudioWindow(index=88, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=88,
+        start=0.0,
+        end=60.0,
+        text="owned crossing",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                # Starts before the 57s ownership boundary but its midpoint is in
+                # the next-window-owned half of the 54-60s overlap. The canonical
+                # midpoint ownership rule would drop it after validation, so it is
+                # safe to filter before strict overflow validation.
+                {"text": "crossing", "start_time": 56.8, "end_time": 61.4},
+            ]
+
+        def close(self):
+            pass
+
+    segments, ignored = _strict_alignment_segments(
+        1,
+        window,
+        pending,
+        Aligner(),
+        first=False,
+        last=False,
+    )
+
+    assert ignored == 1
+    assert [segment.text for segment in segments] == ["owned"]
+
+
 def test_strict_alignment_keeps_owned_overflow_fail_closed():
     window = AudioWindow(index=89, start=0.0, end=60.0, audio="window")
     pending = QwenWindowTranscript(
@@ -713,7 +767,7 @@ def test_strict_alignment_keeps_owned_overflow_fail_closed():
         def close(self):
             pass
 
-    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
         _strict_alignment_segments(
             1,
             window,
@@ -722,6 +776,10 @@ def test_strict_alignment_keeps_owned_overflow_fail_closed():
             first=False,
             last=False,
         )
+
+    assert caught.value.alignment_failure_class == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+    assert caught.value.alignment_diagnostics["aligned_item"] == 1
+    assert caught.value.alignment_diagnostics["overflow_seconds"] > 0
 
 
 def test_overlap_ownership_assigns_boundary_words_once():
@@ -826,7 +884,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     # decodes each track only for ASR + alignment instead of a third energy pass.
     assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
-    assert "strict-overlap-v2" in document.engine.alignment
+    assert "strict-overlap-v3" in document.engine.alignment
     assert document.warnings == ()
 
 
