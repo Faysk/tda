@@ -130,6 +130,32 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	).toBeVisible();
 });
 
+test("ações locais e refresh não cobrem a workspace com o loader universal", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobReadDelayMs: 800,
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const globalLoader = page.getByRole("status", { name: "Carregando" });
+	await expect(globalLoader).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
+	await page.waitForTimeout(180);
+	await expect(globalLoader).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await page.waitForTimeout(180);
+	await expect(globalLoader).toHaveCount(0);
+
+	await expect.poll(() => state.job?.status).toBe("cancelled");
+});
+
 test("refresh atrasado mantém ação do job clicável e não regride o estado novo", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
