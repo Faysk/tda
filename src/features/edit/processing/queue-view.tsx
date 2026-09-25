@@ -14,7 +14,6 @@ import type { LocalJob } from "./protocol";
 import {
 	type QueueFilter,
 	type QueueSort,
-	compactQueueId,
 	queueFilterCount,
 	queueFilters,
 	queuePrimaryIdentity,
