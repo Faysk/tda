@@ -193,10 +193,10 @@ it("explains compatibility reuse without implying a completed run", () => {
 			code: "ASR_TEXT_CHECKPOINT_COMPAT_REUSED",
 			at: "2026-09-25T00:00:01.000Z",
 			level: "info",
-			data: { track: 1, total_tracks: 4 },
+			data: { track: 1, total_tracks: 4, source_runtime_version: "1.0.10" },
 		}),
 	).toEqual({
-		title: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
+		title: "Texto Qwen do runtime 1.0.10 reutilizado com validação de integridade.",
 		detail:
 			"O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
 	});
