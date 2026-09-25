@@ -64,19 +64,22 @@ jobs:
           echo "rc_tag=companion-qwen-runtime-rc-v${VERSION}-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "stable_tag=companion-qwen-runtime-v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Detect Qwen RC for this source
+      - name: Require this completed Runtime RC to be the Qwen candidate
         id: qwen
         shell: bash
         env:
           RC_TAG: ${{ steps.release.outputs.rc_tag }}
         run: |
           set -euo pipefail
-          if gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
+          gh run view "$TRIGGER_RUN_ID" --repo "$GITHUB_REPOSITORY" --log > runtime-rc.log
+          MARKER="RUNTIME_RC_READY family=qwen tag=$RC_TAG source=$SOURCE_SHA"
+          if ! grep -Fq "$MARKER" runtime-rc.log; then
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "This Runtime RC completion was not the Qwen candidate."
+            echo "This completed Runtime RC belongs to another runtime family."
+            exit 0
           fi
+          gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          echo "present=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify immutable Qwen RC release and bytes
         if: steps.qwen.outputs.present == 'true'
