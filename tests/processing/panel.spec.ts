@@ -7,6 +7,10 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 
+function localComputer(page: import("@playwright/test").Page) {
+	return page.getByRole("region", { name: "Computador local" });
+}
+
 function fulfillJson(
 	route: import("@playwright/test").Route,
 	value: unknown,
@@ -93,7 +97,7 @@ test("sessão browser expirada é renovada automaticamente", async ({ page }) =>
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	expect(state.sessionCount).toBeGreaterThanOrEqual(2);
 	expect(
 		state.requests.filter((request) => request.path === "/session").length,
@@ -111,7 +115,7 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByText("Processando", { exact: true }).first()).toBeVisible();
 
 	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
@@ -147,7 +151,7 @@ test("ações locais e refresh não emitem loading global dentro da workspace", 
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
@@ -174,7 +178,7 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 
 	const refresh = page.getByRole("button", { name: "Atualizar estado" });
 	const cancel = page.getByRole("button", { name: "Cancelar trabalho" }).first();
@@ -201,7 +205,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
@@ -223,13 +227,13 @@ test("fila pausada continua distinta de falha e pode ser retomada", async ({ pag
 		advanceJobs: false,
 	});
 	await page.goto("/");
-	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Fila pausada", { exact: true })).toBeVisible();
 
 	await page.getByRole("button", { name: "Retomar fila" }).click();
 	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	expect(
 		state.requests.some(
 			(request) =>
