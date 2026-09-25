@@ -249,26 +249,33 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 
 	state.setJob(
 		fixtureJob("running", {
-			progress: { completed: 2, total: 2, unit: "tracks" },
+			progress: { completed: 2, total: 3, unit: "tracks" },
 		}),
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("value", "2");
-	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
+	await expect(progress).toHaveAttribute("max", "3");
+	await expect(progressVisual).toHaveAttribute(
+		"data-progress-target",
+		String(2 / 3),
+	);
 
 	state.setJob(
 		fixtureJob("running", {
 			attempt: 2,
-			progress: { completed: 1, total: 2, unit: "tracks" },
+			progress: { completed: 1, total: 3, unit: "tracks" },
 		}),
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("value", "1");
-	await expect(progress).toHaveAttribute("max", "2");
-	await expect(progressVisual).toHaveAttribute("data-progress-target", "0.5");
+	await expect(progress).toHaveAttribute("max", "3");
+	await expect(progressVisual).toHaveAttribute(
+		"data-progress-target",
+		String(1 / 3),
+	);
 });
 
-test("aba oculta encerra o frame loop sem alterar o target factual", async ({
+test("aba oculta não mantém frame loop e preserva o target factual", async ({
 	page,
 }) => {
 	const state = await installCompanionFixture(page, {
@@ -295,6 +302,14 @@ test("aba oculta encerra o frame loop sem alterar o target factual", async ({
 	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
 	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
 
+	await page.evaluate(() => {
+		Object.defineProperty(document, "hidden", {
+			configurable: true,
+			value: true,
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
 	state.setSystem({
 		gpus: [
 			{
@@ -307,17 +322,6 @@ test("aba oculta encerra o frame loop sem alterar o target factual", async ({
 		],
 	});
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
-
-	await expect(gpu).toHaveAttribute("value", "100");
-	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
-
-	await page.evaluate(() => {
-		Object.defineProperty(document, "hidden", {
-			configurable: true,
-			value: true,
-		});
-		document.dispatchEvent(new Event("visibilitychange"));
-	});
 
 	await expect(gpu).toHaveAttribute("value", "100");
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
@@ -389,11 +393,14 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 
 	state.setJob(
 		fixtureJob("running", {
-			progress: { completed: 2, total: 2, unit: "tracks" },
+			progress: { completed: 2, total: 3, unit: "tracks" },
 		}),
 	);
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(progress).toHaveAttribute("value", "2");
-	await expect(progress).toHaveAttribute("max", "2");
-	await expect(progressVisual).toHaveAttribute("data-progress-target", "1");
+	await expect(progress).toHaveAttribute("max", "3");
+	await expect(progressVisual).toHaveAttribute(
+		"data-progress-target",
+		String(2 / 3),
+	);
 });
