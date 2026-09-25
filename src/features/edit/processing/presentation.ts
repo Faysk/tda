@@ -258,6 +258,8 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			const failureClass = textData(event, "failure_class");
 			const track = numberData(event, "track");
 			const window = numberData(event, "window");
+			const runtimeVersion = textData(event, "runtime_version");
+			const workerSha = textData(event, "worker_sha256");
 			const details: Record<string, string> = {
 				QWEN_ALIGNMENT_FAILED: "O Forced Aligner não conseguiu sincronizar esta janela.",
 				QWEN_ALIGNMENT_EMPTY: "O Forced Aligner não retornou palavras utilizáveis nesta janela.",
@@ -276,11 +278,17 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				QWEN_ASR_CUDA_FAILED: "O alinhador encontrou uma falha CUDA nesta janela.",
 				QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen falhou ao executar a API de alinhamento desta janela.",
 			};
+			const cause =
+				(failureClass ? details[failureClass] : undefined) ??
+				"O TDA interrompeu esta janela sem publicar resultado parcial. Uma nova tentativa compatível reutilizará o texto pré-alinhamento se o checkpoint estiver disponível.";
+			const runtimeIdentity = runtimeVersion
+				? ` Identidade da execução: runtime ${runtimeVersion}${workerSha ? ` · worker SHA-256 ${workerSha}` : ""}.`
+				: workerSha
+					? ` Identidade da execução: worker SHA-256 ${workerSha}.`
+					: "";
 			return {
 				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
-				detail:
-					(failureClass ? details[failureClass] : undefined) ??
-					"O TDA interrompeu esta janela sem publicar resultado parcial. Uma nova tentativa compatível reutilizará o texto pré-alinhamento se o checkpoint estiver disponível.",
+				detail: `${cause}${runtimeIdentity}`,
 			};
 		}
 		case "ASR_CHECKPOINT_FAST_PATH":
