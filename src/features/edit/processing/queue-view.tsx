@@ -152,7 +152,7 @@ export function ProcessingQueueView({
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 
 	useEffect(() => {
-		setQuery("");
+		if (resetSearchKey > 0) setQuery("");
 	}, [resetSearchKey]);
 
 	const rows = useMemo(
