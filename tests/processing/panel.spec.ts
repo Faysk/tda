@@ -278,7 +278,7 @@ test("fila pausada continua distinta de falha e pode ser retomada", async ({ pag
 	await page.goto("/");
 	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
 
-	await page.getByRole("button", { name: "Retomar fila" }).click();
+	await page.getByRole("button", { name: "Retomar novas execuções" }).click();
 	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 
