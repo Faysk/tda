@@ -547,6 +547,18 @@ describe("processing state", () => {
 			localRuns: [{ sourceId, runId }],
 			localReview: null,
 		});
+		const libraryReadsBefore = request.mock.calls.filter(
+			([url]) =>
+				String(url).endsWith("/sources") ||
+				String(url).endsWith(`/sources/${sourceId}/runs`),
+		).length;
+		await controller.refresh("background");
+		const libraryReadsAfter = request.mock.calls.filter(
+			([url]) =>
+				String(url).endsWith("/sources") ||
+				String(url).endsWith(`/sources/${sourceId}/runs`),
+		).length;
+		expect(libraryReadsAfter).toBe(libraryReadsBefore);
 		expect(
 			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
 		).toBe(false);
