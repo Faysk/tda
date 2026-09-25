@@ -30,6 +30,10 @@
       "version": "1.32.0",
       "reason": "Keep the Qwen 1.0.11 recovery candidate on the previously accepted Hugging Face Hub line until the 2.0.0 major is validated with Transformers 5.17.0, offline local-files-only model loading, packaging, and the RTX 4070 physical gate."
     },
+    "nvidia-ml-py": {
+      "version": "13.610.43",
+      "reason": "Keep the already validated NVIDIA management binding during the focused Qwen 1.0.11 production recovery; update to 13.615.71 separately so GPU telemetry dependency drift does not alter the emergency release candidate."
+    },
     "torch": {
       "version": "2.13.0",
       "reason": "Use the official Windows CUDA 12.6 wheel until the supported physical RTX 4070 baseline is moved to an NVIDIA driver compatible with CUDA 13.x."
