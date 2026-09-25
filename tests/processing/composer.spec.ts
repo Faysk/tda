@@ -158,6 +158,15 @@ test("estado do composer sobrevive à troca de tabs", async ({ page }) => {
 });
 
 test("pending é local e mostra fase de envio ao Companion", async ({ page }) => {
+	await page.addInitScript(() => {
+		const starts: string[] = [];
+		(window as Window & { __globalLoadingStarts?: string[] }).__globalLoadingStarts =
+			starts;
+		window.addEventListener("tda:global-loading-start", (event) => {
+			const detail = (event as CustomEvent<{ id?: string }>).detail;
+			starts.push(detail?.id ?? "unknown");
+		});
+	});
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
