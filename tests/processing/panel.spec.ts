@@ -225,6 +225,10 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await expect(
 		page.getByRole("heading", { name: "Detalhes do processamento" }),
 	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "Histórico de eventos" }),
+	).toBeVisible();
+	await expect(page.getByText("1 mais recente", { exact: true })).toBeVisible();
 	await expect(page.getByRole("log")).toContainText(
 		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
 	);
