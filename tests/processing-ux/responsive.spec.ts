@@ -128,7 +128,10 @@ test("workspace tabs implement roving keyboard navigation", async ({ page }) => 
 	await expect(queue).toBeFocused();
 	await expect(queue).toHaveAttribute("aria-selected", "true");
 	await expect(
-		page.getByRole("row").getByText("Processando", { exact: true }),
+		page
+			.getByRole("tabpanel", { name: "Fila" })
+			.locator('td[data-label="Estado"]')
+			.getByText("Processando", { exact: true }),
 	).toBeVisible();
 
 	await page.keyboard.press("End");
@@ -249,7 +252,10 @@ test("queued and paused states do not masquerade as running or healthy", async (
 	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
 
 	await page.getByRole("tab", { name: "Fila" }).click();
-	const queued = page.getByRole("row").getByText("Na fila", { exact: true });
+	const queued = page
+		.getByRole("tabpanel", { name: "Fila" })
+		.locator('td[data-label="Estado"]')
+		.getByText("Na fila", { exact: true });
 	await expect(queued).toBeVisible();
 	await expect(queued).not.toHaveClass(/ds-status--accent/);
 	await expect(queued).not.toHaveClass(/ds-status--danger/);
