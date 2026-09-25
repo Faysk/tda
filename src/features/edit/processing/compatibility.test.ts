@@ -13,6 +13,7 @@ describe("processing compatibility", () => {
 		expect(supportsQwenAlignmentRuntime("1.0.10")).toBe(false);
 		expect(supportsQwenAlignmentRuntime("1.0.11")).toBe(true);
 		expect(supportsQwenAlignmentRuntime("1.0.12")).toBe(true);
+		expect(supportsQwenAlignmentRuntime("1.0.11-rc.1")).toBe(false);
 		expect(supportsQwenAlignmentRuntime("development")).toBe(false);
 	});
 
