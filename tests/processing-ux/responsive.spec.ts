@@ -150,3 +150,63 @@ test("low-height notebook keeps essential actions reachable instead of clipping"
 	expect(overflow.html).not.toBe("hidden");
 	expect(overflow.body).not.toBe("hidden");
 });
+
+
+test("operational grammar keeps state semantics distinct and essential text readable", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1440, 900);
+
+	const activeSurface = page.locator("article").first();
+	const activeVisual = await activeSurface.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			boxShadow: style.boxShadow,
+			borderLeftWidth: style.borderLeftWidth,
+		};
+	});
+	expect(activeVisual.boxShadow).toBe("none");
+	expect(activeVisual.borderLeftWidth).toBe("1px");
+
+	const cpuMetric = page.getByText("CPU", { exact: true }).locator("..");
+	const metricVisual = await cpuMetric.evaluate((element) => {
+		const style = getComputedStyle(element);
+		const label = element.querySelector("span");
+		return {
+			background: style.backgroundColor,
+			borderTopWidth: style.borderTopWidth,
+			labelFontSize: label ? Number.parseFloat(getComputedStyle(label).fontSize) : 0,
+		};
+	});
+	expect(metricVisual.background).toBe("rgba(0, 0, 0, 0)");
+	expect(metricVisual.borderTopWidth).toBe("0px");
+	expect(metricVisual.labelFontSize).toBeGreaterThanOrEqual(11);
+
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	const logTime = page.getByRole("log").locator("time").first();
+	await expect(logTime).toBeVisible();
+	const logTimeSize = await logTime.evaluate((element) =>
+		Number.parseFloat(getComputedStyle(element).fontSize),
+	);
+	expect(logTimeSize).toBeGreaterThanOrEqual(11);
+});
+
+test("queued and paused states do not masquerade as running or healthy", async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("queued")],
+		lifecycle: "paused",
+	});
+	await page.goto("/");
+
+	const paused = page.getByText("Fila pausada", { exact: true });
+	await expect(paused).toHaveClass(/ds-status--warning/);
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queued = page.getByRole("listitem").getByText("Na fila", { exact: true });
+	await expect(queued).toBeVisible();
+	await expect(queued).not.toHaveClass(/ds-status--accent/);
+	await expect(queued).not.toHaveClass(/ds-status--danger/);
+});
