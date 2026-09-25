@@ -14,11 +14,13 @@ from .transcription_runs import TranscriptionRunError, load_run, run_root
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
+REVIEW_SUMMARY_SCHEMA_VERSION = "tda_local_review_summary_v1"
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
 _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _ALLOWED_STATUS = frozenset({"draft", "reviewed", "approved_local"})
 _MAX_DRAFT_BYTES = 32 * 1024 * 1024
+_MAX_SUMMARY_BYTES = 8 * 1024
 _MAX_SEGMENTS = 100_000
 
 _LOCKS: dict[str, threading.RLock] = {}
@@ -95,6 +97,144 @@ def _bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
     if not isinstance(value, dict):
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
     return value, payload
+
+
+def _summary_path(draft_path: Path) -> Path:
+    return draft_path.with_name("summary.json")
+
+
+def _atomic_summary_json(path: Path, value: dict[str, Any]) -> None:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(payload) <= 0 or len(payload) > _MAX_SUMMARY_BYTES:
+        raise LocalReviewError("LOCAL_REVIEW_SUMMARY_TOO_LARGE")
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _public_unknown_summary() -> dict[str, Any]:
+    return {
+        "status": "unknown",
+        "draft_revision": None,
+        "review_percent": None,
+        "updated_at": None,
+    }
+
+
+def _refresh_review_summary(draft_path: Path, draft: dict[str, Any]) -> None:
+    segments = draft.get("segments")
+    if not isinstance(segments, list):
+        return
+    reviewed = sum(
+        1
+        for item in segments
+        if isinstance(item, dict) and item.get("reviewed") is True
+    )
+    total = len(segments)
+    try:
+        stat = draft_path.stat()
+        _atomic_summary_json(
+            _summary_path(draft_path),
+            {
+                "schema_version": REVIEW_SUMMARY_SCHEMA_VERSION,
+                "source_id": draft.get("source_id"),
+                "run_id": draft.get("run_id"),
+                "base_transcript_sha256": draft.get("base_transcript_sha256"),
+                "draft_revision": draft.get("draft_revision"),
+                "status": draft.get("status"),
+                "review_percent": round((reviewed / total) * 100, 1) if total else 100.0,
+                "updated_at": draft.get("updated_at"),
+                "draft_size_bytes": stat.st_size,
+                "draft_mtime_ns": stat.st_mtime_ns,
+            },
+        )
+    except (OSError, LocalReviewError):
+        # The review draft is authoritative. A missing/stale projection degrades
+        # the library to "unknown" and must never make an already-persisted save
+        # appear to have failed.
+        return
+
+
+def review_summary(package_root: Path, run_id: str) -> dict[str, Any] | None:
+    draft_path = _review_path(package_root, run_id)
+    with _lock_for(draft_path):
+        if draft_path.is_symlink():
+            return _public_unknown_summary()
+        try:
+            draft_stat = draft_path.stat()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return _public_unknown_summary()
+
+        summary_path = _summary_path(draft_path)
+        if summary_path.is_symlink():
+            return _public_unknown_summary()
+        try:
+            summary_stat = summary_path.stat()
+            if summary_stat.st_size <= 0 or summary_stat.st_size > _MAX_SUMMARY_BYTES:
+                return _public_unknown_summary()
+            value = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return _public_unknown_summary()
+        if not isinstance(value, dict):
+            return _public_unknown_summary()
+
+        revision = value.get("draft_revision")
+        status = value.get("status")
+        review_percent = value.get("review_percent")
+        updated_at = value.get("updated_at")
+        source_id = value.get("source_id")
+        stored_size = value.get("draft_size_bytes")
+        stored_mtime_ns = value.get("draft_mtime_ns")
+        package_source_id = package_root.resolve().name
+        if (
+            value.get("schema_version") != REVIEW_SUMMARY_SCHEMA_VERSION
+            or source_id != package_source_id
+            or value.get("run_id") != run_id
+            or isinstance(revision, bool)
+            or not isinstance(revision, int)
+            or revision < 0
+            or status not in _ALLOWED_STATUS
+            or isinstance(review_percent, bool)
+            or not isinstance(review_percent, (int, float))
+            or float(review_percent) < 0
+            or float(review_percent) > 100
+            or not isinstance(updated_at, str)
+            or not updated_at
+            or len(updated_at) > 64
+            or isinstance(stored_size, bool)
+            or not isinstance(stored_size, int)
+            or isinstance(stored_mtime_ns, bool)
+            or not isinstance(stored_mtime_ns, int)
+            or stored_size != draft_stat.st_size
+            or stored_mtime_ns != draft_stat.st_mtime_ns
+        ):
+            return _public_unknown_summary()
+        try:
+            parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        except ValueError:
+            return _public_unknown_summary()
+        if parsed.tzinfo is None:
+            return _public_unknown_summary()
+
+        return {
+            "status": status,
+            "draft_revision": revision,
+            "review_percent": float(review_percent),
+            "updated_at": updated_at,
+        }
 
 
 def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -338,6 +478,7 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
                 for item in base_segments
             }
             draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map)
+            _refresh_review_summary(path, draft)
             return _response(
                 draft,
                 payload,
@@ -359,6 +500,7 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
             "segments": base_segments,
         }
         payload = _atomic_json(path, draft)
+        _refresh_review_summary(path, draft)
         return _response(
             draft,
             payload,
@@ -410,6 +552,7 @@ def save_review(
             "segments": segments,
         }
         payload = _atomic_json(path, draft)
+        _refresh_review_summary(path, draft)
         return _response(
             draft,
             payload,
