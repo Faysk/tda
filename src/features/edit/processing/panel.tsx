@@ -156,6 +156,7 @@ export function ProcessingPanel({
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
+	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -233,6 +234,7 @@ export function ProcessingPanel({
 
 	function openAttentionQueue() {
 		setQueueFilter("attention");
+		setQueueSearchReset((value) => value + 1);
 		setView("queue");
 		requestAnimationFrame(() => {
 			document.querySelector("[data-processing-queue='true']")?.scrollIntoView({
@@ -538,6 +540,7 @@ export function ProcessingPanel({
 							jobs={state.jobs}
 							filter={queueFilter}
 							onFilterChange={setQueueFilter}
+							resetSearchKey={queueSearchReset}
 							mutation={state.mutation}
 							canDelete={canDeleteJobs}
 							onCancel={(job) =>
