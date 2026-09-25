@@ -22,6 +22,10 @@ const job = {
 	},
 };
 
+function localComputer(page: import("@playwright/test").Page) {
+	return page.getByRole("region", { name: "Computador local" });
+}
+
 test("renders local resource telemetry and factual worker events after automatic session", async ({
 	page,
 }) => {
@@ -108,7 +112,7 @@ test("renders local resource telemetry and factual worker events after automatic
 	});
 
 	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(localComputer(page).getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByText("Windows 11", { exact: false })).toBeVisible();
 	await expect(page.getByText("78%", { exact: true })).toBeVisible();
 	await expect(
