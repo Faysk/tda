@@ -325,7 +325,7 @@ export function RunLibrary({
 				</div>
 			) : (
 				<div className={styles.workspace}>
-					<div className={styles.master}>
+					<div className={styles.master} data-results-master="true">
 						<div className={styles.masterList}>
 							{visible.map((run) => {
 								const isSelected = selected?.runId === run.runId;
@@ -365,7 +365,7 @@ export function RunLibrary({
 						</div>
 					</div>
 
-					<div className={styles.detail}>
+					<div className={styles.detail} data-results-detail="true">
 						{selected ? (
 							<>
 								<Button
