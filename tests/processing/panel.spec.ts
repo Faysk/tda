@@ -209,6 +209,8 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 					track: 1,
 					window: 89,
 					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+					runtime_version: "1.0.11",
+					worker_sha256: "a".repeat(64),
 				},
 			},
 		],
@@ -234,6 +236,9 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	);
 	await expect(page.getByRole("log")).toContainText(
 		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Identidade da execução: runtime 1.0.11 · worker SHA-256",
 	);
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
