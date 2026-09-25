@@ -782,6 +782,59 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
     assert asr_calls == 3
 
 
+@pytest.mark.parametrize(
+    ("aligned", "failure_class"),
+    (
+        ([{"text": "word", "start_time": "bad", "end_time": 1.0}], "QWEN_ALIGNMENT_TIMESTAMP_PARSE_INVALID"),
+        ([{"text": "word", "start_time": float("nan"), "end_time": 1.0}], "QWEN_ALIGNMENT_TIMESTAMP_NONFINITE"),
+        ([{"text": "word", "start_time": -0.1, "end_time": 0.1}], "QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START"),
+        ([{"text": "word", "start_time": 1.0, "end_time": 0.5}], "QWEN_ALIGNMENT_TIMESTAMP_REVERSED"),
+        ([{"text": "word", "start_time": 60.4, "end_time": 60.5}], "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW"),
+        ([{"text": "word", "start_time": 10.0, "end_time": 61.0}], "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"),
+        (
+            [
+                {"text": "first", "start_time": 10.0, "end_time": 11.0},
+                {"text": "second", "start_time": 9.0, "end_time": 9.5},
+            ],
+            "QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC",
+        ),
+        ([], "QWEN_ALIGNMENT_EMPTY"),
+    ),
+)
+def test_strict_alignment_classifies_failures_without_transcript_payload(
+    aligned,
+    failure_class: str,
+):
+    window = AudioWindow(index=42, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=42,
+        start=0.0,
+        end=60.0,
+        text="private transcript must never enter diagnostics",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return aligned
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=False,
+            last=False,
+        )
+
+    assert caught.value.alignment_failure_class == failure_class
+    assert "private transcript" not in repr(caught.value.alignment_diagnostics)
+
+
 def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
     window = AudioWindow(index=1, start=0.0, end=60.0, audio="window")
     pending = QwenWindowTranscript(
