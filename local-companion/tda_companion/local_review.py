@@ -108,7 +108,7 @@ def review_listing_summary(
     """Return sanitized draft metadata without opening or creating a review."""
 
     path = _review_path(package_root, run_id)
-    if not path.exists():
+    if not path.exists() and not path.is_symlink():
         return None
     try:
         draft, _payload = _bounded_json(path)
