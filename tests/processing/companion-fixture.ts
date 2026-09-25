@@ -25,6 +25,7 @@ export type CompanionFixtureOptions = {
 	profileReady?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
+	jobReadDelayMs?: number;
 };
 
 export type CompanionFixtureState = {
@@ -112,6 +113,7 @@ export async function installCompanionFixture(
 	let prepared = options.profileReady ?? false;
 	let preparationReads = 0;
 	let jobsReads = 0;
+	let jobsGetCount = 0;
 	let expired = false;
 	let ambiguousJobPostConsumed = false;
 	let submittedJob = false;
@@ -327,6 +329,11 @@ export async function installCompanionFixture(
 			return json(route, state.job);
 		}
 		if (path === "/jobs" && request.method() === "GET") {
+			jobsGetCount += 1;
+			if (options.jobReadDelayMs && jobsGetCount > 1)
+				await new Promise((resolve) =>
+					setTimeout(resolve, options.jobReadDelayMs),
+				);
 			if (
 				state.job &&
 				submittedJob &&
