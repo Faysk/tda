@@ -64,6 +64,16 @@ test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão"
 	await expect(queue.getByRole("columnheader", { name: "Etapa / progresso" })).toBeVisible();
 	await expect(queue.getByRole("columnheader", { name: "Estado" })).toBeVisible();
 
+	if ((page.viewportSize()?.width ?? 0) > 900) {
+		const header = await queue.getByRole("columnheader", { name: "Sessão / source" }).boundingBox();
+		const firstRow = await queue.locator("tbody > tr[data-status]").first().boundingBox();
+		expect(header).not.toBeNull();
+		expect(firstRow).not.toBeNull();
+		expect((firstRow?.y ?? 0) + 0.5).toBeGreaterThanOrEqual(
+			(header?.y ?? 0) + (header?.height ?? 0),
+		);
+	}
+
 	await expect(queue.getByRole("button", { name: /Ativos/ })).toHaveAttribute(
 		"aria-pressed",
 		"true",
