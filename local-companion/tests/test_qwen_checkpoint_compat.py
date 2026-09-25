@@ -12,6 +12,7 @@ from tda_companion.asr_checkpoints import (
 )
 from tda_companion.asr_models import get_profile
 from tda_companion.craig import CraigPackage, CraigTrack
+from tda_companion import qwen_checkpoint_compat
 from tda_companion.qwen_checkpoint_compat import load_compatible_qwen_text_checkpoint
 
 
@@ -74,6 +75,24 @@ def _windows() -> tuple[QwenTextCheckpointWindow, ...]:
             language="Portuguese",
         ),
     )
+
+
+def test_compat_bridge_source_worker_matches_versioned_physical_receipt():
+    repo_root = Path(__file__).resolve().parents[2]
+    receipt = json.loads(
+        (
+            repo_root
+            / "docs"
+            / "companion"
+            / "runtime-acceptance"
+            / "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert qwen_checkpoint_compat._ACCEPTED_SOURCE_WORKERS[
+        ("1.0.10", "1.0.11")
+    ] == frozenset({receipt["worker_sha256"]})
+    assert receipt["stable_tag"] == "companion-qwen-runtime-v1.0.10"
+    assert receipt["pass"] is True
 
 
 def test_compat_bridge_reuses_only_declared_1_0_10_to_1_0_11_transition(tmp_path: Path):
