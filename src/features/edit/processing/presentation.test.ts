@@ -166,6 +166,43 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 });
 
 
+it("presents sanitized Qwen alignment failure context", () => {
+	expect(
+		presentJobEvent({
+			seq: 41,
+			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+			at: "2026-09-25T00:00:00.000Z",
+			level: "error",
+			data: {
+				track: 1,
+				window: 89,
+				failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+			},
+		}),
+	).toEqual({
+		title: "Falha de alinhamento Qwen · faixa 1 · janela 89.",
+		detail:
+			"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+	});
+});
+
+it("explains compatibility reuse without implying a completed run", () => {
+	expect(
+		presentJobEvent({
+			seq: 42,
+			code: "ASR_TEXT_CHECKPOINT_COMPAT_REUSED",
+			at: "2026-09-25T00:00:01.000Z",
+			level: "info",
+			data: { track: 1, total_tracks: 4 },
+		}),
+	).toEqual({
+		title: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
+		detail:
+			"O runtime novo refez somente o alinhamento; a transcrição compatível não precisou rodar de novo.",
+	});
+});
+
+
 it("presents Qwen post-ASR track context truthfully", () => {
 	expect(
 		presentJobEvent({
