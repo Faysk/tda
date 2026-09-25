@@ -101,7 +101,7 @@ export function presentJobError(code: string): string {
 		QWEN_ASR_CUDA_FAILED: "O Qwen encontrou uma falha CUDA durante a execução.",
 		QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen encontrou uma falha interna ao executar a API de inferência/alinhamento.",
 		QWEN_ASR_INFERENCE_FAILED: "O Qwen não conseguiu concluir a inferência desta faixa.",
-		QWEN_ALIGNMENT_REQUIRED: "O Qwen produziu texto, mas não conseguiu gerar o alinhamento obrigatório de palavras e timestamps.",
+		QWEN_ALIGNMENT_REQUIRED: "O alinhamento obrigatório falhou. Consulte o evento de alinhamento no Diagnóstico para ver a faixa, a janela e a causa específica; nenhum resultado parcial foi publicado.",
 		QWEN_ALIGNMENT_FAILED: "O alinhador do Qwen falhou ao sincronizar as palavras com o áudio.",
 		QWEN_AUDIO_DECODE_FAILED: "O Qwen não conseguiu decodificar uma das faixas de áudio.",
 		QWEN_AUDIO_EMPTY: "Uma das faixas chegou vazia ao pipeline de áudio do Qwen.",
