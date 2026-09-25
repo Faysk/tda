@@ -14,6 +14,7 @@ import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
 import { publishApprovedLocalReview } from "./publication-client";
 import { ProcessingSubmission } from "./submission";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -277,7 +278,9 @@ export function ProcessingPanel({
 	useEffect(() => {
 		if (state.connection !== "connected" || state.mutation) return;
 		const hasActiveWork = state.jobs.some((job) => job.status === "running");
-		const delay = hasActiveWork ? 1500 : 6000;
+		const delay = hasActiveWork
+			? PROCESSING_REFRESH_POLICY.activePollMs
+			: PROCESSING_REFRESH_POLICY.idlePollMs;
 		const timer = window.setTimeout(() => {
 			if (document.visibilityState === "visible")
 				void controller.refresh("background");
