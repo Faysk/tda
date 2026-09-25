@@ -272,7 +272,12 @@
 	min-height: 32px;
 	padding: 5px 8px;
 	font-size: 0.6875rem;
+	scroll-margin-block-start: 132px;
 	white-space: nowrap;
+}
+
+.more > summary {
+	scroll-margin-block-start: 132px;
 }
 
 .more {
