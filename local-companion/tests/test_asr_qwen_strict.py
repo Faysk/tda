@@ -530,6 +530,11 @@ def test_strict_qwen_reuses_1_0_10_text_checkpoint_after_1_0_11_alignment_upgrad
     assert compat_event["source_runtime_version"] == "1.0.10"
     assert len(compat_event["source_signature_sha256"]) == 64
     assert set(compat_event["source_signature_sha256"]) <= set("0123456789abcdef")
+    assert document.warnings == (
+        "qwen_text_checkpoint_compat_reused:"
+        "runtime=1.0.10;"
+        f"signature={compat_event['source_signature_sha256']}",
+    )
     stages = [
         item.get("stage")
         for item in second_reports
