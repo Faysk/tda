@@ -251,6 +251,44 @@ def test_review_summary_never_reads_draft_payload_and_stale_metadata_fails_safe(
     }
 
 
+def test_summary_projection_failure_does_not_fail_authoritative_review_save(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package_root, source_id, run = _package(tmp_path)
+
+    import tda_companion.local_review as review_module
+
+    def fail_summary(*_args, **_kwargs):
+        raise OSError("synthetic summary disk failure")
+
+    monkeypatch.setattr(review_module, "_atomic_summary_json", fail_summary)
+    opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
+    assert opened["status"] == "draft"
+    assert review_summary(package_root, run["run_id"]) == {
+        "status": "unknown",
+        "draft_revision": None,
+        "review_percent": None,
+        "updated_at": None,
+    }
+
+    segments = [dict(item) for item in opened["segments"]]
+    segments[0]["reviewed"] = True
+    saved = save_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+        value={
+            "expected_draft_revision": 0,
+            "status": "reviewed",
+            "segments": segments,
+        },
+    )
+    assert saved["status"] == "reviewed"
+    assert saved["draft_revision"] == 1
+    assert review_summary(package_root, run["run_id"])["status"] == "unknown"
+
+
 def test_stale_review_save_conflicts_without_overwrite(tmp_path: Path):
     package_root, source_id, run = _package(tmp_path)
     opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
