@@ -488,8 +488,7 @@ def transcribe_craig_package_qwen_strict(
                 compatibility_source_signature_sha256 = compatible.source_signature_sha256
                 compatibility_warnings.add(
                     "qwen_text_checkpoint_compat_reused:"
-                    f"runtime={compatible.source_runtime_version};"
-                    f"signature={compatible.source_signature_sha256}"
+                    f"runtime={compatible.source_runtime_version}"
                 )
         if cached_text is None:
             asr_tracks.append(track)
