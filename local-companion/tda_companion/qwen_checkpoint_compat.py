@@ -17,16 +17,10 @@ _WORKER_SHA256 = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
 # Exact worker accepted and promoted as companion-qwen-runtime-v1.0.10.
 # Receipt: docs/companion/runtime-acceptance/
 # companion-qwen-runtime-rc-v1.0.10-19d9b3b64238.json
-_ACCEPTED_STABLE_1_0_10_WORKERS = frozenset(
-    {"8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e"}
-)
 _ACCEPTED_SOURCE_WORKERS = {
-    # Companion 0.3.15 can arrive before the 1.0.11 runtime promotion. Preserve
-    # the exact Stable 1.0.10 ASR text when only the alignment policy changed.
-    ("1.0.10", "1.0.10"): _ACCEPTED_STABLE_1_0_10_WORKERS,
-    # Once 1.0.11 is physically accepted, the same Stable 1.0.10 text lineage
-    # can be carried across the immutable runtime upgrade.
-    ("1.0.10", "1.0.11"): _ACCEPTED_STABLE_1_0_10_WORKERS,
+    ("1.0.10", "1.0.11"): frozenset(
+        {"8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e"}
+    )
 }
 _LINEAGE_FIELDS = (
     "package_sha256",
@@ -119,14 +113,6 @@ def load_compatible_qwen_text_checkpoint(
         if target_version != current_version:
             continue
         for worker_sha256 in sorted(accepted_workers):
-            if (
-                source_version == target_version
-                and current_worker != worker_sha256
-            ):
-                # A policy-only recovery on the same runtime version is valid
-                # only when the current worker bytes are exactly the accepted
-                # Stable source bytes. Never cross same-version worker drift.
-                continue
             for template in legacy_templates:
                 if not _same_text_lineage(signature, template):
                     continue
