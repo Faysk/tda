@@ -186,6 +186,26 @@ it("presents sanitized Qwen alignment failure context", () => {
 	});
 });
 
+it("presents an alignment VRAM failure as a runtime problem, not transcript corruption", () => {
+	expect(
+		presentJobEvent({
+			seq: 43,
+			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+			at: "2026-09-25T00:00:02.000Z",
+			level: "error",
+			data: {
+				track: 2,
+				window: 17,
+				failure_class: "QWEN_ASR_GPU_MEMORY_EXHAUSTED",
+			},
+		}),
+	).toEqual({
+		title: "Falha de alinhamento Qwen · faixa 2 · janela 17.",
+		detail: "A GPU ficou sem VRAM enquanto o alinhador processava esta janela.",
+	});
+});
+
+
 it("explains compatibility reuse without implying a completed run", () => {
 	expect(
 		presentJobEvent({
