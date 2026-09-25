@@ -223,6 +223,18 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				detail: "A GPU pode ficar em 0% enquanto os arquivos chegam ao disco.",
 			};
 		}
+		case "QWEN_RUNTIME_FINGERPRINT_READY": {
+			const runtimeVersion = textData(event, "runtime_version");
+			const workerSha = textData(event, "worker_sha256");
+			return {
+				title: runtimeVersion
+					? `Runtime Qwen ${runtimeVersion} identificado e validado.`
+					: "Identidade do runtime Qwen confirmada.",
+				detail: workerSha
+					? `Worker selado · SHA-256 ${workerSha.slice(0, 12)}…`
+					: undefined,
+			};
+		}
 		case "QWEN_WINDOW_TRANSCRIBED": {
 			const track = numberData(event, "track");
 			const window = numberData(event, "window");
