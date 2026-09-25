@@ -128,6 +128,7 @@ export function ProcessingCommandBar({
 				) : null}
 				{connected && system ? (
 					<span className={styles.secondaryTelemetry}>
+						{gpu ? "" : "GPU indisponível · "}
 						CPU {system.cpu.utilizationPercent === null ? "—" : `${Math.round(system.cpu.utilizationPercent)}%`}
 						{" · "}
 						RAM {system.memory.percent === null ? "—" : `${Math.round(system.memory.percent)}%`}
@@ -157,9 +158,8 @@ export function ProcessingCommandBar({
 						className={styles.refreshAction}
 						disabled={refreshing}
 						onClick={onRefresh}
-						aria-label="Atualizar estado do Companion"
 					>
-						{refreshing ? "Atualizando…" : "Atualizar"}
+						{refreshing ? "Atualizando…" : "Atualizar estado"}
 					</Button>
 				) : null}
 				{connected && primaryLifecycleAction ? (
@@ -194,6 +194,19 @@ export function ProcessingCommandBar({
 					</Button>
 				) : null}
 			</div>
+
+			{connected && degradedHint ? (
+				<div className={styles.degraded} role="status">
+					<strong>{degradedHint}.</strong>
+					<span>
+						{stale
+							? "O último snapshot válido foi preservado."
+							: gpuUnavailable
+								? "CPU e RAM continuam disponíveis; consulte Diagnóstico para detalhes da máquina."
+								: "Alguns valores não vieram nesta amostra; o restante continua válido."}
+					</span>
+				</div>
+			) : null}
 		</section>
 	);
 }
