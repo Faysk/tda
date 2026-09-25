@@ -34,6 +34,13 @@ class QwenTextCheckpointWindow:
 
 
 @dataclass(frozen=True)
+class CompatibleQwenTextCheckpoint:
+    windows: tuple[QwenTextCheckpointWindow, ...]
+    source_runtime_version: str
+    source_signature_sha256: str
+
+
+@dataclass(frozen=True)
 class CheckpointSignature:
     package_sha256: str
     profile_id: str
@@ -316,7 +323,7 @@ def load_compatible_qwen_text_checkpoint(
     track: CraigTrack,
     *,
     templates: Iterable[CheckpointSignature],
-) -> tuple[QwenTextCheckpointWindow, ...] | None:
+) -> CompatibleQwenTextCheckpoint | None:
     """Load one explicitly compatible pre-alignment checkpoint.
 
     This bridge is deliberately narrow: it only permits a declared runtime
@@ -344,7 +351,7 @@ def load_compatible_qwen_text_checkpoint(
         return None
 
     descriptor = _track_descriptor(track)
-    matches: list[tuple[QwenTextCheckpointWindow, ...]] = []
+    matches: list[CompatibleQwenTextCheckpoint] = []
     for root in roots:
         if (
             root.is_symlink()
@@ -399,7 +406,18 @@ def load_compatible_qwen_text_checkpoint(
             windows = _validated_qwen_text_windows(windows_value)
         except (TypeError, ValueError):
             continue
-        matches.append(windows)
+        source_runtime_version = _runtime_version_from_fingerprint(
+            str(candidate_signature.get("runtime_fingerprint") or "")
+        )
+        if source_runtime_version is None:
+            continue
+        matches.append(
+            CompatibleQwenTextCheckpoint(
+                windows=windows,
+                source_runtime_version=source_runtime_version,
+                source_signature_sha256=candidate_digest,
+            )
+        )
         if len(matches) > 1:
             # Multiple compatible lineages are ambiguous. Fail closed instead of
             # guessing which ASR text should seed a new alignment result.
