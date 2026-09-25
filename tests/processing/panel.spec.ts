@@ -288,7 +288,9 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		.poll(() => state.job?.attempt)
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
-	await expect(page.getByText("Na fila", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("listitem").getByText("Na fila", { exact: true }),
+	).toBeVisible();
 });
 
 test("fila pausada continua distinta de falha e pode ser retomada", async ({ page }) => {
