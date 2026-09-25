@@ -187,8 +187,8 @@
 		align-self: start;
 	}
 
-	.actions :global(.ds-action):first-child {
-		display: none;
+	.refreshAction {
+		display: none !important;
 	}
 
 	.actionLong {
