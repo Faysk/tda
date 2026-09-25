@@ -45,6 +45,8 @@
 .dropZone {
 	position: relative;
 	display: grid;
+	min-inline-size: 0;
+	margin: 0;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 16px;
@@ -67,6 +69,18 @@
 
 .dropZone[data-has-file="true"] {
 	border-style: solid;
+}
+
+.srOnly {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
 }
 
 .fileInput {
