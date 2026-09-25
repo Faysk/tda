@@ -117,7 +117,7 @@ test("filtros, busca e ordenação operam localmente sem perder running no topo"
 	await openQueue(page);
 	await page.getByRole("button", { name: /Todos/ }).click();
 
-	const dataRows = page.locator("tbody > tr").filter({ has: page.locator("td[data-label='Sessão / source']") });
+	const dataRows = page.locator("tbody > tr[data-status]");
 	await expect(dataRows).toHaveCount(4);
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
