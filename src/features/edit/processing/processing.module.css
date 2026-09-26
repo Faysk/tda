@@ -11,6 +11,8 @@
 	min-width: 0;
 	color: var(--ds-foreground);
 	font-family: var(--ds-font-ui);
+	container-name: processing-workspace;
+	container-type: inline-size;
 }
 
 .processingTabs {
@@ -190,7 +192,7 @@
 .connectionTitle :global(.ds-status) {
 	min-height: 25px;
 	padding: 3px 8px;
-	font-size: 0.67rem;
+	font-size: 0.6875rem;
 }
 
 .connectionMeta,
@@ -224,24 +226,29 @@
 .metricsStrip {
 	display: grid;
 	grid-template-columns: repeat(7, minmax(58px, 1fr));
-	gap: 5px;
+	gap: 0;
 	min-width: 0;
+	border-block: 1px solid var(--ds-border-subtle);
 }
 
 .metric {
 	display: grid;
 	min-width: 0;
 	align-content: center;
-	gap: 1px;
-	padding: 6px 8px;
-	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-subtle);
+	gap: 2px;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.metric + .metric {
+	border-inline-start: 1px solid var(--ds-border-subtle);
 }
 
 .metric > span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.62rem;
+	font-size: 0.6875rem;
 	font-weight: 700;
 	letter-spacing: 0.035em;
 	text-transform: uppercase;
@@ -259,8 +266,8 @@
 	min-width: 0;
 	overflow: hidden;
 	color: var(--ds-foreground-muted);
-	font-size: 0.59rem;
-	line-height: 1.2;
+	font-size: 0.6875rem;
+	line-height: 1.25;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -330,9 +337,8 @@
 }
 
 .metricsStrip .metric:nth-last-child(-n + 4) > strong {
-	font-family: var(--ds-font-display);
-	font-size: 1.05rem;
-	font-weight: 500;
+	font-size: 0.94rem;
+	font-weight: 690;
 }
 
 .overviewTop {
@@ -396,7 +402,7 @@
 .sectionHeading > span,
 .sectionHeading > time {
 	color: var(--ds-foreground-muted);
-	font-size: 0.66rem;
+	font-size: 0.6875rem;
 }
 
 .activeJob {
@@ -404,8 +410,8 @@
 	display: grid;
 	gap: 10px;
 	padding: 13px 14px 12px;
-	border-color: color-mix(in srgb, var(--ds-accent) 34%, var(--ds-border));
-	box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ds-accent) 72%, transparent);
+	border-color: var(--ds-border);
+	box-shadow: none;
 }
 
 .activeHeader {
@@ -423,9 +429,9 @@
 
 .overline {
 	color: var(--ds-accent);
-	font-size: 0.59rem;
+	font-size: 0.6875rem;
 	font-weight: 750;
-	letter-spacing: 0.1em;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
 }
 
@@ -433,7 +439,7 @@
 	gap: 8px 14px;
 	flex-wrap: wrap;
 	color: var(--ds-foreground-muted);
-	font-size: 0.69rem;
+	font-size: 0.75rem;
 }
 
 .activeMeta span:not(:first-child)::before {
@@ -464,7 +470,7 @@
 .activeProgress span {
 	grid-column: 1 / -1;
 	color: var(--ds-foreground-muted);
-	font-size: 0.66rem;
+	font-size: 0.6875rem;
 }
 
 .pipeline {
@@ -481,8 +487,8 @@
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-canvas-subtle);
 	color: var(--ds-foreground-muted);
-	font-size: 0.65rem;
-	line-height: 1.2;
+	font-size: 0.6875rem;
+	line-height: 1.25;
 }
 
 .pipeline span::before {
@@ -581,16 +587,16 @@
 }
 
 .jobRowMain strong {
-	font-family: var(--ds-font-display);
-	font-size: 0.82rem;
-	font-weight: 500;
+	font-family: var(--ds-font-ui);
+	font-size: 0.8125rem;
+	font-weight: 650;
 }
 
 .jobRowMain span,
 .jobRow > time,
 .jobRowProgress > span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.62rem;
+	font-size: 0.6875rem;
 }
 
 .jobRow > time {
@@ -609,7 +615,7 @@
 .jobRow :global(.ds-status) {
 	min-height: 26px;
 	padding: 3px 8px;
-	font-size: 0.63rem;
+	font-size: 0.6875rem;
 	white-space: nowrap;
 }
 
@@ -623,7 +629,7 @@
 .rowActions :global(.ds-action) {
 	min-height: 32px;
 	padding: 5px 9px;
-	font-size: 0.67rem;
+	font-size: 0.6875rem;
 	white-space: nowrap;
 }
 
@@ -666,7 +672,7 @@
 
 .jobDetails dt {
 	color: var(--ds-foreground-muted);
-	font-size: 0.59rem;
+	font-size: 0.6875rem;
 	font-weight: 700;
 	letter-spacing: 0.035em;
 	text-transform: uppercase;
@@ -676,8 +682,8 @@
 	margin: 1px 0 0;
 	overflow: hidden;
 	color: var(--ds-foreground-soft);
-	font-size: 0.69rem;
-	line-height: 1.3;
+	font-size: 0.75rem;
+	line-height: 1.35;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -697,7 +703,7 @@
 
 .logHeader span {
 	color: var(--ds-success);
-	font-size: 0.6rem;
+	font-size: 0.6875rem;
 }
 
 .log {
@@ -719,7 +725,7 @@
 .log > p {
 	margin: 10px 2px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 }
 
 .logEntry {
@@ -751,13 +757,13 @@
 }
 
 .logEntry[data-level="warning"]::before {
-	background: var(--ds-accent-strong);
+	background: var(--ds-warning);
 }
 
 .logEntry > time {
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
-	font-size: 0.58rem;
+	font-size: 0.6875rem;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -769,17 +775,17 @@
 
 .logEntry span {
 	color: var(--ds-foreground-soft);
-	font-size: 0.65rem;
-	line-height: 1.3;
+	font-size: 0.75rem;
+	line-height: 1.35;
 }
 
 .logEntry small {
 	overflow-wrap: anywhere;
 	color: var(--ds-foreground-muted);
-	font-family: var(--ds-font-body);
-	font-size: 0.61rem;
-	font-style: italic;
-	line-height: 1.3;
+	font-family: var(--ds-font-ui);
+	font-size: 0.6875rem;
+	font-style: normal;
+	line-height: 1.35;
 }
 
 .integrationTool {
@@ -795,12 +801,12 @@
 }
 
 .integrationTool strong {
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 }
 
 .integrationTool span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.59rem;
+	font-size: 0.6875rem;
 }
 
 .syncStrip {
@@ -828,11 +834,11 @@
 .resultSummary span,
 .resultSummary small {
 	color: var(--ds-foreground-muted);
-	font-size: 0.58rem;
+	font-size: 0.6875rem;
 }
 
 .resultSummary strong {
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 }
 
 .disconnectedQueue {
@@ -992,6 +998,15 @@
 
 	.metricsStrip {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.metric {
+		min-height: 52px;
+		padding-block: 8px;
+	}
+
+	.metric:nth-child(odd) {
+		border-inline-start: 0;
 	}
 
 	.connectionActions,
