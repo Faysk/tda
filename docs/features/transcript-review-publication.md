@@ -20,7 +20,174 @@ O rollout governado deve:
 
 Rollback lógico começa desligando a flag; revisões, receipts e eventos já persistidos não são apagados para simular rollback.
 
+## Contratos de revisão validados em candidato — 2026-09-26
+
+As correções de #664, #667, #670 e #652 preservam a identidade editorial:
+
+- O Agent valida o conjunto por `(track_number, segment_id)` e reconstrói a ordem
+  da base imutável ao salvar. Reordenar sem editar é um no-op: não muda bytes,
+  revisão ou SHA. Drafts históricos mantêm a ordem e SHA reais na leitura; uma
+  edição posterior passa a persistir na ordem da base, sem migração silenciosa.
+- A publicação canonicaliza por `(track_number, start, end, segment_id)` antes do
+  hash; o desempate do ID é lexical e independente de locale. Campos editoriais
+  não participam da ordenação. A UI pode projetar outra ordem sem mudar o snapshot.
+- `count_words_v1` conta sequências separadas pelo conjunto fixo Unicode
+  White_Space: U+0009–000D, 0020, 0085, 00A0, 1680, 2000–200A, 2028, 2029, 202F,
+  205F e 3000. U+001C–001F e FEFF não são separadores. Python, prévia Web e servidor
+  usam a mesma regra e fixture `fixtures/transcript-review-words-v1.json`. Texto,
+  normalização e limites editoriais não são alterados por essa contagem.
+- O total de warnings deriva do transcript validado completo. A resposta limita
+  a lista aos primeiros 1.000 e declara `warning_summary` com `total_count`,
+  `displayed_count` e `truncated`. A Web mostra o total e no máximo 50 tipos. Sem
+  essa metadata, o total histórico fica explicitamente não verificado. Publicação
+  recebe o equivalente camelCase opcional, valida sua consistência e persiste
+  somente a contagem factual; não adiciona o texto dos warnings ao payload cloud.
+- Exceção de transporte, `dependency_unavailable`, JSON inválido ou receipt
+  malformado no POST levam a uma consulta lookup-only com body byte-idêntico.
+  Receipt ausente/indisponível mantém `unconfirmed`. Rejeições definitivas continuam
+  definitivas e receipt de outra identidade é rejeitado. Sobrevivência da intenção
+  ao reload permanece no escopo de #638.
+
+Compatibilidade e publicação: implantar servidor/Web com suporte ao campo
+opcional antes de liberar o Companion que o emite. Clientes anteriores sem o
+campo continuam aceitos. Uma operação já iniciada não deve trocar de versão de
+canonicalização no meio do replay; antes da promoção, reconciliar intenções
+pendentes e preservar receipts existentes. Não há DDL, rewrite de histórico ou
+publicação editorial como parte desta entrega. Rollback deve manter a leitura do
+campo opcional enquanto houver Companions novos instalados; não remover receipts.
+
+Evidência local: suíte Python 819 passed / 5 skipped; regressões compartilhadas de
+Unicode, reorder sem escrita, totais 0/1/999/1000/1001/5000 e publicação ambígua.
+Navegador desktop 1440px e mobile 390px: total 5.000, projeção limitada, fallback
+histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado aqui
+é de candidato; merge e release exigem evidências independentes.
+
 ## Objetivo
+
+### Strings editoriais — candidato #668
+
+`review_string_rules_v1` mede comprimento por valores escalares Unicode: texto
+até 100.000, participante até 160. Surrogates isolados são inválidos. A verificação
+de conteúdo não vazio usa exatamente White_Space de `count_words_v1`; não remove
+espaços nem normaliza NFC/NFKC. Texto permite TAB/LF/CR e rejeita os outros controles
+C0 e DEL. Participante rejeita todos os C0 e DEL. O mesmo fixture versionado
+`fixtures/transcript-review-strings-v1.json` alimenta Agent, parser Web e contrato
+cloud, incluindo limites ASCII/BMP/emoji, NEL, BOM, combinantes e controles.
+
+O Agent aplica o contrato à vista da base e valida mutações antes de persistir.
+A Web verifica antes do save e não usa o limite UTF-16 nativo como regra editorial:
+os campos comportam até o dobro de unidades UTF-16 e a validação decide o limite
+real. Strings aceitas preservam cada caractere no save, reopen e payload cloud.
+
+**Reparo explícito de revisão antiga:** uma string incompatível num draft existente
+retorna somente `LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED`, sem o texto privado
+no diagnóstico. A leitura não modifica o arquivo. Para reparar:
+
+1. Fechar o Companion e preservar o data root. Abrir localmente o `draft.json`
+   afetado, registrar sua revisão e SHA-256 exato; não enviar esse arquivo ao GitHub.
+2. Preparar um JSON local com `{"segments": [...]}` contendo o conjunto completo
+   de segmentos corrigidos. Manter identidades e timestamps; escolher explicitamente
+   cada correção. Não apagar ou normalizar caracteres automaticamente.
+3. No ambiente Python do Companion, executar
+   `python tools/repair_local_review.py --data-root <root> --package-root <root/staging/source> --run-id <run> --expected-revision <n> --expected-sha256 <sha> --replacement-file <json-local>`.
+   O comando exige package dentro do staging informado, adquire `RootLock` e recusa
+   um Companion ativo. CAS e validação acontecem antes de qualquer substituição.
+4. Conferir o resultado (somente revision/SHA/status), reabrir e revisar. A cópia
+   `draft-before-repair-<sha>.json` preserva **os bytes originais** antes da troca.
+   O reparo gera nova revisão em status `draft`, nunca herda aprovação.
+
+Se a validação ou backup falhar, não há substituição do draft. Uma cópia preservada
+não é prova de publicação nem de tolerância a falha elétrica (#671). Recuperação
+manual mantém o original e a revisão reparada; não deve apagar a evidência.
+Base imutável inválida continua recusada sem ser reescrita pelo reparador de draft.
+
+Compatibilidade: promover Web/cloud com suporte aos limites escalares antes do
+Companion novo. Reverter parsers para UTF-16 pode tornar revisões válidas ilegíveis;
+manter leitores compatíveis no rollback, sem reescrever dados para ajustá-los.
+Esta entrega não publica revisões, não migra o banco e não altera saída ASR.
+
+### Snapshot e primeiro save — candidato #669 / #672
+
+A resposta de revisão anuncia `snapshot_contract=tda_local_review_cas_v1`.
+Sem arquivo de draft, GET retorna `persistence=ephemeral_base`, revisão/SHA/datas
+nulos, status `draft` como estado editável da vista, e nenhum diretório/arquivo de
+revisão é criado. A Web apresenta **Sem revisão salva**. Consultas repetidas
+retornam a mesma vista sem atualizar timestamps ou resumo editorial persistente.
+
+O primeiro POST explícito envia `expected={persistence: ephemeral_base,
+base_transcript_sha256}`; sob os locks existentes, o Agent exige ausência real de
+draft e base idêntica, valida o candidato e grava a primeira revisão **1**. Um save
+explícito idêntico à base materializa o draft; a UI mantém Save desabilitado até
+uma intenção editorial (editar, marcar revisão ou selecionar estado). Aprovar
+localmente sem editar texto também exige esse save explícito. Approval independente
+e vinculada ao SHA permanece no escopo de #660.
+
+Para drafts persistidos, POST exige `expected={persistence: persisted,
+draft_revision, draft_sha256}`. O SHA deriva dos mesmos bytes limitados por tamanho
+que foram parseados. Revision ou SHA divergentes geram
+`LOCAL_REVIEW_DRAFT_CONFLICT`, sem write. A Web transporta o baseline que originou
+a cópia editada e verifica identidade source/run/base/revision/SHA antes do envio.
+O primeiro save de uma segunda aba com precondition de ausência também conflita.
+Draft histórico r0 continua **persistido**, com seu SHA real, sem migração na leitura.
+
+Compatibilidade: ausência ou versão desconhecida do contrato nunca é wildcard.
+Cliente antigo que envia somente revision recebe
+`LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED` (422). Web nova lê Agent anterior em
+modo somente leitura, com instrução de atualização. Publicar uma vista ephemeral
+é rejeitado no cliente. Promover Web compatível antes do Companion e pedir refresh
+das abas antigas; não liberar o Companion antes dessa entrega coordenada.
+Rollback exige manter o CAS até todas as versões que dependem dele serem retiradas;
+reverter para revision-only afrouxa a proteção e não é um rollback transparente.
+Nenhum draft histórico é removido e nenhum conteúdo é publicado nesta mudança.
+
+Regressões sintéticas cobrem GET puro, save explícito sem edição, duas primeiras
+escritas concorrentes, SHA alterado com revision igual, revisão zero histórica,
+preconditions ausentes/inválidas, falha de replace e separação de runs. Os testes
+de navegador verificam os estados ephemeral/persistido e Agent antigo sem edição.
+
+### Integridade local validada em candidato — 2026-09-26
+
+As correções de [#666](https://github.com/Faysk/tda/issues/666) e
+[#673](https://github.com/Faysk/tda/issues/673) usam um snapshot único por operação
+de revisão: leitura bounded, comparação de tamanho/SHA, parse dos mesmos bytes e
+validação semântica completa. `save_review` reutiliza esse snapshot dentro da
+ordem de locks existente (`RootLock` do Agent → `source_gate` → lock da revisão),
+sem chamar a fachada de GET para carregar a base novamente.
+
+`TranscriptDocument.from_dict` reconstrói o schema persistido sem coercionar IDs,
+normalizar strings ou aceitar aliases dos workers. Valida engine, timestamps com
+timezone, tracks, words, turns/referências, contagens e warnings. Campos opcionais
+de v1 continuam usando os defaults declarados nos dataclasses; identidade, tracks,
+engine, stats e demais campos obrigatórios não são inventados. Unicode inválido e
+NUL são rejeitados. A regra editorial unificada entre Python/Web continua sendo
+trabalho de [#668](https://github.com/Faysk/tda/issues/668).
+
+Migração aceita somente documentos válidos e copia **os bytes originais** para o
+run legado. Input inválido fica preservado no root, sem commit marker. Um run
+histórico com conteúdo semanticamente inválido não abre revisão nem cria draft.
+Metadata malformada é isolada na listagem: `runs` contém os summaries válidos e
+`invalid_runs` traz somente `run_id`, `integrity=invalid` e reason code sanitizado.
+Esse diagnóstico também cobre artefatos já promovidos por versões anteriores.
+Não há repair/rewrite automático de arquivos históricos.
+
+O probe sintético reproduzível está em
+[`benchmark_review_snapshot.py`](../../local-companion/tools/benchmark_review_snapshot.py).
+Medição local Windows/Python 3.12, comparada com `1550f438`, sem áudio/modelos:
+
+| Segmentos | Bytes do transcript | Leituras antes/depois | Bytes lidos antes/depois | Save antes/depois | Crescimento RSS amostrado antes/depois |
+| --- | --- | --- | --- | --- | --- |
+| 7.500 | 1.688.052 | 4 / 1 | 6.752.208 / 1.688.052 | 0,094 s / 0,132 s | 9,6 MB / 8,8 MB |
+| 100.000 | 23.223.058 | 4 / 1 | 92.892.232 / 23.223.058 | 1,361 s / 2,035 s | 139,9 MB / 137,7 MB |
+
+Os tempos medem o save local completo, inclusive validação e escrita, que executa
+sob o gate HTTP; não são uma medição de latência de rede ou contention real. RSS
+é amostrado a cada 10 ms. Houve redução de I/O, **não speedup total demonstrado**:
+a validação semântica nova custa CPU. Buffers são limitados ao tamanho observado
+do arquivo + 1 byte para detectar crescimento, sem alocar o teto de 512 MiB em
+cada read. O SHA deriva do buffer realmente parseado, nunca de outra abertura.
+
+Estado: código e regressões no candidato; merge, release do Companion e uso em
+Production precisam de evidências próprias. Esta alteração não publica conteúdo.
 
 O TDA deve tratar transcrição como um **fluxo editorial revisável**, e não como um arquivo que se torna definitivo quando um modelo termina de processar.
 

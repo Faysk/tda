@@ -96,10 +96,12 @@ export function presentJobError(code: string): string {
 		CRAIG_MANIFEST_TRACK_SIZE_MISMATCH: "Uma faixa Craig mudou de tamanho; reimporte o ZIP original.",
 		CRAIG_MANIFEST_TRACK_METADATA_MISMATCH: "Uma faixa Craig mudou no disco; reimporte o ZIP original para reparar a fonte local.",
 		CRAIG_STAGING_REPAIR_FAILED: "O TDA tentou reparar a fonte Craig local, mas não conseguiu concluir a troca segura.",
+		QWEN_CUDA_DRIVER_INCOMPATIBLE: "O driver NVIDIA/CUDA não é compatível com este runtime Qwen.",
 		QWEN_ASR_GPU_MEMORY_EXHAUSTED: "O Qwen ficou sem VRAM durante a execução.",
-		QWEN_ASR_CUDA_FAILED: "O Qwen encontrou uma falha CUDA durante a transcrição.",
+		QWEN_ASR_CUDA_FAILED: "O Qwen encontrou uma falha CUDA durante a execução.",
+		QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen encontrou uma falha interna ao executar a API de inferência/alinhamento.",
 		QWEN_ASR_INFERENCE_FAILED: "O Qwen não conseguiu concluir a inferência desta faixa.",
-		QWEN_ALIGNMENT_REQUIRED: "O Qwen produziu texto, mas não conseguiu gerar o alinhamento obrigatório de palavras e timestamps.",
+		QWEN_ALIGNMENT_REQUIRED: "O alinhamento obrigatório falhou. Abra Diagnóstico para ver a faixa, a janela e a causa específica. Nenhum resultado parcial foi publicado.",
 		QWEN_ALIGNMENT_FAILED: "O alinhador do Qwen falhou ao sincronizar as palavras com o áudio.",
 		QWEN_AUDIO_DECODE_FAILED: "O Qwen não conseguiu decodificar uma das faixas de áudio.",
 		QWEN_AUDIO_EMPTY: "Uma das faixas chegou vazia ao pipeline de áudio do Qwen.",
@@ -221,6 +223,18 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				detail: "A GPU pode ficar em 0% enquanto os arquivos chegam ao disco.",
 			};
 		}
+		case "QWEN_RUNTIME_FINGERPRINT_READY": {
+			const runtimeVersion = textData(event, "runtime_version");
+			const workerSha = textData(event, "worker_sha256");
+			return {
+				title: runtimeVersion
+					? `Runtime Qwen ${runtimeVersion} identificado e validado.`
+					: "Identidade do runtime Qwen confirmada.",
+				detail: workerSha
+					? `Worker selado · SHA-256 ${workerSha}`
+					: undefined,
+			};
+		}
 		case "QWEN_WINDOW_TRANSCRIBED": {
 			const track = numberData(event, "track");
 			const window = numberData(event, "window");
@@ -237,7 +251,44 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						: count !== null
 							? `${count} timestamps extrapolados no overlap vizinho foram ignorados com segurança.`
 							: "Timestamps extrapolados no overlap vizinho foram ignorados com segurança.",
-				detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
+				detail: "Esse trecho pertence à janela vizinha; palavras da janela atual continuam sob validação estrita.",
+			};
+		}
+		case "QWEN_ALIGNMENT_WINDOW_FAILED": {
+			const failureClass = textData(event, "failure_class");
+			const track = numberData(event, "track");
+			const window = numberData(event, "window");
+			const runtimeVersion = textData(event, "runtime_version");
+			const workerSha = textData(event, "worker_sha256");
+			const details: Record<string, string> = {
+				QWEN_ALIGNMENT_FAILED: "O Forced Aligner não conseguiu sincronizar esta janela.",
+				QWEN_ALIGNMENT_EMPTY: "O Forced Aligner não retornou palavras utilizáveis nesta janela.",
+				QWEN_ALIGNMENT_TIMESTAMP_PARSE_INVALID: "O alinhador retornou um timestamp que não pôde ser interpretado.",
+				QWEN_ALIGNMENT_TIMESTAMP_NONFINITE: "O alinhador retornou um timestamp não finito.",
+				QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START: "O alinhador retornou uma palavra antes do início permitido da janela.",
+				QWEN_ALIGNMENT_TIMESTAMP_REVERSED: "O alinhador retornou um intervalo de palavra invertido.",
+				QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW: "O alinhador posicionou uma palavra completamente fora da janela de áudio.",
+				QWEN_ALIGNMENT_TIMESTAMPS_INVALID: "O alinhador retornou timestamps inválidos que não puderam ser classificados com segurança.",
+				QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC: "Os timestamps retornados ficaram fora de ordem.",
+				QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW: "Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+				QWEN_ALIGNMENT_NO_OWNED_WORDS: "O alinhamento não deixou nenhuma palavra pertencente a esta janela.",
+				QWEN_ALIGNMENT_NO_SEGMENTS: "As palavras alinhadas não formaram nenhum segmento válido.",
+				QWEN_CUDA_DRIVER_INCOMPATIBLE: "O alinhador encontrou um driver CUDA incompatível nesta janela.",
+				QWEN_ASR_GPU_MEMORY_EXHAUSTED: "A GPU ficou sem VRAM enquanto o alinhador processava esta janela.",
+				QWEN_ASR_CUDA_FAILED: "O alinhador encontrou uma falha CUDA nesta janela.",
+				QWEN_ASR_RUNTIME_API_FAILED: "O runtime Qwen falhou ao executar a API de alinhamento desta janela.",
+			};
+			const cause =
+				(failureClass ? details[failureClass] : undefined) ??
+				"O TDA interrompeu esta janela sem publicar resultado parcial. Uma nova tentativa compatível reutilizará o texto pré-alinhamento se o checkpoint estiver disponível.";
+			const runtimeIdentity = runtimeVersion
+				? ` Identidade da execução: runtime ${runtimeVersion}${workerSha ? ` · worker SHA-256 ${workerSha}` : ""}.`
+				: workerSha
+					? ` Identidade da execução: worker SHA-256 ${workerSha}.`
+					: "";
+			return {
+				title: `Falha de alinhamento Qwen${track !== null ? ` · faixa ${track}` : ""}${window !== null ? ` · janela ${window}` : ""}.`,
+				detail: `${cause}${runtimeIdentity}`,
 			};
 		}
 		case "ASR_CHECKPOINT_FAST_PATH":
@@ -247,8 +298,32 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			};
 		case "ASR_CHECKPOINT_REUSED":
 			return { title: "Checkpoint local reutilizado; esta faixa não precisa ser refeita." };
+		case "ASR_TEXT_CHECKPOINT_COMPAT_REUSED": {
+			const sourceRuntime = textData(event, "source_runtime_version");
+			return {
+				title: sourceRuntime
+					? `Texto Qwen do runtime ${sourceRuntime} reutilizado com validação de integridade.`
+					: "Texto Qwen da versão anterior reutilizado com validação de integridade.",
+				detail: "A transcrição compatível não rodou de novo; o processamento retomou a partir do alinhamento.",
+			};
+		}
+		case "ASR_TEXT_CHECKPOINT_SAVED":
+			return {
+				title: "Texto Qwen pré-alinhamento salvo em checkpoint.",
+				detail: "Se o alinhamento falhar, uma nova tentativa compatível pode evitar retranscrever esta faixa.",
+			};
+		case "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED":
+			return {
+				title: "Não foi possível salvar o checkpoint de texto desta faixa.",
+				detail: "A execução atual continua, mas uma nova tentativa pode precisar retranscrever esta faixa.",
+			};
 		case "ASR_CHECKPOINT_SAVED":
 			return { title: "Checkpoint da faixa salvo com sucesso." };
+		case "ASR_CHECKPOINT_WRITE_SKIPPED":
+			return {
+				title: "Não foi possível salvar o checkpoint final desta faixa.",
+				detail: "A faixa continua nesta execução, mas uma nova tentativa pode precisar refazer este trabalho.",
+			};
 		case "QUEUED":
 			return { title: "Trabalho adicionado à fila." };
 		case "RUNNING":

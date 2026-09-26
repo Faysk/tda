@@ -125,17 +125,17 @@ def test_packaged_qwen_fingerprint_uses_sealed_marker_without_distribution_scan(
     monkeypatch,
     tmp_path: Path,
 ):
-    runtime = tmp_path / "Runtime" / "qwen" / "1.0.10"
+    runtime = tmp_path / "Runtime" / "qwen" / "1.0.11"
     runtime.mkdir(parents=True)
     executable = runtime / "TDAQwenWorker.exe"
     executable.write_bytes(b"worker")
     (runtime / ".tda-runtime.json").write_text(
-        '{"schema":"tda_asr_runtime_v1","runtime_id":"qwen3-transformers","version":"1.0.10","worker_sha256":"'
+        '{"schema":"tda_asr_runtime_v1","runtime_id":"qwen3-transformers","version":"1.0.11","worker_sha256":"'
         + ("f" * 64)
         + '"}',
         encoding="utf-8",
     )
-    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.10")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.11")
     monkeypatch.setattr(asr_qwen.sys, "executable", str(executable))
     monkeypatch.setattr(asr_qwen.sys, "frozen", True, raising=False)
 
@@ -146,7 +146,7 @@ def test_packaged_qwen_fingerprint_uses_sealed_marker_without_distribution_scan(
 
     assert _runtime_fingerprint() == (
         "checkpoint=qwen-track-v3;"
-        "runtime=1.0.10;"
+        "runtime=1.0.11;"
         f"worker_sha256={'f' * 64}"
     )
 
@@ -155,12 +155,12 @@ def test_packaged_qwen_fingerprint_rejects_invalid_marker(
     monkeypatch,
     tmp_path: Path,
 ):
-    runtime = tmp_path / "Runtime" / "qwen" / "1.0.10"
+    runtime = tmp_path / "Runtime" / "qwen" / "1.0.11"
     runtime.mkdir(parents=True)
     executable = runtime / "TDAQwenWorker.exe"
     executable.write_bytes(b"worker")
     (runtime / ".tda-runtime.json").write_text("[]", encoding="utf-8")
-    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.10")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.11")
     monkeypatch.setattr(asr_qwen.sys, "executable", str(executable))
     monkeypatch.setattr(asr_qwen.sys, "frozen", True, raising=False)
 
@@ -200,6 +200,24 @@ def test_strict_qwen_reports_runtime_validation_before_cuda_plan_resolution(
             "profile": "qwen-fast",
         }
     ]
+
+
+def test_runtime_identity_metadata_accepts_only_sealed_runtime_fingerprint():
+    sealed = (
+        "checkpoint=qwen-track-v3;"
+        "runtime=1.0.11;"
+        "worker_sha256=" + ("a" * 64)
+    )
+    assert asr_qwen_strict._runtime_identity_metadata(sealed) == {
+        "runtime_version": "1.0.11",
+        "worker_sha256": "a" * 64,
+    }
+    assert asr_qwen_strict._runtime_identity_metadata(
+        "checkpoint=qwen-track-v3;runtime=development;torch=2.13.0"
+    ) == {}
+    assert asr_qwen_strict._runtime_identity_metadata(
+        "checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=C:\\private\\secret"
+    ) == {}
 
 
 def test_strict_qwen_exposes_fingerprint_and_checkpoint_scan_before_model_load(
@@ -303,6 +321,123 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert document.stats.word_count == 0
 
 
+def test_alignment_failure_event_allowlists_diagnostic_metadata(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    sealed_worker = "a" * 64
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_runtime_fingerprint",
+        lambda: (
+            "checkpoint=qwen-track-v3;"
+            "runtime=1.0.11;"
+            f"worker_sha256={sealed_worker}"
+        ),
+    )
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.5}]
+
+        def close(self):
+            pass
+
+    def fail_with_extra_metadata(*_args, **_kwargs):
+        raise asr_qwen_strict._alignment_required(
+            "QWEN_ALIGNMENT_FAILED",
+            aligned_item=2,
+            private_counter=999,
+        )
+
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_strict_alignment_segments",
+        fail_with_extra_metadata,
+    )
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=lambda _path: iter(
+                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+            ),
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    failure = next(
+        item for item in reports if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert failure["aligned_item"] == 2
+    assert failure["runtime_version"] == "1.0.11"
+    assert failure["worker_sha256"] == sealed_worker
+    assert "private_counter" not in failure
+
+
+def test_strict_qwen_reports_alignment_window_context_for_vram_failure(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "texto", "Portuguese"
+
+        def close(self):
+            pass
+
+    class OomAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ASR_GPU_MEMORY_EXHAUSTED")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_GPU_MEMORY_EXHAUSTED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: OomAligner(),
+            window_reader=lambda _path: iter(
+                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+            ),
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    failure = next(
+        item for item in reports if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert failure["track"] == 1
+    assert failure["window"] == 1
+    assert failure["failure_class"] == "QWEN_ASR_GPU_MEMORY_EXHAUSTED"
+
+
 def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path):
     package, root = _package(tmp_path)
 
@@ -332,6 +467,102 @@ def test_strict_qwen_fails_instead_of_publishing_window_fallback(tmp_path: Path)
             aligner_session_factory=lambda _root, _plan: BrokenAligner(),
             window_reader=_two_windows,
         )
+
+
+def test_strict_qwen_reports_safe_overflow_then_later_owned_failure_and_reuses_text(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    asr_calls = 0
+    first_reports: list[dict] = []
+    second_reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return f"texto {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class SequenceAligner:
+        def align(self, audio, _text: str, _language: str):
+            if audio == "w1":
+                return [
+                    {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                    {"text": "neighbor", "start_time": 56.8, "end_time": 61.4},
+                ]
+            return [
+                # Window 2 spans 54s..100s. This word remains owned by the final
+                # window but extrapolates beyond its decoded audio, so it must
+                # stay terminal and observable instead of being silently dropped.
+                {"text": "owned-failure", "start_time": 45.0, "end_time": 47.0},
+            ]
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: SequenceAligner(),
+            window_reader=_two_windows,
+            energy_reader=lambda *_args: -12.0,
+            report=first_reports.append,
+        )
+
+    assert asr_calls == 2
+    codes = [item.get("code") for item in first_reports]
+    safe_index = codes.index("QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED")
+    failure_index = codes.index("QWEN_ALIGNMENT_WINDOW_FAILED")
+    assert safe_index < failure_index
+    assert first_reports[safe_index]["track"] == 1
+    assert first_reports[safe_index]["window"] == 1
+    assert first_reports[failure_index]["track"] == 1
+    assert first_reports[failure_index]["window"] == 2
+    assert (
+        first_reports[failure_index]["failure_class"]
+        == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+    )
+    assert len(list(root.glob(".checkpoints/*/qwen-text-v1/track-*.json"))) == 1
+    assert list(root.glob(".checkpoints/*/track-*.json")) == []
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("retry must reuse persisted Qwen text")
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=forbidden,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=forbidden,
+            aligner_session_factory=lambda _root, _plan: SequenceAligner(),
+            window_reader=_two_windows,
+            energy_reader=lambda *_args: -12.0,
+            report=second_reports.append,
+        )
+
+    assert asr_calls == 2
+    assert sum(
+        item.get("code") == "ASR_TEXT_CHECKPOINT_REUSED"
+        for item in second_reports
+    ) == 1
+    retry_codes = [item.get("code") for item in second_reports]
+    assert retry_codes.index("QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED") < retry_codes.index(
+        "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
 
 
 def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Path):
@@ -384,6 +615,15 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
         item.get("code") == "ASR_TEXT_CHECKPOINT_SAVED"
         for item in first_reports
     ) == 2
+    first_failure = next(
+        item
+        for item in first_reports
+        if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert first_failure["track"] == 1
+    assert first_failure["window"] == 1
+    assert first_failure["failure_class"] == "QWEN_ALIGNMENT_FAILED"
+    assert "text" not in first_failure
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("retry must reuse durable Qwen text instead of loading ASR")
@@ -408,6 +648,122 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
         item.get("code") == "ASR_TEXT_CHECKPOINT_REUSED"
         for item in second_reports
     ) == 2
+    second_failure = next(
+        item
+        for item in second_reports
+        if item.get("code") == "QWEN_ALIGNMENT_WINDOW_FAILED"
+    )
+    assert second_failure["track"] == 1
+    assert second_failure["window"] == 1
+    assert second_failure["failure_class"] == "QWEN_ALIGNMENT_FAILED"
+    stages = [
+        item.get("stage")
+        for item in second_reports
+        if item.get("type") == "stage"
+    ]
+    assert "model_prepare" not in stages
+    assert "model_load" not in stages
+    assert "transcription" not in stages
+    assert "alignment" in stages
+
+
+def test_strict_qwen_reuses_1_0_10_text_checkpoint_after_1_0_11_alignment_upgrade(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    asr_calls = 0
+    first_reports: list[dict] = []
+    second_reports: list[dict] = []
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal asr_calls
+            asr_calls += 1
+            return "texto preservado", "Portuguese"
+
+        def close(self):
+            pass
+
+    class BrokenAligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError("QWEN_ALIGNMENT_FAILED")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(asr_qwen_strict, "QWEN_ALIGNMENT_POLICY", "strict-overlap-v2")
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_runtime_fingerprint",
+        lambda: "checkpoint=qwen-track-v3;runtime=1.0.10;worker_sha256=8c07e1c3bd34ecc53d49025a510c7547e7748b030ac6a90fdd70a2abc431e62e",
+    )
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: BrokenAligner(),
+            window_reader=reader,
+            report=first_reports.append,
+        )
+
+    assert asr_calls == 1
+    assert any(item.get("code") == "ASR_TEXT_CHECKPOINT_SAVED" for item in first_reports)
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [{"text": "texto", "start_time": 0.1, "end_time": 0.5}]
+
+        def close(self):
+            pass
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("1.0.11 retry must reuse compatible 1.0.10 ASR text")
+
+    monkeypatch.setattr(asr_qwen_strict, "QWEN_ALIGNMENT_POLICY", "strict-overlap-v3")
+    monkeypatch.setattr(
+        asr_qwen_strict,
+        "_runtime_fingerprint",
+        lambda: "checkpoint=qwen-track-v3;runtime=1.0.11;worker_sha256=" + ("b" * 64),
+    )
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=forbidden,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=forbidden,
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -10.0,
+        report=second_reports.append,
+    )
+
+    assert asr_calls == 1
+    assert document.tracks[0].segments[0].text == "texto"
+    assert "strict-overlap-v3" in document.engine.alignment
+    compat_event = next(
+        item
+        for item in second_reports
+        if item.get("code") == "ASR_TEXT_CHECKPOINT_COMPAT_REUSED"
+    )
+    assert compat_event["source_runtime_version"] == "1.0.10"
+    assert len(compat_event["source_signature_sha256"]) == 64
+    assert set(compat_event["source_signature_sha256"]) <= set("0123456789abcdef")
+    assert document.warnings == (
+        "qwen_text_checkpoint_compat_reused:runtime=1.0.10",
+    )
     stages = [
         item.get("stage")
         for item in second_reports
@@ -660,6 +1016,108 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
     assert asr_calls == 3
 
 
+@pytest.mark.parametrize(
+    "runtime_code",
+    (
+        "QWEN_CUDA_DRIVER_INCOMPATIBLE",
+        "QWEN_ASR_GPU_MEMORY_EXHAUSTED",
+        "QWEN_ASR_CUDA_FAILED",
+        "QWEN_ASR_RUNTIME_API_FAILED",
+    ),
+)
+def test_strict_alignment_preserves_actionable_runtime_failures(runtime_code: str):
+    window = AudioWindow(index=7, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=7,
+        start=0.0,
+        end=60.0,
+        text="texto",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise QwenRuntimeError(runtime_code)
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match=runtime_code) as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=True,
+            last=True,
+        )
+
+    assert caught.value.code == runtime_code
+    assert not hasattr(caught.value, "alignment_failure_class")
+
+
+def test_alignment_failure_class_rejects_arbitrary_private_text():
+    error = asr_qwen_strict._alignment_required(
+        "C:\\private\\session\\secret.flac",
+        aligned_item=3,
+    )
+    assert error.alignment_failure_class == "QWEN_ALIGNMENT_REQUIRED"
+    assert error.alignment_diagnostics == {"aligned_item": 3}
+
+
+@pytest.mark.parametrize(
+    ("aligned", "failure_class"),
+    (
+        ([{"text": "word", "start_time": "bad", "end_time": 1.0}], "QWEN_ALIGNMENT_TIMESTAMP_PARSE_INVALID"),
+        ([{"text": "word", "start_time": float("nan"), "end_time": 1.0}], "QWEN_ALIGNMENT_TIMESTAMP_NONFINITE"),
+        ([{"text": "word", "start_time": -0.1, "end_time": 0.1}], "QWEN_ALIGNMENT_TIMESTAMP_NEGATIVE_START"),
+        ([{"text": "word", "start_time": 1.0, "end_time": 0.5}], "QWEN_ALIGNMENT_TIMESTAMP_REVERSED"),
+        ([{"text": "word", "start_time": 60.4, "end_time": 60.5}], "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW"),
+        ([{"text": "word", "start_time": 10.0, "end_time": 61.0}], "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"),
+        (
+            [
+                {"text": "first", "start_time": 10.0, "end_time": 11.0},
+                {"text": "second", "start_time": 9.0, "end_time": 9.5},
+            ],
+            "QWEN_ALIGNMENT_TIMESTAMP_NON_MONOTONIC",
+        ),
+        ([], "QWEN_ALIGNMENT_EMPTY"),
+    ),
+)
+def test_strict_alignment_classifies_failures_without_transcript_payload(
+    aligned,
+    failure_class: str,
+):
+    window = AudioWindow(index=42, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=42,
+        start=0.0,
+        end=60.0,
+        text="private transcript must never enter diagnostics",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return aligned
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=False,
+            last=False,
+        )
+
+    assert caught.value.alignment_failure_class == failure_class
+    assert "private transcript" not in repr(caught.value.alignment_diagnostics)
+
+
 def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
     window = AudioWindow(index=1, start=0.0, end=60.0, audio="window")
     pending = QwenWindowTranscript(
@@ -694,6 +1152,141 @@ def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
     assert segments[0].text == "owned"
 
 
+def test_strict_alignment_does_not_hide_empty_text_as_safe_neighbor_overflow():
+    window = AudioWindow(index=87, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=87,
+        start=0.0,
+        end=60.0,
+        text="texto esperado",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "   ", "start_time": 56.8, "end_time": 61.4},
+            ]
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
+        _strict_alignment_segments(
+            1,
+            window,
+            pending,
+            Aligner(),
+            first=False,
+            last=False,
+        )
+
+    assert caught.value.alignment_failure_class == "QWEN_ALIGNMENT_EMPTY"
+
+
+def test_strict_alignment_ignores_neighbor_owned_overflow_that_crosses_ownership_boundary():
+    window = AudioWindow(index=88, start=0.0, end=60.0, audio="window")
+    pending = QwenWindowTranscript(
+        index=88,
+        start=0.0,
+        end=60.0,
+        text="owned crossing",
+        language="Portuguese",
+    )
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                # Starts before the 57s ownership boundary but its midpoint is in
+                # the next-window-owned half of the 54-60s overlap. The canonical
+                # midpoint ownership rule would drop it after validation, so it is
+                # safe to filter before strict overflow validation.
+                {"text": "crossing", "start_time": 56.8, "end_time": 61.4},
+            ]
+
+        def close(self):
+            pass
+
+    segments, ignored = _strict_alignment_segments(
+        1,
+        window,
+        pending,
+        Aligner(),
+        first=False,
+        last=False,
+    )
+
+    assert ignored == 1
+    assert [segment.text for segment in segments] == ["owned"]
+
+
+def test_crossing_overlap_word_is_owned_exactly_once_by_adjacent_window():
+    first_window = AudioWindow(index=1, start=0.0, end=60.0, audio="w1")
+    second_window = AudioWindow(index=2, start=54.0, end=100.0, audio="w2")
+    first_pending = QwenWindowTranscript(
+        index=1,
+        start=0.0,
+        end=60.0,
+        text="before crossing",
+        language="Portuguese",
+    )
+    second_pending = QwenWindowTranscript(
+        index=2,
+        start=54.0,
+        end=100.0,
+        text="crossing after",
+        language="Portuguese",
+    )
+
+    class FirstAligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "before", "start_time": 10.0, "end_time": 11.0},
+                {"text": "crossing", "start_time": 56.8, "end_time": 61.4},
+            ]
+
+        def close(self):
+            pass
+
+    class SecondAligner:
+        def align(self, _audio, _text: str, _language: str):
+            return [
+                {"text": "crossing", "start_time": 2.8, "end_time": 7.4},
+                {"text": "after", "start_time": 10.0, "end_time": 11.0},
+            ]
+
+        def close(self):
+            pass
+
+    first_segments, ignored = _strict_alignment_segments(
+        1,
+        first_window,
+        first_pending,
+        FirstAligner(),
+        first=True,
+        last=False,
+    )
+    second_segments, second_ignored = _strict_alignment_segments(
+        1,
+        second_window,
+        second_pending,
+        SecondAligner(),
+        first=False,
+        last=True,
+    )
+
+    combined_words = [
+        word.text
+        for segment in (*first_segments, *second_segments)
+        for word in segment.words
+    ]
+    assert ignored == 1
+    assert second_ignored == 0
+    assert combined_words.count("crossing") == 1
+    assert combined_words == ["before", "crossing", "after"]
+
+
 def test_strict_alignment_keeps_owned_overflow_fail_closed():
     window = AudioWindow(index=89, start=0.0, end=60.0, audio="window")
     pending = QwenWindowTranscript(
@@ -713,7 +1306,7 @@ def test_strict_alignment_keeps_owned_overflow_fail_closed():
         def close(self):
             pass
 
-    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED"):
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
         _strict_alignment_segments(
             1,
             window,
@@ -722,6 +1315,10 @@ def test_strict_alignment_keeps_owned_overflow_fail_closed():
             first=False,
             last=False,
         )
+
+    assert caught.value.alignment_failure_class == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+    assert caught.value.alignment_diagnostics["aligned_item"] == 1
+    assert caught.value.alignment_diagnostics["overflow_seconds"] > 0
 
 
 def test_overlap_ownership_assigns_boundary_words_once():
@@ -826,7 +1423,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     # decodes each track only for ASR + alignment instead of a third energy pass.
     assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
-    assert "strict-overlap-v2" in document.engine.alignment
+    assert "strict-overlap-v3" in document.engine.alignment
     assert document.warnings == ()
 
 

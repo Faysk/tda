@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import strings from "../../../fixtures/transcript-review-strings-v1.json";
+import { countWordsV1 } from "../transcript-review/text-contract";
 import {
 	PUBLICATION_PAYLOAD_VERSION,
 	preparePublication,
@@ -65,6 +67,45 @@ function requestValue() {
 }
 
 describe("transcript publication contract", () => {
+	it("accepts the same editorial strings as the Agent and Web parser", () => {
+		for (const item of strings.cases) {
+			const request = requestValue();
+			const value = (item.codePoints ? String.fromCodePoint(...item.codePoints) : item.value).repeat(item.repeat);
+			request.review.segments[0][item.field as "text" | "speaker"] = value;
+			request.review.review.wordCount = countWordsV1(request.review.segments[0].text);
+			const result = preparePublication(JSON.stringify(request));
+			expect(result.ok, item.name).toBe(item.valid);
+			if (result.ok) expect(JSON.parse(result.value.payloadJson).segments[0][item.field]).toBe(value);
+		}
+	});
+	it("canonicalizes arbitrary segment order using immutable fields", () => {
+		const request = requestValue();
+		request.review.segments.push({ ...request.review.segments[0], segmentId: "1-1" });
+		Object.assign(request.review.review, { wordCount: 4, totalSegments: 2, reviewedSegments: 2 });
+		const first = preparePublication(JSON.stringify(request));
+		request.review.segments.reverse();
+		expect(preparePublication(JSON.stringify(request))).toEqual(first);
+		expect(first.ok).toBe(true);
+	});
+	it("preserves the warning total when only a bounded projection is sent", () => {
+		const request = requestValue();
+		request.review.warnings = Array.from({ length: 1000 }, () => "WARNING");
+		request.review.review.warningCount = 5000;
+		const summary = { totalCount: 5000, displayedCount: 1000, truncated: true };
+		Object.assign(request.review, { warningSummary: summary });
+		const result = preparePublication(JSON.stringify(request));
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(JSON.parse(result.value.payloadJson).review.warning_count).toBe(5000);
+		summary.truncated = false;
+		expect(preparePublication(JSON.stringify(request))).toEqual({ ok: false, reason: "invalid_payload" });
+	});
+	it("uses the same NEL word separator as the Agent and rejects a stale count", () => {
+		const request = requestValue();
+		request.review.segments[0].text = "palavraA\u0085palavraB";
+		expect(preparePublication(JSON.stringify(request)).ok).toBe(true);
+		request.review.review.wordCount = 1;
+		expect(preparePublication(JSON.stringify(request))).toEqual({ ok: false, reason: "invalid_payload" });
+	});
 	it("rebuilds a canonical server payload and hashes the exact UTF-8 bytes", () => {
 		const parsed = preparePublication(JSON.stringify(requestValue()));
 		expect(parsed.ok).toBe(true);

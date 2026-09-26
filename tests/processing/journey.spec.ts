@@ -74,6 +74,28 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	).toBe(true);
 });
 
+test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		qwenRuntimeVersion: "1.0.10",
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
+	await expect(page.getByRole("alert")).toContainText(
+		"runtime 1.0.11 ou mais recente",
+	);
+
+	await selectCraig(page);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila local" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
+
 test("automatic session → Craig staging → preparation → queue → progress → result", async ({
 	page,
 }) => {
