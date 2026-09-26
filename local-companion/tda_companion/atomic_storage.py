@@ -66,6 +66,22 @@ def _replace(source: Path, target: Path, storage_class: StorageClass) -> None:
         raise OSError(ctypes.get_last_error(), "WINDOWS_REPLACE_FAILED")
 
 
+def confirm_existing_file(path: Path) -> None:
+    """Fence a validated existing artifact before permitting dependent writes.
+
+    The caller owns validation/confinement/locking. Windows confirms file content
+    here, with the documented weaker namespace policy; no rename is performed.
+    """
+    stage = "file_sync"
+    try:
+        with path.open("r+b") as handle:
+            os.fsync(handle.fileno())
+        stage = "namespace_sync"
+        sync_namespace(path.parent)
+    except OSError as exc:
+        raise AtomicStorageError(stage, True) from exc
+
+
 def atomic_write(path: Path, payload: bytes, *, storage_class: StorageClass = "authoritative") -> str:
     if storage_class not in {"authoritative", "projection", "checkpoint"}:
         raise ValueError("STORAGE_CLASS_INVALID")
