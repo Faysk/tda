@@ -541,7 +541,7 @@ describe("processing state", () => {
 	});
 
 	it("drains more than one live event page and can load older history without loss", async () => {
-		const eventCaps = { ...caps, capabilities: ["job.events"] };
+		const eventCaps = { ...caps, capabilities: ["job.events", "job.events.cursor"] };
 		const requestedAfter: number[] = [];
 		const event = (seq: number) => ({
 			seq,
