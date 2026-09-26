@@ -203,6 +203,7 @@ class Store:
             isinstance(attempt, bool)
             or not isinstance(attempt, int)
             or attempt < 1
+            or not isinstance(metric, str)
             or metric not in _ACTIVITY_METRICS
             or isinstance(value, bool)
             or not isinstance(value, int)
