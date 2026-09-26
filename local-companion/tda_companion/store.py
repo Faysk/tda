@@ -256,7 +256,9 @@ class Store:
     def record_worker_activity(self, job_id, attempt, code, data):
         payload = data if isinstance(data, dict) else {}
         if code == "QWEN_WINDOW_TRANSCRIBED":
-            value = payload.get("completed_window_count", payload.get("window"))
+            value = payload.get("completed_window_count")
+            if value is None:
+                return None
             return self.record_activity(
                 job_id,
                 attempt,
