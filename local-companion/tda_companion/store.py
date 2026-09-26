@@ -30,7 +30,7 @@ class Store:
                     error TEXT, result TEXT, updated TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS events (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
-                    code TEXT NOT NULL, at TEXT NOT NULL);
+                    code TEXT NOT NULL, at TEXT NOT NULL, attempt INTEGER);
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS idempotency_keys (
                     key TEXT PRIMARY KEY,
@@ -392,6 +392,11 @@ class Store:
             body = json.loads(row["body"])
             status = row["status"]
             completed = row["completed"]
+            event_attempt = (
+                row["attempt"]
+                if action == "cancel" and status == "running"
+                else None
+            )
             if action == "cancel":
                 if status == "cancelled":
                     return self.dto(row)
@@ -435,6 +440,7 @@ class Store:
                 job_id,
                 status.upper(),
                 level="warning" if status == "cancelled" else "info",
+                attempt=event_attempt,
             )
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
