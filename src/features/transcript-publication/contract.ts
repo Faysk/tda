@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import {
+	PUBLICATION_RECEIPT_VERSION,
 	prepareCanonicalPublication,
 	type CanonicalPreparedPublication,
 	type PublicationFailure,
 	type PublicationReceipt,
 	type PublicationResult,
+	UUID,
 } from "./canonical";
 
 export {
