@@ -1208,6 +1208,7 @@ def create_app(
         features = [
             "synthetic.fixture",
             "job.events",
+            "job.events.cursor",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
