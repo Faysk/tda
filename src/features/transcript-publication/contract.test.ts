@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import strings from "../../../fixtures/transcript-review-strings-v1.json";
+import { countWordsV1 } from "../transcript-review/text-contract";
 import {
 	PUBLICATION_PAYLOAD_VERSION,
 	preparePublication,
@@ -65,6 +67,17 @@ function requestValue() {
 }
 
 describe("transcript publication contract", () => {
+	it("accepts the same editorial strings as the Agent and Web parser", () => {
+		for (const item of strings.cases) {
+			const request = requestValue();
+			const value = (item.codePoints ? String.fromCodePoint(...item.codePoints) : item.value).repeat(item.repeat);
+			request.review.segments[0][item.field as "text" | "speaker"] = value;
+			request.review.review.wordCount = countWordsV1(request.review.segments[0].text);
+			const result = preparePublication(JSON.stringify(request));
+			expect(result.ok, item.name).toBe(item.valid);
+			if (result.ok) expect(JSON.parse(result.value.payloadJson).segments[0][item.field]).toBe(value);
+		}
+	});
 	it("canonicalizes arbitrary segment order using immutable fields", () => {
 		const request = requestValue();
 		request.review.segments.push({ ...request.review.segments[0], segmentId: "1-1" });

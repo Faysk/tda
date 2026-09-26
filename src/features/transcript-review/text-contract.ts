@@ -9,3 +9,15 @@ export function countWordsV1(value: string): number {
 	for (const _token of value.matchAll(tokens)) count += 1;
 	return count;
 }
+
+export function isReviewStringV1(value: unknown, field: "text" | "speaker"): value is string {
+	if (typeof value !== "string" || countWordsV1(value) === 0) return false;
+	const maximum = field === "speaker" ? 160 : 100_000;
+	let length = 0;
+	for (const char of value) {
+		const code = char.codePointAt(0) as number;
+		if (++length > maximum || (code >= 0xd800 && code <= 0xdfff) || code === 127) return false;
+		if (code < 32 && (field === "speaker" || ![9, 10, 13].includes(code))) return false;
+	}
+	return true;
+}

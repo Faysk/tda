@@ -8,6 +8,7 @@ import {
 	type LocalReviewSegment,
 } from "./protocol";
 import { LOCAL_JSON_BODY_MAX_BYTES } from "./request-budget";
+import strings from "../../../../fixtures/transcript-review-strings-v1.json";
 
 const token = "review_bridge_token_1234567890123456789012";
 const signal = () => new AbortController().signal;
@@ -118,6 +119,15 @@ afterEach(() => {
 });
 
 describe("local result/review contracts", () => {
+	it("parses exactly the shared editorial string acceptance fixture", () => {
+		for (const item of strings.cases) {
+			const raw = rawReview();
+			const value = (item.codePoints ? String.fromCodePoint(...item.codePoints) : item.value).repeat(item.repeat);
+			raw.segments[0][item.field as "text" | "speaker"] = value;
+			if (item.valid) expect(parseLocalReview(raw).segments[0][item.field as "text" | "speaker"], item.name).toBe(value);
+			else expect(() => parseLocalReview(raw), item.name).toThrow();
+		}
+	});
 	it("parses an ephemeral base without inventing revision, hash or timestamps", () => {
 		const raw = { ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
 			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null };

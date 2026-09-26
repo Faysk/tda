@@ -1,4 +1,5 @@
 import { supportsQwenAlignmentRuntime } from "./compatibility";
+import { isReviewStringV1 } from "../../transcript-review/text-contract";
 
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
@@ -839,8 +840,8 @@ export function parseLocalReview(value: unknown): LocalReview {
 			segmentId: contentText(segment.segment_id, 256),
 			start,
 			end,
-			text: contentText(segment.text, 100_000),
-			speaker: text(segment.speaker, 160),
+			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
+			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
 		};
 	});

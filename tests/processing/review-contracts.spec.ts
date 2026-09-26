@@ -18,6 +18,19 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 });
 
+test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
+	await page.goto("/?review-contracts");
+	const speaker = page.getByRole("textbox", { name: "Speaker", exact: true });
+	await speaker.fill("😀".repeat(160));
+	await expect(speaker).toHaveValue("😀".repeat(160));
+	await expect(speaker).toHaveAttribute("aria-invalid", "false");
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
+	await speaker.fill("a".repeat(161));
+	await expect(speaker).toHaveAttribute("aria-invalid", "true");
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
+});
+
 test("review shows factual warning totals with bounded details and Unicode word count", async ({
 	page,
 }, testInfo) => {
