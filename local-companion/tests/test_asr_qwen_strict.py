@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -137,6 +138,11 @@ def test_packaged_qwen_fingerprint_uses_sealed_marker_without_distribution_scan(
         encoding="utf-8",
     )
     monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.0.11")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_FAMILY", "qwen")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_ARTIFACT", json.dumps({
+        "runtime_id": "qwen3-transformers", "version": "1.0.11",
+        "worker_sha256": "f" * 64, "archive_sha256": None,
+    }))
     monkeypatch.setattr(asr_qwen.sys, "executable", str(executable))
     monkeypatch.setattr(asr_qwen.sys, "frozen", True, raising=False)
 

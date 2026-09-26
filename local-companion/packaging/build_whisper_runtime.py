@@ -10,6 +10,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from runtime_bootstrap_smoke import launch as launch_sealed_smoke
+
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json"
 ENTRY = ROOT / "local-companion" / "packaging" / "whisper_runtime_entry.py"
@@ -111,7 +113,7 @@ def copy_runtime_dlls(python: Path, built: Path) -> dict[str, int]:
     return copied
 
 
-def _smoke_worker_bootstrap(worker: Path) -> dict:
+def _smoke_worker_bootstrap(worker: Path, version: str) -> dict:
     command = json.dumps(
         {
             "protocol": "tda_worker_v1",
@@ -125,14 +127,7 @@ def _smoke_worker_bootstrap(worker: Path) -> dict:
         separators=(",", ":"),
     ) + "\n"
     try:
-        result = subprocess.run(
-            [str(worker)],
-            input=command,
-            text=True,
-            capture_output=True,
-            timeout=20,
-            check=False,
-        )
+        result = launch_sealed_smoke(worker, version, "whisper", command, 20)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_BOOTSTRAP_TIMEOUT") from exc
     if result.returncode != 0:
@@ -180,7 +175,7 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
             or probe.get("whisper_model_imported") is not True
         ):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
-        bootstrap = _smoke_worker_bootstrap(worker)
+        bootstrap = _smoke_worker_bootstrap(worker, version)
         return {"probe": probe, "bootstrap": bootstrap}
 
 
@@ -235,7 +230,7 @@ def main() -> int:
             or probe.get("whisper_model_imported") is not True
         ):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
-        bootstrap = _smoke_worker_bootstrap(worker)
+        bootstrap = _smoke_worker_bootstrap(worker, version)
         if probe.get("faster_whisper") != packages["faster-whisper"]:
             raise RuntimeError("WHISPER_RUNTIME_FASTER_WHISPER_VERSION_MISMATCH")
         if probe.get("ctranslate2") != packages["ctranslate2"]:
