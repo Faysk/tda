@@ -11,6 +11,27 @@ O contrato editorial pós-processamento é definido em [Transcrição — runs l
 
 ## Estado atual
 
+### Command bar — candidato #608 / #622
+
+A barra persistente condensa lifecycle, telemetria da máquina, contadores e ações
+contextuais; detalhes de hardware/versão ficam em Diagnóstico. Falha de uma amostra
+mantém os valores anteriores, sem zerá-los. O controller separa falha operacional
+(health/jobs), telemetria, eventos e biblioteca. Cada domínio limpa somente seu
+erro ao recuperar; um catálogo não consultado mantém seu aviso anterior. Falha de
+Resultados/eventos aparece na view dona, sem declarar a telemetria desatualizada.
+
+O timestamp de leitura de telemetria só avança quando essa leitura tem sucesso.
+Na ausência do vínculo físico da #641, o resumo escolhe deterministicamente o
+menor índice do inventário e o identifica como `GPU N da máquina`; não afirma que
+essa GPU executa ASR nem preenche lineage histórica com a amostra atual. Diagnóstico
+continua exibindo o inventário completo. Ver diagnóstico de uma falha fixa o job
+solicitado durante polling; sair da view, inclusive pelo atalho de atenção, libera
+esse foco sem projetar eventos de outro job no cockpit ativo.
+
+Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
+domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
+Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
+
 A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
 
 - workbench próprio do Edit;
@@ -315,3 +336,43 @@ Slices futuros devem acrescentar testes para:
 - ausência de áudio bruto em payload cloud.
 
 Esses testes automatizados não substituem o gate de qualidade/desempenho em GPU física. A aprovação física final dos perfis que a exigem deve registrar runtime/model revision, GPU/VRAM observada, elapsed/RTF e avaliação qualitativa adequada ao perfil.
+
+### Métricas animadas — candidato #601 / PR #623
+
+A barra interpola somente os números visuais de GPU/CPU/RAM por 350–700 ms,
+com easing sem overshoot. O controller, o timestamp da amostra e o `meter`
+acessível recebem imediatamente o target factual; valores intermediários não
+são amostras nem são persistidos. Novo target parte do valor visual atual.
+Movimento reduzido e aba oculta encerram o RAF e saltam ao target; desmontar
+cancela o frame pendente. Valores de memória reservam largura tabular.
+
+Progresso usa `scaleX` e mantém `progress` acessível factual. Identidade do job,
+tentativa e stage delimitam a animação: novo attempt/stage remonta a barra,
+impedindo interpolação regressiva entre execuções. Dentro desse contexto o
+valor continua sendo o informado pelo worker, sem inventar uma medição maior.
+Microtransições de estado duram 180 ms e respeitam movimento reduzido.
+
+Validação: testes sintéticos do interpolador e navegador cobrem rebase,
+telemetria acessível, cancelamento em aba oculta, movimento reduzido, reset
+de tentativa e largura estável. A validação local/CI não publica o frontend.
+
+### Fila operacional — candidato #610 / PR #624
+
+A Fila usa tabela HTML no desktop, com rolagem e cabeçalho próprios, e linhas
+empilhadas no mobile. O recorte inicial contém ativos; filtros locais de atenção,
+concluídos, cancelados e todos, busca e ordenação operam sobre os jobs carregados.
+Paginação e totais globais continuam gates separados (#651/#634). Sessão/source
+identifica a linha; profile, tentativa, stage, medida factual e erro completam o
+contexto. Não são inventados speaker, checkpoint ou duração por row.
+
+O disclosure Mais usa portal fixo no viewport, flip vertical e margem horizontal.
+Escape/Shift+Tab restauram o trigger; Tab no fim continua a sequência da página;
+foco/click externos fecham. Scroll que move o anchor, resize, troca de filtro ou
+desmontagem removem o popup, mantendo o scroll owner e sticky header da tabela.
+Abrir Diagnóstico seleciona explicitamente o job daquela linha. Limpar uma row
+da fila preserva runs imutáveis, revisões e fontes; a confirmação distingue essa
+operação de apagar um resultado. A autoridade após cleanup segue no gate #644.
+
+Validação sintética do candidato inclui lista de 30 jobs, última linha, bounds
+e hit testing do popup, foco/teclado, 1024x768, proxy de zoom 512x384 e 320px.
+Screenshots desktop/mobile foram inspecionados. Código validado não é publicação.

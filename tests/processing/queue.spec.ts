@@ -182,18 +182,18 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 	await expect(
 		row
 			.locator('td[data-label="Estado"]')
-			.getByText(/não conseguiu gerar o alinhamento/i),
+			.getByText(/O alinhamento obrigatório falhou/i),
 	).toBeVisible();
 	await expect(
 		row.getByRole("button", { name: "Repetir trabalho" }),
 	).toBeVisible();
 
 	const more = row.getByText("Mais", { exact: true });
-	await expect(row.getByRole("button", { name: "Excluir" })).not.toBeVisible();
+	await expect(page.getByRole("button", { name: "Excluir", exact: true })).not.toBeVisible();
 	await more.click();
-	await expect(row.getByRole("button", { name: "Excluir" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Excluir", exact: true })).toBeVisible();
 
-	await row.getByRole("button", { name: "Detalhes" }).click();
+	await page.getByRole("button", { name: "Detalhes", exact: true }).click();
 	await expect(queue.getByText("QWEN_ALIGNMENT_REQUIRED", { exact: false })).toBeVisible();
 	await expect(queue.getByText("job-failed", { exact: false })).toBeVisible();
 });
@@ -235,4 +235,6 @@ test("mobile empilha rows e mantém busca, filtros e ações sem overflow horizo
 		row.getByRole("button", { name: "Cancelar trabalho" }),
 	).toBeVisible();
 	await expect(row.getByText("Qwen Quality", { exact: true })).toBeVisible();
+	await expect(row.locator('td[data-label="Attempt"]')).not.toBeVisible();
+	await expect(row.locator('td[data-label="Erro / recuperação"]')).not.toBeVisible();
 });

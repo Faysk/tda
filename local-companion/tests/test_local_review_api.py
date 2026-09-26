@@ -178,7 +178,7 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "approved_local",
                 "segments": segments,
             },
@@ -274,7 +274,7 @@ def test_review_api_conflicts_on_stale_draft_revision(tmp_path: Path):
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "draft",
                 "segments": first,
             },
@@ -287,7 +287,7 @@ def test_review_api_conflicts_on_stale_draft_revision(tmp_path: Path):
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "draft",
                 "segments": stale,
             },
@@ -350,7 +350,7 @@ def test_review_api_requires_authorization_and_origin_for_writes(tmp_path: Path)
                 "Content-Type": "application/json",
             },
             json={
-                "expected_draft_revision": opened["draft_revision"],
+                **_expected(opened),
                 "status": "draft",
                 "segments": opened["segments"],
             },
@@ -456,3 +456,10 @@ def test_source_catalog_requires_auth_and_get_only_preflight(tmp_path: Path):
         )
         assert rejected.status_code == 403
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
+
+
+def _expected(review):
+    expected = ({"persistence": "ephemeral_base", "base_transcript_sha256": review["base_transcript_sha256"]}
+                if review["persistence"] == "ephemeral_base" else
+                {"persistence": "persisted", "draft_revision": review["draft_revision"], "draft_sha256": review["draft_sha256"]})
+    return {"snapshot_contract": "tda_local_review_cas_v1", "expected": expected}

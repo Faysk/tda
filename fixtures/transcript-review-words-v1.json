@@ -1,0 +1,14 @@
+{
+  "version": "count_words_v1",
+  "separators": [9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288],
+  "non_separators": [28, 29, 30, 31, 65279],
+  "examples": [
+    {"text": "", "count": 0},
+    {"text": " \t\n\r\u0085\u00a0", "count": 0},
+    {"text": "  um  dois\ttrês\n", "count": 3},
+    {"text": "palavraA\u0085palavraB", "count": 2},
+    {"text": "中文😀", "count": 1},
+    {"text": "😀 😀", "count": 2},
+    {"text": "café café", "count": 2}
+  ]
+}

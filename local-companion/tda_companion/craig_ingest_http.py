@@ -367,6 +367,8 @@ class CraigIngestBoundary:
             elif code in {
                 "LOCAL_REVIEW_REQUEST_INVALID",
                 "LOCAL_REVIEW_EXPECTED_REVISION_INVALID",
+                "LOCAL_REVIEW_EXPECTED_SNAPSHOT_INVALID",
+                "LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED",
                 "LOCAL_REVIEW_STATUS_INVALID",
                 "LOCAL_REVIEW_SEGMENTS_INVALID",
                 "LOCAL_REVIEW_SEGMENT_INVALID",

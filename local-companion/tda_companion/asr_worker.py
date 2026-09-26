@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .atomic_storage import AtomicStorageError
+
 import hashlib
 import os
 import re
@@ -294,13 +296,14 @@ def _run_craig(
                         "reason": "hash_mismatch",
                     },
                 )
-        except (OSError, TranscriptionRunError):
+        except (OSError, TranscriptionRunError) as exc:
             emitter.emit(
                 "event",
                 {
-                    "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                    "code": ("COMPATIBILITY_MIRROR_LEGACY_PRESERVED" if str(exc) == "TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE"
+                             else "COMPATIBILITY_MIRROR_WRITE_FAILED"),
                     "stage": "result_prepare",
-                    "reason": "write_failed",
+                    "reason": "legacy_preserved" if str(exc) == "TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE" else "write_failed",
                 },
             )
 
@@ -319,6 +322,11 @@ def _run_craig(
             },
         )
         return 0
+    except AtomicStorageError as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit("error", {"code": str(exc), "recoverable": True, "stage": "result_prepare"})
+        return 66
     except AttemptFenceError as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
