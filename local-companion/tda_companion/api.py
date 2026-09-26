@@ -454,7 +454,7 @@ def create_app(
         if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", source_id) is None:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         staging = (data_root / "staging").resolve()
-        package_root = (staging / source_id).resolve()
+        package_root = (staging / os.path.basename(source_id)).resolve()
         if package_root.parent != staging:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         return package_root, load_craig_package(package_root, verify_tracks=verify_tracks)
