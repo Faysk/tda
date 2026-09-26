@@ -137,7 +137,7 @@ export async function installCompanionFixture(
 	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
-	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.11";
+	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
 	let preparationReads = 0;
 	let jobsReads = 0;
 	let jobsGetCount = 0;

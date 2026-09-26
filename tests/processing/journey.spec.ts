@@ -92,14 +92,14 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
-		qwenRuntimeVersion: "1.0.10",
+		qwenRuntimeVersion: "1.0.11",
 		advanceJobs: false,
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
 	await expect(page.getByRole("alert")).toContainText(
-		"runtime 1.0.11 ou mais recente",
+		"runtime 1.0.12 ou mais recente",
 	);
 
 	await selectCraig(page);

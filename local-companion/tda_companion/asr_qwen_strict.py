@@ -51,7 +51,8 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
-QWEN_ALIGNMENT_POLICY = "strict-overlap-v3"
+QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
+QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
@@ -322,6 +323,65 @@ def _safe_neighbor_owned_trailing_overflow(
     )
 
 
+def _right_context_alignment_window(
+    window: AudioWindow,
+    next_window: AudioWindow,
+    *,
+    overlap_seconds: float = QWEN_WINDOW_OVERLAP_SECONDS,
+    sample_rate: int = QWEN_SAMPLE_RATE,
+) -> AudioWindow | None:
+    """Append bounded new right-side audio for one alignment-only retry.
+
+    The next ASR window already contains the trailing overlap from the current
+    window. Recovery skips that duplicated prefix and appends at most one
+    overlap-width of genuinely new audio. Ownership is still evaluated against
+    the original window; this object only gives the aligner real context.
+    """
+
+    if (
+        next_window.index != window.index + 1
+        or not math.isclose(
+            next_window.start,
+            window.end - overlap_seconds,
+            abs_tol=0.001,
+        )
+        or sample_rate != QWEN_SAMPLE_RATE
+    ):
+        return None
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+
+    try:
+        current = np.asarray(window.audio, dtype=np.float32).reshape(-1)
+        following = np.asarray(next_window.audio, dtype=np.float32).reshape(-1)
+    except Exception:
+        return None
+    if current.size <= 0 or following.size <= 0:
+        return None
+
+    duplicated_seconds = max(window.end - next_window.start, 0.0)
+    duplicated_samples = int(round(duplicated_seconds * sample_rate))
+    max_context_samples = int(round(overlap_seconds * sample_rate))
+    if duplicated_samples < 0 or duplicated_samples >= int(following.size):
+        return None
+    suffix = following[
+        duplicated_samples : duplicated_samples + max_context_samples
+    ]
+    if suffix.size <= 0:
+        return None
+
+    audio = np.concatenate((current, suffix)).astype(np.float32, copy=False)
+    context_seconds = float(suffix.size) / sample_rate
+    return AudioWindow(
+        index=window.index,
+        start=window.start,
+        end=window.end + context_seconds,
+        audio=audio,
+    )
+
+
 def _strict_alignment_segments(
     track_number: int,
     window: AudioWindow,
@@ -330,6 +390,7 @@ def _strict_alignment_segments(
     *,
     first: bool,
     last: bool,
+    alignment_window: AudioWindow | None = None,
 ) -> tuple[tuple[TranscriptSegment, ...], int]:
     # Silence is a valid ASR outcome. Forced alignment is mandatory for actual
     # transcript text, but an empty/whitespace-only window has nothing to align
@@ -337,10 +398,15 @@ def _strict_alignment_segments(
     if not pending.text.strip():
         return (), 0
     aligned: list[dict[str, Any]] = []
+    validation_window = alignment_window or window
     try:
-        aligned = aligner.align(window.audio, pending.text, pending.language)
+        aligned = aligner.align(
+            validation_window.audio,
+            pending.text,
+            pending.language,
+        )
         ignored_trailing_overflow = 0
-        if not last:
+        if alignment_window is None and not last:
             filtered: list[dict[str, Any]] = []
             for item in aligned:
                 if isinstance(item, dict) and _safe_neighbor_owned_trailing_overflow(
@@ -354,7 +420,7 @@ def _strict_alignment_segments(
             aligned = filtered
         if not aligned and ignored_trailing_overflow:
             return (), ignored_trailing_overflow
-        words = _validated_words(aligned, window)
+        words = _validated_words(aligned, validation_window)
     except QwenRuntimeError as exc:
         if exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH:
             # Resource/runtime failures are not transcript-integrity failures.
@@ -364,7 +430,10 @@ def _strict_alignment_segments(
         failure_class = exc.code
         diagnostics: dict[str, int | float | bool] = {}
         if exc.code == "QWEN_ALIGNMENT_TIMESTAMPS_INVALID":
-            failure_class, diagnostics = _alignment_timestamp_diagnostic(aligned, window)
+            failure_class, diagnostics = _alignment_timestamp_diagnostic(
+                aligned,
+                validation_window,
+            )
         raise _alignment_required(failure_class, **diagnostics) from exc
     owned = _owned_words(words, window, first=first, last=last)
     if not owned:
@@ -403,6 +472,7 @@ def transcribe_craig_package_qwen_strict(
     aligner_session_factory: Any = _default_aligner_session,
     window_reader=iter_audio_windows_overlap,
     energy_reader: EnergyReader = _window_energy_db,
+    right_context_builder=_right_context_alignment_window,
 ) -> TranscriptDocument:
     profile = get_profile(profile_id)
     if profile.engine != "qwen3":
@@ -432,10 +502,16 @@ def transcribe_craig_package_qwen_strict(
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": QWEN_ALIGNMENT_POLICY,
     }
-    legacy_text_recipe = {
-        **recipe,
-        "alignment_policy": QWEN_LEGACY_TEXT_ALIGNMENT_POLICY,
-    }
+    compatible_text_recipes = (
+        {
+            **recipe,
+            "alignment_policy": QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY,
+        },
+        {
+            **recipe,
+            "alignment_policy": QWEN_LEGACY_TEXT_ALIGNMENT_POLICY,
+        },
+    )
     report({"type": "stage", "stage": "runtime_fingerprint", "profile": profile.id})
     fingerprint_started = time.monotonic()
     runtime_fingerprint = _runtime_fingerprint()
@@ -460,13 +536,16 @@ def transcribe_craig_package_qwen_strict(
         glossary=normalized_glossary,
         runtime_fingerprint=runtime_fingerprint,
     )
-    legacy_text_signature = build_checkpoint_signature(
-        package,
-        profile,
-        recipe=legacy_text_recipe,
-        context=normalized_context,
-        glossary=normalized_glossary,
-        runtime_fingerprint=runtime_fingerprint,
+    compatible_text_signatures = tuple(
+        build_checkpoint_signature(
+            package,
+            profile,
+            recipe=compatible_recipe,
+            context=normalized_context,
+            glossary=normalized_glossary,
+            runtime_fingerprint=runtime_fingerprint,
+        )
+        for compatible_recipe in compatible_text_recipes
     )
 
     cached_tracks: dict[int, TranscriptTrack] = {}
@@ -525,7 +604,7 @@ def transcribe_craig_package_qwen_strict(
                 package_root,
                 signature,
                 track,
-                templates=(legacy_text_signature,),
+                templates=compatible_text_signatures,
             )
             if compatible is not None:
                 cached_text = compatible.windows
@@ -712,17 +791,25 @@ def transcribe_craig_package_qwen_strict(
                 segments: list[TranscriptSegment] = []
                 duration = 0.0
                 last_index = expected[-1].index
-                # Replay one decoded window at a time. Audio from previous windows
-                # is released before the next one, keeping RAM bounded by one window.
-                for window in window_reader(source):
+                # Replay with a one-window lookahead. This keeps memory bounded
+                # while allowing one alignment-only retry with real right context.
+                windows_iter = iter(window_reader(source))
+                window = next(windows_iter, None)
+                while window is not None:
+                    next_window = next(windows_iter, None)
                     if is_cancelled():
                         raise QwenRuntimeError("ASR_CANCELLED")
                     pending = expected_by_index.get(window.index)
-                    if pending is None or not math.isclose(pending.start, window.start, abs_tol=0.001) or not math.isclose(pending.end, window.end, abs_tol=0.001):
+                    if (
+                        pending is None
+                        or not math.isclose(pending.start, window.start, abs_tol=0.001)
+                        or not math.isclose(pending.end, window.end, abs_tol=0.001)
+                    ):
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                     seen.add(window.index)
                     first_window = window.index == expected[0].index
                     last_window = window.index == last_index
+                    energy_window = window
                     try:
                         window_segments, ignored_trailing_overflow = _strict_alignment_segments(
                             track.number,
@@ -733,54 +820,137 @@ def transcribe_craig_package_qwen_strict(
                             last=last_window,
                         )
                     except QwenRuntimeError as exc:
-                        if (
+                        failure_class = getattr(
+                            exc,
+                            "alignment_failure_class",
+                            "QWEN_ALIGNMENT_REQUIRED",
+                        )
+                        recoverable_owned_overflow = (
                             exc.code == "QWEN_ALIGNMENT_REQUIRED"
-                            or exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
-                        ):
-                            failure_data: dict[str, Any] = {
-                                "type": "event",
-                                "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
-                                "stage": "alignment",
-                                "track": track.number,
-                                "window": window.index,
-                                "failure_class": (
-                                    exc.code
-                                    if exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
-                                    else getattr(
-                                        exc,
-                                        "alignment_failure_class",
-                                        "QWEN_ALIGNMENT_REQUIRED",
+                            and failure_class == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+                            and not last_window
+                            and next_window is not None
+                        )
+                        recovered = False
+                        if recoverable_owned_overflow:
+                            if is_cancelled():
+                                raise QwenRuntimeError("ASR_CANCELLED") from exc
+                            extended_window = right_context_builder(
+                                window,
+                                next_window,
+                            )
+                            if extended_window is not None:
+                                context_seconds = max(
+                                    extended_window.end - window.end,
+                                    0.0,
+                                )
+                                report(
+                                    {
+                                        "type": "event",
+                                        "code": "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED",
+                                        "stage": "alignment",
+                                        "track": track.number,
+                                        "window": window.index,
+                                        "failure_class": failure_class,
+                                        "context_seconds": round(context_seconds, 3),
+                                    }
+                                )
+                                try:
+                                    (
+                                        window_segments,
+                                        ignored_trailing_overflow,
+                                    ) = _strict_alignment_segments(
+                                        track.number,
+                                        window,
+                                        pending,
+                                        aligner,
+                                        first=first_window,
+                                        last=last_window,
+                                        alignment_window=extended_window,
                                     )
-                                ),
-                                "window_start_seconds": round(window.start, 3),
-                                "window_end_seconds": round(window.end, 3),
-                                "ownership_left_seconds": round(
-                                    window.start
-                                    if first_window
-                                    else window.start + QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
-                                    3,
-                                ),
-                                "ownership_right_seconds": round(
-                                    window.end
-                                    if last_window
-                                    else window.end - QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
-                                    3,
-                                ),
-                                "first_window": first_window,
-                                "last_window": last_window,
-                                **_runtime_identity_metadata(runtime_fingerprint),
-                            }
-                            diagnostics = getattr(exc, "alignment_diagnostics", {})
-                            if isinstance(diagnostics, dict):
-                                for key, value in diagnostics.items():
-                                    if key not in _ALIGNMENT_DIAGNOSTIC_KEYS:
-                                        continue
-                                    if isinstance(value, bool) or isinstance(value, int):
-                                        failure_data[key] = value
-                                    elif isinstance(value, float) and math.isfinite(value):
-                                        failure_data[key] = value
-                            report(failure_data)
-                        raise
+                                except QwenRuntimeError as recovery_exc:
+                                    recovery_failure_class = (
+                                        recovery_exc.code
+                                        if recovery_exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
+                                        else getattr(
+                                            recovery_exc,
+                                            "alignment_failure_class",
+                                            "QWEN_ALIGNMENT_REQUIRED",
+                                        )
+                                    )
+                                    report(
+                                        {
+                                            "type": "event",
+                                            "code": "QWEN_ALIGNMENT_WINDOW_RECOVERY_FAILED",
+                                            "stage": "alignment",
+                                            "track": track.number,
+                                            "window": window.index,
+                                            "failure_class": recovery_failure_class,
+                                            "context_seconds": round(context_seconds, 3),
+                                        }
+                                    )
+                                    exc = recovery_exc
+                                    failure_class = recovery_failure_class
+                                else:
+                                    recovered = True
+                                    energy_window = extended_window
+                                    report(
+                                        {
+                                            "type": "event",
+                                            "code": "QWEN_ALIGNMENT_WINDOW_RECOVERED",
+                                            "stage": "alignment",
+                                            "track": track.number,
+                                            "window": window.index,
+                                            "context_seconds": round(context_seconds, 3),
+                                        }
+                                    )
+                        if not recovered:
+                            if (
+                                exc.code == "QWEN_ALIGNMENT_REQUIRED"
+                                or exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
+                            ):
+                                failure_data: dict[str, Any] = {
+                                    "type": "event",
+                                    "code": "QWEN_ALIGNMENT_WINDOW_FAILED",
+                                    "stage": "alignment",
+                                    "track": track.number,
+                                    "window": window.index,
+                                    "failure_class": (
+                                        exc.code
+                                        if exc.code in _ALIGNMENT_RUNTIME_PASSTHROUGH
+                                        else failure_class
+                                    ),
+                                    "window_start_seconds": round(window.start, 3),
+                                    "window_end_seconds": round(window.end, 3),
+                                    "ownership_left_seconds": round(
+                                        window.start
+                                        if first_window
+                                        else window.start
+                                        + QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
+                                        3,
+                                    ),
+                                    "ownership_right_seconds": round(
+                                        window.end
+                                        if last_window
+                                        else window.end
+                                        - QWEN_WINDOW_OVERLAP_SECONDS / 2.0,
+                                        3,
+                                    ),
+                                    "first_window": first_window,
+                                    "last_window": last_window,
+                                    **_runtime_identity_metadata(runtime_fingerprint),
+                                }
+                                diagnostics = getattr(exc, "alignment_diagnostics", {})
+                                if isinstance(diagnostics, dict):
+                                    for key, value in diagnostics.items():
+                                        if key not in _ALIGNMENT_DIAGNOSTIC_KEYS:
+                                            continue
+                                        if isinstance(value, bool) or isinstance(value, int):
+                                            failure_data[key] = value
+                                        elif isinstance(value, float) and math.isfinite(value):
+                                            failure_data[key] = value
+                                report(failure_data)
+                            raise exc
                     if ignored_trailing_overflow:
                         report(
                             {
@@ -795,12 +965,17 @@ def transcribe_craig_package_qwen_strict(
                     segments.extend(window_segments)
                     for segment in window_segments:
                         key = (track.number, segment.id)
-                        value = energy_reader(window, segment.start, segment.end)
+                        value = energy_reader(
+                            energy_window,
+                            segment.start,
+                            segment.end,
+                        )
                         energy_by_segment[key] = max(
                             energy_by_segment.get(key, -120.0),
                             value,
                         )
                     duration = max(duration, window.end)
+                    window = next_window
                 if seen != set(expected_by_index):
                     raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
                 transcript_track = TranscriptTrack(
