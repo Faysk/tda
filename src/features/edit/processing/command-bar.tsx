@@ -72,7 +72,10 @@ export function ProcessingCommandBar({
 	onAttention,
 	onDiagnostics,
 }: Props) {
-	const gpu = system?.gpus[0] ?? null;
+	// Machine inventory only; CUDA logical device identity is a separate contract.
+	const gpu = system?.gpus.reduce<(typeof system.gpus)[number] | null>(
+		(selected, candidate) => !selected || candidate.index < selected.index ? candidate : selected, null,
+	) ?? null;
 	const gpuMemory = gpu
 		? compactMemory(gpu.memoryUsedBytes, gpu.memoryTotalBytes)
 		: null;
@@ -109,7 +112,7 @@ export function ProcessingCommandBar({
 			aria-label="Estado e comandos do TDA Companion"
 		>
 			<div className={styles.statusCluster}>
-				<span className={styles.statusDot} aria-hidden="true" />
+				<span className={styles.statusDot} aria-hidden="true" data-processing-status-dot="true" />
 				<div className={styles.statusCopy}>
 					<strong>
 						Companion · <span className={styles.stateLabel}>{connectionLabel}</span>
@@ -118,8 +121,8 @@ export function ProcessingCommandBar({
 					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
 				</div>
 				{connected && gpu ? (
-					<span className={styles.gpuCluster} title={gpu.name}>
-						{compactGpuName(gpu.name)}
+					<span className={styles.gpuCluster} title={`GPU ${gpu.index} da máquina · ${gpu.name}`}>
+						GPU {gpu.index} · {compactGpuName(gpu.name)}
 						{gpu.utilizationPercent === null
 							? ""
 							: ` · ${Math.round(gpu.utilizationPercent)}%`}

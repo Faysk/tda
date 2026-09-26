@@ -177,7 +177,7 @@ for (const theme of ["dark", "light", "system-light"] as const) {
 		await page.goto("/");
 		const warning = page.getByText("Fila pausada", { exact: true });
 		await expect(warning).toBeVisible();
-		const colors = await warning.evaluate((element) => {
+		const colors = await page.locator("[data-processing-status-dot='true']").evaluate((element) => {
 			const root = getComputedStyle(document.documentElement);
 			const rgb = (token: string) => {
 				const probe = document.createElement("span");
@@ -187,7 +187,7 @@ for (const theme of ["dark", "light", "system-light"] as const) {
 				probe.remove();
 				return color;
 			};
-			return { dot: getComputedStyle(element, "::before").backgroundColor,
+			return { dot: getComputedStyle(element).backgroundColor,
 				warning: rgb("--ds-warning"), accent: rgb("--ds-accent-strong"),
 				danger: rgb("--ds-danger"), success: rgb("--ds-success"),
 				backgrounds: [rgb("--ds-canvas"), rgb("--ds-surface"), rgb("--ds-surface-elevated")],

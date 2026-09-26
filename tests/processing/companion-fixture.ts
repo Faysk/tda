@@ -32,6 +32,7 @@ export type CompanionFixtureOptions = {
 	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	reviewEnabled?: boolean;
 	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
@@ -210,6 +211,7 @@ export async function installCompanionFixture(
 		if (path === "/capabilities") {
 			return json(route, {
 				capabilities: [
+					...(options.reviewEnabled ? ["transcription.review"] : []),
 					"transcription.craig",
 					"transcription.prepare",
 					"job.events",
@@ -278,6 +280,9 @@ export async function installCompanionFixture(
 					memory_total_bytes: gpu.memoryTotalBytes,
 				})),
 			});
+		}
+		if (path === "/sources" && request.method() === "GET") {
+			return json(route, { schema_version: "tda_craig_sources_v1", sources: [] });
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
 			const contentType = request.headers()["content-type"] ?? "";

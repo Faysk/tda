@@ -36,6 +36,10 @@ export type ProcessingState = Readonly<{
 	connection: "disconnected" | "connecting" | "connected" | "error";
 	refreshing: boolean;
 	refreshError: BridgeErrorCode | null;
+	telemetryRefreshError: BridgeErrorCode | null;
+	eventsRefreshError: BridgeErrorCode | null;
+	libraryRefreshError: BridgeErrorCode | null;
+	telemetryCheckedAt: string | null;
 	mutation: ProcessingMutation | null;
 	health: Health | null;
 	capabilities: Capabilities | null;
@@ -60,6 +64,10 @@ const initial: ProcessingState = {
 	connection: "disconnected",
 	refreshing: false,
 	refreshError: null,
+	telemetryRefreshError: null,
+	eventsRefreshError: null,
+	libraryRefreshError: null,
+	telemetryCheckedAt: null,
 	mutation: null,
 	health: null,
 	capabilities: null,
@@ -232,22 +240,25 @@ export class ProcessingController {
 
 		const reviewEnabled =
 			capabilities.capabilities.includes("transcription.review");
-		let secondaryRefreshError: BridgeErrorCode | null = null;
+		const domainErrors: Record<"telemetry" | "events" | "library", BridgeErrorCode | null> = {
+			telemetry: null, events: null, library: reviewEnabled ? previous.libraryRefreshError : null,
+		};
 		const preserveSecondary = async <T,>(
 			work: Promise<T>,
 			fallback: T,
+			domain: keyof typeof domainErrors,
 		): Promise<T> => {
 			try {
 				return await work;
 			} catch (error) {
-				secondaryRefreshError ??=
+				domainErrors[domain] ??=
 					error instanceof BridgeError ? error.code : "service_error";
 				return fallback;
 			}
 		};
 		const [system, events] = await Promise.all([
 			capabilities.capabilities.includes("system.telemetry")
-				? preserveSecondary(this.bridge.system(signal), previous.system)
+				? preserveSecondary(this.bridge.system(signal), previous.system, "telemetry")
 				: Promise.resolve(null),
 			observedJob && capabilities.capabilities.includes("job.events")
 				? preserveSecondary(
@@ -255,6 +266,7 @@ export class ProcessingController {
 						previous.observedJobId === observedJob.id
 							? previous.events
 							: [],
+						"events",
 					)
 				: Promise.resolve([] as JobEvent[]),
 		]);
@@ -280,6 +292,7 @@ export class ProcessingController {
 			? [...previous.localRuns]
 			: [];
 		if (reloadLibrary) {
+			domainErrors.library = null;
 			try {
 				localSources = await this.bridge.localSources(signal);
 				const loadRunBatch = async (
@@ -293,6 +306,7 @@ export class ProcessingController {
 								previous.localRuns.filter(
 									(run) => run.sourceId === source.sourceId,
 								),
+								"library",
 							),
 						),
 					);
@@ -311,7 +325,7 @@ export class ProcessingController {
 			} catch (error) {
 				// A library read is secondary to the operational snapshot. Keep the
 				// previous successful catalog until a later refresh succeeds.
-				secondaryRefreshError ??=
+				domainErrors.library ??=
 					error instanceof BridgeError ? error.code : "service_error";
 				localSources = previous.localSources;
 				localRuns = [...previous.localRuns];
@@ -330,7 +344,12 @@ export class ProcessingController {
 			events,
 			observedJobId: observedJob?.id ?? null,
 			checkedAt: new Date().toISOString(),
-			refreshError: secondaryRefreshError,
+			refreshError: null,
+			telemetryRefreshError: domainErrors.telemetry,
+			eventsRefreshError: domainErrors.events,
+			libraryRefreshError: domainErrors.library,
+			telemetryCheckedAt: domainErrors.telemetry ? previous.telemetryCheckedAt
+				: system ? new Date().toISOString() : null,
 		});
 		if (deep) this.#lastDeepReadAt = Date.now();
 		return true;

@@ -428,8 +428,8 @@ export function ProcessingPanel({
 				connectionLabel={label}
 				health={state.health}
 				system={state.system}
-				refreshError={state.refreshError}
-				checkedAt={state.checkedAt}
+				refreshError={state.refreshError ?? state.telemetryRefreshError}
+				checkedAt={state.telemetryCheckedAt ?? state.checkedAt}
 				runningCount={running.length}
 				queuedCount={queued.length}
 				attentionCount={attention.length}
@@ -749,6 +749,7 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-results"
 						hidden={view !== "results"}
 					>
+						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							review={state.localReview}
@@ -919,6 +920,7 @@ export function ProcessingPanel({
 										: "sem eventos"}
 								</span>
 							</div>
+							{state.eventsRefreshError ? <p role="status">Eventos desatualizados. O último histórico disponível foi preservado.</p> : null}
 							<div
 								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
 								role="log"

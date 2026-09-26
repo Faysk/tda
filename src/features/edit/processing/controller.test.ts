@@ -44,6 +44,43 @@ function fixture() {
 	};
 }
 describe("processing state", () => {
+	it("owns telemetry, event and library freshness independently across partial recovery", async () => {
+		const failures = new Set<string>();
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const path = String(url);
+			if (path.endsWith("/health")) return Response.json(health);
+			if (path.endsWith("/capabilities")) return Response.json({ ...caps,
+				capabilities: ["system.telemetry", "job.events", "transcription.review"] });
+			if (path.endsWith("/jobs")) return Response.json({ jobs: [job] });
+			const domain = path.endsWith("/system") ? "telemetry" : path.endsWith("/events") ? "events" : "library";
+			if (failures.has(domain)) throw new TypeError("synthetic domain failure");
+			if (domain === "telemetry") return Response.json({ sampled_at: "2026-09-26T00:00:00Z",
+				host: { os: "Windows", cpu: "Synthetic CPU" }, cpu: { utilization_percent: 42 },
+				memory: { used_bytes: 8, total_bytes: 32, percent: 25 }, gpus: [] });
+			if (domain === "events") return Response.json({ events: [{ seq: 1, code: "TRACK_PROGRESS",
+				at: "2026-09-26T00:00:00Z", level: "info", data: {} }] });
+			return Response.json({ schema_version: "tda_craig_sources_v1", sources: [] });
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+		await controller.connect(token);
+		const before = controller.snapshot();
+		for (const domain of ["telemetry", "events", "library"]) failures.add(domain);
+		await controller.refresh("results");
+		expect(controller.snapshot()).toMatchObject({ refreshError: null,
+			telemetryRefreshError: "unreachable", eventsRefreshError: "unreachable", libraryRefreshError: "unreachable",
+			system: before.system, events: before.events, telemetryCheckedAt: before.telemetryCheckedAt });
+		failures.delete("telemetry");
+		await controller.refresh("results");
+		expect(controller.snapshot()).toMatchObject({ refreshError: null, telemetryRefreshError: null,
+			eventsRefreshError: "unreachable", libraryRefreshError: "unreachable" });
+		failures.clear();
+		await controller.refresh("background");
+		expect(controller.snapshot()).toMatchObject({ eventsRefreshError: null, libraryRefreshError: "unreachable" });
+		await controller.refresh("results");
+		expect(controller.snapshot()).toMatchObject({ refreshError: null, telemetryRefreshError: null,
+			eventsRefreshError: null, libraryRefreshError: null });
+		controller.disconnect();
+	});
 	it("never probes until paired and keeps the last snapshot on transient refresh loss", async () => {
 		const { request, controller } = fixture();
 		expect(request).not.toHaveBeenCalled();
@@ -163,7 +200,9 @@ describe("processing state", () => {
 		expect(controller.snapshot().events).toEqual(events);
 		expect(controller.snapshot()).toMatchObject({
 			connection: "connected",
-			refreshError: "unreachable",
+			refreshError: null,
+			telemetryRefreshError: "unreachable",
+			eventsRefreshError: "unreachable",
 		});
 	});
 
