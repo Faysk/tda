@@ -190,7 +190,15 @@ def test_completed_track_checkpoint_rejects_semantic_tamper_and_schema_drift(tmp
     for mutate in (
         lambda value: value["track"]["segments"][0].__setitem__("debug", "x"),
         lambda value: value["track"]["segments"][0]["words"][0].__setitem__("debug", "x"),
-        lambda value: value["track"]["identity"].__setitem__("debug", "x"),
+        lambda value: value["track"].__setitem__(
+            "identity",
+            {
+                "username": "Alice",
+                "discriminator": None,
+                "discord_id": None,
+                "debug": "x",
+            },
+        ),
     ):
         nested_drift = json.loads(json.dumps(original))
         mutate(nested_drift)
