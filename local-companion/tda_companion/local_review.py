@@ -534,6 +534,7 @@ def _response(
     draft: dict[str, Any],
     payload: bytes | None,
     *,
+    draft_path: Path,
     manifest: dict[str, Any],
     base_segments: list[dict[str, Any]],
     warnings: list[str],
@@ -542,6 +543,20 @@ def _response(
     if not isinstance(segments, list):
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
     stats = manifest.get("stats") if isinstance(manifest.get("stats"), dict) else {}
+    draft_sha256 = hashlib.sha256(payload).hexdigest() if payload is not None else None
+    approval = _read_current_approval(
+        draft_path,
+        draft=draft,
+        draft_sha256=draft_sha256,
+    )
+    stored_status = draft["status"]
+    effective_status = (
+        "approved_local"
+        if approval is not None
+        else "reviewed"
+        if stored_status == "approved_local"
+        else stored_status
+    )
     return {
         "schema_version": REVIEW_RESPONSE_SCHEMA_VERSION,
         "snapshot_contract": SNAPSHOT_CONTRACT,
@@ -550,8 +565,10 @@ def _response(
         "run_id": draft["run_id"],
         "base_transcript_sha256": draft["base_transcript_sha256"],
         "draft_revision": draft["draft_revision"],
-        "draft_sha256": hashlib.sha256(payload).hexdigest() if payload is not None else None,
-        "status": draft["status"],
+        "draft_sha256": draft_sha256,
+        "status": effective_status,
+        "approval_current": approval is not None,
+        "approved_at": approval.get("approved_at") if approval is not None else None,
         "created_at": draft["created_at"],
         "updated_at": draft["updated_at"],
         "lineage": {
@@ -633,6 +650,7 @@ def _open_from_snapshot(
         return _response(
             draft,
             payload,
+            draft_path=path,
             manifest=manifest,
             base_segments=base_segments,
             warnings=warnings,
@@ -652,6 +670,7 @@ def _open_from_snapshot(
     return _response(
         draft,
         None,
+        draft_path=path,
         manifest=manifest,
         base_segments=base_segments,
         warnings=warnings,
@@ -726,6 +745,7 @@ def save_review(
         return _response(
             draft,
             payload,
+            draft_path=path,
             manifest=manifest,
             base_segments=base_segments,
             warnings=_warnings(transcript),
@@ -769,5 +789,5 @@ def repair_legacy_review(
                  "draft_revision": expected_revision + 1, "updated_at": utc_now()}
         payload = _atomic_json(path, draft)
         _refresh_review_summary(path, draft)
-        return _response(draft, payload, manifest=manifest, base_segments=base_segments,
+        return _response(draft, payload, draft_path=path, manifest=manifest, base_segments=base_segments,
                          warnings=_warnings(transcript))
