@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import math
-import os
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +28,8 @@ def _number(value: Any, field_name: str, *, minimum: float = 0.0) -> float:
 def _text(value: Any, field_name: str, *, maximum: int = 4096, allow_empty: bool = False) -> str:
     if not isinstance(value, str):
         raise TranscriptValidationError(f"{field_name}:TEXT_REQUIRED")
+    if "\0" in value or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+        raise TranscriptValidationError(f"{field_name}:TEXT_INVALID")
     result = value.strip()
     if not allow_empty and not result:
         raise TranscriptValidationError(f"{field_name}:TEXT_EMPTY")
@@ -277,6 +279,64 @@ class TranscriptDocument:
     created_at: str = field(default_factory=utc_now)
     schema_version: str = SCHEMA_VERSION
 
+    @classmethod
+    def from_dict(cls, value: Any) -> "TranscriptDocument":
+        """Parse the persisted schema without coercing or repairing source values.
+
+        Worker adapters intentionally accept engine-specific aliases. Persisted
+        transcripts do not: preserve their exact strings and validate all nested
+        dataclasses and cross-field invariants before trusting any metadata.
+        Missing optional fields use the v1 dataclass defaults.
+        """
+        def object_value(raw: Any, kind: str) -> dict[str, Any]:
+            if not isinstance(raw, dict):
+                raise TranscriptValidationError(f"{kind}:OBJECT_REQUIRED")
+            return dict(raw)
+
+        def array(raw: Any, kind: str) -> list[Any]:
+            if not isinstance(raw, list):
+                raise TranscriptValidationError(f"{kind}:ARRAY_REQUIRED")
+            return raw
+
+        try:
+            data = object_value(value, "transcript")
+            tracks = []
+            for raw_track in array(data.get("tracks"), "transcript.tracks"):
+                track = object_value(raw_track, "track")
+                segments = []
+                for raw_segment in array(track.get("segments"), "track.segments"):
+                    segment = object_value(raw_segment, "segment")
+                    segment["words"] = tuple(
+                        TranscriptWord(**object_value(word, "word"))
+                        for word in array(segment.get("words", []), "segment.words")
+                    )
+                    segments.append(TranscriptSegment(**segment))
+                track["segments"] = tuple(segments)
+                tracks.append(TranscriptTrack(**track))
+            turns = []
+            for raw_turn in array(data.get("turns", []), "transcript.turns"):
+                turn = object_value(raw_turn, "turn")
+                turn["segments"] = tuple(
+                    TranscriptSegmentRef(**object_value(ref, "turn.segment"))
+                    for ref in array(turn.get("segments"), "turn.segments")
+                )
+                turns.append(TranscriptTurn(**turn))
+            # Required identity fields must not be manufactured by defaults.
+            if "created_at" not in data or "schema_version" not in data:
+                raise TranscriptValidationError("transcript:IDENTITY_REQUIRED")
+            data.update(
+                engine=TranscriptEngine(**object_value(data.get("engine"), "engine")),
+                stats=TranscriptStats(**object_value(data.get("stats"), "stats")),
+                tracks=tuple(tracks),
+                turns=tuple(turns),
+                warnings=tuple(array(data.get("warnings", []), "transcript.warnings")),
+            )
+            document = cls(**data)
+            document.validate()
+            return document
+        except (TypeError, KeyError, OverflowError) as exc:
+            raise TranscriptValidationError("transcript:SCHEMA_INVALID") from exc
+
     def validate(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
             raise TranscriptValidationError("transcript:SCHEMA_UNSUPPORTED")
@@ -287,7 +347,14 @@ class TranscriptDocument:
             raise TranscriptValidationError("transcript.source_sha256:INVALID")
         _text(self.language, "transcript.language", maximum=32)
         _text(self.created_at, "transcript.created_at", maximum=128)
+        try:
+            if datetime.fromisoformat(self.created_at.replace("Z", "+00:00")).tzinfo is None:
+                raise ValueError("timezone required")
+        except ValueError as exc:
+            raise TranscriptValidationError("transcript.created_at:INVALID") from exc
         self.engine.validate()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", self.engine.profile):
+            raise TranscriptValidationError("engine.profile:INVALID")
         self.stats.validate()
 
         seen_tracks: set[int] = set()
@@ -358,19 +425,14 @@ class TranscriptDocument:
         return asdict(self)
 
     def write_atomic(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".partial")
+        from .atomic_storage import atomic_write
         payload = json.dumps(
             self.as_dict(),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
-        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        atomic_write(path, payload.encode("utf-8"))
 
 
 def stats_for_tracks(

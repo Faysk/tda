@@ -636,7 +636,9 @@
 
 .rowActions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
+	gap: 6px;
 }
 
 .rowActions :global(.ds-action) {
@@ -805,7 +807,7 @@
 }
 
 .logEntry[data-level="warning"]::before {
-	background: var(--ds-accent-strong);
+	background: var(--ds-warning);
 }
 
 .logEntry > time {
@@ -828,6 +830,7 @@
 }
 
 .logEntry small {
+	overflow-wrap: anywhere;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-ui);
 	font-size: 0.6875rem;

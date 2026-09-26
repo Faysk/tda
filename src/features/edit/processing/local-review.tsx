@@ -14,6 +14,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
+import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -23,7 +24,7 @@ type Props = Readonly<{
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
 	onSave: (
-		expectedDraftRevision: number,
+		baseline: LocalReview,
 		status: LocalReviewStatus,
 		segments: readonly LocalReviewSegment[],
 	) => void | Promise<void>;
@@ -102,6 +103,16 @@ function reviewError(code: string | null): string | null {
 	return {
 		LOCAL_REVIEW_DRAFT_CONFLICT:
 			"Este draft mudou em outra aba ou processo. Feche sem descartar seu texto, reabra a revisão e reconcilie antes de salvar.",
+		LOCAL_REVIEW_WRITE_UNCONFIRMED:
+			"A gravação pode ter ocorrido, mas não foi possível confirmar sua persistência. Preserve o texto e confira a revisão salva antes de tentar novamente.",
+		LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED:
+			"Atualize o Companion e a página para salvar revisões com verificação de conteúdo.",
+		LOCAL_REVIEW_SEGMENT_TEXT_INVALID:
+			"O texto contém caracteres inválidos ou excede o limite de 100.000 caracteres. Corrija antes de salvar.",
+		LOCAL_REVIEW_SEGMENT_SPEAKER_INVALID:
+			"O nome do participante contém caracteres inválidos ou excede o limite de 160 caracteres. Corrija antes de salvar.",
+		LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED:
+			"Esta revisão antiga contém caracteres incompatíveis. O arquivo foi preservado e precisa de reparo local explícito; consulte o procedimento de reparo de revisão.",
 		LOCAL_REVIEW_BASE_RUN_INVALID:
 			"O run bruto não passou na verificação de integridade. Ele não foi alterado.",
 		LOCAL_REVIEW_RUN_NOT_VISIBLE:
@@ -209,6 +220,9 @@ function ReviewEditor({
 	const [publicationError, setPublicationError] = useState<string | null>(null);
 	const [publicationReceipt, setPublicationReceipt] =
 		useState<PublicationReceiptView | null>(null);
+	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
+	const ephemeral = review.persistence === "ephemeral_base";
+	const invalidStrings = segments.some((segment) => !isReviewStringV1(segment.text, "text") || !isReviewStringV1(segment.speaker, "speaker"));
 
 	useEffect(() => {
 		if (!dirty) return;
@@ -237,7 +251,7 @@ function ReviewEditor({
 	const reviewed = segments.filter((segment) => segment.reviewed).length;
 	const words = segments.reduce(
 		(total, segment) =>
-			total + (segment.text.trim() ? segment.text.trim().split(/\s+/u).length : 0),
+			total + countWordsV1(segment.text),
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
@@ -319,7 +333,7 @@ function ReviewEditor({
 					<span className={styles.eyebrow}>Revisão local derivada</span>
 					<h2 id="local-review-title">{review.lineage.profileId}</h2>
 					<p>
-						Run bruto imutável · draft r{review.draftRevision} · SHA{" "}
+						Run bruto imutável · {ephemeral ? "Sem revisão salva" : `draft r${review.draftRevision}`} · SHA{" "}
 						{review.baseTranscriptSha256.slice(0, 12)}…
 					</p>
 				</div>
@@ -330,8 +344,8 @@ function ReviewEditor({
 					<Button
 						size="sm"
 						variant="primary"
-						disabled={busy || !dirty}
-						onClick={() => void onSave(review.draftRevision, status, segments)}
+						disabled={busy || !dirty || !canSave || invalidStrings}
+						onClick={() => void onSave(review, status, segments)}
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
 					</Button>
@@ -361,6 +375,7 @@ function ReviewEditor({
 				</div>
 			</div>
 
+			{!canSave ? <p role="status">Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</p> : null}
 			<div className={styles.reviewNotice}>
 				<strong>Nada será publicado automaticamente.</strong>
 				<span>
@@ -389,7 +404,7 @@ function ReviewEditor({
 						</p>
 						<small>
 							Base SHA {review.baseTranscriptSha256.slice(0, 12)}… · draft SHA{" "}
-							{review.draftSha256.slice(0, 12)}…
+							{review.draftSha256?.slice(0, 12)}…
 						</small>
 					</div>
 					<div className={styles.publishActions}>
@@ -428,7 +443,7 @@ function ReviewEditor({
 				<div><span>Palavras</span><strong>{words}</strong><small>{review.review.editedSegments} segmentos alterados no último save</small></div>
 				<div><span>Participantes</span><strong>{participants}</strong><small>{review.stats.trackCount ?? "—"} tracks</small></div>
 				<div><span>Duração</span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong><small>Processamento {formatSeconds(review.stats.processingSeconds)}</small></div>
-				<div><span>Warnings</span><strong>{review.warnings.length}</strong><small>atalhos de atenção, não veredictos</small></div>
+				<div><span>Avisos</span><strong>{review.review.warningCount}</strong><small>{review.warningSummary ? "atalhos de atenção, não veredictos" : "total histórico não verificado"}</small></div>
 				<div>
 					<span>Hardware</span>
 					<strong>{review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</strong>
@@ -447,7 +462,7 @@ function ReviewEditor({
 
 			{review.warnings.length ? (
 				<details className={styles.warnings}>
-					<summary>{review.warnings.length} warnings do pipeline</summary>
+					<summary>{review.review.warningCount} avisos do pipeline · mostrando {Math.min(new Set(review.warnings).size, 50)} tipos{review.warningSummary?.truncated ? ` dos primeiros ${review.warningSummary.displayedCount} avisos` : ""}</summary>
 					<ul>
 						{Array.from(new Set(review.warnings)).slice(0, 50).map((warning) => (
 							<li key={warning}>{warning}</li>
@@ -461,7 +476,7 @@ function ReviewEditor({
 					<span>Estado do draft</span>
 					<select
 						value={status}
-						disabled={busy}
+						disabled={busy || !canSave}
 						onChange={(event) => {
 							setStatus(event.target.value as LocalReviewStatus);
 							setDirty(true);
@@ -507,10 +522,11 @@ function ReviewEditor({
 			{reviewError(error) ? (
 				<p className={styles.error} role="alert">{reviewError(error)}</p>
 			) : null}
+			{invalidStrings ? <p className={styles.error} role="alert">Corrija os campos destacados: texto com até 100.000 caracteres e participante com até 160, sem controles incompatíveis.</p> : null}
 			{dirty ? (
 				<p className={styles.unsaved} role="status">Alterações não salvas neste draft.</p>
 			) : (
-				<p className={styles.saved} role="status">Draft salvo localmente.</p>
+				<p className={styles.saved} role="status">{ephemeral ? "Visualização da base. Nenhuma revisão foi salva." : "Draft salvo localmente."}</p>
 			)}
 
 			<div className={styles.segmentList}>
@@ -526,7 +542,7 @@ function ReviewEditor({
 								<input
 									type="checkbox"
 									checked={segment.reviewed}
-									disabled={busy}
+									disabled={busy || !canSave}
 									onChange={(event) => patch(index, { reviewed: event.target.checked })}
 								/>
 								Revisado
@@ -536,8 +552,9 @@ function ReviewEditor({
 							<span>Speaker</span>
 							<input
 								value={segment.speaker}
-								maxLength={160}
-								disabled={busy}
+								maxLength={320}
+								aria-invalid={!isReviewStringV1(segment.speaker, "speaker")}
+								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { speaker: event.target.value })}
 							/>
 						</label>
@@ -545,8 +562,9 @@ function ReviewEditor({
 							<span>Texto</span>
 							<textarea
 								value={segment.text}
-								maxLength={100_000}
-								disabled={busy}
+								maxLength={200_000}
+								aria-invalid={!isReviewStringV1(segment.text, "text")}
+								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { text: event.target.value })}
 							/>
 						</label>
@@ -574,7 +592,7 @@ export function LocalReviewWorkspace({
 	if (review) {
 		return (
 			<ReviewEditor
-				key={review.draftSha256}
+				key={`${review.sourceId}:${review.runId}:${review.draftSha256 ?? review.baseTranscriptSha256}`}
 				review={review}
 				busy={busy}
 				error={error}

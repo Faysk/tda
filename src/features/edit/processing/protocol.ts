@@ -1,3 +1,6 @@
+import { supportsQwenAlignmentRuntime } from "./compatibility";
+import { isReviewStringV1 } from "../../transcript-review/text-contract";
+
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
 export type TranscriptionProfileId =
@@ -190,11 +193,13 @@ export type LocalReview = {
 	sourceId: string;
 	runId: string;
 	baseTranscriptSha256: string;
-	draftRevision: number;
-	draftSha256: string;
+	draftRevision: number | null;
+	draftSha256: string | null;
+	persistence?: "persisted" | "ephemeral_base";
+	snapshotContract?: "tda_local_review_cas_v1";
 	status: LocalReviewStatus;
-	createdAt: string;
-	updatedAt: string;
+	createdAt: string | null;
+	updatedAt: string | null;
 	lineage: {
 		profileId: string;
 		engine: string | null;
@@ -216,6 +221,11 @@ export type LocalReview = {
 		trackCount: number | null;
 	};
 	warnings: readonly string[];
+	warningSummary?: {
+		totalCount: number;
+		displayedCount: number;
+		truncated: boolean;
+	};
 	publicationTarget: LocalPublicationTarget | null;
 	review: {
 		reviewedSegments: number;
@@ -371,6 +381,32 @@ export function parseCapabilities(value: unknown): Capabilities {
 	let catalog: TranscriptionProfileState[] = [];
 	if (row.transcription !== undefined && row.transcription !== null) {
 		const transcription = record(row.transcription);
+		const qwenGateState = new Map<
+			TranscriptionProfileId,
+			{ ready: boolean; runtimeVersion: string | null; reason: string | null }
+		>();
+		if (transcription.qwen_physical_gate !== undefined) {
+			const gates = record(transcription.qwen_physical_gate);
+			for (const profileId of ["qwen-fast", "qwen-quality"] as const) {
+				if (gates[profileId] === undefined) continue;
+				const gate = record(gates[profileId]);
+				if (transcriptionProfile(gate.profile_id) !== profileId) return invalid();
+				const ready = boolean(gate.ready);
+				const runtimeVersion =
+					gate.runtime_version === null || gate.runtime_version === undefined
+						? null
+						: text(gate.runtime_version, 32);
+				if (ready && runtimeVersion === null) return invalid();
+				qwenGateState.set(profileId, {
+					ready,
+					runtimeVersion,
+					reason:
+						gate.reason === null || gate.reason === undefined
+							? null
+							: text(gate.reason, 96),
+				});
+			}
+		}
 		if (!Array.isArray(transcription.profiles) || transcription.profiles.length > 8)
 			return invalid();
 		profiles = transcription.profiles.map(transcriptionProfile);
@@ -406,6 +442,33 @@ export function parseCapabilities(value: unknown): Capabilities {
 				reason: null,
 			}));
 		}
+
+		const qwenBlocked = new Set<TranscriptionProfileId>();
+		catalog = catalog.map((item) => {
+			if (item.engine !== "qwen3") return item;
+			const gate = qwenGateState.get(item.id);
+			if (!gate) return item;
+			if (!gate.ready) {
+				qwenBlocked.add(item.id);
+				return {
+					...item,
+					ready: false,
+					preparationRequired: true,
+					reason: gate.reason ?? "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
+				};
+			}
+			if (!supportsQwenAlignmentRuntime(gate.runtimeVersion)) {
+				qwenBlocked.add(item.id);
+				return {
+					...item,
+					ready: false,
+					preparationRequired: false,
+					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+				};
+			}
+			return item;
+		});
+		profiles = profiles.filter((profileId) => !qwenBlocked.has(profileId));
 	}
 	return {
 		capabilities: row.capabilities.map((value) => text(value)),
@@ -751,6 +814,13 @@ export function parseLocalReview(value: unknown): LocalReview {
 	const sourceId = identifier(row.source_id);
 	const runId = runIdentifier(row.run_id);
 	const baseTranscriptSha256 = sha256(row.base_transcript_sha256);
+	const supportsCas = row.snapshot_contract === "tda_local_review_cas_v1";
+	if (row.snapshot_contract !== undefined && !supportsCas) return invalid();
+	const ephemeral = supportsCas && row.persistence === "ephemeral_base";
+	if (supportsCas && !["persisted", "ephemeral_base"].includes(String(row.persistence))) return invalid();
+	if (ephemeral && (row.draft_revision !== null || row.draft_sha256 !== null ||
+		row.created_at !== null || row.updated_at !== null || status !== "draft")) return invalid();
+	if (!supportsCas && row.persistence !== undefined) return invalid();
 	const lineage = record(row.lineage);
 	const stats = record(row.stats);
 	const review = record(row.review);
@@ -770,8 +840,8 @@ export function parseLocalReview(value: unknown): LocalReview {
 			segmentId: contentText(segment.segment_id, 256),
 			start,
 			end,
-			text: contentText(segment.text, 100_000),
-			speaker: text(segment.speaker, 160),
+			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
+			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
 		};
 	});
@@ -781,15 +851,28 @@ export function parseLocalReview(value: unknown): LocalReview {
 		return invalid();
 	const reviewPercent = nonNegativeNumber(review.review_percent);
 	if (reviewPercent > 100) return invalid();
+	const warningCount = nonNegativeInteger(review.warning_count);
+	let warningSummary: LocalReview["warningSummary"];
+	if (row.warning_summary !== undefined) {
+		const summary = record(row.warning_summary);
+		const totalCount = nonNegativeInteger(summary.total_count);
+		const displayedCount = nonNegativeInteger(summary.displayed_count);
+		const truncated = boolean(summary.truncated);
+		if (totalCount !== warningCount || displayedCount !== row.warnings.length ||
+			displayedCount !== Math.min(totalCount, 1000) || truncated !== (totalCount > displayedCount)) return invalid();
+		warningSummary = { totalCount, displayedCount, truncated };
+	}
 	return {
 		sourceId,
 		runId,
 		baseTranscriptSha256,
-		draftRevision: nonNegativeInteger(row.draft_revision),
-		draftSha256: sha256(row.draft_sha256),
+		draftRevision: ephemeral ? null : nonNegativeInteger(row.draft_revision),
+		draftSha256: ephemeral ? null : sha256(row.draft_sha256),
+		persistence: ephemeral ? "ephemeral_base" : "persisted",
+		...(supportsCas ? { snapshotContract: "tda_local_review_cas_v1" as const } : {}),
 		status: status as LocalReviewStatus,
-		createdAt: isoDate(row.created_at),
-		updatedAt: isoDate(row.updated_at),
+		createdAt: ephemeral ? null : isoDate(row.created_at),
+		updatedAt: ephemeral ? null : isoDate(row.updated_at),
 		lineage: {
 			profileId: text(lineage.profile_id, 64),
 			engine: nullableText(lineage.engine, 64),
@@ -820,6 +903,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 					: nonNegativeInteger(stats.track_count),
 		},
 		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
+		...(warningSummary ? { warningSummary } : {}),
 		publicationTarget: parsePublicationTarget(row.publication_target, {
 			sourceId,
 			runId,
@@ -831,7 +915,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 			reviewPercent,
 			editedSegments: nonNegativeInteger(review.edited_segments),
 			wordCount: nonNegativeInteger(review.word_count),
-			warningCount: nonNegativeInteger(review.warning_count),
+			warningCount,
 		},
 		segments,
 		sync: { status: "not_configured" },

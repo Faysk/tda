@@ -89,6 +89,7 @@ export class ProcessingController {
 	#refreshSequence = 0;
 	#lastDeepReadAt = 0;
 	#submissionKey: string | null = null;
+	#observedJobOverrideId: string | null = null;
 
 	constructor(private readonly bridge = new LocalBridge()) {}
 
@@ -116,6 +117,7 @@ export class ProcessingController {
 
 	disconnect = () => {
 		this.resetRequest();
+		this.#observedJobOverrideId = null;
 		this.bridge.disconnect();
 		// Retain the idempotency key in memory after an ambiguous submission.
 		this.update({
@@ -216,7 +218,13 @@ export class ProcessingController {
 						new Date(left.updated_at).getTime() -
 						new Date(right.updated_at).getTime(),
 				)[0] ?? null;
+		const requestedObservedJob = this.#observedJobOverrideId
+			? (jobs.find((job) => job.id === this.#observedJobOverrideId) ?? null)
+			: null;
+		if (this.#observedJobOverrideId && !requestedObservedJob)
+			this.#observedJobOverrideId = null;
 		const observedJob =
+			requestedObservedJob ??
 			jobs.find((job) => job.status === "running") ??
 			nextQueued ??
 			jobs[0] ??
@@ -422,6 +430,22 @@ export class ProcessingController {
 		}
 	};
 
+	observeJob = async (id: string | null) => {
+		if (this.#state.connection !== "connected") return;
+		if (id !== null && !this.#state.jobs.some((job) => job.id === id)) return;
+		if (this.#observedJobOverrideId === id) return;
+
+		this.#observedJobOverrideId = id;
+		if (id !== null) {
+			// Do not briefly show another job's events while the requested
+			// diagnostic history is being loaded.
+			this.update({ observedJobId: id, events: [] });
+		}
+		await this.runOperation(null, async (signal) => {
+			await this.read(signal, { deep: false, includeLibrary: false });
+		});
+	};
+
 	lifecycle = async (action: "pause" | "resume") => {
 		if (this.#state.connection !== "connected") return;
 		await this.runOperation({ kind: action }, async (signal) => {
@@ -459,6 +483,7 @@ export class ProcessingController {
 
 		await this.runOperation({ kind: "delete", targetId: id }, async (signal) => {
 			await this.bridge.deleteJob(id, signal);
+			if (this.#observedJobOverrideId === id) this.#observedJobOverrideId = null;
 			if (!signal.aborted && this.#state.result?.jobId === id)
 				this.update({ result: null });
 			await this.read(signal, { deep: false, includeLibrary: true });
@@ -526,17 +551,23 @@ export class ProcessingController {
 	};
 
 	saveLocalReview = async (
-		expectedDraftRevision: number,
+		baseline: LocalReview,
 		status: LocalReviewStatus,
 		segments: readonly LocalReviewSegment[],
 	) => {
 		const current = this.#state.localReview;
 		if (!current) return;
+		if (current.sourceId !== baseline.sourceId || current.runId !== baseline.runId ||
+			current.draftRevision !== baseline.draftRevision || current.draftSha256 !== baseline.draftSha256 ||
+			current.baseTranscriptSha256 !== baseline.baseTranscriptSha256) {
+			this.update({ localReviewError: "LOCAL_REVIEW_DRAFT_CONFLICT" });
+			return;
+		}
 		await this.reviewAction((signal) =>
 			this.bridge.saveLocalReview(
 				current.sourceId,
 				current.runId,
-				expectedDraftRevision,
+				baseline,
 				status,
 				segments,
 				signal,

@@ -278,14 +278,52 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [failedJob()],
+		jobEvents: [
+			{
+				seq: 91,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-25T12:00:00Z",
+				level: "error",
+				data: {
+					stage: "alignment",
+					track: 1,
+					window: 89,
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+					runtime_version: "1.0.11",
+					worker_sha256: "a".repeat(64),
+				},
+			},
+		],
 	});
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Ver diagnóstico" }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByRole("heading", { name: "Detalhes do processamento" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "Histórico de eventos" }),
+	).toBeVisible();
+	await expect(page.getByText("1 mais recente", { exact: true })).toBeVisible();
+	await expect(page.getByRole("log")).toContainText(
+		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Identidade da execução: runtime 1.0.11 · worker SHA-256",
+	);
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
-		"não promete retomar do ponto exato",
+		"checkpoints compatíveis serão reutilizados quando disponíveis",
 	);
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 

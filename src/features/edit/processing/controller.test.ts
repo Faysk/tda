@@ -431,6 +431,76 @@ describe("processing state", () => {
 			refreshing: false,
 		});
 	});
+	it("keeps an explicitly inspected failed job observed until diagnostics are released", async () => {
+		const failedA = {
+			...job,
+			id: "failed-a",
+			status: "failed",
+			stage: "failed",
+			progress: { completed: 2, total: 3, unit: "tracks" },
+			error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
+		};
+		const failedB = {
+			...failedA,
+			id: "failed-b",
+			updated_at: "2026-09-25T12:01:00Z",
+		};
+		const diagnosticCaps = {
+			...caps,
+			capabilities: ["job.events"],
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(diagnosticCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [failedA, failedB] });
+			if (value.endsWith("/jobs/failed-a/events"))
+				return Response.json({
+					events: [
+						{
+							seq: 1,
+							code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+							at: "2026-09-25T12:00:00Z",
+							level: "error",
+							data: { track: 1, window: 88 },
+						},
+					],
+				});
+			if (value.endsWith("/jobs/failed-b/events"))
+				return Response.json({
+					events: [
+						{
+							seq: 2,
+							code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+							at: "2026-09-25T12:01:00Z",
+							level: "error",
+							data: { track: 2, window: 89 },
+						},
+					],
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		expect(controller.snapshot().observedJobId).toBe("failed-a");
+		expect(controller.snapshot().events[0]?.data).toMatchObject({ track: 1 });
+
+		await controller.observeJob("failed-b");
+		expect(controller.snapshot().observedJobId).toBe("failed-b");
+		expect(controller.snapshot().events[0]?.data).toMatchObject({
+			track: 2,
+			window: 89,
+		});
+
+		await controller.refresh("background");
+		expect(controller.snapshot().observedJobId).toBe("failed-b");
+
+		await controller.observeJob(null);
+		expect(controller.snapshot().observedJobId).toBe("failed-a");
+		expect(controller.snapshot().events[0]?.data).toMatchObject({ track: 1 });
+	});
+
 	it("observes the oldest queued job because that is the next one executed", async () => {
 		const newer = {
 			...job,
@@ -636,6 +706,7 @@ describe("processing state", () => {
 		};
 		const rawReview = {
 			schema_version: "tda_local_review_v1",
+			snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted",
 			source_id: sourceId,
 			run_id: runId,
 			base_transcript_sha256: "d".repeat(64),
@@ -748,7 +819,7 @@ describe("processing state", () => {
 		const current = controller.snapshot().localReview;
 		if (!current) throw new Error("review did not open");
 		await controller.saveLocalReview(
-			current.draftRevision,
+			current,
 			"reviewed",
 			current.segments,
 		);
