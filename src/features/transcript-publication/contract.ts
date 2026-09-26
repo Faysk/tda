@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { countWordsV1 } from "../transcript-review/text-contract";
+import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
 
 export const PUBLICATION_REQUEST_VERSION =
 	"tda_transcript_publication_request_v1" as const;
@@ -343,16 +343,16 @@ export function preparePublication(raw: string): PreparePublicationResult {
 		const segmentId = text(segment.segmentId, 256);
 		const start = finite(segment.start, 0, 604800);
 		const end = finite(segment.end, 0, 604800);
-		const segmentText = text(segment.text, 100_000);
-		const speaker = text(segment.speaker, 160);
+		const segmentText = isReviewStringV1(segment.text, "text") ? segment.text : null;
+		const speaker = isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : null;
 		if (
 			trackNumber === null ||
 			!segmentId ||
 			start === null ||
 			end === null ||
 			end < start ||
-			!segmentText?.trim() ||
-			!speaker?.trim() ||
+			segmentText === null ||
+			speaker === null ||
 			typeof segment.reviewed !== "boolean"
 		)
 			return { ok: false, reason: "invalid_payload" };

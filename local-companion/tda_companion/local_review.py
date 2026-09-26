@@ -11,7 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from .transcription_runs import TranscriptionRunError, load_verified_transcript_snapshot
-from .review_text import count_words_v1
+from .review_text import count_words_v1, valid_review_string_v1
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
@@ -53,6 +53,10 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+    return _atomic_payload(path, payload)
+
+
+def _atomic_payload(path: Path, payload: bytes) -> bytes:
     if len(payload) <= 0 or len(payload) > _MAX_DRAFT_BYTES:
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_TOO_LARGE")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +132,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
         raw_segments = track.get("segments")
         if isinstance(number, bool) or not isinstance(number, int) or number < 1:
             raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
-        if not isinstance(speaker, str) or not speaker.strip() or len(speaker) > 160:
+        if not valid_review_string_v1(speaker, "speaker"):
             raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
         if not isinstance(raw_segments, list):
             raise LocalReviewError("LOCAL_REVIEW_BASE_SEGMENTS_INVALID")
@@ -148,9 +152,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                 or not isinstance(start, (int, float))
                 or not isinstance(end, (int, float))
                 or float(end) < float(start)
-                or not isinstance(text, str)
-                or not text.strip()
-                or len(text) > 100_000
+                or not valid_review_string_v1(text, "text")
             ):
                 raise LocalReviewError("LOCAL_REVIEW_BASE_SEGMENT_INVALID")
             key = (number, segment_id)
@@ -187,7 +189,7 @@ def _warnings(transcript: dict[str, Any]) -> list[str]:
 def _validate_segment_payload(
     candidate: Any,
     base: dict[tuple[int, str], dict[str, Any]],
-    *, canonicalize: bool = True,
+    *, canonicalize: bool = True, validate_editorial: bool = True,
 ) -> list[dict[str, Any]]:
     if not isinstance(candidate, list) or len(candidate) != len(base):
         raise LocalReviewError("LOCAL_REVIEW_SEGMENTS_INVALID")
@@ -212,9 +214,9 @@ def _validate_segment_payload(
         seen.add(key)
         if raw.get("start") != original["start"] or raw.get("end") != original["end"]:
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_TIMING_IMMUTABLE")
-        if not isinstance(text, str) or not text.strip() or len(text) > 100_000:
+        if not isinstance(text, str) or (validate_editorial and not valid_review_string_v1(text, "text")):
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_TEXT_INVALID")
-        if not isinstance(speaker, str) or not speaker.strip() or len(speaker) > 160:
+        if not isinstance(speaker, str) or (validate_editorial and not valid_review_string_v1(speaker, "speaker")):
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_SPEAKER_INVALID")
         if not isinstance(reviewed, bool):
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_REVIEWED_INVALID")
@@ -331,11 +333,13 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
 def _open_from_snapshot(
     path: Path, source_id: str, run_id: str,
     manifest: dict[str, Any], transcript: dict[str, Any],
+    *, allow_legacy_editorial: bool = False,
+    draft_snapshot: tuple[dict[str, Any], bytes] | None = None,
 ) -> dict[str, Any]:
     base_segments = _base_segments(transcript)
     warnings = _warnings(transcript)
     if path.exists():
-        draft, payload = _bounded_json(path)
+        draft, payload = draft_snapshot if draft_snapshot is not None else _bounded_json(path)
         if (
             draft.get("schema_version") != REVIEW_SCHEMA_VERSION
             or draft.get("source_id") != source_id
@@ -351,7 +355,13 @@ def _open_from_snapshot(
             (item["track_number"], item["segment_id"]): item
             for item in base_segments
         }
-        draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map, canonicalize=False)
+        try:
+            draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map,
+                                                         canonicalize=False, validate_editorial=not allow_legacy_editorial)
+        except LocalReviewError as exc:
+            if str(exc) in {"LOCAL_REVIEW_SEGMENT_TEXT_INVALID", "LOCAL_REVIEW_SEGMENT_SPEAKER_INVALID"}:
+                raise LocalReviewError("LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED") from exc
+            raise
         return _response(
             draft,
             payload,
@@ -451,3 +461,43 @@ def save_review(
             base_segments=base_segments,
             warnings=_warnings(transcript),
         )
+
+
+def repair_legacy_review(
+    package_root: Path, *, source_id: str, run_id: str,
+    expected_revision: int, expected_sha256: str, segments: Any,
+) -> dict[str, Any]:
+    """Explicit offline repair; retains byte-exact evidence before replacement.
+
+    Run only with the Companion stopped, because its process RootLock is not held
+    by offline tooling. A new save still validates every replacement field.
+    """
+    path = _review_path(package_root, run_id)
+    with _lock_for(path):
+        manifest, transcript = _load_base(package_root, source_id, run_id)
+        snapshot = _bounded_json(path)
+        current = _open_from_snapshot(path, source_id, run_id, manifest, transcript,
+                                      allow_legacy_editorial=True, draft_snapshot=snapshot)
+        if (isinstance(expected_revision, bool) or not isinstance(expected_revision, int)
+                or current["draft_revision"] != expected_revision
+                or current["draft_sha256"] != expected_sha256):
+            raise LocalReviewError("LOCAL_REVIEW_DRAFT_CONFLICT")
+        if all(valid_review_string_v1(row[field], field)
+               for row in current["segments"] for field in ("text", "speaker")):
+            raise LocalReviewError("LOCAL_REVIEW_REPAIR_NOT_REQUIRED")
+        base_segments = _base_segments(transcript)
+        base_map = {(item["track_number"], item["segment_id"]): item for item in base_segments}
+        replacement = _validate_segment_payload(segments, base_map)
+        backup = path.with_name(f"draft-before-repair-{expected_sha256}.json")
+        if backup.is_symlink():
+            raise LocalReviewError("LOCAL_REVIEW_REPAIR_BACKUP_INVALID")
+        if backup.exists():
+            if _bounded_json(backup)[1] != snapshot[1]:
+                raise LocalReviewError("LOCAL_REVIEW_REPAIR_BACKUP_INVALID")
+        else:
+            _atomic_payload(backup, snapshot[1])
+        draft = {**snapshot[0], "segments": replacement, "status": "draft",
+                 "draft_revision": expected_revision + 1, "updated_at": utc_now()}
+        payload = _atomic_json(path, draft)
+        return _response(draft, payload, manifest=manifest, base_segments=base_segments,
+                         warnings=_warnings(transcript))

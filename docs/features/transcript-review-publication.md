@@ -64,6 +64,48 @@ histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado a
 
 ## Objetivo
 
+### Strings editoriais — candidato #668
+
+`review_string_rules_v1` mede comprimento por valores escalares Unicode: texto
+até 100.000, participante até 160. Surrogates isolados são inválidos. A verificação
+de conteúdo não vazio usa exatamente White_Space de `count_words_v1`; não remove
+espaços nem normaliza NFC/NFKC. Texto permite TAB/LF/CR e rejeita os outros controles
+C0 e DEL. Participante rejeita todos os C0 e DEL. O mesmo fixture versionado
+`fixtures/transcript-review-strings-v1.json` alimenta Agent, parser Web e contrato
+cloud, incluindo limites ASCII/BMP/emoji, NEL, BOM, combinantes e controles.
+
+O Agent aplica o contrato à vista da base e valida mutações antes de persistir.
+A Web verifica antes do save e não usa o limite UTF-16 nativo como regra editorial:
+os campos comportam até o dobro de unidades UTF-16 e a validação decide o limite
+real. Strings aceitas preservam cada caractere no save, reopen e payload cloud.
+
+**Reparo explícito de revisão antiga:** uma string incompatível num draft existente
+retorna somente `LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED`, sem o texto privado
+no diagnóstico. A leitura não modifica o arquivo. Para reparar:
+
+1. Fechar o Companion e preservar o data root. Abrir localmente o `draft.json`
+   afetado, registrar sua revisão e SHA-256 exato; não enviar esse arquivo ao GitHub.
+2. Preparar um JSON local com `{"segments": [...]}` contendo o conjunto completo
+   de segmentos corrigidos. Manter identidades e timestamps; escolher explicitamente
+   cada correção. Não apagar ou normalizar caracteres automaticamente.
+3. No ambiente Python do Companion, executar
+   `python tools/repair_local_review.py --data-root <root> --package-root <root/staging/source> --run-id <run> --expected-revision <n> --expected-sha256 <sha> --replacement-file <json-local>`.
+   O comando exige package dentro do staging informado, adquire `RootLock` e recusa
+   um Companion ativo. CAS e validação acontecem antes de qualquer substituição.
+4. Conferir o resultado (somente revision/SHA/status), reabrir e revisar. A cópia
+   `draft-before-repair-<sha>.json` preserva **os bytes originais** antes da troca.
+   O reparo gera nova revisão em status `draft`, nunca herda aprovação.
+
+Se a validação ou backup falhar, não há substituição do draft. Uma cópia preservada
+não é prova de publicação nem de tolerância a falha elétrica (#671). Recuperação
+manual mantém o original e a revisão reparada; não deve apagar a evidência.
+Base imutável inválida continua recusada sem ser reescrita pelo reparador de draft.
+
+Compatibilidade: promover Web/cloud com suporte aos limites escalares antes do
+Companion novo. Reverter parsers para UTF-16 pode tornar revisões válidas ilegíveis;
+manter leitores compatíveis no rollback, sem reescrever dados para ajustá-los.
+Esta entrega não publica revisões, não migra o banco e não altera saída ASR.
+
 ### Snapshot e primeiro save — candidato #669 / #672
 
 A resposta de revisão anuncia `snapshot_contract=tda_local_review_cas_v1`.

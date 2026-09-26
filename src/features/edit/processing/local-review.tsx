@@ -14,7 +14,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
-import { countWordsV1 } from "../../transcript-review/text-contract";
+import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -105,6 +105,12 @@ function reviewError(code: string | null): string | null {
 			"Este draft mudou em outra aba ou processo. Feche sem descartar seu texto, reabra a revisão e reconcilie antes de salvar.",
 		LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED:
 			"Atualize o Companion e a página para salvar revisões com verificação de conteúdo.",
+		LOCAL_REVIEW_SEGMENT_TEXT_INVALID:
+			"O texto contém caracteres inválidos ou excede o limite de 100.000 caracteres. Corrija antes de salvar.",
+		LOCAL_REVIEW_SEGMENT_SPEAKER_INVALID:
+			"O nome do participante contém caracteres inválidos ou excede o limite de 160 caracteres. Corrija antes de salvar.",
+		LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED:
+			"Esta revisão antiga contém caracteres incompatíveis. O arquivo foi preservado e precisa de reparo local explícito; consulte o procedimento de reparo de revisão.",
 		LOCAL_REVIEW_BASE_RUN_INVALID:
 			"O run bruto não passou na verificação de integridade. Ele não foi alterado.",
 		LOCAL_REVIEW_RUN_NOT_VISIBLE:
@@ -214,6 +220,7 @@ function ReviewEditor({
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
 	const ephemeral = review.persistence === "ephemeral_base";
+	const invalidStrings = segments.some((segment) => !isReviewStringV1(segment.text, "text") || !isReviewStringV1(segment.speaker, "speaker"));
 
 	useEffect(() => {
 		if (!dirty) return;
@@ -335,7 +342,7 @@ function ReviewEditor({
 					<Button
 						size="sm"
 						variant="primary"
-						disabled={busy || !dirty || !canSave}
+						disabled={busy || !dirty || !canSave || invalidStrings}
 						onClick={() => void onSave(review, status, segments)}
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
@@ -513,6 +520,7 @@ function ReviewEditor({
 			{reviewError(error) ? (
 				<p className={styles.error} role="alert">{reviewError(error)}</p>
 			) : null}
+			{invalidStrings ? <p className={styles.error} role="alert">Corrija os campos destacados: texto com até 100.000 caracteres e participante com até 160, sem controles incompatíveis.</p> : null}
 			{dirty ? (
 				<p className={styles.unsaved} role="status">Alterações não salvas neste draft.</p>
 			) : (
@@ -542,7 +550,8 @@ function ReviewEditor({
 							<span>Speaker</span>
 							<input
 								value={segment.speaker}
-								maxLength={160}
+								maxLength={320}
+								aria-invalid={!isReviewStringV1(segment.speaker, "speaker")}
 								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { speaker: event.target.value })}
 							/>
@@ -551,7 +560,8 @@ function ReviewEditor({
 							<span>Texto</span>
 							<textarea
 								value={segment.text}
-								maxLength={100_000}
+								maxLength={200_000}
+								aria-invalid={!isReviewStringV1(segment.text, "text")}
 								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { text: event.target.value })}
 							/>

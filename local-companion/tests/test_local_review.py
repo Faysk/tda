@@ -378,12 +378,12 @@ def test_warning_projection_preserves_factual_total(tmp_path: Path, count: int):
 def test_editorial_word_count_uses_canonical_whitespace_without_rewrite(tmp_path: Path):
     package, source_id, run = _package(tmp_path)
     opened = open_review(package, source_id=source_id, run_id=run["run_id"])
-    opened["segments"][0]["text"] = "a\u0085b\u001cc"
+    opened["segments"][0]["text"] = "a\u0085b\ufeffc"
     saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
         **_expected(opened), "status": "draft", "segments": opened["segments"],
     })
     assert saved["review"]["word_count"] == 4
-    assert saved["segments"][0]["text"] == "a\u0085b\u001cc"
+    assert saved["segments"][0]["text"] == "a\u0085b\ufeffc"
 
 
 def _expected(review):
@@ -492,3 +492,86 @@ def test_historical_revision_zero_remains_persisted_and_requires_its_exact_hash(
         save_review(package, source_id=source_id, run_id=run["run_id"], value={
             **_expected(opened), "status": "draft", "segments": opened["segments"],
         })
+
+
+_STRING_CASES = json.loads((Path(__file__).resolve().parents[2] / "fixtures/transcript-review-strings-v1.json").read_text(encoding="utf-8"))["cases"]
+
+
+@pytest.mark.parametrize("case", _STRING_CASES, ids=lambda case: case["name"])
+def test_save_accepts_exact_shared_string_contract_before_write(tmp_path, case):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    value = ("".join(chr(code) for code in case["codePoints"]) if "codePoints" in case else case["value"]) * case["repeat"]
+    opened["segments"][0][case["field"]] = value
+    request = {**_expected(opened), "status": "draft", "segments": opened["segments"]}
+    if case["valid"]:
+        saved = save_review(package, source_id=source_id, run_id=run["run_id"], value=request)
+        # Includes JSON's real UTF-8 response path and reopen, not just validation.
+        json.dumps(saved, ensure_ascii=False).encode("utf-8")
+        assert saved["segments"][0][case["field"]] == value
+        assert open_review(package, source_id=source_id, run_id=run["run_id"]) == saved
+    else:
+        with pytest.raises(LocalReviewError, match=f"LOCAL_REVIEW_SEGMENT_{case['field'].upper()}_INVALID"):
+            save_review(package, source_id=source_id, run_id=run["run_id"], value=request)
+        assert not (package / "revisions").exists()
+
+
+def test_legacy_invalid_strings_require_explicit_repair_and_preserve_original(tmp_path):
+    from tda_companion.local_review import repair_legacy_review
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "approved_local", "segments": opened["segments"],
+    })
+    path = package / "revisions" / run["run_id"] / "draft.json"
+    legacy = json.loads(path.read_bytes())
+    legacy["segments"][0]["text"] = "PRIVATE\ud800"
+    before = json.dumps(legacy).encode("utf-8")
+    path.write_bytes(before)
+    with pytest.raises(LocalReviewError, match="^LOCAL_REVIEW_LEGACY_STRING_REPAIR_REQUIRED$"):
+        open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert path.read_bytes() == before
+    digest = hashlib.sha256(before).hexdigest()
+    with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_DRAFT_CONFLICT"):
+        repair_legacy_review(package, source_id=source_id, run_id=run["run_id"],
+                             expected_revision=1, expected_sha256="f" * 64, segments=opened["segments"])
+    assert path.read_bytes() == before
+    fixed = repair_legacy_review(package, source_id=source_id, run_id=run["run_id"],
+                                 expected_revision=1, expected_sha256=digest, segments=opened["segments"])
+    assert fixed["draft_revision"] == 2
+    assert fixed["status"] == "draft"
+    assert path.with_name(f"draft-before-repair-{digest}.json").read_bytes() == before
+    assert open_review(package, source_id=source_id, run_id=run["run_id"]) == fixed
+
+
+def test_offline_repair_cli_respects_agent_root_lock(tmp_path):
+    import subprocess
+    import sys
+    from tda_companion.__main__ import RootLock
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    package, source_id, run = _package(staging)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
+    })
+    path = package / "revisions" / run["run_id"] / "draft.json"
+    legacy = json.loads(path.read_bytes())
+    legacy["segments"][0]["speaker"] = "Old\nName"
+    before = json.dumps(legacy).encode()
+    path.write_bytes(before)
+    replacement = tmp_path / "repair-input.json"
+    replacement.write_text(json.dumps({"segments": opened["segments"]}), encoding="utf-8")
+    command = [sys.executable, str(Path(__file__).resolve().parents[1] / "tools/repair_local_review.py"),
+               "--data-root", str(tmp_path), "--package-root", str(package), "--run-id", run["run_id"],
+               "--expected-revision", "1", "--expected-sha256", hashlib.sha256(before).hexdigest(),
+               "--replacement-file", str(replacement)]
+    with RootLock(tmp_path):
+        blocked = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        assert blocked.returncode != 0
+        assert path.read_bytes() == before
+    repaired = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert repaired.returncode == 0, repaired.stderr
+    assert json.loads(repaired.stdout)["original_preserved"] is True
+    assert "Old" not in repaired.stdout
+    assert open_review(package, source_id=source_id, run_id=run["run_id"])["draft_revision"] == 2

@@ -1,0 +1,27 @@
+{
+  "schema": "review_string_rules_v1",
+  "cases": [
+    {"name":"speaker-ascii-limit","field":"speaker","value":"a","repeat":160,"valid":true},
+    {"name":"speaker-ascii-over","field":"speaker","value":"a","repeat":161,"valid":false},
+    {"name":"speaker-emoji-limit","field":"speaker","value":"😀","repeat":160,"valid":true},
+    {"name":"speaker-emoji-over","field":"speaker","value":"😀","repeat":161,"valid":false},
+    {"name":"text-bmp-limit","field":"text","value":"ã","repeat":100000,"valid":true},
+    {"name":"text-bmp-over","field":"text","value":"ã","repeat":100001,"valid":false},
+    {"name":"text-emoji-limit","field":"text","value":"😀","repeat":100000,"valid":true},
+    {"name":"text-emoji-over","field":"text","value":"😀","repeat":100001,"valid":false},
+    {"name":"text-multiline","field":"text","value":"a\n\tb\rc","repeat":1,"valid":true},
+    {"name":"text-nul","field":"text","value":"a\u0000b","repeat":1,"valid":false},
+    {"name":"text-control","field":"text","value":"a\u001cb","repeat":1,"valid":false},
+    {"name":"text-del","field":"text","value":"a\u007fb","repeat":1,"valid":false},
+    {"name":"speaker-lf","field":"speaker","value":"a\nb","repeat":1,"valid":false},
+    {"name":"speaker-tab","field":"speaker","value":"a\tb","repeat":1,"valid":false},
+    {"name":"speaker-del","field":"speaker","value":"a\u007fb","repeat":1,"valid":false},
+    {"name":"text-surrogate-high","field":"text","value":"","codePoints":[55296],"repeat":1,"valid":false},
+    {"name":"speaker-surrogate-low","field":"speaker","value":"","codePoints":[57343],"repeat":1,"valid":false},
+    {"name":"text-whitespace-only","field":"text","value":"\u0085\u00a0\u3000","repeat":1,"valid":false},
+    {"name":"speaker-whitespace-only","field":"speaker","value":"\u0085\u00a0\u3000","repeat":1,"valid":false},
+    {"name":"text-bom-not-space","field":"text","value":"\ufeff","repeat":1,"valid":true},
+    {"name":"text-combining-no-normalization","field":"text","value":"é","repeat":1,"valid":true},
+    {"name":"speaker-spaces-preserved","field":"speaker","value":"  Renée  ","repeat":1,"valid":true}
+  ]
+}
