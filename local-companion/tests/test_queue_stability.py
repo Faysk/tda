@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from tda_companion.legacy.artifacts import sha256_json
 from tda_companion.store import Conflict, Store
 
 
@@ -243,14 +244,7 @@ def test_terminal_job_can_be_removed_with_events(tmp_path):
         assert db.execute(
             'SELECT job_id,signature FROM idempotency_keys WHERE key=?',
             ('delete-terminal',),
-        ).fetchone() == (job['id'], __import__('hashlib').sha256(
-            __import__('json').dumps(
-                BODY,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(',', ':'),
-            ).encode('utf-8')
-        ).hexdigest())
+        ).fetchone() == (job['id'], sha256_json(BODY))
     with pytest.raises(Conflict, match='IDEMPOTENCY_OPERATION_REMOVED'):
         store.submit('delete-terminal', BODY)
 
