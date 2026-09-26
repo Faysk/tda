@@ -401,20 +401,19 @@ class Store:
             ).fetchall()
             has_more = len(rows) > limit
             selected = rows[:limit]
-            if descending:
-                selected = list(reversed(selected))
             events = [self._event_dto(row) for row in selected]
+            sequences = [event["seq"] for event in events]
 
             return {
                 "events": events,
                 "has_more": has_more,
-                "next_after_seq": events[-1]["seq"] if events else after_seq,
-                "next_before_seq": events[0]["seq"] if events else before_seq,
+                "next_after_seq": max(sequences) if sequences else after_seq,
+                "next_before_seq": min(sequences) if sequences else before_seq,
             }
 
     def events(self, job_id):
         """Legacy latest-page helper retains the historical newest-first ordering."""
-        return list(reversed(self.events_page(job_id)["events"]))
+        return self.events_page(job_id)["events"]
 
     def remove(self, job_id):
         with self.tx() as db:
