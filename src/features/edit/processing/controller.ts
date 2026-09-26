@@ -551,17 +551,23 @@ export class ProcessingController {
 	};
 
 	saveLocalReview = async (
-		expectedDraftRevision: number,
+		baseline: LocalReview,
 		status: LocalReviewStatus,
 		segments: readonly LocalReviewSegment[],
 	) => {
 		const current = this.#state.localReview;
 		if (!current) return;
+		if (current.sourceId !== baseline.sourceId || current.runId !== baseline.runId ||
+			current.draftRevision !== baseline.draftRevision || current.draftSha256 !== baseline.draftSha256 ||
+			current.baseTranscriptSha256 !== baseline.baseTranscriptSha256) {
+			this.update({ localReviewError: "LOCAL_REVIEW_DRAFT_CONFLICT" });
+			return;
+		}
 		await this.reviewAction((signal) =>
 			this.bridge.saveLocalReview(
 				current.sourceId,
 				current.runId,
-				expectedDraftRevision,
+				baseline,
 				status,
 				segments,
 				signal,

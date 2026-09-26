@@ -75,7 +75,7 @@ def _package(tmp_path: Path) -> tuple[Path, str, dict]:
     return package_root, source_id, run
 
 
-def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Path):
+def test_open_review_is_pure_without_mutating_raw_run(tmp_path: Path):
     package_root, source_id, run = _package(tmp_path)
     transcript = package_root / "runs" / run["run_id"] / "transcript.json"
     raw_before = transcript.read_bytes()
@@ -93,7 +93,9 @@ def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Pa
     assert review["source_id"] == source_id
     assert review["run_id"] == run["run_id"]
     assert review["base_transcript_sha256"] == run["transcript_sha256"]
-    assert review["draft_revision"] == 0
+    assert review["draft_revision"] is None
+    assert review["draft_sha256"] is None
+    assert review["persistence"] == "ephemeral_base"
     assert review["status"] == "draft"
     assert review["review"] == {
         "reviewed_segments": 0,
@@ -106,7 +108,7 @@ def test_open_review_creates_derived_draft_without_mutating_raw_run(tmp_path: Pa
     assert review["sync"] == {"status": "not_configured"}
     assert [item["segment_id"] for item in review["segments"]] == ["1-0", "1-1"]
     assert transcript.read_bytes() == raw_before
-    assert (package_root / "revisions" / run["run_id"] / "draft.json").is_file()
+    assert not (package_root / "revisions").exists()
 
 
 def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
@@ -127,7 +129,7 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
         source_id=source_id,
         run_id=run["run_id"],
         value={
-            "expected_draft_revision": 0,
+            **_expected(opened),
             "status": "reviewed",
             "segments": segments,
         },
@@ -164,7 +166,7 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
             source_id=source_id,
             run_id=run["run_id"],
             value={
-                "expected_draft_revision": 1,
+                **_expected(reopened),
                 "status": "reviewed",
                 "segments": changed,
             },
@@ -191,7 +193,7 @@ def test_stale_review_save_conflicts_without_overwrite(tmp_path: Path):
         source_id=source_id,
         run_id=run["run_id"],
         value={
-            "expected_draft_revision": 0,
+            **_expected(opened),
             "status": "draft",
             "segments": first,
         },
@@ -205,7 +207,7 @@ def test_stale_review_save_conflicts_without_overwrite(tmp_path: Path):
             source_id=source_id,
             run_id=run["run_id"],
             value={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "draft",
                 "segments": stale,
             },
@@ -233,7 +235,7 @@ def test_segment_identity_and_timing_are_not_editable(tmp_path: Path):
                 source_id=source_id,
                 run_id=run["run_id"],
                 value={
-                    "expected_draft_revision": 0,
+                    **_expected(opened),
                     "status": "draft",
                     "segments": segments,
                 },
@@ -267,14 +269,14 @@ def test_two_runs_keep_independent_review_drafts(tmp_path: Path):
         source_id=source_id,
         run_id=first["run_id"],
         value={
-            "expected_draft_revision": 0,
+            **_expected(a),
             "status": "draft",
             "segments": edited,
         },
     )
 
     current_b = open_review(package_root, source_id=source_id, run_id=second["run_id"])
-    assert current_b["draft_revision"] == 0
+    assert current_b["draft_revision"] is None
     assert current_b["segments"][0]["text"] == b["segments"][0]["text"] == "Run B"
 
 
@@ -321,7 +323,7 @@ def test_save_reads_one_base_snapshot(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(reviews, "load_verified_transcript_snapshot", count)
     save_review(package, source_id=source_id, run_id=run["run_id"], value={
-        "expected_draft_revision": 0, "status": "draft", "segments": opened["segments"],
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
     })
     assert len(reads) == 1
 
@@ -343,15 +345,18 @@ def test_semantically_invalid_historical_run_fails_before_creating_draft(tmp_pat
 def test_reordered_save_is_noop_and_real_edits_use_immutable_base_order(tmp_path: Path):
     package, source_id, run = _package(tmp_path)
     opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    opened = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
+    })
     reversed_segments = list(reversed(opened["segments"]))
     saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
-        "expected_draft_revision": 0, "status": "draft", "segments": reversed_segments,
+        **_expected(opened), "status": "draft", "segments": reversed_segments,
     })
     assert saved["draft_revision"] == opened["draft_revision"]
     assert saved["draft_sha256"] == opened["draft_sha256"]
     reversed_segments[0]["text"] = "Real edit"
     edited = save_review(package, source_id=source_id, run_id=run["run_id"], value={
-        "expected_draft_revision": 0, "status": "draft", "segments": reversed_segments,
+        **_expected(opened), "status": "draft", "segments": reversed_segments,
     })
     assert [row["segment_id"] for row in edited["segments"]] == ["1-0", "1-1"]
     assert edited["segments"][1]["text"] == "Real edit"
@@ -375,7 +380,115 @@ def test_editorial_word_count_uses_canonical_whitespace_without_rewrite(tmp_path
     opened = open_review(package, source_id=source_id, run_id=run["run_id"])
     opened["segments"][0]["text"] = "a\u0085b\u001cc"
     saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
-        "expected_draft_revision": 0, "status": "draft", "segments": opened["segments"],
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
     })
     assert saved["review"]["word_count"] == 4
     assert saved["segments"][0]["text"] == "a\u0085b\u001cc"
+
+
+def _expected(review):
+    expected = ({"persistence": "ephemeral_base", "base_transcript_sha256": review["base_transcript_sha256"]}
+                if review["persistence"] == "ephemeral_base" else
+                {"persistence": "persisted", "draft_revision": review["draft_revision"], "draft_sha256": review["draft_sha256"]})
+    return {"snapshot_contract": "tda_local_review_cas_v1", "expected": expected}
+
+
+def test_repeated_open_is_stable_without_editorial_storage(tmp_path):
+    package, source_id, run = _package(tmp_path)
+    before = {str(p.relative_to(package)): (p.stat().st_mtime_ns, p.read_bytes())
+              for p in package.rglob("*") if p.is_file()}
+    a = open_review(package, source_id=source_id, run_id=run["run_id"])
+    b = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert a == b
+    assert a["created_at"] is a["updated_at"] is None
+    assert before == {str(p.relative_to(package)): (p.stat().st_mtime_ns, p.read_bytes())
+                      for p in package.rglob("*") if p.is_file()}
+    assert not (package / "revisions").exists()
+
+
+def test_two_first_saves_have_exactly_one_winner(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+
+    def save(text):
+        segments = [dict(item) for item in opened["segments"]]
+        segments[0]["text"] = text
+        try:
+            return save_review(package, source_id=source_id, run_id=run["run_id"], value={
+                **_expected(opened), "status": "draft", "segments": segments,
+            })
+        except LocalReviewError as exc:
+            return str(exc)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(save, ["First", "Second"]))
+    assert results.count("LOCAL_REVIEW_DRAFT_CONFLICT") == 1
+    winner = next(item for item in results if isinstance(item, dict))
+    assert winner["draft_revision"] == 1
+    assert open_review(package, source_id=source_id, run_id=run["run_id"]) == winner
+
+
+def test_same_revision_changed_bytes_conflict_and_preserve_restored_snapshot(tmp_path):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
+    })
+    path = package / "revisions" / run["run_id"] / "draft.json"
+    restored = json.loads(path.read_bytes())
+    restored["segments"][0]["text"] = "Restored at the same revision"
+    changed_bytes = json.dumps(restored).encode()
+    path.write_bytes(changed_bytes)
+    with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_DRAFT_CONFLICT"):
+        save_review(package, source_id=source_id, run_id=run["run_id"], value={
+            **_expected(saved), "status": "reviewed", "segments": saved["segments"],
+        })
+    assert path.read_bytes() == changed_bytes
+    latest = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert latest["draft_revision"] == saved["draft_revision"]
+    assert latest["draft_sha256"] != saved["draft_sha256"]
+    updated = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(latest), "status": "reviewed", "segments": latest["segments"],
+    })
+    assert updated["draft_revision"] == 2
+
+
+@pytest.mark.parametrize("corruption", ["missing-contract", "missing-sha", "invalid-sha", "wrong-base"])
+def test_missing_or_invalid_snapshot_precondition_never_creates_draft(tmp_path, corruption):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    request = {**_expected(opened), "status": "draft", "segments": opened["segments"]}
+    if corruption == "missing-contract":
+        request.pop("snapshot_contract")
+    elif corruption == "wrong-base":
+        request["expected"]["base_transcript_sha256"] = "f" * 64
+    else:
+        request["expected"] = {"persistence": "persisted", "draft_revision": 0}
+        if corruption == "invalid-sha":
+            request["expected"]["draft_sha256"] = "no-hash"
+    with pytest.raises(LocalReviewError):
+        save_review(package, source_id=source_id, run_id=run["run_id"], value=request)
+    assert not (package / "revisions").exists()
+
+
+def test_historical_revision_zero_remains_persisted_and_requires_its_exact_hash(tmp_path):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
+    })
+    path = package / "revisions" / run["run_id"] / "draft.json"
+    legacy = json.loads(path.read_bytes())
+    legacy["draft_revision"] = 0
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+    before = path.read_bytes()
+    historic = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert historic["persistence"] == "persisted"
+    assert historic["draft_revision"] == 0
+    assert historic["draft_sha256"] == hashlib.sha256(before).hexdigest()
+    assert path.read_bytes() == before
+    with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_DRAFT_CONFLICT"):
+        save_review(package, source_id=source_id, run_id=run["run_id"], value={
+            **_expected(opened), "status": "draft", "segments": opened["segments"],
+        })

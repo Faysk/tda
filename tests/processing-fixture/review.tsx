@@ -1,18 +1,23 @@
 import { LocalReviewWorkspace } from "../../src/features/edit/processing/local-review";
 import type { LocalReview } from "../../src/features/edit/processing/protocol";
+import { useState } from "react";
 
 // Synthetic browser data; the product never imports this isolated harness.
 export function ReviewFixture() {
 	const legacy = new URLSearchParams(location.search).has("legacy");
-	const review: LocalReview = {
+	const ephemeral = new URLSearchParams(location.search).has("ephemeral");
+	const oldAgent = new URLSearchParams(location.search).has("old-agent");
+	const [review, setReview] = useState<LocalReview>({
 		sourceId: `craig-${"a".repeat(64)}`,
 		runId: "run-synthetic-a1",
 		baseTranscriptSha256: "b".repeat(64),
-		draftSha256: "c".repeat(64),
-		draftRevision: 1,
+		draftSha256: ephemeral ? null : "c".repeat(64),
+		draftRevision: ephemeral ? null : 1,
+		persistence: ephemeral ? "ephemeral_base" : "persisted",
+		...(oldAgent ? {} : { snapshotContract: "tda_local_review_cas_v1" }),
 		status: "draft",
-		createdAt: "2026-09-26T12:00:00Z",
-		updatedAt: "2026-09-26T12:00:00Z",
+		createdAt: ephemeral ? null : "2026-09-26T12:00:00Z",
+		updatedAt: ephemeral ? null : "2026-09-26T12:00:00Z",
 		lineage: {
 			profileId: "whisper-detailed",
 			engine: "faster-whisper",
@@ -67,7 +72,7 @@ export function ReviewFixture() {
 			},
 		],
 		sync: { status: "not_configured" },
-	};
+	});
 	return (
 		<LocalReviewWorkspace
 			runs={[]}
@@ -76,7 +81,9 @@ export function ReviewFixture() {
 			error={null}
 			publicationEnabled={false}
 			onOpen={() => {}}
-			onSave={() => {}}
+			onSave={(baseline, status, segments) => setReview({ ...baseline, status, segments,
+				persistence: "persisted", draftRevision: (baseline.draftRevision ?? 0) + 1,
+				draftSha256: "e".repeat(64), createdAt: "2026-09-26T12:00:00Z", updatedAt: "2026-09-26T12:00:00Z" })}
 			onClose={() => {}}
 			onPublish={async () => {
 				throw new Error("Synthetic fixture cannot publish");

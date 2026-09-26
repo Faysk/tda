@@ -64,6 +64,45 @@ histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado a
 
 ## Objetivo
 
+### Snapshot e primeiro save — candidato #669 / #672
+
+A resposta de revisão anuncia `snapshot_contract=tda_local_review_cas_v1`.
+Sem arquivo de draft, GET retorna `persistence=ephemeral_base`, revisão/SHA/datas
+nulos, status `draft` como estado editável da vista, e nenhum diretório/arquivo de
+revisão é criado. A Web apresenta **Sem revisão salva**. Consultas repetidas
+retornam a mesma vista sem atualizar timestamps ou resumo editorial persistente.
+
+O primeiro POST explícito envia `expected={persistence: ephemeral_base,
+base_transcript_sha256}`; sob os locks existentes, o Agent exige ausência real de
+draft e base idêntica, valida o candidato e grava a primeira revisão **1**. Um save
+explícito idêntico à base materializa o draft; a UI mantém Save desabilitado até
+uma intenção editorial (editar, marcar revisão ou selecionar estado). Aprovar
+localmente sem editar texto também exige esse save explícito. Approval independente
+e vinculada ao SHA permanece no escopo de #660.
+
+Para drafts persistidos, POST exige `expected={persistence: persisted,
+draft_revision, draft_sha256}`. O SHA deriva dos mesmos bytes limitados por tamanho
+que foram parseados. Revision ou SHA divergentes geram
+`LOCAL_REVIEW_DRAFT_CONFLICT`, sem write. A Web transporta o baseline que originou
+a cópia editada e verifica identidade source/run/base/revision/SHA antes do envio.
+O primeiro save de uma segunda aba com precondition de ausência também conflita.
+Draft histórico r0 continua **persistido**, com seu SHA real, sem migração na leitura.
+
+Compatibilidade: ausência ou versão desconhecida do contrato nunca é wildcard.
+Cliente antigo que envia somente revision recebe
+`LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED` (422). Web nova lê Agent anterior em
+modo somente leitura, com instrução de atualização. Publicar uma vista ephemeral
+é rejeitado no cliente. Promover Web compatível antes do Companion e pedir refresh
+das abas antigas; não liberar o Companion antes dessa entrega coordenada.
+Rollback exige manter o CAS até todas as versões que dependem dele serem retiradas;
+reverter para revision-only afrouxa a proteção e não é um rollback transparente.
+Nenhum draft histórico é removido e nenhum conteúdo é publicado nesta mudança.
+
+Regressões sintéticas cobrem GET puro, save explícito sem edição, duas primeiras
+escritas concorrentes, SHA alterado com revision igual, revisão zero histórica,
+preconditions ausentes/inválidas, falha de replace e separação de runs. Os testes
+de navegador verificam os estados ephemeral/persistido e Agent antigo sem edição.
+
 ### Integridade local validada em candidato — 2026-09-26
 
 As correções de [#666](https://github.com/Faysk/tda/issues/666) e
