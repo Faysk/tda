@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from .transcription_runs import TranscriptionRunError, load_verified_transcript_snapshot
+from .review_text import count_words_v1
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
@@ -175,12 +176,13 @@ def _warnings(transcript: dict[str, Any]) -> list[str]:
     for value in raw:
         if isinstance(value, str) and value and len(value) <= 1024:
             values.append(value)
-    return values[:1000]
+    return values
 
 
 def _validate_segment_payload(
     candidate: Any,
     base: dict[tuple[int, str], dict[str, Any]],
+    *, canonicalize: bool = True,
 ) -> list[dict[str, Any]]:
     if not isinstance(candidate, list) or len(candidate) != len(base):
         raise LocalReviewError("LOCAL_REVIEW_SEGMENTS_INVALID")
@@ -224,6 +226,9 @@ def _validate_segment_payload(
         )
     if seen != set(base):
         raise LocalReviewError("LOCAL_REVIEW_SEGMENT_IDENTITY_MISMATCH")
+    if canonicalize:
+        by_identity = {(item["track_number"], item["segment_id"]): item for item in values}
+        return [by_identity[key] for key in base]
     return values
 
 
@@ -239,7 +244,7 @@ def _summary(segments: list[dict[str, Any]], base_segments: list[dict[str, Any]]
         original = base[(item["track_number"], item["segment_id"])]
         if item["text"] != original["text"] or item["speaker"] != original["speaker"]:
             edited += 1
-        word_count += len(item["text"].strip().split())
+        word_count += count_words_v1(item["text"])
     total = len(segments)
     return {
         "reviewed_segments": reviewed,
@@ -297,7 +302,12 @@ def _response(
             "segment_count": stats.get("segment_count"),
             "track_count": stats.get("track_count"),
         },
-        "warnings": warnings,
+        "warnings": warnings[:1000],
+        "warning_summary": {
+            "total_count": len(warnings),
+            "displayed_count": min(len(warnings), 1000),
+            "truncated": len(warnings) > 1000,
+        },
         "review": _summary(segments, base_segments, warnings),
         "segments": segments,
         "sync": {"status": "not_configured"},
@@ -334,7 +344,7 @@ def _open_from_snapshot(
             (item["track_number"], item["segment_id"]): item
             for item in base_segments
         }
-        draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map)
+        draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map, canonicalize=False)
         return _response(
             draft,
             payload,
@@ -394,6 +404,10 @@ def save_review(
             for item in base_segments
         }
         segments = _validate_segment_payload(value.get("segments"), base_map)
+        # Presentation order alone is not a new editorial revision. Historical
+        # bytes and their SHA remain unchanged until an actual field edit.
+        if status == current["status"] and segments == _validate_segment_payload(current["segments"], base_map):
+            return current
         now = utc_now()
         draft = {
             "schema_version": REVIEW_SCHEMA_VERSION,

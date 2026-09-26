@@ -218,6 +218,11 @@ export type LocalReview = {
 		trackCount: number | null;
 	};
 	warnings: readonly string[];
+	warningSummary?: {
+		totalCount: number;
+		displayedCount: number;
+		truncated: boolean;
+	};
 	publicationTarget: LocalPublicationTarget | null;
 	review: {
 		reviewedSegments: number;
@@ -836,6 +841,17 @@ export function parseLocalReview(value: unknown): LocalReview {
 		return invalid();
 	const reviewPercent = nonNegativeNumber(review.review_percent);
 	if (reviewPercent > 100) return invalid();
+	const warningCount = nonNegativeInteger(review.warning_count);
+	let warningSummary: LocalReview["warningSummary"];
+	if (row.warning_summary !== undefined) {
+		const summary = record(row.warning_summary);
+		const totalCount = nonNegativeInteger(summary.total_count);
+		const displayedCount = nonNegativeInteger(summary.displayed_count);
+		const truncated = boolean(summary.truncated);
+		if (totalCount !== warningCount || displayedCount !== row.warnings.length ||
+			displayedCount !== Math.min(totalCount, 1000) || truncated !== (totalCount > displayedCount)) return invalid();
+		warningSummary = { totalCount, displayedCount, truncated };
+	}
 	return {
 		sourceId,
 		runId,
@@ -875,6 +891,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 					: nonNegativeInteger(stats.track_count),
 		},
 		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
+		...(warningSummary ? { warningSummary } : {}),
 		publicationTarget: parsePublicationTarget(row.publication_target, {
 			sourceId,
 			runId,
@@ -886,7 +903,7 @@ export function parseLocalReview(value: unknown): LocalReview {
 			reviewPercent,
 			editedSegments: nonNegativeInteger(review.edited_segments),
 			wordCount: nonNegativeInteger(review.word_count),
-			warningCount: nonNegativeInteger(review.warning_count),
+			warningCount,
 		},
 		segments,
 		sync: { status: "not_configured" },

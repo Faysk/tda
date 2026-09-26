@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -337,3 +338,44 @@ def test_semantically_invalid_historical_run_fails_before_creating_draft(tmp_pat
     with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_BASE_RUN_INVALID"):
         open_review(package, source_id=source_id, run_id=run["run_id"])
     assert not (package / "revisions").exists()
+
+
+def test_reordered_save_is_noop_and_real_edits_use_immutable_base_order(tmp_path: Path):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    reversed_segments = list(reversed(opened["segments"]))
+    saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        "expected_draft_revision": 0, "status": "draft", "segments": reversed_segments,
+    })
+    assert saved["draft_revision"] == opened["draft_revision"]
+    assert saved["draft_sha256"] == opened["draft_sha256"]
+    reversed_segments[0]["text"] = "Real edit"
+    edited = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        "expected_draft_revision": 0, "status": "draft", "segments": reversed_segments,
+    })
+    assert [row["segment_id"] for row in edited["segments"]] == ["1-0", "1-1"]
+    assert edited["segments"][1]["text"] == "Real edit"
+    assert edited["review"]["edited_segments"] == 1
+
+
+@pytest.mark.parametrize("count", [0, 1, 999, 1000, 1001, 5000])
+def test_warning_projection_preserves_factual_total(tmp_path: Path, count: int):
+    package = tmp_path / "source"
+    package.mkdir()
+    document = replace(_document("a" * 64), warnings=tuple(f"WARNING_{i}" for i in range(count)))
+    run = write_completed_run(package, document, job_id="warnings", attempt=1)
+    review = open_review(package, source_id="source", run_id=run["run_id"])
+    assert len(review["warnings"]) == min(count, 1000)
+    assert review["review"]["warning_count"] == run["stats"]["warning_count"] == count
+    assert review["warning_summary"] == {"total_count": count, "displayed_count": min(count, 1000), "truncated": count > 1000}
+
+
+def test_editorial_word_count_uses_canonical_whitespace_without_rewrite(tmp_path: Path):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    opened["segments"][0]["text"] = "a\u0085b\u001cc"
+    saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        "expected_draft_revision": 0, "status": "draft", "segments": opened["segments"],
+    })
+    assert saved["review"]["word_count"] == 4
+    assert saved["segments"][0]["text"] == "a\u0085b\u001cc"
