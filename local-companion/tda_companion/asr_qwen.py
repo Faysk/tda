@@ -15,6 +15,7 @@ from .asr_checkpoints import build_checkpoint_signature, load_track_checkpoint, 
 from .asr_models import QWEN_FORCED_ALIGNER_MODEL_ID, AsrProfile, get_profile
 from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
 from .craig import CraigPackage, CraigTrack
+from .runtime_artifact import artifact_from_environment, runtime_artifact
 from .qwen_acceptance import (
     QwenAcceptanceError,
     QwenPlan,
@@ -113,20 +114,20 @@ def _runtime_fingerprint() -> str:
             raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID") from exc
         if not isinstance(marker, dict):
             raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID")
-        worker_sha256 = str(marker.get("worker_sha256") or "").lower()
+        expected = artifact_from_environment(os.environ)
+        actual = runtime_artifact(marker, family="qwen", version=runtime_version)
         if (
             marker.get("schema") != "tda_asr_runtime_v1"
-            or marker.get("runtime_id") != "qwen3-transformers"
-            or marker.get("version") != runtime_version
-            or len(worker_sha256) != 64
-            or any(value not in "0123456789abcdef" for value in worker_sha256)
+            or expected is None
+            or actual is None
+            or actual != expected
         ):
             raise QwenRuntimeError("QWEN_RUNTIME_FINGERPRINT_INVALID")
         return ";".join(
             (
                 "checkpoint=qwen-track-v3",
                 f"runtime={runtime_version}",
-                f"worker_sha256={worker_sha256}",
+                f"worker_sha256={expected['worker_sha256']}",
             )
         )
 
