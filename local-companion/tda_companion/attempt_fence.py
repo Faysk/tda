@@ -47,7 +47,7 @@ def _fence_path(
         )
     except LocalStatePathError as exc:
         if str(exc) == "LOCAL_STATE_PATH_REPARSE":
-            raise AttemptFenceError("ATTEMPT_FENCE_PATH_REPARSE") from exc
+            raise AttemptFenceError("ATTEMPT_FENCE_PATH_SYMLINK") from exc
         raise AttemptFenceError("ATTEMPT_FENCE_PATH_INVALID") from exc
     path = root / f"{_attempt_key(job_id, attempt)}.decision"
     try:
@@ -58,14 +58,14 @@ def _fence_path(
         )
     except LocalStatePathError as exc:
         if str(exc) == "LOCAL_STATE_PATH_REPARSE":
-            raise AttemptFenceError("ATTEMPT_FENCE_PATH_REPARSE") from exc
+            raise AttemptFenceError("ATTEMPT_FENCE_PATH_SYMLINK") from exc
         raise AttemptFenceError("ATTEMPT_FENCE_PATH_INVALID") from exc
 
 
 def _read_fence(path: Path) -> AttemptOutcome:
     try:
         if path.is_symlink() or bool(getattr(path, "is_junction", lambda: False)()):
-            raise AttemptFenceError("ATTEMPT_FENCE_PATH_REPARSE")
+            raise AttemptFenceError("ATTEMPT_FENCE_PATH_SYMLINK")
     except OSError as exc:
         raise AttemptFenceError("ATTEMPT_FENCE_READ_FAILED") from exc
     try:
