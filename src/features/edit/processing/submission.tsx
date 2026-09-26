@@ -125,42 +125,6 @@ type PendingSubmission = {
 
 function sourceMustBeRestaged(code: string | null): boolean {
 	if (!code) return false;
-	async function cancelActivePreparation() {
-		const operationId = preparation?.operationId;
-		if (
-			!operationId ||
-			!preparation.active ||
-			preparationCancelling ||
-			!capabilities?.capabilities.includes("transcription.prepare.cancel")
-		)
-			return;
-		const controller = new AbortController();
-		setPreparationCancelling(true);
-		setError(null);
-		try {
-			const next = await bridge.cancelPreparation(operationId, controller.signal);
-			setPreparation(next);
-			setStatus("Cancelamento solicitado ao Agent local.");
-		} catch (cause) {
-			if (cause instanceof BridgeError) {
-				setError(
-					cause.serverCode
-						? localOperationMessage(cause.serverCode)
-						: messageFor(cause.code),
-				);
-				try {
-					setPreparation(await bridge.preparation(controller.signal));
-				} catch {
-					// Keep the last snapshot; the normal observer will retry.
-				}
-			} else {
-				setError(messageFor("service_error"));
-			}
-		} finally {
-			setPreparationCancelling(false);
-		}
-	}
-
 	return (
 		code.startsWith("CRAIG_MANIFEST_") ||
 		code === "CRAIG_STAGING_EXISTING_INVALID" ||
@@ -514,6 +478,42 @@ export function ProcessingSubmission({
 			);
 		} finally {
 			setBusy(false);
+		}
+	}
+
+	async function cancelActivePreparation() {
+		const operationId = preparation?.operationId;
+		if (
+			!operationId ||
+			!preparation.active ||
+			preparationCancelling ||
+			!capabilities?.capabilities.includes("transcription.prepare.cancel")
+		)
+			return;
+		const controller = new AbortController();
+		setPreparationCancelling(true);
+		setError(null);
+		try {
+			const next = await bridge.cancelPreparation(operationId, controller.signal);
+			setPreparation(next);
+			setStatus("Cancelamento solicitado ao Agent local.");
+		} catch (cause) {
+			if (cause instanceof BridgeError) {
+				setError(
+					cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+				try {
+					setPreparation(await bridge.preparation(controller.signal));
+				} catch {
+					// Keep the last snapshot; the normal observer will retry.
+				}
+			} else {
+				setError(messageFor("service_error"));
+			}
+		} finally {
+			setPreparationCancelling(false);
 		}
 	}
 
