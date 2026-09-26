@@ -93,7 +93,7 @@ def test_track_completion_flushes_zero_or_tail_counts_without_inventing_reuse(
     assert _metric(activity, "whisper_segments_completed", track=2) == 0
 
 
-def test_download_activity_is_latest_monotonic_gauge_not_additive(tmp_path: Path):
+def test_download_activity_is_latest_value_gauge_not_additive(tmp_path: Path):
     store, job_id = _claimed_store(tmp_path)
 
     for downloaded in (10, 20, 30, 25):
@@ -105,7 +105,7 @@ def test_download_activity_is_latest_monotonic_gauge_not_additive(tmp_path: Path
         )
 
     activity = store.activity(job_id)
-    assert _metric(activity, "model_downloaded_bytes") == 30
+    assert _metric(activity, "model_downloaded_bytes") == 25
 
 
 def test_activity_is_attempt_scoped_and_stale_attempt_cannot_mutate_retry(
