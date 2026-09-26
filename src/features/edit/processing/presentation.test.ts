@@ -94,6 +94,7 @@ describe("processing presentation", () => {
 		expect(
 			presentJobEvent({
 				seq: 20,
+			attempt: null,
 				code: "WORKER_READY_REQUIRED",
 				at: "2026-09-19T12:00:00Z",
 				level: "error",
@@ -103,6 +104,7 @@ describe("processing presentation", () => {
 		expect(
 			presentJobEvent({
 				seq: 21,
+			attempt: null,
 				code: "WORKER_RESULT_TEARDOWN_FORCED",
 				at: "2026-09-19T12:00:01Z",
 				level: "warning",
@@ -115,6 +117,7 @@ describe("processing presentation", () => {
 		expect(
 			presentJobEvent({
 				seq: 1,
+			attempt: null,
 				code: "SUCCEEDED_RECOVERED",
 				at: "2026-09-19T12:00:00Z",
 				level: "warning",
@@ -124,6 +127,7 @@ describe("processing presentation", () => {
 		expect(
 			presentJobEvent({
 				seq: 2,
+			attempt: null,
 				code: "COMPATIBILITY_MIRROR_WRITE_FAILED",
 				at: "2026-09-19T12:00:01Z",
 				level: "warning",
@@ -133,6 +137,7 @@ describe("processing presentation", () => {
 		expect(
 			presentJobEvent({
 				seq: 3,
+			attempt: null,
 				code: "INCOMPLETE_RUNS_CLEANED",
 				at: "2026-09-19T12:00:02Z",
 				level: "info",
@@ -156,6 +161,7 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 	expect(
 		presentJobEvent({
 			seq: 40,
+			attempt: null,
 			code: "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
 			at: "2026-09-23T00:00:00.000Z",
 			level: "info",
@@ -182,6 +188,7 @@ it("explains checkpoint durability and retry cost honestly", () => {
 	expect(
 		presentJobEvent({
 			seq: 44,
+			attempt: null,
 			code: "ASR_TEXT_CHECKPOINT_SAVED",
 			at: "2026-09-25T00:00:03.000Z",
 			level: "info",
@@ -195,6 +202,7 @@ it("explains checkpoint durability and retry cost honestly", () => {
 	expect(
 		presentJobEvent({
 			seq: 45,
+			attempt: null,
 			code: "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
 			at: "2026-09-25T00:00:04.000Z",
 			level: "warning",
@@ -208,6 +216,7 @@ it("explains checkpoint durability and retry cost honestly", () => {
 	expect(
 		presentJobEvent({
 			seq: 46,
+			attempt: null,
 			code: "ASR_CHECKPOINT_WRITE_SKIPPED",
 			at: "2026-09-25T00:00:05.000Z",
 			level: "warning",
@@ -224,6 +233,7 @@ it("presents sealed Qwen runtime identity without local paths", () => {
 	expect(
 		presentJobEvent({
 			seq: 40,
+			attempt: null,
 			code: "QWEN_RUNTIME_FINGERPRINT_READY",
 			at: "2026-09-25T00:00:00.000Z",
 			level: "info",
@@ -244,6 +254,7 @@ it("presents sanitized Qwen alignment failure context", () => {
 	expect(
 		presentJobEvent({
 			seq: 41,
+			attempt: null,
 			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
 			at: "2026-09-25T00:00:00.000Z",
 			level: "error",
@@ -266,6 +277,7 @@ it("presents an alignment VRAM failure as a runtime problem, not transcript corr
 	expect(
 		presentJobEvent({
 			seq: 43,
+			attempt: null,
 			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
 			at: "2026-09-25T00:00:02.000Z",
 			level: "error",
@@ -286,6 +298,7 @@ it("explains compatibility reuse without implying a completed run", () => {
 	expect(
 		presentJobEvent({
 			seq: 42,
+			attempt: null,
 			code: "ASR_TEXT_CHECKPOINT_COMPAT_REUSED",
 			at: "2026-09-25T00:00:01.000Z",
 			level: "info",
@@ -303,6 +316,7 @@ it("presents Qwen post-ASR track context truthfully", () => {
 	expect(
 		presentJobEvent({
 			seq: 41,
+			attempt: null,
 			code: "TRACK_ALIGNMENT_STARTED",
 			at: "2026-09-19T00:00:00.000Z",
 			level: "info",
@@ -313,6 +327,7 @@ it("presents Qwen post-ASR track context truthfully", () => {
 	expect(
 		presentJobEvent({
 			seq: 42,
+			attempt: null,
 			code: "TRACK_ENERGY_STARTED",
 			at: "2026-09-19T00:00:01.000Z",
 			level: "info",
