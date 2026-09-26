@@ -125,8 +125,12 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 		.poll(() => state.job?.status)
 		.toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Cancelados" }).click();
+	const queuePanel = page.getByRole("tabpanel", { name: "Fila" });
 	await expect(
-		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+		queuePanel
+			.locator('td[data-label="Estado"]')
+			.getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -188,8 +192,12 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Cancelados" }).click();
+	const queuePanel = page.getByRole("tabpanel", { name: "Fila" });
 	await expect(
-		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+		queuePanel
+			.locator('td[data-label="Estado"]')
+			.getByText("Cancelado", { exact: true }),
 	).toBeVisible();
 });
 
@@ -213,24 +221,26 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByLabel("Buscar").fill("busca-antiga-sem-match");
+	await page.getByRole("tab", { name: "Visão geral" }).click();
 	await page.getByRole("button", { name: "1 atenção", exact: true }).click();
 
+	await expect(page.getByLabel("Buscar")).toHaveValue("");
 	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
 		"aria-selected",
 		"true",
 	);
 	await expect(
-		page.getByText("Mostrando somente trabalhos que precisam de atenção.", {
-			exact: true,
-		}),
-	).toBeVisible();
-	await expect(
-		page.getByRole("heading", { name: "Precisam de atenção" }),
-	).toBeVisible();
+		page.getByRole("button", { name: "Atenção", exact: true }),
+	).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
-			.getByRole("listitem")
+			.locator('td[data-label="Estado"]')
 			.getByText("Falhou", { exact: true }),
 	).toBeVisible();
 });
@@ -299,7 +309,9 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
-	await page.getByRole("button", { name: "Ver diagnóstico" }).click();
+	await page.getByRole("button", { name: "Atenção", exact: true }).click();
+	await page.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
 	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
 		"aria-selected",
 		"true",
@@ -332,7 +344,15 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
 	await expect(
-		page.getByRole("listitem").getByText("Na fila", { exact: true }),
+		page
+			.getByRole("tabpanel", { name: "Fila" })
+			.getByRole("button", { name: "Ativos", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(
+		page
+			.getByRole("tabpanel", { name: "Fila" })
+			.locator('td[data-label="Estado"]')
+			.getByText("Na fila", { exact: true }),
 	).toBeVisible();
 });
 

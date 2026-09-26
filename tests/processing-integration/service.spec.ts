@@ -117,10 +117,12 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	await page.getByRole("button", { name: "Executar ensaio sintético" }).click();
 
 	await page.getByRole("tab", { name: "Fila" }).click();
+	let queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: "Concluídos", exact: true }).click();
 	await expect(
-		page.getByText("Concluído", { exact: true }).first(),
+		queue.locator('td[data-label="Estado"]').getByText("Concluído", { exact: true }),
 	).toBeVisible({ timeout: 12000 });
-	await page.getByRole("button", { name: "Consultar resultado local" }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
 
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	await expect(page.getByText("Resultado local", { exact: true })).toBeVisible();
@@ -141,8 +143,10 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
+	queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: "Concluídos", exact: true }).click();
 	await expect(
-		page.getByText("Concluído", { exact: true }).first(),
+		queue.locator('td[data-label="Estado"]').getByText("Concluído", { exact: true }),
 	).toBeVisible();
 	await expect
 		.poll(

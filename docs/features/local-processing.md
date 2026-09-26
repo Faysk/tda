@@ -355,3 +355,24 @@ Microtransições de estado duram 180 ms e respeitam movimento reduzido.
 Validação: testes sintéticos do interpolador e navegador cobrem rebase,
 telemetria acessível, cancelamento em aba oculta, movimento reduzido, reset
 de tentativa e largura estável. A validação local/CI não publica o frontend.
+
+### Fila operacional — candidato #610 / PR #624
+
+A Fila usa tabela HTML no desktop, com rolagem e cabeçalho próprios, e linhas
+empilhadas no mobile. O recorte inicial contém ativos; filtros locais de atenção,
+concluídos, cancelados e todos, busca e ordenação operam sobre os jobs carregados.
+Paginação e totais globais continuam gates separados (#651/#634). Sessão/source
+identifica a linha; profile, tentativa, stage, medida factual e erro completam o
+contexto. Não são inventados speaker, checkpoint ou duração por row.
+
+O disclosure Mais usa portal fixo no viewport, flip vertical e margem horizontal.
+Escape/Shift+Tab restauram o trigger; Tab no fim continua a sequência da página;
+foco/click externos fecham. Scroll que move o anchor, resize, troca de filtro ou
+desmontagem removem o popup, mantendo o scroll owner e sticky header da tabela.
+Abrir Diagnóstico seleciona explicitamente o job daquela linha. Limpar uma row
+da fila preserva runs imutáveis, revisões e fontes; a confirmação distingue essa
+operação de apagar um resultado. A autoridade após cleanup segue no gate #644.
+
+Validação sintética do candidato inclui lista de 30 jobs, última linha, bounds
+e hit testing do popup, foco/teclado, 1024x768, proxy de zoom 512x384 e 320px.
+Screenshots desktop/mobile foram inspecionados. Código validado não é publicação.

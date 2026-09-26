@@ -134,6 +134,7 @@ export async function installCompanionFixture(
 	options: CompanionFixtureOptions = {},
 ): Promise<CompanionFixtureState> {
 	let lifecycle = options.lifecycle ?? "ready";
+	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
 	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.11";
@@ -414,7 +415,14 @@ export async function installCompanionFixture(
 			const status = state.job?.status;
 			if (typeof status === "string") state.jobStatusesServed.push(status);
 			return json(route, {
-				jobs: state.job ? [state.job] : (options.initialJobs ?? []),
+				jobs: state.job
+					? [
+							state.job,
+							...additionalJobs.filter(
+								(job) => job.id !== state.job?.id,
+							),
+						]
+					: additionalJobs,
 			});
 		}
 		if (path === "/jobs/craig-job-1/events") {
@@ -491,11 +499,14 @@ export async function installCompanionFixture(
 	return state;
 }
 
-export function failedJob(): Record<string, unknown> {
+export function failedJob(
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
 	return fixtureJob("failed", {
 		stage: "failed",
 		progress: { completed: 1, total: 2, unit: "tracks" },
 		error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
 		result_available: false,
+		...overrides,
 	});
 }
