@@ -246,8 +246,11 @@ class TranscriptStats:
     rtf: float | None = None
     turn_count: int = 0
     deduplicated_segment_count: int = 0
+    duration_semantics: str | None = "session_extent_v1"
 
     def validate(self) -> None:
+        if self.duration_semantics not in (None, "session_extent_v1"):
+            raise TranscriptValidationError("stats.duration_semantics:UNSUPPORTED")
         _number(self.audio_work_seconds, "stats.audio_work_seconds")
         _number(self.session_duration_seconds, "stats.session_duration_seconds")
         _number(self.processing_seconds, "stats.processing_seconds")
@@ -324,9 +327,13 @@ class TranscriptDocument:
             # Required identity fields must not be manufactured by defaults.
             if "created_at" not in data or "schema_version" not in data:
                 raise TranscriptValidationError("transcript:IDENTITY_REQUIRED")
+            stats = object_value(data.get("stats"), "stats")
+            # Historical bytes retain their recorded metrics; absence is not a
+            # claim that the corrected timeline semantics were used.
+            stats.setdefault("duration_semantics", None)
             data.update(
                 engine=TranscriptEngine(**object_value(data.get("engine"), "engine")),
-                stats=TranscriptStats(**object_value(data.get("stats"), "stats")),
+                stats=TranscriptStats(**stats),
                 tracks=tuple(tracks),
                 turns=tuple(turns),
                 warnings=tuple(array(data.get("warnings", []), "transcript.warnings")),
@@ -382,6 +389,16 @@ class TranscriptDocument:
             raise TranscriptValidationError("transcript.stats:WORD_COUNT_MISMATCH")
         if self.stats.turn_count != len(self.turns):
             raise TranscriptValidationError("transcript.stats:TURN_COUNT_MISMATCH")
+        metrics = duration_metrics((track.timeline_offset_seconds, track.duration_seconds)
+                                   for track in self.tracks)
+        if self.stats.duration_semantics == "session_extent_v1" and metrics is not None:
+            audio_work, session_extent = metrics
+            for name, actual, expected in (
+                ("AUDIO_WORK", self.stats.audio_work_seconds, audio_work),
+                ("SESSION_DURATION", self.stats.session_duration_seconds, session_extent),
+            ):
+                if abs(actual - expected) > 0.001:
+                    raise TranscriptValidationError(f"transcript.stats:{name}_MISMATCH")
 
         seen_turn_ids: set[str] = set()
         seen_turn_refs: set[tuple[int, str]] = set()
@@ -435,6 +452,18 @@ class TranscriptDocument:
         atomic_write(path, payload.encode("utf-8"))
 
 
+def duration_metrics(tracks: Iterable[tuple[float, float | None]]) -> tuple[float, float] | None:
+    """Physical workload and extent from session origin; no text-coverage proxy."""
+    values = tuple(tracks)
+    if not values or any(duration is None for _, duration in values):
+        return None
+    for offset, duration in values:
+        _number(offset, "track.timeline_offset_seconds")
+        _number(duration, "track.duration_seconds")
+    return (round(sum(duration for _, duration in values), 3),
+            round(max(offset + duration for offset, duration in values), 3))
+
+
 def stats_for_tracks(
     tracks: Iterable[TranscriptTrack],
     *,
@@ -445,12 +474,13 @@ def stats_for_tracks(
     values = tuple(tracks)
     durations = [float(track.duration_seconds or 0.0) for track in values]
     audio_work = sum(durations)
+    metrics = duration_metrics((track.timeline_offset_seconds, track.duration_seconds) for track in values)
     segment_count = sum(len(track.segments) for track in values)
     word_count = sum(len(segment.words) for track in values for segment in track.segments)
     elapsed = _number(processing_seconds, "stats.processing_seconds")
     return TranscriptStats(
         audio_work_seconds=round(audio_work, 3),
-        session_duration_seconds=round(max(durations, default=0.0), 3),
+        session_duration_seconds=metrics[1] if metrics else round(max(durations, default=0.0), 3),
         processing_seconds=round(elapsed, 3),
         word_count=word_count,
         segment_count=segment_count,
@@ -458,4 +488,5 @@ def stats_for_tracks(
         rtf=round(elapsed / audio_work, 6) if audio_work > 0 else None,
         turn_count=turn_count,
         deduplicated_segment_count=deduplicated_segment_count,
+        duration_semantics="session_extent_v1" if metrics else None,
     )

@@ -467,6 +467,7 @@ def _response(
             "audio_work_seconds": stats.get("audio_work_seconds"),
             "processing_seconds": stats.get("processing_seconds"),
             "session_duration_seconds": stats.get("session_duration_seconds"),
+            "duration_semantics": stats.get("duration_semantics"),
             "rtf": stats.get("rtf"),
             "word_count": stats.get("word_count"),
             "segment_count": stats.get("segment_count"),

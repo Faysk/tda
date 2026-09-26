@@ -167,6 +167,10 @@ describe("local result/review contracts", () => {
 		expect(parseLocalReview(rawReview()).warningSummary).toBeUndefined();
 	});
 	it("parses sanitized source and completed-run metadata including legacy profiles", () => {
+		const historical = rawReview();
+		expect(parseLocalReview(historical).stats.durationSemantics).toBeUndefined();
+		expect(parseLocalReview({ ...historical, stats: { ...historical.stats,
+			duration_semantics: "session_extent_v1" } }).stats.durationSemantics).toBe("session_extent_v1");
 		expect(
 			parseLocalSources({
 				schema_version: "tda_craig_sources_v1",
