@@ -596,9 +596,15 @@ def transcribe_craig_package(
                 "track": track.number,
                 "total_tracks": total_tracks,
                 "speaker": track.speaker,
+                **(
+                    {"completed_segment_count": fresh_segment_count}
+                    if fresh_segment_count is not None
+                    else {}
+                ),
             }
         )
         source = _safe_track_path(package_root, track)
+        fresh_segment_count: int | None = None
         cached = preloaded_checkpoints.get(track.number)
         if cached is None and checkpoints:
             cached = load_track_checkpoint(package_root, checkpoint_signature, track)
@@ -638,6 +644,7 @@ def transcribe_craig_package(
                                 "total_tracks": total_tracks,
                                 "speaker": track.speaker,
                                 "segment": len(segments),
+                                "completed_segment_count": len(segments),
                             }
                         )
 
@@ -655,6 +662,7 @@ def transcribe_craig_package(
             )
             transcript_track.validate()
             tracks.append(transcript_track)
+            fresh_segment_count = len(segments)
             if checkpoints:
                 try:
                     save_track_checkpoint(package_root, checkpoint_signature, track, transcript_track)
