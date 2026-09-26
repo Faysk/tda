@@ -36,6 +36,8 @@ type Transport = (
 function requestBody(review: LocalReview, operationId: string) {
 	const target = review.publicationTarget;
 	if (!target) throw new PublicationClientError("invalid_payload");
+	if (review.persistence === "ephemeral_base" || review.draftSha256 === null || review.draftRevision === null)
+		throw new PublicationClientError("approved_review_required");
 	if (review.status !== "approved_local")
 		throw new PublicationClientError("approved_review_required");
 	return {
@@ -69,6 +71,9 @@ function requestBody(review: LocalReview, operationId: string) {
 				completedAt: review.lineage.completedAt,
 			},
 			warnings: review.warnings,
+			...(review.warningSummary
+				? { warningSummary: review.warningSummary }
+				: {}),
 			review: review.review,
 			segments: review.segments,
 		},
@@ -76,8 +81,7 @@ function requestBody(review: LocalReview, operationId: string) {
 }
 
 function parseFailure(value: unknown): PublicationClientError["code"] {
-	if (!value || typeof value !== "object")
-		return "dependency_unavailable";
+	if (!value || typeof value !== "object") return "dependency_unavailable";
 	const reason = (value as { reason?: unknown }).reason;
 	return typeof reason === "string" &&
 		[
@@ -95,7 +99,11 @@ function parseFailure(value: unknown): PublicationClientError["code"] {
 		: "dependency_unavailable";
 }
 
-async function parseReceipt(response: Response): Promise<PublicationReceiptView> {
+async function parseReceipt(
+	response: Response,
+	expected: LocalReview,
+	operationId: string,
+): Promise<PublicationReceiptView> {
 	let body: unknown;
 	try {
 		body = await response.json();
@@ -112,13 +120,34 @@ async function parseReceipt(response: Response): Promise<PublicationReceiptView>
 	if (
 		value.schemaVersion !== "tda_transcript_publication_receipt_v1" ||
 		value.status !== "committed" ||
+		!/^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/u.test(
+			String(value.receiptId),
+		) ||
 		typeof value.receiptId !== "string" ||
 		typeof value.revisionId !== "string" ||
 		!Number.isSafeInteger(value.revisionNumber) ||
 		(value.revisionNumber as number) < 1 ||
-		typeof value.committedAt !== "string"
+		typeof value.committedAt !== "string" ||
+		!Number.isFinite(Date.parse(value.committedAt)) ||
+		typeof value.operationId !== "string" ||
+		typeof value.sourceId !== "string" ||
+		typeof value.runId !== "string" ||
+		typeof value.baseTranscriptSha256 !== "string" ||
+		typeof value.draftSha256 !== "string" ||
+		!Number.isSafeInteger(value.segmentCount) ||
+		!Number.isSafeInteger(value.wordCount)
 	)
 		throw new PublicationClientError("dependency_unavailable");
+	if (
+		value.operationId !== operationId ||
+		value.sourceId !== expected.sourceId ||
+		value.runId !== expected.runId ||
+		value.baseTranscriptSha256 !== expected.baseTranscriptSha256 ||
+		value.draftSha256 !== expected.draftSha256 ||
+		value.segmentCount !== expected.segments.length ||
+		value.wordCount !== expected.review.wordCount
+	)
+		throw new PublicationClientError("conflict");
 	return {
 		receiptId: value.receiptId,
 		revisionId: value.revisionId,
@@ -151,9 +180,15 @@ export async function publishApprovedLocalReview(
 	try {
 		return await parseReceipt(
 			await post("/api/transcript-publications", body, transport),
+			review,
+			operationId,
 		);
 	} catch (cause) {
-		if (cause instanceof PublicationClientError) throw cause;
+		if (
+			cause instanceof PublicationClientError &&
+			cause.code !== "dependency_unavailable"
+		)
+			throw cause;
 	}
 
 	// A network failure after the POST is ambiguous: the atomic commit may have
@@ -161,11 +196,14 @@ export async function publishApprovedLocalReview(
 	try {
 		return await parseReceipt(
 			await post("/api/transcript-publications/receipt", body, transport),
+			review,
+			operationId,
 		);
 	} catch (cause) {
 		if (
 			cause instanceof PublicationClientError &&
-			cause.code !== "not_found"
+			cause.code !== "not_found" &&
+			cause.code !== "dependency_unavailable"
 		)
 			throw cause;
 		throw new PublicationClientError("unconfirmed");

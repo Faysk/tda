@@ -40,8 +40,11 @@ export type CompanionFixtureOptions = {
 	serviceVersion?: string;
 	lifecycle?: "preparing" | "ready" | "paused";
 	initialJobs?: Record<string, unknown>[];
+	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	reviewEnabled?: boolean;
+	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -134,6 +137,7 @@ export async function installCompanionFixture(
 	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
+	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.11";
 	let preparationReads = 0;
 	let jobsReads = 0;
 	let jobsGetCount = 0;
@@ -215,6 +219,7 @@ export async function installCompanionFixture(
 		if (path === "/capabilities") {
 			return json(route, {
 				capabilities: [
+					...(options.reviewEnabled ? ["transcription.review"] : []),
 					"transcription.craig",
 					"transcription.prepare",
 					"job.events",
@@ -233,6 +238,21 @@ export async function installCompanionFixture(
 							reason: prepared ? null : "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
 						},
 					],
+					qwen_physical_gate: {
+						"qwen-quality": prepared
+							? {
+									status: "ready",
+									ready: true,
+									profile_id: "qwen-quality",
+									runtime_version: qwenRuntimeVersion,
+								}
+							: {
+									status: "missing",
+									ready: false,
+									profile_id: "qwen-quality",
+									reason: "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED",
+								},
+					},
 				},
 			});
 		}
@@ -268,6 +288,9 @@ export async function installCompanionFixture(
 					memory_total_bytes: gpu.memoryTotalBytes,
 				})),
 			});
+		}
+		if (path === "/sources" && request.method() === "GET") {
+			return json(route, { schema_version: "tda_craig_sources_v1", sources: [] });
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
 			const contentType = request.headers()["content-type"] ?? "";
@@ -405,7 +428,8 @@ export async function installCompanionFixture(
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
 				events:
-					state.job?.status === "running"
+					options.jobEvents ??
+					(state.job?.status === "running"
 						? [
 								{
 									seq: 2,
@@ -420,7 +444,7 @@ export async function installCompanionFixture(
 									},
 								},
 							]
-						: [],
+						: []),
 			});
 		}
 		if (path === "/jobs/craig-job-1/result") {

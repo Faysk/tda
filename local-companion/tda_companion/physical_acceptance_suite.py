@@ -12,6 +12,10 @@ from .asr_models import (
     get_profile,
 )
 from .qwen_physical_gate import GATE_SCHEMA as QWEN_GATE_SCHEMA
+from .runtime_compat import (
+    qwen_runtime_version_compatible,
+    whisper_runtime_version_compatible,
+)
 
 PHYSICAL_ACCEPTANCE_SUITE_SCHEMA = "tda_physical_acceptance_suite_v2"
 REQUIRED_PHYSICAL_PROFILES = (
@@ -206,6 +210,17 @@ def _runtime(
     if not isinstance(version, str) or _VERSION.fullmatch(version) is None:
         raise PhysicalAcceptanceSuiteError(
             f"PHYSICAL_ACCEPTANCE_{family.upper()}_RUNTIME_INVALID"
+        )
+    compatible = (
+        qwen_runtime_version_compatible(version)
+        if family == "qwen"
+        else whisper_runtime_version_compatible(version)
+        if family == "whisper"
+        else False
+    )
+    if not compatible:
+        raise PhysicalAcceptanceSuiteError(
+            f"PHYSICAL_ACCEPTANCE_{family.upper()}_RUNTIME_INCOMPATIBLE"
         )
     _sha(
         value.get("worker_sha256"),

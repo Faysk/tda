@@ -4,6 +4,7 @@ import "../../src/app/design-tokens.css";
 import "../../src/app/design-system.css";
 import "../../src/app/globals.css";
 import { ProcessingPanel } from "../../src/features/edit/processing/panel";
+import { ReviewFixture } from "./review";
 import processingStyles from "../../src/features/edit/processing/processing.module.css";
 
 const originalFetch = window.fetch.bind(window);
@@ -36,6 +37,6 @@ createRoot(root).render(
 		>
 			Processamento
 		</h1>
-		<ProcessingPanel />
+		{new URLSearchParams(location.search).has("review-contracts") ? <ReviewFixture /> : <ProcessingPanel />}
 	</main>,
 );
