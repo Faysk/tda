@@ -596,11 +596,6 @@ def transcribe_craig_package(
                 "track": track.number,
                 "total_tracks": total_tracks,
                 "speaker": track.speaker,
-                **(
-                    {"completed_segment_count": fresh_segment_count}
-                    if fresh_segment_count is not None
-                    else {}
-                ),
             }
         )
         source = _safe_track_path(package_root, track)
@@ -692,6 +687,11 @@ def transcribe_craig_package(
                 "track": track.number,
                 "total_tracks": total_tracks,
                 "speaker": track.speaker,
+                **(
+                    {"completed_segment_count": fresh_segment_count}
+                    if fresh_segment_count is not None
+                    else {}
+                ),
             }
         )
         report(
