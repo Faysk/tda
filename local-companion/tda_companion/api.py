@@ -451,6 +451,8 @@ def create_app(
         )
 
     def staged_package(source_id: str, *, verify_tracks: bool = False):
+        if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", source_id) is None:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         staging = (data_root / "staging").resolve()
         package_root = (staging / source_id).resolve()
         if package_root.parent != staging:
@@ -1457,7 +1459,14 @@ def create_app(
         try:
             return {"publication_target": repair_run_target(source_id, run_id)}
         except (PublicationTargetError, TranscriptionRunError, CraigPackageError) as exc:
-            return error(str(exc), 409, False)
+            public_code = {
+                "PUBLICATION_TARGET_PROVENANCE_UNAVAILABLE": "PUBLICATION_TARGET_PROVENANCE_UNAVAILABLE",
+                "PUBLICATION_TARGET_PROVENANCE_MISMATCH": "PUBLICATION_TARGET_PROVENANCE_MISMATCH",
+                "PUBLICATION_TARGET_ORIGIN_CONFLICT": "PUBLICATION_TARGET_ORIGIN_CONFLICT",
+                "PUBLICATION_TARGET_CONFLICT": "PUBLICATION_TARGET_CONFLICT",
+                "PUBLICATION_TARGET_RUN_NOT_VISIBLE": "PUBLICATION_TARGET_RUN_NOT_VISIBLE",
+            }.get(str(exc), "PUBLICATION_TARGET_REPAIR_FAILED")
+            return error(public_code, 409, False)
 
     @app.post("/api/v1/jobs/{job_id}/{action}")
     async def action(job_id: str, action: Literal["cancel", "retry", "delete"]):
