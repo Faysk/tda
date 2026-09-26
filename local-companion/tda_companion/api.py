@@ -456,8 +456,13 @@ def create_app(
         staging = (data_root / "staging").resolve()
         # Resolve a known direct child rather than constructing a filesystem path
         # from an HTTP route parameter. Reparse targets still face confinement.
-        package_root = next((child.resolve() for child in staging.iterdir()
-                             if child.name == source_id), None)
+        try:
+            package_root = next(
+                (child.resolve() for child in staging.iterdir() if child.name == source_id),
+                None,
+            )
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            raise CraigPackageError("CRAIG_MANIFEST_NOT_FOUND") from exc
         if package_root is None:
             raise CraigPackageError("CRAIG_MANIFEST_NOT_FOUND")
         if package_root.parent != staging:
