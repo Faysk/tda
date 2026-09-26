@@ -296,13 +296,14 @@ def _run_craig(
                         "reason": "hash_mismatch",
                     },
                 )
-        except (OSError, TranscriptionRunError):
+        except (OSError, TranscriptionRunError) as exc:
             emitter.emit(
                 "event",
                 {
-                    "code": "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                    "code": ("COMPATIBILITY_MIRROR_LEGACY_PRESERVED" if str(exc) == "TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE"
+                             else "COMPATIBILITY_MIRROR_WRITE_FAILED"),
                     "stage": "result_prepare",
-                    "reason": "write_failed",
+                    "reason": "legacy_preserved" if str(exc) == "TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE" else "write_failed",
                 },
             )
 

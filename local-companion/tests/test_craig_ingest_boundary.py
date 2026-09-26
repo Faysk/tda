@@ -98,7 +98,7 @@ def _running_job_for_source(client: TestClient, source_id: str, *, key: str):
 
 def _client(tmp_path: Path) -> TestClient:
     root = tmp_path / "Data"
-    root.mkdir()
+    root.mkdir(exist_ok=True)
     api = create_app(root, TOKEN, {ORIGIN}, run_worker=False)
     app = CraigIngestBoundary(
         api,
@@ -318,7 +318,7 @@ def test_boundary_preflight_is_narrow_and_private_network_aware(tmp_path: Path):
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
 
 
-def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_path(tmp_path: Path):
+def test_startup_migrates_legacy_and_listing_never_returns_transcript_or_path(tmp_path: Path):
     payload = _payload()
     upload_headers = {
         "Authorization": f"Bearer {TOKEN}",
@@ -342,6 +342,11 @@ def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_pa
             encoding="utf-8",
         )
 
+        initial = client.get(f"/api/v1/sources/{source_id}/runs", headers=get_headers)
+        assert initial.json()["runs"] == []
+        assert initial.json()["root_transcript"] == {"kind": "unclassified_legacy_candidate"}
+
+    with _client(tmp_path) as client:
         response = client.get(f"/api/v1/sources/{source_id}/runs", headers=get_headers)
         assert response.status_code == 200
         value = response.json()
