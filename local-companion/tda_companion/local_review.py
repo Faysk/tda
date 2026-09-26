@@ -252,6 +252,8 @@ def _refresh_review_summary(draft_path: Path, draft: dict[str, Any]) -> None:
         draft_stat = draft_path.lstat()
         if not stat.S_ISREG(draft_stat.st_mode):
             return
+        _, draft_payload = _bounded_json(draft_path)
+        draft_sha256 = hashlib.sha256(draft_payload).hexdigest()
         _atomic_summary_json(
             _summary_path(draft_path),
             {
@@ -260,6 +262,7 @@ def _refresh_review_summary(draft_path: Path, draft: dict[str, Any]) -> None:
                 "run_id": draft.get("run_id"),
                 "base_transcript_sha256": draft.get("base_transcript_sha256"),
                 "draft_revision": draft.get("draft_revision"),
+                "draft_sha256": draft_sha256,
                 "status": draft.get("status"),
                 "review_percent": round((reviewed / total) * 100, 1) if total else 100.0,
                 "updated_at": draft.get("updated_at"),
@@ -333,6 +336,7 @@ def review_summary(package_root: Path, run_id: str, *, base_transcript_sha256: s
         if not isinstance(value, dict):
             return _public_unknown_summary()
         revision, status = value.get("draft_revision"), value.get("status")
+        draft_sha256 = value.get("draft_sha256")
         percent, updated_at = value.get("review_percent"), value.get("updated_at")
         fingerprint = value.get("draft_fingerprint")
         if (
@@ -360,6 +364,23 @@ def review_summary(package_root: Path, run_id: str, *, base_transcript_sha256: s
             return _public_unknown_summary()
         if parsed.tzinfo is None:
             return _public_unknown_summary()
+        if status == "approved_local":
+            if (
+                not isinstance(draft_sha256, str)
+                or not _SHA256.fullmatch(draft_sha256)
+                or _read_current_approval(
+                    draft_path,
+                    draft={
+                        "source_id": value.get("source_id"),
+                        "run_id": value.get("run_id"),
+                        "base_transcript_sha256": value.get("base_transcript_sha256"),
+                        "draft_revision": revision,
+                    },
+                    draft_sha256=draft_sha256,
+                )
+                is None
+            ):
+                return _public_unknown_summary()
         return {"status": status, "draft_revision": revision,
                 "review_percent": float(percent), "updated_at": updated_at}
 
