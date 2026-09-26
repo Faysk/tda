@@ -64,6 +64,32 @@ histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado a
 
 ## Objetivo
 
+### Preservação de legados e listagem — candidato #674
+
+A classificação do `transcript.json` raiz ocorre na manutenção de startup e antes
+de qualquer substituição pelo mirror, sob o mesmo lock de arquivo entre processos
+Agent/worker. A transcrição válida é preservada byte a byte em `legacy-<sha>` antes
+do overwrite. Um commit encontrado após interrupção tem conteúdo e política de
+gravação reconfirmados; a limitação Windows descrita abaixo continua aplicável.
+Legados inválidos ficam intactos no lugar, com diagnóstico
+`COMPATIBILITY_MIRROR_LEGACY_PRESERVED`. O novo run imutável continua disponível.
+O reparo de staging também copia e confere esses bytes; falha de cópia impede
+substituir a source antiga. Não há correção editorial automática de um legado.
+
+`root-transcript-state.json` é uma projeção pequena versionada com fingerprint de
+metadata e referência ao run preservado. A API expõe somente a classificação.
+Projeção ausente, corrompida ou desatualizada exige manutenção; nunca autoriza
+descartar bytes. Mesmo uma projeção forjada não permite overwrite sem validar e
+preservar o conteúdo atual. Startup seguinte ignora sources já classificadas.
+
+`GET /sources/<source>/runs` lê manifests/estado e stats de arquivo, sem abrir ou
+hashear transcripts, criar drafts ou executar migração. O teste de 100 sources
+instrumenta cada abertura e permite apenas `run.json` e o pequeno estado de raiz:
+zero bytes de conteúdo de transcript lidos. O N+1 de requests e a paginação seguem
+no escopo de #661. O mirror permanece para consumidores legados; não se remove
+nenhum consumidor nesta entrega. Rollback não deve reinstalar um writer que
+sobrescreva raiz não preservada; manter o gate ou suspender atualização de mirrors.
+
 ### Política central de gravação — candidato #671
 
 `atomic_storage.atomic_write` separa três classes versionadas. Os callers continuam

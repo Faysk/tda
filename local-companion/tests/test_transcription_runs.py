@@ -472,3 +472,151 @@ def test_ambiguous_run_fence_preserves_evidence_and_orders_commit(monkeypatch, t
         assert list_runs(package) == []
     else:
         assert load_run(package, root.name)["run_id"] == root.name
+
+
+def test_mirror_preserves_legacy_before_replacing_root_without_prior_listing(tmp_path):
+    package = tmp_path / "source"
+    package.mkdir()
+    legacy = package / "transcript.json"
+    _document("a" * 64, "whisper-detailed", "Historical A").write_atomic(legacy)
+    original = legacy.read_bytes()
+    newer = write_completed_run(package, _document("a" * 64, "qwen-quality", "New B"), job_id="new", attempt=1)
+    write_compatibility_mirror(package, newer["run_id"])
+    preserved = package / "runs" / f"legacy-{hashlib.sha256(original).hexdigest()}" / "transcript.json"
+    assert preserved.read_bytes() == original
+    assert legacy.read_bytes() == (package / "runs" / newer["run_id"] / "transcript.json").read_bytes()
+    assert len(list_runs(package)) == 2
+
+
+def test_invalid_root_is_preserved_even_with_forged_mirror_projection(tmp_path):
+    import tda_companion.transcription_runs as runs
+    package = tmp_path / "source"
+    package.mkdir()
+    root = package / "transcript.json"
+    root.write_bytes(b'{"private":"invalid legacy"}')
+    original = root.read_bytes()
+    newer = write_completed_run(package, _document("a" * 64, "qwen-quality", "New B"), job_id="new", attempt=1)
+    runs._record_root_state(package, "compatibility_mirror", newer)
+    with pytest.raises(TranscriptionRunError, match="TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE"):
+        write_compatibility_mirror(package, newer["run_id"])
+    assert root.read_bytes() == original
+    assert load_run(package, newer["run_id"])["status"] == "completed"
+    assert runs.root_transcript_state(package) == {"kind": "invalid_legacy_preserved"}
+
+
+def test_catalog_never_opens_transcripts_for_modern_or_legacy_sources(monkeypatch, tmp_path):
+    package = tmp_path / "source"
+    package.mkdir()
+    modern = write_completed_run(package, _document("a" * 64, "qwen-quality", "Modern"), job_id="modern", attempt=1)
+    write_compatibility_mirror(package, modern["run_id"])
+    legacy_package = tmp_path / "legacy"
+    legacy_package.mkdir()
+    _document("b" * 64, "whisper-detailed", "Old").write_atomic(legacy_package / "transcript.json")
+    original_open = Path.open
+    def without_content(path, *args, **kwargs):
+        assert path.name != "transcript.json", "catalog opened transcript content"
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", without_content)
+    for _ in range(3):
+        current = ensure_legacy_and_list(package, source_id="source", source_sha256="a" * 64)
+        assert len(current["runs"]) == 1
+        assert current["root_transcript"] == {"kind": "compatibility_mirror"}
+        historical = ensure_legacy_and_list(legacy_package, source_id="legacy", source_sha256="b" * 64)
+        assert historical["runs"] == []
+        assert historical["root_transcript"] == {"kind": "unclassified_legacy_candidate"}
+    assert not (legacy_package / "runs").exists()
+    assert not (legacy_package / ".root-transcript.lock").exists()
+
+
+def test_failed_preservation_fence_never_authorizes_mirror_until_reconfirmed(monkeypatch, tmp_path):
+    import tda_companion.transcription_runs as runs
+    from tda_companion.atomic_storage import AtomicStorageError
+    package = tmp_path / "source"
+    package.mkdir()
+    legacy = package / "transcript.json"
+    _document("a" * 64, "whisper-detailed", "Historical A").write_atomic(legacy)
+    original = legacy.read_bytes()
+    newer = write_completed_run(package, _document("a" * 64, "qwen-quality", "New B"), job_id="new", attempt=1)
+    original_write = runs._atomic_json
+    def ambiguous(path, value):
+        original_write(path, value)
+        if path.name == "run.json":
+            raise AtomicStorageError("namespace_sync", True)
+    monkeypatch.setattr(runs, "_atomic_json", ambiguous)
+    with pytest.raises(AtomicStorageError):
+        write_compatibility_mirror(package, newer["run_id"])
+    assert legacy.read_bytes() == original
+    monkeypatch.setattr(runs, "_atomic_json", original_write)
+    confirmations = []
+    original_confirm = runs.confirm_existing_file
+    def confirm(path):
+        confirmations.append(path.name)
+        original_confirm(path)
+    monkeypatch.setattr(runs, "confirm_existing_file", confirm)
+    write_compatibility_mirror(package, newer["run_id"])
+    assert confirmations == ["transcript.json", "run.json"]
+    assert (package / "runs" / f"legacy-{hashlib.sha256(original).hexdigest()}" / "transcript.json").read_bytes() == original
+
+
+def test_concurrent_migration_and_mirror_serialize_with_one_root_lock(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    package = tmp_path / "source"
+    package.mkdir()
+    legacy = package / "transcript.json"
+    _document("a" * 64, "whisper-detailed", "Historical A").write_atomic(legacy)
+    original = legacy.read_bytes()
+    newer = write_completed_run(package, _document("a" * 64, "qwen-quality", "New B"), job_id="new", attempt=1)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        migration = pool.submit(migrate_legacy_transcript, package, source_id="source", source_sha256="a" * 64)
+        mirror = pool.submit(write_compatibility_mirror, package, newer["run_id"])
+        assert migration.result() is not None
+        assert mirror.result() == newer["transcript_sha256"]
+    assert (package / "runs" / f"legacy-{hashlib.sha256(original).hexdigest()}" / "transcript.json").read_bytes() == original
+
+
+def test_root_lock_serializes_an_independent_worker_process(tmp_path):
+    import subprocess
+    import sys
+    import tda_companion.transcription_runs as runs
+    package = tmp_path / "source"
+    package.mkdir()
+    _document("a" * 64, "whisper-detailed", "Old").write_atomic(package / "transcript.json")
+    original = (package / "transcript.json").read_bytes()
+    modern = write_completed_run(package, _document("a" * 64, "qwen-quality", "New"), job_id="new", attempt=1)
+    script = """
+import sys
+from pathlib import Path
+from tda_companion.transcription_runs import write_compatibility_mirror
+print('ready', flush=True)
+write_compatibility_mirror(Path(sys.argv[1]), sys.argv[2])
+"""
+    with runs._root_transcript_lock(package):
+        process = subprocess.Popen([sys.executable, "-c", script, str(package), modern["run_id"]],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        assert process.stdout.readline().strip() == "ready"
+        assert process.poll() is None
+        assert (package / "transcript.json").read_bytes() == original
+    stdout, stderr = process.communicate(timeout=20)
+    assert process.returncode == 0, stderr
+    assert (package / "runs" / f"legacy-{hashlib.sha256(original).hexdigest()}" / "transcript.json").read_bytes() == original
+
+
+def test_catalog_of_100_sources_reads_zero_transcript_bytes(monkeypatch, tmp_path):
+    packages = []
+    for index in range(100):
+        package = tmp_path / f"source-{index}"
+        package.mkdir()
+        run = write_completed_run(package, _document("a" * 64, "qwen-quality", "synthetic"), job_id="run", attempt=1)
+        write_compatibility_mirror(package, run["run_id"])
+        packages.append(package)
+    original_open = Path.open
+    opened = []
+    def metadata_only(path, *args, **kwargs):
+        assert path.name != "transcript.json"
+        opened.append(path.name)
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", metadata_only)
+    for package in packages:
+        result = ensure_legacy_and_list(package, source_id=package.name, source_sha256="a" * 64)
+        assert len(result["runs"]) == 1
+    assert set(opened) == {"run.json", "root-transcript-state.json"}

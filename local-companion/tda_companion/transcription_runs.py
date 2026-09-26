@@ -3,12 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from .atomic_storage import AtomicStorageError, atomic_write
+from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
 
 from .transcript import TranscriptDocument, TranscriptValidationError
 
@@ -20,6 +23,7 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_MANIFEST_BYTES = 256 * 1024
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
 _COPY_CHUNK = 1024 * 1024
+_ROOT_STATE_SCHEMA = "tda_root_transcript_state_v1"
 
 
 class TranscriptionRunError(RuntimeError):
@@ -283,11 +287,137 @@ def remove_incomplete_runs(package_root: Path) -> int:
 
 def write_compatibility_mirror(package_root: Path, run_id: str) -> str:
     """Update legacy <source>/transcript.json without making it the source of truth."""
-    source = run_root(package_root, run_id) / "transcript.json"
-    payload = _bounded_transcript(source)
+    with _root_transcript_lock(package_root):
+        manifest = load_run(package_root, run_id, verify_content=False)
+        source = run_root(package_root, run_id) / "transcript.json"
+        payload = _bounded_transcript(source)
+        digest = hashlib.sha256(payload).hexdigest()
+        if digest != manifest["transcript_sha256"]:
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_HASH_MISMATCH")
+        target = package_root.resolve() / "transcript.json"
+        if target.exists() or target.is_symlink():
+            # The projection is never permission to discard the existing bytes.
+            # Revalidate/preserve them under the same cross-process lock as replace.
+            preserved = _migrate_legacy_transcript(package_root, source_id=manifest["source_id"],
+                                                   source_sha256=manifest["source_sha256"])
+            if preserved is None:
+                _record_root_state(package_root, "invalid_legacy_preserved", None)
+                raise TranscriptionRunError("TRANSCRIPTION_LEGACY_PRESERVED_IN_PLACE")
+        _atomic_bytes(target, payload)
+        _record_root_state(package_root, "compatibility_mirror", manifest)
+        return digest
+
+
+@contextmanager
+def _root_transcript_lock(package_root: Path):
+    """One maintenance/replace owner across Agent and isolated worker processes."""
+    path = package_root.resolve() / ".root-transcript.lock"
+    if path.is_symlink():
+        raise TranscriptionRunError("TRANSCRIPTION_ROOT_LOCK_INVALID")
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    deadline = time.monotonic() + 10
+    try:
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as exc:
+                if time.monotonic() >= deadline:
+                    raise TranscriptionRunError("TRANSCRIPTION_ROOT_BUSY") from exc
+                time.sleep(0.01)
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _root_fingerprint(package_root: Path) -> dict[str, int] | None:
     target = package_root.resolve() / "transcript.json"
-    _atomic_bytes(target, payload)
-    return hashlib.sha256(payload).hexdigest()
+    try:
+        value = target.lstat()
+    except FileNotFoundError:
+        return None
+    return {"size": value.st_size, "mtime_ns": value.st_mtime_ns,
+            "ctime_ns": value.st_ctime_ns, "inode": value.st_ino}
+
+
+def _record_root_state(package_root: Path, kind: str, manifest: dict[str, Any] | None) -> None:
+    # Rebuildable projection only. No consumer may use it to authorize overwrite.
+    _atomic_json(package_root.resolve() / "root-transcript-state.json", {
+        "schema_version": _ROOT_STATE_SCHEMA, "kind": kind,
+        "fingerprint": _root_fingerprint(package_root),
+        "run_id": manifest["run_id"] if manifest else None,
+        "transcript_sha256": manifest["transcript_sha256"] if manifest else None,
+    })
+
+
+def root_transcript_state(package_root: Path) -> dict[str, Any]:
+    """Small metadata/stat projection; never opens or hashes transcript content."""
+    try:
+        fingerprint = _root_fingerprint(package_root)
+    except OSError:
+        return {"kind": "unclassified_legacy_candidate"}
+    if fingerprint is None:
+        return {"kind": "absent"}
+    try:
+        state = _bounded_json(package_root.resolve() / "root-transcript-state.json")
+    except TranscriptionRunError:
+        return {"kind": "unclassified_legacy_candidate"}
+    if (state.get("schema_version") != _ROOT_STATE_SCHEMA or state.get("fingerprint") != fingerprint
+            or state.get("kind") not in {"legacy_preserved", "compatibility_mirror", "invalid_legacy_preserved"}):
+        return {"kind": "unclassified_legacy_candidate"}
+    kind = state["kind"]
+    if kind != "invalid_legacy_preserved":
+        try:
+            manifest = load_run(package_root, state.get("run_id"), verify_content=False)
+            if manifest["transcript_sha256"] != state.get("transcript_sha256"):
+                return {"kind": "unclassified_legacy_candidate"}
+        except TranscriptionRunError:
+            return {"kind": "unclassified_legacy_candidate"}
+    return {"kind": kind}
+
+
+def preserve_root_during_source_repair(existing: Path, replacement: Path) -> None:
+    """The compatibility consumer must retain even invalid historical evidence."""
+    with _root_transcript_lock(existing):
+        root = existing / "transcript.json"
+        if not root.exists() and not root.is_symlink():
+            return
+        payload = _bounded_transcript(root)
+        copied = replacement / "transcript.json"
+        _atomic_bytes(copied, payload)
+        if _bounded_transcript(copied) != payload:
+            raise TranscriptionRunError("TRANSCRIPTION_LEGACY_COPY_MISMATCH")
+
+
+def maintain_legacy_transcripts(data_root: Path) -> dict[str, int]:
+    """One-time startup maintenance; regular catalog reads never do this work."""
+    from .craig_runtime import load_craig_package
+    from .craig import CraigPackageError
+    counts = {"preserved": 0, "invalid_preserved": 0, "failed": 0}
+    staging = data_root.resolve() / "staging"
+    if not staging.is_dir():
+        return counts
+    for package_root in staging.iterdir():
+        if (not re.fullmatch(r"craig-[a-f0-9]{64}", package_root.name)
+                or package_root.is_symlink() or getattr(package_root, "is_junction", lambda: False)()
+                or not package_root.is_dir()):
+            continue
+        if root_transcript_state(package_root)["kind"] != "unclassified_legacy_candidate":
+            continue
+        try:
+            package = load_craig_package(package_root, verify_tracks=False)
+            result = migrate_legacy_transcript(package_root, source_id=package_root.name,
+                                                source_sha256=package.source_sha256)
+            counts["preserved" if result is not None else "invalid_preserved"] += 1
+        except (OSError, TranscriptionRunError, CraigPackageError):
+            counts["failed"] += 1
+    return counts
 
 
 def _validate_manifest(
@@ -451,6 +581,17 @@ def list_runs(
 
 
 def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha256: str) -> dict[str, Any] | None:
+    with _root_transcript_lock(package_root):
+        manifest = _migrate_legacy_transcript(package_root, source_id=source_id, source_sha256=source_sha256)
+        if manifest is not None:
+            kind = "legacy_preserved" if manifest.get("origin") == "legacy_transcript_v1" else "compatibility_mirror"
+            _record_root_state(package_root, kind, manifest)
+        elif (package_root / "transcript.json").exists() or (package_root / "transcript.json").is_symlink():
+            _record_root_state(package_root, "invalid_legacy_preserved", None)
+        return manifest
+
+
+def _migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha256: str) -> dict[str, Any] | None:
     """Preserve a valid legacy root transcript as an immutable historical run.
 
     The original root file is deliberately retained. Invalid legacy files are left
@@ -483,7 +624,7 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
     for existing in list_runs(package_root, verify_content=False):
         if existing.get("transcript_sha256") == digest:
             try:
-                return load_run(package_root, str(existing["run_id"]), verify_content=True)
+                return _confirmed_preserved_run(package_root, str(existing["run_id"]))
             except TranscriptionRunError:
                 continue
 
@@ -491,7 +632,7 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
     destination = run_root(package_root, run_id)
     if destination.exists():
         try:
-            return load_run(package_root, run_id, verify_content=True)
+            return _confirmed_preserved_run(package_root, run_id)
         except TranscriptionRunError:
             # A directory without run.json is only an interrupted migration, not
             # an immutable commit. Rebuild it from the still-valid root legacy
@@ -557,6 +698,16 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
         raise
 
 
+def _confirmed_preserved_run(package_root: Path, run_id: str) -> dict[str, Any]:
+    manifest = load_run(package_root, run_id, verify_content=True)
+    # A previous process may have stopped after replace but before the namespace
+    # fence. Re-establish the current policy before authorizing root overwrite.
+    root = run_root(package_root, run_id)
+    confirm_existing_file(root / "transcript.json")
+    confirm_existing_file(root / "run.json")
+    return manifest
+
+
 def ensure_legacy_and_list(
     package_root: Path,
     *,
@@ -564,11 +715,7 @@ def ensure_legacy_and_list(
     source_sha256: str,
     verify_content: bool = False,
 ) -> dict[str, Any]:
-    migrate_legacy_transcript(
-        package_root,
-        source_id=source_id,
-        source_sha256=source_sha256,
-    )
+    # Compatibility name retained for callers; listing never runs maintenance.
     invalid_runs: list[dict[str, str]] = []
     runs = list_runs(package_root, verify_content=verify_content, invalid_runs=invalid_runs)
     return {
@@ -576,4 +723,5 @@ def ensure_legacy_and_list(
         "source_id": source_id,
         "runs": runs,
         "invalid_runs": invalid_runs,
+        "root_transcript": root_transcript_state(package_root),
     }
