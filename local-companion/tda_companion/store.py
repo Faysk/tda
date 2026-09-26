@@ -253,6 +253,55 @@ class Store:
             )
             return True
 
+    def record_worker_activity(self, job_id, attempt, code, data):
+        payload = data if isinstance(data, dict) else {}
+        if code == "QWEN_WINDOW_TRANSCRIBED":
+            value = payload.get("completed_window_count", payload.get("window"))
+            return self.record_activity(
+                job_id,
+                attempt,
+                "qwen_windows_completed",
+                value,
+                track=payload.get("track"),
+            )
+        if code == "WHISPER_SEGMENT_TRANSCRIBED":
+            value = payload.get("completed_segment_count", payload.get("segment"))
+            return self.record_activity(
+                job_id,
+                attempt,
+                "whisper_segments_completed",
+                value,
+                track=payload.get("track"),
+            )
+        if code == "MODEL_DOWNLOAD_PROGRESS":
+            return self.record_activity(
+                job_id,
+                attempt,
+                "model_downloaded_bytes",
+                payload.get("downloaded_bytes"),
+            )
+        if code == "TRACK_COMPLETED":
+            accepted = None
+            if "completed_window_count" in payload:
+                accepted = self.record_activity(
+                    job_id,
+                    attempt,
+                    "qwen_windows_completed",
+                    payload["completed_window_count"],
+                    track=payload.get("track"),
+                )
+            if "completed_segment_count" in payload:
+                segment_accepted = self.record_activity(
+                    job_id,
+                    attempt,
+                    "whisper_segments_completed",
+                    payload["completed_segment_count"],
+                    track=payload.get("track"),
+                )
+                accepted = segment_accepted if accepted is None else accepted and segment_accepted
+            return accepted
+        return None
+
     def activity(self, job_id, *, attempt=None):
         if attempt is not None and (
             isinstance(attempt, bool)
