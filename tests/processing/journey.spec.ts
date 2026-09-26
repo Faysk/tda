@@ -99,7 +99,7 @@ test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page })
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
 	await expect(page.getByRole("alert")).toContainText(
-		"runtime 1.0.11 ou mais recente",
+		"runtime 1.0.12 ou mais recente",
 	);
 
 	await selectCraig(page);
