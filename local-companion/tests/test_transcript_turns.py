@@ -133,3 +133,52 @@ def test_canonical_stats_reject_impossible_dedup_count():
     bad_stats = replace(document.stats, deduplicated_segment_count=3)
     with pytest.raises(TranscriptValidationError, match="RANGE_INVALID"):
         replace(document, stats=bad_stats).validate()
+
+
+def test_track_accepts_segment_at_known_media_duration_boundary():
+    track = replace(
+        _track(),
+        duration_seconds=3.0,
+        segments=(TranscriptSegment(id="edge", start=2.0, end=3.0, text="fim"),),
+    )
+    track.validate()
+
+
+def test_track_accepts_only_rounding_sized_overflow_past_media_duration():
+    track = replace(
+        _track(),
+        duration_seconds=3.0,
+        segments=(TranscriptSegment(id="rounding", start=2.0, end=3.04, text="fim"),),
+    )
+    track.validate()
+
+
+def test_track_rejects_segment_materially_beyond_known_media_duration():
+    track = replace(
+        _track(),
+        duration_seconds=3.0,
+        segments=(TranscriptSegment(id="overflow", start=2.0, end=3.2, text="fora"),),
+    )
+    with pytest.raises(TranscriptValidationError, match="track.segment:AFTER_DURATION"):
+        track.validate()
+
+
+def test_track_media_bound_uses_local_time_not_session_offset():
+    track = replace(
+        _track(),
+        duration_seconds=3.0,
+        timeline_offset_seconds=120.0,
+        segments=(TranscriptSegment(id="overflow", start=2.0, end=3.2, text="fora"),),
+    )
+    with pytest.raises(TranscriptValidationError, match="track.segment:AFTER_DURATION"):
+        track.validate()
+
+
+def test_track_without_known_duration_does_not_invent_media_bound():
+    track = replace(
+        _track(),
+        duration_seconds=None,
+        timeline_offset_seconds=120.0,
+        segments=(TranscriptSegment(id="unknown", start=99.0, end=100.0, text="ok"),),
+    )
+    track.validate()
