@@ -654,16 +654,23 @@ export function parseJobEvents(value: unknown): JobEvent[] {
 			data,
 		};
 	});
-	for (let index = 1; index < events.length; index++) {
-		if (events[index - 1].seq >= events[index].seq) return invalid();
-	}
+	if (new Set(events.map((event) => event.seq)).size !== events.length)
+		return invalid();
 	return events;
 }
 
 export function parseJobEventPage(value: unknown): JobEventPage {
 	const row = record(value);
-	const events = parseJobEvents(row);
+	const parsed = parseJobEvents(row);
 	const legacy = row.has_more === undefined;
+	const events = legacy
+		? [...parsed].sort((left, right) => left.seq - right.seq)
+		: parsed;
+	if (!legacy) {
+		for (let index = 1; index < events.length; index++) {
+			if (events[index - 1].seq >= events[index].seq) return invalid();
+		}
+	}
 	if (legacy) {
 		return {
 			events,
