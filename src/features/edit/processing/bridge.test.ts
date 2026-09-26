@@ -33,14 +33,56 @@ describe("processing protocol contract", () => {
 				events: [
 					{
 						seq: 1,
+						attempt: 2,
 						code,
 						at: "2026-09-19T12:00:00Z",
 						level: "info",
 						data: {},
 					},
 				],
-			})[0]?.code,
-		).toBe(code);
+			})[0],
+		).toMatchObject({ code, attempt: 2 });
+	});
+
+	it("keeps legacy/job-level event attempt nullable and rejects invalid attempts", () => {
+		expect(
+			parseJobEvents({
+				events: [
+					{
+						seq: 1,
+						code: "QUEUED",
+						at: "2026-09-19T12:00:00Z",
+						level: "info",
+						data: {},
+					},
+					{
+						seq: 2,
+						attempt: null,
+						code: "DUPLICATE_SUBMISSION_REUSED",
+						at: "2026-09-19T12:00:01Z",
+						level: "info",
+						data: {},
+					},
+				],
+			}).map((event) => event.attempt),
+		).toEqual([null, null]);
+
+		for (const attempt of [0, -1, 1.5, true]) {
+			expect(() =>
+				parseJobEvents({
+					events: [
+						{
+							seq: 1,
+							attempt,
+							code: "RUNNING",
+							at: "2026-09-19T12:00:00Z",
+							level: "info",
+							data: {},
+						},
+					],
+				}),
+			).toThrow();
+		}
 	});
 });
 

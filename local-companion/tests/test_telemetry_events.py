@@ -160,6 +160,7 @@ def test_structured_events_keep_facts_and_job_context(tmp_path):
         ).json()["events"]
         assert events[0] == {
             "seq": events[0]["seq"],
+            "attempt": 1,
             "code": "SUCCEEDED",
             "at": events[0]["at"],
             "level": "info",
@@ -170,7 +171,11 @@ def test_structured_events_keep_facts_and_job_context(tmp_path):
             and event["data"] == {"attempt": 1, "total": 3}
             for event in events
         )
-        assert all(set(event) == {"seq", "code", "at", "level", "data"} for event in events)
+        assert all(
+            set(event) == {"seq", "attempt", "code", "at", "level", "data"}
+            for event in events
+        )
+        assert next(event for event in events if event["code"] == "QUEUED")["attempt"] is None
 
 
 def test_high_frequency_worker_events_are_throttled_before_sqlite(monkeypatch, tmp_path):
@@ -384,8 +389,8 @@ def test_v1_local_database_migrates_events_without_losing_jobs(tmp_path):
         version = db.execute("PRAGMA user_version").fetchone()[0]
         event_columns = {row[1] for row in db.execute("PRAGMA table_info(events)").fetchall()}
         job_columns = {row[1] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
-    assert version == 4
-    assert {"level", "data"} <= event_columns
+    assert version == 5
+    assert {"level", "data", "attempt"} <= event_columns
     assert "error_recoverable" in job_columns
     with sqlite3.connect(path) as db:
         assert {

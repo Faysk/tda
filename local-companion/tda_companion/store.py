@@ -20,7 +20,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4):
+            if version not in (0, 1, 2, 3, 4, 5):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -30,7 +30,7 @@ class Store:
                     error TEXT, result TEXT, updated TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS events (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
-                    code TEXT NOT NULL, at TEXT NOT NULL);
+                    code TEXT NOT NULL, at TEXT NOT NULL, attempt INTEGER);
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS idempotency_keys (
                     key TEXT PRIMARY KEY,
@@ -45,6 +45,8 @@ class Store:
                 db.execute("ALTER TABLE events ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")
             if "data" not in event_columns:
                 db.execute("ALTER TABLE events ADD COLUMN data TEXT")
+            if "attempt" not in event_columns:
+                db.execute("ALTER TABLE events ADD COLUMN attempt INTEGER")
             job_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()
             }
@@ -56,7 +58,7 @@ class Store:
                 "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
                 "SELECT idem,id,signature FROM jobs"
             )
-            db.execute("PRAGMA user_version=4")
+            db.execute("PRAGMA user_version=5")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -107,11 +109,17 @@ class Store:
                 for row in rows
             )
 
-    def event(self, db, job_id, code, data=None, level="info"):
+    def event(self, db, job_id, code, data=None, level="info", attempt=None):
+        if attempt is not None and (
+            isinstance(attempt, bool)
+            or not isinstance(attempt, int)
+            or attempt < 1
+        ):
+            raise Conflict("JOB_EVENT_ATTEMPT_INVALID")
         payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")) if data else None
         db.execute(
-            "INSERT INTO events(job_id,code,at,level,data) VALUES (?,?,?,?,?)",
-            (job_id, code, utc_now(), level, payload),
+            "INSERT INTO events(job_id,code,at,level,data,attempt) VALUES (?,?,?,?,?,?)",
+            (job_id, code, utc_now(), level, payload, attempt),
         )
 
     def record_worker_event(
@@ -151,17 +159,19 @@ class Store:
                 raise KeyError(job_id)
             if row["status"] != "running" or row["attempt"] != attempt:
                 return False
-            self.event(db, job_id, code, clean, level=level)
+            self.event(db, job_id, code, clean, level=level, attempt=attempt)
             return True
 
     def recover(self):
         with self.tx() as db:
-            for row in db.execute("SELECT id FROM jobs WHERE status='running'").fetchall():
+            for row in db.execute(
+                "SELECT id,attempt FROM jobs WHERE status='running'"
+            ).fetchall():
                 db.execute(
                     "UPDATE jobs SET status='interrupted',stage='interrupted',error='PROCESS_INTERRUPTED',error_recoverable=1,updated=? WHERE id=?",
                     (utc_now(), row["id"]),
                 )
-                self.event(db, row["id"], "PROCESS_INTERRUPTED", level="warning")
+                self.event(db, row["id"], "PROCESS_INTERRUPTED", level="warning", attempt=row["attempt"])
 
     @staticmethod
     def dto(row):
@@ -347,12 +357,13 @@ class Store:
             if not db.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
                 raise KeyError(job_id)
             rows = db.execute(
-                "SELECT seq,code,at,level,data FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100",
+                "SELECT seq,code,at,level,data,attempt FROM events WHERE job_id=? ORDER BY seq DESC LIMIT 100",
                 (job_id,),
             ).fetchall()
             return [
                 dict(
                     seq=row["seq"],
+                    attempt=row["attempt"],
                     code=row["code"],
                     at=row["at"],
                     level=row["level"],
@@ -381,6 +392,11 @@ class Store:
             body = json.loads(row["body"])
             status = row["status"]
             completed = row["completed"]
+            event_attempt = (
+                row["attempt"]
+                if action == "cancel" and status == "running"
+                else None
+            )
             if action == "cancel":
                 if status == "cancelled":
                     return self.dto(row)
@@ -424,6 +440,7 @@ class Store:
                 job_id,
                 status.upper(),
                 level="warning" if status == "cancelled" else "info",
+                attempt=event_attempt,
             )
             return self.dto(db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
 
@@ -441,7 +458,13 @@ class Store:
                 "UPDATE jobs SET status='running',stage=?,attempt=?,updated=? WHERE id=?",
                 (stage, next_attempt, utc_now(), row["id"]),
             )
-            self.event(db, row["id"], "RUNNING", {"attempt": next_attempt, "total": body["units"]})
+            self.event(
+                db,
+                row["id"],
+                "RUNNING",
+                {"attempt": next_attempt, "total": body["units"]},
+                attempt=next_attempt,
+            )
             return row["id"], next_attempt
 
     def set_stage(self, job_id, attempt, stage):
@@ -453,7 +476,13 @@ class Store:
                 (stage, utc_now(), job_id, attempt),
             ).rowcount
             if changed:
-                self.event(db, job_id, "STAGE_CHANGED", {"stage": stage})
+                self.event(
+                    db,
+                    job_id,
+                    "STAGE_CHANGED",
+                    {"stage": stage},
+                    attempt=attempt,
+                )
             return bool(changed)
 
     def touch(self, job_id, attempt):
@@ -485,6 +514,7 @@ class Store:
                 job_id,
                 "UNIT_COMMITTED",
                 {"completed": completed, "total": total, "unit": "tracks"},
+                attempt=attempt,
             )
             return True
 
@@ -501,7 +531,13 @@ class Store:
                 "UPDATE jobs SET status='succeeded',stage='complete',result=?,error=NULL,updated=? WHERE id=?",
                 (encoded, utc_now(), job_id),
             )
-            self.event(db, job_id, "SUCCEEDED", {"total": body["units"]})
+            self.event(
+                db,
+                job_id,
+                "SUCCEEDED",
+                {"total": body["units"]},
+                attempt=attempt,
+            )
             return True
 
     def complete_recovered(self, job_id, attempt, result):
@@ -528,6 +564,7 @@ class Store:
                 "SUCCEEDED_RECOVERED",
                 {"attempt": attempt, "total": body["units"]},
                 level="warning",
+                attempt=attempt,
             )
             return True
 
@@ -590,6 +627,7 @@ class Store:
                 job_id,
                 "SUCCEEDED" if done else "UNIT_COMMITTED",
                 {"completed": completed, "total": body["units"]},
+                attempt=attempt,
             )
             return not done
 
@@ -621,4 +659,10 @@ class Store:
                 (error_code, int(recoverable), utc_now(), job_id, attempt),
             ).rowcount
             if changed:
-                self.event(db, job_id, error_code, level="error")
+                self.event(
+                    db,
+                    job_id,
+                    error_code,
+                    level="error",
+                    attempt=attempt,
+                )

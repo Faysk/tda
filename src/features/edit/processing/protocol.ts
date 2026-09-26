@@ -89,6 +89,7 @@ export type JobEventLevel = "info" | "warning" | "error";
 export type JobEventValue = string | number | boolean | null;
 export type JobEvent = {
 	seq: number;
+	attempt: number | null;
 	code: string;
 	at: string;
 	level: JobEventLevel;
@@ -633,8 +634,14 @@ export function parseJobEvents(value: unknown): JobEvent[] {
 			else if (typeof raw === "string") data[key] = text(raw, 256);
 			else return invalid();
 		}
+		const attempt =
+			row.attempt === undefined || row.attempt === null
+				? null
+				: nonNegativeInteger(row.attempt);
+		if (attempt !== null && attempt < 1) return invalid();
 		return {
 			seq: nonNegativeInteger(row.seq),
+			attempt,
 			code: text(row.code, 96),
 			at: isoDate(row.at),
 			level: level as JobEventLevel,
