@@ -61,7 +61,9 @@ test("explicit failure diagnostics survive polling while another job runs", asyn
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila", exact: true }).click();
-	await page.getByRole("button", { name: "Ver diagnóstico", exact: true }).click();
+	await page.getByRole("button", { name: "Atenção", exact: true }).click();
+	await page.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
 	await expect(page.getByRole("log")).toContainText("faixa 2 · janela 89");
 	const inspectedReads = failureReads;
 	await expect.poll(() => failureReads).toBeGreaterThan(inspectedReads);
