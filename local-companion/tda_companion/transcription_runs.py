@@ -3,13 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from uuid import uuid4
+from .atomic_storage import AtomicStorageError, atomic_write
 
 from .transcript import TranscriptDocument, TranscriptValidationError
 
@@ -55,16 +54,7 @@ def _sha256_text(value: str) -> str:
 
 
 def _atomic_bytes(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
-    try:
-        with temporary.open("xb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write(path, payload)
 
 
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
@@ -249,10 +239,10 @@ def write_completed_run(
             before_commit()
         _atomic_json(destination / "run.json", manifest)
         return manifest
-    except BaseException:
+    except BaseException as exc:
         # The manifest is the immutable commit marker. Before it exists, this
         # directory is incomplete and cannot become a completed run.
-        if not (destination / "run.json").is_file():
+        if not (isinstance(exc, AtomicStorageError) and exc.ambiguous) and not (destination / "run.json").is_file():
             shutil.rmtree(destination, ignore_errors=True)
         raise
 
@@ -560,7 +550,7 @@ def migrate_legacy_transcript(package_root: Path, *, source_id: str, source_sha2
         _atomic_json(destination / "run.json", manifest)
         return manifest
     except BaseException as exc:
-        if not (destination / "run.json").is_file():
+        if not (isinstance(exc, AtomicStorageError) and exc.ambiguous) and not (destination / "run.json").is_file():
             shutil.rmtree(destination, ignore_errors=True)
         if isinstance(exc, TranscriptionRunError):
             return None

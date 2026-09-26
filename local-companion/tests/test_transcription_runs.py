@@ -35,6 +35,7 @@ def _document(source_sha256: str, profile: str, text: str) -> TranscriptDocument
         text=text,
         words=words,
     )
+
     track = TranscriptTrack(
         number=1,
         speaker="Alice",
@@ -448,3 +449,26 @@ def test_legacy_parser_preserves_original_strings_and_formatted_bytes(tmp_path: 
     (package / "transcript.json").write_bytes(payload)
     result = migrate_legacy_transcript(package, source_id="source", source_sha256="a" * 64)
     assert (package / "runs" / result["run_id"] / "transcript.json").read_bytes() == payload
+
+
+@pytest.mark.parametrize("fail_at", [1, 2])
+def test_ambiguous_run_fence_preserves_evidence_and_orders_commit(monkeypatch, tmp_path, fail_at):
+    import tda_companion.atomic_storage as storage
+    package = tmp_path / "source"
+    package.mkdir()
+    fences = []
+    def fence(directory):
+        fences.append(directory)
+        if len(fences) == fail_at:
+            raise OSError("synthetic namespace failure")
+    monkeypatch.setattr(storage, "sync_namespace", fence)
+    with pytest.raises(storage.AtomicStorageError) as error:
+        write_completed_run(package, _document("a" * 64, "whisper-detailed", "test"), job_id="durability", attempt=1)
+    assert error.value.ambiguous
+    root = package / "runs" / "run-durability-a1"
+    assert (root / "transcript.json").is_file()
+    assert (root / "run.json").exists() == (fail_at == 2)
+    if fail_at == 1:
+        assert list_runs(package) == []
+    else:
+        assert load_run(package, root.name)["run_id"] == root.name

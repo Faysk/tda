@@ -22,6 +22,12 @@ Princípios:
 
 ## Fluxo
 
+Os builds Whisper/Qwen e os fences de drift de Runtime RC/Stable incluem
+`atomic_storage.py` e `attempt_fence.py` como dependências do worker. Alterar a
+política de gravação ou de decisão de tentativa exige reconstruir o runtime; um
+artefato antigo não pode ser promovido por apenas compartilhar versão nominal.
+Isso amplia a verificação de fonte, sem disparar publicação nem retirar o hold.
+
 ### Hold operacional durante fechamento do backlog — 2026-09-26
 
 Para cumprir o gate de escopo/revisão/validação antes da publicação, os workflows
