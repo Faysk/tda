@@ -240,11 +240,15 @@ class Store:
                 VALUES (?,?,?,?,?,?)
                 ON CONFLICT(job_id,attempt,track,metric) DO UPDATE SET
                     value=CASE
+                        WHEN excluded.metric = 'model_downloaded_bytes'
+                        THEN excluded.value
                         WHEN excluded.value > job_activity.value
                         THEN excluded.value
                         ELSE job_activity.value
                     END,
                     updated=CASE
+                        WHEN excluded.metric = 'model_downloaded_bytes'
+                        THEN excluded.updated
                         WHEN excluded.value > job_activity.value
                         THEN excluded.updated
                         ELSE job_activity.updated
