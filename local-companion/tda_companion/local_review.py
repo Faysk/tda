@@ -724,9 +724,33 @@ def save_review(
             for item in base_segments
         }
         segments = _validate_segment_payload(value.get("segments"), base_map)
+        current_segments = _validate_segment_payload(current["segments"], base_map)
+
+        # Approval is an explicit action over an already-persisted exact draft.
+        # A request that also changes editorial content must save first and only
+        # then approve the resulting revision in a second CAS-fenced action.
+        if status == "approved_local":
+            if absent or segments != current_segments:
+                raise LocalReviewError("LOCAL_REVIEW_APPROVAL_REQUIRES_SAVED_DRAFT")
+            draft, payload = _bounded_json(path)
+            draft_sha256 = hashlib.sha256(payload).hexdigest()
+            _write_approval(path, draft=draft, draft_sha256=draft_sha256)
+            _refresh_review_summary(path, {
+                **draft,
+                "status": "approved_local",
+            })
+            return _response(
+                draft,
+                payload,
+                draft_path=path,
+                manifest=manifest,
+                base_segments=base_segments,
+                warnings=_warnings(transcript),
+            )
+
         # Presentation order alone is not a new editorial revision. Historical
         # bytes and their SHA remain unchanged until an actual field edit.
-        if not absent and status == current["status"] and segments == _validate_segment_payload(current["segments"], base_map):
+        if not absent and status == current["status"] and segments == current_segments:
             return current
         now = utc_now()
         draft = {
