@@ -173,7 +173,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	const vram = page.getByRole("meter", { name: "VRAM usada" });
 	const cpu = page.getByRole("meter", { name: "Uso da CPU" });
 	const ram = page.getByRole("meter", { name: "Uso da RAM" });
-	const gpuCluster = page.getByTitle("Synthetic GPU");
+	const gpuCluster = page.getByTitle("GPU 0 da máquina · Synthetic GPU");
 	const initialClusterBox = await gpuCluster.boundingBox();
 
 	await expect(gpu).toHaveAttribute("value", "40");
@@ -260,6 +260,7 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 		String(2 / 3),
 	);
 
+	const previousProgress = await progressVisual.elementHandle();
 	state.setJob(
 		fixtureJob("running", {
 			attempt: 2,
@@ -273,11 +274,25 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 		"data-progress-target",
 		String(1 / 3),
 	);
+	expect(await previousProgress?.evaluate((element) => element.isConnected)).toBe(false);
 });
 
 test("aba oculta não mantém frame loop e preserva o target factual", async ({
 	page,
 }) => {
+	await page.addInitScript(() => {
+		const pending = new Set<number>();
+		let cancelled = 0;
+		const request = window.requestAnimationFrame.bind(window);
+		const cancel = window.cancelAnimationFrame.bind(window);
+		window.requestAnimationFrame = (callback) => {
+			const id = request((now) => { pending.delete(id); callback(now); });
+			pending.add(id);
+			return id;
+		};
+		window.cancelAnimationFrame = (id) => { pending.delete(id); cancelled += 1; cancel(id); };
+		Object.defineProperty(window, "metricFrames", { get: () => ({ pending: pending.size, cancelled }) });
+	});
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -302,14 +317,8 @@ test("aba oculta não mantém frame loop e preserva o target factual", async ({
 	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
 	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
 
-	await page.evaluate(() => {
-		Object.defineProperty(document, "hidden", {
-			configurable: true,
-			value: true,
-		});
-		document.dispatchEvent(new Event("visibilitychange"));
-	});
 
+	await expect(visual).toHaveText("40%");
 	state.setSystem({
 		gpus: [
 			{
@@ -324,6 +333,17 @@ test("aba oculta não mantém frame loop e preserva o target factual", async ({
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
 	await expect(gpu).toHaveAttribute("value", "100");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
+	await page.evaluate(() => {
+		Object.defineProperty(document, "hidden", {
+			configurable: true,
+			value: true,
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
+	expect(await page.evaluate(() => (window as unknown as { metricFrames: { pending: number } }).metricFrames.pending)).toBe(0);
+	expect(await page.evaluate(() => (window as unknown as { metricFrames: { cancelled: number } }).metricFrames.cancelled)).toBeGreaterThan(0);
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 	await expect(visual).toHaveText("100%");
 });

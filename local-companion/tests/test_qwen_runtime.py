@@ -137,19 +137,23 @@ def test_startup_recovery_prefers_verified_qwen_partial_over_corrupt_backup(
     assert inspect_qwen_runtime(runtime_root, verify_worker=True)["status"] == "ready"
 
 
-def test_pre_runs_qwen_runtime_is_valid_but_incompatible(tmp_path: Path):
-    archive = tmp_path / "runtime-old.zip"
+@pytest.mark.parametrize("version", ("1.0.1", "1.0.10"))
+def test_old_qwen_runtime_is_valid_but_incompatible(
+    tmp_path: Path,
+    version: str,
+):
+    archive = tmp_path / f"runtime-{version}.zip"
     digest = _runtime_zip(archive)
     runtime_root = tmp_path / "Runtime"
     install_qwen_runtime_archive(
         archive,
         runtime_root,
-        version="1.0.1",
+        version=version,
         expected_sha256=digest,
     )
 
     state = inspect_qwen_runtime(runtime_root, verify_worker=True)
-    assert state == {"status": "incompatible", "version": "1.0.1", "worker": None}
+    assert state == {"status": "incompatible", "version": version, "worker": None}
     assert current_qwen_worker(runtime_root) is None
 
 

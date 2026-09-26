@@ -23,6 +23,7 @@ import {
 	selectQueueJobs,
 } from "./queue-model";
 import styles from "./queue-view.module.css";
+import { QueueActions } from "./queue-actions";
 
 const consolidationStages = new Set([
 	"energy_analysis",
@@ -109,6 +110,7 @@ function QueueProgress({ job }: Readonly<{ job: LocalJob }>) {
 	return (
 		<div className={styles.progress}>
 			<AnimatedProgress
+				key={`${job.id}:${job.attempt}:${job.stage}`}
 				ariaLabel={`Progresso do trabalho ${job.id}`}
 				value={job.progress.completed}
 				max={job.progress.total}
@@ -130,7 +132,7 @@ type Props = Readonly<{
 	onRetry: (job: LocalJob) => void;
 	onResult: (job: LocalJob) => void;
 	onDelete: (job: LocalJob) => void;
-	onDiagnostics: () => void;
+	onDiagnostics: (job: LocalJob) => void;
 }>;
 
 export function ProcessingQueueView({
@@ -148,7 +150,9 @@ export function ProcessingQueueView({
 }: Props) {
 	const [query, setQuery] = useState("");
 	const [sort, setSort] = useState<QueueSort>("updated");
-	const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+	const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -215,7 +219,9 @@ export function ProcessingQueueView({
 					<span>Ordenar</span>
 					<select
 						value={sort}
-						onChange={(event) => setSort(event.currentTarget.value as QueueSort)}
+						onChange={(event) =>
+							setSort(event.currentTarget.value as QueueSort)
+						}
 					>
 						{queueSortOptions.map((item) => (
 							<option key={item.id} value={item.id}>
@@ -248,9 +254,15 @@ export function ProcessingQueueView({
 								<th scope="col">Etapa / progresso</th>
 								<th scope="col">Estado</th>
 								<th scope="col">Atualizado</th>
-								<th scope="col" className={styles.wideColumn}>Attempt</th>
-								<th scope="col" className={styles.wideColumn}>Erro / recuperação</th>
-								<th scope="col" className={styles.actionsHeader}>Ações</th>
+								<th scope="col" className={styles.wideColumn}>
+									Attempt
+								</th>
+								<th scope="col" className={styles.wideColumn}>
+									Erro / recuperação
+								</th>
+								<th scope="col" className={styles.actionsHeader}>
+									Ações
+								</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -258,12 +270,17 @@ export function ProcessingQueueView({
 								const pending = pendingFor(job.id, mutation);
 								const isExpanded = expanded.has(job.id);
 								const profile = queueProfileLabel(job.context?.profileId);
-								const error = job.error ? presentJobError(job.error.code) : null;
+								const error = job.error
+									? presentJobError(job.error.code)
+									: null;
 								const detailsId = `queue-job-details-${job.id}`;
 								return (
 									<Fragment key={job.id}>
 										<tr className={styles.row} data-status={job.status}>
-											<td data-label="Sessão / source" className={styles.identityCell}>
+											<td
+												data-label="Sessão / source"
+												className={styles.identityCell}
+											>
 												<strong>{queuePrimaryIdentity(job)}</strong>
 												{queueSupportingIdentity(job) ? (
 													<span>{queueSupportingIdentity(job)}</span>
@@ -276,7 +293,10 @@ export function ProcessingQueueView({
 													Attempt {job.attempt}
 												</span>
 											</td>
-											<td data-label="Etapa / progresso" className={styles.stageCell}>
+											<td
+												data-label="Etapa / progresso"
+												className={styles.stageCell}
+											>
 												<strong>{stageLabels[job.stage] ?? job.stage}</strong>
 												<QueueProgress job={job} />
 											</td>
@@ -288,14 +308,22 @@ export function ProcessingQueueView({
 													<span className={styles.errorInline}>{error}</span>
 												) : null}
 											</td>
-											<td data-label="Atualizado" className={styles.updatedCell}>
-												<time dateTime={job.updated_at} title={exactUpdated(job.updated_at)}>
+											<td
+												data-label="Atualizado"
+												className={styles.updatedCell}
+											>
+												<time
+													dateTime={job.updated_at}
+													title={exactUpdated(job.updated_at)}
+												>
 													{relativeUpdated(job.updated_at)}
 												</time>
 												<small>{exactUpdated(job.updated_at)}</small>
 											</td>
 											<td data-label="Attempt" className={styles.wideColumn}>
-												<span className={styles.attemptWide}>{job.attempt}</span>
+												<span className={styles.attemptWide}>
+													{job.attempt}
+												</span>
 											</td>
 											<td
 												data-label="Erro / recuperação"
@@ -335,7 +363,8 @@ export function ProcessingQueueView({
 																: "Repetir trabalho"}
 														</Button>
 													) : null}
-													{job.status === "succeeded" && job.result_available ? (
+													{job.status === "succeeded" &&
+													job.result_available ? (
 														<Button
 															size="sm"
 															disabled={pending === "result"}
@@ -346,39 +375,65 @@ export function ProcessingQueueView({
 																: "Abrir resultado"}
 														</Button>
 													) : null}
-													<details className={styles.more}>
-														<summary aria-label={`Mais ações para ${queuePrimaryIdentity(job)}`}>
-															Mais
-														</summary>
-														<div className={styles.moreMenu}>
-															<button
-																type="button"
-																aria-expanded={isExpanded}
-																aria-controls={detailsId}
-																onClick={() => toggleDetails(job.id)}
-															>
-																{isExpanded ? "Ocultar detalhes" : "Detalhes"}
-															</button>
-															<button type="button" onClick={() => void copyId(job.id)}>
-																Copiar ID
-															</button>
-															<button type="button" onClick={onDiagnostics}>
-																Abrir Diagnóstico
-															</button>
-															{canDelete &&
-															["succeeded", "failed", "interrupted", "cancelled"].includes(
-																job.status,
-															) ? (
+													<QueueActions
+														key={JSON.stringify([job.id, filter, query, sort])}
+														label={queuePrimaryIdentity(job)}
+													>
+														{(close) => (
+															<>
+																{/* Native buttons retain a simple Tab sequence. */}
 																<button
 																	type="button"
-																	disabled={pending === "delete"}
-																	onClick={() => onDelete(job)}
+																	aria-expanded={isExpanded}
+																	aria-controls={detailsId}
+																	onClick={() => {
+																		close();
+																		toggleDetails(job.id);
+																	}}
 																>
-																	{pending === "delete" ? "Excluindo…" : "Excluir"}
+																	{isExpanded ? "Ocultar detalhes" : "Detalhes"}
 																</button>
-															) : null}
-														</div>
-													</details>
+																<button
+																	type="button"
+																	onClick={() => {
+																		close();
+																		void copyId(job.id);
+																	}}
+																>
+																	Copiar ID
+																</button>
+																<button
+																	type="button"
+																	onClick={() => {
+																		close();
+																		onDiagnostics(job);
+																	}}
+																>
+																	Abrir Diagnóstico
+																</button>
+																{canDelete &&
+																[
+																	"succeeded",
+																	"failed",
+																	"interrupted",
+																	"cancelled",
+																].includes(job.status) ? (
+																	<button
+																		type="button"
+																		disabled={pending === "delete"}
+																		onClick={() => {
+																			close();
+																			onDelete(job);
+																		}}
+																	>
+																		{pending === "delete"
+																			? "Excluindo…"
+																			: "Excluir"}
+																	</button>
+																) : null}
+															</>
+														)}
+													</QueueActions>
 												</div>
 											</td>
 										</tr>
@@ -398,7 +453,9 @@ export function ProcessingQueueView({
 														</div>
 														<div>
 															<dt>Sessão</dt>
-															<dd>{job.context?.sessionId ?? "Não informada"}</dd>
+															<dd>
+																{job.context?.sessionId ?? "Não informada"}
+															</dd>
 														</div>
 														<div>
 															<dt>Profile</dt>
@@ -424,7 +481,10 @@ export function ProcessingQueueView({
 															<div className={styles.detailWide}>
 																<dt>Erro</dt>
 																<dd>
-																	{error} <span className={styles.mono}>({job.error.code})</span>
+																	{error}{" "}
+																	<span className={styles.mono}>
+																		({job.error.code})
+																	</span>
 																	{job.error.recoverable
 																		? " · retry disponível"
 																		: " · não recuperável"}

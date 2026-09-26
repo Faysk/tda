@@ -145,10 +145,12 @@ def test_cancel_fence_blocks_run_commit_for_whisper_and_qwen(
 
 
 @pytest.mark.parametrize("profile_id", ["whisper-turbo", "qwen-fast"])
+@pytest.mark.parametrize("invalid_legacy", [False, True])
 def test_commit_fence_produces_immutable_run_for_whisper_and_qwen(
     tmp_path: Path,
     monkeypatch,
     profile_id: str,
+    invalid_legacy: bool,
 ):
     data_root = tmp_path / "Data"
     models_root = tmp_path / "Models"
@@ -158,6 +160,8 @@ def test_commit_fence_produces_immutable_run_for_whisper_and_qwen(
     monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
     monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
     job_id = f"job-commit-{profile_id}"
+    if invalid_legacy:
+        (package_root / "transcript.json").write_bytes(b"invalid historical transcript")
 
     transcribe = lambda *_args, **_kwargs: _document(
         source_sha,
@@ -188,6 +192,10 @@ def test_commit_fence_produces_immutable_run_for_whisper_and_qwen(
         and message["payload"].get("code") == "RUN_COMMIT_FENCE_WON"
     )
     assert fence_event["payload"]["attempt"] == 1
+    if invalid_legacy:
+        assert (package_root / "transcript.json").read_bytes() == b"invalid historical transcript"
+        assert any(message.get("payload", {}).get("code") == "COMPATIBILITY_MIRROR_LEGACY_PRESERVED"
+                   for message in messages)
 
 
 def test_worker_cleans_only_uncommitted_crash_runs_before_asr(tmp_path: Path, monkeypatch):

@@ -132,6 +132,8 @@ for (const [token, value] of layoutExtensions) {
 }
 
 const rebootSemanticExtensions = [
+	["--ds-warning", "#f29b38"],
+	["--ds-warning", "#9c4f00"],
 	["--ds-on-art-foreground", "#fffdf8"],
 	["--ds-on-art-soft", "#d7d2c9"],
 	["--ds-on-art-accent", "#f2c879"],

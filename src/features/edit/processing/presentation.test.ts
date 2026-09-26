@@ -66,7 +66,9 @@ describe("processing presentation", () => {
 	});
 
 	it("explains physical ASR execution failures", () => {
-		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toContain("alinhamento");
+		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toBe(
+			"O alinhamento obrigatório falhou. Abra Diagnóstico para ver a faixa, a janela e a causa específica. Nenhum resultado parcial foi publicado.",
+		);
 		expect(presentJobError("QWEN_MODEL_NOT_GPU_RESIDENT")).toContain("GPU");
 		expect(presentJobError("WHISPER_CUDA_UNAVAILABLE")).toContain("CUDA");
 		expect(presentJobError("WHISPER_RUNTIME_NOT_INSTALLED")).toContain(
@@ -156,12 +158,143 @@ it("presents ownership-safe Qwen alignment overflow without hiding fail-closed s
 			seq: 40,
 			code: "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED",
 			at: "2026-09-23T00:00:00.000Z",
-			level: "warning",
+			level: "info",
 			data: { track: 2, window: 88, count: 1, stage: "alignment" },
 		}),
 	).toEqual({
 		title: "Um timestamp extrapolado no overlap vizinho foi ignorado com segurança.",
-		detail: "A janela atual não era dona desse trecho; conteúdo da região owned continua fail-closed.",
+		detail: "Esse trecho pertence à janela vizinha; palavras da janela atual continuam sob validação estrita.",
+	});
+});
+
+
+it("presents actionable terminal copy for Qwen runtime failures", () => {
+	expect(presentJobError("QWEN_CUDA_DRIVER_INCOMPATIBLE")).toBe(
+		"O driver NVIDIA/CUDA não é compatível com este runtime Qwen.",
+	);
+	expect(presentJobError("QWEN_ASR_RUNTIME_API_FAILED")).toBe(
+		"O runtime Qwen encontrou uma falha interna ao executar a API de inferência/alinhamento.",
+	);
+});
+
+
+it("explains checkpoint durability and retry cost honestly", () => {
+	expect(
+		presentJobEvent({
+			seq: 44,
+			code: "ASR_TEXT_CHECKPOINT_SAVED",
+			at: "2026-09-25T00:00:03.000Z",
+			level: "info",
+			data: { track: 1, stage: "transcription" },
+		}),
+	).toEqual({
+		title: "Texto Qwen pré-alinhamento salvo em checkpoint.",
+		detail:
+			"Se o alinhamento falhar, uma nova tentativa compatível pode evitar retranscrever esta faixa.",
+	});
+	expect(
+		presentJobEvent({
+			seq: 45,
+			code: "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
+			at: "2026-09-25T00:00:04.000Z",
+			level: "warning",
+			data: { track: 1, stage: "transcription" },
+		}),
+	).toEqual({
+		title: "Não foi possível salvar o checkpoint de texto desta faixa.",
+		detail:
+			"A execução atual continua, mas uma nova tentativa pode precisar retranscrever esta faixa.",
+	});
+	expect(
+		presentJobEvent({
+			seq: 46,
+			code: "ASR_CHECKPOINT_WRITE_SKIPPED",
+			at: "2026-09-25T00:00:05.000Z",
+			level: "warning",
+			data: { track: 1, stage: "alignment" },
+		}),
+	).toEqual({
+		title: "Não foi possível salvar o checkpoint final desta faixa.",
+		detail:
+			"A faixa continua nesta execução, mas uma nova tentativa pode precisar refazer este trabalho.",
+	});
+});
+
+it("presents sealed Qwen runtime identity without local paths", () => {
+	expect(
+		presentJobEvent({
+			seq: 40,
+			code: "QWEN_RUNTIME_FINGERPRINT_READY",
+			at: "2026-09-25T00:00:00.000Z",
+			level: "info",
+			data: {
+				runtime_version: "1.0.11",
+				worker_sha256: "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			},
+		}),
+	).toEqual({
+		title: "Runtime Qwen 1.0.11 identificado e validado.",
+		detail:
+			"Worker selado · SHA-256 abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+	});
+});
+
+
+it("presents sanitized Qwen alignment failure context", () => {
+	expect(
+		presentJobEvent({
+			seq: 41,
+			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+			at: "2026-09-25T00:00:00.000Z",
+			level: "error",
+			data: {
+				track: 1,
+				window: 89,
+				failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				runtime_version: "1.0.11",
+				worker_sha256: "a".repeat(64),
+			},
+		}),
+	).toEqual({
+		title: "Falha de alinhamento Qwen · faixa 1 · janela 89.",
+		detail:
+			"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger. Identidade da execução: runtime 1.0.11 · worker SHA-256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
+	});
+});
+
+it("presents an alignment VRAM failure as a runtime problem, not transcript corruption", () => {
+	expect(
+		presentJobEvent({
+			seq: 43,
+			code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+			at: "2026-09-25T00:00:02.000Z",
+			level: "error",
+			data: {
+				track: 2,
+				window: 17,
+				failure_class: "QWEN_ASR_GPU_MEMORY_EXHAUSTED",
+			},
+		}),
+	).toEqual({
+		title: "Falha de alinhamento Qwen · faixa 2 · janela 17.",
+		detail: "A GPU ficou sem VRAM enquanto o alinhador processava esta janela.",
+	});
+});
+
+
+it("explains compatibility reuse without implying a completed run", () => {
+	expect(
+		presentJobEvent({
+			seq: 42,
+			code: "ASR_TEXT_CHECKPOINT_COMPAT_REUSED",
+			at: "2026-09-25T00:00:01.000Z",
+			level: "info",
+			data: { track: 1, total_tracks: 4, source_runtime_version: "1.0.10" },
+		}),
+	).toEqual({
+		title: "Texto Qwen do runtime 1.0.10 reutilizado com validação de integridade.",
+		detail:
+			"A transcrição compatível não rodou de novo; o processamento retomou a partir do alinhamento.",
 	});
 });
 

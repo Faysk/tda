@@ -24,7 +24,6 @@ type Props = Readonly<{
 	ariaLabel: string;
 	className?: string;
 	minWidthCh?: number;
-	durationMs?: number;
 }>;
 
 export function AnimatedMetric({
@@ -36,7 +35,6 @@ export function AnimatedMetric({
 	ariaLabel,
 	className,
 	minWidthCh,
-	durationMs,
 }: Props) {
 	const target = clampNumber(value, min, max);
 	const [displayValue, setDisplayValue] = useState(target);
@@ -66,7 +64,7 @@ export function AnimatedMetric({
 		}
 
 		const duration =
-			durationMs ?? animatedNumberDuration(start, target, min, max);
+			animatedNumberDuration(start, target, min, max);
 		let startedAt: number | null = null;
 
 		const tick = (now: number) => {
@@ -102,7 +100,7 @@ export function AnimatedMetric({
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 			media.removeEventListener("change", onReducedMotionChange);
 		};
-	}, [durationMs, max, min, target]);
+	}, [max, min, target]);
 
 	const style = minWidthCh
 		? ({

@@ -4,6 +4,7 @@ import {
 } from "./compatibility";
 import {
 	BridgeError,
+	type LocalReview,
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
@@ -440,22 +441,25 @@ export class LocalBridge {
 	async saveLocalReview(
 		sourceId: string,
 		runId: string,
-		expectedDraftRevision: number,
+		baseline: LocalReview,
 		status: LocalReviewStatus,
 		segments: readonly LocalReviewSegment[],
 		signal: AbortSignal,
 	) {
-		if (
-			!Number.isSafeInteger(expectedDraftRevision) ||
-			expectedDraftRevision < 0
-		)
-			throw new BridgeError("invalid_response");
+		if (baseline.snapshotContract !== "tda_local_review_cas_v1")
+			throw new BridgeError("incompatible", "LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED");
+		if (baseline.sourceId !== sourceId || baseline.runId !== runId)
+			throw new BridgeError("conflict", "LOCAL_REVIEW_DRAFT_CONFLICT");
+		const expected = baseline.persistence === "ephemeral_base"
+			? { persistence: "ephemeral_base", base_transcript_sha256: baseline.baseTranscriptSha256 }
+			: { persistence: "persisted", draft_revision: baseline.draftRevision, draft_sha256: baseline.draftSha256 };
 		return parseLocalReview(
 			await this.reviewJson(
 				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/review`,
 				signal,
 				{
-					expected_draft_revision: expectedDraftRevision,
+					snapshot_contract: baseline.snapshotContract,
+					expected,
 					status,
 					segments: segments.map((segment) => ({
 						track_number: segment.trackNumber,

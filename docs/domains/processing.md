@@ -26,6 +26,35 @@ Motivações:
 
 ## Fonte, job, run e revision são conceitos diferentes
 
+### Duração física e extensão da sessão — candidato #595 / #643
+
+O preflight Craig deriva duração do prefixo fixo de 42 bytes do FLAC STREAMINFO
+([RFC 9639, seção 8.2](https://www.rfc-editor.org/rfc/rfc9639.html#section-8.2)),
+sem decode ou leitura integral adicional. O campo opcional `duration_seconds` no
+manifest é apenas cache: mesmo um valor plausível, inválido ou ausente é ignorado
+na leitura factual, sem rewrite. Hash, tamanho, identidade e caminho mantêm suas
+validações. Metadata FLAC indisponível retorna duração desconhecida; qualquer
+faixa desconhecida mantém ambos os totais de preflight nulos, sem bloquear ASR.
+
+Preflight e runs usam a mesma derivação: `audio_work_seconds = sum(duração)`;
+`session_duration_seconds = max(offset + duração)`, desde a origem t=0. Offsets
+não entram no workload/RTF; silêncio final conta na extensão física. Exemplo:
+60 s em offset 0 e 30 s em offset 120 produzem workload 90 s e extensão 150 s.
+Offsets negativos ou não finitos são rejeitados. Nenhuma ETA é fabricada (#586).
+
+Novas stats completas declaram `duration_semantics=session_extent_v1` e validam
+os dois valores contra as faixas com tolerância absoluta de 1 ms. Ausência histórica
+fica explicitamente sem versão; parser preserva os valores existentes, sem recalcular
+ou regravar runs. A versão acompanha summaries/review até o adapter Web. Duração
+incompleta mantém o contrato numérico histórico do resultado sem declarar a nova
+semântica; não deve ser usada como workload factual para estimativa.
+
+Rollout exige o Agent com parser aditivo antes dos workers que escrevem a versão
+de métrica; não fazer downgrade do parser enquanto houver novos artefatos. Não há
+migração de bytes históricos ou banco. O módulo de FLAC participa dos inputs de
+build e das verificações de drift de RC/Stable dos dois runtimes. Rollback conserva
+o parser e os arquivos; não reinterpreta silenciosamente métricas antigas.
+
 ### Source
 
 Identidade do material de origem. Para Craig, o Companion usa identidade baseada no conteúdo do ZIP e staging local reutilizável quando seguro.

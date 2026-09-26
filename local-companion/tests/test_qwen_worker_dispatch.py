@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import tda_companion.worker_supervisor as worker_supervisor
+from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
 
@@ -22,7 +23,7 @@ def _supervisor(tmp_path: Path) -> WorkerSupervisor:
 
 def test_qwen_job_dispatch_uses_lightweight_gate_and_worker_lookup(monkeypatch, tmp_path: Path):
     supervisor = _supervisor(tmp_path)
-    worker = tmp_path / "Runtime" / "qwen" / "1.0.6" / "TDAQwenWorker.exe"
+    worker = tmp_path / "Runtime" / "qwen" / MIN_COMPATIBLE_QWEN_RUNTIME_VERSION / "TDAQwenWorker.exe"
     worker.parent.mkdir(parents=True)
     worker.write_bytes(b"worker")
     observed: dict[str, object] = {}

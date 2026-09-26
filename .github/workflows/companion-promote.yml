@@ -298,19 +298,28 @@ jobs:
               "User-Agent": "tda-stable-promotion-smoke/1",
           }
 
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect)
+          manifest_url = f"{base}/api/downloads/companion/windows/manifest"
           manifest = None
           last_error = None
           for _ in range(12):
               try:
                   request = urllib.request.Request(
-                      f"{base}/api/downloads/companion/windows/manifest",
+                      manifest_url,
                       headers=headers,
                   )
-                  with urllib.request.urlopen(request, timeout=15) as response:
+                  with opener.open(request, timeout=15) as response:
+                      if response.status != 200 or response.geturl() != manifest_url:
+                          raise ValueError("CANONICAL_WEB_STABLE_MANIFEST_NOT_DIRECT")
                       value = json.loads(response.read().decode("utf-8"))
                   asset = value.get("asset") if isinstance(value, dict) else None
                   if (
-                      value.get("channel") == "stable"
+                      isinstance(value, dict)
+                      and value.get("channel") == "stable"
                       and value.get("tag") == tag
                       and value.get("version") == version
                       and isinstance(asset, dict)
@@ -327,11 +336,6 @@ jobs:
           if manifest is None:
               raise SystemExit(f"CANONICAL_WEB_STABLE_MANIFEST_MISMATCH:{last_error}")
 
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, req, fp, code, msg, headers, newurl):
-                  return None
-
-          opener = urllib.request.build_opener(NoRedirect)
           for suffix in ("", f"?tag={tag}"):
               request = urllib.request.Request(
                   f"{base}/api/downloads/companion/windows{suffix}",

@@ -143,8 +143,8 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
             headers=headers,
         )
         assert listing.status_code == 200
-        assert listing.json()["runs"][0]["review_summary"] is None
         assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(listing.json())
+        assert listing.json()["runs"][0]["review"] is None
 
         review = client.get(
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
@@ -157,13 +157,13 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert opened["sync"] == {"status": "not_configured"}
         assert str(tmp_path) not in json.dumps(opened)
 
-        listed_draft = client.get(
+        after_open = client.get(
             f"/api/v1/sources/{source_id}/runs",
             headers=headers,
-        ).json()["runs"][0]["review_summary"]
-        assert listed_draft["status"] == "draft"
-        assert listed_draft["draft_revision"] == 0
-        assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(listed_draft)
+        )
+        assert after_open.status_code == 200
+        assert after_open.json()["runs"][0]["review"] is None
+        assert "SEGREDO EDITORIAL LOCAL" not in json.dumps(after_open.json())
 
         segments = [dict(item) for item in opened["segments"]]
         segments[0]["text"] = "Texto revisado"
@@ -173,7 +173,7 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "approved_local",
                 "segments": segments,
             },
@@ -186,13 +186,18 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert value["review"]["edited_segments"] == 1
         assert raw_path.read_bytes() == raw_before
 
-        listed_approved = client.get(
+        after_save = client.get(
             f"/api/v1/sources/{source_id}/runs",
             headers=headers,
-        ).json()["runs"][0]["review_summary"]
-        assert listed_approved["status"] == "approved_local"
-        assert listed_approved["draft_revision"] == 1
-        assert listed_approved["updated_at"] == value["updated_at"]
+        )
+        assert after_save.status_code == 200
+        assert after_save.json()["runs"][0]["review"] == {
+            "status": "approved_local",
+            "draft_revision": 1,
+            "review_percent": 100.0,
+            "updated_at": value["updated_at"],
+        }
+        assert "Texto revisado" not in json.dumps(after_save.json())
 
         reopened = client.get(
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
@@ -264,7 +269,7 @@ def test_review_api_conflicts_on_stale_draft_revision(tmp_path: Path):
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "draft",
                 "segments": first,
             },
@@ -277,7 +282,7 @@ def test_review_api_conflicts_on_stale_draft_revision(tmp_path: Path):
             f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
             headers={**headers, "Content-Type": "application/json"},
             json={
-                "expected_draft_revision": 0,
+                **_expected(opened),
                 "status": "draft",
                 "segments": stale,
             },
@@ -340,7 +345,7 @@ def test_review_api_requires_authorization_and_origin_for_writes(tmp_path: Path)
                 "Content-Type": "application/json",
             },
             json={
-                "expected_draft_revision": opened["draft_revision"],
+                **_expected(opened),
                 "status": "draft",
                 "segments": opened["segments"],
             },
@@ -446,3 +451,48 @@ def test_source_catalog_requires_auth_and_get_only_preflight(tmp_path: Path):
         )
         assert rejected.status_code == 403
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
+
+
+def _expected(review):
+    expected = ({"persistence": "ephemeral_base", "base_transcript_sha256": review["base_transcript_sha256"]}
+                if review["persistence"] == "ephemeral_base" else
+                {"persistence": "persisted", "draft_revision": review["draft_revision"], "draft_sha256": review["draft_sha256"]})
+    return {"snapshot_contract": "tda_local_review_cas_v1", "expected": expected}
+
+
+def test_catalog_of_100_reviews_only_reads_bounded_metadata(monkeypatch, tmp_path):
+    from tda_companion.local_review import open_review, save_review
+    import tda_companion.local_review as review_module
+    with _client(tmp_path) as client:
+        source_id, package_root, first = _stage_and_run(client, tmp_path)
+        package = load_craig_package(package_root, verify_tracks=False)
+        for index in range(100):
+            run = first if index == 0 else write_completed_run(
+                package_root, _document(package), job_id=f"catalog-{index}", attempt=1,
+            )
+            # Explicit authority also keeps this fixture compatible with fail-closed cleanup.
+            claim_attempt_outcome(package_root, str(run["job_id"]), 1, "commit")
+            opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
+            save_review(package_root, source_id=source_id, run_id=run["run_id"], value={
+                **_expected(opened), "status": "draft", "segments": opened["segments"],
+            })
+        headers = _browser_headers(client)
+        original_open = Path.open
+        def guard(path, *args, **kwargs):
+            assert path.name not in {"draft.json", "transcript.json"}, "catalog opened editorial payload"
+            return original_open(path, *args, **kwargs)
+        monkeypatch.setattr(Path, "open", guard)
+        sizes = []
+        bounded = review_module._regular_summary_bytes
+        def counted(path):
+            value = bounded(path)
+            sizes.append(len(value))
+            return value
+        monkeypatch.setattr(review_module, "_regular_summary_bytes", counted)
+        listing = client.get(f"/api/v1/sources/{source_id}/runs", headers=headers)
+        assert listing.status_code == 200
+        rows = listing.json()["runs"]
+        assert len(rows) == len(sizes) == 100
+        assert all(row["review"]["status"] == "draft" for row in rows)
+        assert max(sizes) <= 8192
+        assert "SEGREDO EDITORIAL LOCAL" not in listing.text

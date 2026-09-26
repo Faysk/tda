@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from .atomic_storage import AtomicStorageError, atomic_write
 
 from .transcription_runs import TranscriptionRunError, load_run, run_root
 
@@ -115,15 +114,12 @@ def _atomic_write(path: Path, value: dict[str, Any]) -> None:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.partial")
     try:
-        with temporary.open("xb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+        atomic_write(path, payload)
+    except AtomicStorageError as exc:
+        if exc.ambiguous:
+            raise PublicationTargetError("PUBLICATION_TARGET_WRITE_UNCONFIRMED") from exc
+        raise
 
 
 def bind_publication_target(

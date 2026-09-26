@@ -119,6 +119,12 @@
 	initial-value: #8fc49b;
 }
 
+@property --ds-warning {
+	syntax: "<color>";
+	inherits: true;
+	initial-value: #f29b38;
+}
+
 @property --ds-ambient-accent {
 	syntax: "<color>";
 	inherits: true;
@@ -160,6 +166,7 @@
 	--ds-action-primary-border: #e7b95f;
 	--ds-danger: #e59383;
 	--ds-success: #8fc49b;
+	--ds-warning: #f29b38;
 	--ds-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
 	--ds-ambient-accent: rgba(215, 170, 97, 0.09);
 	--ds-ambient-cool: rgba(75, 91, 109, 0.08);
@@ -214,6 +221,7 @@
 	--ds-action-primary-border: #805817;
 	--ds-danger: #9a3025;
 	--ds-success: #326c42;
+	--ds-warning: #9c4f00;
 	--ds-shadow: 0 24px 70px rgba(48, 39, 28, 0.14);
 	--ds-ambient-accent: rgba(128, 88, 23, 0.08);
 	--ds-ambient-cool: rgba(92, 78, 58, 0.05);
@@ -243,6 +251,7 @@
 		--ds-action-primary-border: #805817;
 		--ds-danger: #9a3025;
 		--ds-success: #326c42;
+		--ds-warning: #9c4f00;
 		--ds-shadow: 0 24px 70px rgba(48, 39, 28, 0.14);
 		--ds-ambient-accent: rgba(128, 88, 23, 0.08);
 		--ds-ambient-cool: rgba(92, 78, 58, 0.05);
@@ -273,6 +282,7 @@
 			--ds-action-primary-border,
 			--ds-danger,
 			--ds-success,
+			--ds-warning,
 			--ds-ambient-accent,
 			--ds-ambient-cool,
 			--ds-control-border;

@@ -22,6 +22,40 @@ Princípios:
 
 ## Fluxo
 
+Os builds Whisper/Qwen e os fences de drift de Runtime RC/Stable incluem
+`atomic_storage.py` e `attempt_fence.py` como dependências do worker. Alterar a
+política de gravação ou de decisão de tentativa exige reconstruir o runtime; um
+artefato antigo não pode ser promovido por apenas compartilhar versão nominal.
+Isso amplia a verificação de fonte, sem disparar publicação nem retirar o hold.
+
+### Hold operacional durante fechamento do backlog — 2026-09-26
+
+Para cumprir o gate de escopo/revisão/validação antes da publicação, os workflows
+`deploy-preview.yml`, `production.yml`, `companion-rc.yml`, `runtime-rc.yml`,
+`companion-0315-production-validation-stable.yml`,
+`companion-039-recovery-stable.yml` e
+`qwen-1011-production-validation-stable.yml` foram desabilitados temporariamente
+na configuração do GitHub Actions. CI e análise de segurança continuam ativas.
+Esse hold evita que `workflow_run` publique uma entrega intermediária após CI.
+Não altera o deployment ou os artefatos Stable já publicados.
+
+O smoke pós-promoção do Companion exige JSON direto com status 200 no endpoint
+canônico de manifest; redirecionamentos, inclusive para outro caminho no mesmo
+host, não confirmam a publicação. O transporte não segue redirects e confere a URL
+final exata, além de tag/versão/SHA/tamanho. Downloads continuam exigindo 307 com
+Location exato do MSI promovido. Os testes executam o próprio script do workflow
+com transporte simulado e vinculam origem e caminho à requisição ativa. Essa
+verificação não publica artefatos; falha exige investigar a entrega canônica, sem
+afrouxar a política de origem como rollback.
+
+O hold deve permanecer durante a integração do lote. Antes de liberar uma
+publicação deliberada, conferir o SHA final, todos os gates e ausência de runs
+antigos pendentes; reabilitar somente o workflow necessário e despachar o SHA
+exato autorizado. A volta de qualquer cadeia automática requer decisão explícita
+compatível com `AGENTS.md`; não reabilitar todos por conveniência. Registrar a
+liberação e receipt neste documento/runbook de release. Estado atual do hold é
+verificável pela API de workflows, sem consultar valores de secrets.
+
 ```text
 branch temporária
       |

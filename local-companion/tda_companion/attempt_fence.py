@@ -5,6 +5,7 @@ import re
 import time
 from pathlib import Path
 from typing import Literal
+from .atomic_storage import sync_namespace
 
 AttemptOutcome = Literal["cancel", "commit"]
 
@@ -66,7 +67,14 @@ def _read_existing_fence(path: Path) -> AttemptOutcome:
     deadline = time.monotonic() + 0.25
     while True:
         try:
-            return _read_fence(path)
+            decision = _read_fence(path)
+            try:
+                with path.open("r+b") as handle:
+                    os.fsync(handle.fileno())
+                sync_namespace(path.parent)
+            except OSError as exc:
+                raise AttemptFenceError("ATTEMPT_FENCE_WRITE_UNCONFIRMED") from exc
+            return decision
         except AttemptFenceError as exc:
             if str(exc) != "ATTEMPT_FENCE_INCOMPLETE" or time.monotonic() >= deadline:
                 raise
@@ -124,4 +132,9 @@ def claim_attempt_outcome(
         raise AttemptFenceError("ATTEMPT_FENCE_WRITE_FAILED") from exc
     else:
         os.close(descriptor)
+    try:
+        sync_namespace(path.parent)
+    except OSError as exc:
+        # The winner marker is already visible; never unlink it to compensate.
+        raise AttemptFenceError("ATTEMPT_FENCE_WRITE_UNCONFIRMED") from exc
     return decision

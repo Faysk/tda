@@ -42,7 +42,7 @@
 }
 
 .bar[data-tone="warning"] .statusDot {
-	background: var(--ds-accent-strong);
+	background: var(--ds-warning);
 }
 
 .bar[data-tone="danger"] .statusDot {
@@ -73,7 +73,7 @@
 }
 
 .statusCopy .degradedHint {
-	color: var(--ds-accent-strong);
+	color: var(--ds-warning);
 	font-weight: 650;
 }
 
@@ -134,7 +134,7 @@
 
 .bar[data-tone="warning"] .attention,
 .bar[data-tone="danger"] .attention {
-	color: var(--ds-accent-strong);
+	color: var(--ds-warning);
 }
 
 .actions {
@@ -159,7 +159,7 @@
 }
 
 .degraded strong {
-	color: var(--ds-accent-strong);
+	color: var(--ds-warning);
 	font-weight: 700;
 }
 

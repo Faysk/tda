@@ -18,6 +18,10 @@ from tda_companion.physical_acceptance_suite import (
     REQUIRED_PHYSICAL_PROFILES,
 )
 from tda_companion.qwen_physical_gate import GATE_SCHEMA as QWEN_GATE_SCHEMA
+from tda_companion.runtime_compat import (
+    MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
+    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+)
 from tda_companion.payload_evidence import create_payload_manifest
 from tda_companion.release_evidence import (
     ReleaseEvidenceError,
@@ -157,12 +161,12 @@ def _physical_receipt(manifest: dict[str, object]) -> dict[str, object]:
     driver = "999.1"
     compute = "8.9"
     whisper_runtime = {
-        "version": "1.1.4",
+        "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
         "worker_sha256": "6" * 64,
         "archive_sha256": "7" * 64,
     }
     qwen_runtime = {
-        "version": "1.0.7",
+        "version": MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
         "worker_sha256": "8" * 64,
         "archive_sha256": "9" * 64,
     }

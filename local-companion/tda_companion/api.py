@@ -45,7 +45,7 @@ from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
-from .transcription_runs import TranscriptionRunError, load_run, run_id_for
+from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -766,16 +766,24 @@ def create_app(
                                 if last is not None and now - last < noisy_event_interval:
                                     return
                                 noisy_event_last_at[code] = now
+                            event_level = (
+                                "error"
+                                if code == "QWEN_ALIGNMENT_WINDOW_FAILED"
+                                else "warning"
+                                if code
+                                in {
+                                    "COMPATIBILITY_MIRROR_WRITE_FAILED",
+                                    "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
+                                    "ASR_CHECKPOINT_WRITE_SKIPPED",
+                                }
+                                else "info"
+                            )
                             store.record_worker_event(
                                 job_id,
                                 attempt,
                                 code,
                                 data,
-                                level=(
-                                    "warning"
-                                    if code == "COMPATIBILITY_MIRROR_WRITE_FAILED"
-                                    else "info"
-                                ),
+                                level=event_level,
                             )
                             if code == "COMPATIBILITY_MIRROR_WRITE_FAILED":
                                 log(
@@ -784,6 +792,40 @@ def create_app(
                                     code,
                                     "Immutable run completed but the legacy transcript mirror could not be updated",
                                     {"job_id": job_id, **data},
+                                )
+                            if code == "QWEN_ALIGNMENT_WINDOW_FAILED":
+                                safe_failure_data = {
+                                    key: value
+                                    for key, value in data.items()
+                                    if key
+                                    in {
+                                        "stage",
+                                        "track",
+                                        "window",
+                                        "failure_class",
+                                        "window_start_seconds",
+                                        "window_end_seconds",
+                                        "ownership_left_seconds",
+                                        "ownership_right_seconds",
+                                        "first_window",
+                                        "last_window",
+                                        "aligned_item",
+                                        "relative_start_seconds",
+                                        "relative_end_seconds",
+                                        "overflow_seconds",
+                                        "previous_end_seconds",
+                                        "aligned_word_count",
+                                        "owned_word_count",
+                                        "runtime_version",
+                                        "worker_sha256",
+                                    }
+                                }
+                                log(
+                                    "error",
+                                    "worker",
+                                    code,
+                                    "Qwen alignment failed for one bounded window",
+                                    {"job_id": job_id, **safe_failure_data},
                                 )
                             if code in {
                                 "MODEL_DOWNLOAD_PROGRESS",
@@ -980,6 +1022,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_):
+        legacy_maintenance = await asyncio.to_thread(maintain_legacy_transcripts, data_root)
+        if any(legacy_maintenance.values()):
+            log("info", "storage", "LEGACY_TRANSCRIPT_MAINTENANCE", "Local legacy maintenance completed", legacy_maintenance)
         reconcile_completed_transcription_runs()
         store.recover()
         log("info", "agent", "API_STARTING", "Local API starting", {"port": port, "pid": os.getpid()})

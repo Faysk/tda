@@ -8,6 +8,7 @@ import {
 	type LocalReviewSegment,
 } from "./protocol";
 import { LOCAL_JSON_BODY_MAX_BYTES } from "./request-budget";
+import strings from "../../../../fixtures/transcript-review-strings-v1.json";
 
 const token = "review_bridge_token_1234567890123456789012";
 const signal = () => new AbortController().signal;
@@ -118,7 +119,58 @@ afterEach(() => {
 });
 
 describe("local result/review contracts", () => {
+	it("parses exactly the shared editorial string acceptance fixture", () => {
+		for (const item of strings.cases) {
+			const raw = rawReview();
+			const value = (item.codePoints ? String.fromCodePoint(...item.codePoints) : item.value).repeat(item.repeat);
+			raw.segments[0][item.field as "text" | "speaker"] = value;
+			if (item.valid) expect(parseLocalReview(raw).segments[0][item.field as "text" | "speaker"], item.name).toBe(value);
+			else expect(() => parseLocalReview(raw), item.name).toThrow();
+		}
+	});
+	it("parses an ephemeral base without inventing revision, hash or timestamps", () => {
+		const raw = { ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
+			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null };
+		expect(parseLocalReview(raw)).toMatchObject({ persistence: "ephemeral_base", draftRevision: null, draftSha256: null });
+		expect(() => parseLocalReview({ ...raw, draft_revision: 0 })).toThrow();
+		expect(() => parseLocalReview({ ...raw, status: "approved_local" })).toThrow();
+		expect(() => parseLocalReview({ ...raw, snapshot_contract: undefined })).toThrow();
+	});
+	it("transmits the opened snapshot identity and rejects legacy writes", async () => {
+		const transport = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(rawReview()));
+		const bridge = new LocalBridge(transport);
+		bridge.pair(token);
+		const baseline = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted" });
+		await bridge.saveLocalReview(sourceId, runId, baseline, "reviewed", baseline.segments, signal());
+		expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
+			snapshot_contract: "tda_local_review_cas_v1",
+			expected: { persistence: "persisted", draft_revision: 0, draft_sha256: draftSha },
+		});
+		const ephemeral = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
+			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null });
+		await bridge.saveLocalReview(sourceId, runId, ephemeral, "draft", ephemeral.segments, signal());
+		expect(JSON.parse(String(transport.mock.calls[1][1]?.body)).expected).toEqual({ persistence: "ephemeral_base", base_transcript_sha256: transcriptSha });
+		await expect(bridge.saveLocalReview(sourceId, runId, parseLocalReview(rawReview()), "draft", baseline.segments, signal())).rejects.toMatchObject({ serverCode: "LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED" });
+		expect(transport).toHaveBeenCalledTimes(2);
+	});
+	it("distinguishes a bounded warning projection from the factual total", () => {
+		const raw = rawReview();
+		raw.warnings = Array.from({ length: 1000 }, () => "WARNING");
+		raw.review.warning_count = 5000;
+		const summary = { total_count: 5000, displayed_count: 1000, truncated: true };
+		Object.assign(raw, { warning_summary: summary });
+		const parsed = parseLocalReview(raw);
+		expect(parsed.review.warningCount).toBe(5000);
+		expect(parsed.warningSummary).toEqual({ totalCount: 5000, displayedCount: 1000, truncated: true });
+		summary.displayed_count = 999;
+		expect(() => parseLocalReview(raw)).toThrow();
+		expect(parseLocalReview(rawReview()).warningSummary).toBeUndefined();
+	});
 	it("parses sanitized source and completed-run metadata including legacy profiles", () => {
+		const historical = rawReview();
+		expect(parseLocalReview(historical).stats.durationSemantics).toBeUndefined();
+		expect(parseLocalReview({ ...historical, stats: { ...historical.stats,
+			duration_semantics: "session_extent_v1" } }).stats.durationSemantics).toBe("session_extent_v1");
 		expect(
 			parseLocalSources({
 				schema_version: "tda_craig_sources_v1",
@@ -185,12 +237,6 @@ describe("local result/review contracts", () => {
 			attempt: 1,
 			transcript_sha256: transcriptSha,
 		},
-						review_summary: {
-							schema_version: "tda_local_review_summary_v1",
-							status: "reviewed",
-							draft_revision: 3,
-							updated_at: "2026-09-21T00:30:00.000Z",
-						},
 						stats: {
 							audio_work_seconds: 60,
 							processing_seconds: 12,
@@ -236,11 +282,6 @@ describe("local result/review contracts", () => {
 				jobId: "job-review",
 				attempt: 1,
 			},
-			reviewSummary: {
-				status: "reviewed",
-				draftRevision: 3,
-				updatedAt: "2026-09-21T00:30:00.000Z",
-			},
 			stats: {
 				audioWorkSeconds: 60,
 				processingSeconds: 12,
@@ -253,46 +294,86 @@ describe("local result/review contracts", () => {
 				deduplicatedSegmentCount: 1,
 				warningCount: 3,
 			},
+			review: null,
 		});
 	});
 
-	it("parses invalid review summaries distinctly instead of pretending there is no draft", () => {
-		const parsed = parseLocalRuns({
+	it("parses lightweight review state and keeps unknown fail-safe", () => {
+		const baseRun = {
+			run_id: runId,
+			status: "completed",
+			source_id: sourceId,
+			profile_id: "whisper-detailed",
+			engine: "faster-whisper",
+			model: "large-v3",
+			model_revision: null,
+			language: "pt",
+			completed_at: "2026-09-21T00:00:00.000Z",
+			transcript_sha256: transcriptSha,
+			transcript_size_bytes: 1200,
+			stats: {},
+		};
+		const known = parseLocalRuns({
 			schema_version: "tda_transcription_runs_v1",
 			source_id: sourceId,
 			runs: [
 				{
-					run_id: runId,
-					status: "completed",
-					source_id: sourceId,
-					profile_id: "qwen-quality",
-					engine: "qwen3",
-					model: "qwen",
-					model_revision: null,
-					device: "cuda",
-					compute_type: "float16",
-					alignment: "forced",
-					execution_lineage: null,
-					language: "pt",
-					completed_at: "2026-09-21T00:00:00.000Z",
-					transcript_sha256: transcriptSha,
-					transcript_size_bytes: 1200,
-					stats: {},
-					publication_target: null,
-					review_summary: {
-						schema_version: "tda_local_review_summary_v1",
-						status: "invalid",
+					...baseRun,
+					review: {
+						status: "approved_local",
+						draft_revision: 4,
+						review_percent: 87.5,
+						updated_at: "2026-09-25T10:30:00.000Z",
+					},
+				},
+			],
+		});
+		expect(known[0]?.review).toEqual({
+			status: "approved_local",
+			draftRevision: 4,
+			reviewPercent: 87.5,
+			updatedAt: "2026-09-25T10:30:00.000Z",
+		});
+
+		const unknown = parseLocalRuns({
+			schema_version: "tda_transcription_runs_v1",
+			source_id: sourceId,
+			runs: [
+				{
+					...baseRun,
+					review: {
+						status: "unknown",
 						draft_revision: null,
+						review_percent: null,
 						updated_at: null,
 					},
 				},
 			],
 		});
-		expect(parsed[0]?.reviewSummary).toEqual({
-			status: "invalid",
+		expect(unknown[0]?.review).toEqual({
+			status: "unknown",
 			draftRevision: null,
+			reviewPercent: null,
 			updatedAt: null,
 		});
+
+		expect(() =>
+			parseLocalRuns({
+				schema_version: "tda_transcription_runs_v1",
+				source_id: sourceId,
+				runs: [
+					{
+						...baseRun,
+						review: {
+							status: "approved_local",
+							draft_revision: 4,
+							review_percent: 101,
+							updated_at: "2026-09-25T10:30:00.000Z",
+						},
+					},
+				],
+			}),
+		).toThrow(BridgeError);
 	});
 
 	it("rejects a publication target that does not bind to the opened run", () => {
@@ -372,7 +453,7 @@ describe("local result/review contracts", () => {
 		await bridge.saveLocalReview(
 			sourceId,
 			runId,
-			0,
+			parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted" }),
 			"reviewed",
 			segments,
 			signal(),

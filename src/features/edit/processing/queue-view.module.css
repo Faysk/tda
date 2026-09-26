@@ -279,16 +279,8 @@
 	white-space: nowrap;
 }
 
-.more > summary {
-	scroll-margin-block-start: 132px;
-}
-
-.more {
-	position: relative;
+.moreTrigger {
 	flex: 0 0 auto;
-}
-
-.more > summary {
 	min-height: 32px;
 	padding: 6px 9px;
 	border: 1px solid var(--ds-control-border);
@@ -296,32 +288,31 @@
 	background: transparent;
 	color: var(--ds-foreground-soft);
 	cursor: pointer;
+	font: inherit;
 	font-size: 0.6875rem;
 	font-weight: 650;
-	list-style: none;
-	user-select: none;
 }
 
-.more > summary::-webkit-details-marker {
-	display: none;
-}
-
-.more > summary:focus-visible {
+.moreTrigger:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
 .moreMenu {
-	position: absolute;
-	top: calc(100% + 5px);
-	right: 0;
-	z-index: 8;
+	margin: 0;
+	min-width: 0;
+	position: fixed;
+	z-index: 100;
 	display: grid;
-	min-width: 172px;
+	width: min(210px, calc(100vw - 16px));
+	max-height: calc(100dvh - 16px);
+	overflow: auto;
+	box-sizing: border-box;
 	padding: 5px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-surface-elevated);
+	font-family: var(--ds-font-ui);
 	box-shadow: 0 10px 28px rgb(0 0 0 / 16%);
 }
 
@@ -620,7 +611,7 @@
 	}
 
 	.actionsHeader,
-	.wideColumn {
+	.row > td.wideColumn {
 		display: none;
 	}
 
@@ -628,9 +619,6 @@
 		justify-content: flex-end;
 	}
 
-	.moreMenu {
-		right: 0;
-	}
 
 	.detailsRow {
 		display: block;

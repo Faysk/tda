@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
 
 export const PUBLICATION_REQUEST_VERSION =
 	"tda_transcript_publication_request_v1" as const;
@@ -196,6 +197,7 @@ export function preparePublication(raw: string): PreparePublicationResult {
 			"warnings",
 			"review",
 			"segments",
+			...(review.warningSummary === undefined ? [] : ["warningSummary"]),
 		])
 	)
 		return { ok: false, reason: "invalid_payload" };
@@ -300,8 +302,15 @@ export function preparePublication(raw: string): PreparePublicationResult {
 	)
 		return { ok: false, reason: "invalid_payload" };
 
+	const warningSummary = review.warningSummary === undefined ? null : record(review.warningSummary);
+	if (review.warningSummary !== undefined && (!warningSummary ||
+		!exactKeys(warningSummary, ["totalCount", "displayedCount", "truncated"]) ||
+		warningSummary.totalCount !== warningCount || warningSummary.displayedCount !== warnings.length ||
+		warningSummary.displayedCount !== Math.min(warningCount, 1000) ||
+		warningSummary.truncated !== (warningCount > warnings.length)))
+		return { ok: false, reason: "invalid_payload" };
 	if (
-		warnings.length !== warningCount ||
+		(!warningSummary && warnings.length !== warningCount) || warnings.length > 1000 ||
 		warnings.some(
 			(value) => typeof value !== "string" || value.length > 1024,
 		)
@@ -311,7 +320,10 @@ export function preparePublication(raw: string): PreparePublicationResult {
 	const seen = new Set<string>();
 	let computedReviewed = 0;
 	let computedWords = 0;
-	const canonicalSegments: Array<Record<string, unknown>> = [];
+	const canonicalSegments: Array<{
+		track_number: number; segment_id: string; start: number; end: number;
+		text: string; speaker: string; reviewed: boolean;
+	}> = [];
 	for (const rawSegment of segments) {
 		const segment = record(rawSegment);
 		if (
@@ -331,16 +343,16 @@ export function preparePublication(raw: string): PreparePublicationResult {
 		const segmentId = text(segment.segmentId, 256);
 		const start = finite(segment.start, 0, 604800);
 		const end = finite(segment.end, 0, 604800);
-		const segmentText = text(segment.text, 100_000);
-		const speaker = text(segment.speaker, 160);
+		const segmentText = isReviewStringV1(segment.text, "text") ? segment.text : null;
+		const speaker = isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : null;
 		if (
 			trackNumber === null ||
 			!segmentId ||
 			start === null ||
 			end === null ||
 			end < start ||
-			!segmentText?.trim() ||
-			!speaker?.trim() ||
+			segmentText === null ||
+			speaker === null ||
 			typeof segment.reviewed !== "boolean"
 		)
 			return { ok: false, reason: "invalid_payload" };
@@ -348,7 +360,7 @@ export function preparePublication(raw: string): PreparePublicationResult {
 		if (seen.has(identity)) return { ok: false, reason: "invalid_payload" };
 		seen.add(identity);
 		if (segment.reviewed) computedReviewed += 1;
-		computedWords += segmentText.trim().split(/\s+/u).length;
+		computedWords += countWordsV1(segmentText);
 		canonicalSegments.push({
 			track_number: trackNumber,
 			segment_id: segmentId,
@@ -365,6 +377,9 @@ export function preparePublication(raw: string): PreparePublicationResult {
 	)
 		return { ok: false, reason: "invalid_payload" };
 
+	// Total order over immutable fields; independent of presentation and locale.
+	canonicalSegments.sort((a, b) => a.track_number - b.track_number || a.start - b.start || a.end - b.end ||
+		(a.segment_id < b.segment_id ? -1 : a.segment_id > b.segment_id ? 1 : 0));
 	const payload = {
 		schema_version: PUBLICATION_PAYLOAD_VERSION,
 		source_id: sourceId,
