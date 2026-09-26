@@ -57,7 +57,8 @@ def test_job_events_api_paginates_latest_older_and_live_tail_without_loss(tmp_pa
         latest_events = latest_page["events"]
         assert len(latest_events) == 100
         assert [event["seq"] for event in latest_events] == sorted(
-            event["seq"] for event in latest_events
+            (event["seq"] for event in latest_events),
+            reverse=True,
         )
         assert latest_page["has_more"] is True
         assert latest_page["next_before_seq"] == latest_events[0]["seq"]
@@ -90,18 +91,18 @@ def test_job_events_api_paginates_latest_older_and_live_tail_without_loss(tmp_pa
         ]
         assert len(all_events) == 251  # QUEUED + 250 synthetic events
         seqs = [event["seq"] for event in all_events]
-        assert seqs == sorted(seqs)
         assert len(set(seqs)) == len(seqs)
+        assert sorted(seqs) == list(range(min(seqs), max(seqs) + 1))
 
         live = client.get(
-            f"/api/v1/jobs/{job_id}/events?after_seq={seqs[0]}&limit=100",
+            f"/api/v1/jobs/{job_id}/events?after_seq={min(seqs)}&limit=100",
             headers=HEADERS,
         )
         assert live.status_code == 200
         live_page = live.json()
         assert len(live_page["events"]) == 100
         assert live_page["has_more"] is True
-        assert live_page["events"][0]["seq"] > seqs[0]
+        assert live_page["events"][0]["seq"] > min(seqs)
 
 
 def test_job_events_api_rejects_ambiguous_or_unbounded_cursor_requests(tmp_path: Path):
