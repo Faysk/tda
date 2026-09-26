@@ -61,8 +61,8 @@ def test_job_events_api_paginates_latest_older_and_live_tail_without_loss(tmp_pa
             reverse=True,
         )
         assert latest_page["has_more"] is True
-        assert latest_page["next_before_seq"] == latest_events[0]["seq"]
-        assert latest_page["next_after_seq"] == latest_events[-1]["seq"]
+        assert latest_page["next_before_seq"] == latest_events[-1]["seq"]
+        assert latest_page["next_after_seq"] == latest_events[0]["seq"]
 
         middle = client.get(
             f"/api/v1/jobs/{job_id}/events"
