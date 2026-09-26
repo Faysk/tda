@@ -413,8 +413,8 @@ class Store:
             }
 
     def events(self, job_id):
-        """Legacy latest-page helper retained for internal/tests compatibility."""
-        return self.events_page(job_id)["events"]
+        """Legacy latest-page helper retains the historical newest-first ordering."""
+        return list(reversed(self.events_page(job_id)["events"]))
 
     def remove(self, job_id):
         with self.tx() as db:
