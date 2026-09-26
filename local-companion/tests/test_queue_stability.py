@@ -70,9 +70,11 @@ def test_v2_database_migrates_queue_metadata_without_losing_jobs(tmp_path):
         'recoverable': True,
     }
     with sqlite3.connect(database) as check:
-        assert check.execute('PRAGMA user_version').fetchone()[0] == 4
+        assert check.execute('PRAGMA user_version').fetchone()[0] == 5
         columns = {row[1] for row in check.execute('PRAGMA table_info(jobs)').fetchall()}
+        event_columns = {row[1] for row in check.execute('PRAGMA table_info(events)').fetchall()}
         assert 'error_recoverable' in columns
+        assert 'attempt' in event_columns
         alias = check.execute(
             'SELECT job_id,signature FROM idempotency_keys WHERE key=?',
             ('legacy-idem',),
