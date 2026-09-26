@@ -1,8 +1,8 @@
 const TERMINAL_JOB_DELETE_MINIMUM = [0, 3, 11] as const;
 export const AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION = "0.3.14";
 const AUTOMATIC_LOOPBACK_SESSION_MINIMUM = [0, 3, 14] as const;
-export const QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION = "1.0.11";
-const QWEN_ALIGNMENT_RUNTIME_MINIMUM = [1, 0, 11] as const;
+export const QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION = "1.0.12";
+const QWEN_ALIGNMENT_RUNTIME_MINIMUM = [1, 0, 12] as const;
 
 function parseVersion(value: string | null | undefined): readonly [number, number, number] | null {
 	if (!value) return null;
