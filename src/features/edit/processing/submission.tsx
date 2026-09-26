@@ -32,7 +32,7 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 };
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
 const QWEN_RUNTIME_UPGRADE_MESSAGE =
-	"O Qwen local precisa do runtime 1.0.11 ou mais recente para corrigir o alinhamento. Atualize o runtime/Companion antes de iniciar esta transcrição.";
+	"O Qwen local precisa do runtime 1.0.12 ou mais recente para recuperar com segurança extrapolações de alinhamento. Atualize o runtime/Companion antes de iniciar esta transcrição.";
 
 function messageFor(code: string): string {
 	return {
