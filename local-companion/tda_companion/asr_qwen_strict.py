@@ -457,6 +457,9 @@ def transcribe_craig_package_qwen_strict(
     if profile.engine != "qwen3":
         raise QwenRuntimeError("QWEN_PROFILE_REQUIRED")
     report = report or (lambda _: None)
+    from .engine_metrics import EngineMeasurement
+    measurement = EngineMeasurement(report)
+    report = measurement.emit
     is_cancelled = is_cancelled or (lambda: False)
     if is_cancelled():
         raise QwenRuntimeError("ASR_CANCELLED")
@@ -753,8 +756,11 @@ def transcribe_craig_package_qwen_strict(
     energy_by_segment: dict[tuple[int, str], float] = {}
     if pending_tracks:
         report({"type": "stage", "stage": "alignment", "profile": profile.id})
+        measurement.switch("model_prepare")
         aligner_root = aligner_prepare(models_root.resolve())
+        measurement.switch("model_load")
         aligner: AlignerSession = aligner_session_factory(aligner_root, plan)
+        measurement.switch("alignment_and_energy")
         try:
             for track in pending_tracks:
                 source = _safe_track_path(package_root, track)
@@ -1076,6 +1082,7 @@ def transcribe_craig_package_qwen_strict(
             processing_seconds=elapsed,
             turn_count=len(turns),
             deduplicated_segment_count=len(decisions),
+            processing_metrics=measurement.finish(transcript_tracks),
         ),
         warnings=tuple(sorted(compatibility_warnings)),
     )
