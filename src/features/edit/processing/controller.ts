@@ -218,7 +218,12 @@ export class ProcessingController {
 		jobId: string,
 		signal: AbortSignal,
 		previous: ProcessingState,
+		cursorSupported: boolean,
 	): Promise<{ events: JobEvent[]; hasOlder: boolean }> {
+		if (!cursorSupported) {
+			const page = await this.bridge.events(jobId, signal);
+			return { events: [...page.events], hasOlder: false };
+		}
 		const sameJob = previous.observedJobId === jobId;
 		if (!sameJob || previous.events.length === 0) {
 			const page = await this.bridge.events(jobId, signal, { limit: 200 });
@@ -309,7 +314,12 @@ export class ProcessingController {
 				: Promise.resolve(null),
 			observedJob && capabilities.capabilities.includes("job.events")
 				? preserveSecondary(
-						this.readEventTail(observedJob.id, signal, previous),
+						this.readEventTail(
+							observedJob.id,
+							signal,
+							previous,
+							capabilities.capabilities.includes("job.events.cursor"),
+						),
 						eventFallback,
 						"events",
 					)
