@@ -403,3 +403,13 @@ registram hashes, versões, GPU, tempos e contagens, sem áudio, texto ou paths 
 Esta evidência não representa teste da RTX 2080, avaliação editorial de qualidade,
 validação de Craig longo, nem certificação de MSI/RC produzido pela main atual.
 Não houve instalação, promoção de release, deploy ou publicação de transcript.
+
+## Identidade CUDA física (#641, candidata)
+
+O worker consulta o CUDA Driver API no próprio processo após carregar o modelo ASR/aligner. `execution_device` separa ordinal lógico de UUID e PCI bus id; o NVML expõe UUID/PCI na telemetria. O commit usa a identidade capturada nesse attempt, não infere ordinal NVML nem inicializa CUDA em um run que só reutilizou checkpoints. Cada comando limpa o cache de identidade antes de trabalhar. Falha de sensor mantém identidade física desconhecida e não derruba a transcrição.
+
+O join prefere UUID e só usa PCI quando UUID não existe. UUID divergente (incluindo MIG) nunca cai para PCI de um device pai; múltiplas correspondências ficam desconhecidas. A barra associa GPU ao processamento somente para um único job ativo com join comprovado; caso contrário rotula a amostra como GPU da máquina. Runs v1 sem a extensão continuam legíveis, com aviso de identidade física histórica não verificada. A publicação cloud continua excluindo o fingerprint. Benchmark/calibração usa `executionHardwareKey`, nunca ordinal como chave.
+
+SQLite local passa de user_version 7 para 8 por migração aditiva `jobs.execution_device TEXT`. Evento e identidade são persistidos na mesma transação e somente para job running/attempt atual; claim limpa a identidade e o DTO confere attempt. Nenhuma linha histórica é reescrita. Consumers: Store, API jobs, parser Web e command bar. Antes de atualizar a instalação, preservar jobs.sqlite3 com o Agent parado; rollback binário anterior requer restaurar o backup pré-upgrade, sem excluir dados novos por conveniência. Preferir correção adiante para preservar jobs criados após upgrade.
+
+Referências: [CUDA device management](https://docs.nvidia.com/cuda/cuda-driver-api/cuda_driver_api/group__CUDA__DEVICE.html) e [CUDA_VISIBLE_DEVICES](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html). O driver resolve o namespace efetivamente visível ao processo; não interpretamos ordinais da variável como ordinais NVML.
