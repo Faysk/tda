@@ -237,6 +237,7 @@ class CraigIngestBoundary:
                         "review": review_summary(
                             package_root,
                             str(item.get("run_id") or ""),
+                            base_transcript_sha256=str(item.get("transcript_sha256") or ""),
                         ),
                     }
                 )

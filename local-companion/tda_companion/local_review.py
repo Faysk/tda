@@ -172,6 +172,12 @@ def _draft_fingerprint(value: os.stat_result) -> dict[str, int]:
             "ctime_ns": value.st_ctime_ns, "inode": value.st_ino, "device": value.st_dev}
 
 
+def _summary_file_identity(value: os.stat_result) -> tuple[int, ...]:
+    # Windows path stat and handle fstat can expose different ctime semantics.
+    # Compare the file identity, byte extent and modification time across APIs.
+    return value.st_dev, value.st_ino, value.st_mode, value.st_size, value.st_mtime_ns
+
+
 def _regular_summary_bytes(path: Path) -> bytes:
     before = path.lstat()
     if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= _MAX_SUMMARY_BYTES:
@@ -180,12 +186,14 @@ def _regular_summary_bytes(path: Path) -> bytes:
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
-        if not stat.S_ISREG(opened.st_mode) or _draft_fingerprint(opened) != _draft_fingerprint(before):
+        if not stat.S_ISREG(opened.st_mode) or _summary_file_identity(opened) != _summary_file_identity(before):
             raise ValueError("SUMMARY_FILE_CHANGED")
         # Fixed allocation even if a file grows after lstat; never read_text/read_bytes.
         with os.fdopen(descriptor, "rb", buffering=0, closefd=False) as handle:
             payload = handle.read(_MAX_SUMMARY_BYTES + 1)
-        if len(payload) != opened.st_size or _draft_fingerprint(os.fstat(descriptor)) != _draft_fingerprint(opened):
+        if (len(payload) != opened.st_size
+                or _draft_fingerprint(os.fstat(descriptor)) != _draft_fingerprint(opened)
+                or _summary_file_identity(path.lstat()) != _summary_file_identity(opened)):
             raise ValueError("SUMMARY_FILE_CHANGED")
         return payload
     finally:
@@ -214,7 +222,7 @@ def review_summary(package_root: Path, run_id: str, *, base_transcript_sha256: s
             if base_transcript_sha256 is None:
                 base_transcript_sha256 = load_run(package_root, run_id, verify_content=False)["transcript_sha256"]
             value = json.loads(_regular_summary_bytes(_summary_path(draft_path)))
-        except (OSError, ValueError, TranscriptionRunError):
+        except (OSError, ValueError, RecursionError, TranscriptionRunError):
             return _public_unknown_summary()
         if not isinstance(value, dict):
             return _public_unknown_summary()
@@ -231,7 +239,7 @@ def review_summary(package_root: Path, run_id: str, *, base_transcript_sha256: s
             or isinstance(revision, bool) or not isinstance(revision, int) or revision < 0
             or not isinstance(status, str) or status not in _ALLOWED_STATUS
             or isinstance(percent, bool) or not isinstance(percent, (int, float))
-            or not math.isfinite(percent) or not 0 <= percent <= 100
+            or not 0 <= percent <= 100 or not math.isfinite(percent)
             or not isinstance(updated_at, str) or not 0 < len(updated_at) <= 64
             or not isinstance(fingerprint, dict)
             or any(type(item) is not int for item in fingerprint.values())

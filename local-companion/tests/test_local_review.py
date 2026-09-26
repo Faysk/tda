@@ -189,109 +189,113 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
     assert not list((package_root / "revisions" / run["run_id"]).glob("*.partial"))
 
 
-def test_review_summary_tracks_status_without_mutating_raw_run(tmp_path: Path):
-    package_root, source_id, run = _package(tmp_path)
-    run_manifest = package_root / "runs" / run["run_id"] / "run.json"
-    raw_run_before = run_manifest.read_bytes()
-
-    assert review_summary(package_root, run["run_id"]) is None
-
-    opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
-    assert review_summary(package_root, run["run_id"]) == {
-        "status": "draft",
-        "draft_revision": 0,
-        "review_percent": 0.0,
-        "updated_at": opened["updated_at"],
+@pytest.mark.parametrize("status,percent", [("draft", 0.0), ("reviewed", 50.0), ("approved_local", 100.0)])
+def test_review_summary_tracks_saved_status_without_get_mutations(tmp_path, status, percent):
+    package, source_id, run = _package(tmp_path)
+    manifest = package / "runs" / run["run_id"] / "run.json"
+    before = manifest.read_bytes()
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert review_summary(package, run["run_id"]) is None
+    assert not (package / "revisions").exists()
+    for index, segment in enumerate(opened["segments"]):
+        segment["reviewed"] = status == "approved_local" or (status == "reviewed" and index == 0)
+    saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": status, "segments": opened["segments"],
+    })
+    assert review_summary(package, run["run_id"]) == {
+        "status": status, "draft_revision": 1, "review_percent": percent, "updated_at": saved["updated_at"],
     }
-
-    segments = [dict(item) for item in opened["segments"]]
-    segments[0]["reviewed"] = True
-    saved = save_review(
-        package_root,
-        source_id=source_id,
-        run_id=run["run_id"],
-        value={
-            "expected_draft_revision": 0,
-            "status": "reviewed",
-            "segments": segments,
-        },
-    )
-    assert review_summary(package_root, run["run_id"]) == {
-        "status": "reviewed",
-        "draft_revision": 1,
-        "review_percent": 50.0,
-        "updated_at": saved["updated_at"],
-    }
-    assert run_manifest.read_bytes() == raw_run_before
+    assert manifest.read_bytes() == before
+    directory = package / "revisions" / run["run_id"]
+    files_before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in directory.iterdir()}
+    open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in directory.iterdir()} == files_before
 
 
-def test_review_summary_never_reads_draft_payload_and_stale_metadata_fails_safe(
-    monkeypatch,
-    tmp_path: Path,
-):
-    package_root, source_id, run = _package(tmp_path)
-    open_review(package_root, source_id=source_id, run_id=run["run_id"])
-    draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
-
-    original_read_text = Path.read_text
-
-    def guarded_read_text(path: Path, *args, **kwargs):
-        if path.name == "draft.json":
-            raise AssertionError("run listing must not read the review draft payload")
-        return original_read_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "read_text", guarded_read_text)
-    assert review_summary(package_root, run["run_id"])["status"] == "draft"
-
-    stat = draft_path.stat()
-    os.utime(
-        draft_path,
-        ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000),
-    )
-    assert review_summary(package_root, run["run_id"]) == {
-        "status": "unknown",
-        "draft_revision": None,
-        "review_percent": None,
-        "updated_at": None,
-    }
+def _persist_summary_fixture(tmp_path):
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "draft", "segments": opened["segments"],
+    })
+    return package, source_id, run, package / "revisions" / run["run_id"] / "summary.json"
 
 
-def test_summary_projection_failure_does_not_fail_authoritative_review_save(
-    monkeypatch,
-    tmp_path: Path,
-):
-    package_root, source_id, run = _package(tmp_path)
+def test_review_summary_never_reads_large_payloads_and_stale_metadata_fails_safe(monkeypatch, tmp_path):
+    package, _, run, _ = _persist_summary_fixture(tmp_path)
+    original_open = Path.open
+    def guarded(path, *args, **kwargs):
+        assert path.name not in {"draft.json", "transcript.json"}, "listing opened large payload"
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", guarded)
+    for _ in range(100):
+        assert review_summary(package, run["run_id"], base_transcript_sha256=run["transcript_sha256"])["status"] == "draft"
+    draft = package / "revisions" / run["run_id"] / "draft.json"
+    original = draft.stat()
+    os.utime(draft, ns=(original.st_atime_ns, original.st_mtime_ns + 1_000_000))
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
 
-    import tda_companion.local_review as review_module
 
-    def fail_summary(*_args, **_kwargs):
-        raise OSError("synthetic summary disk failure")
-
-    monkeypatch.setattr(review_module, "_atomic_summary_json", fail_summary)
-    opened = open_review(package_root, source_id=source_id, run_id=run["run_id"])
-    assert opened["status"] == "draft"
-    assert review_summary(package_root, run["run_id"]) == {
-        "status": "unknown",
-        "draft_revision": None,
-        "review_percent": None,
-        "updated_at": None,
-    }
-
-    segments = [dict(item) for item in opened["segments"]]
-    segments[0]["reviewed"] = True
-    saved = save_review(
-        package_root,
-        source_id=source_id,
-        run_id=run["run_id"],
-        value={
-            "expected_draft_revision": 0,
-            "status": "reviewed",
-            "segments": segments,
-        },
-    )
-    assert saved["status"] == "reviewed"
+def test_summary_projection_failure_does_not_fail_authoritative_review_save(monkeypatch, tmp_path):
+    import tda_companion.local_review as module
+    package, source_id, run = _package(tmp_path)
+    def fail(*args, **kwargs): raise OSError("synthetic projection failure")
+    monkeypatch.setattr(module, "_atomic_summary_json", fail)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    saved = save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        **_expected(opened), "status": "reviewed", "segments": opened["segments"],
+    })
     assert saved["draft_revision"] == 1
-    assert review_summary(package_root, run["run_id"])["status"] == "unknown"
+    assert open_review(package, source_id=source_id, run_id=run["run_id"])["draft_sha256"] == saved["draft_sha256"]
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("base_transcript_sha256", "f" * 64), ("source_id", "other"), ("run_id", "other"),
+    ("draft_revision", True), ("review_percent", float("nan")), ("review_percent", float("inf")),
+    ("review_percent", 10 ** 400), ("status", []), ("updated_at", "2026-09-26"),
+    ("draft_fingerprint", {"size": True}),
+])
+def test_bad_summary_identity_and_metadata_degrade_without_failing_catalog(tmp_path, field, value):
+    package, _, run, path = _persist_summary_fixture(tmp_path)
+    data = json.loads(path.read_bytes()); data[field] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
+
+
+@pytest.mark.parametrize("kind", ["directory", "oversized", "missing", "malformed", "deep-json"])
+def test_summary_reader_rejects_invalid_files(tmp_path, kind):
+    package, _, run, path = _persist_summary_fixture(tmp_path)
+    path.unlink()
+    if kind == "directory": path.mkdir()
+    elif kind == "oversized": path.write_bytes(b" " * 8193)
+    elif kind == "malformed": path.write_bytes(b"{")
+    elif kind == "deep-json": path.write_bytes(b"[" * 3000 + b"]" * 3000)
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX FIFO/link guard")
+@pytest.mark.parametrize("name", ["draft.json", "summary.json"])
+@pytest.mark.parametrize("kind", ["fifo", "symlink"])
+def test_nonregular_summary_and_draft_never_open_or_block(tmp_path, name, kind):
+    package, _, run, summary = _persist_summary_fixture(tmp_path)
+    path = summary.with_name(name); path.unlink()
+    if kind == "fifo": os.mkfifo(path)
+    else: path.symlink_to(summary.parent / "nonexistent")
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
+
+
+def test_explicit_summary_rebuild_preserves_authority_and_get_stays_read_only(tmp_path):
+    from tda_companion.local_review import rebuild_review_summary
+    package, source_id, run, summary = _persist_summary_fixture(tmp_path)
+    draft = summary.with_name("draft.json")
+    before = draft.read_bytes(), draft.stat().st_mtime_ns
+    summary.unlink()
+    open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert not summary.exists()
+    assert review_summary(package, run["run_id"])["status"] == "unknown"
+    assert rebuild_review_summary(package, source_id=source_id, run_id=run["run_id"])["status"] == "draft"
+    assert (draft.read_bytes(), draft.stat().st_mtime_ns) == before
 
 
 def test_stale_review_save_conflicts_without_overwrite(tmp_path: Path):
