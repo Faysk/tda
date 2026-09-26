@@ -144,6 +144,18 @@ Os tokens semânticos do pacote v1.0 são a base oficial do reboot e vivem opera
 
 ## Extensão promovida — borda de controle
 
+### Extensão operacional — warning (#607)
+
+`--ds-warning` é extensão semântica do reboot, distinta dos tokens originais do
+pack: âmbar alaranjado `#f29b38` no escuro e `#9c4f00` no claro/system-light.
+Status de atenção/pausa e marcadores de warning usam esse token; running mantém
+accent, falha usa danger, conclusão usa success. Texto de estado acompanha a cor.
+A propriedade registrada participa da transição de tema e respeita reduced motion.
+Os testes em navegador conferem o token computado, distinção de accent/danger/
+success e contraste mínimo 4,5:1 contra as superfícies operacionais. A composição
+usa divisores e grupos de métricas, mantendo controles de diagnóstico e navegação
+por teclado. Esta é validação de candidato; não registra deployment.
+
 A auditoria do `tokens/contrast-report.csv` confirmou que `--ds-border` é uma borda decorativa e não deve ser o único delimitador de um controle essencial.
 
 O próprio pacote forneceu `tokens/proposed-extensions.css`. O reboot promove:

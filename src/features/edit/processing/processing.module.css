@@ -757,7 +757,7 @@
 }
 
 .logEntry[data-level="warning"]::before {
-	background: var(--ds-accent-strong);
+	background: var(--ds-warning);
 }
 
 .logEntry > time {
