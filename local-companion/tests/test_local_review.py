@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import json
 
 import pytest
 
@@ -284,3 +286,54 @@ def test_tampered_base_run_cannot_be_reviewed(tmp_path: Path):
 
     with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_BASE_RUN_INVALID"):
         open_review(package_root, source_id=source_id, run_id=run["run_id"])
+
+
+def test_review_parses_exact_bytes_verified_even_if_path_changes(monkeypatch, tmp_path: Path):
+    import tda_companion.transcription_runs as runs
+    package, source_id, run = _package(tmp_path)
+    path = package / "runs" / run["run_id"] / "transcript.json"
+    original_read = runs._bounded_transcript
+
+    def replace_after_read(target):
+        payload = original_read(target)
+        value = json.loads(payload)
+        value["tracks"][0]["segments"][0]["text"] = "Different base"
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr(runs, "_bounded_transcript", replace_after_read)
+    review = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert review["segments"][0]["text"] == "Texto original"
+    assert review["base_transcript_sha256"] == run["transcript_sha256"]
+
+
+def test_save_reads_one_base_snapshot(monkeypatch, tmp_path: Path):
+    import tda_companion.local_review as reviews
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    original = reviews.load_verified_transcript_snapshot
+    reads = []
+
+    def count(*args):
+        reads.append(args)
+        return original(*args)
+
+    monkeypatch.setattr(reviews, "load_verified_transcript_snapshot", count)
+    save_review(package, source_id=source_id, run_id=run["run_id"], value={
+        "expected_draft_revision": 0, "status": "draft", "segments": opened["segments"],
+    })
+    assert len(reads) == 1
+
+
+def test_semantically_invalid_historical_run_fails_before_creating_draft(tmp_path: Path):
+    package, source_id, run = _package(tmp_path)
+    path = package / "runs" / run["run_id"] / "transcript.json"
+    value = json.loads(path.read_bytes())
+    value["stats"]["word_count"] = 999
+    payload = json.dumps(value).encode()
+    path.write_bytes(payload)
+    run.update(origin="legacy_transcript_v1", transcript_sha256=hashlib.sha256(payload).hexdigest(), transcript_size_bytes=len(payload))
+    (path.parent / "run.json").write_text(json.dumps(run))
+    with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_BASE_RUN_INVALID"):
+        open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert not (package / "revisions").exists()

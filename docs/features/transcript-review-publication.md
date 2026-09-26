@@ -22,6 +22,50 @@ Rollback lógico começa desligando a flag; revisões, receipts e eventos já pe
 
 ## Objetivo
 
+### Integridade local validada em candidato — 2026-09-26
+
+As correções de [#666](https://github.com/Faysk/tda/issues/666) e
+[#673](https://github.com/Faysk/tda/issues/673) usam um snapshot único por operação
+de revisão: leitura bounded, comparação de tamanho/SHA, parse dos mesmos bytes e
+validação semântica completa. `save_review` reutiliza esse snapshot dentro da
+ordem de locks existente (`RootLock` do Agent → `source_gate` → lock da revisão),
+sem chamar a fachada de GET para carregar a base novamente.
+
+`TranscriptDocument.from_dict` reconstrói o schema persistido sem coercionar IDs,
+normalizar strings ou aceitar aliases dos workers. Valida engine, timestamps com
+timezone, tracks, words, turns/referências, contagens e warnings. Campos opcionais
+de v1 continuam usando os defaults declarados nos dataclasses; identidade, tracks,
+engine, stats e demais campos obrigatórios não são inventados. Unicode inválido e
+NUL são rejeitados. A regra editorial unificada entre Python/Web continua sendo
+trabalho de [#668](https://github.com/Faysk/tda/issues/668).
+
+Migração aceita somente documentos válidos e copia **os bytes originais** para o
+run legado. Input inválido fica preservado no root, sem commit marker. Um run
+histórico com conteúdo semanticamente inválido não abre revisão nem cria draft.
+Metadata malformada é isolada na listagem: `runs` contém os summaries válidos e
+`invalid_runs` traz somente `run_id`, `integrity=invalid` e reason code sanitizado.
+Esse diagnóstico também cobre artefatos já promovidos por versões anteriores.
+Não há repair/rewrite automático de arquivos históricos.
+
+O probe sintético reproduzível está em
+[`benchmark_review_snapshot.py`](../../local-companion/tools/benchmark_review_snapshot.py).
+Medição local Windows/Python 3.12, comparada com `1550f438`, sem áudio/modelos:
+
+| Segmentos | Bytes do transcript | Leituras antes/depois | Bytes lidos antes/depois | Save antes/depois | Crescimento RSS amostrado antes/depois |
+| --- | --- | --- | --- | --- | --- |
+| 7.500 | 1.688.052 | 4 / 1 | 6.752.208 / 1.688.052 | 0,094 s / 0,132 s | 9,6 MB / 8,8 MB |
+| 100.000 | 23.223.058 | 4 / 1 | 92.892.232 / 23.223.058 | 1,361 s / 2,035 s | 139,9 MB / 137,7 MB |
+
+Os tempos medem o save local completo, inclusive validação e escrita, que executa
+sob o gate HTTP; não são uma medição de latência de rede ou contention real. RSS
+é amostrado a cada 10 ms. Houve redução de I/O, **não speedup total demonstrado**:
+a validação semântica nova custa CPU. Buffers são limitados ao tamanho observado
+do arquivo + 1 byte para detectar crescimento, sem alocar o teto de 512 MiB em
+cada read. O SHA deriva do buffer realmente parseado, nunca de outra abertura.
+
+Estado: código e regressões no candidato; merge, release do Companion e uso em
+Production precisam de evidências próprias. Esta alteração não publica conteúdo.
+
 O TDA deve tratar transcrição como um **fluxo editorial revisável**, e não como um arquivo que se torna definitivo quando um modelo termina de processar.
 
 A unidade de trabalho correta é:

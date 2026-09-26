@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from .transcription_runs import TranscriptionRunError, load_run, run_root
+from .transcription_runs import TranscriptionRunError, load_verified_transcript_snapshot
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
@@ -103,19 +103,9 @@ def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[st
     if package_root.resolve().name != source_id:
         raise LocalReviewError("LOCAL_REVIEW_SOURCE_MISMATCH")
     try:
-        manifest = load_run(package_root, run_id, verify_content=True)
+        return load_verified_transcript_snapshot(package_root, run_id)
     except TranscriptionRunError as exc:
         raise LocalReviewError("LOCAL_REVIEW_BASE_RUN_INVALID") from exc
-    transcript_path = run_root(package_root, run_id) / "transcript.json"
-    try:
-        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise LocalReviewError("LOCAL_REVIEW_BASE_TRANSCRIPT_INVALID") from exc
-    if not isinstance(transcript, dict) or transcript.get("schema_version") != "tda_transcript_v1":
-        raise LocalReviewError("LOCAL_REVIEW_BASE_TRANSCRIPT_INVALID")
-    if transcript.get("source_sha256") != manifest.get("source_sha256"):
-        raise LocalReviewError("LOCAL_REVIEW_BASE_TRANSCRIPT_MISMATCH")
-    return manifest, transcript
 
 
 def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
@@ -318,47 +308,33 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
     path = _review_path(package_root, run_id)
     with _lock_for(path):
         manifest, transcript = _load_base(package_root, source_id, run_id)
-        base_segments = _base_segments(transcript)
-        warnings = _warnings(transcript)
-        if path.exists():
-            draft, payload = _bounded_json(path)
-            if (
-                draft.get("schema_version") != REVIEW_SCHEMA_VERSION
-                or draft.get("source_id") != source_id
-                or draft.get("run_id") != run_id
-                or draft.get("base_transcript_sha256") != manifest.get("transcript_sha256")
-                or isinstance(draft.get("draft_revision"), bool)
-                or not isinstance(draft.get("draft_revision"), int)
-                or draft.get("draft_revision") < 0
-                or draft.get("status") not in _ALLOWED_STATUS
-            ):
-                raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
-            base_map = {
-                (item["track_number"], item["segment_id"]): item
-                for item in base_segments
-            }
-            draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map)
-            return _response(
-                draft,
-                payload,
-                manifest=manifest,
-                base_segments=base_segments,
-                warnings=warnings,
-            )
+        return _open_from_snapshot(path, source_id, run_id, manifest, transcript)
 
-        now = utc_now()
-        draft = {
-            "schema_version": REVIEW_SCHEMA_VERSION,
-            "source_id": source_id,
-            "run_id": run_id,
-            "base_transcript_sha256": manifest["transcript_sha256"],
-            "draft_revision": 0,
-            "status": "draft",
-            "created_at": now,
-            "updated_at": now,
-            "segments": base_segments,
+
+def _open_from_snapshot(
+    path: Path, source_id: str, run_id: str,
+    manifest: dict[str, Any], transcript: dict[str, Any],
+) -> dict[str, Any]:
+    base_segments = _base_segments(transcript)
+    warnings = _warnings(transcript)
+    if path.exists():
+        draft, payload = _bounded_json(path)
+        if (
+            draft.get("schema_version") != REVIEW_SCHEMA_VERSION
+            or draft.get("source_id") != source_id
+            or draft.get("run_id") != run_id
+            or draft.get("base_transcript_sha256") != manifest.get("transcript_sha256")
+            or isinstance(draft.get("draft_revision"), bool)
+            or not isinstance(draft.get("draft_revision"), int)
+            or draft.get("draft_revision") < 0
+            or draft.get("status") not in _ALLOWED_STATUS
+        ):
+            raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
+        base_map = {
+            (item["track_number"], item["segment_id"]): item
+            for item in base_segments
         }
-        payload = _atomic_json(path, draft)
+        draft["segments"] = _validate_segment_payload(draft.get("segments"), base_map)
         return _response(
             draft,
             payload,
@@ -366,6 +342,27 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
             base_segments=base_segments,
             warnings=warnings,
         )
+
+    now = utc_now()
+    draft = {
+        "schema_version": REVIEW_SCHEMA_VERSION,
+        "source_id": source_id,
+        "run_id": run_id,
+        "base_transcript_sha256": manifest["transcript_sha256"],
+        "draft_revision": 0,
+        "status": "draft",
+        "created_at": now,
+        "updated_at": now,
+        "segments": base_segments,
+    }
+    payload = _atomic_json(path, draft)
+    return _response(
+        draft,
+        payload,
+        manifest=manifest,
+        base_segments=base_segments,
+        warnings=warnings,
+    )
 
 
 def save_review(
@@ -386,11 +383,11 @@ def save_review(
 
     path = _review_path(package_root, run_id)
     with _lock_for(path):
-        current = open_review(package_root, source_id=source_id, run_id=run_id)
+        manifest, transcript = _load_base(package_root, source_id, run_id)
+        current = _open_from_snapshot(path, source_id, run_id, manifest, transcript)
         if current["draft_revision"] != expected:
             raise LocalReviewError("LOCAL_REVIEW_DRAFT_CONFLICT")
 
-        manifest, transcript = _load_base(package_root, source_id, run_id)
         base_segments = _base_segments(transcript)
         base_map = {
             (item["track_number"], item["segment_id"]): item
