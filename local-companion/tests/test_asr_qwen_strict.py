@@ -1423,7 +1423,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     # decodes each track only for ASR + alignment instead of a third energy pass.
     assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
-    assert "strict-overlap-v3" in document.engine.alignment
+    assert "strict-overlap-v4" in document.engine.alignment
     assert document.warnings == ()
 
 
