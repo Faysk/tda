@@ -103,6 +103,8 @@ function reviewError(code: string | null): string | null {
 	return {
 		LOCAL_REVIEW_DRAFT_CONFLICT:
 			"Este draft mudou em outra aba ou processo. Feche sem descartar seu texto, reabra a revisão e reconcilie antes de salvar.",
+		LOCAL_REVIEW_WRITE_UNCONFIRMED:
+			"A gravação pode ter ocorrido, mas não foi possível confirmar sua persistência. Preserve o texto e confira a revisão salva antes de tentar novamente.",
 		LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED:
 			"Atualize o Companion e a página para salvar revisões com verificação de conteúdo.",
 		LOCAL_REVIEW_SEGMENT_TEXT_INVALID:

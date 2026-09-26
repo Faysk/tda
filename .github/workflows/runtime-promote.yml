@@ -129,6 +129,8 @@ jobs:
               "local-companion/tda_companion/craig_runtime.py"
               "local-companion/tda_companion/transcript.py"
               "local-companion/tda_companion/transcription_runs.py"
+              "local-companion/tda_companion/atomic_storage.py"
+              "local-companion/tda_companion/attempt_fence.py"
               "local-companion/tda_companion/asr_worker.py"
               "local-companion/tda_companion/worker_protocol.py"
             )
@@ -156,6 +158,8 @@ jobs:
               "local-companion/tda_companion/qwen_runtime_bundle.py"
               "local-companion/tda_companion/transcript.py"
               "local-companion/tda_companion/transcription_runs.py"
+              "local-companion/tda_companion/atomic_storage.py"
+              "local-companion/tda_companion/attempt_fence.py"
               "local-companion/tda_companion/asr_worker.py"
               "local-companion/tda_companion/worker_protocol.py"
               "local-companion/tda_companion/worker_supervisor.py"

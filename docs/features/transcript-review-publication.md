@@ -64,6 +64,69 @@ histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado a
 
 ## Objetivo
 
+### Política central de gravação — candidato #671
+
+`atomic_storage.atomic_write` separa três classes versionadas. Os callers continuam
+donos de confinement, schema, locks e CAS; o helper não transforma paths externos
+em autorização de escrita.
+
+| Classe | Uso | Fence e recuperação |
+| --- | --- | --- |
+| `authoritative` | transcript do run, `run.json`, draft/backup de reparo, publication target e futuros sidecars de approval/intent/tombstone | Conteúdo sincronizado antes de replace; política de namespace por plataforma. Falha depois de replace é inconclusiva. |
+| `projection` | índice/summary/cache reconstruível | Visibilidade atômica, sem prometer durabilidade; ausente ou stale exige reconstrução. |
+| `checkpoint` | opt-in para checkpoints que usam o helper | File sync + replace; um último checkpoint perdido exige refazer trabalho. Os codecs/validação ASR existentes continuam donos da retomada. |
+
+POSIX (`posix_file_and_namespace_sync_v1`): temp exclusivo no diretório de destino,
+write completo, flush/fsync do arquivo, replace e fsync de cada diretório ancestral
+até a raiz. Isso cobre também uma cadeia criada nessa operação ou deixada por uma
+tentativa anterior. Erro de directory sync, inclusive `EINVAL` em filesystem sem
+suporte, não é ignorado. Não há fallback silencioso para uma garantia menor.
+
+Windows (`windows_file_sync_write_through_v1`): file fsync seguido de
+`MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH)` no mesmo diretório/volume. Não usa
+copy/delete, move no reboot, flush de volume nem privilégio administrativo. A API
+[MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw)
+descreve write-through, com garantia explícita de flush para copy/delete; isso não
+estabelece aqui um equivalente geral a directory fsync para rename/criação de
+ancestrais. Portanto o baseline local NTFS tem conteúdo sincronizado e replace
+solicitado com write-through, **sem afirmação de confirmação plena após power loss**.
+Não se usa um erro ignorado de
+[FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers)
+em diretório para fingir essa garantia. Network shares, FAT/exFAT e falhas de
+controladora não têm garantia adicional implícita.
+
+O helper retorna o nome da política, nunca um booleano genérico `durable=true`.
+Um erro contém somente stage/código sanitizado e `ambiguous`. Antes do replace,
+destino antigo permanece intacto. Após replace/fence inconclusivo, não há write
+compensatório nem remoção do destino; partial temporário nunca é promovido por
+recovery. O Agent retorna `LOCAL_REVIEW_WRITE_UNCONFIRMED`, preserva a cópia editada
+na tela e exige readback/conferência antes de retry. SHA/revision CAS evita que um
+retry obsoleto apague um save que já aconteceu. Readback prova bytes/schema visíveis,
+não retroativamente a durabilidade diante de falha elétrica.
+
+Ordenação de run: transcript completa sua política antes de `run.json`. Falha
+inconclusiva preserva evidência incompleta; um diretório sem marker não aparece
+como completed. Um marker presente é relido com validação de SHA/schema. Cleanup
+posterior de diretório comprovadamente incompleto continua uma ação do lifecycle,
+nunca compensação imediata de um write incerto. O worker emite código estável
+`LOCAL_WRITE_UNCONFIRMED` e não declara sucesso do job sem a confirmação.
+Fences de cancel/commit mantêm O_EXCL e file sync; acrescentam o fence POSIX de
+namespace, preservando o marcador em erro posterior. Replays sincronizam antes de
+retornar. No Windows, essa criação exclusiva permanece explicitamente sob a
+garantia mais fraca de file sync, sem directory fence.
+
+Medição/validação: faults de temp-write, file-sync, replace e fence pós-replace;
+ordem completa POSIX simulada no Windows e teste real condicionado a runner POSIX; native
+write-through/readback local em NTFS. Teste físico de corte de energia/reboot
+abrupto **não foi realizado** e não é pré-condição para alegar uma garantia que
+esta entrega deliberadamente não oferece no Windows. Telemetria/eventos não
+recebem fsync por frame; checkpoints ASR existentes não foram reescritos.
+
+Rollout exige build dos runtimes porque transcript/run writers são compartilhados.
+Rollback de código não apaga destinos/partials para simular sucesso; reabrir,
+verificar integridade e manter a mesma identidade de operação. Novos sidecars
+autoritativos devem usar essa política e registrar a garantia efetivamente obtida.
+
 ### Strings editoriais — candidato #668
 
 `review_string_rules_v1` mede comprimento por valores escalares Unicode: texto

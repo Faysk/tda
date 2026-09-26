@@ -148,19 +148,19 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
     assert reopened["draft_sha256"] == saved["draft_sha256"]
     assert reopened["segments"][0]["text"] == "Texto corrigido"
 
-    import tda_companion.local_review as review_module
+    import tda_companion.atomic_storage as review_module
 
-    original_replace = review_module.os.replace
+    original_replace = review_module._replace
 
-    def fail_replace(source, target):
+    def fail_replace(source, target, storage_class):
         if str(target).endswith("draft.json"):
             raise OSError("synthetic disk failure")
-        return original_replace(source, target)
+        return original_replace(source, target, storage_class)
 
-    monkeypatch.setattr(review_module.os, "replace", fail_replace)
+    monkeypatch.setattr(review_module, "_replace", fail_replace)
     changed = [dict(item) for item in reopened["segments"]]
     changed[1]["reviewed"] = True
-    with pytest.raises(OSError, match="synthetic disk failure"):
+    with pytest.raises(OSError, match="LOCAL_WRITE_FAILED"):
         save_review(
             package_root,
             source_id=source_id,
@@ -172,7 +172,7 @@ def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
             },
         )
 
-    monkeypatch.setattr(review_module.os, "replace", original_replace)
+    monkeypatch.setattr(review_module, "_replace", original_replace)
     after_failure = open_review(
         package_root,
         source_id=source_id,
@@ -575,3 +575,24 @@ def test_offline_repair_cli_respects_agent_root_lock(tmp_path):
     assert json.loads(repaired.stdout)["original_preserved"] is True
     assert "Old" not in repaired.stdout
     assert open_review(package, source_id=source_id, run_id=run["run_id"])["draft_revision"] == 2
+
+
+def test_review_reports_ambiguous_post_replace_without_losing_committed_text(monkeypatch, tmp_path):
+    import tda_companion.atomic_storage as storage
+    package, source_id, run = _package(tmp_path)
+    opened = open_review(package, source_id=source_id, run_id=run["run_id"])
+    opened["segments"][0]["text"] = "Survives an unconfirmed fence"
+    def fail_namespace(_path):
+        raise OSError("synthetic fence failure")
+    monkeypatch.setattr(storage, "sync_namespace", fail_namespace)
+    with pytest.raises(LocalReviewError, match="^LOCAL_REVIEW_WRITE_UNCONFIRMED$"):
+        save_review(package, source_id=source_id, run_id=run["run_id"], value={
+            **_expected(opened), "status": "draft", "segments": opened["segments"],
+        })
+    confirmed = open_review(package, source_id=source_id, run_id=run["run_id"])
+    assert confirmed["draft_revision"] == 1
+    assert confirmed["segments"][0]["text"] == "Survives an unconfirmed fence"
+    with pytest.raises(LocalReviewError, match="LOCAL_REVIEW_DRAFT_CONFLICT"):
+        save_review(package, source_id=source_id, run_id=run["run_id"], value={
+            **_expected(opened), "status": "draft", "segments": opened["segments"],
+        })
