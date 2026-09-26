@@ -20,6 +20,48 @@ O rollout governado deve:
 
 Rollback lógico começa desligando a flag; revisões, receipts e eventos já persistidos não são apagados para simular rollback.
 
+## Contratos de revisão validados em candidato — 2026-09-26
+
+As correções de #664, #667, #670 e #652 preservam a identidade editorial:
+
+- O Agent valida o conjunto por `(track_number, segment_id)` e reconstrói a ordem
+  da base imutável ao salvar. Reordenar sem editar é um no-op: não muda bytes,
+  revisão ou SHA. Drafts históricos mantêm a ordem e SHA reais na leitura; uma
+  edição posterior passa a persistir na ordem da base, sem migração silenciosa.
+- A publicação canonicaliza por `(track_number, start, end, segment_id)` antes do
+  hash; o desempate do ID é lexical e independente de locale. Campos editoriais
+  não participam da ordenação. A UI pode projetar outra ordem sem mudar o snapshot.
+- `count_words_v1` conta sequências separadas pelo conjunto fixo Unicode
+  White_Space: U+0009–000D, 0020, 0085, 00A0, 1680, 2000–200A, 2028, 2029, 202F,
+  205F e 3000. U+001C–001F e FEFF não são separadores. Python, prévia Web e servidor
+  usam a mesma regra e fixture `fixtures/transcript-review-words-v1.json`. Texto,
+  normalização e limites editoriais não são alterados por essa contagem.
+- O total de warnings deriva do transcript validado completo. A resposta limita
+  a lista aos primeiros 1.000 e declara `warning_summary` com `total_count`,
+  `displayed_count` e `truncated`. A Web mostra o total e no máximo 50 tipos. Sem
+  essa metadata, o total histórico fica explicitamente não verificado. Publicação
+  recebe o equivalente camelCase opcional, valida sua consistência e persiste
+  somente a contagem factual; não adiciona o texto dos warnings ao payload cloud.
+- Exceção de transporte, `dependency_unavailable`, JSON inválido ou receipt
+  malformado no POST levam a uma consulta lookup-only com body byte-idêntico.
+  Receipt ausente/indisponível mantém `unconfirmed`. Rejeições definitivas continuam
+  definitivas e receipt de outra identidade é rejeitado. Sobrevivência da intenção
+  ao reload permanece no escopo de #638.
+
+Compatibilidade e publicação: implantar servidor/Web com suporte ao campo
+opcional antes de liberar o Companion que o emite. Clientes anteriores sem o
+campo continuam aceitos. Uma operação já iniciada não deve trocar de versão de
+canonicalização no meio do replay; antes da promoção, reconciliar intenções
+pendentes e preservar receipts existentes. Não há DDL, rewrite de histórico ou
+publicação editorial como parte desta entrega. Rollback deve manter a leitura do
+campo opcional enquanto houver Companions novos instalados; não remover receipts.
+
+Evidência local: suíte Python 819 passed / 5 skipped; regressões compartilhadas de
+Unicode, reorder sem escrita, totais 0/1/999/1000/1001/5000 e publicação ambígua.
+Navegador desktop 1440px e mobile 390px: total 5.000, projeção limitada, fallback
+histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado aqui
+é de candidato; merge e release exigem evidências independentes.
+
 ## Objetivo
 
 ### Integridade local validada em candidato — 2026-09-26

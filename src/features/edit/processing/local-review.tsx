@@ -14,6 +14,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
+import { countWordsV1 } from "../../transcript-review/text-contract";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -237,7 +238,7 @@ function ReviewEditor({
 	const reviewed = segments.filter((segment) => segment.reviewed).length;
 	const words = segments.reduce(
 		(total, segment) =>
-			total + (segment.text.trim() ? segment.text.trim().split(/\s+/u).length : 0),
+			total + countWordsV1(segment.text),
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
@@ -428,7 +429,7 @@ function ReviewEditor({
 				<div><span>Palavras</span><strong>{words}</strong><small>{review.review.editedSegments} segmentos alterados no último save</small></div>
 				<div><span>Participantes</span><strong>{participants}</strong><small>{review.stats.trackCount ?? "—"} tracks</small></div>
 				<div><span>Duração</span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong><small>Processamento {formatSeconds(review.stats.processingSeconds)}</small></div>
-				<div><span>Warnings</span><strong>{review.warnings.length}</strong><small>atalhos de atenção, não veredictos</small></div>
+				<div><span>Avisos</span><strong>{review.review.warningCount}</strong><small>{review.warningSummary ? "atalhos de atenção, não veredictos" : "total histórico não verificado"}</small></div>
 				<div>
 					<span>Hardware</span>
 					<strong>{review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</strong>
@@ -447,7 +448,7 @@ function ReviewEditor({
 
 			{review.warnings.length ? (
 				<details className={styles.warnings}>
-					<summary>{review.warnings.length} warnings do pipeline</summary>
+					<summary>{review.review.warningCount} avisos do pipeline · mostrando {Math.min(new Set(review.warnings).size, 50)} tipos{review.warningSummary?.truncated ? ` dos primeiros ${review.warningSummary.displayedCount} avisos` : ""}</summary>
 					<ul>
 						{Array.from(new Set(review.warnings)).slice(0, 50).map((warning) => (
 							<li key={warning}>{warning}</li>

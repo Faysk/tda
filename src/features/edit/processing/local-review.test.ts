@@ -118,6 +118,19 @@ afterEach(() => {
 });
 
 describe("local result/review contracts", () => {
+	it("distinguishes a bounded warning projection from the factual total", () => {
+		const raw = rawReview();
+		raw.warnings = Array.from({ length: 1000 }, () => "WARNING");
+		raw.review.warning_count = 5000;
+		const summary = { total_count: 5000, displayed_count: 1000, truncated: true };
+		Object.assign(raw, { warning_summary: summary });
+		const parsed = parseLocalReview(raw);
+		expect(parsed.review.warningCount).toBe(5000);
+		expect(parsed.warningSummary).toEqual({ totalCount: 5000, displayedCount: 1000, truncated: true });
+		summary.displayed_count = 999;
+		expect(() => parseLocalReview(raw)).toThrow();
+		expect(parseLocalReview(rawReview()).warningSummary).toBeUndefined();
+	});
 	it("parses sanitized source and completed-run metadata including legacy profiles", () => {
 		expect(
 			parseLocalSources({
