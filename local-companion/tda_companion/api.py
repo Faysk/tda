@@ -39,7 +39,7 @@ from .profile_preparation import (
     profile_catalog,
     whisper_model_ready,
 )
-from .publication_target import PublicationTargetError, bind_publication_target
+from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
@@ -63,6 +63,8 @@ _BROWSER_JOB_PATH = re.compile(
 
 def _browser_route_allowed(method: str, path: str) -> bool:
     """Scope ephemeral browser credentials to the Web product surface only."""
+    if re.fullmatch(r"/api/v1/sources/[A-Za-z0-9_-]{1,128}/runs/[A-Za-z0-9_-]{1,196}/publication-target/repair", path):
+        return method == "POST"
     if path in {
         "/api/v1/capabilities",
         "/api/v1/preparation",
@@ -1226,6 +1228,7 @@ def create_app(
             "worker.subprocess",
             "transcription.prepare",
             "transcription.review",
+            "transcription.target.repair",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1432,12 +1435,45 @@ def create_app(
     def job(job_id: str):
         return store.get(job_id)
 
+    def repair_run_target(source_id: str, run_id: str):
+        with source_gate:
+            package_root, package = staged_package(source_id, verify_tracks=False)
+            manifest = load_run(package_root, run_id, verify_content=True)
+            if not transcription_run_visible(package_root, manifest):
+                raise PublicationTargetError("PUBLICATION_TARGET_RUN_NOT_VISIBLE")
+            try:
+                origin_job = store.get(manifest["job_id"])
+            except KeyError:
+                origin_job = None
+            return repair_publication_target(
+                package_root, run_id, job=origin_job,
+                body=store.body(manifest["job_id"]) if origin_job else None,
+                result=store.result(manifest["job_id"]) if origin_job else None,
+                source_sha256=package.source_sha256, track_count=len(package.tracks),
+            )
+
+    @app.post("/api/v1/sources/{source_id}/runs/{run_id}/publication-target/repair")
+    def repair_target(source_id: str, run_id: str):
+        try:
+            return {"publication_target": repair_run_target(source_id, run_id)}
+        except (PublicationTargetError, TranscriptionRunError, CraigPackageError) as exc:
+            return error(str(exc), 409, False)
+
     @app.post("/api/v1/jobs/{job_id}/{action}")
     async def action(job_id: str, action: Literal["cancel", "retry", "delete"]):
         if action == "delete":
             if active_worker_is(job_id):
                 raise Conflict("JOB_ACTIVE")
-            return store.remove(job_id)
+            with source_gate:
+                current = store.get(job_id)
+                body = store.body(job_id)
+                if current["status"] == "succeeded" and body.get("kind") == "transcription.craig":
+                    try:
+                        result = store.result(job_id)
+                        repair_run_target(body["source_id"], result["transcription"]["run_id"])
+                    except (PublicationTargetError, TranscriptionRunError, CraigPackageError, KeyError) as exc:
+                        raise Conflict("PUBLICATION_TARGET_CLEANUP_BLOCKED") from exc
+                return store.remove(job_id)
         if action == "retry":
             body = store.body(job_id)
             if body.get("kind") == "transcription.craig":
