@@ -15,6 +15,8 @@ from .review_text import count_words_v1
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
+SNAPSHOT_CONTRACT = "tda_local_review_cas_v1"
+_SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
 _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -89,7 +91,10 @@ def _bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
     if size <= 0 or size > _MAX_DRAFT_BYTES:
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_SIZE_INVALID")
     try:
-        payload = path.read_bytes()
+        with path.open("rb") as handle:
+            payload = handle.read(size + 1)
+        if len(payload) != size:
+            raise LocalReviewError("LOCAL_REVIEW_DRAFT_SIZE_INVALID")
         value = json.loads(payload.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID") from exc
@@ -258,7 +263,7 @@ def _summary(segments: list[dict[str, Any]], base_segments: list[dict[str, Any]]
 
 def _response(
     draft: dict[str, Any],
-    payload: bytes,
+    payload: bytes | None,
     *,
     manifest: dict[str, Any],
     base_segments: list[dict[str, Any]],
@@ -270,11 +275,13 @@ def _response(
     stats = manifest.get("stats") if isinstance(manifest.get("stats"), dict) else {}
     return {
         "schema_version": REVIEW_RESPONSE_SCHEMA_VERSION,
+        "snapshot_contract": SNAPSHOT_CONTRACT,
+        "persistence": "persisted" if payload is not None else "ephemeral_base",
         "source_id": draft["source_id"],
         "run_id": draft["run_id"],
         "base_transcript_sha256": draft["base_transcript_sha256"],
         "draft_revision": draft["draft_revision"],
-        "draft_sha256": hashlib.sha256(payload).hexdigest(),
+        "draft_sha256": hashlib.sha256(payload).hexdigest() if payload is not None else None,
         "status": draft["status"],
         "created_at": draft["created_at"],
         "updated_at": draft["updated_at"],
@@ -353,22 +360,20 @@ def _open_from_snapshot(
             warnings=warnings,
         )
 
-    now = utc_now()
     draft = {
         "schema_version": REVIEW_SCHEMA_VERSION,
         "source_id": source_id,
         "run_id": run_id,
         "base_transcript_sha256": manifest["transcript_sha256"],
-        "draft_revision": 0,
+        "draft_revision": None,
         "status": "draft",
-        "created_at": now,
-        "updated_at": now,
+        "created_at": None,
+        "updated_at": None,
         "segments": base_segments,
     }
-    payload = _atomic_json(path, draft)
     return _response(
         draft,
-        payload,
+        None,
         manifest=manifest,
         base_segments=base_segments,
         warnings=warnings,
@@ -384,10 +389,25 @@ def save_review(
 ) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise LocalReviewError("LOCAL_REVIEW_REQUEST_INVALID")
-    expected = value.get("expected_draft_revision")
+    if value.get("snapshot_contract") != SNAPSHOT_CONTRACT:
+        raise LocalReviewError("LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED")
+    expected = value.get("expected")
     status = value.get("status")
-    if isinstance(expected, bool) or not isinstance(expected, int) or expected < 0:
-        raise LocalReviewError("LOCAL_REVIEW_EXPECTED_REVISION_INVALID")
+    if not isinstance(expected, dict):
+        raise LocalReviewError("LOCAL_REVIEW_EXPECTED_SNAPSHOT_INVALID")
+    absent = expected.get("persistence") == "ephemeral_base"
+    if absent:
+        valid = (set(expected) == {"persistence", "base_transcript_sha256"}
+                 and isinstance(expected.get("base_transcript_sha256"), str)
+                 and _SHA256.fullmatch(expected["base_transcript_sha256"]))
+    else:
+        revision, digest = expected.get("draft_revision"), expected.get("draft_sha256")
+        valid = (set(expected) == {"persistence", "draft_revision", "draft_sha256"}
+                 and expected.get("persistence") == "persisted"
+                 and isinstance(revision, int) and not isinstance(revision, bool) and revision >= 0
+                 and isinstance(digest, str) and _SHA256.fullmatch(digest))
+    if not valid:
+        raise LocalReviewError("LOCAL_REVIEW_EXPECTED_SNAPSHOT_INVALID")
     if status not in _ALLOWED_STATUS:
         raise LocalReviewError("LOCAL_REVIEW_STATUS_INVALID")
 
@@ -395,7 +415,10 @@ def save_review(
     with _lock_for(path):
         manifest, transcript = _load_base(package_root, source_id, run_id)
         current = _open_from_snapshot(path, source_id, run_id, manifest, transcript)
-        if current["draft_revision"] != expected:
+        if (current["persistence"] != expected["persistence"]
+                or (absent and current["base_transcript_sha256"] != expected["base_transcript_sha256"])
+                or (not absent and (current["draft_revision"] != expected["draft_revision"]
+                                    or current["draft_sha256"] != expected["draft_sha256"]))):
             raise LocalReviewError("LOCAL_REVIEW_DRAFT_CONFLICT")
 
         base_segments = _base_segments(transcript)
@@ -406,7 +429,7 @@ def save_review(
         segments = _validate_segment_payload(value.get("segments"), base_map)
         # Presentation order alone is not a new editorial revision. Historical
         # bytes and their SHA remain unchanged until an actual field edit.
-        if status == current["status"] and segments == _validate_segment_payload(current["segments"], base_map):
+        if not absent and status == current["status"] and segments == _validate_segment_payload(current["segments"], base_map):
             return current
         now = utc_now()
         draft = {
@@ -414,9 +437,9 @@ def save_review(
             "source_id": source_id,
             "run_id": run_id,
             "base_transcript_sha256": manifest["transcript_sha256"],
-            "draft_revision": expected + 1,
+            "draft_revision": 1 if absent else expected["draft_revision"] + 1,
             "status": status,
-            "created_at": current["created_at"],
+            "created_at": now if absent else current["created_at"],
             "updated_at": now,
             "segments": segments,
         }

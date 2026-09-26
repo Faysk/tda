@@ -192,11 +192,13 @@ export type LocalReview = {
 	sourceId: string;
 	runId: string;
 	baseTranscriptSha256: string;
-	draftRevision: number;
-	draftSha256: string;
+	draftRevision: number | null;
+	draftSha256: string | null;
+	persistence?: "persisted" | "ephemeral_base";
+	snapshotContract?: "tda_local_review_cas_v1";
 	status: LocalReviewStatus;
-	createdAt: string;
-	updatedAt: string;
+	createdAt: string | null;
+	updatedAt: string | null;
 	lineage: {
 		profileId: string;
 		engine: string | null;
@@ -811,6 +813,13 @@ export function parseLocalReview(value: unknown): LocalReview {
 	const sourceId = identifier(row.source_id);
 	const runId = runIdentifier(row.run_id);
 	const baseTranscriptSha256 = sha256(row.base_transcript_sha256);
+	const supportsCas = row.snapshot_contract === "tda_local_review_cas_v1";
+	if (row.snapshot_contract !== undefined && !supportsCas) return invalid();
+	const ephemeral = supportsCas && row.persistence === "ephemeral_base";
+	if (supportsCas && !["persisted", "ephemeral_base"].includes(String(row.persistence))) return invalid();
+	if (ephemeral && (row.draft_revision !== null || row.draft_sha256 !== null ||
+		row.created_at !== null || row.updated_at !== null || status !== "draft")) return invalid();
+	if (!supportsCas && row.persistence !== undefined) return invalid();
 	const lineage = record(row.lineage);
 	const stats = record(row.stats);
 	const review = record(row.review);
@@ -856,11 +865,13 @@ export function parseLocalReview(value: unknown): LocalReview {
 		sourceId,
 		runId,
 		baseTranscriptSha256,
-		draftRevision: nonNegativeInteger(row.draft_revision),
-		draftSha256: sha256(row.draft_sha256),
+		draftRevision: ephemeral ? null : nonNegativeInteger(row.draft_revision),
+		draftSha256: ephemeral ? null : sha256(row.draft_sha256),
+		persistence: ephemeral ? "ephemeral_base" : "persisted",
+		...(supportsCas ? { snapshotContract: "tda_local_review_cas_v1" as const } : {}),
 		status: status as LocalReviewStatus,
-		createdAt: isoDate(row.created_at),
-		updatedAt: isoDate(row.updated_at),
+		createdAt: ephemeral ? null : isoDate(row.created_at),
+		updatedAt: ephemeral ? null : isoDate(row.updated_at),
 		lineage: {
 			profileId: text(lineage.profile_id, 64),
 			engine: nullableText(lineage.engine, 64),

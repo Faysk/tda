@@ -36,6 +36,8 @@ type Transport = (
 function requestBody(review: LocalReview, operationId: string) {
 	const target = review.publicationTarget;
 	if (!target) throw new PublicationClientError("invalid_payload");
+	if (review.persistence === "ephemeral_base" || review.draftSha256 === null || review.draftRevision === null)
+		throw new PublicationClientError("approved_review_required");
 	if (review.status !== "approved_local")
 		throw new PublicationClientError("approved_review_required");
 	return {

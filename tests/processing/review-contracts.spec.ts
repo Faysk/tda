@@ -1,5 +1,23 @@
 import { expect, test } from "@playwright/test";
 
+test("base remains unsaved until an explicit editorial action", async ({ page }) => {
+	await page.goto("/?review-contracts&ephemeral");
+	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await page.getByLabel("Estado do draft").selectOption("approved_local");
+	await page.getByRole("button", { name: "Salvar revisão" }).click();
+	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
+	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+});
+
+test("older Agent remains readable and requires an update before editing", async ({ page }) => {
+	await page.goto("/?review-contracts&old-agent");
+	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Texto", exact: true })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+});
+
 test("review shows factual warning totals with bounded details and Unicode word count", async ({
 	page,
 }, testInfo) => {

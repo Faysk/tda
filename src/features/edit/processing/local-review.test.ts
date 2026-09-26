@@ -118,6 +118,31 @@ afterEach(() => {
 });
 
 describe("local result/review contracts", () => {
+	it("parses an ephemeral base without inventing revision, hash or timestamps", () => {
+		const raw = { ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
+			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null };
+		expect(parseLocalReview(raw)).toMatchObject({ persistence: "ephemeral_base", draftRevision: null, draftSha256: null });
+		expect(() => parseLocalReview({ ...raw, draft_revision: 0 })).toThrow();
+		expect(() => parseLocalReview({ ...raw, status: "approved_local" })).toThrow();
+		expect(() => parseLocalReview({ ...raw, snapshot_contract: undefined })).toThrow();
+	});
+	it("transmits the opened snapshot identity and rejects legacy writes", async () => {
+		const transport = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(rawReview()));
+		const bridge = new LocalBridge(transport);
+		bridge.pair(token);
+		const baseline = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted" });
+		await bridge.saveLocalReview(sourceId, runId, baseline, "reviewed", baseline.segments, signal());
+		expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
+			snapshot_contract: "tda_local_review_cas_v1",
+			expected: { persistence: "persisted", draft_revision: 0, draft_sha256: draftSha },
+		});
+		const ephemeral = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
+			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null });
+		await bridge.saveLocalReview(sourceId, runId, ephemeral, "draft", ephemeral.segments, signal());
+		expect(JSON.parse(String(transport.mock.calls[1][1]?.body)).expected).toEqual({ persistence: "ephemeral_base", base_transcript_sha256: transcriptSha });
+		await expect(bridge.saveLocalReview(sourceId, runId, parseLocalReview(rawReview()), "draft", baseline.segments, signal())).rejects.toMatchObject({ serverCode: "LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED" });
+		expect(transport).toHaveBeenCalledTimes(2);
+	});
 	it("distinguishes a bounded warning projection from the factual total", () => {
 		const raw = rawReview();
 		raw.warnings = Array.from({ length: 1000 }, () => "WARNING");
@@ -335,7 +360,7 @@ describe("local result/review contracts", () => {
 		await bridge.saveLocalReview(
 			sourceId,
 			runId,
-			0,
+			parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted" }),
 			"reviewed",
 			segments,
 			signal(),

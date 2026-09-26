@@ -47,6 +47,13 @@ def main() -> None:
             )
             run = write_completed_run(package, document, job_id="synthetic", attempt=1)
             review = open_review(package, source_id="source", run_id=run["run_id"])
+            if review.get("snapshot_contract") == "tda_local_review_cas_v1":
+                precondition = {"snapshot_contract": review["snapshot_contract"], "expected": (
+                    {"persistence": "ephemeral_base", "base_transcript_sha256": review["base_transcript_sha256"]}
+                    if review["persistence"] == "ephemeral_base" else
+                    {"persistence": "persisted", "draft_revision": review["draft_revision"], "draft_sha256": review["draft_sha256"]})}
+            else:
+                precondition = {"expected_draft_revision": review["draft_revision"]}
             review["segments"][0]["text"] = "Explicit synthetic edit"
             del document, track, segments
             gc.collect()
@@ -90,8 +97,7 @@ def main() -> None:
             try:
                 with patch.object(Path, "open", counted_open):
                     saved = save_review(package, source_id="source", run_id=run["run_id"], value={
-                        "expected_draft_revision": review["draft_revision"],
-                        "expected_draft_sha256": review["draft_sha256"],
+                        **precondition,
                         "status": "draft", "segments": review["segments"],
                     })
             finally:

@@ -24,7 +24,7 @@ type Props = Readonly<{
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
 	onSave: (
-		expectedDraftRevision: number,
+		baseline: LocalReview,
 		status: LocalReviewStatus,
 		segments: readonly LocalReviewSegment[],
 	) => void | Promise<void>;
@@ -103,6 +103,8 @@ function reviewError(code: string | null): string | null {
 	return {
 		LOCAL_REVIEW_DRAFT_CONFLICT:
 			"Este draft mudou em outra aba ou processo. Feche sem descartar seu texto, reabra a revisão e reconcilie antes de salvar.",
+		LOCAL_REVIEW_SNAPSHOT_CONTRACT_REQUIRED:
+			"Atualize o Companion e a página para salvar revisões com verificação de conteúdo.",
 		LOCAL_REVIEW_BASE_RUN_INVALID:
 			"O run bruto não passou na verificação de integridade. Ele não foi alterado.",
 		LOCAL_REVIEW_RUN_NOT_VISIBLE:
@@ -210,6 +212,8 @@ function ReviewEditor({
 	const [publicationError, setPublicationError] = useState<string | null>(null);
 	const [publicationReceipt, setPublicationReceipt] =
 		useState<PublicationReceiptView | null>(null);
+	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
+	const ephemeral = review.persistence === "ephemeral_base";
 
 	useEffect(() => {
 		if (!dirty) return;
@@ -320,7 +324,7 @@ function ReviewEditor({
 					<span className={styles.eyebrow}>Revisão local derivada</span>
 					<h2 id="local-review-title">{review.lineage.profileId}</h2>
 					<p>
-						Run bruto imutável · draft r{review.draftRevision} · SHA{" "}
+						Run bruto imutável · {ephemeral ? "Sem revisão salva" : `draft r${review.draftRevision}`} · SHA{" "}
 						{review.baseTranscriptSha256.slice(0, 12)}…
 					</p>
 				</div>
@@ -331,8 +335,8 @@ function ReviewEditor({
 					<Button
 						size="sm"
 						variant="primary"
-						disabled={busy || !dirty}
-						onClick={() => void onSave(review.draftRevision, status, segments)}
+						disabled={busy || !dirty || !canSave}
+						onClick={() => void onSave(review, status, segments)}
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
 					</Button>
@@ -362,6 +366,7 @@ function ReviewEditor({
 				</div>
 			</div>
 
+			{!canSave ? <p role="status">Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</p> : null}
 			<div className={styles.reviewNotice}>
 				<strong>Nada será publicado automaticamente.</strong>
 				<span>
@@ -390,7 +395,7 @@ function ReviewEditor({
 						</p>
 						<small>
 							Base SHA {review.baseTranscriptSha256.slice(0, 12)}… · draft SHA{" "}
-							{review.draftSha256.slice(0, 12)}…
+							{review.draftSha256?.slice(0, 12)}…
 						</small>
 					</div>
 					<div className={styles.publishActions}>
@@ -462,7 +467,7 @@ function ReviewEditor({
 					<span>Estado do draft</span>
 					<select
 						value={status}
-						disabled={busy}
+						disabled={busy || !canSave}
 						onChange={(event) => {
 							setStatus(event.target.value as LocalReviewStatus);
 							setDirty(true);
@@ -511,7 +516,7 @@ function ReviewEditor({
 			{dirty ? (
 				<p className={styles.unsaved} role="status">Alterações não salvas neste draft.</p>
 			) : (
-				<p className={styles.saved} role="status">Draft salvo localmente.</p>
+				<p className={styles.saved} role="status">{ephemeral ? "Visualização da base. Nenhuma revisão foi salva." : "Draft salvo localmente."}</p>
 			)}
 
 			<div className={styles.segmentList}>
@@ -527,7 +532,7 @@ function ReviewEditor({
 								<input
 									type="checkbox"
 									checked={segment.reviewed}
-									disabled={busy}
+									disabled={busy || !canSave}
 									onChange={(event) => patch(index, { reviewed: event.target.checked })}
 								/>
 								Revisado
@@ -538,7 +543,7 @@ function ReviewEditor({
 							<input
 								value={segment.speaker}
 								maxLength={160}
-								disabled={busy}
+								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { speaker: event.target.value })}
 							/>
 						</label>
@@ -547,7 +552,7 @@ function ReviewEditor({
 							<textarea
 								value={segment.text}
 								maxLength={100_000}
-								disabled={busy}
+								disabled={busy || !canSave}
 								onChange={(event) => patch(index, { text: event.target.value })}
 							/>
 						</label>
@@ -575,7 +580,7 @@ export function LocalReviewWorkspace({
 	if (review) {
 		return (
 			<ReviewEditor
-				key={review.draftSha256}
+				key={`${review.sourceId}:${review.runId}:${review.draftSha256 ?? review.baseTranscriptSha256}`}
 				review={review}
 				busy={busy}
 				error={error}

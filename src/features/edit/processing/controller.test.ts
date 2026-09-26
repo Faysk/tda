@@ -706,6 +706,7 @@ describe("processing state", () => {
 		};
 		const rawReview = {
 			schema_version: "tda_local_review_v1",
+			snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted",
 			source_id: sourceId,
 			run_id: runId,
 			base_transcript_sha256: "d".repeat(64),
@@ -818,7 +819,7 @@ describe("processing state", () => {
 		const current = controller.snapshot().localReview;
 		if (!current) throw new Error("review did not open");
 		await controller.saveLocalReview(
-			current.draftRevision,
+			current,
 			"reviewed",
 			current.segments,
 		);
