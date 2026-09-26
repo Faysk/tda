@@ -191,6 +191,7 @@ function JobRow({
 	onRetry,
 	onResult,
 	onDelete,
+	onInspect,
 }: {
 	job: LocalJob;
 	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
@@ -199,6 +200,7 @@ function JobRow({
 	onRetry: () => void;
 	onResult: () => void;
 	onDelete: () => void;
+	onInspect: () => void;
 }) {
 	const percent = progressPercent(job);
 	return (
@@ -233,6 +235,11 @@ function JobRow({
 			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
 			<time dateTime={job.updated_at}>{formatDateTime(job.updated_at)}</time>
 			<div className={styles.rowActions}>
+				{["failed", "interrupted"].includes(job.status) ? (
+					<Button size="sm" variant="tertiary" onClick={onInspect}>
+						Ver diagnóstico
+					</Button>
+				) : null}
 				{["queued", "running"].includes(job.status) ? (
 					<Button size="sm" disabled={pendingAction === "cancel"} onClick={onCancel}>
 						{pendingAction === "cancel" ? "Cancelando…" : "Cancelar trabalho"}
@@ -341,8 +348,14 @@ export function ProcessingPanel({
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
+	const observedJobLive =
+		observedJob !== null &&
+		["queued", "running"].includes(observedJob.status);
 	const gpu = state.system?.gpus[0] ?? null;
-	const trackContext = eventTrackContext(state.events);
+	const trackContext =
+		activeJob && state.observedJobId === activeJob.id
+			? eventTrackContext(state.events)
+			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 
 	async function confirm() {
@@ -355,7 +368,9 @@ export function ProcessingPanel({
 	}
 
 	function activateView(next: ProcessingView) {
+		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
 		setView(next);
+		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
 	}
 
@@ -398,6 +413,10 @@ export function ProcessingPanel({
 			onRetry={() => setConfirmation({ id: job.id, action: "retry" })}
 			onResult={() => void controller.result(job.id)}
 			onDelete={() => setConfirmation({ id: job.id, action: "delete" })}
+			onInspect={() => {
+				activateView("diagnostics");
+				void controller.observeJob(job.id);
+			}}
 		/>
 	);
 
@@ -882,6 +901,10 @@ export function ProcessingPanel({
 										</div>
 									) : null}
 									<div>
+										<dt>Tentativa</dt>
+										<dd>{observedJob.attempt}</dd>
+									</div>
+									<div>
 										<dt>ID local</dt>
 										<dd className={styles.mono}>{observedJob.id}</dd>
 									</div>
@@ -893,9 +916,15 @@ export function ProcessingPanel({
 							)}
 
 							<div className={styles.logHeader}>
-								<h3>Log em tempo real</h3>
+								<h3>
+									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
+								</h3>
 								<span>
-									{state.events.length ? "● ativo" : "sem eventos"}
+									{state.events.length
+										? observedJobLive
+											? "● ativo"
+											: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
+										: "sem eventos"}
 								</span>
 							</div>
 							<div
@@ -927,7 +956,7 @@ export function ProcessingPanel({
 									})
 								) : (
 									<p>
-										Nenhum evento detalhado recebido para este trabalho.
+										Nenhum evento detalhado disponível para este trabalho.
 									</p>
 								)}
 							</div>
@@ -1004,7 +1033,7 @@ export function ProcessingPanel({
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
 										? `O trabalho ${confirmation.id}, seus eventos e eventual resultado local serão excluídos do histórico. Modelos, sessão Craig e checkpoints não serão apagados.`
-										: `Uma nova tentativa será criada para ${confirmation.id}; repetir não promete retomar do ponto exato.`}
+										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>

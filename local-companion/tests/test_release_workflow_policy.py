@@ -89,8 +89,9 @@ def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects
     value = _read("companion-promote.yml")
 
     assert "Verify canonical Web resolves promoted Stable" in value
-    assert "https://dnd.faysk.dev" in value
-    assert "/api/downloads/companion/windows/manifest" in value
+    # The executable smoke is tested with a fake transport in
+    # test_canonical_release_smoke.py, including the exact URL actually requested.
+    assert 'manifest_url = f"{base}/api/downloads/companion/windows/manifest"' in value
     assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in value
     assert "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH" in value
     assert "CANONICAL_WEB_STABLE_VERIFIED" in value

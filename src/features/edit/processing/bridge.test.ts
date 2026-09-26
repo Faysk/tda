@@ -474,6 +474,93 @@ describe("loopback bridge", () => {
 	});
 });
 describe("preparation wire validation", () => {
+	it("fences a ready Qwen profile when the physical gate still reports runtime 1.0.10", () => {
+		const capabilities = parseCapabilities({
+			capabilities: ["transcription.craig", "transcription.prepare"],
+			sync: false,
+			device: { id: "device-1", label: "TDA local" },
+			transcription: {
+				profiles: ["qwen-quality"],
+				catalog: [
+					{
+						id: "qwen-quality",
+						engine: "qwen3",
+						ready: true,
+						preparation_required: false,
+						reason: null,
+					},
+				],
+				qwen_physical_gate: {
+					"qwen-quality": {
+						status: "ready",
+						ready: true,
+						profile_id: "qwen-quality",
+						runtime_version: "1.0.10",
+					},
+				},
+			},
+		});
+
+		expect(capabilities.transcription.profiles).toEqual([]);
+		expect(capabilities.transcription.catalog[0]).toMatchObject({
+			id: "qwen-quality",
+			ready: false,
+			preparationRequired: false,
+			reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+		});
+	});
+
+	it("keeps Qwen ready when the physical gate reports repaired runtime 1.0.11+", () => {
+		const capabilities = parseCapabilities({
+			capabilities: ["transcription.craig"],
+			sync: false,
+			device: { id: "device-1", label: "TDA local" },
+			transcription: {
+				profiles: ["qwen-fast"],
+				catalog: [
+					{
+						id: "qwen-fast",
+						engine: "qwen3",
+						ready: true,
+						preparation_required: false,
+						reason: null,
+					},
+				],
+				qwen_physical_gate: {
+					"qwen-fast": {
+						status: "ready",
+						ready: true,
+						profile_id: "qwen-fast",
+						runtime_version: "1.0.11",
+					},
+				},
+			},
+		});
+
+		expect(capabilities.transcription.profiles).toEqual(["qwen-fast"]);
+		expect(capabilities.transcription.catalog[0]?.ready).toBe(true);
+	});
+
+	it("rejects an impossible ready Qwen gate without a runtime identity", () => {
+		expect(() =>
+			parseCapabilities({
+				capabilities: ["transcription.craig"],
+				sync: false,
+				device: { id: "device-1", label: "TDA local" },
+				transcription: {
+					profiles: ["qwen-fast"],
+					qwen_physical_gate: {
+						"qwen-fast": {
+							status: "ready",
+							ready: true,
+							profile_id: "qwen-fast",
+						},
+					},
+				},
+			}),
+		).toThrow();
+	});
+
 	it("parses the full profile catalog and preparation status", () => {
 		const capabilities = parseCapabilities({
 			capabilities: ["transcription.prepare"],

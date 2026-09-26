@@ -35,6 +35,7 @@ def _document(source_sha256: str, profile: str, text: str) -> TranscriptDocument
         text=text,
         words=words,
     )
+
     track = TranscriptTrack(
         number=1,
         speaker="Alice",
@@ -366,3 +367,108 @@ def test_run_listing_is_sanitized_and_contains_no_transcript_text_or_local_path(
     assert len(result["runs"]) == 1
     assert "SEGREDO-DO-TRANSCRIPT" not in encoded
     assert str(tmp_path) not in encoded
+
+
+@pytest.mark.parametrize("field,bad", [
+    (("stats", "word_count"), "oops"),
+    (("stats", "word_count"), 2),
+    (("stats", "segment_count"), 2),
+    (("stats", "audio_work_seconds"), -1),
+    (("stats", "processing_seconds"), float("nan")),
+    (("stats", "rtf"), float("inf")),
+    (("tracks",), None),
+    (("tracks", 0, "number"), True),
+    (("tracks", 0, "segments", 0, "id"), 123),
+    (("tracks", 0, "segments", 0, "start"), -1),
+    (("tracks", 0, "segments", 0, "end"), 0),
+    (("tracks", 0, "segments", 0, "text"), "bad\0text"),
+    (("tracks", 0, "segments", 0, "text"), "\ud800"),
+    (("tracks", 0, "segments", 0, "words"), {}),
+    (("engine", "model"), 7),
+    (("engine", "device"), "bad\nmetadata"),
+    (("warnings",), [42]),
+    (("warnings",), "warning"),
+    (("created_at",), "not-a-date"),
+])
+def test_semantically_invalid_legacy_never_commits(tmp_path: Path, field, bad):
+    package = tmp_path / "source"
+    package.mkdir()
+    value = json.loads(json.dumps(_document("a" * 64, "whisper-detailed", "legacy").as_dict()))
+    current = value
+    for key in field[:-1]:
+        current = current[key]
+    current[field[-1]] = bad
+    original = json.dumps(value).encode()
+    (package / "transcript.json").write_bytes(original)
+    assert migrate_legacy_transcript(package, source_id="source", source_sha256="a" * 64) is None
+    assert (package / "transcript.json").read_bytes() == original
+    assert not list(package.glob("runs/*/run.json"))
+
+
+@pytest.mark.parametrize("mutation", ["missing_tracks", "duplicate_track", "missing_turn_ref", "duplicate_turn_ref"])
+def test_legacy_cross_field_validation(tmp_path: Path, mutation):
+    package = tmp_path / "source"
+    package.mkdir()
+    value = json.loads(json.dumps(_document("a" * 64, "whisper-detailed", "legacy").as_dict()))
+    if mutation == "missing_tracks":
+        del value["tracks"]
+    elif mutation == "duplicate_track":
+        value["tracks"] *= 2
+        value["stats"].update(track_count=2, word_count=2, segment_count=2)
+    else:
+        ref = {"track_number": 1, "segment_id": "missing" if mutation == "missing_turn_ref" else "1-0"}
+        value["turns"] = [{"id": "turn", "speaker": "Alice", "start": 1.0, "end": 1.5,
+                           "text": "legacy", "segments": [ref] if mutation == "missing_turn_ref" else [ref, ref]}]
+        value["stats"]["turn_count"] = 1
+    original = json.dumps(value).encode()
+    (package / "transcript.json").write_bytes(original)
+    assert migrate_legacy_transcript(package, source_id="source", source_sha256="a" * 64) is None
+    assert (package / "transcript.json").read_bytes() == original
+    assert not list(package.glob("runs/*/run.json"))
+
+
+def test_invalid_historical_summary_is_reported_without_hiding_valid_run(tmp_path: Path):
+    package = tmp_path / "source"
+    package.mkdir()
+    valid = write_completed_run(package, _document("a" * 64, "whisper-detailed", "ok"), job_id="good", attempt=1)
+    invalid = write_completed_run(package, _document("a" * 64, "whisper-detailed", "bad"), job_id="bad", attempt=1)
+    invalid["stats"]["word_count"] = "oops"
+    (package / "runs" / invalid["run_id"] / "run.json").write_text(json.dumps(invalid))
+    response = ensure_legacy_and_list(package, source_id="source", source_sha256="a" * 64)
+    assert [run["run_id"] for run in response["runs"]] == [valid["run_id"]]
+    assert response["invalid_runs"] == [{"run_id": invalid["run_id"], "integrity": "invalid", "reason": "TRANSCRIPTION_RUN_STATS_INVALID"}]
+
+
+def test_legacy_parser_preserves_original_strings_and_formatted_bytes(tmp_path: Path):
+    package = tmp_path / "source"
+    package.mkdir()
+    document = _document("a" * 64, "whisper-detailed", "  cafe\u0301 😀  ")
+    payload = json.dumps(document.as_dict(), indent=4, ensure_ascii=False).encode()
+    parsed = TranscriptDocument.from_dict(json.loads(payload))
+    assert parsed.tracks[0].segments[0].text == document.tracks[0].segments[0].text
+    (package / "transcript.json").write_bytes(payload)
+    result = migrate_legacy_transcript(package, source_id="source", source_sha256="a" * 64)
+    assert (package / "runs" / result["run_id"] / "transcript.json").read_bytes() == payload
+
+
+@pytest.mark.parametrize("fail_at", [1, 2])
+def test_ambiguous_run_fence_preserves_evidence_and_orders_commit(monkeypatch, tmp_path, fail_at):
+    import tda_companion.atomic_storage as storage
+    package = tmp_path / "source"
+    package.mkdir()
+    fences = []
+    def fence(directory):
+        fences.append(directory)
+        if len(fences) == fail_at:
+            raise OSError("synthetic namespace failure")
+    monkeypatch.setattr(storage, "sync_namespace", fence)
+    with pytest.raises(storage.AtomicStorageError) as error:
+        write_completed_run(package, _document("a" * 64, "whisper-detailed", "test"), job_id="durability", attempt=1)
+    assert error.value.ambiguous
+    root = package / "runs" / "run-durability-a1"
+    assert (root / "transcript.json").is_file()
+    assert (root / "run.json").exists() == (fail_at == 2)
+    if fail_at == 1:
+        assert list_runs(package) == []
+    else:
+        assert load_run(package, root.name)["run_id"] == root.name

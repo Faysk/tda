@@ -334,29 +334,9 @@ def test_run_discovery_migrates_legacy_result_and_never_returns_transcript_or_pa
         source_sha = source["source_sha256"]
         package_root = tmp_path / "Data" / "staging" / source_id
         secret = "SEGREDO QUE NAO PODE IR PARA A LISTAGEM"
-        legacy = {
-            "schema_version": "tda_transcript_v1",
-            "source_sha256": source_sha,
-            "created_at": "2026-09-15T15:00:00.000Z",
-            "language": "pt",
-            "engine": {
-                "engine": "faster-whisper",
-                "model": "large-v3",
-                "profile": "whisper-detailed",
-                "device": "cuda",
-                "compute_type": "float16",
-                "alignment": "native",
-                "model_revision": "test",
-            },
-            "stats": {
-                "processing_seconds": 12.0,
-                "rtf": 0.2,
-                "word_count": 1,
-                "segment_count": 1,
-                "track_count": 1,
-            },
-            "tracks": [{"text": secret}],
-        }
+        package = load_craig_package(package_root, verify_tracks=False)
+        legacy = _document(package, profile="whisper-detailed").as_dict()
+        legacy["tracks"][0]["segments"][0]["text"] = secret
         (package_root / "transcript.json").write_text(
             json.dumps(legacy, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
