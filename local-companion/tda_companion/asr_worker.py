@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .atomic_storage import AtomicStorageError
+
 import hashlib
 import os
 import re
@@ -319,6 +321,11 @@ def _run_craig(
             },
         )
         return 0
+    except AtomicStorageError as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        emitter.emit("error", {"code": str(exc), "recoverable": True, "stage": "result_prepare"})
+        return 66
     except AttemptFenceError as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)

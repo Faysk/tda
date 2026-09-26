@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -426,19 +425,14 @@ class TranscriptDocument:
         return asdict(self)
 
     def write_atomic(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".partial")
+        from .atomic_storage import atomic_write
         payload = json.dumps(
             self.as_dict(),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
-        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        atomic_write(path, payload.encode("utf-8"))
 
 
 def stats_for_tracks(
