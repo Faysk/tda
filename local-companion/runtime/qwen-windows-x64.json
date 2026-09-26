@@ -1,7 +1,7 @@
 {
   "schema": "tda_qwen_runtime_build_v1",
   "runtime_id": "qwen3-transformers",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "python": "3.12.14",
   "torch": {
     "version": "2.13.0",
@@ -26,9 +26,25 @@
     "physical_gate": "RTX 4070 8 GB"
   },
   "dependency_freshness_exceptions": {
+    "huggingface-hub": {
+      "version": "1.32.0",
+      "reason": "Keep the Qwen 1.0.11 recovery candidate on the previously accepted Hugging Face Hub line until the 2.0.0 major is validated with Transformers 5.17.0, offline local-files-only model loading, packaging, and the RTX 4070 physical gate."
+    },
+    "nvidia-ml-py": {
+      "version": "13.610.43",
+      "reason": "Keep the already validated NVIDIA management binding during the focused Qwen 1.0.11 production recovery; update to 13.615.71 separately so GPU telemetry dependency drift does not alter the emergency release candidate."
+    },
     "torch": {
       "version": "2.13.0",
       "reason": "Use the official Windows CUDA 12.6 wheel until the supported physical RTX 4070 baseline is moved to an NVIDIA driver compatible with CUDA 13.x."
+    },
+    "uv": {
+      "version": "0.12.18",
+      "reason": "Keep the existing reproducible Companion and ASR build-tool pin during the focused Qwen 1.0.11 recovery release; validate the 0.12.19 toolchain change separately so this alignment fix does not create unrelated runtime byte drift."
+    },
+    "uvicorn": {
+      "version": "0.53.0",
+      "reason": "Keep the already validated Companion HTTP server pin during the focused Qwen 1.0.11 alignment recovery; validate Uvicorn 0.54.0 separately so this runtime fix does not expand into an unrelated Agent transport dependency change."
     }
   }
 }

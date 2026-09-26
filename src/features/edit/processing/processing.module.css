@@ -213,6 +213,14 @@
 	white-space: nowrap;
 }
 
+.staleData {
+	color: var(--ds-accent-strong);
+	font-family: var(--ds-font-ui);
+	font-size: 0.6875rem;
+	font-weight: 650;
+	white-space: nowrap;
+}
+
 .metricsStrip {
 	display: grid;
 	grid-template-columns: repeat(7, minmax(58px, 1fr));
@@ -607,7 +615,9 @@
 
 .rowActions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
+	gap: 6px;
 }
 
 .rowActions :global(.ds-action) {
@@ -764,6 +774,7 @@
 }
 
 .logEntry small {
+	overflow-wrap: anywhere;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-body);
 	font-size: 0.61rem;

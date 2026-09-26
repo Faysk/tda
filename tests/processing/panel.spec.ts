@@ -130,19 +130,120 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	).toBeVisible();
 });
 
+test("ações locais e refresh não emitem loading global dentro da workspace", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobReadDelayMs: 800,
+	});
+	await page.addInitScript(() => {
+		const starts: string[] = [];
+		(window as Window & { __globalLoadingStarts?: string[] }).__globalLoadingStarts = starts;
+		window.addEventListener("tda:global-loading-start", (event) => {
+			const detail = (event as CustomEvent<{ id?: string }>).detail;
+			starts.push(detail?.id ?? "unknown");
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
+
+	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect.poll(() => state.job?.status).toBe("cancelled");
+	expect(
+		await page.evaluate(
+			() =>
+				(window as Window & { __globalLoadingStarts?: string[] })
+					.__globalLoadingStarts ?? [],
+		),
+	).toEqual([]);
+});
+
+test("refresh atrasado mantém ação do job clicável e não regride o estado novo", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobReadDelayMs: 800,
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const refresh = page.getByRole("button", { name: "Atualizar estado" });
+	const cancel = page.getByRole("button", { name: "Cancelar trabalho" }).first();
+	await refresh.click();
+	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
+	await expect(cancel).toBeEnabled();
+
+	await cancel.click();
+	await expect(page.getByRole("dialog")).toContainText("craig-job-1");
+	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+
+	await expect.poll(() => state.job?.status).toBe("cancelled");
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(
+		page.getByRole("listitem").getByText("Cancelado", { exact: true }),
+	).toBeVisible();
+});
+
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [failedJob()],
+		jobEvents: [
+			{
+				seq: 91,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-25T12:00:00Z",
+				level: "error",
+				data: {
+					stage: "alignment",
+					track: 1,
+					window: 89,
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+					runtime_version: "1.0.11",
+					worker_sha256: "a".repeat(64),
+				},
+			},
+		],
 	});
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: "Ver diagnóstico" }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByRole("heading", { name: "Detalhes do processamento" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "Histórico de eventos" }),
+	).toBeVisible();
+	await expect(page.getByText("1 mais recente", { exact: true })).toBeVisible();
+	await expect(page.getByRole("log")).toContainText(
+		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
+	);
+	await expect(page.getByRole("log")).toContainText(
+		"Identidade da execução: runtime 1.0.11 · worker SHA-256",
+	);
+	await page.getByRole("tab", { name: "Fila" }).click();
 	await page.getByRole("button", { name: "Repetir trabalho" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
-		"não promete retomar do ponto exato",
+		"checkpoints compatíveis serão reutilizados quando disponíveis",
 	);
 	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
 

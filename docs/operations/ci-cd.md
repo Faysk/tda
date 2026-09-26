@@ -22,6 +22,25 @@ Princípios:
 
 ## Fluxo
 
+### Hold operacional durante fechamento do backlog — 2026-09-26
+
+Para cumprir o gate de escopo/revisão/validação antes da publicação, os workflows
+`deploy-preview.yml`, `production.yml`, `companion-rc.yml`, `runtime-rc.yml`,
+`companion-0315-production-validation-stable.yml`,
+`companion-039-recovery-stable.yml` e
+`qwen-1011-production-validation-stable.yml` foram desabilitados temporariamente
+na configuração do GitHub Actions. CI e análise de segurança continuam ativas.
+Esse hold evita que `workflow_run` publique uma entrega intermediária após CI.
+Não altera o deployment ou os artefatos Stable já publicados.
+
+O hold deve permanecer durante a integração do lote. Antes de liberar uma
+publicação deliberada, conferir o SHA final, todos os gates e ausência de runs
+antigos pendentes; reabilitar somente o workflow necessário e despachar o SHA
+exato autorizado. A volta de qualquer cadeia automática requer decisão explícita
+compatível com `AGENTS.md`; não reabilitar todos por conveniência. Registrar a
+liberação e receipt neste documento/runbook de release. Estado atual do hold é
+verificável pela API de workflows, sem consultar valores de secrets.
+
 ```text
 branch temporária
       |

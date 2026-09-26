@@ -14,6 +14,7 @@ import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
 import { publishApprovedLocalReview } from "./publication-client";
 import { ProcessingSubmission } from "./submission";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -183,20 +184,22 @@ function GpuMetric({ gpu }: { gpu: SystemGpu }) {
 
 function JobRow({
 	job,
-	busy,
+	pendingAction,
 	canDelete,
 	onCancel,
 	onRetry,
 	onResult,
 	onDelete,
+	onInspect,
 }: {
 	job: LocalJob;
-	busy: boolean;
+	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
 	canDelete: boolean;
 	onCancel: () => void;
 	onRetry: () => void;
 	onResult: () => void;
 	onDelete: () => void;
+	onInspect: () => void;
 }) {
 	const percent = progressPercent(job);
 	return (
@@ -231,25 +234,30 @@ function JobRow({
 			<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
 			<time dateTime={job.updated_at}>{formatDateTime(job.updated_at)}</time>
 			<div className={styles.rowActions}>
+				{["failed", "interrupted"].includes(job.status) ? (
+					<Button size="sm" variant="tertiary" onClick={onInspect}>
+						Ver diagnóstico
+					</Button>
+				) : null}
 				{["queued", "running"].includes(job.status) ? (
-					<Button size="sm" disabled={busy} onClick={onCancel}>
-						Cancelar trabalho
+					<Button size="sm" disabled={pendingAction === "cancel"} onClick={onCancel}>
+						{pendingAction === "cancel" ? "Cancelando…" : "Cancelar trabalho"}
 					</Button>
 				) : null}
 				{["failed", "interrupted"].includes(job.status) && job.error?.recoverable ? (
-					<Button size="sm" disabled={busy} onClick={onRetry}>
-						Repetir trabalho
+					<Button size="sm" disabled={pendingAction === "retry"} onClick={onRetry}>
+						{pendingAction === "retry" ? "Repetindo…" : "Repetir trabalho"}
 					</Button>
 				) : null}
 				{job.status === "succeeded" && job.result_available ? (
-					<Button size="sm" disabled={busy} onClick={onResult}>
-						Consultar resultado local
+					<Button size="sm" disabled={pendingAction === "result"} onClick={onResult}>
+						{pendingAction === "result" ? "Consultando…" : "Consultar resultado local"}
 					</Button>
 				) : null}
 				{canDelete &&
 				["succeeded", "failed", "interrupted", "cancelled"].includes(job.status) ? (
-					<Button size="sm" variant="tertiary" disabled={busy} onClick={onDelete}>
-						Excluir
+					<Button size="sm" variant="tertiary" disabled={pendingAction === "delete"} onClick={onDelete}>
+						{pendingAction === "delete" ? "Excluindo…" : "Excluir"}
 					</Button>
 				) : null}
 			</div>
@@ -275,19 +283,25 @@ export function ProcessingPanel({
 		return () => controller.disconnect();
 	}, [controller]);
 	useEffect(() => {
-		if (state.connection !== "connected" || state.busy) return;
-		const timer = setTimeout(() => {
-			if (document.visibilityState === "visible") void controller.refresh();
-		}, 3000);
+		if (state.connection !== "connected" || state.mutation) return;
+		const hasActiveWork = state.jobs.some((job) => job.status === "running");
+		const delay = hasActiveWork
+			? PROCESSING_REFRESH_POLICY.activePollMs
+			: PROCESSING_REFRESH_POLICY.idlePollMs;
+		const timer = window.setTimeout(() => {
+			if (document.visibilityState === "visible")
+				void controller.refresh("background");
+		}, delay);
 		const visible = () => {
-			if (document.visibilityState === "visible") void controller.refresh();
+			if (document.visibilityState === "visible")
+				void controller.refresh("background");
 		};
 		document.addEventListener("visibilitychange", visible);
 		return () => {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", visible);
 		};
-	}, [controller, state.connection, state.busy]);
+	}, [controller, state.connection, state.jobs, state.mutation]);
 	useEffect(() => {
 		if (confirmation) dialog.current?.showModal();
 		else dialog.current?.close();
@@ -324,8 +338,14 @@ export function ProcessingPanel({
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
+	const observedJobLive =
+		observedJob !== null &&
+		["queued", "running"].includes(observedJob.status);
 	const gpu = state.system?.gpus[0] ?? null;
-	const trackContext = eventTrackContext(state.events);
+	const trackContext =
+		activeJob && state.observedJobId === activeJob.id
+			? eventTrackContext(state.events)
+			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 
 	async function confirm() {
@@ -335,6 +355,13 @@ export function ProcessingPanel({
 		if (choice.action === "resume") await controller.lifecycle("resume");
 		else if (choice.action === "delete") await controller.deleteJob(choice.id);
 		else await controller.jobAction(choice.id, choice.action);
+	}
+
+	function activateView(next: ProcessingView) {
+		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
+		setView(next);
+		if (leavingDiagnostics) void controller.observeJob(null);
+		if (next === "results") void controller.refresh("results");
 	}
 
 	function selectViewFromKeyboard(
@@ -355,7 +382,7 @@ export function ProcessingPanel({
 		event.preventDefault();
 		const next = processingViews[nextIndex];
 		if (!next) return;
-		setView(next.id);
+		activateView(next.id);
 		requestAnimationFrame(() => {
 			document.getElementById(`processing-tab-${next.id}`)?.focus();
 		});
@@ -365,12 +392,21 @@ export function ProcessingPanel({
 		<JobRow
 			key={job.id}
 			job={job}
-			busy={state.busy}
+			pendingAction={
+				state.mutation?.targetId === job.id &&
+				["cancel", "retry", "result", "delete"].includes(state.mutation.kind)
+					? (state.mutation.kind as "cancel" | "retry" | "result" | "delete")
+					: null
+			}
 			canDelete={canDeleteJobs}
 			onCancel={() => setConfirmation({ id: job.id, action: "cancel" })}
 			onRetry={() => setConfirmation({ id: job.id, action: "retry" })}
 			onResult={() => void controller.result(job.id)}
 			onDelete={() => setConfirmation({ id: job.id, action: "delete" })}
+			onInspect={() => {
+				activateView("diagnostics");
+				void controller.observeJob(job.id);
+			}}
 		/>
 	);
 
@@ -391,7 +427,7 @@ export function ProcessingPanel({
 						aria-controls={`processing-view-${item.id}`}
 						data-active={view === item.id ? "true" : "false"}
 						tabIndex={view === item.id ? 0 : -1}
-						onClick={() => setView(item.id)}
+						onClick={() => activateView(item.id)}
 						onKeyDown={(event) => selectViewFromKeyboard(event, index)}
 					>
 						{item.label}
@@ -408,6 +444,11 @@ export function ProcessingPanel({
 							<StatusPill tone={connected ? "success" : state.error ? "danger" : "neutral"}>
 								{label}
 							</StatusPill>
+							{connected && state.refreshError ? (
+								<span className={styles.staleData}>
+									Dados temporariamente desatualizados
+								</span>
+							) : null}
 						</div>
 						{connected ? (
 							<p className={styles.connectionMeta}>
@@ -446,16 +487,28 @@ export function ProcessingPanel({
 							<Metric label="Atenção" value={String(attention.length)} />
 						</section>
 						<div className={styles.connectionActions}>
-							<Button size="sm" disabled={state.busy} onClick={() => void controller.refresh()}>
-								Atualizar estado
+							<Button
+								size="sm"
+								disabled={state.refreshing}
+								onClick={() => void controller.refresh("manual")}
+							>
+								{state.refreshing ? "Atualizando…" : "Atualizar estado"}
 							</Button>
 							{state.health?.lifecycle === "paused" ? (
-								<Button size="sm" disabled={state.busy} onClick={() => setConfirmation({ action: "resume" })}>
-									Retomar fila
+								<Button
+									size="sm"
+									disabled={state.mutation?.kind === "resume"}
+									onClick={() => setConfirmation({ action: "resume" })}
+								>
+									{state.mutation?.kind === "resume" ? "Retomando…" : "Retomar fila"}
 								</Button>
 							) : state.health?.lifecycle === "ready" ? (
-								<Button size="sm" disabled={state.busy} onClick={() => void controller.lifecycle("pause")}>
-									Pausar novas execuções
+								<Button
+									size="sm"
+									disabled={state.mutation?.kind === "pause"}
+									onClick={() => void controller.lifecycle("pause")}
+								>
+									{state.mutation?.kind === "pause" ? "Pausando…" : "Pausar novas execuções"}
 								</Button>
 							) : null}
 						</div>
@@ -482,7 +535,7 @@ export function ProcessingPanel({
 							<Button
 								type="button"
 								size="sm"
-								disabled={state.busy}
+								disabled={state.connection === "connecting"}
 								onClick={() => {
 									window.location.href = "tda-companion://open";
 									void (async () => {
@@ -503,7 +556,7 @@ export function ProcessingPanel({
 								type="button"
 								size="sm"
 								variant="tertiary"
-								disabled={state.busy}
+								disabled={state.connection === "connecting"}
 								onClick={() => void controller.connect()}
 							>
 								Tentar novamente
@@ -633,7 +686,10 @@ export function ProcessingPanel({
 											<Button
 												size="sm"
 												className={styles.dangerAction}
-												disabled={state.busy}
+												disabled={
+													state.mutation?.kind === "cancel" &&
+													state.mutation.targetId === activeJob.id
+												}
 												onClick={() =>
 													setConfirmation({
 														id: activeJob.id,
@@ -641,7 +697,10 @@ export function ProcessingPanel({
 													})
 												}
 											>
-												Cancelar trabalho
+												{state.mutation?.kind === "cancel" &&
+												state.mutation.targetId === activeJob.id
+													? "Cancelando…"
+													: "Cancelar trabalho"}
 											</Button>
 										</div>
 									</article>
@@ -743,7 +802,7 @@ export function ProcessingPanel({
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							review={state.localReview}
-							busy={state.localReviewBusy || state.busy}
+							busy={state.localReviewBusy}
 							error={state.localReviewError}
 							publicationEnabled={publicationEnabled}
 							onOpen={(sourceId, runId) =>
@@ -832,6 +891,10 @@ export function ProcessingPanel({
 										</div>
 									) : null}
 									<div>
+										<dt>Tentativa</dt>
+										<dd>{observedJob.attempt}</dd>
+									</div>
+									<div>
 										<dt>ID local</dt>
 										<dd className={styles.mono}>{observedJob.id}</dd>
 									</div>
@@ -843,9 +906,15 @@ export function ProcessingPanel({
 							)}
 
 							<div className={styles.logHeader}>
-								<h3>Log em tempo real</h3>
+								<h3>
+									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
+								</h3>
 								<span>
-									{state.events.length ? "● ativo" : "sem eventos"}
+									{state.events.length
+										? observedJobLive
+											? "● ativo"
+											: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
+										: "sem eventos"}
 								</span>
 							</div>
 							<div
@@ -877,7 +946,7 @@ export function ProcessingPanel({
 									})
 								) : (
 									<p>
-										Nenhum evento detalhado recebido para este trabalho.
+										Nenhum evento detalhado disponível para este trabalho.
 									</p>
 								)}
 							</div>
@@ -895,12 +964,14 @@ export function ProcessingPanel({
 									<Button
 										size="sm"
 										disabled={
-											state.busy ||
+											state.mutation?.kind === "synthetic" ||
 											state.health?.lifecycle !== "ready"
 										}
 										onClick={() => void controller.synthetic()}
 									>
-										Executar ensaio sintético
+										{state.mutation?.kind === "synthetic"
+											? "Executando…"
+											: "Executar ensaio sintético"}
 									</Button>
 								</div>
 							) : null}
@@ -952,7 +1023,7 @@ export function ProcessingPanel({
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
 										? `O trabalho ${confirmation.id}, seus eventos e eventual resultado local serão excluídos do histórico. Modelos, sessão Craig e checkpoints não serão apagados.`
-										: `Uma nova tentativa será criada para ${confirmation.id}; repetir não promete retomar do ponto exato.`}
+										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>

@@ -102,6 +102,105 @@ const receipt = {
 };
 
 describe("publication client", () => {
+	it.each(["503", "invalid-json", "invalid-receipt"])(
+		"reconciles ambiguous %s with byte-identical lookup",
+		async (mode) => {
+			const first =
+				mode === "503"
+					? Response.json(
+							{ ok: false, reason: "dependency_unavailable" },
+							{ status: 503 },
+						)
+					: mode === "invalid-json"
+						? new Response("{")
+						: Response.json({ ok: true, receipt: {} });
+			const transport = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(first)
+				.mockResolvedValueOnce(Response.json(receipt));
+			await expect(
+				publishApprovedLocalReview(
+					review,
+					receipt.receipt.operationId,
+					transport,
+				),
+			).resolves.toMatchObject({ revisionNumber: 7 });
+			expect(transport).toHaveBeenCalledTimes(2);
+			expect(transport.mock.calls[1][0]).toBe(
+				"/api/transcript-publications/receipt",
+			);
+			expect(transport.mock.calls[1][1]?.body).toBe(
+				transport.mock.calls[0][1]?.body,
+			);
+		},
+	);
+	it.each(["not_found", "dependency_unavailable"])(
+		"keeps ambiguous publish unresolved after %s readback",
+		async (reason) => {
+			const transport = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					Response.json({ reason: "dependency_unavailable" }, { status: 503 }),
+				)
+				.mockResolvedValueOnce(
+					Response.json(
+						{ reason },
+						{ status: reason === "not_found" ? 404 : 503 },
+					),
+				);
+			await expect(
+				publishApprovedLocalReview(
+					review,
+					receipt.receipt.operationId,
+					transport,
+				),
+			).rejects.toMatchObject({ code: "unconfirmed" });
+		},
+	);
+	it.each([
+		"unauthenticated",
+		"forbidden",
+		"invalid_payload",
+		"too_large",
+		"not_found",
+		"conflict",
+	])("does not read back definitive %s", async (reason) => {
+		const transport = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(Response.json({ reason }, { status: 400 }));
+		await expect(
+			publishApprovedLocalReview(
+				review,
+				receipt.receipt.operationId,
+				transport,
+			),
+		).rejects.toMatchObject({ code: reason });
+		expect(transport).toHaveBeenCalledTimes(1);
+	});
+	it.each([
+		"operationId",
+		"sourceId",
+		"runId",
+		"baseTranscriptSha256",
+		"draftSha256",
+	])("rejects readback for another %s", async (field) => {
+		const transport = vi
+			.fn<typeof fetch>()
+			.mockRejectedValueOnce(new TypeError("lost"))
+			.mockResolvedValueOnce(
+				Response.json({
+					...receipt,
+					receipt: { ...receipt.receipt, [field]: "different" },
+				}),
+			);
+		await expect(
+			publishApprovedLocalReview(
+				review,
+				receipt.receipt.operationId,
+				transport,
+			),
+		).rejects.toMatchObject({ code: "conflict" });
+	});
 	it("publishes an approved review with the durable target binding", async () => {
 		const transport = vi
 			.fn<typeof fetch>()
@@ -142,9 +241,7 @@ describe("publication client", () => {
 			"55555555-5555-4555-8555-555555555555",
 			transport,
 		);
-		expect(result.revisionId).toBe(
-			"44444444-4444-4444-8444-444444444444",
-		);
+		expect(result.revisionId).toBe("44444444-4444-4444-8444-444444444444");
 		expect(transport.mock.calls.map(([path]) => path)).toEqual([
 			"/api/transcript-publications",
 			"/api/transcript-publications/receipt",
@@ -155,12 +252,11 @@ describe("publication client", () => {
 	});
 
 	it("does not turn an explicit server rejection into an ambiguous retry", async () => {
-		const transport = vi.fn<typeof fetch>().mockResolvedValue(
-			Response.json(
-				{ ok: false, reason: "forbidden" },
-				{ status: 403 },
-			),
-		);
+		const transport = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				Response.json({ ok: false, reason: "forbidden" }, { status: 403 }),
+			);
 		await expect(
 			publishApprovedLocalReview(
 				review,
@@ -176,10 +272,7 @@ describe("publication client", () => {
 			.fn<typeof fetch>()
 			.mockRejectedValueOnce(new TypeError("connection reset"))
 			.mockResolvedValueOnce(
-				Response.json(
-					{ ok: false, reason: "not_found" },
-					{ status: 404 },
-				),
+				Response.json({ ok: false, reason: "not_found" }, { status: 404 }),
 			);
 		await expect(
 			publishApprovedLocalReview(

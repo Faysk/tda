@@ -15,6 +15,7 @@ import {
 	type PreparationStatus,
 	type TranscriptionProfileId,
 } from "./protocol";
+import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
@@ -29,6 +30,9 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 	"qwen-fast": "Qwen Fast",
 	"qwen-quality": "Qwen Quality",
 };
+const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
+const QWEN_RUNTIME_UPGRADE_MESSAGE =
+	"O Qwen local precisa do runtime 1.0.11 ou mais recente para corrigir o alinhamento. Atualize o runtime/Companion antes de iniciar esta transcrição.";
 
 function messageFor(code: string): string {
 	return {
@@ -195,7 +199,7 @@ export function ProcessingSubmission({
 		void refreshCapabilities();
 		const timer = window.setInterval(() => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
-		}, 3000);
+		}, PROCESSING_REFRESH_POLICY.capabilitiesPollMs);
 		const visible = () => {
 			if (document.visibilityState === "visible") void refreshCapabilities();
 		};
@@ -223,6 +227,13 @@ export function ProcessingSubmission({
 					})),
 		[capabilities],
 	);
+
+	const selectedProfileState = useMemo(
+		() => availableProfiles.find((item) => item.id === profile) ?? null,
+		[availableProfiles, profile],
+	);
+	const qwenRuntimeUpgradeRequired =
+		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
 
 	const canSubmit = useMemo(
 		() =>
@@ -253,6 +264,10 @@ export function ProcessingSubmission({
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (busy || !file || !profile || !canSubmit) return;
+		if (qwenRuntimeUpgradeRequired) {
+			setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+			return;
+		}
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
@@ -308,6 +323,10 @@ export function ProcessingSubmission({
 				setError("O perfil selecionado não está disponível neste Companion.");
 				return;
 			}
+			if (selectedProfile.reason === QWEN_RUNTIME_UPGRADE_REASON) {
+				setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+				return;
+			}
 			if (!selectedProfile.ready) {
 				setStatus("Preparando o perfil no Agent local…");
 				let preparation: PreparationStatus = await bridge.prepareProfile(
@@ -335,6 +354,13 @@ export function ProcessingSubmission({
 				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
 				const refreshed = await bridge.capabilities(controller.signal);
 				setCapabilities(refreshed);
+				const refreshedProfile = refreshed.transcription.catalog.find(
+					(item) => item.id === profile,
+				);
+				if (refreshedProfile?.reason === QWEN_RUNTIME_UPGRADE_REASON) {
+					setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+					return;
+				}
 				if (!refreshed.transcription.profiles.includes(profile)) {
 					setError("O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.");
 					return;
@@ -436,7 +462,11 @@ export function ProcessingSubmission({
 						>
 							{availableProfiles.map((item) => (
 								<option key={item.id} value={item.id}>
-									{profileLabels[item.id]}{item.ready ? "" : " · preparar no primeiro uso"}
+									{profileLabels[item.id]}{item.ready
+										? ""
+										: item.reason === QWEN_RUNTIME_UPGRADE_REASON
+											? " · atualizar runtime"
+											: " · preparar no primeiro uso"}
 								</option>
 							))}
 						</select>
@@ -461,7 +491,13 @@ export function ProcessingSubmission({
 						<Button
 							type="submit"
 							variant="primary"
-							disabled={busy || !file || !profile || requestTooLarge}
+							disabled={
+								busy ||
+								!file ||
+								!profile ||
+								requestTooLarge ||
+								qwenRuntimeUpgradeRequired
+							}
 						>
 							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
 						</Button>
@@ -512,7 +548,11 @@ export function ProcessingSubmission({
 							Contexto e glossário usam {requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8 no request local. Reduza o texto antes de enviar.
 						</p>
 					) : null}
-					{profile && !availableProfiles.find((item) => item.id === profile)?.ready ? (
+					{qwenRuntimeUpgradeRequired ? (
+						<p className={styles.error} role="alert">
+							{QWEN_RUNTIME_UPGRADE_MESSAGE}
+						</p>
+					) : profile && !selectedProfileState?.ready ? (
 						<p className={styles.notice} role="status">
 							Primeiro uso: runtime, modelo e validação local da GPU serão preparados automaticamente antes de criar o job.
 						</p>
