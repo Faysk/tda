@@ -39,6 +39,15 @@ na configuração do GitHub Actions. CI e análise de segurança continuam ativa
 Esse hold evita que `workflow_run` publique uma entrega intermediária após CI.
 Não altera o deployment ou os artefatos Stable já publicados.
 
+O smoke pós-promoção do Companion exige JSON direto com status 200 no endpoint
+canônico de manifest; redirecionamentos, inclusive para outro caminho no mesmo
+host, não confirmam a publicação. O transporte não segue redirects e confere a URL
+final exata, além de tag/versão/SHA/tamanho. Downloads continuam exigindo 307 com
+Location exato do MSI promovido. Os testes executam o próprio script do workflow
+com transporte simulado e vinculam origem e caminho à requisição ativa. Essa
+verificação não publica artefatos; falha exige investigar a entrega canônica, sem
+afrouxar a política de origem como rollback.
+
 O hold deve permanecer durante a integração do lote. Antes de liberar uma
 publicação deliberada, conferir o SHA final, todos os gates e ausência de runs
 antigos pendentes; reabilitar somente o workflow necessário e despachar o SHA
