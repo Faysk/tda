@@ -18,6 +18,7 @@ from .review_text import count_words_v1, valid_review_string_v1
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
 REVIEW_SUMMARY_SCHEMA_VERSION = "tda_local_review_summary_v1"
+REVIEW_APPROVAL_SCHEMA_VERSION = "tda_local_review_approval_v1"
 SNAPSHOT_CONTRACT = "tda_local_review_cas_v1"
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
@@ -26,6 +27,7 @@ _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _ALLOWED_STATUS = frozenset({"draft", "reviewed", "approved_local"})
 _MAX_DRAFT_BYTES = 32 * 1024 * 1024
 _MAX_SUMMARY_BYTES = 8 * 1024
+_MAX_APPROVAL_BYTES = 4 * 1024
 _MAX_SEGMENTS = 100_000
 
 _LOCKS: dict[str, threading.RLock] = {}
@@ -109,6 +111,110 @@ def _bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
 
 def _summary_path(draft_path: Path) -> Path:
     return draft_path.with_name("summary.json")
+
+
+def _approval_path(draft_path: Path) -> Path:
+    return draft_path.with_name("approval.json")
+
+
+def _approval_bytes(value: dict[str, Any]) -> bytes:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(payload) <= 0 or len(payload) > _MAX_APPROVAL_BYTES:
+        raise LocalReviewError("LOCAL_REVIEW_APPROVAL_TOO_LARGE")
+    return payload
+
+
+def _write_approval(
+    draft_path: Path,
+    *,
+    draft: dict[str, Any],
+    draft_sha256: str,
+) -> dict[str, Any]:
+    value = {
+        "schema_version": REVIEW_APPROVAL_SCHEMA_VERSION,
+        "source_id": draft["source_id"],
+        "run_id": draft["run_id"],
+        "base_transcript_sha256": draft["base_transcript_sha256"],
+        "approved_draft_revision": draft["draft_revision"],
+        "approved_draft_sha256": draft_sha256,
+        "approved_at": utc_now(),
+    }
+    try:
+        atomic_write(
+            _approval_path(draft_path),
+            _approval_bytes(value),
+            storage_class="authoritative",
+        )
+    except AtomicStorageError as exc:
+        if exc.ambiguous:
+            raise LocalReviewError("LOCAL_REVIEW_APPROVAL_WRITE_UNCONFIRMED") from exc
+        raise
+    return value
+
+
+def _read_current_approval(
+    draft_path: Path,
+    *,
+    draft: dict[str, Any],
+    draft_sha256: str | None,
+) -> dict[str, Any] | None:
+    if draft_sha256 is None:
+        return None
+    path = _approval_path(draft_path)
+    try:
+        before = path.lstat()
+    except (FileNotFoundError, OSError):
+        return None
+    if (
+        path.is_symlink()
+        or path.is_junction()
+        or not stat.S_ISREG(before.st_mode)
+        or not 0 < before.st_size <= _MAX_APPROVAL_BYTES
+    ):
+        return None
+    try:
+        with path.open("rb") as handle:
+            payload = handle.read(_MAX_APPROVAL_BYTES + 1)
+        if len(payload) != before.st_size:
+            return None
+        value = json.loads(payload.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, dict) or set(value) != {
+        "schema_version",
+        "source_id",
+        "run_id",
+        "base_transcript_sha256",
+        "approved_draft_revision",
+        "approved_draft_sha256",
+        "approved_at",
+    }:
+        return None
+    revision = value.get("approved_draft_revision")
+    approved_at = value.get("approved_at")
+    if (
+        value.get("schema_version") != REVIEW_APPROVAL_SCHEMA_VERSION
+        or value.get("source_id") != draft.get("source_id")
+        or value.get("run_id") != draft.get("run_id")
+        or value.get("base_transcript_sha256") != draft.get("base_transcript_sha256")
+        or isinstance(revision, bool)
+        or not isinstance(revision, int)
+        or revision != draft.get("draft_revision")
+        or value.get("approved_draft_sha256") != draft_sha256
+        or not isinstance(approved_at, str)
+        or not 0 < len(approved_at) <= 64
+    ):
+        return None
+    try:
+        parsed = datetime.fromisoformat(approved_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value if parsed.tzinfo is not None else None
 
 
 def _atomic_summary_json(path: Path, value: dict[str, Any]) -> None:
