@@ -403,3 +403,7 @@ registram hashes, versões, GPU, tempos e contagens, sem áudio, texto ou paths 
 Esta evidência não representa teste da RTX 2080, avaliação editorial de qualidade,
 validação de Craig longo, nem certificação de MSI/RC produzido pela main atual.
 Não houve instalação, promoção de release, deploy ou publicação de transcript.
+
+## Posição factual das janelas Qwen (#605)
+
+`QWEN_WINDOW_TRANSCRIBED` inclui speaker normalizado, total de tracks e `start_seconds`/`end_seconds` copiados da janela efetivamente processada. Os tempos são locais à faixa, antes do offset de sessão; não são estimados por índice nem representam alinhamento concluído. A apresentação identifica esse sistema de coordenadas. Campos adicionais são opcionais para consumidores de eventos históricos. A allowlist valida números finitos/bounded e continua descartando texto reconhecido, prompt, contexto, glossário e paths. Não há I/O extra, evento adicional ou transmissão cloud. Whisper mantém o contrato de segmento atual; timing por unidade pertence à instrumentação específica. Rollback pode omitir os novos campos sem reescrever histórico.
