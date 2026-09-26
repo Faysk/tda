@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
+import { ProcessingCommandBar } from "./command-bar";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
@@ -23,7 +24,7 @@ import {
 	presentJobTitle,
 	stageLabels,
 } from "./presentation";
-import type { JobEvent, LocalJob, SystemGpu } from "./protocol";
+import type { JobEvent, LocalJob } from "./protocol";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -63,10 +64,6 @@ function formatBytes(value: number | null): string {
 	if (value === null || !Number.isFinite(value)) return "—";
 	const gib = value / 1024 ** 3;
 	return `${gib >= 10 ? gib.toFixed(0) : gib.toFixed(1)} GB`;
-}
-
-function formatPercent(value: number | null): string {
-	return value === null ? "—" : `${Math.round(value)}%`;
 }
 
 function formatTime(value: string): string {
@@ -159,28 +156,6 @@ function eventTrackContext(events: readonly JobEvent[]) {
 		}
 	}
 	return null;
-}
-
-function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
-	return (
-		<div className={styles.metric}>
-			<span>{label}</span>
-			<strong>{value}</strong>
-			{detail ? <small>{detail}</small> : null}
-		</div>
-	);
-}
-
-function GpuMetric({ gpu }: { gpu: SystemGpu }) {
-	return (
-		<div className={styles.metric}>
-			<span>GPU</span>
-			<strong>{formatPercent(gpu.utilizationPercent)}</strong>
-			<small title={gpu.name}>
-				{formatBytes(gpu.memoryUsedBytes)} / {formatBytes(gpu.memoryTotalBytes)} VRAM
-			</small>
-		</div>
-	);
 }
 
 function JobRow({
@@ -277,6 +252,7 @@ export function ProcessingPanel({
 	);
 	const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 	const [view, setView] = useState<ProcessingView>("overview");
+	const [queueScope, setQueueScope] = useState<"all" | "attention">("all");
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -322,15 +298,6 @@ export function ProcessingPanel({
 					: state.error === "session_incompatible" || state.error === "incompatible"
 						? "Companion incompatível"
 						: "Serviço desconectado";
-	const connectionTone: StatusTone = connected
-		? state.health?.lifecycle === "ready"
-			? "success"
-			: state.health?.lifecycle === "paused"
-				? "warning"
-				: "accent"
-		: state.error
-			? "danger"
-			: "neutral";
 	const running = state.jobs.filter((job) => job.status === "running");
 	const queued = state.jobs
 		.filter((job) => job.status === "queued")
@@ -338,7 +305,6 @@ export function ProcessingPanel({
 			(left, right) =>
 				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
 		);
-	const succeeded = state.jobs.filter((job) => job.status === "succeeded");
 	const attention = state.jobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
@@ -351,7 +317,6 @@ export function ProcessingPanel({
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
-	const gpu = state.system?.gpus[0] ?? null;
 	const trackContext =
 		activeJob && state.observedJobId === activeJob.id
 			? eventTrackContext(state.events)
@@ -370,8 +335,20 @@ export function ProcessingPanel({
 	function activateView(next: ProcessingView) {
 		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
 		setView(next);
+		if (next === "queue") setQueueScope("all");
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
+	}
+
+	function openAttentionQueue() {
+		if (view === "diagnostics") void controller.observeJob(null);
+		setQueueScope("attention");
+		setView("queue");
+		requestAnimationFrame(() => {
+			document.getElementById("attention-jobs")?.scrollIntoView({
+				block: "nearest",
+			});
+		});
 	}
 
 	function selectViewFromKeyboard(
@@ -445,85 +422,36 @@ export function ProcessingPanel({
 				))}
 			</div>
 
-			<section className={styles.connection} aria-labelledby="local-computer">
-				<div className={styles.connectionMain}>
-					<div className={styles.computerGlyph} aria-hidden="true" />
-					<div>
-						<div className={styles.connectionTitle}>
-							<h2 id="local-computer">Computador local</h2>
-							<StatusPill tone={connectionTone}>
-								{label}
-							</StatusPill>
-							{connected && state.refreshError ? (
-								<span className={styles.staleData}>
-									Dados temporariamente desatualizados
-								</span>
-							) : null}
-						</div>
-						{connected ? (
-							<p className={styles.connectionMeta}>
-								{state.capabilities?.device.label} · API v1 · serviço {state.health?.service_version}
-								{state.system?.host.os ? ` · ${state.system.host.os}` : ""}
-							</p>
-						) : (
-							<p className={styles.connectionMeta}>
-								O processamento e os áudios permanecem neste computador.
-							</p>
-						)}
-					</div>
-				</div>
+			<ProcessingCommandBar
+				connection={state.connection}
+				connected={connected}
+				connectionLabel={label}
+				health={state.health}
+				system={state.system}
+				refreshError={state.refreshError ?? state.telemetryRefreshError}
+				checkedAt={state.telemetryCheckedAt ?? state.checkedAt}
+				runningCount={running.length}
+				queuedCount={queued.length}
+				attentionCount={attention.length}
+				refreshing={state.refreshing}
+				pendingLifecycle={
+					state.mutation?.kind === "pause" || state.mutation?.kind === "resume"
+						? state.mutation.kind
+						: null
+				}
+				onRefresh={() => void controller.refresh("manual")}
+				onToggleLifecycle={() => {
+					if (state.health?.lifecycle === "paused")
+						setConfirmation({ action: "resume" });
+					else if (state.health?.lifecycle === "ready")
+						void controller.lifecycle("pause");
+				}}
+				onAttention={openAttentionQueue}
+				onDiagnostics={() => activateView("diagnostics")}
+			/>
 
-				{connected ? (
-					<>
-						<section className={styles.metricsStrip} aria-label="Uso e fila do computador local">
-							{gpu ? <GpuMetric gpu={gpu} /> : null}
-							<Metric
-								label="CPU"
-								value={formatPercent(state.system?.cpu.utilizationPercent ?? null)}
-								detail={state.system?.host.cpu ?? undefined}
-							/>
-							<Metric
-								label="RAM"
-								value={formatPercent(state.system?.memory.percent ?? null)}
-								detail={
-									state.system
-										? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)}`
-										: "Telemetria indisponível"
-								}
-							/>
-							<Metric label="Processando" value={String(running.length)} />
-							<Metric label="Na fila" value={String(queued.length)} />
-							<Metric label="Concluídos" value={String(succeeded.length)} />
-							<Metric label="Atenção" value={String(attention.length)} />
-						</section>
-						<div className={styles.connectionActions}>
-							<Button
-								size="sm"
-								disabled={state.refreshing}
-								onClick={() => void controller.refresh("manual")}
-							>
-								{state.refreshing ? "Atualizando…" : "Atualizar estado"}
-							</Button>
-							{state.health?.lifecycle === "paused" ? (
-								<Button
-									size="sm"
-									disabled={state.mutation?.kind === "resume"}
-									onClick={() => setConfirmation({ action: "resume" })}
-								>
-									{state.mutation?.kind === "resume" ? "Retomando…" : "Retomar fila"}
-								</Button>
-							) : state.health?.lifecycle === "ready" ? (
-								<Button
-									size="sm"
-									disabled={state.mutation?.kind === "pause"}
-									onClick={() => void controller.lifecycle("pause")}
-								>
-									{state.mutation?.kind === "pause" ? "Pausando…" : "Pausar novas execuções"}
-								</Button>
-							) : null}
-						</div>
-					</>
-				) : (
+			{!connected ? (
+				<section className={styles.connection} aria-label="Conexão com o TDA Companion">
 					<div className={styles.pairing}>
 						<strong>
 							{state.connection === "connecting"
@@ -549,9 +477,6 @@ export function ProcessingPanel({
 								onClick={() => {
 									window.location.href = "tda-companion://open";
 									void (async () => {
-										// Cold-starting WebView/Agent can take more than a single
-										// fixed delay. Retry a few bounded times; stop as soon as
-										// the loopback session is healthy.
 										for (const delay of [1200, 2200, 3500]) {
 											await new Promise((resolve) => window.setTimeout(resolve, delay));
 											await controller.connect();
@@ -573,16 +498,17 @@ export function ProcessingPanel({
 							</Button>
 						</div>
 					</div>
-				)}
-				{state.error ? (
-					<p className={styles.connectionError} role="alert">
-						{state.serverError
-							? presentJobError(state.serverError)
-							: presentConnectionError(state.error, state.errorDetails)}{" "}
-						<small>Código: {state.serverError ?? state.error}</small>
-					</p>
-				) : null}
-			</section>
+				</section>
+			) : null}
+
+			{state.error ? (
+				<p className={styles.connectionError} role="alert">
+					{state.serverError
+						? presentJobError(state.serverError)
+						: presentConnectionError(state.error, state.errorDetails)}{" "}
+					<small>Código: {state.serverError ?? state.error}</small>
+				</p>
+			) : null}
 
 			{connected ? (
 				<>
@@ -740,7 +666,15 @@ export function ProcessingPanel({
 						hidden={view !== "queue"}
 					>
 						<div className={styles.queueView}>
-							{running.length ? (
+							{queueScope === "attention" ? (
+								<div className={styles.queueScope} role="status">
+									<span>Mostrando somente trabalhos que precisam de atenção.</span>
+									<Button size="sm" variant="tertiary" onClick={() => setQueueScope("all")}>
+										Mostrar fila completa
+									</Button>
+								</div>
+							) : null}
+							{queueScope === "all" && running.length ? (
 								<section aria-labelledby="running-jobs">
 									<div className={styles.sectionHeading}>
 										<h2 id="running-jobs">Processando</h2>
@@ -752,7 +686,7 @@ export function ProcessingPanel({
 								</section>
 							) : null}
 
-							{queued.length ? (
+							{queueScope === "all" && queued.length ? (
 								<section aria-labelledby="queued-jobs">
 									<div className={styles.sectionHeading}>
 										<h2 id="queued-jobs">Na fila</h2>
@@ -774,9 +708,14 @@ export function ProcessingPanel({
 										{attention.map(renderRow)}
 									</ul>
 								</section>
+							) : queueScope === "attention" ? (
+								<div className={styles.emptyState}>
+									<strong>Nenhum trabalho precisa de atenção.</strong>
+									<span>A fila não possui falhas ou interrupções recuperáveis neste momento.</span>
+								</div>
 							) : null}
 
-							{finished.length ? (
+							{queueScope === "all" && finished.length ? (
 								<section aria-labelledby="recent-jobs">
 									<div className={styles.sectionHeading}>
 										<h2 id="recent-jobs">Finalizados recentemente</h2>
@@ -788,7 +727,8 @@ export function ProcessingPanel({
 								</section>
 							) : null}
 
-							{!running.length &&
+							{queueScope === "all" &&
+							!running.length &&
 							!queued.length &&
 							!attention.length &&
 							!finished.length ? (
@@ -809,6 +749,7 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-results"
 						hidden={view !== "results"}
 					>
+						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							review={state.localReview}
@@ -878,6 +819,58 @@ export function ProcessingPanel({
 									</h2>
 								</div>
 							</div>
+							<details className={styles.systemDetails}>
+								<summary>Companion e máquina</summary>
+								<dl className={styles.jobDetails}>
+									<div>
+										<dt>API</dt>
+										<dd>{state.health?.api_version ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>Serviço</dt>
+										<dd>{state.health?.service_version ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>Lifecycle</dt>
+										<dd>{state.health?.lifecycle ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>Dispositivo</dt>
+										<dd>{state.capabilities?.device.label ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>Sistema</dt>
+										<dd>{state.system?.host.os ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>CPU</dt>
+										<dd>{state.system?.host.cpu ?? "—"}</dd>
+									</div>
+									<div>
+										<dt>RAM</dt>
+										<dd>
+											{state.system
+												? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)} · ${state.system.memory.percent === null ? "—" : `${Math.round(state.system.memory.percent)}%`}`
+												: "—"}
+										</dd>
+									</div>
+									{state.system?.gpus.map((item) => (
+										<div key={item.index}>
+											<dt>GPU {item.index}</dt>
+											<dd>
+												{item.name} · {item.utilizationPercent === null ? "—" : `${Math.round(item.utilizationPercent)}%`} · {formatBytes(item.memoryUsedBytes)} / {formatBytes(item.memoryTotalBytes)} VRAM
+											</dd>
+										</div>
+									))}
+									<div className={styles.detailWide}>
+										<dt>Capabilities</dt>
+										<dd className={styles.mono}>
+											{state.capabilities?.capabilities.join(", ") || "—"}
+										</dd>
+									</div>
+								</dl>
+							</details>
+
 							{observedJob ? (
 								<dl className={styles.jobDetails}>
 									<div>
@@ -927,6 +920,7 @@ export function ProcessingPanel({
 										: "sem eventos"}
 								</span>
 							</div>
+							{state.eventsRefreshError ? <p role="status">Eventos desatualizados. O último histórico disponível foi preservado.</p> : null}
 							<div
 								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
 								role="log"

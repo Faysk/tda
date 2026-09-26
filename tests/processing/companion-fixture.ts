@@ -16,6 +16,14 @@ export type FixtureJobStatus =
 	| "cancelled"
 	| "interrupted";
 
+export type FixtureSystemGpu = {
+	index: number;
+	name: string;
+	utilizationPercent: number | null;
+	memoryUsedBytes: number | null;
+	memoryTotalBytes: number | null;
+};
+
 export type CompanionFixtureOptions = {
 	apiVersion?: string;
 	serviceVersion?: string;
@@ -24,10 +32,21 @@ export type CompanionFixtureOptions = {
 	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	reviewEnabled?: boolean;
 	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
+	system?: {
+		sampledAt?: string;
+		os?: string;
+		cpuModel?: string | null;
+		cpuPercent?: number | null;
+		memoryUsedBytes?: number | null;
+		memoryTotalBytes?: number | null;
+		memoryPercent?: number | null;
+		gpus?: FixtureSystemGpu[];
+	};
 };
 
 export type CompanionFixtureState = {
@@ -192,6 +211,7 @@ export async function installCompanionFixture(
 		if (path === "/capabilities") {
 			return json(route, {
 				capabilities: [
+					...(options.reviewEnabled ? ["transcription.review"] : []),
 					"transcription.craig",
 					"transcription.prepare",
 					"job.events",
@@ -229,17 +249,40 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/system") {
+			const system = options.system;
 			return json(route, {
-				sampled_at: "2026-09-20T18:00:00Z",
-				host: { os: "Windows 11", cpu: "Synthetic CPU" },
-				cpu: { utilization_percent: 25 },
-				memory: {
-					used_bytes: 8 * 1024 ** 3,
-					total_bytes: 32 * 1024 ** 3,
-					percent: 25,
+				sampled_at: system?.sampledAt ?? "2026-09-20T18:00:00Z",
+				host: {
+					os: system?.os ?? "Windows 11",
+					cpu: system?.cpuModel === undefined ? "Synthetic CPU" : system.cpuModel,
 				},
-				gpus: [],
+				cpu: {
+					utilization_percent:
+						system?.cpuPercent === undefined ? 25 : system.cpuPercent,
+				},
+				memory: {
+					used_bytes:
+						system?.memoryUsedBytes === undefined
+							? 8 * 1024 ** 3
+							: system.memoryUsedBytes,
+					total_bytes:
+						system?.memoryTotalBytes === undefined
+							? 32 * 1024 ** 3
+							: system.memoryTotalBytes,
+					percent:
+						system?.memoryPercent === undefined ? 25 : system.memoryPercent,
+				},
+				gpus: (system?.gpus ?? []).map((gpu) => ({
+					index: gpu.index,
+					name: gpu.name,
+					utilization_percent: gpu.utilizationPercent,
+					memory_used_bytes: gpu.memoryUsedBytes,
+					memory_total_bytes: gpu.memoryTotalBytes,
+				})),
 			});
+		}
+		if (path === "/sources" && request.method() === "GET") {
+			return json(route, { schema_version: "tda_craig_sources_v1", sources: [] });
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
 			const contentType = request.headers()["content-type"] ?? "";

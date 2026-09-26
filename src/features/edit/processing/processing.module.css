@@ -89,6 +89,21 @@
 	min-width: 0;
 }
 
+.queueScope {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding-block: 4px 8px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+}
+
+.queueScope :global(.ds-action) {
+	flex: 0 0 auto;
+}
+
 .inspectorFull {
 	position: static;
 	max-height: none;
@@ -666,8 +681,43 @@
 	border-bottom: 1px solid var(--ds-border-subtle);
 }
 
+
+.systemDetails {
+	margin-bottom: 10px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.systemDetails > summary {
+	cursor: pointer;
+	color: var(--ds-foreground-soft);
+	font-size: 0.75rem;
+	font-weight: 700;
+	list-style-position: outside;
+}
+
+.systemDetails[open] > summary {
+	margin-bottom: 9px;
+}
+
+.systemDetails .jobDetails {
+	padding-bottom: 0;
+	border-bottom: 0;
+}
+
+.systemDetails .jobDetails dd {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
+}
+
 .jobDetails > div {
 	min-width: 0;
+}
+
+.jobDetails > .detailWide {
+	grid-column: 1 / -1;
 }
 
 .jobDetails dt {
@@ -992,6 +1042,15 @@
 }
 
 @media (max-width: 520px) {
+	.queueScope {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.queueScope :global(.ds-action) {
+		width: 100%;
+	}
+
 	.page {
 		padding-bottom: 14px;
 	}

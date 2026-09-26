@@ -1,0 +1,249 @@
+.bar {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: 10px 18px;
+	min-width: 0;
+	min-height: 48px;
+	padding: 6px 10px 6px 12px;
+	border-block: 1px solid var(--ds-border-subtle);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 82%, transparent);
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+}
+
+.statusCluster,
+.counters,
+.actions {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.statusCluster {
+	gap: 8px;
+	overflow: hidden;
+}
+
+.statusDot {
+	width: 8px;
+	height: 8px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--ds-foreground-muted);
+}
+
+.bar[data-tone="success"] .statusDot {
+	background: var(--ds-success);
+}
+
+.bar[data-tone="warning"] .statusDot {
+	background: var(--ds-warning);
+}
+
+.bar[data-tone="danger"] .statusDot {
+	background: var(--ds-danger);
+}
+
+.statusCopy {
+	display: flex;
+	align-items: baseline;
+	flex: 0 0 auto;
+	gap: 6px;
+	white-space: nowrap;
+}
+
+.statusCopy strong {
+	font-size: 0.8125rem;
+	font-weight: 720;
+}
+
+.statusCopy strong .stateLabel {
+	color: inherit;
+	font: inherit;
+}
+
+.statusCopy span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.statusCopy .degradedHint {
+	color: var(--ds-warning);
+	font-weight: 650;
+}
+
+.actionShort {
+	display: none;
+}
+
+.gpuCluster,
+.secondaryTelemetry {
+	overflow: hidden;
+	color: var(--ds-foreground-soft);
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.gpuCluster {
+	min-width: 0;
+}
+
+.secondaryTelemetry {
+	flex: 0 1 auto;
+	color: var(--ds-foreground-muted);
+}
+
+.counters {
+	gap: 5px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.counters > * + *::before {
+	margin-right: 5px;
+	color: var(--ds-border);
+	content: "·";
+}
+
+.attention {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	font: inherit;
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--ds-accent) 55%, transparent);
+	text-underline-offset: 3px;
+}
+
+.attention:focus-visible {
+	border-radius: 3px;
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.bar[data-tone="warning"] .attention,
+.bar[data-tone="danger"] .attention {
+	color: var(--ds-warning);
+}
+
+.actions {
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.actions :global(.ds-action) {
+	min-height: 32px;
+	white-space: nowrap;
+}
+
+.degraded {
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding-top: 6px;
+	border-top: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+}
+
+.degraded strong {
+	color: var(--ds-warning);
+	font-weight: 700;
+}
+
+@media (max-width: 1500px) {
+	.secondaryTelemetry {
+		display: none;
+	}
+}
+
+@media (max-width: 1080px) {
+	.bar {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.counters {
+		grid-row: 2;
+		grid-column: 1 / -1;
+		justify-content: flex-start;
+	}
+
+	.actions {
+		grid-column: 2;
+		grid-row: 1;
+	}
+}
+
+@media (max-width: 720px) {
+	.bar {
+		grid-template-columns: 1fr;
+		gap: 6px;
+		padding-block: 8px;
+	}
+
+	.statusCluster {
+		grid-column: 1;
+		flex-wrap: wrap;
+	}
+
+	.gpuCluster,
+	.secondaryTelemetry {
+		flex-basis: calc(100% - 16px);
+		margin-left: 16px;
+	}
+
+	.counters {
+		grid-column: 1;
+		grid-row: auto;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.counters::-webkit-scrollbar {
+		display: none;
+	}
+
+	.actions {
+		grid-column: 1;
+		grid-row: auto;
+		justify-content: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.actionLong {
+		display: none;
+	}
+
+	.actionShort {
+		display: inline;
+	}
+
+	.degraded {
+		display: grid;
+		gap: 2px;
+	}
+}
+
+@media (max-width: 420px) {
+	.statusCopy {
+		display: grid;
+		gap: 0;
+	}
+
+	.actions {
+		gap: 4px;
+	}
+
+	.actions :global(.ds-action) {
+		padding-inline: 8px;
+	}
+}

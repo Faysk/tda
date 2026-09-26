@@ -25,6 +25,17 @@ async function openRunningWorkspace(
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [fixtureJob("running")],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
@@ -59,6 +70,24 @@ for (const viewport of viewports) {
 		const tabBox = await selectedTab.boundingBox();
 		expect(tabBox?.height ?? 0).toBeGreaterThanOrEqual(40);
 
+		if (viewport.name === "mobile-320") {
+			const commandBar = page.locator("[data-processing-command-bar='true']");
+			const barBox = await commandBar.boundingBox();
+			expect(barBox).not.toBeNull();
+			expect((barBox?.x ?? 0) + (barBox?.width ?? 0)).toBeLessThanOrEqual(
+				viewport.width + 1,
+			);
+			await expect(
+				page.getByRole("button", { name: "Atualizar estado", exact: true }),
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Pausar novas execuções", exact: true }),
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Diagnóstico", exact: true }),
+			).toBeVisible();
+		}
+
 		if (viewport.name === "full-hd") {
 			const vertical = await page.evaluate(() => ({
 				scrollHeight: document.documentElement.scrollHeight,
@@ -78,6 +107,16 @@ for (const viewport of viewports) {
 		}
 	});
 }
+
+test("healthy desktop command bar stays within the compact height budget", async ({ page }) => {
+	await openRunningWorkspace(page, 1440, 900);
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	const box = await commandBar.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.height ?? 999).toBeLessThanOrEqual(52);
+	await expect(commandBar).toContainText("Synthetic GPU · 25% · 4.0/8.0 GB");
+	await expect(commandBar).not.toContainText("Concluídos");
+});
 
 test("workspace tabs implement roving keyboard navigation", async ({ page }) => {
 	await openRunningWorkspace(page, 1366, 768);
@@ -138,7 +177,7 @@ for (const theme of ["dark", "light", "system-light"] as const) {
 		await page.goto("/");
 		const warning = page.getByText("Fila pausada", { exact: true });
 		await expect(warning).toBeVisible();
-		const colors = await warning.evaluate((element) => {
+		const colors = await page.locator("[data-processing-status-dot='true']").evaluate((element) => {
 			const root = getComputedStyle(document.documentElement);
 			const rgb = (token: string) => {
 				const probe = document.createElement("span");
@@ -148,7 +187,7 @@ for (const theme of ["dark", "light", "system-light"] as const) {
 				probe.remove();
 				return color;
 			};
-			return { dot: getComputedStyle(element, "::before").backgroundColor,
+			return { dot: getComputedStyle(element).backgroundColor,
 				warning: rgb("--ds-warning"), accent: rgb("--ds-accent-strong"),
 				danger: rgb("--ds-danger"), success: rgb("--ds-success"),
 				backgrounds: [rgb("--ds-canvas"), rgb("--ds-surface"), rgb("--ds-surface-elevated")],
@@ -213,21 +252,23 @@ test("operational grammar keeps state semantics distinct and essential text read
 	expect(activeVisual.boxShadow).toBe("none");
 	expect(activeVisual.borderLeftWidth).toBe("1px");
 
-	const cpuMetric = page.getByText("CPU", { exact: true }).locator("..");
-	const metricVisual = await cpuMetric.evaluate((element) => {
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	const operationalVisual = await commandBar.evaluate((element) => {
 		const style = getComputedStyle(element);
-		const label = element.querySelector("span");
+		const counter = element.querySelector("[data-processing-counters='true'] span");
 		return {
-			background: style.backgroundColor,
 			borderTopWidth: style.borderTopWidth,
-			labelFontSize: label ? Number.parseFloat(getComputedStyle(label).fontSize) : 0,
+			borderBottomWidth: style.borderBottomWidth,
 			fontFamily: style.fontFamily,
+			counterFontSize: counter
+				? Number.parseFloat(getComputedStyle(counter).fontSize)
+				: 0,
 		};
 	});
-	expect(metricVisual.background).toBe("rgba(0, 0, 0, 0)");
-	expect(metricVisual.borderTopWidth).toBe("0px");
-	expect(metricVisual.labelFontSize).toBeGreaterThanOrEqual(11);
-	expect(metricVisual.fontFamily).toContain("sans-serif");
+	expect(operationalVisual.borderTopWidth).toBe("1px");
+	expect(operationalVisual.borderBottomWidth).toBe("1px");
+	expect(operationalVisual.counterFontSize).toBeGreaterThanOrEqual(11);
+	expect(operationalVisual.fontFamily).toContain("sans-serif");
 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 	const logTime = page.getByRole("log").locator("time").first();
@@ -248,8 +289,9 @@ test("queued and paused states do not masquerade as running or healthy", async (
 	});
 	await page.goto("/");
 
-	const paused = page.getByText("Fila pausada", { exact: true });
-	await expect(paused).toHaveClass(/ds-status--warning/);
+	const commandBar = page.locator("[data-processing-command-bar='true']");
+	await expect(commandBar).toHaveAttribute("data-tone", "warning");
+	await expect(page.getByText("Fila pausada", { exact: true })).toBeVisible();
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	const queued = page.getByRole("listitem").getByText("Na fila", { exact: true });
