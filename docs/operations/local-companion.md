@@ -403,3 +403,13 @@ registram hashes, versões, GPU, tempos e contagens, sem áudio, texto ou paths 
 Esta evidência não representa teste da RTX 2080, avaliação editorial de qualidade,
 validação de Craig longo, nem certificação de MSI/RC produzido pela main atual.
 Não houve instalação, promoção de release, deploy ou publicação de transcript.
+
+## Identidade exata do runtime no run (#646, candidata)
+
+O supervisor usa o mesmo snapshot do inspector para escolher worker, versão e SHA do selo de instalação. Whisper conserva a verificação leve de metadata existente. Qwen exige que essa identidade coincida com o binding aprovado do gate físico; divergência gera `ASR_RUNTIME_IDENTITY_INVALID` antes do processo. O inspector do gate também usa a identidade do mesmo snapshot, sem reler um marker possivelmente diferente.
+
+Somente runtime id, versão, worker SHA-256 e archive SHA-256 opcional vão em `TDA_ASR_RUNTIME_ARTIFACT` ao processo escolhido. O worker copia o envelope sanitizado para `execution_lineage.runtime_artifact` no commit imutável, sem ler runtime atual ou fazer hash de binário/arquivo. Runs antigos permanecem válidos com identidade ausente. O Web só mostra os hashes em detalhes técnicos, e a allowlist de publicação cloud continua excluindo lineage local.
+
+Entrega requer novo Companion e workers que incluam este código; executáveis instalados anteriores continuam compatíveis, porém não passam a registrar o campo retroativamente. Não altera gate físico, não registra novo aceite e não publica release por push. Rollback: consumidores anteriores ignoram o campo opcional; preservar runs e artefatos selados para diagnóstico.
+
+Evidência #646 (2026-09-26): 1008 testes Python aprovados, 12 condicionais omitidos; check completo com 670 testes Web + 40 Node; build aprovado. Dois cenários visuais desktop/mobile passaram após corrigir quebra de linha dos hashes no celular; captura mobile inspecionada. Execução e persistência usam fixtures sintéticas, sem declarar release instalada atualizada.

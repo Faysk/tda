@@ -31,7 +31,10 @@ export function ReviewFixture() {
 			device: "cpu",
 			computeType: "int8",
 			alignment: "native",
-			executionLineage: null,
+			executionLineage: new URLSearchParams(location.search).has("artifact") ? {
+                schemaVersion: "tda_execution_lineage_v1", companionVersion: "synthetic", runtimeFamily: "whisper", runtimeVersion: "1.1.5", device: "cpu", computeType: "int8", gpu: null,
+                runtimeArtifact: { runtimeId: "whisper-ctranslate2", version: "1.1.5", workerSha256: "a".repeat(64), archiveSha256: "b".repeat(64) },
+            } : null,
 			completedAt: "2026-09-26T12:00:00Z",
 		},
 		stats: {

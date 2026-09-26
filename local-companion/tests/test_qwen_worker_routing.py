@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
 
@@ -32,6 +33,10 @@ class CapturingSupervisor(WorkerSupervisor):
         return WorkerOutcome(terminal="result", payload={"ok": True}, returncode=0)
 
 
+def _artifact(version):
+    return {"runtime_id": "qwen3-transformers", "version": version, "worker_sha256": "a" * 64, "archive_sha256": "b" * 64}
+
+
 def _run(supervisor: WorkerSupervisor, *, profile_id: str):
     return supervisor.run_craig(
         job_id="job-qwen",
@@ -57,7 +62,7 @@ def _gate_ready(monkeypatch, calls: dict | None = None):
                     "verify_model_content": verify_model_content,
                 }
             )
-        return {"ready": True, "status": "ready", "profile_id": profile_id}
+        return {"ready": True, "status": "ready", "profile_id": profile_id, "runtime_artifact": _artifact("1.0.0")}
 
     monkeypatch.setattr(supervisor_module, "inspect_qwen_physical_gate", inspect)
 
@@ -73,9 +78,9 @@ def test_qwen_profile_uses_sealed_gate_without_full_content_rehash(monkeypatch, 
 
     def current_worker(_root, *, verify_worker=True):
         worker_calls["verify_worker"] = verify_worker
-        return worker
+        return {"status": "ready", "worker": str(worker), **_artifact(worker.parent.name)}
 
-    monkeypatch.setattr(supervisor_module, "current_qwen_worker", current_worker)
+    monkeypatch.setattr(supervisor_module, "inspect_qwen_runtime", current_worker)
 
     supervisor = CapturingSupervisor(
         data_root=tmp_path / "Data",
@@ -90,6 +95,7 @@ def test_qwen_profile_uses_sealed_gate_without_full_content_rehash(monkeypatch, 
     assert supervisor.environment_overrides == {
         "TDA_ASR_RUNTIME_FAMILY": "qwen",
         "TDA_ASR_RUNTIME_VERSION": "1.0.0",
+        "TDA_ASR_RUNTIME_ARTIFACT": json.dumps(_artifact("1.0.0"), sort_keys=True, separators=(",", ":")),
     }
     assert supervisor.command is not None
     assert supervisor.command.payload["profile_id"] == "qwen-fast"
@@ -99,7 +105,7 @@ def test_qwen_profile_uses_sealed_gate_without_full_content_rehash(monkeypatch, 
 
 def test_qwen_profile_never_falls_back_to_agent_python_when_runtime_missing(monkeypatch, tmp_path: Path):
     _gate_ready(monkeypatch)
-    monkeypatch.setattr(supervisor_module, "current_qwen_worker", lambda _root, **_kwargs: None)
+    monkeypatch.setattr(supervisor_module, "inspect_qwen_runtime", lambda _root, **_kwargs: {"status": "missing"})
     supervisor = CapturingSupervisor(
         data_root=tmp_path / "Data",
         models_root=tmp_path / "Models",
@@ -120,7 +126,7 @@ def test_qwen_profile_is_blocked_before_worker_lookup_when_physical_gate_is_miss
     )
     monkeypatch.setattr(
         supervisor_module,
-        "current_qwen_worker",
+        "inspect_qwen_runtime",
         lambda _root, **_kwargs: (_ for _ in ()).throw(AssertionError("worker lookup must not run")),
     )
     supervisor = CapturingSupervisor(
@@ -141,7 +147,7 @@ def test_qwen_profile_derives_local_state_and_runtime_roots_from_data_root(monke
     worker = tmp_path / "Runtime" / "qwen" / "1.0.0" / "TDAQwenWorker.exe"
     worker.parent.mkdir(parents=True)
     worker.write_bytes(b"worker")
-    monkeypatch.setattr(supervisor_module, "current_qwen_worker", lambda _root, **_kwargs: worker)
+    monkeypatch.setattr(supervisor_module, "inspect_qwen_runtime", lambda _root, **_kwargs: {"status": "ready", "worker": str(worker), **_artifact(worker.parent.name)})
     supervisor = CapturingSupervisor(
         data_root=tmp_path / "Data",
         models_root=tmp_path / "Models",
@@ -150,3 +156,13 @@ def test_qwen_profile_derives_local_state_and_runtime_roots_from_data_root(monke
     _run(supervisor, profile_id="qwen-fast")
     assert calls["state_root"] == tmp_path / "State"
     assert calls["runtime_root"] == tmp_path / "Runtime"
+
+
+def test_qwen_dispatch_rejects_runtime_changed_since_physical_gate(monkeypatch, tmp_path):
+    _gate_ready(monkeypatch)
+    selected = tmp_path / 'qwen' / '1.0.0' / 'TDAQwenWorker.exe'
+    monkeypatch.setattr(supervisor_module, 'inspect_qwen_runtime', lambda *_a, **_k: {'status':'ready', 'worker':str(selected), **_artifact('1.0.0'), 'worker_sha256':'c'*64})
+    supervisor = CapturingSupervisor(data_root=tmp_path/'Data', models_root=tmp_path/'Models', runtime_root=tmp_path/'Runtime', state_root=tmp_path/'State')
+    with pytest.raises(WorkerProcessError, match='ASR_RUNTIME_IDENTITY_INVALID'):
+        _run(supervisor, profile_id='qwen-fast')
+    assert supervisor.command is None

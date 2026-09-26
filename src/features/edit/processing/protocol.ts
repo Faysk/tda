@@ -169,6 +169,7 @@ export type LocalPublicationTarget = {
 export type LocalExecutionLineage = {
 	schemaVersion: "tda_execution_lineage_v1";
 	companionVersion: string | null;
+	runtimeArtifact?: Readonly<{ runtimeId: string; version: string; workerSha256: string; archiveSha256: string | null }> | null;
 	runtimeFamily: string | null;
 	runtimeVersion: string | null;
 	device: string | null;
@@ -857,6 +858,13 @@ function parseExecutionLineage(value: unknown): LocalExecutionLineage | null {
 	if (value === null || value === undefined) return null;
 	const row = record(value);
 	if (row.schema_version !== "tda_execution_lineage_v1") return invalid();
+	let runtimeArtifact: LocalExecutionLineage["runtimeArtifact"] = null;
+    if (row.runtime_artifact !== null && row.runtime_artifact !== undefined) {
+        const artifact = record(row.runtime_artifact);
+        const expectedId = row.runtime_family === "qwen" ? "qwen3-transformers" : row.runtime_family === "whisper" ? "whisper-ctranslate2" : null;
+        if (!expectedId || artifact.runtime_id !== expectedId || artifact.version !== row.runtime_version || typeof artifact.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(artifact.version)) return invalid();
+        runtimeArtifact = { runtimeId: expectedId, version: text(artifact.version), workerSha256: sha256(artifact.worker_sha256), archiveSha256: artifact.archive_sha256 === null ? null : sha256(artifact.archive_sha256) };
+    }
 	const rawGpu = row.gpu;
 	let gpu: LocalExecutionLineage["gpu"] = null;
 	if (rawGpu !== null && rawGpu !== undefined) {
@@ -876,6 +884,7 @@ function parseExecutionLineage(value: unknown): LocalExecutionLineage | null {
 	return {
 		schemaVersion: "tda_execution_lineage_v1",
 		companionVersion: nullableText(row.companion_version, 64),
+		runtimeArtifact,
 		runtimeFamily: nullableText(row.runtime_family, 64),
 		runtimeVersion: nullableText(row.runtime_version, 128),
 		device: nullableText(row.device, 64),

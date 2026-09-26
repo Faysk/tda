@@ -30,6 +30,7 @@ const review: LocalReview = {
 			companionVersion: "0.3.14",
 			runtimeFamily: "whisper",
 			runtimeVersion: "1.1.5",
+            runtimeArtifact: { runtimeId: "whisper-ctranslate2", version: "1.1.5", workerSha256: "f".repeat(64), archiveSha256: null },
 			device: "cuda",
 			computeType: "float16",
 			gpu: {
@@ -231,6 +232,7 @@ describe("publication client", () => {
 		});
 		expect(body.review.lineage).not.toHaveProperty("executionLineage");
 		expect(JSON.stringify(body)).not.toContain("NVIDIA Test GPU");
+        expect(JSON.stringify(body)).not.toContain("f".repeat(64));
 	});
 
 	it("uses receipt readback after an ambiguous network failure", async () => {

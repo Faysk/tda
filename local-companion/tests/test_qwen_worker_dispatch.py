@@ -9,6 +9,10 @@ from tda_companion.runtime_compat import MIN_COMPATIBLE_QWEN_RUNTIME_VERSION
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
 
+def _artifact(version):
+    return {"runtime_id": "qwen3-transformers", "version": version, "worker_sha256": "a" * 64, "archive_sha256": "b" * 64}
+
+
 def _supervisor(tmp_path: Path) -> WorkerSupervisor:
     roots = {
         "data_root": tmp_path / "Data",
@@ -31,11 +35,11 @@ def test_qwen_job_dispatch_uses_lightweight_gate_and_worker_lookup(monkeypatch, 
     def inspect_gate(state, runtime, models, *, profile_id, verify_model_content=False):  # noqa: ANN001
         observed["profile_id"] = profile_id
         observed["verify_model_content"] = verify_model_content
-        return {"ready": True, "status": "ready", "profile_id": profile_id}
+        return {"ready": True, "status": "ready", "profile_id": profile_id, "runtime_artifact": _artifact(MIN_COMPATIBLE_QWEN_RUNTIME_VERSION)}
 
     def current_worker(_root, *, verify_worker=True):  # noqa: ANN001
         observed["verify_worker"] = verify_worker
-        return worker
+        return {"status": "ready", "worker": str(worker), **_artifact(worker.parent.name)}
 
     def fake_run(command, **kwargs):  # noqa: ANN001, ANN003
         observed["process_command"] = kwargs["process_command"]
@@ -43,7 +47,7 @@ def test_qwen_job_dispatch_uses_lightweight_gate_and_worker_lookup(monkeypatch, 
         return WorkerOutcome(terminal="cancelled", payload={}, returncode=0)
 
     monkeypatch.setattr(worker_supervisor, "inspect_qwen_physical_gate", inspect_gate)
-    monkeypatch.setattr(worker_supervisor, "current_qwen_worker", current_worker)
+    monkeypatch.setattr(worker_supervisor, "inspect_qwen_runtime", current_worker)
     monkeypatch.setattr(supervisor, "_run_command", fake_run)
 
     outcome = supervisor.run_craig(
@@ -81,7 +85,7 @@ def test_qwen_job_dispatch_rejects_stale_sealed_gate_before_worker_lookup(monkey
     )
     monkeypatch.setattr(
         worker_supervisor,
-        "current_qwen_worker",
+        "inspect_qwen_runtime",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             AssertionError("worker lookup must not run for a stale gate")
         ),
