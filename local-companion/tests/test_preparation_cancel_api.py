@@ -122,7 +122,7 @@ def test_browser_session_can_use_fenced_preparation_cancel_route(tmp_path: Path)
         run_worker=False,
     )
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
-        session = client.post("/api/v1/session", headers={"Origin": ORIGIN})
+        session = client.post("/api/v1/session", headers={"Origin": ORIGIN}, json={})
         assert session.status_code == 200
         browser_token = session.json()["token"]
         response = client.post(
