@@ -412,11 +412,16 @@ def run_worker_stdio(
             emitter.emit("stage", {"stage": bootstrap_stage})
             ready_emitted = True
             pre_worker_bootstrap()
-        except BaseException:
+        except BaseException as exc:
+            code = (
+                "ASR_RUNTIME_IDENTITY_INVALID"
+                if getattr(exc, "code", None) == "ASR_RUNTIME_IDENTITY_INVALID"
+                else "WORKER_RUNTIME_BOOTSTRAP_FAILED"
+            )
             try:
                 emitter.emit(
                     "error",
-                    {"code": "WORKER_RUNTIME_BOOTSTRAP_FAILED", "recoverable": True},
+                    {"code": code, "recoverable": True},
                 )
             except BaseException:
                 pass
