@@ -46,6 +46,7 @@ from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
+from .worker_event_schema import sanitize_worker_event
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -750,12 +751,21 @@ def create_app(
                             )
                             return
                         if message.type == "event":
-                            code = str(message.payload.get("code") or "WORKER_EVENT")[:96]
-                            data = {
-                                key: value
-                                for key, value in message.payload.items()
-                                if key != "code"
-                            }
+                            sanitized = sanitize_worker_event(message.payload)
+                            code = sanitized.code
+                            data = sanitized.data
+                            if sanitized.schema_drift:
+                                log(
+                                    "warning",
+                                    "worker",
+                                    "WORKER_EVENT_SCHEMA_DRIFT",
+                                    "Worker event metadata did not match the browser-visible schema",
+                                    {
+                                        "job_id": job_id,
+                                        "event_code": code,
+                                        "dropped_fields": sanitized.dropped_fields,
+                                    },
+                                )
                             if code in {
                                 "QWEN_WINDOW_TRANSCRIBED",
                                 "WHISPER_SEGMENT_TRANSCRIBED",
