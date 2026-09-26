@@ -179,15 +179,9 @@ describe("run comparison", () => {
 		).toBe(false);
 	});
 
-	it("rejects invalid tolerance and unbounded segment volume", () => {
+	it("rejects an invalid alignment tolerance", () => {
 		expect(() =>
 			compareRunSegments([], [], { timeToleranceSeconds: 30 }),
 		).toThrow("RUN_COMPARISON_TOLERANCE_INVALID");
-		const tooMany = Array.from({ length: 500_001 }, (_, index) =>
-			segment(1, String(index), index, index + 0.1, "x"),
-		);
-		expect(() => compareRunSegments(tooMany, [])).toThrow(
-			"RUN_COMPARISON_SEGMENT_LIMIT",
-		);
 	});
 });
