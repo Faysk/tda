@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -16,6 +17,7 @@ from .craig import (
     TRACK_NAME,
     physical_track_filename,
 )
+from .flac_metadata import flac_duration_seconds
 
 _MANIFEST_MAX_BYTES = 2 * 1024 * 1024
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -161,13 +163,18 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_INVALID")
         digest = _sha(item.get("sha256"), "CRAIG_MANIFEST_TRACK_HASH_INVALID")
         offset = item.get("timeline_offset_seconds", 0.0)
-        if isinstance(offset, bool) or not isinstance(offset, (int, float)) or float(offset) < 0:
+        if (isinstance(offset, bool) or not isinstance(offset, (int, float))
+                or not math.isfinite(offset) or float(offset) < 0):
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_OFFSET_INVALID")
 
         candidate = (root / expected_relative).resolve()
         if root not in candidate.parents or not candidate.is_file():
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_MISSING")
         stat = candidate.stat()
+
+        # Optional manifest cache is never authority or an availability gate.
+        # Re-derive from the fixed STREAMINFO prefix; do not rewrite on reads.
+        duration_seconds = flac_duration_seconds(candidate)
         if stat.st_size != size_bytes:
             raise CraigPackageError("CRAIG_MANIFEST_TRACK_SIZE_MISMATCH")
         staged_mtime_ns = item.get("staged_mtime_ns")
@@ -208,6 +215,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 identity=_identity(item.get("identity")),
                 staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
+                duration_seconds=duration_seconds,
             )
         )
 

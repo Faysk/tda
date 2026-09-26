@@ -81,6 +81,34 @@ def test_startup_cleanup_removes_only_craig_upload_partials(tmp_path: Path):
     assert lookalike_directory.is_dir()
 
 
+
+
+def _flac_bytes(duration_seconds: int, sample_rate: int = 48_000) -> bytes:
+    total_samples = duration_seconds * sample_rate
+    packed = (
+        (sample_rate & 0xFFFFF) << 44
+        | (0 << 41)
+        | (15 << 36)
+        | (total_samples & ((1 << 36) - 1))
+    )
+    streaminfo = (
+        (4096).to_bytes(2, "big")
+        + (4096).to_bytes(2, "big")
+        + (0).to_bytes(3, "big")
+        + (0).to_bytes(3, "big")
+        + packed.to_bytes(8, "big")
+        + bytes(16)
+    )
+    return b"fLaC" + bytes([0x80, 0, 0, 34]) + streaminfo
+
+
+def _duration_zip_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", _flac_bytes(300))
+        archive.writestr("2-Bob.flac", _flac_bytes(180))
+    return buffer.getvalue()
+
 def _zip_bytes() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
@@ -646,3 +674,74 @@ def test_ingest_local_file_requires_zip_extension(tmp_path: Path):
 
     with pytest.raises(CraigUploadError, match="CRAIG_ZIP_REQUIRED"):
         ingest_craig_file(source, tmp_path / "Data")
+
+
+@pytest.mark.anyio
+async def test_ingest_reports_chronological_duration_and_total_audio_work(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    result = await ingest_craig_request(_request(_duration_zip_bytes()), data_root)
+
+    assert result["track_count"] == 2
+    assert result["session_duration_seconds"] == 300.0
+    assert result["audio_work_seconds"] == 480.0
+
+    package = load_craig_package(
+        data_root / "staging" / result["source_id"],
+        verify_tracks=False,
+    )
+    assert [track.duration_seconds for track in package.tracks] == [300.0, 180.0]
+
+    reused = await ingest_craig_request(_request(_duration_zip_bytes()), data_root)
+    assert reused["reused"] is True
+    assert reused["session_duration_seconds"] == 300.0
+    assert reused["audio_work_seconds"] == 480.0
+
+
+@pytest.mark.anyio
+async def test_ingest_keeps_duration_unknown_for_legacy_or_invalid_flac_metadata(tmp_path: Path):
+    result = await ingest_craig_request(_request(_zip_bytes()), tmp_path / "Data")
+
+    assert result["session_duration_seconds"] is None
+    assert result["audio_work_seconds"] is None
+
+
+@pytest.mark.parametrize("cached", [999, "garbage", -1, float("nan"), float("inf"), True, None])
+def test_factual_duration_ignores_optional_cache_without_manifest_rewrite(tmp_path, cached):
+    import json
+    source = tmp_path / "session.zip"
+    source.write_bytes(_duration_zip_bytes())
+    data_root = tmp_path / "Data"
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    path = package_root / "manifest.json"
+    manifest = json.loads(path.read_bytes())
+    for item in manifest["tracks"]:
+        item["duration_seconds"] = cached
+    manifest["tracks"][1]["timeline_offset_seconds"] = 240
+    original = json.dumps(manifest).encode()
+    path.write_bytes(original)
+    reused = ingest_craig_file(source, data_root)
+    assert reused["reused"] is True
+    assert reused["audio_work_seconds"] == 480
+    assert reused["session_duration_seconds"] == 420
+    assert reused["source_sha256"] == first["source_sha256"]
+    assert path.read_bytes() == original
+
+
+def test_one_unavailable_duration_keeps_both_aggregates_unknown(tmp_path):
+    import json
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("1-Alice.flac", _flac_bytes(60))
+        archive.writestr("2-Bob.flac", b"fLaC-legacy")
+    source = tmp_path / "session.zip"
+    source.write_bytes(buffer.getvalue())
+    data_root = tmp_path / "Data"
+    first = ingest_craig_file(source, data_root)
+    path = data_root / "staging" / first["source_id"] / "manifest.json"
+    manifest = json.loads(path.read_bytes())
+    manifest["tracks"][1]["duration_seconds"] = 30
+    path.write_text(json.dumps(manifest))
+    reused = ingest_craig_file(source, data_root)
+    assert reused["audio_work_seconds"] is None
+    assert reused["session_duration_seconds"] is None
