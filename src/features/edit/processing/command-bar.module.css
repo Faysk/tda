@@ -32,6 +32,9 @@
 	flex: 0 0 auto;
 	border-radius: 50%;
 	background: var(--ds-foreground-muted);
+	transition:
+		background-color 180ms ease,
+		opacity 180ms ease;
 }
 
 .bar[data-tone="success"] .statusDot {
@@ -158,6 +161,12 @@
 .degraded strong {
 	color: var(--ds-warning);
 	font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.statusDot {
+		transition: none;
+	}
 }
 
 @media (max-width: 1500px) {

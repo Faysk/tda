@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatedMetric } from "@/components/ui/animated-metric";
 import { Button } from "@/components/ui/button";
 import type { Health, SystemSnapshot } from "./protocol";
 import styles from "./command-bar.module.css";
@@ -31,13 +32,13 @@ function compactGpuName(value: string): string {
 		.trim();
 }
 
-function compactMemory(used: number | null, total: number | null): string | null {
-	if (used === null || total === null || total <= 0) return null;
-	const usedGiB = used / 1024 ** 3;
-	const totalGiB = total / 1024 ** 3;
-	const usedLabel = usedGiB >= 10 ? usedGiB.toFixed(0) : usedGiB.toFixed(1);
-	const totalLabel = totalGiB >= 10 ? totalGiB.toFixed(0) : totalGiB.toFixed(1);
-	return `${usedLabel}/${totalLabel} GB`;
+function compactMemoryValue(bytes: number): string {
+	const gib = bytes / 1024 ** 3;
+	return gib >= 10 ? gib.toFixed(0) : gib.toFixed(1);
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(value)}%`;
 }
 
 function freshness(checkedAt: string | null, stale: boolean): string {
@@ -76,9 +77,14 @@ export function ProcessingCommandBar({
 	const gpu = system?.gpus.reduce<(typeof system.gpus)[number] | null>(
 		(selected, candidate) => !selected || candidate.index < selected.index ? candidate : selected, null,
 	) ?? null;
-	const gpuMemory = gpu
-		? compactMemory(gpu.memoryUsedBytes, gpu.memoryTotalBytes)
-		: null;
+	const gpuMemory =
+		gpu?.memoryUsedBytes !== null &&
+		gpu?.memoryUsedBytes !== undefined &&
+		gpu?.memoryTotalBytes !== null &&
+		gpu?.memoryTotalBytes !== undefined &&
+		gpu.memoryTotalBytes > 0
+			? { used: gpu.memoryUsedBytes, total: gpu.memoryTotalBytes }
+			: null;
 	const stale = Boolean(refreshError);
 	const gpuUnavailable = connected && Boolean(system) && system?.gpus.length === 0;
 	const partialTelemetry =
@@ -112,7 +118,12 @@ export function ProcessingCommandBar({
 			aria-label="Estado e comandos do TDA Companion"
 		>
 			<div className={styles.statusCluster}>
-				<span className={styles.statusDot} aria-hidden="true" data-processing-status-dot="true" />
+				<span
+					className={styles.statusDot}
+					data-processing-status-indicator="true"
+					data-processing-status-dot="true"
+					aria-hidden="true"
+				/>
 				<div className={styles.statusCopy}>
 					<strong>
 						Companion · <span className={styles.stateLabel}>{connectionLabel}</span>
@@ -123,18 +134,66 @@ export function ProcessingCommandBar({
 				{connected && gpu ? (
 					<span className={styles.gpuCluster} title={`GPU ${gpu.index} da máquina · ${gpu.name}`}>
 						GPU {gpu.index} · {compactGpuName(gpu.name)}
-						{gpu.utilizationPercent === null
-							? ""
-							: ` · ${Math.round(gpu.utilizationPercent)}%`}
-						{gpuMemory ? ` · ${gpuMemory}` : ""}
+						{gpu.utilizationPercent !== null ? (
+							<>
+								{" · "}
+								<AnimatedMetric
+									value={gpu.utilizationPercent}
+									min={0}
+									max={100}
+									format={formatPercent}
+									ariaLabel="Uso da GPU"
+									minWidthCh={4}
+								/>
+							</>
+						) : null}
+						{gpuMemory ? (
+							<>
+								{" · "}
+								<AnimatedMetric
+									value={gpuMemory.used}
+									min={0}
+									max={gpuMemory.total}
+									format={compactMemoryValue}
+									ariaValueText={(value) => `${compactMemoryValue(value)} GB usados`}
+									ariaLabel="VRAM usada"
+									minWidthCh={3.2}
+								/>
+								/{compactMemoryValue(gpuMemory.total)} GB
+							</>
+						) : null}
 					</span>
 				) : null}
 				{connected && system ? (
 					<span className={styles.secondaryTelemetry}>
 						{gpu ? "" : "GPU indisponível · "}
-						CPU {system.cpu.utilizationPercent === null ? "—" : `${Math.round(system.cpu.utilizationPercent)}%`}
+						CPU{" "}
+						{system.cpu.utilizationPercent === null ? (
+							"—"
+						) : (
+							<AnimatedMetric
+								value={system.cpu.utilizationPercent}
+								min={0}
+								max={100}
+								format={formatPercent}
+								ariaLabel="Uso da CPU"
+								minWidthCh={4}
+							/>
+						)}
 						{" · "}
-						RAM {system.memory.percent === null ? "—" : `${Math.round(system.memory.percent)}%`}
+						RAM{" "}
+						{system.memory.percent === null ? (
+							"—"
+						) : (
+							<AnimatedMetric
+								value={system.memory.percent}
+								min={0}
+								max={100}
+								format={formatPercent}
+								ariaLabel="Uso da RAM"
+								minWidthCh={4}
+							/>
+						)}
 					</span>
 				) : null}
 			</div>
