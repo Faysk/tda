@@ -154,7 +154,7 @@ def _checkpoint_directory(
     except LocalStatePathError as exc:
         code = str(exc)
         if code == "LOCAL_STATE_PATH_REPARSE":
-            raise ValueError("CHECKPOINT_PATH_REPARSE") from exc
+            raise ValueError("CHECKPOINT_PATH_SYMLINK") from exc
         raise ValueError("CHECKPOINT_PATH_INVALID") from exc
 
 
@@ -204,7 +204,7 @@ def _checkpoint_file(
     except LocalStatePathError as exc:
         code = str(exc)
         if code == "LOCAL_STATE_PATH_REPARSE":
-            raise ValueError("CHECKPOINT_PATH_REPARSE") from exc
+            raise ValueError("CHECKPOINT_PATH_SYMLINK") from exc
         raise ValueError("CHECKPOINT_PATH_INVALID") from exc
 
 
