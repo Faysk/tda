@@ -783,46 +783,12 @@ def create_app(
                                         "rejected_field_count": sanitized_event.rejected_field_count,
                                     },
                                 )
-                            if code == "QWEN_WINDOW_TRANSCRIBED":
-                                store.record_activity(
-                                    job_id,
-                                    attempt,
-                                    "qwen_windows_completed",
-                                    int(data.get("completed_window_count") or data["window"]),
-                                    track=int(data["track"]),
-                                )
-                            elif code == "WHISPER_SEGMENT_TRANSCRIBED":
-                                store.record_activity(
-                                    job_id,
-                                    attempt,
-                                    "whisper_segments_completed",
-                                    int(data.get("completed_segment_count") or data["segment"]),
-                                    track=int(data["track"]),
-                                )
-                            elif code == "MODEL_DOWNLOAD_PROGRESS":
-                                store.record_activity(
-                                    job_id,
-                                    attempt,
-                                    "model_downloaded_bytes",
-                                    int(data["downloaded_bytes"]),
-                                )
-                            elif code == "TRACK_COMPLETED":
-                                if "completed_window_count" in data:
-                                    store.record_activity(
-                                        job_id,
-                                        attempt,
-                                        "qwen_windows_completed",
-                                        int(data["completed_window_count"]),
-                                        track=int(data["track"]),
-                                    )
-                                if "completed_segment_count" in data:
-                                    store.record_activity(
-                                        job_id,
-                                        attempt,
-                                        "whisper_segments_completed",
-                                        int(data["completed_segment_count"]),
-                                        track=int(data["track"]),
-                                    )
+                            store.record_worker_activity(
+                                job_id,
+                                attempt,
+                                code,
+                                data,
+                            )
                             if code in {
                                 "QWEN_WINDOW_TRANSCRIBED",
                                 "WHISPER_SEGMENT_TRANSCRIBED",
