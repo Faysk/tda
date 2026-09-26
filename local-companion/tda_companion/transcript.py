@@ -154,13 +154,21 @@ class TranscriptTrack:
             digest = _text(self.source_sha256, "track.source_sha256", maximum=64)
             if len(digest) != 64 or any(char not in "0123456789abcdefABCDEF" for char in digest):
                 raise TranscriptValidationError("track.source_sha256:INVALID")
-        if self.duration_seconds is not None:
-            _number(self.duration_seconds, "track.duration_seconds")
+        duration_seconds = (
+            None
+            if self.duration_seconds is None
+            else _number(self.duration_seconds, "track.duration_seconds")
+        )
         _number(self.timeline_offset_seconds, "track.timeline_offset_seconds")
         previous_start = -1.0
         seen_ids: set[str] = set()
         for segment in self.segments:
             segment.validate()
+            if (
+                duration_seconds is not None
+                and segment.end - TIME_EPSILON > duration_seconds
+            ):
+                raise TranscriptValidationError("track.segment:AFTER_DURATION")
             if segment.id in seen_ids:
                 raise TranscriptValidationError("track.segment:DUPLICATE_ID")
             seen_ids.add(segment.id)
