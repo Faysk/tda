@@ -87,3 +87,37 @@ def test_frozen_child_fails_closed_when_parent_identity_is_missing(tmp_path):
     executable.write_bytes(b"synthetic")
     with pytest.raises(RuntimeArtifactError, match="ASR_RUNTIME_IDENTITY_INVALID"):
         verify_frozen_runtime_artifact({}, executable=executable, frozen=True)
+
+
+def test_qwen_checkpoint_fingerprint_rechecks_launch_identity(tmp_path, monkeypatch):
+    import sys
+    from tda_companion.asr_qwen import QwenRuntimeError, _runtime_fingerprint
+
+    identity = {
+        "runtime_id": "qwen3-transformers",
+        "version": "1.2.3",
+        "worker_sha256": "a" * 64,
+        "archive_sha256": "b" * 64,
+    }
+    executable = tmp_path / "TDAQwenWorker.exe"
+    executable.write_bytes(b"synthetic")
+    marker_path = tmp_path / ".tda-runtime.json"
+    marker_path.write_text(
+        json.dumps({"schema": "tda_asr_runtime_v1", **identity}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(executable))
+    monkeypatch.setenv("TDA_ASR_RUNTIME_FAMILY", "qwen")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", identity["version"])
+    monkeypatch.setenv("TDA_ASR_RUNTIME_ARTIFACT", json.dumps(identity))
+
+    fingerprint = _runtime_fingerprint()
+    assert f"worker_sha256={identity['worker_sha256']}" in fingerprint
+
+    marker_path.write_text(
+        json.dumps({"schema": "tda_asr_runtime_v1", **identity, "worker_sha256": "c" * 64}),
+        encoding="utf-8",
+    )
+    with pytest.raises(QwenRuntimeError, match="QWEN_RUNTIME_FINGERPRINT_INVALID"):
+        _runtime_fingerprint()
