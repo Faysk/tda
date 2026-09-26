@@ -132,8 +132,8 @@ export function ProcessingCommandBar({
 					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
 				</div>
 				{connected && gpu ? (
-					<span className={styles.gpuCluster} title={`GPU ${gpu.index} da máquina · ${gpu.name}`}>
-						GPU {gpu.index} · {compactGpuName(gpu.name)}
+					<span className={styles.gpuCluster} title={`GPU ${gpu.index} da mÃ¡quina Â· ${gpu.name}`}>
+						GPU {gpu.index} Â· {compactGpuName(gpu.name)}
 						{gpu.utilizationPercent !== null ? (
 							<>
 								{" Â· "}

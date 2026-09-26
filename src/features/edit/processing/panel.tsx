@@ -194,6 +194,7 @@ function JobRow({
 				{job.progress && percent !== null ? (
 					<>
 						<AnimatedProgress
+							key={`${job.id}:${job.attempt}:${job.stage}`}
 							ariaLabel={`Progresso do trabalho ${job.id}`}
 							value={job.progress.completed}
 							max={job.progress.total}
@@ -576,6 +577,7 @@ export function ProcessingPanel({
 										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
 												<AnimatedProgress
+													key={`${activeJob.id}:${activeJob.attempt}:${activeJob.stage}`}
 													ariaLabel={`Progresso do trabalho ${activeJob.id}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}

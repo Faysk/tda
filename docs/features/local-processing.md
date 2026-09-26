@@ -336,3 +336,22 @@ Slices futuros devem acrescentar testes para:
 - ausência de áudio bruto em payload cloud.
 
 Esses testes automatizados não substituem o gate de qualidade/desempenho em GPU física. A aprovação física final dos perfis que a exigem deve registrar runtime/model revision, GPU/VRAM observada, elapsed/RTF e avaliação qualitativa adequada ao perfil.
+
+### Métricas animadas — candidato #601 / PR #623
+
+A barra interpola somente os números visuais de GPU/CPU/RAM por 350–700 ms,
+com easing sem overshoot. O controller, o timestamp da amostra e o `meter`
+acessível recebem imediatamente o target factual; valores intermediários não
+são amostras nem são persistidos. Novo target parte do valor visual atual.
+Movimento reduzido e aba oculta encerram o RAF e saltam ao target; desmontar
+cancela o frame pendente. Valores de memória reservam largura tabular.
+
+Progresso usa `scaleX` e mantém `progress` acessível factual. Identidade do job,
+tentativa e stage delimitam a animação: novo attempt/stage remonta a barra,
+impedindo interpolação regressiva entre execuções. Dentro desse contexto o
+valor continua sendo o informado pelo worker, sem inventar uma medição maior.
+Microtransições de estado duram 180 ms e respeitam movimento reduzido.
+
+Validação: testes sintéticos do interpolador e navegador cobrem rebase,
+telemetria acessível, cancelamento em aba oculta, movimento reduzido, reset
+de tentativa e largura estável. A validação local/CI não publica o frontend.
