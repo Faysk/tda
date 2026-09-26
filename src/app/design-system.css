@@ -211,7 +211,7 @@ textarea:focus-visible,
 }
 
 .ds-status--warning::before {
-	background: var(--ds-accent-strong);
+	background: var(--ds-warning);
 }
 
 .ds-status--danger::before {

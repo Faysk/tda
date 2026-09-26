@@ -166,6 +166,51 @@ for (const theme of ["dark", "light"] as const) {
 	});
 }
 
+for (const theme of ["dark", "light", "system-light"] as const) {
+	test(`${theme}: warning uses its own accessible semantic color`, async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: theme === "dark" ? "dark" : "light", reducedMotion: "reduce" });
+		await page.addInitScript((value) => {
+			if (value !== "system-light") document.documentElement.dataset.theme = value;
+		}, theme);
+		await installCompanionFixture(page, { profileReady: true, advanceJobs: false,
+			initialJobs: [fixtureJob("queued")], lifecycle: "paused" });
+		await page.goto("/");
+		const warning = page.getByText("Fila pausada", { exact: true });
+		await expect(warning).toBeVisible();
+		const colors = await page.locator("[data-processing-status-dot='true']").evaluate((element) => {
+			const root = getComputedStyle(document.documentElement);
+			const rgb = (token: string) => {
+				const probe = document.createElement("span");
+				probe.style.color = `var(${token})`;
+				document.body.append(probe);
+				const color = getComputedStyle(probe).color;
+				probe.remove();
+				return color;
+			};
+			return { dot: getComputedStyle(element).backgroundColor,
+				warning: rgb("--ds-warning"), accent: rgb("--ds-accent-strong"),
+				danger: rgb("--ds-danger"), success: rgb("--ds-success"),
+				backgrounds: [rgb("--ds-canvas"), rgb("--ds-surface"), rgb("--ds-surface-elevated")],
+				token: root.getPropertyValue("--ds-warning") };
+		});
+		expect(colors.token).not.toBe("");
+		expect(colors.dot).toBe(colors.warning);
+		for (const other of [colors.accent, colors.danger, colors.success]) expect(colors.warning).not.toBe(other);
+		const luminance = (rgb: string) => {
+			const components = (rgb.match(/[\d.]+/g) ?? []).slice(0, 3).map((value) => {
+				const s = Number(value) / 255;
+				return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+			});
+			return components[0] * 0.2126 + components[1] * 0.7152 + components[2] * 0.0722;
+		};
+		for (const background of colors.backgrounds) {
+			const a = luminance(colors.warning), b = luminance(background);
+			expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
+		}
+		await page.screenshot({ path: testInfo.outputPath(`warning-${theme}.png`), fullPage: true });
+	});
+}
+
 test("reduced motion removes the tab indicator transition", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await openRunningWorkspace(page, 1440, 900);
@@ -214,6 +259,7 @@ test("operational grammar keeps state semantics distinct and essential text read
 		return {
 			borderTopWidth: style.borderTopWidth,
 			borderBottomWidth: style.borderBottomWidth,
+			fontFamily: style.fontFamily,
 			counterFontSize: counter
 				? Number.parseFloat(getComputedStyle(counter).fontSize)
 				: 0,
@@ -222,6 +268,7 @@ test("operational grammar keeps state semantics distinct and essential text read
 	expect(operationalVisual.borderTopWidth).toBe("1px");
 	expect(operationalVisual.borderBottomWidth).toBe("1px");
 	expect(operationalVisual.counterFontSize).toBeGreaterThanOrEqual(11);
+	expect(operationalVisual.fontFamily).toContain("sans-serif");
 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 	const logTime = page.getByRole("log").locator("time").first();

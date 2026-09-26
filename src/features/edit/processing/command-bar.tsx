@@ -73,7 +73,10 @@ export function ProcessingCommandBar({
 	onAttention,
 	onDiagnostics,
 }: Props) {
-	const gpu = system?.gpus[0] ?? null;
+	// Machine inventory only; CUDA logical device identity is a separate contract.
+	const gpu = system?.gpus.reduce<(typeof system.gpus)[number] | null>(
+		(selected, candidate) => !selected || candidate.index < selected.index ? candidate : selected, null,
+	) ?? null;
 	const gpuMemory =
 		gpu?.memoryUsedBytes !== null &&
 		gpu?.memoryUsedBytes !== undefined &&
@@ -118,6 +121,7 @@ export function ProcessingCommandBar({
 				<span
 					className={styles.statusDot}
 					data-processing-status-indicator="true"
+					data-processing-status-dot="true"
 					aria-hidden="true"
 				/>
 				<div className={styles.statusCopy}>
@@ -128,8 +132,8 @@ export function ProcessingCommandBar({
 					{degradedHint ? <span className={styles.degradedHint}>{degradedHint}</span> : null}
 				</div>
 				{connected && gpu ? (
-					<span className={styles.gpuCluster} title={gpu.name}>
-						{compactGpuName(gpu.name)}
+					<span className={styles.gpuCluster} title={`GPU ${gpu.index} da máquina · ${gpu.name}`}>
+						GPU {gpu.index} · {compactGpuName(gpu.name)}
 						{gpu.utilizationPercent !== null ? (
 							<>
 								{" Â· "}
