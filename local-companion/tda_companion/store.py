@@ -363,7 +363,7 @@ class Store:
             data=json.loads(row["data"]) if row["data"] else {},
         )
 
-    def events(self, job_id, *, after_seq=None, before_seq=None, limit=100):
+    def events_page(self, job_id, *, after_seq=None, before_seq=None, limit=100):
         if (
             isinstance(limit, bool)
             or not isinstance(limit, int)
@@ -411,6 +411,10 @@ class Store:
                 "next_after_seq": events[-1]["seq"] if events else after_seq,
                 "next_before_seq": events[0]["seq"] if events else before_seq,
             }
+
+    def events(self, job_id):
+        """Legacy latest-page helper retained for internal/tests compatibility."""
+        return self.events_page(job_id)["events"]
 
     def remove(self, job_id):
         with self.tx() as db:
