@@ -214,6 +214,7 @@ def test_high_frequency_worker_events_are_throttled_before_sqlite(monkeypatch, t
                         "stage": "transcription",
                         "track": 1,
                         "total_tracks": units,
+                        "speaker": "Fixture speaker",
                         "window": window,
                     },
                 )

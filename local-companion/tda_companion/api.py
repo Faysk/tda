@@ -46,6 +46,7 @@ from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
+from .worker_event_schema import sanitize_worker_event
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -690,6 +691,7 @@ def create_app(
                         raise RuntimeError("ACTIVE_WORKER_REGISTRATION_MISSING")
                     noisy_event_last_at: dict[str, float] = {}
                     noisy_event_interval = 5.0
+                    worker_event_drift_seen: set[str] = set()
 
                     def is_cancelled() -> bool:
                         return worker_stop.is_set() or job_cancel.is_set()
@@ -750,12 +752,25 @@ def create_app(
                             )
                             return
                         if message.type == "event":
-                            code = str(message.payload.get("code") or "WORKER_EVENT")[:96]
-                            data = {
-                                key: value
-                                for key, value in message.payload.items()
-                                if key != "code"
-                            }
+                            sanitized_event = sanitize_worker_event(message.payload)
+                            code = sanitized_event.code
+                            data = sanitized_event.data
+                            if (
+                                sanitized_event.drift_reason is not None
+                                and sanitized_event.drift_reason not in worker_event_drift_seen
+                            ):
+                                worker_event_drift_seen.add(sanitized_event.drift_reason)
+                                log(
+                                    "warning",
+                                    "worker",
+                                    "WORKER_EVENT_SCHEMA_DRIFT",
+                                    "Worker diagnostic metadata did not match the browser-visible event contract",
+                                    {
+                                        "job_id": job_id,
+                                        "reason": sanitized_event.drift_reason,
+                                        "rejected_field_count": sanitized_event.rejected_field_count,
+                                    },
+                                )
                             if code in {
                                 "QWEN_WINDOW_TRANSCRIBED",
                                 "WHISPER_SEGMENT_TRANSCRIBED",
@@ -766,24 +781,12 @@ def create_app(
                                 if last is not None and now - last < noisy_event_interval:
                                     return
                                 noisy_event_last_at[code] = now
-                            event_level = (
-                                "error"
-                                if code == "QWEN_ALIGNMENT_WINDOW_FAILED"
-                                else "warning"
-                                if code
-                                in {
-                                    "COMPATIBILITY_MIRROR_WRITE_FAILED",
-                                    "ASR_TEXT_CHECKPOINT_WRITE_SKIPPED",
-                                    "ASR_CHECKPOINT_WRITE_SKIPPED",
-                                }
-                                else "info"
-                            )
                             store.record_worker_event(
                                 job_id,
                                 attempt,
                                 code,
                                 data,
-                                level=event_level,
+                                level=sanitized_event.level,
                             )
                             if code == "COMPATIBILITY_MIRROR_WRITE_FAILED":
                                 log(
@@ -794,38 +797,12 @@ def create_app(
                                     {"job_id": job_id, **data},
                                 )
                             if code == "QWEN_ALIGNMENT_WINDOW_FAILED":
-                                safe_failure_data = {
-                                    key: value
-                                    for key, value in data.items()
-                                    if key
-                                    in {
-                                        "stage",
-                                        "track",
-                                        "window",
-                                        "failure_class",
-                                        "window_start_seconds",
-                                        "window_end_seconds",
-                                        "ownership_left_seconds",
-                                        "ownership_right_seconds",
-                                        "first_window",
-                                        "last_window",
-                                        "aligned_item",
-                                        "relative_start_seconds",
-                                        "relative_end_seconds",
-                                        "overflow_seconds",
-                                        "previous_end_seconds",
-                                        "aligned_word_count",
-                                        "owned_word_count",
-                                        "runtime_version",
-                                        "worker_sha256",
-                                    }
-                                }
                                 log(
                                     "error",
                                     "worker",
                                     code,
                                     "Qwen alignment failed for one bounded window",
-                                    {"job_id": job_id, **safe_failure_data},
+                                    {"job_id": job_id, **data},
                                 )
                             if code in {
                                 "MODEL_DOWNLOAD_PROGRESS",
@@ -846,7 +823,7 @@ def create_app(
                                         "segment",
                                         "downloaded_bytes",
                                         "total_bytes",
-                                        "profile_id",
+                                        "profile",
                                         "reason",
                                         "compute_type",
                                     }
