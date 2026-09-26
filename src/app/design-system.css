@@ -210,6 +210,10 @@ textarea:focus-visible,
 	background: var(--ds-success);
 }
 
+.ds-status--warning::before {
+	background: var(--ds-warning);
+}
+
 .ds-status--danger::before {
 	background: var(--ds-danger);
 }

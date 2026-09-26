@@ -22,6 +22,7 @@ from .transcription_runs import (
     list_runs,
     load_run,
     migrate_legacy_transcript,
+    preserve_root_during_source_repair,
     write_compatibility_mirror,
 )
 
@@ -326,6 +327,7 @@ def _copy_run_history(
         source_id=source_id,
         source_sha256=source_sha256,
     )
+    preserve_root_during_source_repair(existing, replacement)
     runs = list_runs(existing, verify_content=True)
     if not runs:
         return

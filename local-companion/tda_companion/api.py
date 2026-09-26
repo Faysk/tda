@@ -45,7 +45,7 @@ from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
-from .transcription_runs import TranscriptionRunError, load_run, run_id_for
+from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 _PRODUCT_ID = "tda-companion"
@@ -1022,6 +1022,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_):
+        legacy_maintenance = await asyncio.to_thread(maintain_legacy_transcripts, data_root)
+        if any(legacy_maintenance.values()):
+            log("info", "storage", "LEGACY_TRANSCRIPT_MAINTENANCE", "Local legacy maintenance completed", legacy_maintenance)
         reconcile_completed_transcription_runs()
         store.recover()
         log("info", "agent", "API_STARTING", "Local API starting", {"port": port, "pid": os.getpid()})

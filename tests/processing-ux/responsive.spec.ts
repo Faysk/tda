@@ -127,6 +127,51 @@ for (const theme of ["dark", "light"] as const) {
 	});
 }
 
+for (const theme of ["dark", "light", "system-light"] as const) {
+	test(`${theme}: warning uses its own accessible semantic color`, async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: theme === "dark" ? "dark" : "light", reducedMotion: "reduce" });
+		await page.addInitScript((value) => {
+			if (value !== "system-light") document.documentElement.dataset.theme = value;
+		}, theme);
+		await installCompanionFixture(page, { profileReady: true, advanceJobs: false,
+			initialJobs: [fixtureJob("queued")], lifecycle: "paused" });
+		await page.goto("/");
+		const warning = page.getByText("Fila pausada", { exact: true });
+		await expect(warning).toBeVisible();
+		const colors = await warning.evaluate((element) => {
+			const root = getComputedStyle(document.documentElement);
+			const rgb = (token: string) => {
+				const probe = document.createElement("span");
+				probe.style.color = `var(${token})`;
+				document.body.append(probe);
+				const color = getComputedStyle(probe).color;
+				probe.remove();
+				return color;
+			};
+			return { dot: getComputedStyle(element, "::before").backgroundColor,
+				warning: rgb("--ds-warning"), accent: rgb("--ds-accent-strong"),
+				danger: rgb("--ds-danger"), success: rgb("--ds-success"),
+				backgrounds: [rgb("--ds-canvas"), rgb("--ds-surface"), rgb("--ds-surface-elevated")],
+				token: root.getPropertyValue("--ds-warning") };
+		});
+		expect(colors.token).not.toBe("");
+		expect(colors.dot).toBe(colors.warning);
+		for (const other of [colors.accent, colors.danger, colors.success]) expect(colors.warning).not.toBe(other);
+		const luminance = (rgb: string) => {
+			const components = (rgb.match(/[\d.]+/g) ?? []).slice(0, 3).map((value) => {
+				const s = Number(value) / 255;
+				return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+			});
+			return components[0] * 0.2126 + components[1] * 0.7152 + components[2] * 0.0722;
+		};
+		for (const background of colors.backgrounds) {
+			const a = luminance(colors.warning), b = luminance(background);
+			expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
+		}
+		await page.screenshot({ path: testInfo.outputPath(`warning-${theme}.png`), fullPage: true });
+	});
+}
+
 test("reduced motion removes the tab indicator transition", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await openRunningWorkspace(page, 1440, 900);
@@ -149,4 +194,66 @@ test("low-height notebook keeps essential actions reachable instead of clipping"
 	}));
 	expect(overflow.html).not.toBe("hidden");
 	expect(overflow.body).not.toBe("hidden");
+});
+
+
+test("operational grammar keeps state semantics distinct and essential text readable", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1440, 900);
+
+	const activeSurface = page.locator("article").first();
+	const activeVisual = await activeSurface.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			boxShadow: style.boxShadow,
+			borderLeftWidth: style.borderLeftWidth,
+		};
+	});
+	expect(activeVisual.boxShadow).toBe("none");
+	expect(activeVisual.borderLeftWidth).toBe("1px");
+
+	const cpuMetric = page.getByText("CPU", { exact: true }).locator("..");
+	const metricVisual = await cpuMetric.evaluate((element) => {
+		const style = getComputedStyle(element);
+		const label = element.querySelector("span");
+		return {
+			background: style.backgroundColor,
+			borderTopWidth: style.borderTopWidth,
+			labelFontSize: label ? Number.parseFloat(getComputedStyle(label).fontSize) : 0,
+			fontFamily: style.fontFamily,
+		};
+	});
+	expect(metricVisual.background).toBe("rgba(0, 0, 0, 0)");
+	expect(metricVisual.borderTopWidth).toBe("0px");
+	expect(metricVisual.labelFontSize).toBeGreaterThanOrEqual(11);
+	expect(metricVisual.fontFamily).toContain("sans-serif");
+
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	const logTime = page.getByRole("log").locator("time").first();
+	await expect(logTime).toBeVisible();
+	const logTimeSize = await logTime.evaluate((element) =>
+		Number.parseFloat(getComputedStyle(element).fontSize),
+	);
+	expect(logTimeSize).toBeGreaterThanOrEqual(11);
+});
+
+test("queued and paused states do not masquerade as running or healthy", async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("queued")],
+		lifecycle: "paused",
+	});
+	await page.goto("/");
+
+	const paused = page.getByText("Fila pausada", { exact: true });
+	await expect(paused).toHaveClass(/ds-status--warning/);
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queued = page.getByRole("listitem").getByText("Na fila", { exact: true });
+	await expect(queued).toBeVisible();
+	await expect(queued).not.toHaveClass(/ds-status--accent/);
+	await expect(queued).not.toHaveClass(/ds-status--danger/);
 });

@@ -446,6 +446,47 @@ def test_repair_promotes_and_preserves_valid_legacy_transcript(tmp_path: Path):
     assert legacy.read_bytes() == legacy_bytes
 
 
+def test_repair_preserves_invalid_root_without_manufacturing_completed_run(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    source = tmp_path / "session.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    root = package_root / "transcript.json"
+    original = b'{"incomplete":"historical evidence"}'
+    root.write_bytes(original)
+    (package_root / "tracks" / "track-000001.flac").write_bytes(b"corrupt")
+    repaired = ingest_craig_file(source, data_root)
+    assert repaired["reused"] is False
+    assert root.read_bytes() == original
+    assert list_runs(package_root) == []
+    load_craig_package(package_root, verify_tracks=True)
+
+
+def test_startup_classifies_once_and_recovers_missing_projection(monkeypatch, tmp_path: Path):
+    import tda_companion.transcription_runs as runs
+    data_root = tmp_path / "Data"
+    source = tmp_path / "session.zip"
+    source.write_bytes(_zip_bytes())
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    document = _document(load_craig_package(package_root))
+    document.write_atomic(package_root / "transcript.json")
+    assert runs.maintain_legacy_transcripts(data_root) == {"preserved": 1, "invalid_preserved": 0, "failed": 0}
+    original = runs._bounded_transcript
+    def no_content(*args):
+        pytest.fail("known source reread during maintenance")
+    monkeypatch.setattr(runs, "_bounded_transcript", no_content)
+    assert runs.maintain_legacy_transcripts(data_root) == {"preserved": 0, "invalid_preserved": 0, "failed": 0}
+    monkeypatch.setattr(runs, "_bounded_transcript", original)
+    (package_root / "root-transcript-state.json").unlink()
+    assert runs.maintain_legacy_transcripts(data_root)["preserved"] == 1
+    assert len(list_runs(package_root)) == 1
+    (package_root / "transcript.json").write_bytes(b"invalid legacy")
+    assert runs.maintain_legacy_transcripts(data_root)["invalid_preserved"] == 1
+    assert (package_root / "transcript.json").read_bytes() == b"invalid legacy"
+
+
 def test_reupload_repairs_corrupt_staging_preserves_runs_and_discards_checkpoints(tmp_path: Path):
     data_root = tmp_path / "Data"
     source = tmp_path / "sessao.zip"
