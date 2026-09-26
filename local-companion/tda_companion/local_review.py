@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import os
+import stat
 import re
 import threading
 from datetime import datetime, timezone
@@ -9,11 +12,12 @@ from pathlib import Path
 from typing import Any
 from .atomic_storage import AtomicStorageError, atomic_write
 
-from .transcription_runs import TranscriptionRunError, load_verified_transcript_snapshot
+from .transcription_runs import TranscriptionRunError, load_run, load_verified_transcript_snapshot
 from .review_text import count_words_v1, valid_review_string_v1
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
+REVIEW_SUMMARY_SCHEMA_VERSION = "tda_local_review_summary_v1"
 SNAPSHOT_CONTRACT = "tda_local_review_cas_v1"
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
@@ -21,6 +25,7 @@ _RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
 _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _ALLOWED_STATUS = frozenset({"draft", "reviewed", "approved_local"})
 _MAX_DRAFT_BYTES = 32 * 1024 * 1024
+_MAX_SUMMARY_BYTES = 8 * 1024
 _MAX_SEGMENTS = 100_000
 
 _LOCKS: dict[str, threading.RLock] = {}
@@ -100,6 +105,167 @@ def _bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
     if not isinstance(value, dict):
         raise LocalReviewError("LOCAL_REVIEW_DRAFT_INVALID")
     return value, payload
+
+
+def _summary_path(draft_path: Path) -> Path:
+    return draft_path.with_name("summary.json")
+
+
+def _atomic_summary_json(path: Path, value: dict[str, Any]) -> None:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(payload) <= 0 or len(payload) > _MAX_SUMMARY_BYTES:
+        raise LocalReviewError("LOCAL_REVIEW_SUMMARY_TOO_LARGE")
+    atomic_write(path, payload, storage_class="projection")
+
+
+def _public_unknown_summary() -> dict[str, Any]:
+    return {
+        "status": "unknown",
+        "draft_revision": None,
+        "review_percent": None,
+        "updated_at": None,
+    }
+
+
+def _refresh_review_summary(draft_path: Path, draft: dict[str, Any]) -> None:
+    segments = draft.get("segments")
+    if not isinstance(segments, list):
+        return
+    reviewed = sum(
+        1
+        for item in segments
+        if isinstance(item, dict) and item.get("reviewed") is True
+    )
+    total = len(segments)
+    try:
+        draft_stat = draft_path.lstat()
+        if not stat.S_ISREG(draft_stat.st_mode):
+            return
+        _atomic_summary_json(
+            _summary_path(draft_path),
+            {
+                "schema_version": REVIEW_SUMMARY_SCHEMA_VERSION,
+                "source_id": draft.get("source_id"),
+                "run_id": draft.get("run_id"),
+                "base_transcript_sha256": draft.get("base_transcript_sha256"),
+                "draft_revision": draft.get("draft_revision"),
+                "status": draft.get("status"),
+                "review_percent": round((reviewed / total) * 100, 1) if total else 100.0,
+                "updated_at": draft.get("updated_at"),
+                "draft_fingerprint": _draft_fingerprint(draft_stat),
+            },
+        )
+    except (OSError, LocalReviewError):
+        # The review draft is authoritative. A missing/stale projection degrades
+        # the library to "unknown" and must never make an already-persisted save
+        # appear to have failed.
+        return
+
+
+def _draft_fingerprint(value: os.stat_result) -> dict[str, int]:
+    return {"size": value.st_size, "mtime_ns": value.st_mtime_ns,
+            "ctime_ns": value.st_ctime_ns, "inode": value.st_ino, "device": value.st_dev}
+
+
+def _summary_file_identity(value: os.stat_result) -> tuple[int, ...]:
+    # Windows path stat and handle fstat can expose different ctime semantics.
+    # Compare the file identity, byte extent and modification time across APIs.
+    return value.st_dev, value.st_ino, value.st_mode, value.st_size, value.st_mtime_ns
+
+
+def _regular_summary_bytes(path: Path) -> bytes:
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= _MAX_SUMMARY_BYTES:
+        raise ValueError("SUMMARY_FILE_INVALID")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or _summary_file_identity(opened) != _summary_file_identity(before):
+            raise ValueError("SUMMARY_FILE_CHANGED")
+        # Fixed allocation even if a file grows after lstat; never read_text/read_bytes.
+        with os.fdopen(descriptor, "rb", buffering=0, closefd=False) as handle:
+            payload = handle.read(_MAX_SUMMARY_BYTES + 1)
+        if (len(payload) != opened.st_size
+                or _draft_fingerprint(os.fstat(descriptor)) != _draft_fingerprint(opened)
+                or _summary_file_identity(path.lstat()) != _summary_file_identity(opened)):
+            raise ValueError("SUMMARY_FILE_CHANGED")
+        return payload
+    finally:
+        os.close(descriptor)
+
+
+def review_summary(package_root: Path, run_id: str, *, base_transcript_sha256: str | None = None) -> dict[str, Any] | None:
+    try:
+        raw_revisions = package_root / "revisions"
+        raw_directory = raw_revisions / run_id
+        if any(path.is_symlink() or path.is_junction() for path in (raw_revisions, raw_directory)):
+            return _public_unknown_summary()
+        draft_path = _review_path(package_root, run_id)
+    except (OSError, LocalReviewError):
+        return _public_unknown_summary()
+    with _lock_for(draft_path):
+        try:
+            draft_stat = draft_path.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return _public_unknown_summary()
+        if not stat.S_ISREG(draft_stat.st_mode) or not 0 < draft_stat.st_size <= _MAX_DRAFT_BYTES:
+            return _public_unknown_summary()
+        try:
+            if base_transcript_sha256 is None:
+                base_transcript_sha256 = load_run(package_root, run_id, verify_content=False)["transcript_sha256"]
+            value = json.loads(_regular_summary_bytes(_summary_path(draft_path)))
+        except (OSError, ValueError, RecursionError, TranscriptionRunError):
+            return _public_unknown_summary()
+        if not isinstance(value, dict):
+            return _public_unknown_summary()
+        revision, status = value.get("draft_revision"), value.get("status")
+        percent, updated_at = value.get("review_percent"), value.get("updated_at")
+        fingerprint = value.get("draft_fingerprint")
+        if (
+            value.get("schema_version") != REVIEW_SUMMARY_SCHEMA_VERSION
+            or value.get("source_id") != package_root.resolve().name
+            or value.get("run_id") != run_id
+            or not isinstance(base_transcript_sha256, str)
+            or not _SHA256.fullmatch(base_transcript_sha256)
+            or value.get("base_transcript_sha256") != base_transcript_sha256
+            or isinstance(revision, bool) or not isinstance(revision, int) or revision < 0
+            or not isinstance(status, str) or status not in _ALLOWED_STATUS
+            or isinstance(percent, bool) or not isinstance(percent, (int, float))
+            or not 0 <= percent <= 100 or not math.isfinite(percent)
+            or not isinstance(updated_at, str) or not 0 < len(updated_at) <= 64
+            or not isinstance(fingerprint, dict)
+            or any(type(item) is not int for item in fingerprint.values())
+            or fingerprint != _draft_fingerprint(draft_stat)
+        ):
+            return _public_unknown_summary()
+        try:
+            parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            if _draft_fingerprint(draft_path.lstat()) != _draft_fingerprint(draft_stat):
+                return _public_unknown_summary()
+        except (OSError, ValueError):
+            return _public_unknown_summary()
+        if parsed.tzinfo is None:
+            return _public_unknown_summary()
+        return {"status": status, "draft_revision": revision,
+                "review_percent": float(percent), "updated_at": updated_at}
+
+
+def rebuild_review_summary(package_root: Path, *, source_id: str, run_id: str) -> dict[str, Any] | None:
+    """Explicit maintenance only; GET and listing never rebuild projections."""
+    path = _review_path(package_root, run_id)
+    with _lock_for(path):
+        review = open_review(package_root, source_id=source_id, run_id=run_id)
+        if review["persistence"] == "persisted":
+            _refresh_review_summary(path, review)
+        return review_summary(package_root, run_id, base_transcript_sha256=review["base_transcript_sha256"])
 
 
 def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -450,6 +616,7 @@ def save_review(
             "segments": segments,
         }
         payload = _atomic_json(path, draft)
+        _refresh_review_summary(path, draft)
         return _response(
             draft,
             payload,
@@ -495,5 +662,6 @@ def repair_legacy_review(
         draft = {**snapshot[0], "segments": replacement, "status": "draft",
                  "draft_revision": expected_revision + 1, "updated_at": utc_now()}
         payload = _atomic_json(path, draft)
+        _refresh_review_summary(path, draft)
         return _response(draft, payload, manifest=manifest, base_segments=base_segments,
                          warnings=_warnings(transcript))

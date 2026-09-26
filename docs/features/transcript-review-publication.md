@@ -1298,3 +1298,36 @@ Podem evoluir depois:
 - sugestão de modelo default com base em resultados reais.
 
 Essas evoluções devem preservar os invariantes principais: **run bruto imutável, revisão derivada, publicação explícita, revisão cloud substituível/restaurável e áudio bruto local**.
+
+## Projeção leve da revisão — #625 / PR #626
+
+`GET /sources/:source/runs` inclui `review` aditivo: status, revisão, percentual
+e timestamp. Ausência de draft retorna null (sem revisão persistida); sidecar
+ausente, incompatível, inválido ou stale retorna unknown com os demais campos
+null. GET de revisão continua efêmero quando não há draft e não cria nem atualiza
+projeções. O save autoritativo e o repair explícito atualizam `summary.json` no
+namespace de revisão usando a política central `projection`, atômica e descartável.
+Falha da projeção não desfaz nem transforma em erro um save já confirmado.
+
+O sidecar `tda_local_review_summary_v1` tem no máximo 8 KiB, não contém segmentos
+ou paths e é vinculado a source/run/base SHA e fingerprint do draft (tamanho,
+mtime/ctime, file ID e volume). O leitor valida arquivo regular, recusa links e
+junctions no namespace e limita o read a 8193 bytes; nunca abre o draft/transcript.
+Fingerprint é detecção barata de stale, não prova criptográfica dos bytes atuais.
+O badge não autoriza save/publicação, que continuam validando o snapshot completo.
+
+Revisões antigas sem projeção permanecem unknown até novo save ou reconstrução
+deliberada, com Companion parado:
+
+```text
+python local-companion/tools/rebuild_review_summary.py --data-root <Data> --package-root <Data/staging/source> --run-id <run>
+```
+
+A ferramenta detém o RootLock do Agent, valida run e draft completos e recria
+apenas o sidecar; não altera bytes, hash ou revisão editorial. Saída sanitizada
+unknown termina com código 2. Rollback: leitores antigos ignoram o campo/arquivo;
+o draft e os runs permanecem no formato anterior. Nenhuma migration de banco.
+
+Validação sintética: catálogo de 100 runs sem abrir payloads editoriais, identidade
+incorreta, metadata não finita, stale/missing/corrupt, arquivos não regulares, falha
+de disco da projeção, GET sem efeitos e rebuild preservando bytes do draft.

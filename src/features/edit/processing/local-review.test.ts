@@ -294,7 +294,86 @@ describe("local result/review contracts", () => {
 				deduplicatedSegmentCount: 1,
 				warningCount: 3,
 			},
+			review: null,
 		});
+	});
+
+	it("parses lightweight review state and keeps unknown fail-safe", () => {
+		const baseRun = {
+			run_id: runId,
+			status: "completed",
+			source_id: sourceId,
+			profile_id: "whisper-detailed",
+			engine: "faster-whisper",
+			model: "large-v3",
+			model_revision: null,
+			language: "pt",
+			completed_at: "2026-09-21T00:00:00.000Z",
+			transcript_sha256: transcriptSha,
+			transcript_size_bytes: 1200,
+			stats: {},
+		};
+		const known = parseLocalRuns({
+			schema_version: "tda_transcription_runs_v1",
+			source_id: sourceId,
+			runs: [
+				{
+					...baseRun,
+					review: {
+						status: "approved_local",
+						draft_revision: 4,
+						review_percent: 87.5,
+						updated_at: "2026-09-25T10:30:00.000Z",
+					},
+				},
+			],
+		});
+		expect(known[0]?.review).toEqual({
+			status: "approved_local",
+			draftRevision: 4,
+			reviewPercent: 87.5,
+			updatedAt: "2026-09-25T10:30:00.000Z",
+		});
+
+		const unknown = parseLocalRuns({
+			schema_version: "tda_transcription_runs_v1",
+			source_id: sourceId,
+			runs: [
+				{
+					...baseRun,
+					review: {
+						status: "unknown",
+						draft_revision: null,
+						review_percent: null,
+						updated_at: null,
+					},
+				},
+			],
+		});
+		expect(unknown[0]?.review).toEqual({
+			status: "unknown",
+			draftRevision: null,
+			reviewPercent: null,
+			updatedAt: null,
+		});
+
+		expect(() =>
+			parseLocalRuns({
+				schema_version: "tda_transcription_runs_v1",
+				source_id: sourceId,
+				runs: [
+					{
+						...baseRun,
+						review: {
+							status: "approved_local",
+							draft_revision: 4,
+							review_percent: 101,
+							updated_at: "2026-09-25T10:30:00.000Z",
+						},
+					},
+				],
+			}),
+		).toThrow(BridgeError);
 	});
 
 	it("rejects a publication target that does not bind to the opened run", () => {

@@ -150,6 +150,15 @@ export type LocalExecutionLineage = {
 		driverVersion: string | null;
 	} | null;
 };
+export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
+
+export type LocalRunReviewSummary = {
+	status: LocalReviewStatus | "unknown";
+	draftRevision: number | null;
+	reviewPercent: number | null;
+	updatedAt: string | null;
+};
+
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -179,8 +188,8 @@ export type LocalRunSummary = {
 		warningCount: number | null;
 	};
 	publicationTarget: LocalPublicationTarget | null;
+	review: LocalRunReviewSummary | null;
 };
-export type LocalReviewStatus = "draft" | "reviewed" | "approved_local";
 export type LocalReviewSegment = {
 	trackNumber: number;
 	segmentId: string;
@@ -750,6 +759,37 @@ function parsePublicationTarget(
 	};
 }
 
+function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
+	if (value === null || value === undefined) return null;
+	const row = record(value);
+	const status = String(row.status);
+	if (status === "unknown") {
+		if (
+			row.draft_revision !== null ||
+			row.review_percent !== null ||
+			row.updated_at !== null
+		)
+			return invalid();
+		return {
+			status: "unknown",
+			draftRevision: null,
+			reviewPercent: null,
+			updatedAt: null,
+		};
+	}
+	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
+	const reviewPercent = nonNegativeNumber(row.review_percent);
+	if (reviewPercent > 100) return invalid();
+	const updatedAt = nullableIsoDate(row.updated_at);
+	if (updatedAt === null) return invalid();
+	return {
+		status: status as LocalReviewStatus,
+		draftRevision: nonNegativeInteger(row.draft_revision),
+		reviewPercent,
+		updatedAt,
+	};
+}
+
 export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 	const row = record(value);
 	if (row.schema_version !== "tda_transcription_runs_v1") return invalid();
@@ -807,6 +847,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				runId,
 				transcriptSha256,
 			}),
+			review: parseLocalRunReview(item.review),
 		};
 	});
 }
