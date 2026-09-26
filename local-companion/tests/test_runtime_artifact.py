@@ -4,7 +4,7 @@ import zipfile
 
 import pytest
 
-from tda_companion.runtime_artifact import artifact_from_environment, runtime_artifact
+from tda_companion.runtime_artifact import RuntimeArtifactError, artifact_from_environment, runtime_artifact, verify_frozen_runtime_artifact
 from tda_companion.execution_lineage import capture_execution_lineage
 from test_execution_lineage import _document
 
@@ -49,3 +49,41 @@ def test_whisper_dispatch_passes_identity_from_same_inspected_marker(tmp_path, m
     assert identity == {k:marker[k] for k in ('runtime_id','version','worker_sha256','archive_sha256')}
     assert env['TDA_ASR_RUNTIME_VERSION'] == identity['version']
     assert capture_execution_lineage(_document('cpu'), snapshot={}, environ=env)['runtime_artifact'] == identity
+
+
+def test_frozen_child_requires_exact_adjacent_runtime_marker(tmp_path):
+    identity = {
+        "runtime_id": "qwen3-transformers",
+        "version": "1.2.3",
+        "worker_sha256": "a" * 64,
+        "archive_sha256": "b" * 64,
+    }
+    environment = {
+        "TDA_ASR_RUNTIME_FAMILY": "qwen",
+        "TDA_ASR_RUNTIME_VERSION": "1.2.3",
+        "TDA_ASR_RUNTIME_ARTIFACT": json.dumps(identity),
+    }
+    executable = tmp_path / "TDAQwenWorker.exe"
+    executable.write_bytes(b"synthetic")
+    marker = {"schema": "tda_asr_runtime_v1", **identity}
+    (tmp_path / ".tda-runtime.json").write_text(json.dumps(marker), encoding="utf-8")
+
+    assert verify_frozen_runtime_artifact(
+        environment,
+        executable=executable,
+        frozen=True,
+    ) == identity
+
+    (tmp_path / ".tda-runtime.json").write_text(
+        json.dumps({**marker, "worker_sha256": "c" * 64}),
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeArtifactError, match="ASR_RUNTIME_IDENTITY_INVALID"):
+        verify_frozen_runtime_artifact(environment, executable=executable, frozen=True)
+
+
+def test_frozen_child_fails_closed_when_parent_identity_is_missing(tmp_path):
+    executable = tmp_path / "TDAWhisperWorker.exe"
+    executable.write_bytes(b"synthetic")
+    with pytest.raises(RuntimeArtifactError, match="ASR_RUNTIME_IDENTITY_INVALID"):
+        verify_frozen_runtime_artifact({}, executable=executable, frozen=True)
