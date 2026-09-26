@@ -474,7 +474,7 @@ describe("loopback bridge", () => {
 	});
 });
 describe("preparation wire validation", () => {
-	it("fences a ready Qwen profile when the physical gate still reports runtime 1.0.10", () => {
+	it("fences a ready Qwen profile when the physical gate still reports runtime 1.0.11", () => {
 		const capabilities = parseCapabilities({
 			capabilities: ["transcription.craig", "transcription.prepare"],
 			sync: false,
@@ -495,7 +495,7 @@ describe("preparation wire validation", () => {
 						status: "ready",
 						ready: true,
 						profile_id: "qwen-quality",
-						runtime_version: "1.0.10",
+						runtime_version: "1.0.12",
 					},
 				},
 			},
@@ -510,7 +510,7 @@ describe("preparation wire validation", () => {
 		});
 	});
 
-	it("keeps Qwen ready when the physical gate reports repaired runtime 1.0.11+", () => {
+	it("keeps Qwen ready when the physical gate reports owned-overflow recovery runtime 1.0.12+", () => {
 		const capabilities = parseCapabilities({
 			capabilities: ["transcription.craig"],
 			sync: false,
