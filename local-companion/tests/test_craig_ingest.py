@@ -662,3 +662,45 @@ async def test_ingest_keeps_duration_unknown_for_legacy_or_invalid_flac_metadata
 
     assert result["session_duration_seconds"] is None
     assert result["audio_work_seconds"] is None
+
+
+@pytest.mark.parametrize("cached", [999, "garbage", -1, float("nan"), float("inf"), True, None])
+def test_factual_duration_ignores_optional_cache_without_manifest_rewrite(tmp_path, cached):
+    import json
+    source = tmp_path / "session.zip"
+    source.write_bytes(_duration_zip_bytes())
+    data_root = tmp_path / "Data"
+    first = ingest_craig_file(source, data_root)
+    package_root = data_root / "staging" / first["source_id"]
+    path = package_root / "manifest.json"
+    manifest = json.loads(path.read_bytes())
+    for item in manifest["tracks"]:
+        item["duration_seconds"] = cached
+    manifest["tracks"][1]["timeline_offset_seconds"] = 240
+    original = json.dumps(manifest).encode()
+    path.write_bytes(original)
+    reused = ingest_craig_file(source, data_root)
+    assert reused["reused"] is True
+    assert reused["audio_work_seconds"] == 480
+    assert reused["session_duration_seconds"] == 420
+    assert reused["source_sha256"] == first["source_sha256"]
+    assert path.read_bytes() == original
+
+
+def test_one_unavailable_duration_keeps_both_aggregates_unknown(tmp_path):
+    import json
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("1-Alice.flac", _flac_bytes(60))
+        archive.writestr("2-Bob.flac", b"fLaC-legacy")
+    source = tmp_path / "session.zip"
+    source.write_bytes(buffer.getvalue())
+    data_root = tmp_path / "Data"
+    first = ingest_craig_file(source, data_root)
+    path = data_root / "staging" / first["source_id"] / "manifest.json"
+    manifest = json.loads(path.read_bytes())
+    manifest["tracks"][1]["duration_seconds"] = 30
+    path.write_text(json.dumps(manifest))
+    reused = ingest_craig_file(source, data_root)
+    assert reused["audio_work_seconds"] is None
+    assert reused["session_duration_seconds"] is None

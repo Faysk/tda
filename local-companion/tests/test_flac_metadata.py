@@ -43,3 +43,20 @@ def test_invalid_or_unbounded_flac_metadata_is_advisory_only(tmp_path: Path):
 
     missing = tmp_path / "missing.flac"
     assert flac_duration_seconds(missing) is None
+
+
+def test_duration_read_is_exactly_42_unbuffered_bytes(monkeypatch, tmp_path):
+    import io
+    payload = _flac_prefix(sample_rate=48_000, total_samples=48_000 * 60)
+    sizes = []
+    class Prefix(io.BytesIO):
+        def read(self, size=-1):
+            sizes.append(size)
+            assert size == 42
+            return super().read(size)
+    def opened(path, mode, *, buffering):
+        assert mode == "rb" and buffering == 0
+        return Prefix(payload + b"do-not-read-audio")
+    monkeypatch.setattr(Path, "open", opened)
+    assert flac_duration_seconds(tmp_path / "test.flac") == 60
+    assert sizes == [42]

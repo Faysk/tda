@@ -169,6 +169,7 @@ export type LocalRunSummary = {
 		audioWorkSeconds: number | null;
 		processingSeconds: number | null;
 		sessionDurationSeconds: number | null;
+		durationSemantics?: "session_extent_v1";
 		rtf: number | null;
 		wordCount: number | null;
 		segmentCount: number | null;
@@ -215,6 +216,7 @@ export type LocalReview = {
 		audioWorkSeconds: number | null;
 		processingSeconds: number | null;
 		sessionDurationSeconds: number | null;
+		durationSemantics?: "session_extent_v1";
 		rtf: number | null;
 		wordCount: number | null;
 		segmentCount: number | null;
@@ -787,6 +789,9 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				audioWorkSeconds: nullableMetric(stats.audio_work_seconds),
 				processingSeconds: nullableMetric(stats.processing_seconds),
 				sessionDurationSeconds: nullableMetric(stats.session_duration_seconds),
+				...(stats.duration_semantics === "session_extent_v1"
+					? { durationSemantics: "session_extent_v1" as const }
+					: {}),
 				rtf: nullableMetric(stats.rtf),
 				wordCount: nullableCount(stats.word_count),
 				segmentCount: nullableCount(stats.segment_count),
@@ -888,6 +893,9 @@ export function parseLocalReview(value: unknown): LocalReview {
 			audioWorkSeconds: nullableNonNegativeNumber(stats.audio_work_seconds),
 			processingSeconds: nullableNonNegativeNumber(stats.processing_seconds),
 			sessionDurationSeconds: nullableNonNegativeNumber(stats.session_duration_seconds),
+			...(stats.duration_semantics === "session_extent_v1"
+				? { durationSemantics: "session_extent_v1" as const }
+				: {}),
 			rtf: nullableNonNegativeNumber(stats.rtf),
 			wordCount:
 				stats.word_count === null || stats.word_count === undefined

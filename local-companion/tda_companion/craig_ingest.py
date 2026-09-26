@@ -16,6 +16,7 @@ from fastapi import Request
 
 from .craig import CraigPackage, CraigPackageError, ingest_craig_zip
 from .craig_runtime import load_craig_package
+from .transcript import duration_metrics
 from .transcription_runs import (
     TranscriptionRunError,
     list_runs,
@@ -60,18 +61,8 @@ def _summary(
     reused: bool,
     source_name: str | None = None,
 ) -> dict[str, object]:
-    durations = [
-        float(track.duration_seconds)
-        for track in package.tracks
-        if track.duration_seconds is not None
-    ]
-    durations_complete = len(durations) == len(package.tracks) and bool(durations)
-    audio_work_seconds = (
-        round(sum(durations), 3) if durations_complete else None
-    )
-    session_duration_seconds = (
-        round(max(durations), 3) if durations_complete else None
-    )
+    metrics = duration_metrics((track.timeline_offset_seconds, track.duration_seconds) for track in package.tracks)
+    audio_work_seconds, session_duration_seconds = metrics if metrics else (None, None)
     return {
         "schema_version": CRAIG_UPLOAD_SCHEMA,
         "source_id": source_id,

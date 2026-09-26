@@ -19,7 +19,7 @@ def flac_duration_seconds(path: Path) -> float | None:
     """
 
     try:
-        with path.open("rb") as handle:
+        with path.open("rb", buffering=0) as handle:
             prefix = handle.read(_STREAMINFO_TOTAL_BYTES)
     except OSError:
         return None
