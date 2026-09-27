@@ -1149,28 +1149,30 @@ export function LocalReviewWorkspace({
 										onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
 										onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
 									/>
-									<div className={styles.runCompareActions}>
-										<div>
-											<strong>Comparar runs</strong>
-											<span>Somente resultados da mesma fonte podem ser comparados.</span>
+									<details className={styles.runCompareDisclosure}>
+										<summary>Comparar runs</summary>
+										<div className={styles.runCompareActions}>
+											<div>
+												<span>Somente resultados da mesma fonte podem ser comparados.</span>
+											</div>
+											{!comparisonEnabled ? (
+												<small>Comparação A/B requer um Companion compatível com leitura imutável do run.</small>
+											) : comparisonCandidates.length ? (
+												<>
+													<select aria-label="Segundo run para comparação" value={effectiveComparisonTargetKey} onChange={(event) => setComparisonTargetKey(event.target.value)}>
+														{comparisonCandidates.map((run) => {
+															const key = serializeLocalRunKey(localRunKey(run));
+															return <option key={key} value={key}>{run.profileId} · {formatDate(run.completedAt)}</option>;
+														})}
+													</select>
+													<Button size="sm" variant="tertiary" disabled={comparisonBusy} onClick={() => void startComparison()}>
+														{comparisonBusy ? "Carregando…" : "Comparar"}
+													</Button>
+												</>
+											) : <small>Nenhum segundo run compatível nesta fonte.</small>}
+											{comparisonError ? <p role="status">{comparisonError}</p> : null}
 										</div>
-										{!comparisonEnabled ? (
-											<small>Comparação A/B requer um Companion compatível com leitura imutável do run.</small>
-										) : comparisonCandidates.length ? (
-											<>
-												<select aria-label="Segundo run para comparação" value={effectiveComparisonTargetKey} onChange={(event) => setComparisonTargetKey(event.target.value)}>
-													{comparisonCandidates.map((run) => {
-														const key = serializeLocalRunKey(localRunKey(run));
-														return <option key={key} value={key}>{run.profileId} · {formatDate(run.completedAt)}</option>;
-													})}
-												</select>
-												<Button size="sm" variant="tertiary" disabled={comparisonBusy} onClick={() => void startComparison()}>
-													{comparisonBusy ? "Carregando…" : "Comparar"}
-												</Button>
-											</>
-										) : <small>Nenhum segundo run compatível nesta fonte.</small>}
-										{comparisonError ? <p role="status">{comparisonError}</p> : null}
-									</div>
+									</details>
 								</>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
