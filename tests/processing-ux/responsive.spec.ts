@@ -6,11 +6,18 @@ import {
 
 const viewports = [
 	{ name: "mobile-320", width: 320, height: 568 },
+	{ name: "mobile-360", width: 360, height: 800 },
 	{ name: "mobile-390", width: 390, height: 844 },
+	{ name: "mobile-430", width: 430, height: 932 },
 	{ name: "tablet-768", width: 768, height: 1024 },
+	{ name: "tablet-820", width: 820, height: 1180 },
 	{ name: "zoom-200-effective", width: 960, height: 540 },
+	{ name: "notebook-1024", width: 1024, height: 768 },
+	{ name: "notebook-1280-low", width: 1280, height: 720 },
 	{ name: "notebook-1366", width: 1366, height: 768 },
+	{ name: "desktop-1440", width: 1440, height: 900 },
 	{ name: "full-hd", width: 1920, height: 1080 },
+	{ name: "real-qhd-proxy", width: 2048, height: 1279 },
 	{ name: "qhd", width: 2560, height: 1440 },
 	{ name: "4k", width: 3840, height: 2160 },
 ] as const;
@@ -306,4 +313,81 @@ test("queued and paused states do not masquerade as running or healthy", async (
 	await expect(queued).toBeVisible();
 	await expect(queued).not.toHaveClass(/ds-status--accent/);
 	await expect(queued).not.toHaveClass(/ds-status--danger/);
+});
+
+
+test("tab strip never owns vertical scrolling", async ({ page }) => {
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await openRunningWorkspace(page, viewport.width, viewport.height);
+		const geometry = await page
+			.getByRole("tablist", { name: "Áreas do processamento" })
+			.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					overflowY: style.overflowY,
+					clientHeight: element.clientHeight,
+					scrollHeight: element.scrollHeight,
+				};
+			});
+		expect(geometry.overflowY).toBe("hidden");
+		expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
+	}
+});
+
+test("desktop diagnostics gives the log its own scroll owner", async ({ page }) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const log = page.getByRole("log");
+	await expect(log).toBeVisible();
+	const ownership = await log.evaluate((element) => {
+		const style = getComputedStyle(element);
+		const panel = element.closest("[role='tabpanel']");
+		return {
+			overflowY: style.overflowY,
+			logHeight: element.getBoundingClientRect().height,
+			viewportHeight: window.innerHeight,
+			panelWidth: panel?.getBoundingClientRect().width ?? 0,
+			logWidth: element.getBoundingClientRect().width,
+		};
+	});
+	expect(["auto", "scroll"]).toContain(ownership.overflowY);
+	expect(ownership.logHeight).toBeLessThan(ownership.viewportHeight);
+	expect(ownership.logWidth).toBeGreaterThan(ownership.panelWidth * 0.5);
+});
+
+test("short desktop falls back to document flow instead of clipping nested owners", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1280, 720);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const log = page.getByRole("log");
+	await expect(log).toBeVisible();
+	const state = await log.evaluate((element) => ({
+		maxHeight: getComputedStyle(element).maxHeight,
+		documentOverflow: getComputedStyle(document.documentElement).overflowY,
+		bodyOverflow: getComputedStyle(document.body).overflowY,
+	}));
+	expect(state.maxHeight).not.toBe("0px");
+	expect(state.documentOverflow).not.toBe("hidden");
+	expect(state.bodyOverflow).not.toBe("hidden");
+});
+
+test("QHD uses additional overview width without breaking the design-system max", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 2560, 1440);
+	const workspace = page.locator("[data-processing-workspace='true']");
+	const overview = page.getByRole("tabpanel", { name: "Visão geral" });
+	const geometry = await overview.evaluate((element) => ({
+		workspaceWidth: element.getBoundingClientRect().width,
+	}));
+	expect(geometry.workspaceWidth).toBeGreaterThan(1200);
+	const workspaceBox = await workspace.boundingBox();
+	expect(workspaceBox?.width ?? 9999).toBeLessThanOrEqual(2161);
 });
