@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-27
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -22,6 +22,7 @@ Estados:
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
 | Runs/revisão/publicação de transcrição | arquitetura aprovada; implementação pendente | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016: runs imutáveis, comparação A/B, revisão derivada, publish explícito, revisions cloud, restore/unpublish/delete |
+| Sessões com múltiplas gravações Craig | em desenho; ADR-0019 proposto | [Contrato multi-recording](features/multi-recording-sessions.md) + #843: preservar sources/runs independentes e compor Session Assembly imutável antes de review/publish |
 | Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; maturidade do schema não implica que todo recorte de acesso administrativo esteja concluído |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |
