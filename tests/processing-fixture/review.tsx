@@ -107,6 +107,7 @@ export function ReviewFixture() {
 			busy={false}
 			error={saveError}
 			publicationEnabled={publication}
+			comparisonEnabled={true}
 			onOpen={() => {}}
 			onLoadSnapshot={async () => review}
 			onSave={(baseline, status, segments) => {
