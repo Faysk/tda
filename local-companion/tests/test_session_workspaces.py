@@ -324,3 +324,175 @@ def test_store_upgrades_v10_session_workspace_schema_to_v11_without_losing_parts
     assert recovered["parts"][0]["chronology_version"] == "tda_recording_chronology_v1"
     with sqlite3.connect(migrated.path) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 11
+
+
+def _set_timeline(
+    store,
+    workspace,
+    part_id,
+    *,
+    offset,
+    trim_start=0.0,
+    trim_end=None,
+    gap=False,
+    overlap=None,
+    boundary=None,
+):
+    return store.update_session_part_timeline(
+        workspace["campaign_id"],
+        workspace["session_id"],
+        part_id,
+        workspace["revision"],
+        session_offset_seconds=offset,
+        trim_start_seconds=trim_start,
+        trim_end_seconds=trim_end,
+        gap_confirmed=gap,
+        overlap_resolution=overlap,
+        overlap_boundary_seconds=boundary,
+    )
+
+
+def test_reorder_clears_adjacency_specific_gap_and_overlap_decisions(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-order", "session-order")
+    for seed in range(1, 4):
+        workspace = store.attach_session_source(
+            "campaign-order",
+            "session-order",
+            source_id(seed),
+            workspace["revision"],
+        )
+    first, second, third = workspace["parts"]
+    workspace = _set_timeline(store, workspace, first["part_id"], offset=0.0)
+    workspace = _set_timeline(
+        store,
+        workspace,
+        second["part_id"],
+        offset=50.0,
+        overlap="prefer_later_from",
+        boundary=55.0,
+    )
+    workspace = _set_timeline(
+        store,
+        workspace,
+        third["part_id"],
+        offset=100.0,
+        gap=True,
+    )
+    assert workspace["parts"][1]["overlap_resolution"] == "prefer_later_from"
+    assert workspace["parts"][2]["gap_confirmed"] is True
+
+    reordered = store.reorder_session_parts(
+        "campaign-order",
+        "session-order",
+        [third["part_id"], first["part_id"], second["part_id"]],
+        workspace["revision"],
+    )
+
+    assert [part["gap_confirmed"] for part in reordered["parts"]] == [False, False, False]
+    assert [part["overlap_resolution"] for part in reordered["parts"]] == [None, None, None]
+    assert [part["overlap_boundary_seconds"] for part in reordered["parts"]] == [None, None, None]
+    assert reordered["parts"][0]["session_offset_seconds"] == 100.0
+    assert reordered["parts"][1]["session_offset_seconds"] == 0.0
+    assert reordered["parts"][2]["session_offset_seconds"] == 50.0
+
+
+def test_detach_clears_relation_decisions_for_new_adjacencies(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-detach", "session-detach")
+    for seed in range(1, 4):
+        workspace = store.attach_session_source(
+            "campaign-detach",
+            "session-detach",
+            source_id(seed),
+            workspace["revision"],
+        )
+    first, second, third = workspace["parts"]
+    workspace = _set_timeline(store, workspace, first["part_id"], offset=0.0)
+    workspace = _set_timeline(
+        store,
+        workspace,
+        second["part_id"],
+        offset=50.0,
+        overlap="prefer_earlier_until",
+        boundary=55.0,
+    )
+    workspace = _set_timeline(
+        store,
+        workspace,
+        third["part_id"],
+        offset=100.0,
+        gap=True,
+    )
+
+    detached = store.detach_session_part(
+        "campaign-detach",
+        "session-detach",
+        second["part_id"],
+        workspace["revision"],
+    )
+
+    assert [part["part_id"] for part in detached["parts"]] == [
+        first["part_id"],
+        third["part_id"],
+    ]
+    assert all(part["gap_confirmed"] is False for part in detached["parts"])
+    assert all(part["overlap_resolution"] is None for part in detached["parts"])
+    assert all(part["overlap_boundary_seconds"] is None for part in detached["parts"])
+
+
+def test_geometry_change_invalidates_unchanged_current_and_next_relation_decisions(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-geometry", "session-geometry")
+    workspace = store.attach_session_source(
+        "campaign-geometry",
+        "session-geometry",
+        source_id(1),
+        workspace["revision"],
+    )
+    workspace = store.attach_session_source(
+        "campaign-geometry",
+        "session-geometry",
+        source_id(2),
+        workspace["revision"],
+    )
+    first, second = workspace["parts"]
+
+    workspace = _set_timeline(
+        store,
+        workspace,
+        first["part_id"],
+        offset=0.0,
+        trim_end=60.0,
+    )
+    workspace = _set_timeline(
+        store,
+        workspace,
+        second["part_id"],
+        offset=75.0,
+        gap=True,
+    )
+    assert workspace["parts"][1]["gap_confirmed"] is True
+
+    changed = _set_timeline(
+        store,
+        workspace,
+        first["part_id"],
+        offset=0.0,
+        trim_end=50.0,
+    )
+
+    assert changed["parts"][1]["gap_confirmed"] is False
+
+    # If the current part's relation decision is deliberately changed in the
+    # same mutation, that is an explicit reconfirmation rather than a silent carry.
+    reconfirmed = _set_timeline(
+        store,
+        changed,
+        second["part_id"],
+        offset=70.0,
+        overlap="prefer_later_from",
+        boundary=72.0,
+    )
+    assert reconfirmed["parts"][1]["overlap_resolution"] == "prefer_later_from"
+    assert reconfirmed["parts"][1]["overlap_boundary_seconds"] == 72.0
