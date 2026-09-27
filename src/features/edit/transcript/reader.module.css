@@ -112,9 +112,9 @@
 	padding-inline: 1px;
 }
 
-.continue {
-	justify-self: center;
-	margin: 24px;
+.more {
+	height: 1px;
+	margin: 16px;
 }
 
 .empty {
