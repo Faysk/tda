@@ -30,6 +30,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
+| Edit / sessões multi-gravação | workspace local + cronologia explícita de gaps/overlaps | [Multi-recording sessions](multi-recording-sessions.md) |
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
