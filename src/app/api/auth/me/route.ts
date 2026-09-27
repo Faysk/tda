@@ -19,10 +19,14 @@ export async function GET() {
 			state: access.state,
 			scope: { type: "campaign", id: CAMPAIGN_SLUG },
 			capabilities,
+			...(access.identity ? { identity: access.identity } : {}),
 		},
 		{
 			status: access.state === "unavailable" ? 503 : 200,
-			headers: { "Cache-Control": "private, no-store" },
+			headers: {
+				"Cache-Control": "private, no-store",
+				Vary: "Cookie",
+			},
 		},
 	);
 }
