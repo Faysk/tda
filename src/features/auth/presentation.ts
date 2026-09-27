@@ -15,21 +15,6 @@ function record(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-function displayCandidate(metadata: Record<string, unknown>): unknown {
-	for (const key of [
-		"full_name",
-		"global_name",
-		"name",
-		"preferred_username",
-		"user_name",
-		"username",
-	] as const) {
-		if (typeof metadata[key] === "string") return metadata[key];
-	}
-	const customClaims = record(metadata.custom_claims);
-	return customClaims?.global_name;
-}
-
 export function sanitizeNavigationDisplayName(value: unknown): string | null {
 	if (typeof value !== "string") return null;
 	const cleaned = value
@@ -38,6 +23,25 @@ export function sanitizeNavigationDisplayName(value: unknown): string | null {
 		.trim();
 	if (!cleaned) return null;
 	return Array.from(cleaned).slice(0, DISPLAY_NAME_LIMIT).join("").trim() || null;
+}
+
+function navigationDisplayName(
+	metadata: Record<string, unknown>,
+): string | null {
+	for (const key of [
+		"full_name",
+		"global_name",
+		"name",
+		"preferred_username",
+		"user_name",
+		"username",
+	] as const) {
+		const candidate = sanitizeNavigationDisplayName(metadata[key]);
+		if (candidate) return candidate;
+	}
+	return sanitizeNavigationDisplayName(
+		record(metadata.custom_claims)?.global_name,
+	);
 }
 
 export function sanitizeDiscordAvatarUrl(value: unknown): string | null {
@@ -68,9 +72,9 @@ export function navigationIdentityFromMetadata(
 	const metadata = record(value);
 	if (!metadata) return { displayName: null, avatarUrl: null };
 	return {
-		displayName: sanitizeNavigationDisplayName(displayCandidate(metadata)),
-		avatarUrl: sanitizeDiscordAvatarUrl(
-			metadata.avatar_url ?? metadata.picture,
-		),
+		displayName: navigationDisplayName(metadata),
+		avatarUrl:
+			sanitizeDiscordAvatarUrl(metadata.avatar_url) ??
+			sanitizeDiscordAvatarUrl(metadata.picture),
 	};
 }
