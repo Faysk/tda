@@ -471,3 +471,23 @@ operação de apagar um resultado. A autoridade após cleanup segue no gate #644
 Validação sintética do candidato inclui lista de 30 jobs, última linha, bounds
 e hit testing do popup, foco/teclado, 1024x768, proxy de zoom 512x384 e 320px.
 Screenshots desktop/mobile foram inspecionados. Código validado não é publicação.
+
+
+## Cronologia local de sessões multi-gravação
+
+O Companion anuncia `transcription.session-timeline` quando suporta o contrato temporal aditivo de recording parts do workspace local.
+
+A source Craig continua imutável e cada gravação mantém a própria timeline local. A composição usa somente metadata persistida no `Session Workspace`:
+
+- `ordinal` e `order_authority` registram a ordem de trabalho; ordem automática só é sugerida quando **todas** as parts possuem `start_time` absoluto com timezone e instantes distintos;
+- `start_time` é classificado como `trusted_absolute`, `ambiguous`, `opaque` ou `missing`; valor sem timezone, opaco ou ausente nunca vira autoridade temporal silenciosa;
+- `manual_offset_seconds` coloca explicitamente o zero local da source na timeline da sessão sem alterar manifest, áudio ou run;
+- `trim_start_seconds` e `trim_end_seconds` recortam a composição, não os bytes nem timestamps do artefato bruto;
+- gaps permanecem gaps e exigem acknowledgement explícito antes de a timeline ficar pronta;
+- overlaps permanecem bloqueados até uma decisão explícita de boundary; não existe deduplicação fuzzy por texto;
+- no policy `tda_session_timing_v1`, ownership no boundary usa o início factual do segmento: início anterior ao boundary pertence à part anterior; início igual ou posterior pertence à part posterior;
+- mudança de ordem, offset, trim ou decisão incrementa a revisão CAS do workspace e altera `config_sha256`;
+- decisões de uma relação são invalidadas quando reorder/timing torna aquela relação obsoleta;
+- restart do Agent recupera ordem, offsets, trims e decisões do SQLite local.
+
+A projeção `tda_session_timeline_v1` é metadata-only: não inclui áudio, transcript, path local, checkpoint ou token. Ela expõe placements, relações `contiguous/gap/overlap/order_conflict`, readiness e o hash determinístico da configuração. O compositor visual multi-gravação pertence a #849; este contrato não ativa publicação nem Session Assembly por conta própria.
