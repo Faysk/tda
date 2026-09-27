@@ -11,12 +11,16 @@ import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
+import { ActivityPackAdmin } from "./activity-pack-admin";
+import { enabledCustomActivityBarks, subscribeActivityPacks } from "./activity-pack-store";
 import { ProcessingCommandBar } from "./command-bar";
 import { ProcessingLiveLog } from "./live-log";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
+	CORE_ACTIVITY_BARKS,
 	selectActivityBark,
+	type ActivityBark,
 } from "./activity-barks";
 import {
 	supportsCompletedRunDelete,
@@ -212,6 +216,7 @@ function latestActivity(
 	events: readonly JobEvent[],
 	job: LocalJob,
 	system: SystemSnapshot | null,
+	catalog: readonly ActivityBark[],
 ) {
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
@@ -240,7 +245,7 @@ function latestActivity(
 		) {
 			const factual = presentJobEvent(event);
 			const bark = activityEventCanBeHumorous(event)
-				? selectActivityBark(activityContext(event, job, system), { level: "tda" })
+				? selectActivityBark(activityContext(event, job, system), { level: "tda", catalog })
 				: null;
 			return {
 				title: bark?.text ?? factual.title,
@@ -300,7 +305,13 @@ function eventTrackContext(
 
 export function ProcessingPanel({
 	publicationEnabled = false,
-}: Readonly<{ publicationEnabled?: boolean }>) {
+	activityBarksManage = false,
+	activityPackScope = null,
+}: Readonly<{
+	publicationEnabled?: boolean;
+	activityBarksManage?: boolean;
+	activityPackScope?: string | null;
+}>) {
 	const [controller] = useState(() => new ProcessingController());
 	const state = useSyncExternalStore(
 		controller.subscribe,
@@ -312,12 +323,18 @@ export function ProcessingPanel({
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const [clockNow, setClockNow] = useState(() => Date.now());
+	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
 		void controller.connect();
 		return () => controller.disconnect();
 	}, [controller]);
+	useEffect(() => {
+		const reload = () => setCustomActivityBarks(enabledCustomActivityBarks(activityPackScope));
+		reload();
+		return subscribeActivityPacks(activityPackScope, reload);
+	}, [activityPackScope]);
 	useEffect(() => {
 		if (state.connection !== "connected" || state.mutation) return;
 		const hasActiveWork = state.jobs.some((job) => job.status === "running");
@@ -429,9 +446,12 @@ export function ProcessingPanel({
 		activeJob && state.observedJobId === activeJob.id
 			? eventTrackContext(state.events, activeJob.attempt)
 			: null;
+	const activityCatalog = customActivityBarks.length
+		? [...CORE_ACTIVITY_BARKS, ...customActivityBarks]
+		: CORE_ACTIVITY_BARKS;
 	const activeActivity =
 		activeJob && state.observedJobId === activeJob.id
-			? latestActivity(state.events, activeJob, state.system)
+			? latestActivity(state.events, activeJob, state.system, activityCatalog)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 	const canDeleteRuns = supportsCompletedRunDelete(state.health?.service_version);
@@ -1138,7 +1158,12 @@ export function ProcessingPanel({
 									system={state.system}
 									live={observedJobLive}
 									stale={Boolean(state.eventsRefreshError)}
+									activityCatalog={activityCatalog}
 								/>
+							) : null}
+
+							{activityBarksManage && activityPackScope ? (
+								<ActivityPackAdmin scope={activityPackScope} />
 							) : null}
 
 							{state.capabilities?.capabilities.includes(
