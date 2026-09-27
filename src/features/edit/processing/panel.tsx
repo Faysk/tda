@@ -112,10 +112,26 @@ function formatRealtime(rtf: number | null): string {
 	return `${(1 / rtf).toFixed(2)}×`;
 }
 
+function progressUnitLabel(unit: string): string {
+	return unit === "items" ? "itens" : unit;
+}
+
 function progressCopy(job: LocalJob): string {
 	if (!job.progress) return "Sem medida de progresso nesta etapa.";
-	const unit = job.progress.unit === "items" ? "itens" : job.progress.unit;
+	const unit = progressUnitLabel(job.progress.unit);
 	return `${job.progress.completed} de ${job.progress.total} ${unit}`;
+}
+
+function progressDenominatorLabel(job: LocalJob): string | null {
+	if (!job.progress) return null;
+	return `Progresso por ${progressUnitLabel(job.progress.unit)}`;
+}
+
+function progressAccessibleLabel(job: LocalJob): string {
+	const denominator = progressDenominatorLabel(job);
+	return denominator
+		? `${denominator}: ${progressCopy(job)}`
+		: "Progresso factual indisponível";
 }
 
 function OverviewMetric({
@@ -662,12 +678,14 @@ export function ProcessingPanel({
 											<div className={styles.activeProgress}>
 												<AnimatedProgress
 													key={`${activeJob.id}:${activeJob.attempt}:${activeJob.stage}`}
-													ariaLabel={`Progresso do trabalho ${activeJob.id}`}
+													ariaLabel={progressAccessibleLabel(activeJob)}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
 													valueText={progressCopy(activeJob)}
 												/>
-												<strong>{activePercent}%</strong>
+												<strong>
+													{progressDenominatorLabel(activeJob)} · {activePercent}%
+												</strong>
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
