@@ -253,6 +253,10 @@ def resolve_session_participants(
                 }
             )
             continue
+        if len(discord_ids) == 1 and all(
+            row["discord_id"] is not None for row in rows
+        ):
+            continue
         conflict = {
             "code": (
                 "LABEL_PARTIAL_IDENTITY"
