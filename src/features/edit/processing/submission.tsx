@@ -10,7 +10,6 @@ import {
 } from "./bridge";
 import {
 	BridgeError,
-	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
 	type LocalRunSummary,
@@ -29,12 +28,6 @@ import {
 	TRANSCRIPTION_TEXT_MAX_CHARS,
 	truncateUnicodeScalars,
 } from "./request-budget";
-import {
-	fetchQwenRuntimeReleaseAvailability,
-	qwenRuntimeReleaseLabel,
-	qwenRuntimeReleaseMessage,
-	type QwenRuntimeReleaseAvailability,
-} from "./qwen-runtime-release-availability";
 import styles from "./submission.module.css";
 
 const profileLabels: Record<TranscriptionProfileId, string> = {
@@ -44,6 +37,8 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 	"qwen-quality": "Qwen Quality",
 };
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
+const QWEN_RUNTIME_UPGRADE_MESSAGE =
+	"O Qwen local precisa do runtime 1.0.12 ou mais recente para recuperar com segurança extrapolações de alinhamento. Atualize o runtime/Companion antes de iniciar esta transcrição.";
 
 function messageFor(code: string): string {
 	return {
@@ -144,19 +139,16 @@ function sourceMustBeRestaged(code: string | null): boolean {
 }
 
 const EMPTY_RUNS: readonly LocalRunSummary[] = [];
-const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 
 export function ProcessingSubmission({
 	className,
 	compact = false,
 	runs = EMPTY_RUNS,
-	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
 }: Readonly<{
 	className?: string;
 	compact?: boolean;
 	runs?: readonly LocalRunSummary[];
-	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
 }> = {}) {
 	const paired = useSyncExternalStore(
@@ -178,9 +170,6 @@ export function ProcessingSubmission({
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
 	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
 	const [preparationCancelling, setPreparationCancelling] = useState(false);
-	const [qwenReleaseAvailability, setQwenReleaseAvailability] = useState<
-		QwenRuntimeReleaseAvailability | "checking" | null
-	>(null);
 	const request = useRef<AbortController | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const pending = useRef<PendingSubmission | null>(null);
@@ -310,35 +299,14 @@ export function ProcessingSubmission({
 						audioWorkSeconds: source?.audioWorkSeconds ?? null,
 						profile: item,
 						runs,
-						benchmarks,
 						system,
 					}),
 				]),
 			),
-		[availableProfiles, benchmarks, runs, source?.audioWorkSeconds, system],
+		[availableProfiles, runs, source?.audioWorkSeconds, system],
 	);
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
-
-	useEffect(() => {
-		if (!paired || !qwenRuntimeUpgradeRequired) {
-			setQwenReleaseAvailability(null);
-			return;
-		}
-		const controller = new AbortController();
-		setQwenReleaseAvailability("checking");
-		void fetchQwenRuntimeReleaseAvailability(controller.signal).then((availability) => {
-			if (!controller.signal.aborted) setQwenReleaseAvailability(availability);
-		});
-		return () => controller.abort();
-	}, [paired, qwenRuntimeUpgradeRequired]);
-
-	const qwenRuntimeBlockMessage = qwenRuntimeReleaseMessage(
-		qwenReleaseAvailability,
-	);
-	const qwenRuntimeBlockLabel = qwenRuntimeReleaseLabel(
-		qwenReleaseAvailability,
-	);
 
 	const canSubmit = useMemo(
 		() =>
@@ -367,14 +335,7 @@ export function ProcessingSubmission({
 	if (!paired) return null;
 
 	async function analyzeSource() {
-		if (
-			busy ||
-			!file ||
-			!canSubmit ||
-			requestTooLarge ||
-			qwenRuntimeUpgradeRequired
-		)
-			return;
+		if (busy || !file || !canSubmit) return;
 		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
 			setError("Escolha um ZIP válido exportado pelo Craig.");
 			return;
@@ -413,7 +374,7 @@ export function ProcessingSubmission({
 		event.preventDefault();
 		if (busy || !file || !source || !profile || !canSubmit) return;
 		if (qwenRuntimeUpgradeRequired) {
-			setError(qwenRuntimeBlockMessage);
+			setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
 			return;
 		}
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
@@ -467,7 +428,7 @@ export function ProcessingSubmission({
 				return;
 			}
 			if (selectedProfile.reason === QWEN_RUNTIME_UPGRADE_REASON) {
-				setError(qwenRuntimeBlockMessage);
+				setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
 				return;
 			}
 			if (!selectedProfile.ready) {
@@ -523,7 +484,7 @@ export function ProcessingSubmission({
 					(item) => item.id === profile,
 				);
 				if (refreshedProfile?.reason === QWEN_RUNTIME_UPGRADE_REASON) {
-					setError(qwenRuntimeBlockMessage);
+					setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
 					return;
 				}
 				if (!refreshed.transcription.profiles.includes(profile)) {
@@ -683,7 +644,7 @@ export function ProcessingSubmission({
 									{profileLabels[item.id]}{item.ready
 										? ""
 										: item.reason === QWEN_RUNTIME_UPGRADE_REASON
-											? ` · ${qwenRuntimeBlockLabel}`
+											? " · atualizar runtime"
 											: " · preparar no primeiro uso"}
 								</option>
 							))}
@@ -710,7 +671,7 @@ export function ProcessingSubmission({
 							<div>
 								<strong>Estimativa nesta máquina</strong>
 								<small>
-									Runs locais compatíveis e benchmark local quando necessário · trabalho de áudio{" "}
+									Baseada somente em runs locais compatíveis · trabalho de áudio{" "}
 									{Math.round(source.audioWorkSeconds ?? 0)} s
 								</small>
 							</div>
@@ -734,12 +695,8 @@ export function ProcessingSubmission({
 															high: "alta",
 															medium: "média",
 															low: "baixa",
-														}[estimate.confidence]} · ${estimate.source === "benchmark"
-															? `${estimate.benchmarkSampleCount} benchmark local`
-															: estimate.source === "local_runs+benchmark"
-																? `${estimate.runSampleCount} run local + ${estimate.benchmarkSampleCount} benchmark`
-																: `${estimate.runSampleCount} runs locais`}`
-													: "Histórico e benchmark compatíveis insuficientes"}
+														}[estimate.confidence]} · ${estimate.sampleCount} runs`
+													: "Histórico compatível insuficiente"}
 												{item.preparationRequired ? " · + preparação necessária" : ""}
 											</small>
 										</div>
@@ -767,13 +724,7 @@ export function ProcessingSubmission({
 							<Button
 								type="button"
 								variant="primary"
-								disabled={
-									busy ||
-									!file ||
-									!canSubmit ||
-									requestTooLarge ||
-									qwenRuntimeUpgradeRequired
-								}
+								disabled={busy || !file}
 								onClick={() => void analyzeSource()}
 							>
 								{busy ? "Analisando localmente…" : "Analisar ZIP localmente"}
@@ -828,7 +779,7 @@ export function ProcessingSubmission({
 					) : null}
 					{qwenRuntimeUpgradeRequired ? (
 						<p className={styles.error} role="alert">
-							{qwenRuntimeBlockMessage}
+							{QWEN_RUNTIME_UPGRADE_MESSAGE}
 						</p>
 					) : profile && !selectedProfileState?.ready ? (
 						<p className={styles.notice} role="status">
