@@ -77,8 +77,6 @@ type Props = Readonly<{
 	}
 
 
-const PAGE_SIZE = 25;
-
 function formatDate(value: string | null): string {
 	if (!value) return "data desconhecida";
 	return new Date(value).toLocaleString("pt-BR", {
@@ -109,6 +107,14 @@ function formatTimestamp(value: number): string {
 	const minutes = Math.floor((seconds % 3600) / 60);
 	const rest = seconds % 60;
 	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
+function timelineStart(segment: LocalReviewSegment): number {
+	return segment.timelineStart ?? segment.start;
+}
+
+function timelineEnd(segment: LocalReviewSegment): number {
+	return segment.timelineEnd ?? segment.end;
 }
 
 function formatRealtime(rtf: number | null): string {
@@ -278,6 +284,7 @@ function ReviewEditor({
 }>) {
     const scrollAnchor = useRef<{ key: string; top: number } | null>(null);
     const restoreAnchor = useRef(false);
+    const lastServerReview = useRef(review);
     const [baseline, setBaseline] = useState(review);
     const [comparison, setComparison] = useState<ReviewRebase | null>(null);
     const [comparing, setComparing] = useState(false);
@@ -295,7 +302,8 @@ function ReviewEditor({
 	const [status, setStatus] = useState<LocalReviewStatus>(review.status);
 	const [dirty, setDirty] = useState(false);
 	const [query, setQuery] = useState("");
-	const [page, setPage] = useState(0);
+	const [editingKey, setEditingKey] = useState<string | null>(null);
+	const editingTextRef = useRef<HTMLTextAreaElement | null>(null);
 	const [publicationRecovery, setPublicationRecovery] = useState<PublicationConfirmation | null>(null);
     const publicationCurrent = publicationRecovery?.current;
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
@@ -306,6 +314,20 @@ function ReviewEditor({
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
 	const ephemeral = review.persistence === "ephemeral_base";
+
+	useEffect(() => {
+		if (editingKey) editingTextRef.current?.focus();
+	}, [editingKey]);
+
+	useEffect(() => {
+		if (lastServerReview.current === review) return;
+		lastServerReview.current = review;
+		setBaseline(review);
+		setSegments(review.segments.map((segment) => ({ ...segment })));
+		setStatus(review.status);
+		setDirty(false);
+		restoreAnchor.current = scrollAnchor.current !== null;
+	}, [review]);
 	const invalidStrings = segments.some((segment) => !isReviewStringV1(segment.text, "text") || !isReviewStringV1(segment.speaker, "speaker"));
 	const publicationPreflight = useMemo(
 		() =>
@@ -349,21 +371,25 @@ function ReviewEditor({
         return () => { cancelled = true; window.removeEventListener("focus", focus); window.removeEventListener("storage", focus); document.removeEventListener("visibilitychange", visibility); };
     }, [publicationEnabled, review, dirty]);
 
-	const filtered = useMemo(() => {
+	const visible = useMemo(() => {
 		const normalized = query.trim().toLocaleLowerCase("pt-BR");
 		return segments
 			.map((segment, index) => ({ segment, index }))
 			.filter(({ segment }) =>
 				!normalized
 					? true
-					: `${segment.speaker} ${segment.text}`
+					: [segment.speaker, segment.text, formatTimestamp(timelineStart(segment))]
+							.join(" ")
 							.toLocaleLowerCase("pt-BR")
 							.includes(normalized),
+			)
+			.sort((left, right) =>
+				timelineStart(left.segment) - timelineStart(right.segment) ||
+				timelineEnd(left.segment) - timelineEnd(right.segment) ||
+				left.segment.trackNumber - right.segment.trackNumber ||
+				left.segment.segmentId.localeCompare(right.segment.segmentId),
 			);
 	}, [query, segments]);
-	const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-	const safePage = Math.min(page, pageCount - 1);
-	const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 	const reviewed = segments.filter((segment) => segment.reviewed).length;
 	const words = segments.reduce(
 		(total, segment) =>
@@ -371,6 +397,21 @@ function ReviewEditor({
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
+
+	function rememberVisibleAnchor() {
+		const anchor = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-review-segment]"),
+		).find((node) => {
+			const rect = node.getBoundingClientRect();
+			return rect.bottom > 0 && rect.top < window.innerHeight;
+		});
+		scrollAnchor.current = anchor
+			? {
+					key: anchor.dataset.reviewSegment ?? "",
+					top: anchor.getBoundingClientRect().top,
+				}
+			: null;
+	}
 
 	function patch(index: number, value: Partial<LocalReviewSegment>) {
 		if (status === "approved_local") setStatus("reviewed");
@@ -442,7 +483,10 @@ function ReviewEditor({
 						size="sm"
 						variant="primary"
 						disabled={editingBlocked || !dirty || !canSave || invalidStrings}
-						onClick={() => void onSave(baseline, status, segments)}
+						onClick={() => {
+							rememberVisibleAnchor();
+							void onSave(baseline, status, segments);
+						}}
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
 					</Button>
@@ -639,40 +683,20 @@ function ReviewEditor({
 					</select>
 				</label>
 				<label className={styles.search}>
-					<span>Filtrar falas</span>
+					<span>Buscar na timeline</span>
 					<input
 						value={query}
-						onChange={(event) => {
-							setQuery(event.target.value);
-							setPage(0);
-						}}
-						placeholder="Speaker ou texto…"
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Texto, participante ou HH:MM:SS…"
 					/>
 				</label>
-				<div className={styles.pageControls}>
-					<Button
-						size="sm"
-						variant="tertiary"
-						disabled={safePage === 0}
-						onClick={() => setPage((current) => Math.max(0, current - 1))}
-					>
-						Anterior
-					</Button>
-					<span>{safePage + 1} / {pageCount}</span>
-					<Button
-						size="sm"
-						variant="tertiary"
-						disabled={safePage >= pageCount - 1}
-						onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
-					>
-						Próxima
-					</Button>
-				</div>
+				<span className={styles.timelineCount}>
+					{visible.length} de {segments.length} falas · timeline contínua
+				</span>
 			</div>
 
             {error === "LOCAL_REVIEW_DRAFT_CONFLICT" && onLoadLatest ? <Button type="button" disabled={editingBlocked || publishing} onClick={async () => {
-                const anchor = Array.from(document.querySelectorAll<HTMLElement>("[data-review-segment]")).find((node) => { const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; });
-                scrollAnchor.current = anchor ? { key: anchor.dataset.reviewSegment ?? "", top: anchor.getBoundingClientRect().top } : null;
+                rememberVisibleAnchor();
                 setComparing(true); setComparisonError(null);
                 try {
                     const latest = await onLoadLatest();
@@ -706,48 +730,71 @@ function ReviewEditor({
 				<p className={styles.saved} role="status">{ephemeral ? "Visualização da base. Nenhuma revisão foi salva." : "Draft salvo localmente."}</p>
 			)}
 
-			<div className={styles.segmentList}>
-				{visible.map(({ segment, index }) => (
-					<article
-						className={styles.segment}
-						data-review-segment={JSON.stringify([segment.trackNumber, segment.segmentId])}
-						key={`${segment.trackNumber}-${segment.segmentId}`}
-					>
-						<div className={styles.segmentMeta}>
-							<span>Track {segment.trackNumber}</span>
-							<span>{formatTimestamp(segment.start)} → {formatTimestamp(segment.end)}</span>
-							<label className={styles.reviewed}>
-								<input
-									type="checkbox"
-									checked={segment.reviewed}
+			<div className={styles.timelineList}>
+				{visible.map(({ segment, index }) => {
+					const key = `${segment.trackNumber}:${segment.segmentId}`;
+					const editing = editingKey === key;
+					return (
+						<article
+							className={styles.timelineRow}
+							data-review-segment={JSON.stringify([segment.trackNumber, segment.segmentId])}
+							key={key}
+						>
+							<time>{formatTimestamp(timelineStart(segment))}</time>
+							<div className={styles.timelineSpeaker}>
+								{editing ? (
+									<input
+										value={segment.speaker}
+										maxLength={320}
+										aria-label={`Participante em ${formatTimestamp(timelineStart(segment))}`}
+										aria-invalid={!isReviewStringV1(segment.speaker, "speaker")}
+										disabled={editingBlocked || !canSave}
+										onChange={(event) => patch(index, { speaker: event.target.value })}
+									/>
+								) : (
+									<strong>{segment.speaker}</strong>
+								)}
+								<small>Track {segment.trackNumber}</small>
+							</div>
+							<div className={styles.timelineText}>
+								{editing ? (
+									<textarea
+										ref={editingTextRef}
+										value={segment.text}
+										maxLength={200_000}
+										aria-label={`Texto em ${formatTimestamp(timelineStart(segment))}`}
+										aria-invalid={!isReviewStringV1(segment.text, "text")}
+										disabled={editingBlocked || !canSave}
+										onChange={(event) => patch(index, { text: event.target.value })}
+									/>
+								) : (
+									<p>{segment.text}</p>
+								)}
+							</div>
+							<div className={styles.timelineActions}>
+								<label className={styles.reviewed} title={segment.reviewed ? "Revisado" : "Não revisado"}>
+									<input
+										type="checkbox"
+										checked={segment.reviewed}
+										aria-label={`${segment.reviewed ? "Marcar como não revisado" : "Marcar como revisado"} · ${segment.speaker} · ${formatTimestamp(timelineStart(segment))}`}
+										disabled={editingBlocked || !canSave}
+										onChange={(event) => patch(index, { reviewed: event.target.checked })}
+									/>
+									<span aria-hidden="true">{segment.reviewed ? "✓" : "○"}</span>
+								</label>
+								<Button
+									size="sm"
+									variant="tertiary"
 									disabled={editingBlocked || !canSave}
-									onChange={(event) => patch(index, { reviewed: event.target.checked })}
-								/>
-								Revisado
-							</label>
-						</div>
-						<label>
-							<span>Speaker</span>
-							<input
-								value={segment.speaker}
-								maxLength={320}
-								aria-invalid={!isReviewStringV1(segment.speaker, "speaker")}
-								disabled={editingBlocked || !canSave}
-								onChange={(event) => patch(index, { speaker: event.target.value })}
-							/>
-						</label>
-						<label>
-							<span>Texto</span>
-							<textarea
-								value={segment.text}
-								maxLength={200_000}
-								aria-invalid={!isReviewStringV1(segment.text, "text")}
-								disabled={editingBlocked || !canSave}
-								onChange={(event) => patch(index, { text: event.target.value })}
-							/>
-						</label>
-					</article>
-				))}
+									aria-label={`${editing ? "Concluir edição" : "Editar"} ${segment.speaker} em ${formatTimestamp(timelineStart(segment))}`}
+									onClick={() => setEditingKey(editing ? null : key)}
+								>
+									{editing ? "Concluir" : "Editar"}
+								</Button>
+							</div>
+						</article>
+					);
+				})}
 				{visible.length === 0 ? (
 					<p className={styles.empty}>Nenhuma fala corresponde ao filtro.</p>
 				) : null}
@@ -837,7 +884,7 @@ export function LocalReviewWorkspace({
 	if (review) {
 		return (
 			<ReviewEditor
-				key={`${review.sourceId}:${review.runId}:${review.draftSha256 ?? review.baseTranscriptSha256}:${review.approvedAt ?? "unapproved"}`}
+				key={`${review.sourceId}:${review.runId}:${review.baseTranscriptSha256}`}
 				review={review}
 				busy={busy}
 				error={error}

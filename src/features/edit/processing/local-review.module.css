@@ -617,6 +617,129 @@
 }
 
 
+.timelineCount {
+	align-self: end;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.timelineList {
+	display: grid;
+	min-width: 0;
+	border-block: 1px solid var(--ds-border-subtle);
+}
+
+.timelineRow {
+	display: grid;
+	grid-template-columns: 88px minmax(120px, 180px) minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 10px;
+	min-width: 0;
+	padding: 8px 6px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	content-visibility: auto;
+	contain-intrinsic-size: 52px;
+}
+
+.timelineRow > time {
+	padding-top: 3px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-mono);
+	font-size: 0.72rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.timelineSpeaker {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.timelineSpeaker strong {
+	overflow: hidden;
+	font-size: 0.78rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.timelineSpeaker small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.65rem;
+}
+
+.timelineSpeaker input,
+.timelineText textarea {
+	width: 100%;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.timelineSpeaker input { padding: 5px 7px; }
+
+.timelineText { min-width: 0; }
+
+.timelineText p {
+	margin: 2px 0 0;
+	color: var(--ds-foreground);
+	font-size: 0.82rem;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.timelineText textarea {
+	min-height: 76px;
+	padding: 7px 8px;
+	resize: vertical;
+	line-height: 1.5;
+}
+
+.timelineActions {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.timelineActions .reviewed {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+}
+
+.timelineActions .reviewed input {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	opacity: 0;
+}
+
+.timelineActions .reviewed span[aria-hidden="true"] {
+	color: var(--ds-foreground-muted);
+	font-size: 1rem;
+	cursor: pointer;
+}
+
+@media (max-width: 720px) {
+	.timelineRow {
+		grid-template-columns: 80px minmax(0, 1fr) auto;
+	}
+	.timelineSpeaker { grid-column: 2; }
+	.timelineText {
+		grid-column: 1 / -1;
+		grid-row: 2;
+	}
+	.timelineActions {
+		grid-column: 3;
+		grid-row: 1;
+	}
+}
+
+
 /* #598 — Results uses the extra desktop height for the master/detail workspace
    while mobile and short viewports keep natural page scrolling. */
 @media (min-width: 1440px) and (min-height: 820px) {
