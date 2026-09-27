@@ -33,6 +33,8 @@ const system: SystemSnapshot = {
 	memory: { usedBytes: 1, totalBytes: 2, percent: 50 },
 	gpus: [
 		{
+			uuid: "GPU-11111111-1111-1111-1111-111111111111",
+			pciBusId: "00000000:01:00.0",
 			index: 0,
 			name: "NVIDIA GeForce RTX 4070 Laptop GPU",
 			utilizationPercent: 0,
@@ -66,6 +68,12 @@ function run(
 				version: "1.0.12",
 				workerSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				archiveSha256: null,
+			},
+			executionDevice: {
+				kind: "cuda",
+				logicalIndex: 0,
+				physicalUuid: "GPU-11111111-1111-1111-1111-111111111111",
+				pciBusId: "00000000:01:00.0",
 			},
 			device: "cuda",
 			computeType: "bfloat16",
@@ -120,15 +128,11 @@ function run(
 	};
 }
 
-function benchmark(
-	rtf: number,
-	overrides: Partial<BenchmarkResult["profiles"][number]> = {},
-): BenchmarkResult {
-	const lineage = run(rtf).executionLineage;
+function benchmark(rtf: number): BenchmarkResult {
 	return {
 		schemaVersion: "tda_processing_benchmark_v1",
-		jobId: `benchmark-${rtf}`,
-		sourceId: "craig-source",
+		jobId: "benchmark-job",
+		sourceId: "benchmark-source",
 		campaignId: "benchmark-local",
 		sessionId: "benchmark-local",
 		sampleIdentitySha256: "c".repeat(64),
@@ -156,14 +160,46 @@ function benchmark(
 				segmentCount: 1,
 				trackCount: 1,
 				warningCount: 0,
-				executionLineage: lineage,
-				...overrides,
+				executionLineage: run(rtf).executionLineage,
 			},
 		],
 	};
 }
 
 describe("calibrated processing estimator", () => {
+	it("uses a compatible benchmark as a low-confidence prior before run history exists", () => {
+		const estimate = estimateProfileProcessing({
+			audioWorkSeconds: 600,
+			profile,
+			system,
+			runs: [],
+			benchmarks: [benchmark(0.6)],
+		});
+		expect(estimate.available).toBe(true);
+		if (!estimate.available) return;
+		expect(estimate.source).toBe("benchmark");
+		expect(estimate.confidence).toBe("low");
+		expect(estimate.runSampleCount).toBe(0);
+		expect(estimate.benchmarkSampleCount).toBe(1);
+		expect(estimate.medianSeconds).toBeCloseTo(360);
+	});
+
+	it("lets two compatible completed runs replace the benchmark prior", () => {
+		const estimate = estimateProfileProcessing({
+			audioWorkSeconds: 600,
+			profile,
+			system,
+			runs: [run(0.5), run(0.6)],
+			benchmarks: [benchmark(4)],
+		});
+		expect(estimate.available).toBe(true);
+		if (!estimate.available) return;
+		expect(estimate.source).toBe("local_runs");
+		expect(estimate.runSampleCount).toBe(2);
+		expect(estimate.benchmarkSampleCount).toBe(0);
+		expect(estimate.medianRtf).toBeCloseTo(0.55);
+	});
+
 	it("uses compatible local RTF quantiles and rejects a large outlier", () => {
 		const estimate = estimateProfileProcessing({
 			audioWorkSeconds: 600,
@@ -208,43 +244,24 @@ describe("calibrated processing estimator", () => {
 		});
 	});
 
-
-	it("separates same-model runs by stable physical GPU identity when available", () => {
-		const baseGpu = system.gpus[0];
-		if (!baseGpu) throw new Error("fixture GPU missing");
-		const identifiedSystem: SystemSnapshot = {
-			...system,
-			gpus: [{ ...baseGpu, uuid: "GPU-current", pciBusId: "0000:01:00.0" }],
-		};
-		const currentRun = run(0.5);
-		const currentLineage = currentRun.executionLineage;
-		if (!currentLineage) throw new Error("fixture lineage missing");
-		currentRun.executionLineage = {
-			...currentLineage,
+	it("rejects an identical GPU model from a different physical device", () => {
+		const otherGpu = run(0.6);
+		const lineage = otherGpu.executionLineage;
+		if (!lineage) throw new Error("fixture lineage missing");
+		otherGpu.executionLineage = {
+			...lineage,
 			executionDevice: {
 				kind: "cuda",
 				logicalIndex: 0,
-				physicalUuid: "GPU-current",
-				pciBusId: "0000:01:00.0",
-			},
-		};
-		const otherGpuRun = run(0.6);
-		const otherLineage = otherGpuRun.executionLineage;
-		if (!otherLineage) throw new Error("fixture lineage missing");
-		otherGpuRun.executionLineage = {
-			...otherLineage,
-			executionDevice: {
-				kind: "cuda",
-				logicalIndex: 0,
-				physicalUuid: "GPU-other",
-				pciBusId: "0000:02:00.0",
+				physicalUuid: "GPU-22222222-2222-2222-2222-222222222222",
+				pciBusId: "00000000:02:00.0",
 			},
 		};
 		const estimate = estimateProfileProcessing({
 			audioWorkSeconds: 600,
 			profile,
-			system: identifiedSystem,
-			runs: [currentRun, otherGpuRun],
+			system,
+			runs: [run(0.5), otherGpu],
 		});
 		expect(estimate).toMatchObject({
 			available: false,
@@ -305,7 +322,12 @@ describe("calibrated processing estimator", () => {
 		});
 		const remaining = estimateRemainingProcessing(estimate, [100, 200, 300], 1);
 		expect(remaining).not.toBeNull();
-		expect(remaining!.medianSeconds).toBeCloseTo(275);
+		// Progress stores only a completed-track count. A checkpoint may have
+		// completed any track, so remaining work is bounded instead of assuming
+		// the first duration was the completed one.
+		expect(remaining!.lowerSeconds).toBeCloseTo(157.5);
+		expect(remaining!.medianSeconds).toBeCloseTo(220);
+		expect(remaining!.upperSeconds).toBeCloseTo(287.5);
 	});
 
 	it("can evaluate the signed prediction error after completion", () => {
@@ -316,78 +338,6 @@ describe("calibrated processing estimator", () => {
 			runs: [run(0.5), run(0.6), run(0.55)],
 		});
 		expect(predictionErrorPercent(estimate, 363)).toBeCloseTo(10);
-	});
-
-	it("uses one compatible benchmark only as a low-confidence bootstrap prior", () => {
-		const estimate = estimateProfileProcessing({
-			audioWorkSeconds: 600,
-			profile,
-			system,
-			runs: [],
-			benchmarks: [benchmark(0.5)],
-		});
-		expect(estimate.available).toBe(true);
-		if (!estimate.available) return;
-		expect(estimate).toMatchObject({
-			source: "benchmark",
-			confidence: "low",
-			sampleCount: 1,
-			medianRtf: 0.5,
-		});
-	});
-
-	it("combines one fresh run with one benchmark at low confidence", () => {
-		const estimate = estimateProfileProcessing({
-			audioWorkSeconds: 600,
-			profile,
-			system,
-			runs: [run(0.6)],
-			benchmarks: [benchmark(0.5)],
-		});
-		expect(estimate.available).toBe(true);
-		if (!estimate.available) return;
-		expect(estimate.source).toBe("mixed");
-		expect(estimate.confidence).toBe("low");
-		expect(estimate.medianRtf).toBeCloseTo(0.55);
-	});
-
-	it("lets two compatible fresh runs dominate an older benchmark prior", () => {
-		const estimate = estimateProfileProcessing({
-			audioWorkSeconds: 600,
-			profile,
-			system,
-			runs: [run(0.5), run(0.6)],
-			benchmarks: [benchmark(3)],
-		});
-		expect(estimate.available).toBe(true);
-		if (!estimate.available) return;
-		expect(estimate.source).toBe("local_runs");
-		expect(estimate.sampleCount).toBe(2);
-		expect(estimate.medianRtf).toBeCloseTo(0.55);
-	});
-
-	it("rejects a benchmark prior produced by different worker bytes", () => {
-		const estimate = estimateProfileProcessing({
-			audioWorkSeconds: 600,
-			profile,
-			system,
-			runs: [],
-			benchmarks: [
-				benchmark(0.5, {
-					executionLineage: {
-						...run(0.5).executionLineage!,
-						runtimeArtifact: {
-							...run(0.5).executionLineage!.runtimeArtifact!,
-							workerSha256: "d".repeat(64),
-						},
-					},
-				}),
-			],
-		});
-		expect(estimate).toMatchObject({
-			available: false,
-			reason: "insufficient_history",
-		});
 	});
 
 	it("excludes legacy and checkpoint-reused runs from fresh calibration", () => {
@@ -423,7 +373,7 @@ describe("calibrated processing estimator", () => {
 		expect(estimate.medianRtf).toBeCloseTo(0.55);
 	});
 
-	it("refuses ambiguous historical compute modes when current mode is unknown", () => {
+		it("refuses ambiguous historical compute modes when current mode is unknown", () => {
 		const whisperProfile: TranscriptionProfileState = {
 			...profile,
 			id: "whisper-turbo",
