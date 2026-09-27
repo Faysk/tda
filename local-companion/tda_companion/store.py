@@ -586,11 +586,19 @@ class Store:
         for raw in placements:
             if not isinstance(raw, dict):
                 raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            ordinal = raw.get("ordinal")
+            if (
+                isinstance(ordinal, bool)
+                or not isinstance(ordinal, int)
+                or ordinal < 0
+                or ordinal >= 64
+            ):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
             normalized.append(
                 {
                     "part_id": self._workspace_part_id(raw.get("part_id")),
                     "source_id": self._workspace_source_id(raw.get("source_id")),
-                    "ordinal": raw.get("ordinal"),
+                    "ordinal": ordinal,
                     "session_offset_seconds": self._workspace_seconds(
                         raw.get("session_offset_seconds"), "SESSION_OFFSET"
                     ),
