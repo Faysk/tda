@@ -55,17 +55,6 @@ def _trusted_epoch(value: object) -> float | None:
     return datetime.fromisoformat(instant.replace("Z", "+00:00")).timestamp()
 
 
-def segment_owner_at_boundary(
-    segment_global_start_seconds: object,
-    boundary_seconds: object,
-) -> str:
-    start = _finite_non_negative(segment_global_start_seconds)
-    boundary = _finite_non_negative(boundary_seconds)
-    if start is None or boundary is None:
-        raise ValueError("RECORDING_CHRONOLOGY_BOUNDARY_INVALID")
-    return "earlier" if start < boundary else "later"
-
-
 def chronology_config_fingerprint(
     parts: Sequence[Mapping[str, object]],
     source_facts: Mapping[str, Mapping[str, object]],
