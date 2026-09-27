@@ -233,6 +233,69 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert reopened.json()["segments"][0]["text"] == "Texto revisado"
 
 
+def test_comparison_snapshot_ignores_existing_human_draft_and_is_read_only(tmp_path: Path):
+    with _client(tmp_path) as client:
+        source_id, package_root, run = _stage_and_run(client, tmp_path)
+        headers = _browser_headers(client)
+        review_url = f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review"
+        snapshot_url = (
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/comparison-snapshot"
+        )
+
+        opened = client.get(review_url, headers=headers).json()
+        edited = [dict(item) for item in opened["segments"]]
+        edited[0]["text"] = "TEXTO HUMANO EDITADO"
+        edited[0]["speaker"] = "Sense"
+        edited[0]["reviewed"] = True
+        saved = client.post(
+            review_url,
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                **_expected(opened),
+                "status": "reviewed",
+                "segments": edited,
+            },
+        )
+        assert saved.status_code == 200
+        draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+        draft_before = draft_path.read_bytes()
+
+        snapshot = client.get(snapshot_url, headers=headers)
+        assert snapshot.status_code == 200
+        value = snapshot.json()
+        assert value["persistence"] == "ephemeral_base"
+        assert value["draft_revision"] is None
+        assert value["draft_sha256"] is None
+        assert value["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
+        assert value["segments"][0]["speaker"] == "Alice"
+        assert value["segments"][0]["reviewed"] is False
+        assert "TEXTO HUMANO EDITADO" not in snapshot.text
+        assert draft_path.read_bytes() == draft_before
+
+        reopened = client.get(review_url, headers=headers)
+        assert reopened.status_code == 200
+        assert reopened.json()["segments"][0]["text"] == "TEXTO HUMANO EDITADO"
+
+        write_attempt = client.post(
+            snapshot_url,
+            headers={**headers, "Content-Type": "application/json"},
+            json={},
+        )
+        assert write_attempt.status_code == 405
+        assert write_attempt.json()["error"]["code"] == "METHOD_NOT_ALLOWED"
+
+        preflight = client.options(
+            snapshot_url,
+            headers={
+                "Origin": ORIGIN,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-methods"] == "GET"
+
+
 def test_review_api_exposes_only_sanitized_durable_publication_target(tmp_path: Path):
     with _client(tmp_path) as client:
         source_id, package_root, run = _stage_and_run(
