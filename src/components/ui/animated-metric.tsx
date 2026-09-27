@@ -24,6 +24,7 @@ type Props = Readonly<{
 	ariaLabel: string;
 	className?: string;
 	minWidthCh?: number;
+	expectedSampleMs?: number;
 }>;
 
 export function AnimatedMetric({
@@ -35,6 +36,7 @@ export function AnimatedMetric({
 	ariaLabel,
 	className,
 	minWidthCh,
+	expectedSampleMs,
 }: Props) {
 	const target = clampNumber(value, min, max);
 	const [displayValue, setDisplayValue] = useState(target);
@@ -63,8 +65,13 @@ export function AnimatedMetric({
 			return () => cancelFrame();
 		}
 
-		const duration =
-			animatedNumberDuration(start, target, min, max);
+		const duration = animatedNumberDuration(
+			start,
+			target,
+			min,
+			max,
+			expectedSampleMs,
+		);
 		let startedAt: number | null = null;
 
 		const tick = (now: number) => {
@@ -100,7 +107,7 @@ export function AnimatedMetric({
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 			media.removeEventListener("change", onReducedMotionChange);
 		};
-	}, [max, min, target]);
+	}, [expectedSampleMs, max, min, target]);
 
 	const style = minWidthCh
 		? ({
@@ -115,6 +122,7 @@ export function AnimatedMetric({
 			data-animated-metric="true"
 			data-metric-label={ariaLabel}
 			data-animated-target={target}
+			data-animated-sample-ms={expectedSampleMs}
 			data-animated-running={
 				Math.abs(displayValue - target) > 0.0001 ? "true" : "false"
 			}
