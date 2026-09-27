@@ -92,5 +92,5 @@ export function submissionCtaLabel(
 	if (pending === "submitting") return "Enviando ao Companion…";
 	if (profile && !profile.ready && profile.preparationRequired)
 		return "Preparar profile";
-	return "Adicionar à fila";
+	return "Adicionar à fila local";
 }
