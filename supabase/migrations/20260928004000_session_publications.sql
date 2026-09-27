@@ -258,7 +258,8 @@ begin
     return;
   end if;
 
-  if btrim(v_draft.cover_asset_id) = ''
+  if v_draft.cover_asset_id is null
+     or btrim(v_draft.cover_asset_id) = ''
      or btrim(v_draft.title) = ''
      or btrim(v_draft.summary_short) = ''
      or btrim(v_draft.summary_full) = '' then
