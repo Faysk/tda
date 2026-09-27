@@ -108,6 +108,7 @@ export function ReviewFixture() {
 			error={saveError}
 			publicationEnabled={publication}
 			onOpen={() => {}}
+			onDelete={() => true}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
