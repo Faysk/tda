@@ -150,11 +150,12 @@ def test_gap_remains_visible_and_requires_explicit_acknowledgement():
 def test_overlap_is_fail_closed_until_boundary_is_explicit(overlap_seconds):
     first = _part("1", 0)
     second = _part("2", 1)
-    second_start = 60.0 - overlap_seconds
+    duration = max(60.0, overlap_seconds + 30.0)
+    second_start = duration - overlap_seconds
     workspace = _workspace([first, second], authority="manual")
     facts = {
-        **_facts(first, start_time=None, duration=60.0),
-        **_facts(second, start_time=None, duration=60.0),
+        **_facts(first, start_time=None, duration=duration),
+        **_facts(second, start_time=None, duration=duration),
     }
     workspace["parts"][0]["manual_offset_seconds"] = 0.0
     workspace["parts"][1]["manual_offset_seconds"] = second_start
@@ -209,20 +210,21 @@ def test_ambiguous_opaque_and_missing_clocks_never_place_without_manual_offset()
 
 
 def test_manual_order_can_override_a_trusted_suggestion_without_mutating_source_clock():
-    first = _part("1", 0, offset=60.0)
-    second = _part("2", 1, offset=0.0)
+    first = _part("1", 0, offset=0.0)
+    second = _part("2", 1, offset=30.0)
     workspace = _workspace([first, second], authority="manual")
     facts = {
-        **_facts(first, start_time="2026-09-27T20:00:00Z", duration=30.0),
-        **_facts(second, start_time="2026-09-27T20:01:00Z", duration=30.0),
+        **_facts(first, start_time="2026-09-27T20:01:00Z", duration=30.0),
+        **_facts(second, start_time="2026-09-27T20:00:00Z", duration=30.0),
     }
     before = deepcopy(facts)
 
     timeline = build_session_timeline(workspace, facts)
 
     assert timeline["order"]["state"] == "manual"
-    assert timeline["order"]["suggested_part_ids"] == [first["part_id"], second["part_id"]]
+    assert timeline["order"]["suggested_part_ids"] == [second["part_id"], first["part_id"]]
     assert timeline["parts"][0]["placement_authority"] == "manual"
+    assert timeline["relations"][0]["kind"] == "contiguous"
     assert facts == before
 
 
