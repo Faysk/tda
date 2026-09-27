@@ -1,6 +1,6 @@
 .card {
-	margin-block: 10px;
-	padding: 14px;
+	margin-block: 6px;
+	padding: 12px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-lg);
 	background: var(--ds-surface);
@@ -12,8 +12,8 @@
 	display: flex;
 	align-items: end;
 	justify-content: space-between;
-	gap: 14px;
-	margin-bottom: 12px;
+	gap: 10px;
+	margin-bottom: 8px;
 }
 
 .heading span,
@@ -45,7 +45,7 @@
 
 .form {
 	display: grid;
-	gap: 10px;
+	gap: 7px;
 	min-width: 0;
 }
 
@@ -83,10 +83,10 @@
 .dropAction {
 	display: flex;
 	width: 100%;
-	min-height: 86px;
+	min-height: 60px;
 	align-items: center;
-	gap: 12px;
-	padding: 13px;
+	gap: 10px;
+	padding: 8px 10px;
 	border: 0;
 	border-radius: inherit;
 	background: transparent;
@@ -112,9 +112,9 @@
 
 .dropGlyph {
 	display: grid;
-	width: 42px;
-	height: 42px;
-	flex: 0 0 42px;
+	width: 36px;
+	height: 36px;
+	flex: 0 0 36px;
 	place-items: center;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-sm);
@@ -175,7 +175,8 @@
 
 .identityGrid {
 	display: grid;
-	grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1fr);
+	grid-template-columns: minmax(170px, 0.85fr) minmax(210px, 1fr) auto;
+	align-items: end;
 	gap: 8px;
 }
 
@@ -219,7 +220,7 @@
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
-	padding: 8px 9px;
+	padding: 6px 2px;
 	border-block: 1px solid var(--ds-border-subtle);
 }
 
@@ -233,8 +234,42 @@
 }
 
 .profileSummary small {
-	max-width: 210px;
+	max-width: 260px;
 	text-align: right;
+}
+
+.profileMeta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+}
+
+.profileMeta :global(.ds-action) {
+	flex: 0 0 auto;
+}
+
+.identityGrid label > small {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.metaRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	padding-top: 4px;
 }
 
 .estimatePanel {
@@ -342,7 +377,7 @@
 }
 
 .submitRow :global(.ds-action) {
-	min-width: 150px;
+	min-width: 154px;
 }
 
 .budgetWarning {
@@ -352,9 +387,10 @@
 }
 
 .privacy {
-	display: grid;
-	gap: 4px;
-	padding-top: 2px;
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding-top: 0;
 }
 
 .privacy > strong {
@@ -384,15 +420,15 @@
 }
 
 .advanced {
-	border-top: 1px solid var(--ds-border-subtle);
+	border-top: 0;
 }
 
 .advanced summary {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	min-height: 32px;
-	padding: 6px 2px 0;
+	min-height: 28px;
+	padding: 0 2px;
 	color: var(--ds-foreground-soft);
 	cursor: pointer;
 	font-size: 0.72rem;
@@ -456,8 +492,8 @@
 }
 
 .card[data-layout="compact"] .dropAction {
-	min-height: 70px;
-	padding: 10px;
+	min-height: 58px;
+	padding: 8px 10px;
 }
 
 .card[data-layout="compact"] .identityGrid,
@@ -470,7 +506,9 @@
 }
 
 .card[data-layout="compact"] .profileSummary,
-.card[data-layout="compact"] .submitRow {
+.card[data-layout="compact"] .profileMeta,
+.card[data-layout="compact"] .submitRow,
+.card[data-layout="compact"] .metaRow {
 	align-items: stretch;
 	flex-direction: column;
 }
@@ -510,7 +548,9 @@
 	}
 
 	.profileSummary,
+	.profileMeta,
 	.submitRow,
+	.metaRow,
 	.readiness,
 	.blocked {
 		align-items: stretch;
@@ -527,7 +567,7 @@
 	}
 
 	.dropAction {
-		min-height: 78px;
+		min-height: 68px;
 	}
 }
 
