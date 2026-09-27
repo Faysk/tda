@@ -682,3 +682,55 @@ def test_local_run_delete_is_exact_idempotent_and_clears_queue_pointer(tmp_path:
         )
         assert repeated.status_code == 200
         assert repeated.json()["operation_id"] == body["operation_id"]
+
+
+def test_local_run_delete_rejects_source_owned_by_running_job(tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    json_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/json",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="delete-busy-source-job",
+        )
+        manifest = write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+
+        response = client.post(
+            f"/api/v1/sources/{source_id}/runs/{manifest['run_id']}/delete",
+            headers=json_headers,
+            json={
+                "transcript_sha256": manifest["transcript_sha256"],
+                "operation_id": "88888888-8888-4888-8888-888888888888",
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json()["error"] == {
+            "code": "TRANSCRIPTION_RUN_DELETE_SOURCE_BUSY",
+            "recoverable": True,
+        }
+        assert (package_root / "runs" / manifest["run_id"] / "run.json").is_file()
+        assert store.get(job["id"])["status"] == "running"

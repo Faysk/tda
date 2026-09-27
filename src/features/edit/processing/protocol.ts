@@ -20,6 +20,13 @@ export type TranscriptionProfileState = {
 	ready: boolean;
 	preparationRequired: boolean;
 	reason: string | null;
+	model?: string | null;
+	modelRevision?: string | null;
+	runtimeVersion?: string | null;
+	runtimeWorkerSha256?: string | null;
+	computeType?: string | null;
+	gpuModel?: string | null;
+	gpuComputeCapability?: string | null;
 };
 export type Capabilities = {
 	capabilities: string[];
@@ -51,6 +58,8 @@ export type CraigSource = {
 	sourceSha256: string;
 	sizeBytes: number;
 	trackCount: number;
+	audioWorkSeconds: number | null;
+	sessionDurationSeconds: number | null;
 	reused: boolean;
 };
 export type CraigBenchmarkInput = {
@@ -81,6 +90,8 @@ export type JobContext = {
 	sessionId: string;
 	sourceId: string;
 	profileId?: TranscriptionProfileId;
+	audioWorkSeconds?: number | null;
+	trackDurationsSeconds?: readonly number[];
 	sampleIdentitySha256?: string | null;
 	sampleSeconds?: number | null;
 	profiles?: readonly TranscriptionProfileId[];
@@ -570,6 +581,16 @@ export function parseCapabilities(value: unknown): Capabilities {
 					ready: boolean(item.ready),
 					preparationRequired: boolean(item.preparation_required),
 					reason,
+					model: nullableText(item.model, 256),
+					modelRevision: nullableText(item.model_revision, 128),
+					runtimeVersion: nullableText(item.runtime_version, 64),
+					runtimeWorkerSha256:
+						item.runtime_worker_sha256 === null || item.runtime_worker_sha256 === undefined
+							? null
+							: sha256(item.runtime_worker_sha256),
+					computeType: nullableText(item.compute_type, 64),
+					gpuModel: nullableText(item.gpu_model, 160),
+					gpuComputeCapability: nullableText(item.gpu_compute_capability, 32),
 				};
 			});
 			if (new Set(catalog.map((item) => item.id)).size !== catalog.length)
@@ -672,6 +693,8 @@ export function parseCraigSource(value: unknown): CraigSource {
 		sourceSha256,
 		sizeBytes,
 		trackCount,
+		audioWorkSeconds: nullableNonNegativeNumber(row.audio_work_seconds),
+		sessionDurationSeconds: nullableNonNegativeNumber(row.session_duration_seconds),
 		reused: boolean(row.reused),
 	};
 }
@@ -711,10 +734,22 @@ export function parseJob(value: unknown): LocalJob {
 	let context: JobContext | null = null;
 	if (row.context !== undefined && row.context !== null) {
 		const rawContext = record(row.context);
+		const rawDurations = rawContext.track_durations_seconds;
+		let trackDurationsSeconds: readonly number[] | undefined;
+		if (rawDurations !== undefined) {
+			if (!Array.isArray(rawDurations) || rawDurations.length > 256)
+				return invalid();
+			trackDurationsSeconds = rawDurations.map(nonNegativeNumber);
+		}
 		const base = {
 			campaignId: identifier(rawContext.campaign_id),
 			sessionId: identifier(rawContext.session_id),
 			sourceId: identifier(rawContext.source_id),
+			audioWorkSeconds:
+				rawContext.audio_work_seconds === undefined
+					? undefined
+					: nullableNonNegativeNumber(rawContext.audio_work_seconds),
+			trackDurationsSeconds,
 		};
 		if (rawContext.profile_id !== undefined && rawContext.profile_id !== null) {
 			context = { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
