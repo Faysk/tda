@@ -137,11 +137,24 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     ),
     "ASR_CHECKPOINT_SCAN_COMPLETED": _schema(
         "stage", "track_count", "aligned_reused", "text_reused",
-        "text_compat_reused", "pending_asr", "duration_ms",
+        "text_compat_reused", "text_prefix_windows_reused", "pending_asr", "duration_ms",
         required=(
             "stage", "track_count", "aligned_reused", "text_reused",
             "pending_asr", "duration_ms",
         ),
+    ),
+    "ASR_TEXT_PREFIX_CHECKPOINT_REUSED": _schema(
+        *_TRACK, "reused_window_count",
+        required=("stage", "track", "total_tracks", "speaker", "reused_window_count"),
+    ),
+    "ASR_TEXT_PREFIX_CHECKPOINT_SAVED": _schema(
+        *_TRACK, "durable_window_count",
+        required=("stage", "track", "total_tracks", "speaker", "durable_window_count"),
+    ),
+    "ASR_TEXT_PREFIX_CHECKPOINT_WRITE_SKIPPED": _schema(
+        *_TRACK,
+        required=("stage", "track", "total_tracks", "speaker"),
+        level="warning",
     ),
     "QWEN_WINDOW_TRANSCRIBED": _schema(
         *_TRACK, "window", "completed_window_count", "start_seconds", "end_seconds",
@@ -212,6 +225,7 @@ _POSITIVE_INT_FIELDS = frozenset(
 _NONNEGATIVE_INT_FIELDS = frozenset(
     {
         "window", "aligned_reused", "text_reused", "text_compat_reused",
+        "text_prefix_windows_reused", "reused_window_count", "durable_window_count",
         "pending_asr", "aligned_item", "aligned_word_count", "owned_word_count",
         "completed_window_count", "completed_segment_count",
     }

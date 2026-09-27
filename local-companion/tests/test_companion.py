@@ -289,7 +289,12 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
                 "units": 1,
             },
         )
-        app.state.worker_wake.set()
+        wake = live.post(
+            "/api/v1/lifecycle",
+            headers=HEADERS,
+            json={"action": "resume"},
+        )
+        assert wake.status_code == 200
         assert emitted.wait(10.0)
         deadline = time.monotonic() + 5.0
         state = None

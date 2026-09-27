@@ -49,6 +49,12 @@ from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten
 from .craig import CraigPackage, CraigPackageError, CraigTrack
 from .qwen_acceptance import QwenPlan
 from .qwen_checkpoint_compat import load_compatible_qwen_text_checkpoint
+from .qwen_prefix_checkpoint import (
+    clear_qwen_text_prefix_checkpoint,
+    load_qwen_text_prefix_checkpoint,
+    save_qwen_text_prefix_checkpoint,
+    should_flush_qwen_text_prefix,
+)
 from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment, TranscriptTrack, TranscriptWord, stats_for_tracks
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
@@ -573,6 +579,8 @@ def transcribe_craig_package_qwen_strict(
     asr_tracks = []
     text_checkpoint_reused = 0
     text_checkpoint_compat_reused = 0
+    text_prefixes: dict[int, tuple[QwenTextCheckpointWindow, ...]] = {}
+    text_prefix_window_reused = 0
     compatibility_warnings: set[str] = set()
     for track in pending_tracks:
         if is_cancelled():
@@ -602,6 +610,26 @@ def transcribe_craig_package_qwen_strict(
                     f"runtime={compatible.source_runtime_version}"
                 )
         if cached_text is None:
+            prefix = (
+                load_qwen_text_prefix_checkpoint(package_root, signature, track)
+                if checkpoints
+                else None
+            )
+            if prefix:
+                verify_checkpoint_source_bytes(_safe_track_path(package_root, track), track)
+                text_prefixes[track.number] = prefix
+                text_prefix_window_reused += len(prefix)
+                report(
+                    {
+                        "type": "event",
+                        "code": "ASR_TEXT_PREFIX_CHECKPOINT_REUSED",
+                        "stage": "source_validation",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "speaker": track.speaker,
+                        "reused_window_count": len(prefix),
+                    }
+                )
             asr_tracks.append(track)
             continue
         # Reusing ASR text is much cheaper than retranscription, so pay one
@@ -654,6 +682,7 @@ def transcribe_craig_package_qwen_strict(
             "track_count": total_tracks,
             "aligned_reused": len(cached_tracks),
             "text_reused": text_checkpoint_reused,
+            "text_prefix_windows_reused": text_prefix_window_reused,
             **(
                 {"text_compat_reused": text_checkpoint_compat_reused}
                 if text_checkpoint_compat_reused
@@ -684,10 +713,32 @@ def transcribe_craig_package_qwen_strict(
                         "speaker": track.speaker,
                     }
                 )
-                values: list[QwenWindowTranscript] = []
+                prefix = text_prefixes.get(track.number, ())
+                values: list[QwenWindowTranscript] = [
+                    QwenWindowTranscript(
+                        index=item.index,
+                        start=item.start,
+                        end=item.end,
+                        text=item.text,
+                        language=item.language,
+                    )
+                    for item in prefix
+                ]
+                fresh_window_count = 0
                 for window in window_reader(source):
                     if is_cancelled():
                         raise QwenRuntimeError("ASR_CANCELLED")
+                    if window.index <= len(prefix):
+                        persisted = prefix[window.index - 1]
+                        if (
+                            persisted.index != window.index
+                            or not math.isclose(persisted.start, window.start, abs_tol=0.001)
+                            or not math.isclose(persisted.end, window.end, abs_tol=0.001)
+                        ):
+                            raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_MISMATCH")
+                        continue
+                    if window.index != len(values) + 1:
+                        raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_GAP")
                     text, language = asr_session.transcribe(window.audio, prompt=prompt)
                     values.append(
                         QwenWindowTranscript(
@@ -698,6 +749,7 @@ def transcribe_craig_package_qwen_strict(
                             language=language or "Portuguese",
                         )
                     )
+                    fresh_window_count += 1
                     report(
                         {
                             "type": "event",
@@ -712,9 +764,48 @@ def transcribe_craig_package_qwen_strict(
                             "end_seconds": window.end,
                         }
                     )
+                    if checkpoints and should_flush_qwen_text_prefix(len(values)):
+                        try:
+                            save_qwen_text_prefix_checkpoint(
+                                package_root,
+                                signature,
+                                track,
+                                (
+                                    QwenTextCheckpointWindow(
+                                        index=item.index,
+                                        start=item.start,
+                                        end=item.end,
+                                        text=item.text,
+                                        language=item.language,
+                                    )
+                                    for item in values
+                                ),
+                            )
+                            report(
+                                {
+                                    "type": "event",
+                                    "code": "ASR_TEXT_PREFIX_CHECKPOINT_SAVED",
+                                    "stage": "transcription",
+                                    "track": track.number,
+                                    "total_tracks": total_tracks,
+                                    "speaker": track.speaker,
+                                    "durable_window_count": len(values),
+                                }
+                            )
+                        except (OSError, ValueError):
+                            report(
+                                {
+                                    "type": "event",
+                                    "code": "ASR_TEXT_PREFIX_CHECKPOINT_WRITE_SKIPPED",
+                                    "stage": "transcription",
+                                    "track": track.number,
+                                    "total_tracks": total_tracks,
+                                    "speaker": track.speaker,
+                                }
+                            )
                 if not values:
                     raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
-                fresh_window_counts[track.number] = len(values)
+                fresh_window_counts[track.number] = fresh_window_count
                 pending_text[track.number] = values
                 if checkpoints:
                     try:
@@ -733,6 +824,7 @@ def transcribe_craig_package_qwen_strict(
                                 for item in values
                             ),
                         )
+                        clear_qwen_text_prefix_checkpoint(package_root, signature, track)
                         report(
                             {
                                 "type": "event",
