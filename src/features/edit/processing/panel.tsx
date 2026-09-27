@@ -498,9 +498,10 @@ export function ProcessingPanel({
 		activeJob && state.observedJobId === activeJob.id
 			? eventTrackContext(state.events, activeJob.attempt)
 			: null;
+	const barkCatalog = activityPackCatalog(activityPacks);
 	const activeActivity =
 		activeJob && state.observedJobId === activeJob.id
-			? latestActivity(state.events, activeJob, state.system)
+			? latestActivity(state.events, activeJob, state.system, barkCatalog)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 	const canDeleteRuns = supportsCompletedRunDelete(state.health?.service_version);
