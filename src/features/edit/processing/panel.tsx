@@ -1208,6 +1208,7 @@ export function ProcessingPanel({
 									system={state.system}
 									live={observedJobLive}
 									stale={Boolean(state.eventsRefreshError)}
+									activityBarkCatalog={barkCatalog}
 								/>
 							) : null}
 
