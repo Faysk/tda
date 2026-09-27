@@ -1075,7 +1075,9 @@ export function ProcessingPanel({
 									</h2>
 								</div>
 							</div>
-							<details className={styles.systemDetails}>
+							<div className={styles.diagnosticsCore} data-diagnostics-core="true">
+								<div className={styles.diagnosticsSummaryRail} data-diagnostics-summary="true">
+									<details className={styles.systemDetails}>
 								<summary>Companion e máquina</summary>
 								<dl className={styles.jobDetails}>
 									<div>
@@ -1164,16 +1166,20 @@ export function ProcessingPanel({
 								</p>
 							)}
 
-							{observedJob ? (
-								<ProcessingLiveLog
+								</div>
+								<div className={styles.diagnosticsEventPane} data-diagnostics-events="true">
+									{observedJob ? (
+										<ProcessingLiveLog
 									events={state.events}
 									job={observedJob}
 									system={state.system}
 									live={observedJobLive}
 									stale={Boolean(state.eventsRefreshError)}
-									activityCatalog={activityCatalog}
-								/>
-							) : null}
+										activityCatalog={activityCatalog}
+										/>
+									) : null}
+								</div>
+							</div>
 
 							{activityBarksManage && activityPackScope ? (
 								<ActivityPackAdmin scope={activityPackScope} />
