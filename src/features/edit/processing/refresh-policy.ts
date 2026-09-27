@@ -12,3 +12,9 @@ export const PROCESSING_REFRESH_POLICY = {
 	idleDeepRefreshMs: 30_000,
 	capabilitiesPollMs: 30_000,
 } as const;
+
+export function processingPollMs(hasActiveWork: boolean): number {
+	return hasActiveWork
+		? PROCESSING_REFRESH_POLICY.activePollMs
+		: PROCESSING_REFRESH_POLICY.idlePollMs;
+}
