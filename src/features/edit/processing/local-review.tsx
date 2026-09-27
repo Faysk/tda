@@ -15,7 +15,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
-import { browserPublicationRecovery, PublicationRecoveryError, type PublicationConfirmation } from "./publication-recovery";
+import { browserHasPendingPublicationForRun, browserPublicationRecovery, PublicationRecoveryError, type PublicationConfirmation } from "./publication-recovery";
 import { ReviewConflicts } from "./review-conflicts";
 import { prepareReviewRebase, resolveReviewRebase, type ReviewRebase } from "./review-rebase";
 import { ParticipantManager } from "./participant-manager";
@@ -33,6 +33,11 @@ type Props = Readonly<{
 	error: string | null;
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
+	onDelete: (
+		sourceId: string,
+		runId: string,
+		transcriptSha256: string,
+	) => void | Promise<void>;
 	onSave: (
 		baseline: LocalReview,
 		status: LocalReviewStatus,
@@ -189,10 +194,12 @@ function RunCard({
 	run,
 	busy,
 	onOpen,
+	onDelete,
 }: Readonly<{
 	run: LocalRunSummary;
 	busy: boolean;
 	onOpen: () => void;
+	onDelete: () => void;
 }>) {
 	const model = [run.engine, run.model].filter(Boolean).join(" · ") || "modelo desconhecido";
 	const measured = run.stats.processingMetrics;
@@ -254,9 +261,17 @@ function RunCard({
 					<span>Sem destino cloud vinculado</span>
 				)}
 			</div>
-			<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
-				Revisar resultado
-			</Button>
+			<div className={styles.runActions}>
+				<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
+					Revisar resultado
+				</Button>
+				<details className={styles.runMore}>
+					<summary aria-label="Mais ações para este resultado">•••</summary>
+					<button type="button" disabled={busy} onClick={onDelete}>
+						Excluir resultado local…
+					</button>
+				</details>
+			</div>
 		</article>
 	);
 }
@@ -812,6 +827,7 @@ export function LocalReviewWorkspace({
 	error,
 	publicationEnabled,
 	onOpen,
+	onDelete,
 	onSave,
 	onClose,
 	onPublish,
@@ -823,6 +839,8 @@ export function LocalReviewWorkspace({
 	const [reviewFilter, setReviewFilter] = useState("all");
 	const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "fastest">("newest");
 	const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null);
+	const [deleteCandidate, setDeleteCandidate] = useState<LocalRunSummary | null>(null);
+	const [deleteGuardError, setDeleteGuardError] = useState<string | null>(null);
 	const filteredRuns = useMemo(() => {
 		const query = libraryQuery.trim().toLocaleLowerCase("pt-BR");
 		const values = runs.filter((run) => {
@@ -1013,12 +1031,70 @@ export function LocalReviewWorkspace({
 									run={selectedRun}
 									busy={busy}
 									onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
+									onDelete={() => {
+										setDeleteGuardError(null);
+										try {
+											if (browserHasPendingPublicationForRun(selectedRun.sourceId, selectedRun.runId)) {
+												setDeleteGuardError(
+													"Existe uma publicação pendente para este resultado. Reconcilie ou abandone essa operação antes de excluir o arquivo local.",
+												);
+												return;
+											}
+											setDeleteCandidate(selectedRun);
+										} catch {
+											setDeleteGuardError(
+												"Não foi possível verificar publicações pendentes neste navegador. A exclusão foi bloqueada por segurança.",
+											);
+										}
+									}}
 								/>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
 							)}
 						</div>
 					</div>
+					{deleteGuardError ? (
+						<p className={styles.error} role="alert">{deleteGuardError}</p>
+					) : null}
+					{deleteCandidate ? (
+						<dialog open className={styles.deleteDialog} aria-labelledby="delete-local-run-title">
+							<h3 id="delete-local-run-title">Excluir resultado local?</h3>
+							<p>
+								<strong>{deleteCandidate.profileId}</strong> · {formatDate(deleteCandidate.completedAt)}
+							</p>
+							<p>
+								Isso remove deste computador o transcript, a revisão local e os metadados derivados deste run.
+								A fonte Craig, outros resultados e qualquer revisão já publicada no TDA não serão removidos.
+							</p>
+							{deleteCandidate.publicationTarget ? (
+								<p>
+									Este resultado possui um destino cloud vinculado. Excluir localmente não desfaz publicação nem altera dados na nuvem.
+								</p>
+							) : null}
+							<div className={styles.deleteDialogActions}>
+								<Button
+									disabled={busy}
+									onClick={() => setDeleteCandidate(null)}
+								>
+									Voltar
+								</Button>
+								<Button
+									variant="primary"
+									disabled={busy}
+									onClick={async () => {
+										await onDelete(
+											deleteCandidate.sourceId,
+											deleteCandidate.runId,
+											deleteCandidate.transcriptSha256,
+										);
+										setDeleteCandidate(null);
+									}}
+								>
+									Excluir resultado local
+								</Button>
+							</div>
+						</dialog>
+					) : null}
 				</>
 			) : (
 				<p className={styles.emptyCompact}>
