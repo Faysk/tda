@@ -168,3 +168,159 @@ def test_reorder_requires_exact_part_set_and_current_revision(tmp_path):
         store.detach_session_part(
             "campaign-a", "session-a", reordered["parts"][0]["part_id"], workspace["revision"]
         )
+
+
+
+def test_timeline_override_persists_across_restart_and_uses_workspace_cas(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-a", "session-a")
+    workspace = store.attach_session_source(
+        "campaign-a", "session-a", source_id(1), workspace["revision"]
+    )
+    workspace = store.attach_session_source(
+        "campaign-a", "session-a", source_id(2), workspace["revision"]
+    )
+    first, second = workspace["parts"]
+
+    placed_first = store.update_session_part_timeline(
+        "campaign-a",
+        "session-a",
+        first["part_id"],
+        workspace["revision"],
+        session_offset_seconds=0.0,
+        trim_start_seconds=0.0,
+        trim_end_seconds=60.0,
+        gap_confirmed=False,
+        overlap_resolution=None,
+        overlap_boundary_seconds=None,
+    )
+    placed_second = store.update_session_part_timeline(
+        "campaign-a",
+        "session-a",
+        second["part_id"],
+        placed_first["revision"],
+        session_offset_seconds=75.0,
+        trim_start_seconds=5.0,
+        trim_end_seconds=65.0,
+        gap_confirmed=True,
+        overlap_resolution=None,
+        overlap_boundary_seconds=None,
+    )
+
+    assert placed_second["revision"] == workspace["revision"] + 2
+    configured = placed_second["parts"][1]
+    assert configured["session_offset_seconds"] == 75.0
+    assert configured["trim_start_seconds"] == 5.0
+    assert configured["trim_end_seconds"] == 65.0
+    assert configured["gap_confirmed"] is True
+    assert configured["chronology_version"] == "tda_recording_chronology_v1"
+
+    restarted = Store(tmp_path)
+    recovered = restarted.session_workspace("campaign-a", "session-a")
+    assert recovered["revision"] == placed_second["revision"]
+    assert recovered["parts"][1]["session_offset_seconds"] == 75.0
+    assert recovered["parts"][1]["trim_start_seconds"] == 5.0
+    assert recovered["parts"][1]["trim_end_seconds"] == 65.0
+    assert recovered["parts"][1]["gap_confirmed"] is True
+
+    same = restarted.update_session_part_timeline(
+        "campaign-a",
+        "session-a",
+        second["part_id"],
+        recovered["revision"],
+        session_offset_seconds=75.0,
+        trim_start_seconds=5.0,
+        trim_end_seconds=65.0,
+        gap_confirmed=True,
+        overlap_resolution=None,
+        overlap_boundary_seconds=None,
+    )
+    assert same["revision"] == recovered["revision"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        restarted.update_session_part_timeline(
+            "campaign-a",
+            "session-a",
+            first["part_id"],
+            workspace["revision"],
+            session_offset_seconds=0.0,
+            trim_start_seconds=0.0,
+            trim_end_seconds=60.0,
+            gap_confirmed=False,
+            overlap_resolution=None,
+            overlap_boundary_seconds=None,
+        )
+
+
+def test_overlap_resolution_requires_versioned_mode_and_boundary_pair(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-a", "session-a")
+    workspace = store.attach_session_source(
+        "campaign-a", "session-a", source_id(1), workspace["revision"]
+    )
+    part_id = workspace["parts"][0]["part_id"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID"):
+        store.update_session_part_timeline(
+            "campaign-a",
+            "session-a",
+            part_id,
+            workspace["revision"],
+            session_offset_seconds=0.0,
+            trim_start_seconds=0.0,
+            trim_end_seconds=None,
+            gap_confirmed=False,
+            overlap_resolution="prefer_later_from",
+            overlap_boundary_seconds=None,
+        )
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID"):
+        store.update_session_part_timeline(
+            "campaign-a",
+            "session-a",
+            part_id,
+            workspace["revision"],
+            session_offset_seconds=0.0,
+            trim_start_seconds=0.0,
+            trim_end_seconds=None,
+            gap_confirmed=False,
+            overlap_resolution="fuzzy_magic",
+            overlap_boundary_seconds=10.0,
+        )
+
+    resolved = store.update_session_part_timeline(
+        "campaign-a",
+        "session-a",
+        part_id,
+        workspace["revision"],
+        session_offset_seconds=0.0,
+        trim_start_seconds=0.0,
+        trim_end_seconds=None,
+        gap_confirmed=False,
+        overlap_resolution="prefer_earlier_until",
+        overlap_boundary_seconds=10.0,
+    )
+    assert resolved["parts"][0]["overlap_resolution"] == "prefer_earlier_until"
+    assert resolved["parts"][0]["overlap_boundary_seconds"] == 10.0
+
+
+def test_store_upgrades_v10_session_workspace_schema_to_v11_without_losing_parts(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-a", "session-a")
+    workspace = store.attach_session_source(
+        "campaign-a", "session-a", source_id(1), workspace["revision"]
+    )
+    part_id = workspace["parts"][0]["part_id"]
+
+    with sqlite3.connect(store.path) as db:
+        db.execute("PRAGMA user_version=10")
+        db.commit()
+
+    migrated = Store(tmp_path)
+    recovered = migrated.session_workspace("campaign-a", "session-a")
+    assert recovered["parts"][0]["part_id"] == part_id
+    assert recovered["parts"][0]["session_offset_seconds"] is None
+    assert recovered["parts"][0]["trim_start_seconds"] == 0
+    assert recovered["parts"][0]["chronology_version"] == "tda_recording_chronology_v1"
+    with sqlite3.connect(migrated.path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 11
