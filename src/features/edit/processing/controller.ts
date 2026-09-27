@@ -834,6 +834,30 @@ export class ProcessingController {
 		);
 	};
 
+	loadLocalRunSnapshot = async (sourceId: string, runId: string) => {
+		if (this.#state.connection !== "connected")
+			throw new BridgeError("invalid_response");
+		const run = this.#state.localRuns.find(
+			(candidate) =>
+				candidate.sourceId === sourceId && candidate.runId === runId,
+		);
+		if (!run) throw new BridgeError("invalid_response");
+		const snapshot = await this.bridge.localRunSnapshot(
+			sourceId,
+			runId,
+			this.#request.signal,
+		);
+		if (
+			this.#request.signal.aborted ||
+			snapshot.sourceId !== sourceId ||
+			snapshot.runId !== runId ||
+			snapshot.baseTranscriptSha256 !== run.transcriptSha256 ||
+			snapshot.persistence !== "ephemeral_base"
+		)
+			throw new BridgeError("invalid_response");
+		return snapshot;
+	};
+
     loadLatestLocalReview = async () => {
         const current = this.#state.localReview;
         const epoch = this.#epoch;
