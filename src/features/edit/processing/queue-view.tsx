@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
@@ -14,6 +14,7 @@ import type { LocalJob } from "./protocol";
 import {
 	type QueueFilter,
 	type QueueSort,
+	compactQueueId,
 	queueFilterCount,
 	queueFilters,
 	queuePrimaryIdentity,
@@ -153,11 +154,22 @@ export function ProcessingQueueView({
 	const [expanded, setExpanded] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
-	const [copiedId, setCopiedId] = useState<string | null>(null);
+	const [copyFeedback, setCopyFeedback] = useState<
+		Readonly<{ kind: "success" | "error"; jobId: string }> | null
+	>(null);
+	const copyFeedbackTimer = useRef<number | null>(null);
 
 	useEffect(() => {
 		if (resetSearchKey > 0) setQuery("");
 	}, [resetSearchKey]);
+
+	useEffect(
+		() => () => {
+			if (copyFeedbackTimer.current !== null)
+				window.clearTimeout(copyFeedbackTimer.current);
+		},
+		[],
+	);
 
 	const rows = useMemo(
 		() => selectQueueJobs(jobs, filter, query, sort),
@@ -173,15 +185,24 @@ export function ProcessingQueueView({
 		});
 	}
 
+	function showCopyFeedback(
+		feedback: Readonly<{ kind: "success" | "error"; jobId: string }>,
+	) {
+		if (copyFeedbackTimer.current !== null)
+			window.clearTimeout(copyFeedbackTimer.current);
+		setCopyFeedback(feedback);
+		copyFeedbackTimer.current = window.setTimeout(() => {
+			setCopyFeedback(null);
+			copyFeedbackTimer.current = null;
+		}, 2400);
+	}
+
 	async function copyId(jobId: string) {
 		try {
 			await navigator.clipboard.writeText(jobId);
-			setCopiedId(jobId);
-			window.setTimeout(() => {
-				setCopiedId((current) => (current === jobId ? null : current));
-			}, 1600);
+			showCopyFeedback({ kind: "success", jobId });
 		} catch {
-			setCopiedId(null);
+			showCopyFeedback({ kind: "error", jobId });
 		}
 	}
 
@@ -238,9 +259,15 @@ export function ProcessingQueueView({
 				</span>
 			</div>
 
-			{copiedId ? (
-				<p className={styles.srStatus} role="status">
-					ID {copiedId} copiado.
+			{copyFeedback ? (
+				<p
+					className={styles.copyFeedback}
+					data-tone={copyFeedback.kind}
+					role={copyFeedback.kind === "error" ? "alert" : "status"}
+				>
+					{copyFeedback.kind === "success"
+						? `ID ${compactQueueId(copyFeedback.jobId)} copiado.`
+						: "Não foi possível copiar o ID. Abra Detalhes e copie manualmente."}
 				</p>
 			) : null}
 
