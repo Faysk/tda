@@ -329,23 +329,23 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'cover_not_ready');
   end if;
 
+  -- Length-prefixed UTF-8 identity is deliberately simple to reproduce in
+  -- Node without depending on json/jsonb whitespace or key ordering.
   v_computed_sha256 := encode(
     extensions.digest(
       convert_to(
-        jsonb_build_object(
-          'schemaVersion', 'tda_session_publication_payload_v1',
-          'sessionId', v_session.id,
-          'draftId', v_draft.id,
-          'draftRevision', v_draft.revision,
-          'transcriptRevisionId', v_transcript_revision_id,
-          'coverAssetId', v_cover_asset_id,
-          'coverPublicUrl', v_cover_public_url,
-          'coverSha256', v_cover_sha256,
-          'arc', v_draft.arc,
-          'title', v_draft.title,
-          'summaryShort', v_draft.summary_short,
-          'summaryFull', v_draft.summary_full
-        )::text,
+        'tda_session_publication_payload_v1|' ||
+        octet_length(v_session.id::text)::text || '#' || v_session.id::text ||
+        octet_length(v_draft.id::text)::text || '#' || v_draft.id::text ||
+        octet_length(v_draft.revision::text)::text || '#' || v_draft.revision::text ||
+        octet_length(v_transcript_revision_id::text)::text || '#' || v_transcript_revision_id::text ||
+        octet_length(v_cover_asset_id::text)::text || '#' || v_cover_asset_id::text ||
+        octet_length(v_cover_public_url)::text || '#' || v_cover_public_url ||
+        octet_length(v_cover_sha256)::text || '#' || v_cover_sha256 ||
+        octet_length(v_draft.arc)::text || '#' || v_draft.arc ||
+        octet_length(v_draft.title)::text || '#' || v_draft.title ||
+        octet_length(v_draft.summary_short)::text || '#' || v_draft.summary_short ||
+        octet_length(v_draft.summary_full)::text || '#' || v_draft.summary_full,
         'UTF8'
       ),
       'sha256'
