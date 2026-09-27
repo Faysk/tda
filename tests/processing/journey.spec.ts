@@ -69,7 +69,6 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	for (const locator of [
 		page.getByText("Nova transcrição Craig", { exact: true }),
 		commandBar,
-		page.getByText("Processando agora", { exact: true }),
 	]) {
 		const box = await locator.boundingBox();
 		expect(box).not.toBeNull();
@@ -228,7 +227,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
-	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await page.getByRole("button", { name: "Preparar profile" }).click();
 
 	await expect
 		.poll(() => state.uploadCount)
