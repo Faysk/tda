@@ -32,7 +32,10 @@ import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
-import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
+import {
+	PROCESSING_REFRESH_POLICY,
+	processingPollMs,
+} from "./refresh-policy";
 import {
 	jobLabels,
 	presentConnectionError,
@@ -338,9 +341,7 @@ export function ProcessingPanel({
 	useEffect(() => {
 		if (state.connection !== "connected" || state.mutation) return;
 		const hasActiveWork = state.jobs.some((job) => job.status === "running");
-		const delay = hasActiveWork
-			? PROCESSING_REFRESH_POLICY.activePollMs
-			: PROCESSING_REFRESH_POLICY.idlePollMs;
+		const delay = processingPollMs(hasActiveWork);
 		const timer = window.setTimeout(() => {
 			if (document.visibilityState === "visible")
 				void controller.refresh("background");
@@ -562,6 +563,7 @@ export function ProcessingPanel({
 				queuedCount={queued.length}
 				attentionCount={attention.length}
 				refreshing={state.refreshing}
+				expectedSampleMs={processingPollMs(running.length > 0)}
 				pendingLifecycle={
 					state.mutation?.kind === "pause" || state.mutation?.kind === "resume"
 						? state.mutation.kind
@@ -752,6 +754,7 @@ export function ProcessingPanel({
 													ariaLabel={`Progresso por ${progressUnitLabel(activeJob)} do trabalho ${activeJob.id}: ${progressCopy(activeJob)}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
+													expectedSampleMs={processingPollMs(true)}
 													valueText={progressCopy(activeJob)}
 												/>
 												<strong>Progresso por {progressUnitLabel(activeJob)} · {activePercent}%</strong>
