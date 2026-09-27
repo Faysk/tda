@@ -288,6 +288,86 @@ test("telemetry stale preserva o último snapshot e orienta sem zerar valores", 
 	await expect(commandBar).not.toContainText("Synthetic GPU · 0%");
 });
 
+test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobEvents: [
+			{
+				seq: 40,
+				code: "QWEN_WINDOW_TRANSCRIBED",
+				at: "2026-09-27T17:00:00Z",
+				level: "info",
+				attempt: 1,
+				data: {
+					track: 1,
+					total_tracks: 2,
+					speaker: "Faysk",
+					window: 205,
+					start_seconds: 100,
+					end_seconds: 130,
+				},
+			},
+			{
+				seq: 41,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-27T17:00:01Z",
+				level: "error",
+				attempt: 1,
+				data: {
+					track: 1,
+					window: 206,
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				},
+			},
+		],
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 82,
+					memoryUsedBytes: 5 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await expect(
+		page.getByText("Falha de alinhamento Qwen · faixa 1 · janela 206.", {
+			exact: true,
+		}),
+	).toBeVisible();
+
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	const log = page.getByRole("log");
+	await expect(
+		page.getByRole("button", { name: "Humanizada", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(log).not.toContainText(
+		"Qwen concluiu uma janela de áudio da faixa 1 · janela 205.",
+	);
+	await expect(log).toContainText(
+		"Falha de alinhamento Qwen · faixa 1 · janela 206.",
+	);
+
+	await page.getByRole("button", { name: "Técnica", exact: true }).click();
+	await expect(
+		page.getByRole("button", { name: "Técnica", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(log).toContainText(
+		"Qwen concluiu uma janela de áudio da faixa 1 · janela 205.",
+	);
+	await expect(log).toContainText(
+		"Falha de alinhamento Qwen · faixa 1 · janela 206.",
+	);
+});
+
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
