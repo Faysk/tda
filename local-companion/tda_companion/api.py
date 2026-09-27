@@ -1578,6 +1578,16 @@ def create_app(
                     if not whisper_model_ready(model):
                         raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
                 payload["units"] = len(package.tracks)
+                durations = [
+                    float(track.duration_seconds)
+                    for track in package.tracks
+                    if isinstance(track.duration_seconds, (int, float))
+                    and not isinstance(track.duration_seconds, bool)
+                    and track.duration_seconds >= 0
+                ]
+                if len(durations) == len(package.tracks):
+                    payload["audio_work_seconds"] = sum(durations)
+                    payload["track_durations_seconds"] = durations
                 value = store.submit(idempotency_key, payload)
         elif body.kind == "benchmark.craig":
             async with dispatch_gate:

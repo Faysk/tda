@@ -193,6 +193,45 @@ Os perfis executáveis vêm de `capabilities`:
 
 Qwen prepara runtime/modelos e executa o gate necessário antes do job. Para aceitação física, uma faixa Craig suficientemente longa pode gerar uma janela temporária de 180 s escolhida por energia; essa amostra é local e removida após o gate. O receipt do gate não deve carregar transcript integral.
 
+
+## Estimativa local calibrada de processamento
+
+Depois que o ZIP Craig é analisado/staged localmente, a Web pode apresentar uma
+faixa de duração por perfil usando o contrato `tda_processing_estimator_v1`.
+O denominador é `audio_work_seconds` (soma factual das durações das tracks), não
+a duração cronológica da sessão e não o percentual visual da fila.
+
+A calibração v1 é deliberadamente conservadora:
+
+- usa somente runs locais concluídos cuja métrica `engine_processing_v1` é
+  elegível como trabalho ASR fresh; runs legados ou com checkpoint reuse não
+  ensinam throughput fresh;
+- exige a mesma identidade de profile/engine/model/model revision/runtime,
+  bytes do worker, compute type e GPU/compute capability; quando UUID/PCI físico
+  está disponível, runs de outra placa com o mesmo nome também são excluídos;
+- dois runs fresh compatíveis tornam-se a fonte principal, limitada aos runs
+  recentes e com mediana/faixa robusta + rejeição de outlier; sem esses runs, um
+  benchmark compatível pode servir somente como prior bootstrap de confiança baixa;
+- preparação necessária aparece separadamente e não é escondida dentro de uma
+  promessa de tempo de download;
+- nenhum áudio, transcript, path ou telemetria de calibração precisa sair do
+  Companion/local browser para a cloud.
+
+O benchmark de cinco minutos continua sendo evidência exploratória separada, mas
+pode inicializar a estimativa quando ainda não existem dois runs fresh
+compatíveis. Esse prior é sempre rotulado com confiança baixa e não vira um voto
+permanente: um run fresh + benchmark continua baixa confiança; a partir de dois
+runs fresh compatíveis, os runs dominam e o benchmark deixa de compor a faixa.
+Assim, ordem, cache, warm state e thermal state de um único round sequencial não
+são promovidos silenciosamente a precisão alta.
+
+Durante um job, a faixa restante é recalculada a partir das durações das tracks
+ainda não concluídas. Ela não usa `elapsed / percent` e não trata um text
+checkpoint como se ASR + alignment já estivessem concluídos: somente trabalho
+factualmente fechado deixa o denominador restante. Até existir um modelo
+versionado de custo por stage em execução, a faixa é uma estimativa calibrada de
+trabalho de áudio restante, não ETA garantido de wall-clock.
+
 ## Progresso e dados editoriais
 
 A UI usa somente progresso que o Companion realmente reporta. `completed/total/unit` pode ser convertido em porcentagem quando esses valores existem; ausência de medida não vira estimativa.

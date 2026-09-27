@@ -14,6 +14,15 @@ async function selectCraig(page: import("@playwright/test").Page) {
 	});
 }
 
+async function analyzeCraig(page: import("@playwright/test").Page) {
+	const analyze = page.getByRole("button", { name: "Analisar ZIP localmente" });
+	await expect(analyze).toBeEnabled();
+	await analyze.click();
+	await expect(
+		page.getByRole("button", { name: /Adicionar à fila local|Preparar profile/u }),
+	).toBeVisible();
+}
+
 async function refresh(page: import("@playwright/test").Page) {
 	const button = page.getByRole("button", { name: "Atualizar estado" });
 	await expect(button).toBeEnabled();
@@ -123,7 +132,7 @@ test("known-buggy Qwen runtime stays blocked when compatible Stable is not publi
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Analisar ZIP localmente" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -160,7 +169,7 @@ test("known-buggy Qwen runtime offers update only when compatible Stable is publ
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Analisar ZIP localmente" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -198,7 +207,7 @@ test("Qwen runtime availability lookup failure stays blocked without inventing a
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Analisar ZIP localmente" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -227,6 +236,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
+	await analyzeCraig(page);
 	await page.getByRole("button", { name: "Preparar profile" }).click();
 
 	await expect
@@ -299,6 +309,7 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
+	await analyzeCraig(page);
 
 	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
 	await expect(page.getByRole("alert")).toContainText(
@@ -328,7 +339,7 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila local" }),
+		page.getByRole("button", { name: "Analisar ZIP localmente" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(
