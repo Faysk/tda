@@ -1182,6 +1182,14 @@ export function ProcessingPanel({
 								</div>
 							</div>
 
+							{state.uncertainSubmission ? (
+								<p className={styles.connectionError} role="alert">
+									A resposta desta tentativa não chegou. Reconecte e
+									consulte a fila antes de iniciar outra tentativa; a chave
+									desta aba será reutilizada.
+								</p>
+							) : null}
+
 							{(activityBarksManage && activityPackScope) ||
 							state.capabilities?.capabilities.includes("synthetic.fixture") ? (
 								<details className={styles.advancedTools}>
@@ -1222,14 +1230,6 @@ export function ProcessingPanel({
 										) : null}
 									</div>
 								</details>
-							) : null}
-
-							{state.uncertainSubmission ? (
-								<p className={styles.connectionError} role="alert">
-									A resposta desta tentativa não chegou. Reconecte e
-									consulte a fila antes de iniciar outra tentativa; a chave
-									desta aba será reutilizada.
-								</p>
 							) : null}
 						</aside>
 					</section>
