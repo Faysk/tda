@@ -177,7 +177,8 @@ export function selectActivityBark(
 	const recentFamily = options.recentFamilies?.at(-1) ?? null;
 	let candidates = catalog
 		.filter((item) => eligible(item, context, level))
-		.toSorted((left, right) => `${left.packId ?? CORE_ACTIVITY_PACK_ID}:${left.id}`.localeCompare(`${right.packId ?? CORE_ACTIVITY_PACK_ID}:${right.id}`));
+		.slice()
+		.sort((left, right) => `${left.packId ?? CORE_ACTIVITY_PACK_ID}:${left.id}`.localeCompare(`${right.packId ?? CORE_ACTIVITY_PACK_ID}:${right.id}`));
 	if (!candidates.length) return null;
 	const withoutRecent = candidates.filter((item) => {
 		const packId = item.packId ?? CORE_ACTIVITY_PACK_ID;
