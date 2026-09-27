@@ -15,7 +15,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
-import { browserPublicationRecovery, PublicationRecoveryError, type PublicationConfirmation } from "./publication-recovery";
+import { browserHasPendingPublicationForRun, browserPublicationRecovery, PublicationRecoveryError, type PublicationConfirmation } from "./publication-recovery";
 import { ReviewConflicts } from "./review-conflicts";
 import { prepareReviewRebase, resolveReviewRebase, type ReviewRebase } from "./review-rebase";
 import { ParticipantManager } from "./participant-manager";
@@ -33,6 +33,7 @@ type Props = Readonly<{
 	error: string | null;
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
+	onDeleteRun?: (sourceId: string, runId: string, transcriptSha256: string) => Promise<boolean>;
 	onSave: (
 		baseline: LocalReview,
 		status: LocalReviewStatus,
@@ -189,10 +190,12 @@ function RunCard({
 	run,
 	busy,
 	onOpen,
+	onDelete,
 }: Readonly<{
 	run: LocalRunSummary;
 	busy: boolean;
 	onOpen: () => void;
+	onDelete?: () => void;
 }>) {
 	const model = [run.engine, run.model].filter(Boolean).join(" · ") || "modelo desconhecido";
 	const measured = run.stats.processingMetrics;
@@ -254,9 +257,21 @@ function RunCard({
 					<span>Sem destino cloud vinculado</span>
 				)}
 			</div>
-			<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
-				Revisar resultado
-			</Button>
+			<div className={styles.runCardActions}>
+				<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
+					Revisar resultado
+				</Button>
+				{onDelete ? (
+					<details className={styles.runOverflow}>
+						<summary aria-label="Mais ações do resultado">•••</summary>
+						<div>
+							<Button size="sm" variant="tertiary" disabled={busy} onClick={onDelete}>
+								Excluir resultado local…
+							</Button>
+						</div>
+					</details>
+				) : null}
+			</div>
 		</article>
 	);
 }
@@ -812,6 +827,7 @@ export function LocalReviewWorkspace({
 	error,
 	publicationEnabled,
 	onOpen,
+	onDeleteRun,
 	onSave,
 	onClose,
 	onPublish,
@@ -823,6 +839,9 @@ export function LocalReviewWorkspace({
 	const [reviewFilter, setReviewFilter] = useState("all");
 	const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "fastest">("newest");
 	const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<LocalRunSummary | null>(null);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+	const deleteDialog = useRef<HTMLDialogElement>(null);
 	const filteredRuns = useMemo(() => {
 		const query = libraryQuery.trim().toLocaleLowerCase("pt-BR");
 		const values = runs.filter((run) => {
@@ -873,6 +892,11 @@ export function LocalReviewWorkspace({
 		null;
 
 	useEffect(() => {
+		if (deleteTarget) deleteDialog.current?.showModal();
+		else deleteDialog.current?.close();
+	}, [deleteTarget]);
+
+	useEffect(() => {
 		if (!selectedRun) {
 			if (selectedRunKey !== null) setSelectedRunKey(null);
 			return;
@@ -896,6 +920,24 @@ export function LocalReviewWorkspace({
 				onPublish={onPublish}
 			/>
 		);
+	}
+
+	async function confirmDelete() {
+		const target = deleteTarget;
+		if (!target || !onDeleteRun) return;
+		setDeleteError(null);
+		const deleted = await onDeleteRun(target.sourceId, target.runId, target.transcriptSha256);
+		if (deleted) setDeleteTarget(null);
+		else setDeleteError("O Companion não confirmou a exclusão. O resultado foi preservado.");
+	}
+
+	function requestDelete(run: LocalRunSummary) {
+		setDeleteError(null);
+		if (browserHasPendingPublicationForRun(run.sourceId, run.runId)) {
+			setDeleteError("Existe uma publicação não reconciliada para este resultado. Reabra a revisão e reconcilie ou abandone a recuperação antes de excluir.");
+			return;
+		}
+		setDeleteTarget(run);
 	}
 
 	return (
@@ -1013,6 +1055,7 @@ export function LocalReviewWorkspace({
 									run={selectedRun}
 									busy={busy}
 									onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
+									onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
 								/>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
@@ -1026,6 +1069,30 @@ export function LocalReviewWorkspace({
 					<span> Runs concluídos aparecem aqui sem publicação automática.</span>
 				</p>
 			)}
+			{deleteError ? <p className={styles.deleteError} role="alert">{deleteError}</p> : null}
+			<dialog
+				ref={deleteDialog}
+				className={styles.deleteDialog}
+				onCancel={(event) => {
+					event.preventDefault();
+					setDeleteTarget(null);
+				}}
+			>
+				{deleteTarget ? (
+					<>
+						<h3>Excluir resultado local?</h3>
+						<p><strong>{deleteTarget.profileId}</strong> · {formatDate(deleteTarget.completedAt)}</p>
+						<p>Serão removidos deste computador o transcript, detalhes técnicos e a revisão local vinculada a este run.</p>
+						<p>A source Craig e os outros resultados permanecem. Uma publicação já feita no TDA não será desfeita.</p>
+						<div className={styles.deleteDialogActions}>
+							<Button variant="tertiary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+							<Button variant="primary" disabled={busy} onClick={() => void confirmDelete()}>
+								{busy ? "Excluindo…" : "Excluir resultado local"}
+							</Button>
+						</div>
+					</>
+				) : null}
+			</dialog>
 		</section>
 	);
 }

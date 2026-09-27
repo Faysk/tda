@@ -740,6 +740,55 @@
 }
 
 
+.runCardActions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-wrap: wrap;
+}
+
+.runOverflow { position: relative; }
+.runOverflow > summary {
+	cursor: pointer;
+	list-style: none;
+	min-width: 2.5rem;
+	text-align: center;
+	font-weight: 700;
+}
+.runOverflow > div {
+	position: absolute;
+	z-index: 4;
+	right: 0;
+	top: calc(100% + var(--space-1));
+	min-width: 13rem;
+	padding: var(--space-2);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	background: var(--surface-raised);
+	box-shadow: var(--shadow-lg);
+}
+.deleteError {
+	margin: var(--space-3) 0 0;
+	color: var(--text-danger);
+}
+.deleteDialog {
+	max-width: 34rem;
+	padding: var(--space-5);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--surface-raised);
+	color: var(--text-primary);
+}
+.deleteDialog::backdrop { background: rgb(0 0 0 / 55%); }
+.deleteDialogActions {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--space-2);
+	margin-top: var(--space-4);
+	flex-wrap: wrap;
+}
+
+
 /* #598 — Results uses the extra desktop height for the master/detail workspace
    while mobile and short viewports keep natural page scrolling. */
 @media (min-width: 1440px) and (min-height: 820px) {

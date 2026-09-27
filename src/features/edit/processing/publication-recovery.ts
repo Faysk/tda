@@ -337,6 +337,32 @@ export function createPublicationRecovery(deps: Dependencies) {
 	};
 }
 
+export function browserHasPendingPublicationForRun(
+	sourceId: string,
+	runId: string,
+): boolean {
+	if (!/^craig-[0-9a-f]{64}$/u.test(sourceId) || !/^[A-Za-z0-9_-]{1,196}$/u.test(runId))
+		return true;
+	try {
+		for (let index = 0; index < window.localStorage.length; index++) {
+			const storageKey = window.localStorage.key(index);
+			if (!storageKey?.startsWith(PREFIX)) continue;
+			const raw = window.localStorage.getItem(storageKey);
+			if (raw === null || raw.length > 2048) return true;
+			const value = JSON.parse(raw) as Record<string, unknown>;
+			if (
+				value.schemaVersion === 1 &&
+				value.state === "unresolved" &&
+				value.sourceId === sourceId &&
+				value.runId === runId
+			) return true;
+		}
+		return false;
+	} catch {
+		return true;
+	}
+}
+
 export function browserPublicationRecovery() {
 	try {
 		if (!navigator.locks) throw new Error();

@@ -1171,6 +1171,43 @@ class Store:
                 raise Conflict("RESULT_NOT_READY")
             return json.loads(value)
 
+
+    def clear_local_result_reference(self, job_id, attempt):
+        """Detach a deliberately deleted local artifact without rewriting queue history."""
+        if (
+            not isinstance(job_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", job_id)
+            or isinstance(attempt, bool)
+            or not isinstance(attempt, int)
+            or attempt < 1
+        ):
+            raise Conflict("LOCAL_RESULT_DELETE_IDENTITY_INVALID")
+        with self.tx() as db:
+            row = db.execute(
+                "SELECT status,attempt,result FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            if row["attempt"] != attempt or row["status"] != "succeeded":
+                return False
+            if row["result"] is None:
+                return True
+            now = utc_now()
+            db.execute(
+                "UPDATE jobs SET result=NULL,updated=? WHERE id=? AND status='succeeded' AND attempt=?",
+                (now, job_id, attempt),
+            )
+            self.event(
+                db,
+                job_id,
+                "LOCAL_RESULT_DELETED",
+                {"attempt": attempt},
+                level="warning",
+                attempt=attempt,
+            )
+            return True
+
     def fail(
         self,
         job_id,
