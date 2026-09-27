@@ -147,7 +147,7 @@ begin
     'Arco Sintético',
     'Memória Sintética Ω',
     'Descrição sintética segura.',
-    '# Resumo\n\nConteúdo editorial sintético **sem transcript**.'
+    E'# Resumo\n\nConteúdo editorial sintético **sem transcript**.'
   ) d;
 
   if v_status <> 'updated' or v_version <> 1 or v_draft_1 is null then
