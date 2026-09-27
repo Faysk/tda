@@ -74,7 +74,7 @@ base = main
 merge_commit_sha = SHA atual de main
 ```
 
-Essa prova é feita pelo próprio `production.yml` consultando a API do GitHub antes de ler credenciais ou tocar Vercel/Supabase.
+Essa prova é feita pelo próprio `production-cd.yml` consultando a API do GitHub antes de ler credenciais ou tocar Vercel/Supabase.
 
 Consequência: push direto, merge direto ou PR de feature para `main` não consegue publicar Production, mesmo se branch protection estiver ausente.
 

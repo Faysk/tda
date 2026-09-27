@@ -53,3 +53,20 @@ test("privileged Preview workflow does not execute repository install/build scri
   assert.match(preview, /PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED/);
   assert.match(preview, /head_sha=\$SOURCE_SHA/);
 });
+
+
+test("Production has exactly one automatic controller after the operational hold", () => {
+  const active = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  const retired = readFileSync(join(workflowRoot, "production.yml"), "utf8");
+
+  assert.match(active, /name:\s*Production CD/);
+  assert.match(active, /workflow_run:/);
+  assert.match(active, /workflows:\s*\[CI\]/);
+  assert.match(active, /branches:\s*\[main\]/);
+  assert.match(active, /types:\s*\[completed\]/);
+  assert.match(active, /workflow_dispatch:/);
+
+  assert.match(retired, /workflow_dispatch:/);
+  assert.equal(retired.includes("workflow_run:"), false);
+  assert.equal(retired.includes("push:"), false);
+});

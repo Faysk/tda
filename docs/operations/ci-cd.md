@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release / dados
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-27
 > Fonte de verdade: workflows versionados + ADR-0015 + ADR-0018
 
 ## Objetivo
@@ -28,16 +28,31 @@ política de gravação ou de decisão de tentativa exige reconstruir o runtime;
 artefato antigo não pode ser promovido por apenas compartilhar versão nominal.
 Isso amplia a verificação de fonte, sem disparar publicação nem retirar o hold.
 
-### Hold operacional durante fechamento do backlog — 2026-09-26
+### Hold operacional iniciado em 2026-09-26; Production liberado em 2026-09-27
 
 Para cumprir o gate de escopo/revisão/validação antes da publicação, os workflows
 `deploy-preview.yml`, `production.yml`, `companion-rc.yml`, `runtime-rc.yml`,
 `companion-0315-production-validation-stable.yml`,
 `companion-039-recovery-stable.yml` e
 `qwen-1011-production-validation-stable.yml` foram desabilitados temporariamente
-na configuração do GitHub Actions. CI e análise de segurança continuam ativas.
-Esse hold evita que `workflow_run` publique uma entrega intermediária após CI.
-Não altera o deployment ou os artefatos Stable já publicados.
+na configuração do GitHub Actions. CI e análise de segurança continuaram ativas.
+Esse hold explica o acúmulo deliberado de merges em `main` sem novos runs de
+Production CD depois de 2026-09-25; não foi regressão do YAML nem falha do
+`workflow_run`.
+
+Em 2026-09-27 o usuário autorizou explicitamente a volta da cadeia automática
+`CI(main) -> Production CD`. Como o estado administrativo desabilitado do workflow
+antigo não é controlado pelo conteúdo versionado, o controlador de Production foi
+re-registrado no novo path canônico `.github/workflows/production-cd.yml`,
+preservando os mesmos gates de source SHA, proveniência, baseline, migrations,
+Media Storage, stage, smoke, promote e receipt. O path antigo
+`.github/workflows/production.yml` permanece somente como stub manual inerte,
+sem gatilho automático e com job permanentemente skipped, para que uma futura
+reabilitação administrativa acidental não crie um segundo controlador de Production.
+
+Os demais workflows citados no hold permanecem desabilitados até autorização
+específica. Não reabilitar Preview/RC/Stable por conveniência só porque Production
+voltou a operar.
 
 O smoke pós-promoção do Companion exige JSON direto com status 200 no endpoint
 canônico de manifest; redirecionamentos, inclusive para outro caminho no mesmo
@@ -48,13 +63,10 @@ com transporte simulado e vinculam origem e caminho à requisição ativa. Essa
 verificação não publica artefatos; falha exige investigar a entrega canônica, sem
 afrouxar a política de origem como rollback.
 
-O hold deve permanecer durante a integração do lote. Antes de liberar uma
-publicação deliberada, conferir o SHA final, todos os gates e ausência de runs
-antigos pendentes; reabilitar somente o workflow necessário e despachar o SHA
-exato autorizado. A volta de qualquer cadeia automática requer decisão explícita
-compatível com `AGENTS.md`; não reabilitar todos por conveniência. Registrar a
-liberação e receipt neste documento/runbook de release. Estado atual do hold é
-verificável pela API de workflows, sem consultar valores de secrets.
+Antes de cada publicação deliberada, conferir o SHA final, todos os gates e
+ausência de runs antigos pendentes. Production volta a ser automática somente
+depois de CI verde do SHA atual de `main`; qualquer lifecycle remoto pendente
+desde o baseline canônico continua acumulativo e fail-closed.
 
 ```text
 branch temporária
