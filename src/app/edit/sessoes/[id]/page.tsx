@@ -60,10 +60,15 @@ export default async function EditSessionPage({ params }: PageProps) {
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
 
 	let session: Awaited<ReturnType<typeof findUnsafeEditSessionBySourceId>>;
-	let snapshot: Awaited<ReturnType<typeof readTranscriptSnapshot>>;
 	try {
 		session = await findUnsafeEditSessionBySourceId(sourceSessionId);
-		if (!session) notFound();
+	} catch {
+		return <UnavailableTranscript />;
+	}
+	if (!session) notFound();
+
+	let snapshot: Awaited<ReturnType<typeof readTranscriptSnapshot>>;
+	try {
 		snapshot = await readTranscriptSnapshot({
 			campaignSlug: CAMPAIGN_SLUG,
 			sessionId: session.id,
@@ -71,7 +76,6 @@ export default async function EditSessionPage({ params }: PageProps) {
 	} catch {
 		return <UnavailableTranscript />;
 	}
-	if (!session) notFound();
 	if (!snapshot) return <UnavailableTranscript />;
 
 	const sourceLabel =
