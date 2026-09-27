@@ -7,6 +7,10 @@ import {
 	LOCAL_API,
 	UI_ORIGIN,
 } from "./companion-fixture";
+import {
+	BENCHMARK_JOB_ID,
+	installBenchmarkFixture,
+} from "./benchmark-fixture";
 
 function fulfillJson(
 	route: import("@playwright/test").Route,
@@ -1027,4 +1031,212 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await expect(moreActions).toBeVisible();
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
+});
+
+test("Benchmark stages the source before profile readiness, prepares pending profiles, and opens its own diagnostics", async ({
+	page,
+}) => {
+	const state = await installBenchmarkFixture(page, {
+		profiles: {
+			"whisper-turbo": "ready",
+			"whisper-detailed": "preparation_required",
+			"qwen-fast": "ready",
+			"qwen-quality": "preparation_required",
+		},
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+
+	await benchmark.getByLabel("ZIP Craig").setInputFiles({
+		name: "craig-benchmark.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("synthetic benchmark fixture"),
+	});
+	await expect(benchmark.getByText("craig-benchmark.zip", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText(/MB · arquivo selecionado/)).toBeVisible();
+	const execute = benchmark.getByRole("button", {
+		name: "Executar benchmark de 5 minutos",
+	});
+	await expect(execute).toBeDisabled();
+
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
+	await expect.poll(() => state.uploadCount).toBe(1);
+	await expect(benchmark.getByText("2 tracks", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText("sessão 7m 00s", { exact: true })).toBeVisible();
+	await expect(
+		benchmark.getByText("Nenhum ASR foi iniciado.", { exact: false }),
+	).toBeVisible();
+	await expect(benchmark.getByText("Whisper Detailed", { exact: true })).toBeVisible();
+	await expect(
+		benchmark.getByText("Preparação necessária", { exact: true }).first(),
+	).toBeVisible();
+
+	await benchmark.getByRole("button", { name: "Preparar perfis pendentes (2)" }).click();
+	await expect.poll(() => state.preparationPostCount).toBe(2);
+	await expect(
+		benchmark.getByText("Quatro perfis prontos. Downloads e preparação ficaram fora da medição."),
+	).toBeVisible();
+	await expect(execute).toBeEnabled();
+
+	await execute.click();
+	await expect.poll(() => state.benchmarkPostCount).toBe(1);
+	await expect(benchmark.getByText("Aguardando worker local", { exact: true })).toBeVisible();
+	await benchmark.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
+
+	const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
+	await expect(diagnostics).toBeVisible();
+	await expect(diagnostics.getByText(BENCHMARK_JOB_ID, { exact: true })).toBeVisible();
+
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	await expect(benchmark.getByText("Aguardando worker local", { exact: true })).toBeVisible();
+});
+
+test("Benchmark surfaces the authoritative short-sample gate next to the staged source", async ({
+	page,
+}) => {
+	const state = await installBenchmarkFixture(page, { shortSample: true });
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+
+	await benchmark.getByLabel("ZIP Craig").setInputFiles({
+		name: "short.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("short synthetic fixture"),
+	});
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
+	await expect.poll(() => state.uploadCount).toBe(1);
+	await expect(benchmark.getByText("sessão 4m 00s", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText("menor track 4m 00s", { exact: true })).toBeVisible();
+	await expect(
+		benchmark.getByText(
+			"O benchmark precisa de pelo menos 5:00 reais em todas as tracks desta fonte.",
+			{ exact: false },
+		),
+	).toBeVisible();
+	await expect(
+		benchmark.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeDisabled();
+	expect(state.benchmarkPostCount).toBe(0);
+});
+
+test("Benchmark turns resource busy and preparation failure into actionable local states", async ({
+	page,
+}) => {
+	const state = await installBenchmarkFixture(page, {
+		profiles: {
+			"whisper-detailed": "preparation_required",
+		},
+		preparationErrorProfile: "whisper-detailed",
+	});
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await benchmark.getByLabel("ZIP Craig").setInputFiles({
+		name: "prepare-error.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("preparation error fixture"),
+	});
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
+	await benchmark.getByRole("button", { name: "Preparar perfis pendentes (1)" }).click();
+	await expect.poll(() => state.preparationPostCount).toBe(1);
+	await expect(benchmark.getByRole("alert")).toContainText(
+		"BENCHMARK_PREPARATION_FIXTURE_FAILED",
+	);
+	await expect(
+		benchmark.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeDisabled();
+});
+
+test("Benchmark preparation can be cancelled without starting benchmark timing", async ({
+	page,
+}) => {
+	const state = await installBenchmarkFixture(page, {
+		profiles: { "qwen-fast": "preparation_required" },
+		holdPreparation: true,
+	});
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await benchmark.getByLabel("ZIP Craig").setInputFiles({
+		name: "cancel-prep.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("cancel preparation fixture"),
+	});
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
+	await benchmark.getByRole("button", { name: "Preparar perfis pendentes (1)" }).click();
+	await expect(benchmark.getByRole("button", { name: "Cancelar preparação" })).toBeVisible();
+	await benchmark.getByRole("button", { name: "Cancelar preparação" }).click();
+	await expect(
+		benchmark.getByText("Cancelamento da preparação solicitado ao Companion local."),
+	).toBeVisible();
+	expect(state.benchmarkPostCount).toBe(0);
+});
+
+test("Benchmark reports resource contention instead of leaving a dead disabled CTA", async ({
+	page,
+}) => {
+	const state = await installBenchmarkFixture(page, { resourceBusy: true });
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await benchmark.getByLabel("ZIP Craig").setInputFiles({
+		name: "busy.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("resource busy fixture"),
+	});
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
+	await benchmark.getByRole("button", { name: "Executar benchmark de 5 minutos" }).click();
+	await expect(benchmark.getByRole("alert")).toContainText(
+		"Há uma transcrição ou benchmark usando os recursos locais.",
+	);
+	await expect.poll(() => state.benchmarkPostCount).toBe(1);
+});
+
+test("Benchmark keeps running, cancelled, failed, and successful receipts observable", async ({
+	page,
+}) => {
+	const running = await installBenchmarkFixture(page, {
+		initialStatus: "running",
+		jobEvents: [{
+			seq: 7,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-09-27T21:00:07Z",
+			level: "info",
+			data: { profile: "whisper-detailed" },
+		}],
+	});
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await expect(benchmark.getByText("Whisper Detailed", { exact: true }).first()).toBeVisible();
+	await expect(benchmark.getByText(/1 de 4 perfis concluídos/)).toBeVisible();
+	await expect(benchmark.getByText(/BENCHMARK_PROFILE_STARTED/)).toBeVisible();
+
+	await benchmark.getByRole("button", { name: "Cancelar benchmark" }).click();
+	await expect.poll(() => running.benchmarkStatus).toBe("cancelled");
+	await expect(benchmark.getByText("Benchmark cancelado", { exact: true })).toBeVisible();
+	await expect(benchmark.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
+});
+
+test("Benchmark keeps a failed terminal run visible with its error code", async ({ page }) => {
+	await installBenchmarkFixture(page, { initialStatus: "failed" });
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await expect(benchmark.getByText("Benchmark falhou", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText("Código BENCHMARK_FIXTURE_FAILURE")).toBeVisible();
+});
+
+test("Benchmark successful receipt remains comparable in local history", async ({ page }) => {
+	await installBenchmarkFixture(page, { initialStatus: "succeeded" });
+	await page.goto("/");
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await expect(benchmark.getByText("Quatro perfis · mesma amostra", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText("Concluído", { exact: true })).toBeVisible();
 });

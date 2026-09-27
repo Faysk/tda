@@ -458,6 +458,7 @@ describe("loopback bridge", () => {
 					source_sha256: "a".repeat(64),
 					size_bytes: 3,
 					track_count: 1,
+					minimum_track_duration_seconds: 312,
 					reused: false,
 					source_name: "session.zip",
 				});
@@ -475,6 +476,7 @@ describe("loopback bridge", () => {
 		);
 
 		expect(staged.sourceId).toBe(sourceId);
+		expect(staged.minimumTrackDurationSeconds).toBe(312);
 		expect(sessionCount).toBe(2);
 		expect(uploadCount).toBe(2);
 	});

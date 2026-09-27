@@ -100,6 +100,7 @@ A resposta é dinâmica e consumidores devem fazer feature detection. O conjunto
 | POST `/session` | bootstrap Web origin-bound; retorna bearer temporário em memória |
 | GET `/version` | identidade/versionamento do serviço local |
 | GET `/capabilities` | capabilities locais, `sync:false` e identidade do device |
+| POST `/sources/craig` | valida/stageia ZIP Craig sem iniciar ASR; o resumo inclui contagem, duração agregada e `minimum_track_duration_seconds` quando todas as tracks possuem duração factual |
 | GET `/system` | snapshot best-effort de SO/CPU/RAM/GPU; privado |
 | GET `/lifecycle` | mesmo DTO health |
 | POST `/lifecycle` | `{action:"pause"\|"resume"}` |

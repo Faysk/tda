@@ -1051,8 +1051,14 @@ export function ProcessingPanel({
 							jobs={state.jobs}
 							capabilities={state.capabilities}
 							connected={connected}
-							onRefresh={() => void controller.refresh("manual")}
+							events={state.events}
+							observedJobId={state.observedJobId}
+							onRefresh={() => controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onOpenDiagnostics={async (jobId) => {
+								await controller.observeJob(jobId);
+								setView("diagnostics");
+							}}
 						/>
 					</section>
 
