@@ -546,7 +546,7 @@ export function ProcessingBenchmark({
 				</header>
 
 				<div className={styles.preflightGrid}>
-					<section className={styles.sourcePanel} aria-labelledby="benchmark-source-title">
+					<section className={styles.sourcePanel} aria-label="Fonte do benchmark">
 						<div className={styles.sectionHeading}>
 							<div>
 								<span className={styles.eyebrow}>Source</span>
@@ -577,7 +577,7 @@ export function ProcessingBenchmark({
 								className={styles.fileInput}
 								type="file"
 								accept=".zip,application/zip"
-								aria-label="Selecionar ZIP Craig"
+								aria-label="ZIP Craig"
 								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
 								onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
 							/>
@@ -658,7 +658,7 @@ export function ProcessingBenchmark({
 								<span className={styles.eyebrow}>Readiness</span>
 								<strong>Perfis locais</strong>
 							</div>
-							<span>{readyCount} / {PROFILES.length} prontos</span>
+							<span>{readyCount} / {PROFILES.length} perfis prontos</span>
 						</div>
 						<div className={styles.profileReadiness}>
 							{PROFILES.map((id, index) => (
@@ -709,16 +709,15 @@ export function ProcessingBenchmark({
 								}
 								onClick={() => void analyzeSource()}
 							>
-								{sourceBusy ? "Analisando amostra…" : "Analisar amostra"}
+								{sourceBusy ? "Analisando amostra…" : "Analisar amostra localmente"}
 							</Button>
 						) : !sampleEligible ? (
 							<Button
 								type="button"
 								variant="primary"
-								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
-								onClick={() => fileInput.current?.click()}
+								disabled
 							>
-								Selecionar outro ZIP
+								Executar benchmark de 5 minutos
 							</Button>
 						) : pendingProfiles.length > 0 ? (
 							<Button
