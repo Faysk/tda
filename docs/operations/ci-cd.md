@@ -43,10 +43,12 @@ Production CD depois de 2026-09-25; não foi regressão do YAML nem falha do
 Em 2026-09-27 o usuário autorizou explicitamente a volta da cadeia automática
 `CI(main) -> Production CD`. Como o estado administrativo desabilitado do workflow
 antigo não é controlado pelo conteúdo versionado, o controlador de Production foi
-re-registrado no path canônico `.github/workflows/production-cd.yml`, preservando
-os mesmos gates de source SHA, proveniência, baseline, migrations, Media Storage,
-stage, smoke, promote e receipt. O path antigo `.github/workflows/production.yml`
-foi retirado para não deixar dois controladores de Production disponíveis.
+re-registrado no novo path canônico `.github/workflows/production-cd.yml`,
+preservando os mesmos gates de source SHA, proveniência, baseline, migrations,
+Media Storage, stage, smoke, promote e receipt. O path antigo
+`.github/workflows/production.yml` permanece somente como stub manual inerte,
+sem gatilho automático e com job permanentemente skipped, para que uma futura
+reabilitação administrativa acidental não crie um segundo controlador de Production.
 
 Os demais workflows citados no hold permanecem desabilitados até autorização
 específica. Não reabilitar Preview/RC/Stable por conveniência só porque Production
