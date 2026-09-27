@@ -337,6 +337,24 @@ export function createPublicationRecovery(deps: Dependencies) {
 	};
 }
 
+export function browserHasPendingPublicationForRun(
+	sourceId: string,
+	runId: string,
+): boolean {
+	try {
+		const storage = window.localStorage;
+		for (let index = 0; index < storage.length; index++) {
+			const scope = storage.key(index);
+			if (!scope?.startsWith(PREFIX)) continue;
+			const pending = read(storage, scope);
+			if (pending?.sourceId === sourceId && pending.runId === runId) return true;
+		}
+		return false;
+	} catch {
+		throw new PublicationRecoveryError("storage_unavailable");
+	}
+}
+
 export function browserPublicationRecovery() {
 	try {
 		if (!navigator.locks) throw new Error();
