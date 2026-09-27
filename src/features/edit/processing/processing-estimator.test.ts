@@ -231,7 +231,7 @@ describe("calibrated processing estimator", () => {
 		expect(estimate.medianRtf).toBeCloseTo(0.55);
 	});
 
-		it("refuses ambiguous historical compute modes when current mode is unknown", () => {
+	it("refuses ambiguous historical compute modes when current mode is unknown", () => {
 		const whisperProfile: TranscriptionProfileState = {
 			...profile,
 			id: "whisper-turbo",
