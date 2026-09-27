@@ -312,3 +312,103 @@
 @media (prefers-reduced-motion: reduce) {
 	.sessionCard { transition: none; }
 }
+
+
+.libraryFilters {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) minmax(180px, 240px) auto;
+	align-items: end;
+	gap: 12px;
+	margin-bottom: 20px;
+	padding: 14px 0 18px;
+	border-bottom: 1px solid var(--ds-border);
+}
+
+.filterActions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 42px;
+}
+
+.filterButton {
+	min-height: 42px;
+	padding: 0 16px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-foreground);
+	color: var(--ds-canvas);
+	font: inherit;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.filterButton:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.sessionList {
+	display: grid;
+	border-top: 1px solid var(--ds-border);
+}
+
+.sessionRow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 24px;
+	padding: 18px 4px;
+	border-bottom: 1px solid var(--ds-border);
+	color: var(--ds-foreground);
+	text-decoration: none;
+}
+
+.sessionRow:hover {
+	background: var(--ds-surface-hover);
+}
+
+.sessionRow:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.sessionRowMain {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.sessionRowAside {
+	display: grid;
+	justify-items: end;
+	gap: 6px;
+	font-size: 0.82rem;
+}
+
+@media (max-width: 900px) {
+	.libraryFilters {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.sessionRow {
+		grid-template-columns: 1fr;
+		gap: 10px;
+	}
+
+	.sessionRowAside {
+		display: flex;
+		justify-content: space-between;
+		justify-items: start;
+	}
+}
+
+@media (max-width: 640px) {
+	.libraryFilters {
+		grid-template-columns: 1fr;
+	}
+
+	.filterActions {
+		justify-content: space-between;
+	}
+}
