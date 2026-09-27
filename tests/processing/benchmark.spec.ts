@@ -189,7 +189,8 @@ test("short Craig sample is rejected during preflight before preparation or queu
 	);
 	await expect(
 		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
-	).toBeDisabled();
+	).toHaveCount(0);
+	await expect(panel.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
