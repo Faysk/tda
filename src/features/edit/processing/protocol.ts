@@ -75,6 +75,12 @@ export type JobContext = {
 	profileId?: TranscriptionProfileId;
 };
 export type ExecutionDevice = Readonly<{ kind: "cpu" | "cuda"; logicalIndex: number | null; physicalUuid: string | null; pciBusId: string | null }>;
+export type JobTiming = {
+	attemptStartedAt: string | null;
+	stageStartedAt: string | null;
+	currentTrack: number | null;
+	trackStartedAt: string | null;
+};
 export type LocalJob = {
 	executionDevice?: ExecutionDevice | null;
 	id: string;
@@ -86,6 +92,7 @@ export type LocalJob = {
 	result_available: boolean;
 	updated_at: string;
 	attempt: number;
+	timing: JobTiming;
 	context: JobContext | null;
 };
 export type JobListScope = "all" | "active" | "history";
@@ -623,6 +630,29 @@ export function parseJob(value: unknown): LocalJob {
 		};
 	}
 	const error = row.error === null ? null : record(row.error);
+	const rawTiming =
+		row.timing === undefined || row.timing === null ? null : record(row.timing);
+	let timing: JobTiming = {
+		attemptStartedAt: null,
+		stageStartedAt: null,
+		currentTrack: null,
+		trackStartedAt: null,
+	};
+	if (rawTiming) {
+		const currentTrack =
+			rawTiming.current_track === null || rawTiming.current_track === undefined
+				? null
+				: nonNegativeInteger(rawTiming.current_track);
+		if (currentTrack !== null && currentTrack < 1) return invalid();
+		timing = {
+			attemptStartedAt: nullableIsoDate(rawTiming.attempt_started_at),
+			stageStartedAt: nullableIsoDate(rawTiming.stage_started_at),
+			currentTrack,
+			trackStartedAt: nullableIsoDate(rawTiming.track_started_at),
+		};
+		if ((timing.currentTrack === null) !== (timing.trackStartedAt === null))
+			return invalid();
+	}
 	let context: JobContext | null = null;
 	if (row.context !== undefined && row.context !== null) {
 		const rawContext = record(row.context);
@@ -650,6 +680,7 @@ export function parseJob(value: unknown): LocalJob {
 		updated_at: isoDate(row.updated_at),
 		attempt:
 			row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
+		timing,
 		context,
 	};
 }
