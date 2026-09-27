@@ -1021,6 +1021,45 @@
 	font-size: 0.6875rem;
 }
 
+.diagnosticsAdvanced {
+	margin: 0;
+	padding-top: 8px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.diagnosticsAdvanced > summary {
+	width: fit-content;
+	cursor: pointer;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	list-style-position: outside;
+}
+
+.diagnosticsAdvanced > summary:hover {
+	color: var(--ds-foreground-soft);
+}
+
+.diagnosticsAdvanced > summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.diagnosticsAdvancedBody {
+	display: grid;
+	gap: 10px;
+	padding-top: 10px;
+}
+
+.diagnosticsAdvancedBody > .integrationTool {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.diagnosticsAdvancedBody > .barkPackAdmin {
+	margin-top: 0;
+}
+
 .syncStrip {
 	justify-content: space-between;
 	gap: 14px;
