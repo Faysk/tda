@@ -275,10 +275,9 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
-        response = live.post(
-            "/api/v1/jobs",
-            headers={**HEADERS, "Idempotency-Key": "activity-throttle"},
-            json={
+        job = app.state.store.submit(
+            "activity-throttle",
+            {
                 "kind": "transcription.craig",
                 "campaign_id": "campaign",
                 "session_id": "session",
@@ -287,10 +286,10 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
                 "glossary": "",
                 "context": "",
                 "cpu": False,
+                "units": 1,
             },
         )
-        assert response.status_code == 200
-        job = response.json()
+        app.state.worker_wake.set()
         assert emitted.wait(10.0)
         deadline = time.monotonic() + 5.0
         state = None
