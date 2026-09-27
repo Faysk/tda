@@ -44,6 +44,13 @@ from .publication_target import PublicationTargetError, bind_publication_target,
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
+from .session_timeline import (
+    automatic_placements,
+    classify_start_time,
+    enrich_workspace_timeline,
+    package_duration_seconds,
+    validate_overlap_boundary,
+)
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 from .transcription_runs import (
@@ -68,7 +75,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing))?|timeline/derive))?$"
 )
 
 
@@ -171,6 +178,25 @@ class SessionWorkspaceDetachRequest(BaseModel):
 class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceTimingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expected_revision: int = Field(ge=0)
+    session_offset_seconds: float = Field(ge=0)
+    trim_start_seconds: float = Field(default=0.0, ge=0)
+    trim_end_seconds: float | None = Field(default=None, ge=0)
+    overlap_resolution: Literal[
+        "prefer_earlier_until",
+        "prefer_later_from",
+    ] | None = None
+    overlap_boundary_seconds: float | None = Field(default=None, ge=0)
+
+
+class SessionWorkspaceDeriveTimelineRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: int = Field(ge=0)
 
 
@@ -1411,6 +1437,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-timeline",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1551,16 +1578,37 @@ def create_app(
             worker_wake.set()
         return health_value()
 
-    def session_workspace_response(value):
-        parts = []
+    def session_workspace_source_facts(value):
+        facts = {}
         for part in value["parts"]:
+            source_id = part["source_id"]
             try:
-                staged_package_under_source_gate(part["source_id"])
-                source_state = "ready"
+                _, package = staged_package_under_source_gate(source_id)
+                classified = classify_start_time(getattr(package, "start_time", None))
+                facts[source_id] = {
+                    "source_state": "ready",
+                    "start_time": getattr(package, "start_time", None),
+                    "start_confidence": classified["confidence"],
+                    "start_utc": classified["instant_utc"],
+                    "start_epoch_seconds": classified["epoch_seconds"],
+                    "duration_seconds": package_duration_seconds(package),
+                }
             except (CraigPackageError, ValueError):
-                source_state = "invalid"
-            parts.append({**part, "source_state": source_state})
-        return {**value, "parts": parts}
+                facts[source_id] = {
+                    "source_state": "invalid",
+                    "start_time": None,
+                    "start_confidence": "missing",
+                    "start_utc": None,
+                    "start_epoch_seconds": None,
+                    "duration_seconds": None,
+                }
+        return facts
+
+    def session_workspace_response(value):
+        return enrich_workspace_timeline(
+            value,
+            session_workspace_source_facts(value),
+        )
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
     def session_workspace(campaign_id: str, session_id: str):
@@ -1627,6 +1675,107 @@ def create_app(
                 campaign_id,
                 session_id,
                 body.part_ids,
+                body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/timing")
+    def update_session_workspace_part_timing(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceTimingRequest,
+    ):
+        current = store.session_workspace(campaign_id, session_id)
+        target = next(
+            (part for part in current["parts"] if part["part_id"] == body.part_id),
+            None,
+        )
+        if target is None:
+            raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+        try:
+            _, package = staged_package_under_source_gate(target["source_id"])
+        except (CraigPackageError, ValueError) as exc:
+            raise Conflict("SESSION_WORKSPACE_SOURCE_UNAVAILABLE") from exc
+        duration = package_duration_seconds(package)
+        if duration is None:
+            raise Conflict("SESSION_WORKSPACE_SOURCE_DURATION_UNAVAILABLE")
+        local_end = (
+            body.trim_end_seconds
+            if body.trim_end_seconds is not None
+            else duration
+        )
+        if (
+            body.trim_start_seconds >= duration
+            or local_end > duration
+            or local_end <= body.trim_start_seconds
+        ):
+            raise Conflict("SESSION_WORKSPACE_TRIM_RANGE_INVALID")
+
+        candidate_parts = [
+            {
+                **part,
+                **(
+                    {
+                        "timeline_mode": "manual",
+                        "session_offset_seconds": body.session_offset_seconds,
+                        "trim_start_seconds": body.trim_start_seconds,
+                        "trim_end_seconds": body.trim_end_seconds,
+                        "overlap_resolution": body.overlap_resolution,
+                        "overlap_boundary_seconds": body.overlap_boundary_seconds,
+                    }
+                    if part["part_id"] == body.part_id
+                    else {}
+                ),
+            }
+            for part in current["parts"]
+        ]
+        candidate = {
+            **current,
+            "ordering_mode": "manual",
+            "parts": candidate_parts,
+        }
+        candidate_timeline = enrich_workspace_timeline(
+            candidate,
+            session_workspace_source_facts(candidate),
+        )
+        try:
+            validate_overlap_boundary(candidate_timeline, body.part_id)
+        except ValueError as exc:
+            raise Conflict(str(exc)) from exc
+
+        return session_workspace_response(
+            store.update_session_part_timing(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.expected_revision,
+                session_offset_seconds=body.session_offset_seconds,
+                trim_start_seconds=body.trim_start_seconds,
+                trim_end_seconds=body.trim_end_seconds,
+                overlap_resolution=body.overlap_resolution,
+                overlap_boundary_seconds=body.overlap_boundary_seconds,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline/derive")
+    def derive_session_workspace_timeline(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceDeriveTimelineRequest,
+    ):
+        current = store.session_workspace(campaign_id, session_id)
+        facts = session_workspace_source_facts(current)
+        if any(value["source_state"] != "ready" for value in facts.values()):
+            raise Conflict("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
+        try:
+            placements = automatic_placements(current["parts"], facts)
+        except ValueError as exc:
+            raise Conflict(str(exc)) from exc
+        return session_workspace_response(
+            store.apply_automatic_session_timeline(
+                campaign_id,
+                session_id,
+                placements,
                 body.expected_revision,
             )
         )
