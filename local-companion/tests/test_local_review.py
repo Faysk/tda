@@ -117,6 +117,40 @@ def test_open_review_is_pure_without_mutating_raw_run(tmp_path: Path):
     assert not (package_root / "revisions").exists()
 
 
+def test_open_review_projects_track_offset_to_session_timeline(tmp_path: Path):
+    source_sha = "c" * 64
+    source_id = f"craig-{source_sha}"
+    package_root = tmp_path / source_id
+    package_root.mkdir()
+    document = _document(source_sha)
+    shifted_track = replace(document.tracks[0], timeline_offset_seconds=120.0)
+    shifted_document = replace(
+        document,
+        tracks=(shifted_track,),
+        stats=stats_for_tracks((shifted_track,), processing_seconds=2.0),
+    )
+    run = write_completed_run(
+        package_root,
+        shifted_document,
+        job_id="job-review-timeline",
+        attempt=1,
+    )
+
+    review = open_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+    )
+
+    assert [
+        (item["start"], item["end"], item["timeline_start"], item["timeline_end"])
+        for item in review["segments"]
+    ] == [
+        (0.0, 1.0, 120.0, 121.0),
+        (1.2, 2.0, 121.2, 122.0),
+    ]
+
+
 def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
     monkeypatch,
     tmp_path: Path,
