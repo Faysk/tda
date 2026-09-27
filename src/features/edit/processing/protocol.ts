@@ -106,7 +106,7 @@ export type SessionTimelinePart = {
 export type SessionTimelineRelation = {
 	earlierPartId: string;
 	laterPartId: string;
-	kind: "unknown" | "contiguous" | "gap" | "overlap";
+	kind: "unknown" | "contiguous" | "gap" | "overlap" | "order_conflict";
 	durationSeconds: number | null;
 	decision: SessionTimelineDecision | null;
 	boundarySeconds: number | null;
@@ -785,7 +785,7 @@ function parseSessionWorkspaceTimeline(
 	if (row.schema_version !== "tda_session_timeline_v1") return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length !== partIds.length)
 		return invalid();
-	if (!Array.isArray(row.relations) || row.relations.length > Math.max(0, partIds.length - 1))
+	if (!Array.isArray(row.relations) || row.relations.length !== Math.max(0, partIds.length - 1))
 		return invalid();
 
 	const order = record(row.order);
@@ -883,7 +883,7 @@ function parseSessionWorkspaceTimeline(
 		)
 			return invalid();
 		const kind = text(relation.kind, 16);
-		if (!["unknown", "contiguous", "gap", "overlap"].includes(kind))
+		if (!["unknown", "contiguous", "gap", "overlap", "order_conflict"].includes(kind))
 			return invalid();
 		const decision =
 			relation.decision === null || relation.decision === undefined
