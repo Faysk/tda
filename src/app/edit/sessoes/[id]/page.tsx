@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	authorizeCampaignCapability,
+	EDIT_CAPABILITIES,
+} from "@/features/edit/access/policy";
+import { SessionEditorialDraftEditor } from "@/features/edit/sessions/editorial-draft-editor";
+import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
+import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { findUnsafeEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
@@ -53,11 +59,16 @@ export default async function EditSessionPage({ params }: PageProps) {
 	const sourceSessionId = String(id || "").trim();
 	if (!sourceSessionId || sourceSessionId.length > 220) notFound();
 
-	await requireCapability(
+	const accessContext = await requireCapability(
 		EDIT_CAPABILITIES.transcriptRead,
 		`/edit/sessoes/${encodeURIComponent(sourceSessionId)}`,
 	);
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
+	const canEdit = authorizeCampaignCapability(
+		accessContext,
+		EDIT_CAPABILITIES.contentEdit,
+		CAMPAIGN_SLUG,
+	).ok;
 
 	let session: Awaited<ReturnType<typeof findUnsafeEditSessionBySourceId>>;
 	try {
@@ -77,6 +88,16 @@ export default async function EditSessionPage({ params }: PageProps) {
 		return <UnavailableTranscript />;
 	}
 	if (!snapshot) return <UnavailableTranscript />;
+
+	let draft: Awaited<ReturnType<typeof readSessionEditorialDraft>> = null;
+	let draftUnavailable = false;
+	if (snapshot.source === "current_revision" && snapshot.revisionId) {
+		try {
+			draft = await readSessionEditorialDraft(session.id);
+		} catch {
+			draftUnavailable = true;
+		}
+	}
 
 	const sourceLabel =
 		snapshot.source === "current_revision"
@@ -113,11 +134,55 @@ export default async function EditSessionPage({ params }: PageProps) {
 				</div>
 			</header>
 
-			<TranscriptReader
-				downloadHref={downloadHref}
-				segments={snapshot.segments}
-				sourceLabel={sourceLabel}
-			/>
+			<div className={draftStyles.privateNotice} role="status">
+				<strong>Privado no Edit</strong>
+				<span>
+					Transcrição e draft editorial permanecem privados. Salvar draft não
+					altera a versão pública da sessão.
+				</span>
+			</div>
+
+			<div className={draftStyles.sessionWorkspace}>
+				<div className={draftStyles.transcriptPane}>
+					<TranscriptReader
+						downloadHref={downloadHref}
+						segments={snapshot.segments}
+						sourceLabel={sourceLabel}
+					/>
+				</div>
+				<aside className={draftStyles.editorialPane}>
+					{snapshot.source !== "current_revision" ? (
+						<div className={draftStyles.editorialUnavailable}>
+							<strong>Draft editorial exige o handoff moderno</strong>
+							<p className={styles.muted}>
+								A transcrição legada continua disponível para leitura, mas não pode
+								virar draft editorial silenciosamente.
+							</p>
+						</div>
+					) : draftUnavailable ? (
+						<div className={draftStyles.editorialUnavailable}>
+							<strong>Draft editorial indisponível</strong>
+							<p className={styles.muted}>
+								A transcrição continua legível. Nenhum campo público foi alterado.
+							</p>
+						</div>
+					) : draft ? (
+						<SessionEditorialDraftEditor
+							editable={canEdit}
+							initial={draft}
+							sessionId={session.id}
+						/>
+					) : (
+						<div className={draftStyles.editorialUnavailable}>
+							<strong>Draft editorial ainda não disponível</strong>
+							<p className={styles.muted}>
+								A sessão precisa de uma revisão de transcrição preparada antes da
+								edição editorial.
+							</p>
+						</div>
+					)}
+				</aside>
+			</div>
 		</section>
 	);
 }
