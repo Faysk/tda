@@ -131,6 +131,22 @@ def test_equal_absolute_starts_require_manual_order_instead_of_synthetic_tiebrea
     ):
         automatic_placements(parts, source_facts)
 
+    unresolved = enrich_workspace_timeline(
+        {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": "campaign-a",
+            "session_id": "session-a",
+            "revision": 2,
+            "ordering_mode": "attachment",
+            "created_at": "2026-09-27T22:00:00Z",
+            "updated_at": "2026-09-27T22:00:00Z",
+            "parts": parts,
+        },
+        source_facts,
+    )
+    assert unresolved["timeline"]["all_sources_trusted"] is True
+    assert unresolved["timeline"]["automatic_order_available"] is False
+
 
 def test_explicit_dst_offsets_preserve_absolute_meaning():
     summer = classify_start_time("2026-10-25T01:30:00+01:00")
@@ -322,3 +338,162 @@ def test_segment_boundary_ownership_is_versioned_and_start_based():
         ValueError, match="SESSION_WORKSPACE_SEGMENT_BOUNDARY_INVALID"
     ):
         segment_owner_at_boundary(-0.001, 10.0)
+
+
+def test_contained_overlap_uses_real_interval_intersection_for_duration_and_boundary():
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-contained",
+        "session_id": "session-contained",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=0.0),
+            part(
+                2,
+                1,
+                offset=100.0,
+                trim_end=50.0,
+                resolution="prefer_earlier_until",
+                boundary=125.0,
+            ),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=600.0),
+            facts(2, start="2026-09-27T20:01:40Z", duration=50.0),
+        ]
+    )
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+    current = enriched["parts"][1]
+
+    assert current["relation_to_previous"] == "overlap"
+    assert current["relation_seconds"] == 50.0
+    assert current["overlap_resolution_valid"] is True
+    assert enriched["timeline"]["state"] == "ready"
+
+    outside = {
+        **workspace,
+        "parts": [
+            workspace["parts"][0],
+            {**workspace["parts"][1], "overlap_boundary_seconds": 200.0},
+        ],
+    }
+    invalid = enrich_workspace_timeline(outside, source_facts)
+    assert invalid["parts"][1]["overlap_resolution_valid"] is False
+    assert invalid["timeline"]["state"] == "overlap_unresolved"
+    with pytest.raises(ValueError, match="SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID"):
+        validate_overlap_boundary(invalid, invalid["parts"][1]["part_id"])
+
+
+def test_reverse_disjoint_manual_parts_are_order_conflict_not_overlap():
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-reverse",
+        "session_id": "session-reverse",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=60.0, trim_end=30.0),
+            part(
+                2,
+                1,
+                offset=0.0,
+                trim_end=30.0,
+                resolution="prefer_later_from",
+                boundary=15.0,
+            ),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:01:00Z", duration=30.0),
+            facts(2, start="2026-09-27T20:00:00Z", duration=30.0),
+        ]
+    )
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+    current = enriched["parts"][1]
+
+    assert current["relation_to_previous"] == "order_conflict"
+    assert current["relation_seconds"] is None
+    assert current["overlap_resolution_valid"] is False
+    assert enriched["timeline"]["state"] == "order_conflict"
+    assert enriched["timeline"]["order_conflict_count"] == 1
+    assert enriched["timeline"]["overlap_count"] == 0
+    assert enriched["timeline"]["unresolved_overlap_count"] == 0
+    with pytest.raises(ValueError, match="SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID"):
+        validate_overlap_boundary(enriched, current["part_id"])
+
+
+def test_exact_touch_and_one_millisecond_gap_overlap_remain_distinct():
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:01:00Z", duration=30.0),
+        ]
+    )
+    base = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-boundary",
+        "session_id": "session-boundary",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+    }
+
+    touching = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(2, 1, offset=60.0),
+            ],
+        },
+        source_facts,
+    )
+    assert touching["parts"][1]["relation_to_previous"] == "contiguous"
+    assert touching["parts"][1]["relation_seconds"] == 0.0
+    assert touching["timeline"]["state"] == "ready"
+
+    gap = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(2, 1, offset=60.001, gap_confirmed=True),
+            ],
+        },
+        source_facts,
+    )
+    assert gap["parts"][1]["relation_to_previous"] == "gap"
+    assert gap["parts"][1]["relation_seconds"] == pytest.approx(0.001)
+    assert gap["timeline"]["state"] == "ready"
+
+    overlap = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(
+                    2,
+                    1,
+                    offset=59.999,
+                    resolution="prefer_later_from",
+                    boundary=59.9995,
+                ),
+            ],
+        },
+        source_facts,
+    )
+    assert overlap["parts"][1]["relation_to_previous"] == "overlap"
+    assert overlap["parts"][1]["relation_seconds"] == pytest.approx(0.001)
+    assert overlap["parts"][1]["overlap_resolution_valid"] is True
+    assert overlap["timeline"]["state"] == "ready"
