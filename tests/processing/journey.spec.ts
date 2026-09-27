@@ -89,7 +89,64 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	).toBe(true);
 });
 
-test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page }) => {
+test("known-buggy Qwen runtime stays blocked when compatible Stable is not published", async ({
+	page,
+}) => {
+	await page.route(
+		"**/api/downloads/companion/windows/qwen-runtime/manifest",
+		(route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					channel: "stable",
+					runtime_id: "qwen3-transformers",
+					version: "1.0.11",
+				}),
+			}),
+	);
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		qwenRuntimeVersion: "1.0.11",
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Perfil")).toContainText(
+		"temporariamente indisponível",
+	);
+	await expect(page.getByRole("alert")).toContainText(
+		"canal Stable ainda publica 1.0.11",
+	);
+	await expect(page.getByRole("alert")).not.toContainText(
+		"atualize o runtime/Companion",
+	);
+
+	await selectCraig(page);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila local" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("known-buggy Qwen runtime offers update only when compatible Stable is published", async ({
+	page,
+}) => {
+	await page.route(
+		"**/api/downloads/companion/windows/qwen-runtime/manifest",
+		(route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					channel: "stable",
+					runtime_id: "qwen3-transformers",
+					version: "1.0.12",
+				}),
+			}),
+	);
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		qwenRuntimeVersion: "1.0.11",
@@ -99,7 +156,7 @@ test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page })
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
 	await expect(page.getByRole("alert")).toContainText(
-		"runtime 1.0.12 ou mais recente",
+		"O canal Stable já oferece 1.0.12",
 	);
 
 	await selectCraig(page);
@@ -107,6 +164,45 @@ test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page })
 		page.getByRole("button", { name: "Adicionar à fila local" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("Qwen runtime availability lookup failure stays blocked without inventing an update", async ({
+	page,
+}) => {
+	await page.route(
+		"**/api/downloads/companion/windows/qwen-runtime/manifest",
+		(route) =>
+			route.fulfill({
+				status: 503,
+				contentType: "application/json",
+				body: JSON.stringify({ error: "QWEN_RUNTIME_RELEASE_LOOKUP_FAILED" }),
+			}),
+	);
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		qwenRuntimeVersion: "1.0.11",
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Perfil")).toContainText(
+		"disponibilidade não confirmada",
+	);
+	await expect(page.getByRole("alert")).toContainText(
+		"não foi possível confirmar se uma atualização compatível já está publicada",
+	);
+	await expect(page.getByRole("alert")).not.toContainText(
+		"atualize o runtime/Companion",
+	);
+
+	await selectCraig(page);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila local" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
 
