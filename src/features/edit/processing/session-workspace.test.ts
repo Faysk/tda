@@ -23,6 +23,7 @@ function recordingPart(overrides: Record<string, unknown> = {}) {
 		session_offset_seconds: 0,
 		trim_start_seconds: 0,
 		trim_end_seconds: null,
+		gap_confirmed: false,
 		overlap_resolution: null,
 		overlap_boundary_seconds: null,
 		source_start_time: "2026-09-27T20:00:00Z",
@@ -52,6 +53,7 @@ function workspace(parts = [recordingPart()]) {
 		parts,
 		timeline: {
 			policy_version: "tda_session_timeline_v1",
+			segment_boundary_policy: "segment_start_owner_v1",
 			fingerprint_sha256: "f".repeat(64),
 			state: "ready",
 			all_sources_trusted: true,
@@ -59,6 +61,7 @@ function workspace(parts = [recordingPart()]) {
 			gap_count: 0,
 			overlap_count: 0,
 			unresolved_overlap_count: 0,
+			unconfirmed_gap_count: 0,
 		},
 	};
 }
@@ -81,6 +84,7 @@ describe("session workspace protocol", () => {
 					sourceState: "ready",
 					timelineMode: "manual",
 					sessionOffsetSeconds: 0,
+					gapConfirmed: false,
 					sourceStartConfidence: "trusted_absolute",
 					effectiveStartSeconds: 0,
 					effectiveEndSeconds: 3600,
@@ -89,6 +93,7 @@ describe("session workspace protocol", () => {
 			],
 			timeline: {
 				policyVersion: "tda_session_timeline_v1",
+				segmentBoundaryPolicy: "segment_start_owner_v1",
 				fingerprintSha256: "f".repeat(64),
 				state: "ready",
 			},
@@ -195,6 +200,7 @@ describe("session workspace bridge", () => {
 				sessionOffsetSeconds: 120,
 				trimStartSeconds: 5,
 				trimEndSeconds: 60,
+				gapConfirmed: true,
 				overlapResolution: "prefer_later_from",
 				overlapBoundarySeconds: 125,
 			},
@@ -225,6 +231,7 @@ describe("session workspace bridge", () => {
 			session_offset_seconds: 120,
 			trim_start_seconds: 5,
 			trim_end_seconds: 60,
+			gap_confirmed: true,
 			overlap_resolution: "prefer_later_from",
 			overlap_boundary_seconds: 125,
 		});
