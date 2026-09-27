@@ -102,6 +102,36 @@ describe("session workspace protocol", () => {
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
 	});
 
+	it("parses explicit fail-closed order conflicts", () => {
+		const raw = workspace([
+			recordingPart({
+				part_id: partA,
+				source_id: sourceA,
+				ordinal: 0,
+				session_offset_seconds: 60,
+				effective_start_seconds: 60,
+				effective_end_seconds: 90,
+			}),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 0,
+				effective_start_seconds: 0,
+				effective_end_seconds: 30,
+				relation_to_previous: "order_conflict",
+				relation_seconds: null,
+			}),
+		]);
+		raw.timeline.state = "order_conflict";
+
+		const parsed = parseSessionWorkspace(raw);
+
+		expect(parsed.timeline.state).toBe("order_conflict");
+		expect(parsed.parts[1].relationToPrevious).toBe("order_conflict");
+		expect(parsed.parts[1].relationSeconds).toBeNull();
+	});
+
 	it("rejects duplicate sources, non-contiguous order and invalid clock confidence", () => {
 		const duplicate = workspace([
 			recordingPart({ part_id: partA, ordinal: 0 }),
