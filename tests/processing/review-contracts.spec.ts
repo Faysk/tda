@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+test("completed-run delete follows the installed Companion version", async ({ page }) => {
+	await page.goto("/?review-contracts&metrics&delete-version=0.3.15");
+	await expect(
+		page.getByRole("button", { name: "Excluir resultado local" }),
+	).toHaveCount(0);
+
+	await page.goto("/?review-contracts&metrics&delete-version=0.3.16");
+	await expect(
+		page.getByRole("button", { name: "Excluir resultado local" }),
+	).toBeVisible();
+});
+
 test("base remains unsaved until an explicit editorial action", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
