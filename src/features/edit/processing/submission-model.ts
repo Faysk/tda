@@ -12,6 +12,25 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 	"qwen-quality": "Qwen Quality",
 };
 
+
+export function selectInitialSubmissionProfile(
+	profiles: readonly TranscriptionProfileState[],
+	preferred: TranscriptionProfileId = "qwen-quality",
+): TranscriptionProfileId | "" {
+	const preferredProfile = profiles.find((item) => item.id === preferred);
+	if (preferredProfile?.ready) return preferredProfile.id;
+
+	const ready = profiles.find((item) => item.ready);
+	if (ready) return ready.id;
+
+	const preparable = profiles.find(
+		(item) => !item.ready && item.preparationRequired,
+	);
+	if (preparable) return preparable.id;
+
+	return profiles[0]?.id ?? "";
+}
+
 export function submissionProfileLabel(id: TranscriptionProfileId): string {
 	return profileLabels[id];
 }
