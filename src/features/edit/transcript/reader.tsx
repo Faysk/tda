@@ -169,7 +169,7 @@ export function TranscriptReader({
 				</a>
 			</div>
 
-			<div className={styles.timeline} aria-label="Transcrição completa">
+			<section className={styles.timeline} aria-label="Transcrição completa">
 				{visible.map((segment, index) => (
 					<article
 						id={`segment-${encodeURIComponent(segment.id)}`}
@@ -199,7 +199,7 @@ export function TranscriptReader({
 					<div ref={sentinelRef} className={styles.more} aria-hidden="true" />
 				) : null}
 				{!segments.length ? <p className={styles.empty}>Nenhuma fala disponível nesta sessão.</p> : null}
-			</div>
+			</section>
 		</div>
 	);
 }
