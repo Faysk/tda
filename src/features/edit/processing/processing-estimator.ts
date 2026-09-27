@@ -339,6 +339,8 @@ export function formatEstimateRange(
 		const rest = minutes % 60;
 		return rest ? `${hours}h ${rest}m` : `${hours}h`;
 	};
-	const lower = format(lowerSeconds);\n\tconst upper = format(upperSeconds);\n\treturn lower === upper ? `≈ ${lower}` : `${lower}–${upper}`;
+	const lower = format(lowerSeconds);
+	const upper = format(upperSeconds);
+	return lower === upper ? `≈ ${lower}` : `${lower}–${upper}`;
 }
 
