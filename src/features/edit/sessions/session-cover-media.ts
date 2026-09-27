@@ -55,9 +55,18 @@ export function sessionCoverUploadChunkCount(bytes: number): number | null {
 	return worldEntityMediaUploadChunkCount(bytes);
 }
 
-export function sessionCoverPreviewUrl(assetId: string): string | undefined {
-	if (!isSessionCoverUuid(assetId)) return undefined;
-	return "/api/edit/session-cover/" + encodeURIComponent(assetId.toLowerCase());
+export function sessionCoverPreviewUrl(
+	sessionId: string,
+	assetId: string,
+): string | undefined {
+	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
+		return undefined;
+	return (
+		"/api/edit/session-cover/" +
+		encodeURIComponent(sessionId.toLowerCase()) +
+		"/" +
+		encodeURIComponent(assetId.toLowerCase())
+	);
 }
 
 export function sessionCoverObjectKey(input: {
