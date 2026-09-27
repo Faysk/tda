@@ -12,6 +12,7 @@ import type {
 	LocalReview,
 	LocalReviewSegment,
 	LocalReviewStatus,
+	LocalRunComparisonProjection,
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
@@ -23,6 +24,7 @@ import { applyParticipantRename } from "./participant-rename";
 import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
 import { localRunKey, serializeLocalRunKey } from "./local-run-key";
 import { processingStageLabels } from "./engine-metrics";
+import { RunComparisonWorkspace } from "./run-comparison-workspace";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -33,6 +35,7 @@ type Props = Readonly<{
 	error: string | null;
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
+	onLoadComparison: (sourceId: string, runId: string) => Promise<LocalRunComparisonProjection>;
 	onDeleteRun?: (sourceId: string, runId: string, transcriptSha256: string) => Promise<boolean>;
 	onSave: (
 		baseline: LocalReview,
@@ -827,6 +830,7 @@ export function LocalReviewWorkspace({
 	error,
 	publicationEnabled,
 	onOpen,
+	onLoadComparison,
 	onDeleteRun,
 	onSave,
 	onClose,
@@ -1051,12 +1055,21 @@ export function LocalReviewWorkspace({
 						</nav>
 						<div className={styles.runDetail}>
 							{selectedRun ? (
-								<RunCard
-									run={selectedRun}
-									busy={busy}
-									onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
-									onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
-								/>
+								<>
+									<RunCard
+										run={selectedRun}
+										busy={busy}
+										onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
+										onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
+									/>
+									<RunComparisonWorkspace
+										anchorRun={selectedRun}
+										runs={runs}
+										busy={busy}
+										onLoad={onLoadComparison}
+										onChooseBase={onOpen}
+									/>
+								</>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
 							)}
