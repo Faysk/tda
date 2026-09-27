@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -98,7 +99,15 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         return kind, {"units": units, "completed": completed}
 
     if kind == "transcription.craig":
-        allowed = {"source_id", "profile_id", "glossary", "context", "cpu"}
+        allowed = {
+            "source_id",
+            "profile_id",
+            "glossary",
+            "context",
+            "cpu",
+            "benchmark_mode",
+            "benchmark_sample_seconds",
+        }
         if not set(payload) <= allowed:
             raise WorkerProtocolError("WORKER_PAYLOAD_FIELDS_INVALID")
         source_id = payload.get("source_id")
@@ -112,13 +121,31 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         cpu = payload.get("cpu", False)
         if not isinstance(cpu, bool):
             raise WorkerProtocolError("WORKER_CPU_FLAG_INVALID")
-        return kind, {
+        benchmark_mode = payload.get("benchmark_mode", False)
+        if not isinstance(benchmark_mode, bool):
+            raise WorkerProtocolError("WORKER_BENCHMARK_MODE_INVALID")
+        benchmark_sample_seconds = payload.get("benchmark_sample_seconds")
+        if benchmark_mode:
+            if (
+                isinstance(benchmark_sample_seconds, bool)
+                or not isinstance(benchmark_sample_seconds, (int, float))
+                or not math.isfinite(float(benchmark_sample_seconds))
+                or float(benchmark_sample_seconds) != 300.0
+            ):
+                raise WorkerProtocolError("WORKER_BENCHMARK_SAMPLE_INVALID")
+        elif benchmark_sample_seconds is not None:
+            raise WorkerProtocolError("WORKER_BENCHMARK_SAMPLE_INVALID")
+        normalized = {
             "source_id": source_id,
             "profile_id": profile_id,
             "glossary": glossary,
             "context": context,
             "cpu": cpu,
         }
+        if benchmark_mode:
+            normalized["benchmark_mode"] = True
+            normalized["benchmark_sample_seconds"] = 300.0
+        return kind, normalized
 
     raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
 
