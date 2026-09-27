@@ -33,6 +33,7 @@ type Props = Readonly<{
 	busy: boolean;
 	error: string | null;
 	publicationEnabled: boolean;
+	comparisonEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
 	onLoadSnapshot: (sourceId: string, runId: string) => Promise<LocalReview>;
 	onDeleteRun?: (sourceId: string, runId: string, transcriptSha256: string) => Promise<boolean>;
@@ -828,6 +829,7 @@ export function LocalReviewWorkspace({
 	busy,
 	error,
 	publicationEnabled,
+	comparisonEnabled,
 	onOpen,
 	onLoadSnapshot,
 	onDeleteRun,
@@ -903,7 +905,7 @@ export function LocalReviewWorkspace({
 		filteredRuns[0] ??
 		null;
 
-	const comparisonCandidates = selectedRun
+	const comparisonCandidates = comparisonEnabled && selectedRun
 		? runs.filter(
 			(run) =>
 				run.sourceId === selectedRun.sourceId &&
@@ -1132,6 +1134,7 @@ export function LocalReviewWorkspace({
 										onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
 										onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
 									/>
+{comparisonEnabled ? (
 									<div className={styles.runCompareActions}>
 										<div>
 											<strong>Comparar runs</strong>
@@ -1152,6 +1155,7 @@ export function LocalReviewWorkspace({
 										) : <small>Nenhum segundo run compatível nesta fonte.</small>}
 										{comparisonError ? <p role="status">{comparisonError}</p> : null}
 									</div>
+									) : null}
 								</>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
