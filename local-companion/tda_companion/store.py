@@ -637,14 +637,16 @@ class Store:
             ).fetchone()
             if not row:
                 return None
-            return {
+            result = {
                 "job_id": row["job_id"],
                 "attempt": row["attempt"],
                 "status": row["status"],
                 "result_available": bool(row["result_available"]) and row["result_state"] != "deleted_local",
-                "result_state": row["result_state"],
                 "updated_at": row["updated"],
             }
+            if row["result_state"] is not None:
+                result["result_state"] = row["result_state"]
+            return result
 
     @staticmethod
     def _job_cursor(scope, updated, job_id):
