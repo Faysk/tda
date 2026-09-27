@@ -11,6 +11,7 @@ from uuid import uuid4
 from .execution_device import sanitize_execution_device
 from .legacy.artifacts import sha256_json, utc_now
 from .legacy.publication import build_publication_bundle
+from .session_timeline import SessionTimelineError, normalize_timeline_config
 
 
 _ACTIVITY_METRICS = frozenset(
@@ -34,7 +35,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -91,6 +92,13 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS session_recording_parts_workspace_idx
                     ON session_recording_parts(campaign_id, session_id, ordinal);
+                CREATE TABLE IF NOT EXISTS session_timeline_configs (
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    PRIMARY KEY(campaign_id, session_id)
+                );
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -130,7 +138,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=10")
+            db.execute("PRAGMA user_version=11")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -202,6 +210,21 @@ class Store:
             """,
             (row["campaign_id"], row["session_id"]),
         ).fetchall()
+        part_ids = [part["part_id"] for part in parts]
+        timeline_row = db.execute(
+            """
+            SELECT config FROM session_timeline_configs
+            WHERE campaign_id=? AND session_id=?
+            """,
+            (row["campaign_id"], row["session_id"]),
+        ).fetchone()
+        try:
+            timeline_config = normalize_timeline_config(
+                json.loads(timeline_row["config"]) if timeline_row is not None else None,
+                part_ids,
+            )
+        except (json.JSONDecodeError, SessionTimelineError) as exc:
+            raise Conflict("SESSION_TIMELINE_CONFIG_CORRUPT") from exc
         return {
             "schema_version": "tda_session_workspace_v1",
             "campaign_id": row["campaign_id"],
@@ -209,6 +232,7 @@ class Store:
             "revision": row["revision"],
             "created_at": row["created"],
             "updated_at": row["updated"],
+            "timeline_config": timeline_config,
             "parts": [
                 {
                     "part_id": part["part_id"],
@@ -407,6 +431,82 @@ class Store:
                 )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def replace_session_timeline(
+        self,
+        campaign_id,
+        session_id,
+        expected_revision,
+        config,
+    ):
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            parts = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            part_ids = [part["part_id"] for part in parts]
+            try:
+                normalized = normalize_timeline_config(
+                    config,
+                    part_ids,
+                    require_exact=True,
+                )
+            except SessionTimelineError as exc:
+                raise Conflict(str(exc)) from exc
+            encoded = json.dumps(
+                normalized,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            current = db.execute(
+                """
+                SELECT config FROM session_timeline_configs
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchone()
+            if current is not None:
+                try:
+                    current_normalized = normalize_timeline_config(
+                        json.loads(current["config"]),
+                        part_ids,
+                    )
+                    current_encoded = json.dumps(
+                        current_normalized,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                except (json.JSONDecodeError, SessionTimelineError):
+                    current_encoded = None
+                if current_encoded == encoded:
+                    return self._session_workspace_dto(db, row)
+            now = utc_now()
+            db.execute(
+                """
+                INSERT INTO session_timeline_configs(campaign_id,session_id,config,updated)
+                VALUES (?,?,?,?)
+                ON CONFLICT(campaign_id,session_id) DO UPDATE SET
+                    config=excluded.config,
+                    updated=excluded.updated
+                """,
+                (row["campaign_id"], row["session_id"], encoded, now),
+            )
+            bumped = self._bump_session_workspace(
+                db,
+                row["campaign_id"],
+                row["session_id"],
+                row["revision"],
             )
             return self._session_workspace_dto(db, bumped)
 
