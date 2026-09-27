@@ -9,6 +9,7 @@ import {
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	type SessionPartTiming,
 	identifier,
 	LOCAL_API,
 	parseBenchmarkResult,
@@ -377,6 +378,41 @@ export class LocalBridge {
 				{
 					part_ids: partIds.map(identifier),
 					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async setSessionPartTiming(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		timing: SessionPartTiming,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/timing`,
+				signal,
+				{
+					part_id: identifier(partId),
+					expected_revision: expectedRevision,
+					timing: {
+						schema_version: timing.schemaVersion,
+						mode: timing.mode,
+						session_offset_seconds: timing.sessionOffsetSeconds,
+						trim_start_seconds: timing.trimStartSeconds,
+						trim_end_seconds: timing.trimEndSeconds,
+						gap_confirmed: timing.gapConfirmed,
+						overlap_resolution:
+							timing.overlapResolution === null
+								? null
+								: {
+										schema_version: timing.overlapResolution.schemaVersion,
+										policy: timing.overlapResolution.policy,
+										boundary_seconds: timing.overlapResolution.boundarySeconds,
+									},
+					},
 				},
 			),
 		);
