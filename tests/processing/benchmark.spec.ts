@@ -63,7 +63,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
 	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
 	await expect(panel.locator('[data-benchmark-stepper="true"]')).toBeVisible();
-	await expect(panel.locator('[data-benchmark-stepper="true"] > span')).toHaveCount(4);
+	await expect(panel.locator('[data-benchmark-stepper="true"] > li')).toHaveCount(4);
 
 	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
 	await expect(page.getByRole("tabpanel", { name: "Diagnóstico" })).toBeVisible();
