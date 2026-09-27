@@ -377,7 +377,8 @@
 	min-width: 0;
 }
 
-.overviewTop[data-mode="idle"] {
+.overviewTop[data-mode="idle"],
+.overviewTop[data-mode="queued"] {
 	grid-template-columns: minmax(0, 1fr);
 }
 
