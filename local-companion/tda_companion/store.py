@@ -11,6 +11,7 @@ from uuid import uuid4
 from .execution_device import sanitize_execution_device
 from .legacy.artifacts import sha256_json, utc_now
 from .legacy.publication import build_publication_bundle
+from .session_timeline import SessionTimelineError, normalize_decision, normalize_part_timing
 
 
 _ACTIVITY_METRICS = frozenset(
@@ -34,7 +35,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -73,6 +74,7 @@ class Store:
                     campaign_id TEXT NOT NULL,
                     session_id TEXT NOT NULL,
                     revision INTEGER NOT NULL DEFAULT 0,
+                    order_authority TEXT NOT NULL DEFAULT 'unconfirmed',
                     created TEXT NOT NULL,
                     updated TEXT NOT NULL,
                     PRIMARY KEY(campaign_id, session_id)
@@ -84,6 +86,9 @@ class Store:
                     source_id TEXT NOT NULL,
                     ordinal INTEGER NOT NULL,
                     selected_run_id TEXT,
+                    manual_offset_seconds REAL,
+                    trim_start_seconds REAL NOT NULL DEFAULT 0,
+                    trim_end_seconds REAL,
                     created TEXT NOT NULL,
                     updated TEXT NOT NULL,
                     UNIQUE(campaign_id, session_id, source_id),
@@ -91,6 +96,19 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS session_recording_parts_workspace_idx
                     ON session_recording_parts(campaign_id, session_id, ordinal);
+                CREATE TABLE IF NOT EXISTS session_timeline_decisions (
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    earlier_part_id TEXT NOT NULL,
+                    later_part_id TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    boundary_seconds REAL,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    PRIMARY KEY(campaign_id, session_id, earlier_part_id, later_part_id)
+                );
+                CREATE INDEX IF NOT EXISTS session_timeline_decisions_workspace_idx
+                    ON session_timeline_decisions(campaign_id, session_id);
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -130,7 +148,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=10")
+            db.execute("PRAGMA user_version=11")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
