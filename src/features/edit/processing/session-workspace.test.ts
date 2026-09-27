@@ -12,7 +12,20 @@ const sourceB = `craig-${"b".repeat(64)}`;
 const partA = "1".repeat(32);
 const partB = "2".repeat(32);
 
-function workspace(parts = [
+type RawWorkspacePart = {
+	part_id: string;
+	source_id: string;
+	ordinal: number;
+	selected_run_id: null;
+	source_state: string;
+	manual_offset_seconds?: number | null;
+	trim_start_seconds?: number;
+	trim_end_seconds?: number | null;
+	created_at: string;
+	updated_at: string;
+};
+
+function workspace(parts: RawWorkspacePart[] = [
 	{
 		part_id: partA,
 		source_id: sourceA,
