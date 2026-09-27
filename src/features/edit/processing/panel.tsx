@@ -1076,10 +1076,7 @@ export function ProcessingPanel({
 								</div>
 							</div>
 							<div className={styles.diagnosticsCore} data-diagnostics-core="true">
-								<div
-									className={styles.diagnosticsSummaryRail}
-									data-diagnostics-summary="true"
-								>
+								<div className={styles.diagnosticsSummaryRail} data-diagnostics-summary="true">
 									{observedJob ? (
 										<dl className={styles.jobDetails}>
 											<div>
@@ -1116,6 +1113,7 @@ export function ProcessingPanel({
 											Nenhum trabalho observado.
 										</p>
 									)}
+
 
 									<details className={styles.systemDetails}>
 										<summary>Companion e máquina</summary>
@@ -1156,12 +1154,7 @@ export function ProcessingPanel({
 												<div key={item.index}>
 													<dt>GPU {item.index}</dt>
 													<dd>
-														{item.name} ·{" "}
-														{item.utilizationPercent === null
-															? "—"
-															: `${Math.round(item.utilizationPercent)}%`}{" "}
-														· {formatBytes(item.memoryUsedBytes)} /{" "}
-														{formatBytes(item.memoryTotalBytes)} VRAM
+														{item.name} · {item.utilizationPercent === null ? "—" : `${Math.round(item.utilizationPercent)}%`} · {formatBytes(item.memoryUsedBytes)} / {formatBytes(item.memoryTotalBytes)} VRAM
 													</dd>
 												</div>
 											))}
@@ -1174,11 +1167,7 @@ export function ProcessingPanel({
 										</dl>
 									</details>
 								</div>
-
-								<div
-									className={styles.diagnosticsEventPane}
-									data-diagnostics-events="true"
-								>
+								<div className={styles.diagnosticsEventPane} data-diagnostics-events="true">
 									{observedJob ? (
 										<ProcessingLiveLog
 											events={state.events}
@@ -1189,6 +1178,7 @@ export function ProcessingPanel({
 											activityCatalog={activityCatalog}
 										/>
 									) : null}
+
 								</div>
 							</div>
 
