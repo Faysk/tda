@@ -107,6 +107,11 @@ describe("session cover media contract", () => {
 				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc.webp?token=secret",
 			),
 		).toBe(false);
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp?token=secret",
+			),
+		).toBe(false);
 	});
 
 
