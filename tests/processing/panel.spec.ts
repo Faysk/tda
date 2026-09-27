@@ -1096,3 +1096,111 @@ test("Fila torna falha do Clipboard API visível e acionável", async ({ page })
 	await expect(feedback).toBeVisible();
 	await expect(feedback).toHaveAttribute("role", "alert");
 });
+
+
+test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fora de ordem", async ({
+	page,
+}) => {
+	await page.addInitScript(() => {
+		type PendingClipboardWrite = {
+			value: string;
+			resolve: () => void;
+		};
+		const pending: PendingClipboardWrite[] = [];
+		(
+			window as Window & {
+				__queueClipboardWrites?: PendingClipboardWrite[];
+			}
+		).__queueClipboardWrites = pending;
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: (value: string) =>
+					new Promise<void>((resolve) => {
+						pending.push({ value, resolve });
+					}),
+			},
+		});
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("running", {
+				id: "job-first",
+				context: {
+					campaign_id: "synthetic",
+					session_id: "session-first",
+					source_id: "source-first",
+					profile_id: "qwen-quality",
+				},
+			}),
+			fixtureJob("queued", {
+				id: "job-second",
+				context: {
+					campaign_id: "synthetic",
+					session_id: "session-second",
+					source_id: "source-second",
+					profile_id: "whisper-turbo",
+				},
+			}),
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	const firstRow = queue.getByRole("row").filter({ hasText: "session-first" }).first();
+	const secondRow = queue.getByRole("row").filter({ hasText: "session-second" }).first();
+
+	await firstRow.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Copiar ID", exact: true }).click();
+	await secondRow.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Copiar ID", exact: true }).click();
+
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(
+						window as Window & {
+							__queueClipboardWrites?: Array<{
+								value: string;
+								resolve: () => void;
+							}>;
+						}
+					).__queueClipboardWrites?.length ?? 0,
+			),
+		)
+		.toBe(2);
+
+	await page.evaluate(() => {
+		const writes = (
+			window as Window & {
+				__queueClipboardWrites?: Array<{
+					value: string;
+					resolve: () => void;
+				}>;
+			}
+		).__queueClipboardWrites;
+		writes?.[1]?.resolve();
+	});
+	await expect(page.getByText("ID job-second copiado.", { exact: true })).toBeVisible();
+
+	await page.evaluate(() => {
+		const writes = (
+			window as Window & {
+				__queueClipboardWrites?: Array<{
+					value: string;
+					resolve: () => void;
+				}>;
+			}
+		).__queueClipboardWrites;
+		writes?.[0]?.resolve();
+	});
+	await page.waitForTimeout(50);
+
+	await expect(page.getByText("ID job-second copiado.", { exact: true })).toBeVisible();
+	await expect(page.getByText("ID job-first copiado.", { exact: true })).toHaveCount(0);
+});
