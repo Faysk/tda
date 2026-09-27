@@ -1,4 +1,6 @@
 const TERMINAL_JOB_DELETE_MINIMUM = [0, 3, 11] as const;
+export const COMPLETED_RUN_DELETE_MINIMUM_VERSION = "0.3.16";
+const COMPLETED_RUN_DELETE_MINIMUM = [0, 3, 16] as const;
 export const AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION = "0.3.14";
 const AUTOMATIC_LOOPBACK_SESSION_MINIMUM = [0, 3, 14] as const;
 export const QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION = "1.0.12";
@@ -28,6 +30,12 @@ export function supportsTerminalJobDelete(
 	serviceVersion: string | null | undefined,
 ): boolean {
 	return atLeast(serviceVersion, TERMINAL_JOB_DELETE_MINIMUM);
+}
+
+export function supportsCompletedRunDelete(
+	serviceVersion: string | null | undefined,
+): boolean {
+	return atLeast(serviceVersion, COMPLETED_RUN_DELETE_MINIMUM);
 }
 
 export function supportsAutomaticLoopbackSession(
