@@ -226,6 +226,29 @@ describe("run comparison", () => {
 		);
 	});
 
+	it("orders regions globally by session timeline and filters on session time", () => {
+		const leftTrackOne = {
+			...segment(1, "track-1", 0, 1, "primeiro"),
+			timelineStart: 20,
+			timelineEnd: 21,
+		};
+		const leftTrackTwo = {
+			...segment(2, "track-2", 0, 1, "segundo"),
+			timelineStart: 5,
+			timelineEnd: 6,
+		};
+		const regions = compareRunSegments([leftTrackOne, leftTrackTwo], []);
+
+		expect(regions.map((region) => region.trackNumber)).toEqual([2, 1]);
+		expect(regions.map((region) => [region.timelineStart, region.timelineEnd])).toEqual([
+			[5, 6],
+			[20, 21],
+		]);
+		expect(regionOverlapsTimeRange(regions[0]!, 4.5, 6)).toBe(true);
+		expect(regionOverlapsTimeRange(regions[0]!, 10, 19)).toBe(false);
+		expect(regionOverlapsTimeRange(regions[1]!, 20.5, 22)).toBe(true);
+	});
+
 	it("requires two distinct runs from the same source", () => {
 		expect(
 			runsShareComparisonSource(
