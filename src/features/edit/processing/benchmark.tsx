@@ -158,8 +158,10 @@ export function ProcessingBenchmark({
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
+	const benchmarkSupported =
+		capabilities?.capabilities.includes("processing.benchmark") === true;
 	const allProfilesReady =
-		capabilities?.transcription.catalog.length === 4 &&
+		capabilities !== null &&
 		PROFILES.every(
 			(id) =>
 				capabilities.transcription.catalog.find((item) => item.id === id)?.ready ===
@@ -204,6 +206,8 @@ export function ProcessingBenchmark({
 		try {
 			const staged = source ?? (await bridge.craigSource(file, controller.signal));
 			setSource(staged);
+			const benchmarkRequestKey =
+				`benchmark-${staged.sourceSha256.slice(0, 16)}-${globalThis.crypto.randomUUID()}`;
 			await bridge.benchmark(
 				{
 					campaignId: "benchmark-local",
@@ -212,7 +216,7 @@ export function ProcessingBenchmark({
 					glossary: "",
 					context: "",
 				},
-				`benchmark-${staged.sourceSha256.slice(0, 48)}`,
+				benchmarkRequestKey,
 				controller.signal,
 			);
 			onRefresh();
@@ -257,6 +261,7 @@ export function ProcessingBenchmark({
 						variant="primary"
 						disabled={
 							!connected ||
+							!benchmarkSupported ||
 							!file ||
 							busy ||
 							Boolean(active) ||
@@ -267,7 +272,11 @@ export function ProcessingBenchmark({
 						{busy ? "Preparando benchmark…" : "Executar benchmark de 5 minutos"}
 					</Button>
 				</div>
-				{!allProfilesReady ? (
+				{!benchmarkSupported ? (
+					<p className={styles.notice}>
+						Este Companion ainda não anuncia suporte ao benchmark comparativo.
+					</p>
+				) : !allProfilesReady ? (
 					<p className={styles.notice}>
 						Prepare os quatro perfis antes do benchmark. Downloads/preparação não
 						são misturados com o tempo de inferência.
