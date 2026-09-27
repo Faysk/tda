@@ -754,6 +754,7 @@ export function ProcessingPanel({
 													ariaLabel={`Progresso por ${progressUnitLabel(activeJob)} do trabalho ${activeJob.id}: ${progressCopy(activeJob)}`}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
+													expectedSampleMs={processingPollMs(true)}
 													valueText={progressCopy(activeJob)}
 												/>
 												<strong>Progresso por {progressUnitLabel(activeJob)} · {activePercent}%</strong>
