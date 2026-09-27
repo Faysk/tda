@@ -1,5 +1,24 @@
 import { expect, test } from "@playwright/test";
 
+test("completed-run delete stays hidden on Stable 0.3.15 and appears on 0.3.16", async ({ page }) => {
+	await page.goto("/?review-contracts&metrics&service-version=0.3.15");
+	await expect(page.getByText("whisper-detailed", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Excluir resultado local…" }),
+	).toHaveCount(0);
+	await expect(
+		page.getByLabel("Mais ações do resultado"),
+	).toHaveCount(0);
+
+	await page.goto("/?review-contracts&metrics&service-version=0.3.16");
+	const more = page.getByLabel("Mais ações do resultado");
+	await expect(more).toHaveCount(1);
+	await more.click();
+	await expect(
+		page.getByRole("button", { name: "Excluir resultado local…" }),
+	).toBeVisible();
+});
+
 test("base remains unsaved until an explicit editorial action", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();

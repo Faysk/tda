@@ -1,4 +1,5 @@
 import { publishApprovedLocalReview } from "../../src/features/edit/processing/publication-client";
+import { supportsCompletedRunDelete } from "../../src/features/edit/processing/compatibility";
 import { LocalReviewWorkspace } from "../../src/features/edit/processing/local-review";
 import type { LocalReview, LocalRunSummary } from "../../src/features/edit/processing/protocol";
 import { useState } from "react";
@@ -10,7 +11,9 @@ export function ReviewFixture() {
 	const ephemeral = new URLSearchParams(location.search).has("ephemeral");
 	const oldAgent = new URLSearchParams(location.search).has("old-agent");
 	const bulk = new URLSearchParams(location.search).has("bulk");
-	const metricsMode = new URLSearchParams(location.search).has("metrics");
+	const params = new URLSearchParams(location.search);
+	const metricsMode = params.has("metrics");
+	const fixtureServiceVersion = params.get("service-version");
     const [saveCount, setSaveCount] = useState(0);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
@@ -108,6 +111,11 @@ export function ReviewFixture() {
 			error={saveError}
 			publicationEnabled={publication}
 			onOpen={() => {}}
+			onDeleteRun={
+				supportsCompletedRunDelete(fixtureServiceVersion)
+					? async () => true
+					: undefined
+			}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);

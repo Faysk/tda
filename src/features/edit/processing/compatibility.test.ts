@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	COMPLETED_RUN_DELETE_MINIMUM_VERSION,
 	QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION,
 	supportsAutomaticLoopbackSession,
+	supportsCompletedRunDelete,
 	supportsQwenAlignmentRuntime,
 	supportsTerminalJobDelete,
 } from "./compatibility";
@@ -16,6 +18,17 @@ describe("processing compatibility", () => {
 		expect(supportsQwenAlignmentRuntime("1.0.13")).toBe(true);
 		expect(supportsQwenAlignmentRuntime("1.0.12-rc.1")).toBe(false);
 		expect(supportsQwenAlignmentRuntime("development")).toBe(false);
+	});
+
+	it("fails closed on completed-run deletion before Companion 0.3.16", () => {
+		expect(COMPLETED_RUN_DELETE_MINIMUM_VERSION).toBe("0.3.16");
+		expect(supportsCompletedRunDelete(undefined)).toBe(false);
+		expect(supportsCompletedRunDelete(null)).toBe(false);
+		expect(supportsCompletedRunDelete("0.3.15")).toBe(false);
+		expect(supportsCompletedRunDelete("0.3.16")).toBe(true);
+		expect(supportsCompletedRunDelete("0.3.16-rc.1")).toBe(true);
+		expect(supportsCompletedRunDelete("0.4.0")).toBe(true);
+		expect(supportsCompletedRunDelete("garbage")).toBe(false);
 	});
 
 	it("publishes one minimum version for the automatic browser-session contract", () => {
