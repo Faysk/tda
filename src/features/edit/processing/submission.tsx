@@ -368,15 +368,7 @@ export function ProcessingSubmission({
 	if (!paired) return null;
 
 	async function analyzeSource() {
-		if (
-			busy ||
-			!file ||
-			!profile ||
-			!canSubmit ||
-			requestTooLarge ||
-			qwenRuntimeUpgradeRequired
-		)
-			return;
+		if (busy || !file || !profile || !canSubmit) return;
 		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
 			setError("Escolha um ZIP válido exportado pelo Craig.");
 			return;
@@ -765,14 +757,7 @@ export function ProcessingSubmission({
 							<Button
 								type="button"
 								variant="primary"
-								disabled={
-									busy ||
-									!file ||
-									!profile ||
-									!canSubmit ||
-									requestTooLarge ||
-									qwenRuntimeUpgradeRequired
-								}
+								disabled={busy || !file || !profile || !canSubmit}
 								onClick={() => void analyzeSource()}
 							>
 								{busy ? "Analisando localmente…" : "Analisar ZIP localmente"}
