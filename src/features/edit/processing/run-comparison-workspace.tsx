@@ -143,12 +143,11 @@ export function RunComparisonWorkspace({
 	onLoad,
 	onChooseBase,
 }: Props) {
-	const anchorKey = runKey(anchorRun);
 	const compatibleRuns = useMemo(
 		() => runs.filter((run) => runsShareComparisonSource(anchorRun, run)),
 		[anchorRun, runs],
 	);
-	const compatibleSignature = compatibleRuns.map(runKey).join("|");
+	const defaultCandidate = compatibleRuns[0] ?? null;
 	const [candidateKey, setCandidateKey] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -163,12 +162,12 @@ export function RunComparisonWorkspace({
 
 	useEffect(() => {
 		requestSequence.current += 1;
-		setCandidateKey(compatibleRuns[0] ? runKey(compatibleRuns[0]) : "");
+		setCandidateKey(defaultCandidate ? runKey(defaultCandidate) : "");
 		setLoaded(null);
 		setError(null);
 		setPage(0);
 		setActiveDifferenceId(null);
-	}, [anchorKey, compatibleSignature]);
+	}, [defaultCandidate]);
 
 	const candidate =
 		compatibleRuns.find((run) => runKey(run) === candidateKey) ??
