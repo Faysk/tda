@@ -680,23 +680,3 @@ test("Overview shows the vacant idle state when the queue is empty", async ({
 		fullPage: true,
 	});
 });
-
-test("Benchmark tab explains that repeatable profile comparisons are not available yet", async ({
-	page,
-}) => {
-	await installCompanionFixture(page, {
-		profileReady: true,
-		advanceJobs: false,
-	});
-	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await page.getByRole("tab", { name: "Benchmark" }).click();
-	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
-	await expect(benchmark).toBeVisible();
-	await expect(benchmark).toContainText(
-		"Benchmark comparativo ainda não disponível.",
-	);
-	await expect(benchmark).toContainText(
-		"Os runs concluídos e suas métricas ficam em Resultados.",
-	);
-});

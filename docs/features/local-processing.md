@@ -19,8 +19,13 @@ visível sem barra nem mensagem de erro. `updated_at` não é tratado como
 heartbeat. Métricas persistidas são rotuladas como **Último resultado concluído**
 e ficam ocultas enquanto outro job está ativo. Elapsed continua indisponível
 até um timestamp autoritativo persistido ser exposto pelo contrato (#603).
-Benchmark aparece como tab, mas explica que a comparação repetível ainda não
-está disponível; a execução pertence à #582 e não é simulada aqui.
+Benchmark é uma tab funcional para comparação exploratória local: usa a mesma
+source Craig e o mesmo corte temporal de 0–300 s nos quatro perfis, executados
+sequencialmente com artefatos já preparados. O receipt é sanitizado e registra a
+identidade da amostra, lineage e métricas factuais; não contém transcript/áudio,
+não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
+permanece explicitamente não medida. Este benchmark não substitui o aceite físico
+de release definido em #478.
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run

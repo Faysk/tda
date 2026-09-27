@@ -1,0 +1,177 @@
+.workspace {
+	display: grid;
+	gap: 14px;
+}
+
+.launchCard,
+.activeCard,
+.resultCard,
+.history {
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface);
+}
+
+.launchCard,
+.activeCard,
+.history {
+	padding: 14px;
+}
+
+.launchCard {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 20px;
+	align-items: end;
+}
+
+.launchCard h2,
+.launchCard p,
+.activeCard h3,
+.activeCard p,
+.history h2,
+.resultCard h3 {
+	margin: 0;
+}
+
+.launchCard p,
+.activeCard p,
+.qualityNotice span,
+.notice,
+.empty,
+.loading {
+	color: var(--ds-foreground-muted);
+	font-size: 0.76rem;
+	line-height: 1.5;
+}
+
+.eyebrow {
+	display: block;
+	margin-bottom: 3px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.67rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.launchControls {
+	display: flex;
+	align-items: end;
+	gap: 8px;
+}
+
+.launchControls label {
+	display: grid;
+	gap: 4px;
+	font-size: 0.7rem;
+	font-weight: 650;
+}
+
+.launchControls input {
+	max-width: 250px;
+	font-size: 0.7rem;
+}
+
+.notice,
+.error {
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
+.error {
+	color: var(--ds-danger-foreground);
+	font-size: 0.74rem;
+}
+
+.activeCard,
+.resultHeader,
+.historyHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.history {
+	display: grid;
+	gap: 10px;
+}
+
+.historyHeader > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.resultCard {
+	display: grid;
+	gap: 9px;
+	padding: 12px;
+}
+
+.receiptFacts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+}
+
+.tableWrap {
+	overflow-x: auto;
+}
+
+.tableWrap table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.7rem;
+}
+
+.tableWrap th,
+.tableWrap td {
+	padding: 7px 8px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	text-align: left;
+	white-space: nowrap;
+}
+
+.tableWrap thead th {
+	color: var(--ds-foreground-muted);
+	font-size: 0.64rem;
+	font-weight: 650;
+	text-transform: uppercase;
+}
+
+.tableWrap tbody th {
+	font-weight: 700;
+}
+
+.qualityNotice {
+	display: flex;
+	gap: 8px;
+	padding: 8px;
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.qualityNotice strong {
+	flex: 0 0 auto;
+	font-size: 0.72rem;
+}
+
+@media (max-width: 800px) {
+	.launchCard {
+		grid-template-columns: 1fr;
+	}
+
+	.launchControls,
+	.activeCard,
+	.qualityNotice {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.launchControls input {
+		max-width: 100%;
+	}
+}
