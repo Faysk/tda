@@ -84,13 +84,21 @@ function object(value: unknown, code = "PACK_OBJECT_REQUIRED"): Record<string, u
 	return value as Record<string, unknown>;
 }
 
+function hasForbiddenControlCharacters(value: string): boolean {
+	for (const character of value) {
+		const code = character.charCodeAt(0);
+		if (code < 32 && code !== 9 && code !== 10 && code !== 13) return true;
+	}
+	return false;
+}
+
 function text(value: unknown, max: number, code: string): string {
 	if (typeof value !== "string") throw new ActivityPackError(code);
 	const normalized = value.trim();
 	if (
 		!normalized ||
 		normalized.length > max ||
-		/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(normalized)
+		hasForbiddenControlCharacters(normalized)
 	)
 		throw new ActivityPackError(code);
 	if (/<\/?[a-z][^>]*>/iu.test(normalized))
