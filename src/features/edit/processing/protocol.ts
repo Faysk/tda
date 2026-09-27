@@ -63,23 +63,73 @@ export type CraigSource = {
 	minimumTrackDurationSeconds: number | null;
 	reused: boolean;
 };
+export type SessionTimestampConfidence =
+	| "trusted_absolute"
+	| "ambiguous"
+	| "opaque"
+	| "missing";
+export type SessionTimelineMode = "unresolved" | "automatic" | "manual";
+export type SessionOverlapResolution =
+	| "prefer_earlier_until"
+	| "prefer_later_from";
+export type SessionPartRelation =
+	| "first"
+	| "unknown"
+	| "contiguous"
+	| "gap"
+	| "overlap";
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
 	ordinal: number;
 	selectedRunId: string | null;
 	sourceState: "ready" | "invalid";
+	timelineMode: SessionTimelineMode;
+	sessionOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapResolution: SessionOverlapResolution | null;
+	overlapBoundarySeconds: number | null;
+	sourceStartTime: string | null;
+	sourceStartConfidence: SessionTimestampConfidence;
+	sourceStartUtc: string | null;
+	sourceDurationSeconds: number | null;
+	effectiveStartSeconds: number | null;
+	effectiveEndSeconds: number | null;
+	relationToPrevious: SessionPartRelation;
+	relationSeconds: number | null;
+	overlapResolutionValid: boolean;
 	createdAt: string;
 	updatedAt: string;
+};
+export type SessionWorkspaceTimeline = {
+	policyVersion: "tda_session_timeline_v1";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
+	fingerprintSha256: string;
+	state:
+		| "ready"
+		| "needs_timing"
+		| "gap_unconfirmed"
+		| "overlap_unresolved"
+		| "source_invalid";
+	allSourcesTrusted: boolean;
+	automaticOrderAvailable: boolean;
+	gapCount: number;
+	overlapCount: number;
+	unresolvedOverlapCount: number;
+	unconfirmedGapCount: number;
 };
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
 	campaignId: string;
 	sessionId: string;
 	revision: number;
+	orderingMode: "attachment" | "automatic" | "manual";
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+	timeline: SessionWorkspaceTimeline;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
@@ -724,16 +774,41 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	const orderingMode = text(row.ordering_mode, 16);
+	if (!["attachment", "automatic", "manual"].includes(orderingMode))
+		return invalid();
 	const parts = row.parts.map((raw, index) => {
 		const part = record(raw);
 		const partId = text(part.part_id, 32);
 		const sourceId = identifier(part.source_id);
 		const ordinal = nonNegativeInteger(part.ordinal);
 		const sourceState = text(part.source_state, 16);
+		const timelineMode = text(part.timeline_mode, 16);
+		const startConfidence = text(part.source_start_confidence, 32);
+		const relation = text(part.relation_to_previous, 24);
+		const overlapResolution =
+			part.overlap_resolution === null || part.overlap_resolution === undefined
+				? null
+				: text(part.overlap_resolution, 32);
 		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
 		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
+		if (!["unresolved", "automatic", "manual"].includes(timelineMode))
+			return invalid();
+		if (
+			!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(
+				startConfidence,
+			)
+		)
+			return invalid();
+		if (!["first", "unknown", "contiguous", "gap", "overlap"].includes(relation))
+			return invalid();
+		if (
+			overlapResolution !== null &&
+			!["prefer_earlier_until", "prefer_later_from"].includes(overlapResolution)
+		)
+			return invalid();
 		return {
 			partId,
 			sourceId,
@@ -743,6 +818,34 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					? null
 					: runIdentifier(part.selected_run_id),
 			sourceState,
+			timelineMode: timelineMode as SessionTimelineMode,
+			sessionOffsetSeconds: nullableNonNegativeNumber(
+				part.session_offset_seconds,
+			),
+			trimStartSeconds: nonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			gapConfirmed:
+				part.gap_confirmed === undefined ? false : boolean(part.gap_confirmed),
+			overlapResolution: overlapResolution as SessionOverlapResolution | null,
+			overlapBoundarySeconds: nullableNonNegativeNumber(
+				part.overlap_boundary_seconds,
+			),
+			sourceStartTime: nullableText(part.source_start_time, 128),
+			sourceStartConfidence:
+				startConfidence as SessionTimestampConfidence,
+			sourceStartUtc: nullableIsoDate(part.source_start_utc),
+			sourceDurationSeconds: nullableNonNegativeNumber(
+				part.source_duration_seconds,
+			),
+			effectiveStartSeconds: nullableNonNegativeNumber(
+				part.effective_start_seconds,
+			),
+			effectiveEndSeconds: nullableNonNegativeNumber(
+				part.effective_end_seconds,
+			),
+			relationToPrevious: relation as SessionPartRelation,
+			relationSeconds: nullableNonNegativeNumber(part.relation_seconds),
+			overlapResolutionValid: boolean(part.overlap_resolution_valid),
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -751,14 +854,47 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		return invalid();
 	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
 		return invalid();
+
+	const timeline = record(row.timeline);
+	const policyVersion = text(timeline.policy_version, 40);
+	const segmentBoundaryPolicy = text(timeline.segment_boundary_policy, 40);
+	const state = text(timeline.state, 32);
+	if (policyVersion !== "tda_session_timeline_v1") return invalid();
+	if (segmentBoundaryPolicy !== "segment_start_owner_v1") return invalid();
+	if (
+		![
+			"ready",
+			"needs_timing",
+			"gap_unconfirmed",
+			"overlap_unresolved",
+			"source_invalid",
+		].includes(state)
+	)
+		return invalid();
+
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		revision: nonNegativeInteger(row.revision),
+		orderingMode: orderingMode as SessionWorkspace["orderingMode"],
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+		timeline: {
+			policyVersion: "tda_session_timeline_v1",
+			segmentBoundaryPolicy: "segment_start_owner_v1",
+			fingerprintSha256: sha256(timeline.fingerprint_sha256),
+			state: state as SessionWorkspaceTimeline["state"],
+			allSourcesTrusted: boolean(timeline.all_sources_trusted),
+			automaticOrderAvailable: boolean(timeline.automatic_order_available),
+			gapCount: nonNegativeInteger(timeline.gap_count),
+			overlapCount: nonNegativeInteger(timeline.overlap_count),
+			unresolvedOverlapCount: nonNegativeInteger(
+				timeline.unresolved_overlap_count,
+			),
+			unconfirmedGapCount: nonNegativeInteger(timeline.unconfirmed_gap_count),
+		},
 	};
 }
 
