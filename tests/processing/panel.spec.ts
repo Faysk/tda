@@ -1015,3 +1015,72 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
 });
+
+
+test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: async (value: string) => {
+					(
+						window as Window & { __copiedQueueJobId?: string }
+					).__copiedQueueJobId = value;
+				},
+			},
+		});
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Copiar ID", exact: true }).click();
+
+	const feedback = page.getByText("ID craig-job-1 copiado.", { exact: true });
+	await expect(feedback).toBeVisible();
+	await expect(feedback).toHaveAttribute("role", "status");
+	expect(
+		await page.evaluate(
+			() =>
+				(window as Window & { __copiedQueueJobId?: string })
+					.__copiedQueueJobId,
+		),
+	).toBe("craig-job-1");
+});
+
+test("Fila torna falha do Clipboard API visível e acionável", async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: async () => {
+					throw new DOMException("denied by fixture", "NotAllowedError");
+				},
+			},
+		});
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await page.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Copiar ID", exact: true }).click();
+
+	const feedback = page.getByText(
+		"Não foi possível copiar o ID. Abra Detalhes e copie manualmente.",
+		{ exact: true },
+	);
+	await expect(feedback).toBeVisible();
+	await expect(feedback).toHaveAttribute("role", "alert");
+});
