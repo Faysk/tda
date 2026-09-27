@@ -102,6 +102,14 @@ export function ReviewFixture() {
 	};
 	const comparisonLeftReview: LocalReview = {
 		...review,
+		persistence: "ephemeral_base",
+		draftRevision: null,
+		draftSha256: null,
+		status: "draft",
+		approvalCurrent: false,
+		approvedAt: null,
+		createdAt: null,
+		updatedAt: null,
 		segments: [
 			{ trackNumber: 1, segmentId: "cmp-a-1", start: 0, end: 1, timelineStart: 5, timelineEnd: 6, text: "Mesmo começo", speaker: "Alex", reviewed: true },
 			{ trackNumber: 1, segmentId: "cmp-a-2", start: 10, end: 11, timelineStart: 30, timelineEnd: 31, text: "Versão A", speaker: "Alex", reviewed: true },
@@ -170,6 +178,7 @@ export function ReviewFixture() {
 			busy={false}
 			error={saveError}
 			publicationEnabled={publication}
+			comparisonEnabled={comparisonMode}
 			onOpen={(_sourceId, runId) => setOpenedRunId(runId)}
 			onLoadSnapshot={loadSnapshot}
 			onSave={(baseline, status, segments) => {
