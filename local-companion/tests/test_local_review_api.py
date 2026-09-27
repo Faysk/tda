@@ -593,3 +593,71 @@ def test_queue_cleanup_preserves_verified_origin_and_blocks_last_proof_loss(tmp_
             headers=headers, json={})
         assert repaired.status_code == 200
         assert repaired.json()["publication_target"]["source_session_id"] == body["session_id"]
+
+
+def test_comparison_projection_reads_verified_raw_run_without_touching_review(tmp_path: Path):
+    with _client(tmp_path) as client:
+        source_id, package_root, run = _stage_and_run(
+            client,
+            tmp_path,
+            job_id="job-comparison-raw",
+        )
+        headers = _browser_headers(client)
+        path = f"/api/v1/sources/{source_id}/runs/{run['run_id']}/comparison"
+        draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+
+        unauthorized = client.get(path, headers={"Origin": ORIGIN})
+        assert unauthorized.status_code == 401
+
+        first = client.get(path, headers=headers)
+        assert first.status_code == 200
+        raw = first.json()
+        assert raw["schema_version"] == "tda_run_comparison_projection_v1"
+        assert raw["source_id"] == source_id
+        assert raw["run_id"] == run["run_id"]
+        assert raw["transcript_sha256"] == run["transcript_sha256"]
+        assert raw["segments"] == [{
+            "track_number": 1,
+            "segment_id": "1-0",
+            "start": 0.1,
+            "end": 0.9,
+            "timeline_start": 0.1,
+            "timeline_end": 0.9,
+            "text": "SEGREDO EDITORIAL LOCAL",
+            "speaker": "Alice",
+            "reviewed": False,
+        }]
+        assert not draft_path.exists()
+        assert set(raw) == {
+            "schema_version",
+            "source_id",
+            "run_id",
+            "transcript_sha256",
+            "segments",
+        }
+
+        opened = client.get(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
+            headers=headers,
+        ).json()
+        edited = [dict(segment) for segment in opened["segments"]]
+        edited[0]["text"] = "TEXTO EDITADO NO DRAFT"
+        saved = client.post(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
+            headers=headers,
+            json={
+                **_expected(opened),
+                "status": "draft",
+                "segments": edited,
+            },
+        )
+        assert saved.status_code == 200
+        assert draft_path.exists()
+
+        second = client.get(path, headers=headers)
+        assert second.status_code == 200
+        assert second.json() == raw
+        assert second.json()["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
+
+        rejected_write = client.post(path, headers=headers, json={})
+        assert rejected_write.status_code == 405
