@@ -2,6 +2,7 @@ import { publishApprovedLocalReview } from "../../src/features/edit/processing/p
 import { LocalReviewWorkspace } from "../../src/features/edit/processing/local-review";
 import type { LocalReview, LocalRunSummary } from "../../src/features/edit/processing/protocol";
 import { useMemo, useState } from "react";
+import { countWordsV1 } from "../../src/features/transcript-review/text-contract";
 
 // Synthetic browser data; the product never imports this isolated harness.
 export function ReviewFixture() {
@@ -94,7 +95,7 @@ export function ReviewFixture() {
 			processingSeconds: 30,
 			sessionDurationSeconds: large ? 21_600 : timeline ? 122 : 60,
 			rtf: 0.5,
-			wordCount: initialSegments.length,
+			wordCount: initialSegments.reduce((total, segment) => total + countWordsV1(segment.text), 0),
 			segmentCount: initialSegments.length,
 			trackCount: large ? 4 : timeline ? 3 : bulk ? 2 : 1,
 		},
@@ -120,7 +121,7 @@ export function ReviewFixture() {
 				? (initialSegments.filter((segment) => segment.reviewed).length / initialSegments.length) * 100
 				: 100,
 			editedSegments: 0,
-			wordCount: initialSegments.length,
+			wordCount: initialSegments.reduce((total, segment) => total + countWordsV1(segment.text), 0),
 			warningCount: legacy ? 1000 : 5000,
 		},
 		segments: initialSegments,
