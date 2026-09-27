@@ -478,7 +478,9 @@ def build_session_timeline(
                 relations_ready = False
         relations.append(relation)
 
-    parts_ready = all(part["state"] == "ready" for part in part_states)
+    parts_ready = bool(part_states) and all(
+        part["state"] == "ready" for part in part_states
+    )
     return {
         "schema_version": TIMELINE_SCHEMA_VERSION,
         "config_sha256": config_hash,
