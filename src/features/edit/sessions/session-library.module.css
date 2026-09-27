@@ -1,0 +1,15 @@
+.toolbar{display:grid;grid-template-columns:minmax(240px,1.7fr) repeat(4,minmax(135px,1fr));gap:10px;align-items:end;padding:12px 0;border-block:1px solid var(--ds-border)}
+.field{display:grid;gap:6px;color:var(--ds-foreground-muted);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.035em}
+.input{width:100%;min-height:40px;padding:0 10px;border:1px solid var(--ds-control-border);border-radius:var(--ds-radius-sm);background:var(--ds-canvas-subtle);color:var(--ds-foreground);font:inherit}
+.input:focus-visible,.open:focus-visible{outline:2px solid var(--ds-control-focus-ring);outline-offset:2px}
+.count{padding:12px 2px 8px;color:var(--ds-foreground-muted);font-size:.82rem}
+.list{border-top:1px solid var(--ds-border)}
+.row{display:grid;grid-template-columns:minmax(0,2fr) minmax(210px,.8fr) auto;gap:18px;align-items:center;padding:16px 4px;border-bottom:1px solid var(--ds-border)}
+.main{min-width:0}.meta{display:flex;flex-wrap:wrap;align-items:center;gap:9px}.arc,.secondary,.revision span{color:var(--ds-foreground-muted);font-size:.78rem}
+.title{margin:8px 0 5px;font-family:var(--ds-font-display);font-size:1.18rem;line-height:1.25}.secondary{display:flex;flex-wrap:wrap;gap:6px}.secondary span:last-child{overflow-wrap:anywhere}
+.revision{display:grid;gap:4px;min-width:0;font-size:.78rem}
+.open{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 13px;border:1px solid var(--ds-control-border);border-radius:var(--ds-radius-sm);color:var(--ds-foreground);text-decoration:none;font-size:.82rem;font-weight:700}.open:hover{background:var(--ds-surface-hover)}
+.empty{display:grid;justify-items:start;gap:8px;padding:28px 4px;border-bottom:1px solid var(--ds-border);color:var(--ds-foreground-muted)}.empty strong{color:var(--ds-foreground)}
+@media(max-width:1100px){.toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.search{grid-column:1/-1}}
+@media(max-width:800px){.row{grid-template-columns:minmax(0,1fr) auto}.revision{grid-column:1}.open{grid-column:2;grid-row:1/span 2}}
+@media(max-width:640px){.toolbar,.row{grid-template-columns:1fr}.search,.revision,.open{grid-column:1;grid-row:auto}.open{justify-self:start}}
