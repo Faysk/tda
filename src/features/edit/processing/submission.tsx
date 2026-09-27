@@ -39,6 +39,7 @@ import {
 import {
 	formatSubmissionBytes,
 	profileReadinessCopy,
+	selectInitialSubmissionProfile,
 	submissionCtaLabel,
 	submissionEngineLabel,
 	submissionProfileLabel,
@@ -222,15 +223,22 @@ export function ProcessingSubmission({
 				const value = await bridge.capabilities(controller.signal);
 				if (stopped || controller.signal.aborted) return;
 				setCapabilities(value);
-				const choices = value.transcription.catalog.length
-					? value.transcription.catalog.map((item) => item.id)
-					: value.transcription.profiles;
+				const profiles = value.transcription.catalog.length
+					? value.transcription.catalog
+					: value.transcription.profiles.map((id) => ({
+							id,
+							engine: id.startsWith("qwen-")
+								? ("qwen3" as const)
+								: ("whisper" as const),
+							ready: true,
+							preparationRequired: false,
+							reason: null,
+						}));
+				const choices = profiles.map((item) => item.id);
 				setProfile((current) =>
 					current && choices.includes(current)
 						? current
-						: choices.includes("qwen-quality")
-							? "qwen-quality"
-							: (choices[0] ?? ""),
+						: selectInitialSubmissionProfile(profiles),
 				);
 				setCapabilityError(null);
 			} catch (cause) {
@@ -850,7 +858,14 @@ export function ProcessingSubmission({
 								{availableProfiles.map((item) => (
 									<option key={item.id} value={item.id}>
 										{submissionProfileLabel(item.id)}
-										{item.ready ? "" : item.preparationRequired ? " · preparar" : " · indisponível"}
+										{item.ready
+											? ""
+											: item.preparationRequired
+												? " · preparar"
+												: item.reason ===
+														"QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED"
+													? " · atualizar runtime"
+													: " · indisponível"}
 									</option>
 								))}
 							</select>
