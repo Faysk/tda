@@ -42,7 +42,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 
 	await chooseZip(panel);
 	await expect(panel).toContainText("benchmark-craig.zip");
-	await expect(panel).toContainText("2 / 4 perfis prontos");
+	await expect(panel.locator('[data-benchmark-readiness="true"]')).toContainText("2 / 4 prontos");
 	expect(state.uploadCount).toBe(0);
 
 	await analyze(panel);
@@ -188,7 +188,7 @@ test("completed benchmark loads a comparable receipt while failed history remain
 		if (state.job?.status === "succeeded") break;
 	}
 	await expect.poll(() => state.job?.status).toBe("succeeded");
-	await expect(panel.getByText("Concluído", { exact: true })).toBeVisible();
+	await expect(panel.locator('[data-benchmark-history="true"]').getByText("Concluído", { exact: true }).first()).toBeVisible();
 	await expect(panel.getByText("Quatro perfis · mesma amostra")).toBeVisible();
 
 	state.setJob(fixtureBenchmarkJob("failed"));
