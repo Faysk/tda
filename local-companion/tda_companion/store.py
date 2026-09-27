@@ -201,7 +201,7 @@ class Store:
                 raise Conflict("WORKER_EVENT_DATA_INVALID")
         with self.tx() as db:
             row = db.execute(
-                "SELECT status,attempt FROM jobs WHERE id=?",
+                "SELECT status,attempt,current_track,track_started_at FROM jobs WHERE id=?",
                 (job_id,),
             ).fetchone()
             if not row:
