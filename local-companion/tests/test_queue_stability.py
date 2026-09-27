@@ -71,10 +71,11 @@ def test_v2_database_migrates_queue_metadata_without_losing_jobs(tmp_path):
         'recoverable': True,
     }
     with sqlite3.connect(database) as check:
-        assert check.execute('PRAGMA user_version').fetchone()[0] == 8
+        assert check.execute('PRAGMA user_version').fetchone()[0] == 9
         columns = {row[1] for row in check.execute('PRAGMA table_info(jobs)').fetchall()}
         event_columns = {row[1] for row in check.execute('PRAGMA table_info(events)').fetchall()}
         assert 'error_recoverable' in columns
+        assert {'attempt_started_at', 'stage_started_at', 'current_track', 'track_started_at'} <= columns
         assert 'attempt' in event_columns
         alias = check.execute(
             'SELECT job_id,signature FROM idempotency_keys WHERE key=?',
@@ -419,3 +420,66 @@ def test_finished_transcription_can_be_submitted_again_with_new_key(tmp_path):
     second = store.submit('second-run', body)
     assert second['id'] != first['id']
     assert len(store.jobs()) == 2
+
+
+def test_job_timing_is_authoritative_across_stage_track_and_retry(tmp_path):
+    store = Store(tmp_path)
+    job = store.submit('timing-job', BODY)
+    assert job['timing'] == {
+        'attempt_started_at': None,
+        'stage_started_at': None,
+        'current_track': None,
+        'track_started_at': None,
+    }
+
+    claim = store.claim()
+    assert claim is not None
+    running = store.get(job['id'])
+    assert running['timing']['attempt_started_at']
+    assert running['timing']['stage_started_at']
+    assert running['timing']['current_track'] is None
+    assert running['timing']['track_started_at'] is None
+
+    assert store.set_stage(job['id'], claim[1], 'transcription') is True
+    staged = store.get(job['id'])
+    assert staged['timing']['stage_started_at']
+
+    assert store.record_worker_event(
+        job['id'],
+        claim[1],
+        'TRACK_STARTED',
+        {'stage': 'transcription', 'track': 1, 'total_tracks': 3, 'speaker': 'Alice'},
+    ) is True
+    active = store.get(job['id'])
+    track_started_at = active['timing']['track_started_at']
+    assert active['timing']['current_track'] == 1
+    assert track_started_at
+
+    assert store.record_worker_event(
+        job['id'],
+        claim[1],
+        'TRACK_COMPLETED',
+        {'stage': 'transcription', 'track': 1, 'total_tracks': 3, 'speaker': 'Alice'},
+    ) is True
+    completed_event = next(
+        event for event in store.events(job['id'])
+        if event['code'] == 'TRACK_COMPLETED'
+    )
+    assert completed_event['data']['track_started_at'] == track_started_at
+    after_track = store.get(job['id'])
+    assert after_track['timing']['current_track'] is None
+    assert after_track['timing']['track_started_at'] is None
+
+    store.fail(*claim, 'SYNTHETIC_FAILURE')
+    queued = store.action(job['id'], 'retry')
+    assert queued['timing'] == {
+        'attempt_started_at': None,
+        'stage_started_at': None,
+        'current_track': None,
+        'track_started_at': None,
+    }
+    second = store.claim()
+    assert second is not None and second[1] == 2
+    retried = store.get(job['id'])
+    assert retried['timing']['attempt_started_at']
+    assert retried['timing']['stage_started_at']
