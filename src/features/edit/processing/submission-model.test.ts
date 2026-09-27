@@ -4,6 +4,7 @@ import {
 	CRAIG_UPLOAD_MAX_BYTES,
 	formatSubmissionBytes,
 	profileReadinessCopy,
+	selectInitialSubmissionProfile,
 	submissionCtaLabel,
 	suggestSessionIdFromFilename,
 	validateCraigFile,
@@ -23,6 +24,61 @@ function profile(
 }
 
 describe("submission model", () => {
+
+	test("defaults to an operable profile without overriding explicit later choices", () => {
+		expect(
+			selectInitialSubmissionProfile([
+				profile(),
+				profile({
+					id: "whisper-turbo",
+					engine: "whisper",
+					ready: true,
+				}),
+			]),
+		).toBe("qwen-quality");
+
+		expect(
+			selectInitialSubmissionProfile([
+				profile({
+					ready: false,
+					preparationRequired: false,
+					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+				}),
+				profile({
+					id: "whisper-turbo",
+					engine: "whisper",
+					ready: true,
+				}),
+			]),
+		).toBe("whisper-turbo");
+
+		expect(
+			selectInitialSubmissionProfile([
+				profile({
+					ready: false,
+					preparationRequired: false,
+					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+				}),
+				profile({
+					id: "whisper-detailed",
+					engine: "whisper",
+					ready: false,
+					preparationRequired: true,
+				}),
+			]),
+		).toBe("whisper-detailed");
+
+		expect(
+			selectInitialSubmissionProfile([
+				profile({
+					ready: false,
+					preparationRequired: false,
+					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+				}),
+			]),
+		).toBe("qwen-quality");
+	});
+
 	test("suggests an editable safe session id from the Craig filename", () => {
 		expect(suggestSessionIdFromFilename("Sessão épica #42.zip")).toBe(
 			"Sessao-epica-42",
