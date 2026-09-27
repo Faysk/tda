@@ -343,6 +343,50 @@ export function ProcessingPanel({
 		void controller.connect();
 		return () => controller.disconnect();
 	}, [controller]);
+
+	useEffect(() => {
+		if (!activityPackProfileId || !activityPackCampaignSlug) {
+			setActivityPacks([]);
+			return;
+		}
+		let cancelled = false;
+		const scope = {
+			profileId: activityPackProfileId,
+			campaignSlug: activityPackCampaignSlug,
+		};
+		const key = activityPackStorageKey(scope);
+		const reload = () => {
+			void loadActivityPacks(scope)
+				.then((packs) => {
+					if (!cancelled) setActivityPacks(packs);
+				})
+				.catch(() => {
+					if (!cancelled) setActivityPacks([]);
+				});
+		};
+		const onStorage = (event: StorageEvent) => {
+			if (event.key === key) reload();
+		};
+		const onChanged = (event: Event) => {
+			const detail = (
+				event as CustomEvent<{ profileId?: string; campaignSlug?: string }>
+			).detail;
+			if (
+				detail?.profileId === activityPackProfileId &&
+				detail.campaignSlug === activityPackCampaignSlug
+			)
+				reload();
+		};
+		reload();
+		window.addEventListener("storage", onStorage);
+		window.addEventListener(ACTIVITY_PACK_STORAGE_EVENT, onChanged);
+		return () => {
+			cancelled = true;
+			window.removeEventListener("storage", onStorage);
+			window.removeEventListener(ACTIVITY_PACK_STORAGE_EVENT, onChanged);
+		};
+	}, [activityPackProfileId, activityPackCampaignSlug]);
+
 	useEffect(() => {
 		if (state.connection !== "connected" || state.mutation) return;
 		const hasActiveWork = state.jobs.some((job) => job.status === "running");
