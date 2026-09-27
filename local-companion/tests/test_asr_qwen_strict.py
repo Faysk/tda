@@ -355,6 +355,51 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert completed["completed_window_count"] == 1
 
 
+def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path):
+    package, root = _package(tmp_path)
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "   ", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise AssertionError("silent benchmark windows must not reach alignment")
+
+        def close(self):
+            pass
+
+    calls = 0
+
+    def reader(_path):
+        nonlocal calls
+        calls += 1
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio="silence")
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        sample_seconds=300.0,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -120.0,
+    )
+
+    assert calls == 1
+    assert document.stats.segment_count == 0
+    assert document.stats.word_count == 0
+
+
 def test_alignment_failure_event_allowlists_diagnostic_metadata(
     monkeypatch,
     tmp_path: Path,
