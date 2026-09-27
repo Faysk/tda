@@ -151,3 +151,50 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBe(true);
 });
+
+
+test("idle readiness is consolidated into one profile status row", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, { profileReady: false });
+	const composer = await openComposer(page);
+	await chooseZip(composer);
+
+	const status = composer.locator("[data-profile-status='true']");
+	await expect(status).toBeVisible();
+	await expect(status).toContainText(
+		"Este profile precisa ser preparado nesta máquina antes de entrar na fila.",
+	);
+	await expect(
+		composer.getByText(
+			"Este profile precisa ser preparado nesta máquina antes de entrar na fila.",
+			{ exact: true },
+		),
+	).toHaveCount(1);
+	await expect(
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
+	).toBeEnabled();
+
+	const dropTarget = composer.locator("[data-craig-drop-target='true']");
+	const dropBox = await dropTarget.boundingBox();
+	expect(dropBox).not.toBeNull();
+	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
+});
+
+test("idle composer keeps privacy and advanced details compact but keyboard-accessible", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await installCompanionFixture(page, { profileReady: true });
+	const composer = await openComposer(page);
+
+	await expect(composer.getByText("Áudio fica nesta máquina", { exact: false })).toBeVisible();
+	await expect(composer.getByText("Como funciona", { exact: true })).toBeVisible();
+	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
+
+	const advanced = composer.getByText("Opções avançadas", { exact: true });
+	await advanced.focus();
+	await page.keyboard.press("Enter");
+	await expect(composer.getByLabel("Contexto opcional")).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
+});
