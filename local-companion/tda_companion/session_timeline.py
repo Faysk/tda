@@ -132,7 +132,7 @@ def enrich_workspace_timeline(
     overlap_count = 0
     unresolved_overlap_count = 0
     source_invalid = False
-    needs_timing = False
+    needs_timing = not bool(workspace.get("parts"))
     all_sources_trusted = bool(workspace.get("parts"))
 
     previous: dict[str, Any] | None = None
