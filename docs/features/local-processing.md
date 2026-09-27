@@ -2,7 +2,7 @@
 
 > Status: ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-19
+> Última revisão: 2026-09-27
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/processamento` é a superfície operacional para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -10,6 +10,22 @@
 O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) e em ADR-0016. A regra central é: **concluir ASR não publica nada**.
 
 ## Estado atual
+
+### Overview — candidato #580
+
+A Overview dá precedência ao job em execução e à submissão. Progresso com
+denominador válido pode começar em `0%`; sem denominador, a etapa permanece
+visível sem barra nem mensagem de erro. `updated_at` não é tratado como
+heartbeat. Métricas persistidas são rotuladas como **Último resultado concluído**
+e ficam ocultas enquanto outro job está ativo. Elapsed continua indisponível
+até um timestamp autoritativo persistido ser exposto pelo contrato (#603).
+Benchmark aparece como tab, mas explica que a comparação repetível ainda não
+está disponível; a execução pertence à #582 e não é simulada aqui.
+
+Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
+zero, ausência de denominador e a separação entre job ativo e métricas de run
+terminal. Este estado descreve o candidato de código; não implica integração ou
+publicação.
 
 ### Command bar — candidato #608 / #622
 
@@ -98,7 +114,7 @@ Regras implementadas:
 - transcript legado inválido/corrompido não é promovido nem apagado automaticamente;
 - a listagem local não retorna transcript integral nem caminho absoluto.
 
-O endpoint de listagem já prepara a futura área **Resultados locais**, mas **a UI ainda não apresenta a biblioteca nesta etapa**. Revisão derivada, comparação A/B, archive/Trash e publicação revisionada permanecem nos slices seguintes da [spec dona](transcript-review-publication.md).
+A área **Resultados** lista runs locais concluídos com suas métricas e permite abrir a revisão local. Comparação A/B, archive/Trash e publicação revisionada seguem os limites descritos na [spec dona](transcript-review-publication.md).
 
 Exemplo de estado que a fundação passa a suportar:
 
@@ -139,14 +155,13 @@ O MSI deste corte ainda não possui assinatura Authenticode configurada; a inter
 
 A tela segue a regra de que uma superfície operacional deve mostrar primeiro o trabalho. A primeira viewport prioriza:
 
-1. computador local e estado da conexão;
-2. CPU/RAM/GPU/VRAM quando conectadas;
-3. sessão Craig selecionada e perfil de processamento;
-4. resumo da fila;
-5. trabalho em execução e progresso real;
-6. próximos trabalhos e finalizados;
-7. detalhes e log do trabalho observado;
-8. estado de sincronização/publicação.
+1. tabs de trabalho com o estado compacto do Companion; problemas de conexão/telemetria ganham espaço e recuperação acionável;
+2. trabalho ativo e stage/progresso factual ao lado da submissão de nova transcrição;
+3. amostra atual de GPU/VRAM/CPU/RAM durante execução; sem job ativo, métricas do último run concluído claramente identificado;
+4. indicação compacta de fila/atenção; listas completas ficam nas tabs Fila e Resultados;
+5. detalhes e log do job observado ficam em Diagnóstico.
+
+Sem job ativo, a área de processamento permanece compacta e informa se há trabalho aguardando. Métricas persistidas de um run nunca são atribuídas ao job ativo; valores não disponíveis permanecem desconhecidos. A UI não calcula ETA nem duração de execução até existir fonte temporal autoritativa.
 
 Quando a biblioteca de runs entrar na UI, **fila operacional** e **resultados editoriais concluídos** devem continuar conceitos visualmente distintos. Um run antigo não pode parecer trabalho ainda em execução.
 
@@ -182,6 +197,8 @@ A tela não inventa título, resumo, thumbnail ou classificação. Dados como du
 O pipeline real pode fornecer contexto por track, incluindo `track`, `total_tracks`, `speaker` e `percent`. A interface deve refletir o paralelismo realmente executado pelo engine e não simular múltiplas faixas avançando ao mesmo tempo quando isso não estiver acontecendo.
 
 Depois do término, métricas como palavras, segmentos, warnings, elapsed/RTF, modelo/revision e percentual revisado podem alimentar a auditoria local definida na spec de revisão. Campo ausente continua desconhecido; não se fabrica nota de qualidade.
+
+Na Visão geral, progresso `completed/total` com denominador positivo pode mostrar `0%`; quando a unidade termina e a consolidação continua, mostrar a contagem e o stage sem declarar o job concluído. Telemetria de `/system` é sempre a amostra atual da máquina. Métricas de run aparecem somente quando não há job ativo e sob o rótulo **Último resultado concluído**; vêm do run imutável e campos ausentes aparecem como `—`. Duração de sessão só aparece quando o run declara semântica `session_extent_v1`. `updated_at` é a última atualização registrada do job, não um heartbeat nem prova isolada de que o worker continua vivo. Elapsed só pode ser mostrado a partir de timestamp autoritativo persistido no job/attempt, nunca do primeiro poll da página.
 
 ## Eventos e zueira
 
