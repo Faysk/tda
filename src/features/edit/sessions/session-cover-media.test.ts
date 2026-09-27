@@ -4,6 +4,8 @@ import {
 	SESSION_COVER_MEDIA_MAX_UPLOAD_CHUNKS,
 	isExistingPublishedSessionCoverReference,
 	isSessionCoverIntent,
+	normalizePublishedSessionCoverReference,
+	sessionCoverPublicUrl,
 	sessionCoverObjectKey,
 	sessionCoverPendingChunkObjectKey,
 	sessionCoverPreviewUrl,
@@ -120,5 +122,31 @@ describe("session cover media contract", () => {
 			`/api/edit/session-cover/${sessionId}/${uploadId}`,
 		);
 		expect(sessionCoverPreviewUrl("wrong", uploadId)).toBeUndefined();
+	});
+});
+
+
+describe("session cover publication references", () => {
+	it("derives only canonical public R2 delivery URLs", () => {
+		const key =
+			"campaigns/yuhara-main/sessions/11111111-1111-4111-8111-111111111111/cover/" +
+			"a".repeat(64) +
+			".webp";
+		expect(sessionCoverPublicUrl(key)).toBe(
+			"https://media.dnd.faysk.dev/" + key,
+		);
+		expect(sessionCoverPublicUrl("campaigns/other/sessions/x.webp")).toBeNull();
+		expect(sessionCoverPublicUrl(key + "?token=secret")).toBeNull();
+	});
+
+	it("normalizes governed legacy relative cover references before publication", () => {
+		expect(
+			normalizePublishedSessionCoverReference("/assets/sessions/legacy.webp"),
+		).toBe("https://dnd.faysk.dev/assets/sessions/legacy.webp");
+		expect(
+			normalizePublishedSessionCoverReference(
+				"https://evil.example/assets/sessions/legacy.webp",
+			),
+		).toBeNull();
 	});
 });
