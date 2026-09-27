@@ -87,7 +87,7 @@ def test_schema_v9_contains_durable_job_timing_columns(tmp_path):
         version = db.execute("PRAGMA user_version").fetchone()[0]
         columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
 
-    assert version == 10
+    assert version == 11
     assert {
         "attempt_started_at",
         "attempt_finished_at",
