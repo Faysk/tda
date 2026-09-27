@@ -23,6 +23,27 @@ function workspace(parts = [
 		updated_at: "2026-09-27T22:30:00Z",
 	},
 ]) {
+	const timelineParts = parts.map((part, index) => ({
+		part_id: part.part_id,
+		source_id: part.source_id,
+		ordinal: index,
+		start_time: {
+			raw: null,
+			confidence: "missing",
+			normalized_utc: null,
+		},
+		source_duration_ms: 60_000,
+		placement: {
+			session_offset_ms: index * 60_000,
+			origin: parts.length === 1 ? "single_source_zero" : "manual",
+			trim_start_ms: 0,
+			trim_end_ms: null,
+		},
+		effective_start_ms: index * 60_000,
+		effective_end_ms: (index + 1) * 60_000,
+		suggested_ordinal: null,
+		order_matches_trusted_suggestion: null,
+	}));
 	return {
 		schema_version: "tda_session_workspace_v1",
 		campaign_id: "yuhara-main",
@@ -31,6 +52,23 @@ function workspace(parts = [
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:31:00Z",
 		parts,
+		timeline: {
+			schema_version: "tda_session_timeline_v1",
+			segment_boundary_policy: "segment_start_v1",
+			configuration_sha256: "c".repeat(64),
+			timeline_identity_sha256: "d".repeat(64),
+			approval_ready: true,
+			order_matches_trusted_suggestion: null,
+			parts: timelineParts,
+			boundaries: timelineParts.slice(0, -1).map((part, index) => ({
+				left_part_id: part.part_id,
+				right_part_id: timelineParts[index + 1].part_id,
+				kind: "contiguous",
+				duration_ms: 0,
+				resolved: true,
+				resolution: null,
+			})),
+		},
 	};
 }
 
@@ -42,6 +80,11 @@ describe("session workspace protocol", () => {
 			campaignId: "yuhara-main",
 			sessionId: "session-42",
 			revision: 1,
+			timeline: {
+				schemaVersion: "tda_session_timeline_v1",
+				segmentBoundaryPolicy: "segment_start_v1",
+				approvalReady: true,
+			},
 			parts: [
 				{
 					partId: partA,
@@ -176,6 +219,82 @@ describe("session workspace bridge", () => {
 				Authorization: `Bearer ${token}`,
 			});
 		}
+		bridge.disconnect();
+	});
+});
+
+
+describe("session timeline bridge", () => {
+	it("serializes explicit offsets, trims and boundary decisions with CAS", async () => {
+		const current = workspace([
+			{ ...workspace().parts[0], part_id: partA, source_id: sourceA, ordinal: 0 },
+			{ ...workspace().parts[0], part_id: partB, source_id: sourceB, ordinal: 1 },
+		]);
+		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(current));
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		const parsed = await bridge.updateSessionTimeline(
+			"yuhara-main",
+			"session-42",
+			{
+				expectedRevision: 2,
+				parts: [
+					{
+						partId: partA,
+						sessionOffsetMs: 0,
+						trimStartMs: 0,
+						trimEndMs: 45_000,
+					},
+					{
+						partId: partB,
+						sessionOffsetMs: 30_000,
+						trimStartMs: 0,
+						trimEndMs: null,
+					},
+				],
+				boundaries: [
+					{
+						leftPartId: partA,
+						rightPartId: partB,
+						mode: "prefer_earlier_until",
+						boundaryMs: 30_000,
+					},
+				],
+			},
+			signal(),
+		);
+
+		expect(parsed.timeline.timelineIdentitySha256).toBe("d".repeat(64));
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(String(request.mock.calls[0][0])).toBe(
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline`,
+		);
+		expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+			expected_revision: 2,
+			parts: [
+				{
+					part_id: partA,
+					session_offset_ms: 0,
+					trim_start_ms: 0,
+					trim_end_ms: 45_000,
+				},
+				{
+					part_id: partB,
+					session_offset_ms: 30_000,
+					trim_start_ms: 0,
+					trim_end_ms: null,
+				},
+			],
+			boundaries: [
+				{
+					left_part_id: partA,
+					right_part_id: partB,
+					mode: "prefer_earlier_until",
+					boundary_ms: 30_000,
+				},
+			],
+		});
 		bridge.disconnect();
 	});
 });
