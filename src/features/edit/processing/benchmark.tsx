@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
@@ -216,6 +216,7 @@ export function ProcessingBenchmark({
 }>) {
 	const [bridge] = useState(() => new LocalBridge());
 	const [file, setFile] = useState<File | null>(null);
+	const [dragActive, setDragActive] = useState(false);
 	const [source, setSource] = useState<CraigSource | null>(null);
 	const [catalog, setCatalog] = useState<readonly TranscriptionProfileState[]>(
 		() => capabilities?.transcription.catalog ?? [],
@@ -323,6 +324,23 @@ export function ProcessingBenchmark({
 		const refreshed = await bridge.capabilities(signal);
 		setCatalog(refreshed.transcription.catalog);
 		return refreshed;
+	}
+
+	function applyFile(next: File | null) {
+		setFile(next);
+		setSource(null);
+		setPreparation(null);
+		setError(next ? validateCraigFile(next) : null);
+		setStatus(null);
+		pending.current = null;
+	}
+
+	function handleSourceDrop(event: DragEvent<HTMLDivElement>) {
+		event.preventDefault();
+		setDragActive(false);
+		if (sourceBusy || busy || preparingProfiles || active) return;
+		const next = event.dataTransfer.files?.[0] ?? null;
+		if (next) applyFile(next);
 	}
 
 	async function analyzeSource() {
@@ -515,145 +533,221 @@ export function ProcessingBenchmark({
 
 	return (
 		<div className={styles.workspace}>
-			<section className={styles.launchCard}>
-				<div>
-					<span className={styles.eyebrow}>Benchmark exploratório local</span>
-					<h2>Mesmos 5 minutos · quatro perfis</h2>
+			<section className={styles.launchCard} data-benchmark-preflight="true">
+				<header className={styles.launchHeader}>
+					<div>
+						<span className={styles.eyebrow}>Benchmark exploratório local</span>
+						<h2>Mesmos 5 minutos · quatro perfis</h2>
+					</div>
 					<p>
-						Executa Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen Quality em
-						sequência sobre exatamente a mesma fonte e o mesmo corte temporal.
+						Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen Quality usam a mesma
+						fonte e o mesmo corte temporal.
 					</p>
-				</div>
+				</header>
 
-				<div className={styles.launchControls}>
-					<label>
-						<span>ZIP Craig</span>
-						<input
-							ref={fileInput}
-							type="file"
-							accept=".zip,application/zip"
-							disabled={
-								sourceBusy ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active)
-							}
-							onChange={(event) => {
-								const next = event.target.files?.[0] ?? null;
-								setFile(next);
-								setSource(null);
-								setPreparation(null);
-								setError(next ? validateCraigFile(next) : null);
-								setStatus(null);
-								pending.current = null;
+				<div className={styles.preflightGrid}>
+					<section className={styles.sourcePanel} aria-labelledby="benchmark-source-title">
+						<div className={styles.sectionHeading}>
+							<div>
+								<span className={styles.eyebrow}>Source</span>
+								<strong id="benchmark-source-title">ZIP Craig</strong>
+							</div>
+							{file ? (
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+									onClick={() => {
+									if (fileInput.current) fileInput.current.value = "";
+									applyFile(null);
+								}}
+								>
+									Remover
+								</Button>
+							) : null}
+						</div>
+
+						<div
+							className={styles.dropZone}
+							data-active={dragActive ? "true" : "false"}
+							data-selected={file ? "true" : "false"}
+							onDragEnter={(event) => {
+								event.preventDefault();
+								if (!(sourceBusy || busy || preparingProfiles || active)) setDragActive(true);
 							}}
-						/>
-					</label>
-					{file ? (
-						<Button
-							type="button"
-							variant="tertiary"
-							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
-							onClick={() => {
-								if (fileInput.current) fileInput.current.value = "";
-								setFile(null);
-								setSource(null);
-								setPreparation(null);
-								setError(null);
-								setStatus(null);
-								pending.current = null;
+							onDragOver={(event) => event.preventDefault()}
+							onDragLeave={(event) => {
+								if (event.currentTarget === event.target) setDragActive(false);
 							}}
+							onDrop={handleSourceDrop}
 						>
-							Remover arquivo
-						</Button>
-					) : null}
-				</div>
-
-				{file ? (
-					<section className={styles.sourceFacts} aria-label="Fonte selecionada">
-						<span title={file.name}><strong>{file.name}</strong></span>
-						<span>{formatSubmissionBytes(file.size)}</span>
-						{source ? (
-							<>
-								<span>{source.trackCount} tracks</span>
-								<span>{source.reused ? "Fonte já verificada" : "Verificada agora"}</span>
-								{source.minimumTrackDurationSeconds !== null ? (
+							<input
+								ref={fileInput}
+								className={styles.fileInput}
+								type="file"
+								accept=".zip,application/zip"
+								aria-label="Selecionar ZIP Craig"
+								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+								onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+							/>
+							<button
+								type="button"
+								className={styles.dropAction}
+								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+								onClick={() => fileInput.current?.click()}
+							>
+								<span className={styles.dropGlyph} aria-hidden="true">ZIP</span>
+								<span className={styles.dropCopy}>
+									<strong title={file?.name}>
+										{file?.name ?? "Escolha um export do Craig"}
+									</strong>
 									<span>
-										Menor track {formatSeconds(source.minimumTrackDurationSeconds)}
+										{file ? (
+											<>
+												{formatSubmissionBytes(file.size)} ·{" "}
+												{source ? source.trackCount + " tracks" : "aguardando análise"}
+											</>
+										) : (
+											"Arraste o ZIP aqui ou escolha um arquivo"
+										)}
 									</span>
-								) : null}
-							</>
+								</span>
+								<span className={styles.dropActionLabel}>
+									{file ? "Trocar" : "Escolher"}
+								</span>
+							</button>
+						</div>
+
+						{file ? (
+							<dl className={styles.sourceFacts} aria-label="Detalhes da fonte selecionada">
+								<div>
+									<dt>Tamanho</dt>
+									<dd>{formatSubmissionBytes(file.size)}</dd>
+								</div>
+								<div>
+									<dt>Tracks</dt>
+									<dd>{source ? source.trackCount : "—"}</dd>
+								</div>
+								<div>
+									<dt>Menor track</dt>
+									<dd>
+										{source?.minimumTrackDurationSeconds === null || !source
+											? "—"
+											: formatSeconds(source.minimumTrackDurationSeconds)}
+									</dd>
+								</div>
+								<div>
+									<dt>Estado</dt>
+									<dd>
+										{source
+											? source.reused
+												? "Verificada · reutilizada"
+												: "Verificada agora"
+											: fileError
+												? "Arquivo inválido"
+												: "Pronta para análise"}
+									</dd>
+								</div>
+							</dl>
 						) : null}
 					</section>
-				) : null}
 
-				<section className={styles.profileReadiness} aria-label="Prontidão dos perfis">
-					<div className={styles.readinessHeader}>
-						<strong>Prontidão</strong>
-						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
+					<section className={styles.readinessPanel} aria-label="Prontidão dos perfis">
+						<div className={styles.readinessHeader}>
+							<div>
+								<span className={styles.eyebrow}>Readiness</span>
+								<strong>Perfis locais</strong>
+							</div>
+							<span>{readyCount} / {PROFILES.length} prontos</span>
+						</div>
+						<div className={styles.profileReadiness}>
+							{PROFILES.map((id, index) => (
+								<ProfileReadiness
+									key={id}
+									id={id}
+									profile={profileStates[index] ?? null}
+								/>
+							))}
+						</div>
+					</section>
+				</div>
+
+				<div className={styles.nextAction}>
+					<div>
+						<span className={styles.eyebrow}>Próxima ação</span>
+						<strong>
+							{!file
+								? "Escolher uma fonte Craig"
+								: !source
+									? "Validar a amostra local"
+									: !sampleEligible
+										? "Trocar por uma fonte com 5 minutos em todas as tracks"
+										: pendingProfiles.length
+											? "Preparar os perfis pendentes"
+											: allProfilesReady
+												? "Executar a comparação"
+												: "Atualizar a prontidão local"}
+						</strong>
 					</div>
-					{PROFILES.map((id, index) => (
-						<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
-					))}
-				</section>
 
-				<div className={styles.primaryActions}>
-					{!source ? (
-						<Button
-							type="button"
-							variant="primary"
-							disabled={
-								!connected ||
-								!file ||
-								Boolean(fileError) ||
-								sourceBusy ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active)
-							}
-							onClick={() => void analyzeSource()}
-						>
-							{sourceBusy ? "Analisando amostra…" : "Analisar amostra localmente"}
-						</Button>
-					) : null}
-
-					{source && pendingProfiles.length > 0 ? (
-						<Button
-							type="button"
-							variant="secondary"
-							disabled={
-								preparingProfiles ||
-								busy ||
-								Boolean(active) ||
-								!sampleEligible
-							}
-							onClick={() => void preparePending()}
-						>
-							{preparingProfiles
-								? "Preparando perfis…"
-								: pendingProfiles.length === 1
-									? "Preparar 1 perfil pendente"
-									: `Preparar ${pendingProfiles.length} perfis pendentes`}
-						</Button>
-					) : null}
-
-					{source ? (
-						<Button
-							type="button"
-							variant="primary"
-							disabled={
-								!connected ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active) ||
-								!allProfilesReady ||
-								!sampleEligible
-							}
-							onClick={() => void runBenchmark()}
-						>
-							{busy ? "Enviando benchmark…" : "Executar benchmark de 5 minutos"}
-						</Button>
-					) : null}
+					<div className={styles.primaryActions}>
+						{!file ? (
+							<Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
+								Selecionar ZIP
+							</Button>
+						) : !source ? (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={
+									!connected ||
+									Boolean(fileError) ||
+									sourceBusy ||
+									busy ||
+									preparingProfiles ||
+									Boolean(active)
+								}
+								onClick={() => void analyzeSource()}
+							>
+								{sourceBusy ? "Analisando amostra…" : "Analisar amostra"}
+							</Button>
+						) : !sampleEligible ? (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+								onClick={() => fileInput.current?.click()}
+							>
+								Selecionar outro ZIP
+							</Button>
+						) : pendingProfiles.length > 0 ? (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={preparingProfiles || busy || Boolean(active)}
+								onClick={() => void preparePending()}
+							>
+								{preparingProfiles
+									? "Preparando perfis…"
+									: pendingProfiles.length === 1
+										? "Preparar 1 perfil pendente"
+										: "Preparar " + pendingProfiles.length + " perfis pendentes"}
+							</Button>
+						) : allProfilesReady ? (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={!connected || busy || preparingProfiles || Boolean(active)}
+								onClick={() => void runBenchmark()}
+							>
+								{busy ? "Enviando benchmark…" : "Executar benchmark de 5 minutos"}
+							</Button>
+						) : (
+							<Button type="button" variant="primary" onClick={onRefresh}>
+								Atualizar prontidão
+							</Button>
+						)}
+					</div>
 				</div>
 
 				{preparation?.active ? (
@@ -691,7 +785,7 @@ export function ProcessingBenchmark({
 			</section>
 
 			{active ? (
-				<section className={styles.activeCard} aria-live="polite">
+				<section className={styles.activeCard} aria-live="polite" data-benchmark-active="true">
 					<div className={styles.activeCopy}>
 						<span className={styles.eyebrow}>Benchmark em andamento</span>
 						<h3>
@@ -707,6 +801,47 @@ export function ProcessingBenchmark({
 								: "Preparando execução"}
 							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
 						</p>
+						<ol
+							className={styles.progressSteps}
+							aria-label="Progresso dos perfis do benchmark"
+						>
+							{PROFILES.map((profileId, index) => {
+								const stepState =
+									index < completed
+										? "complete"
+										: active.status === "running" && index === completed
+											? "current"
+											: "pending";
+								return (
+									<li
+										key={profileId}
+										className={styles.progressStep}
+										data-state={stepState}
+										aria-current={stepState === "current" ? "step" : undefined}
+									>
+										<span aria-hidden="true">
+											{stepState === "complete" ? "✓" : index + 1}
+										</span>
+										<small>{LABELS[profileId]}</small>
+									</li>
+								);
+							})}
+						</ol>
+						<div
+							className={styles.progressBar}
+							role="progressbar"
+							aria-label="Perfis concluídos"
+							aria-valuemin={0}
+							aria-valuemax={PROFILES.length}
+							aria-valuenow={Math.min(completed, PROFILES.length)}
+						>
+							<span
+								style={{
+									inlineSize:
+										Math.min(completed, PROFILES.length) / PROFILES.length * 100 + "%",
+								}}
+							/>
+						</div>
 						{latestActivity && latestEvent ? (
 							<small>
 								{latestActivity.title}
@@ -765,7 +900,7 @@ export function ProcessingBenchmark({
 				</section>
 			) : null}
 
-			<section className={styles.history}>
+			<section className={styles.history} data-benchmark-history="true">
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
