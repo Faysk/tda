@@ -95,6 +95,8 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 - `transcript_segments`
 - `transcript_revisions` — snapshots completos e imutáveis da transcrição preparada; `sessions.current_transcript_revision_id` aponta para a revisão privada atual.
 - `session_editorial_drafts` — snapshots editoriais privados e imutáveis (capa/intenção, arco, título, descrições e resumo Markdown); `sessions.current_editorial_draft_id` aponta para o draft atual. Salvar draft não altera campos públicos da sessão.
+- `session_editorial_publications` — snapshots públicos editoriais imutáveis por versão, derivados de um draft salvo e vinculados à transcript revision privada usada como base. Não armazenam transcript.
+- `session_editorial_publication_receipts` — ledger imutável de idempotência/auditoria operacional para `publish | restore | unpublish`; `sessions.current_session_publication_id` aponta para a versão pública atual.
 - `roll20_events`
 - `session_markers`
 - `table_notes`
