@@ -952,6 +952,9 @@ export function ProcessingPanel({
 							onOpen={(sourceId, runId) =>
 								controller.openLocalReview(sourceId, runId)
 							}
+							onLoadSnapshot={(sourceId, runId) =>
+								controller.loadLocalReviewSnapshot(sourceId, runId)
+							}
 							onDeleteRun={controller.deleteLocalRun}
 							onLoadLatest={controller.loadLatestLocalReview}
 							onRepairTarget={state.capabilities?.capabilities.includes("transcription.target.repair") ? controller.repairPublicationTarget : undefined}

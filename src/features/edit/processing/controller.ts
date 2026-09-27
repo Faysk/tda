@@ -834,6 +834,17 @@ export class ProcessingController {
 		);
 	};
 
+	loadLocalReviewSnapshot = async (sourceId: string, runId: string) => {
+		if (
+			this.#state.connection !== "connected" ||
+			!this.#state.localRuns.some(
+				(run) => run.sourceId === sourceId && run.runId === runId,
+			)
+		)
+			throw new BridgeError("invalid_response");
+		return this.bridge.localReview(sourceId, runId, this.#request.signal);
+	};
+
     loadLatestLocalReview = async () => {
         const current = this.#state.localReview;
         const epoch = this.#epoch;
