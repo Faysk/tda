@@ -43,7 +43,6 @@ function NavigationIconGlyph({
 		strokeWidth: 1.65,
 		strokeLinecap: "round" as const,
 		strokeLinejoin: "round" as const,
-		"aria-hidden": true,
 	};
 
 	const glyph = (() => {
@@ -85,7 +84,7 @@ function NavigationIconGlyph({
 		}
 	})();
 
-	return <svg {...common} {...props}>{glyph}</svg>;
+	return <svg aria-hidden="true" {...common} {...props}>{glyph}</svg>;
 }
 
 function NavigationList({
@@ -152,9 +151,6 @@ export function PublicNav() {
 		return () => controller.abort();
 	}, []);
 
-	useEffect(() => {
-		setOpen(false);
-	}, [pathname]);
 
 	useEffect(() => {
 		if (!open) return;
