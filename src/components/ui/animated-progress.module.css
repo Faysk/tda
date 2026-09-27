@@ -15,7 +15,7 @@
 	background: var(--ds-accent);
 	transform: scaleX(var(--animated-progress));
 	transform-origin: left center;
-	transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+	transition: transform var(--animated-progress-duration, 480ms) cubic-bezier(0.42, 0, 0.58, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

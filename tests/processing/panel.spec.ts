@@ -341,6 +341,90 @@ test("telemetry stale preserva o último snapshot e orienta sem zerar valores", 
 	await expect(commandBar).not.toContainText("Synthetic GPU · 0%");
 });
 
+test("telemetry visual bridge follows active and idle polling cadence while AT sees the factual target", async ({ page }, testInfo) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		system: {
+			cpuPercent: 3,
+			memoryPercent: 3,
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 3,
+					memoryUsedBytes: 3 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
+	});
+	const gpuMetric = commandBar.locator(
+		'[data-animated-metric="true"][data-metric-label="Uso da GPU"]',
+	);
+	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "1500");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "3");
+
+	state.setSystem({
+		cpuPercent: 67,
+		memoryPercent: 67,
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 67,
+				memoryUsedBytes: 6 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "1500");
+	await expect(gpuMetric).toHaveAttribute("data-animated-target", "67");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "67");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("aria-valuetext", "67%");
+	await page.screenshot({
+		path: testInfo.outputPath("telemetry-bridge-active.png"),
+		fullPage: true,
+	});
+
+	state.setJob(null);
+	state.setSystem({
+		cpuPercent: 46,
+		memoryPercent: 46,
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 46,
+				memoryUsedBytes: 5 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "6000");
+	await expect(gpuMetric).toHaveAttribute("data-animated-target", "46");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "46");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("aria-valuetext", "46%");
+	await page.screenshot({
+		path: testInfo.outputPath("telemetry-bridge-idle-retarget.png"),
+		fullPage: true,
+	});
+});
+
 test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", async ({ page }) => {
 	await installCompanionFixture(page, {
 		profileReady: true,
@@ -572,6 +656,10 @@ test("Overview labels track-count progress with its factual denominator", async 
 	});
 	await expect(progress).toHaveAttribute("value", "1");
 	await expect(progress).toHaveAttribute("max", "2");
+	await expect(progress.locator("xpath=..")).toHaveAttribute(
+		"data-progress-sample-ms",
+		"1500",
+	);
 	await expect(progress).toHaveAttribute("aria-valuetext", "1 de 2 tracks");
 	await expect(
 		page.getByText("Progresso por tracks · 50%", { exact: true }),

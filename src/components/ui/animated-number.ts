@@ -11,12 +11,17 @@ export function easeOutCubic(progress: number): number {
 	return 1 - (1 - t) ** 3;
 }
 
+export function smoothstep(progress: number): number {
+	const t = clampNumber(progress, 0, 1);
+	return t * t * (3 - 2 * t);
+}
+
 export function interpolateNumber(
 	from: number,
 	to: number,
 	progress: number,
 ): number {
-	return from + (to - from) * easeOutCubic(progress);
+	return from + (to - from) * smoothstep(progress);
 }
 
 export function animatedNumberDuration(
@@ -24,7 +29,16 @@ export function animatedNumberDuration(
 	to: number,
 	min: number,
 	max: number,
+	expectedSampleMs?: number,
 ): number {
+	if (
+		expectedSampleMs !== undefined &&
+		Number.isFinite(expectedSampleMs) &&
+		expectedSampleMs > 0
+	) {
+		return Math.round(expectedSampleMs);
+	}
+
 	const range = Math.max(1, Math.abs(max - min));
 	const normalizedDelta = clampNumber(Math.abs(to - from) / range, 0, 1);
 	return Math.round(
