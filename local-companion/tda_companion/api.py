@@ -34,6 +34,7 @@ from .craig_ingest import (
     remove_incomplete_craig_uploads,
 )
 from .craig_runtime import load_craig_package
+from .recording_chronology import derive_recording_chronology
 from .profile_preparation import (
     ProfilePreparationError,
     ProfilePreparationManager,
@@ -46,6 +47,7 @@ from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
+from .transcript import duration_metrics
 from .transcription_runs import (
     TranscriptionRunError,
     load_run,
@@ -68,7 +70,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/parts(?:/(?:detach|reorder|timeline))?)?$"
 )
 
 
@@ -172,6 +174,18 @@ class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
     expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceTimelineRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expected_revision: int = Field(ge=0)
+    session_offset_seconds: float | None = Field(default=None, ge=0, le=604800, allow_inf_nan=False)
+    trim_start_seconds: float = Field(default=0.0, ge=0, le=604800, allow_inf_nan=False)
+    trim_end_seconds: float | None = Field(default=None, ge=0, le=604800, allow_inf_nan=False)
+    gap_confirmed: bool = False
+    overlap_resolution: Literal["prefer_earlier_until", "prefer_later_from"] | None = None
+    overlap_boundary_seconds: float | None = Field(default=None, ge=0, le=604800, allow_inf_nan=False)
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1553,14 +1567,31 @@ def create_app(
 
     def session_workspace_response(value):
         parts = []
+        source_facts = {}
         for part in value["parts"]:
             try:
-                staged_package_under_source_gate(part["source_id"])
+                package = staged_package_under_source_gate(part["source_id"])
                 source_state = "ready"
+                metrics = duration_metrics(
+                    (track.timeline_offset_seconds, track.duration_seconds)
+                    for track in package.tracks
+                )
+                duration_seconds = metrics[1] if metrics else None
+                source_facts[part["part_id"]] = {
+                    "available": True,
+                    "start_time": package.start_time,
+                    "duration_seconds": duration_seconds,
+                }
             except (CraigPackageError, ValueError):
                 source_state = "invalid"
+                source_facts[part["part_id"]] = {
+                    "available": False,
+                    "start_time": None,
+                    "duration_seconds": None,
+                }
             parts.append({**part, "source_state": source_state})
-        return {**value, "parts": parts}
+        chronology = derive_recording_chronology(parts, source_facts)
+        return {**value, "parts": parts, "chronology": chronology}
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
     def session_workspace(campaign_id: str, session_id: str):
@@ -1628,6 +1659,27 @@ def create_app(
                 session_id,
                 body.part_ids,
                 body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/timeline")
+    def update_session_workspace_part_timeline(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceTimelineRequest,
+    ):
+        return session_workspace_response(
+            store.update_session_part_timeline(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.expected_revision,
+                session_offset_seconds=body.session_offset_seconds,
+                trim_start_seconds=body.trim_start_seconds,
+                trim_end_seconds=body.trim_end_seconds,
+                gap_confirmed=body.gap_confirmed,
+                overlap_resolution=body.overlap_resolution,
+                overlap_boundary_seconds=body.overlap_boundary_seconds,
             )
         )
 
