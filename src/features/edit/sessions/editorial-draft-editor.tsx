@@ -5,10 +5,7 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import styles from "@/features/edit/workbench.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { SessionCoverEditor } from "./session-cover-editor";
-import {
-	isSessionCoverUuid,
-	sessionCoverPreviewUrl,
-} from "./session-cover-media";
+import { sessionCoverPreviewUrl } from "./session-cover-media";
 import {
 	SESSION_DRAFT_LIMITS,
 	type SessionEditorialDraft,
