@@ -3,8 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
-import { BridgeError, type BenchmarkResult, type Capabilities, type CraigSource, type LocalJob } from "./protocol";
+import {
+	BridgeError,
+	type BenchmarkResult,
+	type Capabilities,
+	type CraigSource,
+	type JobEvent,
+	type LocalJob,
+	type PreparationStatus,
+	type TranscriptionProfileState,
+} from "./protocol";
 import { LocalBridge } from "./bridge";
+import { presentJobEvent, stageLabels } from "./presentation";
+import {
+	formatSubmissionBytes,
+	profileReadinessCopy,
+	validateCraigFile,
+} from "./submission-model";
 import styles from "./benchmark.module.css";
 
 const PROFILES = [
@@ -20,6 +35,8 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-fast": "Qwen Fast",
 	"qwen-quality": "Qwen Quality",
 };
+
+const BENCHMARK_SAMPLE_SECONDS = 300;
 
 type PendingBenchmark = {
 	key: string;
@@ -42,20 +59,43 @@ function formatRealtime(rtf: number | null): string {
 	return `${(1 / rtf).toFixed(2)}×`;
 }
 
-function benchmarkError(error: unknown): string {
-	if (!(error instanceof BridgeError))
-		return "Não foi possível concluir o benchmark local.";
-	return {
-		BENCHMARK_SAMPLE_TOO_SHORT:
-			"O benchmark precisa de pelo menos 5:00 reais em todas as tracks desta fonte.",
-		BENCHMARK_PROFILES_NOT_READY:
-			"Prepare os quatro perfis antes de iniciar o benchmark.",
-		BENCHMARK_RESOURCE_BUSY:
-			"Há uma transcrição ou benchmark usando os recursos locais. Aguarde essa execução terminar.",
-		unauthorized: "Reconecte o Companion antes de executar o benchmark.",
-		unreachable: "O Companion local ficou indisponível.",
-		timeout: "O Companion demorou demais para responder.",
-	}[error.serverCode ?? error.code] ?? `Benchmark bloqueado · ${error.serverCode ?? error.code}`;
+function formatClock(value: string): string {
+	const date = new Date(value);
+	if (!Number.isFinite(date.getTime())) return "—";
+	return date.toLocaleTimeString("pt-BR", {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+}
+
+function bridgeMessage(error: unknown, fallback: string): string {
+	if (!(error instanceof BridgeError)) return fallback;
+	const code = error.serverCode ?? error.code;
+	return (
+		{
+			BENCHMARK_SAMPLE_TOO_SHORT:
+				"O benchmark precisa de pelo menos 5:00 reais em todas as tracks desta fonte.",
+			BENCHMARK_PROFILES_NOT_READY:
+				"Um ou mais perfis deixaram de estar prontos. Atualize a prontidão antes de tentar novamente.",
+			BENCHMARK_RESOURCE_BUSY:
+				"Há uma transcrição ou benchmark usando os recursos locais. Aguarde essa execução terminar.",
+			TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
+				"Já existe outra preparação em andamento neste computador.",
+			TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB:
+				"Há trabalho local ativo. Aguarde a fila ficar livre antes de preparar os perfis.",
+			TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
+				"Espere o trabalho atual terminar antes de preparar outro perfil.",
+			CRAIG_ZIP_REQUIRED: "Escolha um arquivo .zip exportado pelo Craig.",
+			CRAIG_UPLOAD_EMPTY: "O ZIP selecionado está vazio.",
+			CRAIG_ARCHIVE_INVALID: "O ZIP não pôde ser validado como export Craig.",
+			CRAIG_MANIFEST_NOT_FOUND:
+				"O ZIP não contém o manifesto esperado do Craig.",
+			unauthorized: "Reconecte o Companion antes de continuar.",
+			unreachable: "O Companion local ficou indisponível.",
+			timeout: "O Companion demorou demais para responder.",
+		}[code] ?? `${fallback} · ${code}`
+	);
 }
 
 function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
@@ -126,27 +166,75 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 	);
 }
 
+function ProfileReadiness({
+	profile,
+	id,
+}: Readonly<{
+	profile: TranscriptionProfileState | null;
+	id: (typeof PROFILES)[number];
+}>) {
+	const state = profile?.ready
+		? "ready"
+		: profile?.preparationRequired
+			? "prepare"
+			: "blocked";
+	const detail =
+		profile?.ready
+			? "Pronto"
+			: profile
+				? (profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
+				: "Não anunciado pelo Companion";
+	return (
+		<div className={styles.profileRow} data-state={state}>
+			<strong>{LABELS[id]}</strong>
+			<span>{profile?.ready ? "✓" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
+			{profile?.reason && !profile.ready ? <small>{profile.reason}</small> : null}
+		</div>
+	);
+}
+
 export function ProcessingBenchmark({
 	jobs,
 	capabilities,
 	connected,
+	events,
+	observedJobId,
 	onRefresh,
 	onCancel,
+	onObserve,
+	onOpenDiagnostics,
 }: Readonly<{
 	jobs: readonly LocalJob[];
 	capabilities: Capabilities | null;
 	connected: boolean;
+	events: readonly JobEvent[];
+	observedJobId: string | null;
 	onRefresh: () => void;
 	onCancel: (jobId: string) => void | Promise<void>;
+	onObserve: (jobId: string) => void | Promise<void>;
+	onOpenDiagnostics: (jobId: string) => void;
 }>) {
 	const [bridge] = useState(() => new LocalBridge());
 	const [file, setFile] = useState<File | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
+	const [catalog, setCatalog] = useState<readonly TranscriptionProfileState[]>(
+		() => capabilities?.transcription.catalog ?? [],
+	);
+	const [sourceBusy, setSourceBusy] = useState(false);
 	const [busy, setBusy] = useState(false);
+	const [preparingProfiles, setPreparingProfiles] = useState(false);
+	const [preparationCancelling, setPreparationCancelling] = useState(false);
+	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
 	const request = useRef<AbortController | null>(null);
 	const pending = useRef<PendingBenchmark | null>(null);
+
+	useEffect(() => {
+		setCatalog(capabilities?.transcription.catalog ?? []);
+	}, [capabilities]);
 
 	const benchmarkJobs = useMemo(
 		() =>
@@ -158,19 +246,47 @@ export function ProcessingBenchmark({
 				),
 		[jobs],
 	);
-	const active = benchmarkJobs.find((job) =>
+	const activeFromJobs = benchmarkJobs.find((job) =>
 		["queued", "running"].includes(job.status),
 	);
+	const active =
+		activeFromJobs ??
+		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
+			? acceptedJob
+			: undefined);
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
-	const allProfilesReady =
-		capabilities?.transcription.catalog.length === 4 &&
-		PROFILES.every(
-			(id) =>
-				capabilities.transcription.catalog.find((item) => item.id === id)?.ready ===
-				true,
-		);
+	const latestProblem = benchmarkJobs.find((job) =>
+		["failed", "cancelled", "interrupted"].includes(job.status),
+	);
+	const profileStates = PROFILES.map(
+		(id) => catalog.find((item) => item.id === id) ?? null,
+	);
+	const readyCount = profileStates.filter((item) => item?.ready).length;
+	const pendingProfiles = profileStates.filter(
+		(item): item is TranscriptionProfileState =>
+			Boolean(item && !item.ready && item.preparationRequired),
+	);
+	const blockedProfiles = profileStates.filter(
+		(item) => item === null || (!item.ready && !item.preparationRequired),
+	);
+	const allProfilesReady = readyCount === PROFILES.length;
+	const fileError = file ? validateCraigFile(file) : null;
+	const sampleEligible =
+		source === null ||
+		source.minimumTrackDurationSeconds === null ||
+		source.minimumTrackDurationSeconds >= BENCHMARK_SAMPLE_SECONDS;
+
+	useEffect(() => {
+		if (!acceptedJob) return;
+		const authoritative = benchmarkJobs.find((job) => job.id === acceptedJob.id);
+		if (
+			authoritative &&
+			!["queued", "running"].includes(authoritative.status)
+		)
+			setAcceptedJob(null);
+	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
 		const missing = latestCompleted
@@ -200,31 +316,164 @@ export function ProcessingBenchmark({
 
 	useEffect(() => () => request.current?.abort(), []);
 
+	async function refreshCatalog(signal: AbortSignal) {
+		const refreshed = await bridge.capabilities(signal);
+		setCatalog(refreshed.transcription.catalog);
+		return refreshed;
+	}
+
+	async function analyzeSource() {
+		if (!file || fileError || sourceBusy || busy || preparingProfiles || active) return;
+		const controller = new AbortController();
+		request.current?.abort();
+		request.current = controller;
+		setSourceBusy(true);
+		setSource(null);
+		setPreparation(null);
+		setError(null);
+		setStatus("Analisando o ZIP no Companion local…");
+		try {
+			const staged = await bridge.craigSource(file, controller.signal);
+			setSource(staged);
+			await refreshCatalog(controller.signal);
+			if (
+				staged.minimumTrackDurationSeconds !== null &&
+				staged.minimumTrackDurationSeconds < BENCHMARK_SAMPLE_SECONDS
+			) {
+				setError(
+					`A menor track tem ${formatSeconds(staged.minimumTrackDurationSeconds)}. O benchmark exige pelo menos 5:00 em todas as tracks.`,
+				);
+				setStatus(null);
+			} else {
+				setStatus(
+					`Fonte validada · ${staged.trackCount} tracks · ${staged.reused ? "já estava staged" : "staged agora"}.`,
+				);
+			}
+		} catch (cause) {
+			setError(bridgeMessage(cause, "Não foi possível analisar o ZIP Craig."));
+			setStatus(null);
+		} finally {
+			setSourceBusy(false);
+		}
+	}
+
+	async function preparePending() {
+		if (
+			!source ||
+			preparingProfiles ||
+			sourceBusy ||
+			busy ||
+			active ||
+			pendingProfiles.length === 0
+		)
+			return;
+		if (!capabilities?.capabilities.includes("transcription.prepare")) {
+			setError("Este Companion não anunciou suporte à preparação de perfis.");
+			return;
+		}
+		const controller = new AbortController();
+		request.current?.abort();
+		request.current = controller;
+		setPreparingProfiles(true);
+		setError(null);
+		try {
+			for (const profile of pendingProfiles) {
+				if (controller.signal.aborted) return;
+				setStatus(`Preparando ${LABELS[profile.id]}…`);
+				let observed = await bridge.prepareProfile(
+					source.sourceId,
+					profile.id,
+					controller.signal,
+				);
+				setPreparation(observed);
+				while (observed.active && !controller.signal.aborted) {
+					await new Promise((resolve) => window.setTimeout(resolve, 750));
+					if (controller.signal.aborted) return;
+					observed = await bridge.preparation(controller.signal);
+					setPreparation(observed);
+				}
+				if (observed.state !== "completed") {
+					setError(
+						observed.errorCode
+							? `A preparação de ${LABELS[profile.id]} terminou em ${observed.state} · ${observed.errorCode}.`
+							: `A preparação de ${LABELS[profile.id]} terminou em ${observed.state}.`,
+					);
+					return;
+				}
+				await refreshCatalog(controller.signal);
+			}
+			setStatus("Preparação concluída. Confirmando os quatro perfis…");
+			const refreshed = await refreshCatalog(controller.signal);
+			const ready = PROFILES.every(
+				(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+			);
+			if (ready) setStatus("Quatro perfis prontos para o benchmark.");
+			else
+				setError(
+					"A preparação terminou, mas um ou mais perfis ainda não foram anunciados como prontos.",
+				);
+		} catch (cause) {
+			setError(bridgeMessage(cause, "Não foi possível preparar os perfis pendentes."));
+		} finally {
+			setPreparingProfiles(false);
+		}
+	}
+
+	async function cancelActivePreparation() {
+		const operationId = preparation?.operationId;
+		if (
+			!operationId ||
+			!preparation.active ||
+			preparationCancelling ||
+			!capabilities?.capabilities.includes("transcription.prepare.cancel")
+		)
+			return;
+		const controller = new AbortController();
+		setPreparationCancelling(true);
+		try {
+			const next = await bridge.cancelPreparation(operationId, controller.signal);
+			setPreparation(next);
+			setStatus("Preparação cancelada.");
+			await refreshCatalog(controller.signal);
+		} catch (cause) {
+			setError(bridgeMessage(cause, "Não foi possível cancelar a preparação."));
+		} finally {
+			setPreparationCancelling(false);
+		}
+	}
+
 	async function runBenchmark() {
-		if (!file || busy || active) return;
+		if (
+			!file ||
+			!source ||
+			busy ||
+			active ||
+			!allProfilesReady ||
+			!sampleEligible
+		)
+			return;
 		const controller = new AbortController();
 		request.current?.abort();
 		request.current = controller;
 		setBusy(true);
 		setError(null);
+		setStatus("Enviando benchmark para a fila local…");
 		try {
-			const staged = source ?? (await bridge.craigSource(file, controller.signal));
-			setSource(staged);
 			const signature = JSON.stringify([
 				"benchmark-local",
 				"benchmark-local",
-				staged.sourceId,
+				source.sourceId,
 				"",
 				"",
 			]);
 			if (!pending.current || pending.current.signature !== signature) {
 				pending.current = { key: crypto.randomUUID(), signature };
 			}
-			await bridge.benchmark(
+			const job = await bridge.benchmark(
 				{
 					campaignId: "benchmark-local",
 					sessionId: "benchmark-local",
-					sourceId: staged.sourceId,
+					sourceId: source.sourceId,
 					glossary: "",
 					context: "",
 				},
@@ -232,9 +481,13 @@ export function ProcessingBenchmark({
 				controller.signal,
 			);
 			pending.current = null;
+			setAcceptedJob(job);
+			setStatus("Benchmark aceito pelo Companion.");
+			await onObserve(job.id);
 			onRefresh();
 		} catch (cause) {
-			setError(benchmarkError(cause));
+			setError(bridgeMessage(cause, "Não foi possível iniciar o benchmark local."));
+			setStatus(null);
 		} finally {
 			setBusy(false);
 		}
@@ -243,6 +496,19 @@ export function ProcessingBenchmark({
 	const completed = active?.progress?.completed ?? 0;
 	const currentProfile =
 		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
+	const activeEvents =
+		active && observedJobId === active.id
+			? events.filter(
+					(event) => event.attempt === null || event.attempt === active.attempt,
+				)
+			: [];
+	const latestEvent = activeEvents.at(-1) ?? null;
+	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
+
+	const preparationLabel =
+		preparation?.active && preparation.profileId
+			? `${LABELS[preparation.profileId]} · ${preparation.title}`
+			: null;
 
 	return (
 		<div className={styles.workspace}>
@@ -255,47 +521,171 @@ export function ProcessingBenchmark({
 						sequência sobre exatamente a mesma fonte e o mesmo corte temporal.
 					</p>
 				</div>
+
 				<div className={styles.launchControls}>
 					<label>
 						<span>ZIP Craig</span>
 						<input
 							type="file"
 							accept=".zip,application/zip"
-							disabled={busy || Boolean(active)}
+							disabled={
+								sourceBusy ||
+								busy ||
+								preparingProfiles ||
+								Boolean(active)
+							}
 							onChange={(event) => {
-								setFile(event.target.files?.[0] ?? null);
+								const next = event.target.files?.[0] ?? null;
+								setFile(next);
 								setSource(null);
-								setError(null);
+								setPreparation(null);
+								setError(next ? validateCraigFile(next) : null);
+								setStatus(null);
+								pending.current = null;
 							}}
 						/>
 					</label>
-					<Button
-						type="button"
-						variant="primary"
-						disabled={
-							!connected ||
-							!file ||
-							busy ||
-							Boolean(active) ||
-							!allProfilesReady
-						}
-						onClick={() => void runBenchmark()}
-					>
-						{busy ? "Preparando benchmark…" : "Executar benchmark de 5 minutos"}
-					</Button>
+					{file ? (
+						<Button
+							type="button"
+							variant="tertiary"
+							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+							onClick={() => {
+								setFile(null);
+								setSource(null);
+								setPreparation(null);
+								setError(null);
+								setStatus(null);
+								pending.current = null;
+							}}
+						>
+							Remover arquivo
+						</Button>
+					) : null}
 				</div>
-				{!allProfilesReady ? (
+
+				{file ? (
+					<div className={styles.sourceFacts} aria-label="Fonte selecionada">
+						<span title={file.name}><strong>{file.name}</strong></span>
+						<span>{formatSubmissionBytes(file.size)}</span>
+						{source ? (
+							<>
+								<span>{source.trackCount} tracks</span>
+								<span>{source.reused ? "Fonte já verificada" : "Verificada agora"}</span>
+								{source.minimumTrackDurationSeconds !== null ? (
+									<span>
+										Menor track {formatSeconds(source.minimumTrackDurationSeconds)}
+									</span>
+								) : null}
+							</>
+						) : null}
+					</div>
+				) : null}
+
+				<div className={styles.profileReadiness} aria-label="Prontidão dos perfis">
+					<div className={styles.readinessHeader}>
+						<strong>Prontidão</strong>
+						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
+					</div>
+					{PROFILES.map((id, index) => (
+						<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
+					))}
+				</div>
+
+				<div className={styles.primaryActions}>
+					{!source ? (
+						<Button
+							type="button"
+							variant="primary"
+							disabled={
+								!connected ||
+								!file ||
+								Boolean(fileError) ||
+								sourceBusy ||
+								busy ||
+								preparingProfiles ||
+								Boolean(active)
+							}
+							onClick={() => void analyzeSource()}
+						>
+							{sourceBusy ? "Analisando amostra…" : "Analisar amostra localmente"}
+						</Button>
+					) : null}
+
+					{source && pendingProfiles.length > 0 ? (
+						<Button
+							type="button"
+							variant="secondary"
+							disabled={
+								preparingProfiles ||
+								busy ||
+								Boolean(active) ||
+								!sampleEligible
+							}
+							onClick={() => void preparePending()}
+						>
+							{preparingProfiles
+								? "Preparando perfis…"
+								: `Preparar ${pendingProfiles.length} perfil${pendingProfiles.length === 1 ? "" : "s"} pendente${pendingProfiles.length === 1 ? "" : "s"}`}
+						</Button>
+					) : null}
+
+					{source ? (
+						<Button
+							type="button"
+							variant="primary"
+							disabled={
+								!connected ||
+								busy ||
+								preparingProfiles ||
+								Boolean(active) ||
+								!allProfilesReady ||
+								!sampleEligible
+							}
+							onClick={() => void runBenchmark()}
+						>
+							{busy ? "Enviando benchmark…" : "Executar benchmark de 5 minutos"}
+						</Button>
+					) : null}
+				</div>
+
+				{preparation?.active ? (
+					<div className={styles.preparationStatus} role="status">
+						<div>
+							<strong>{preparationLabel ?? preparation.title}</strong>
+							<span>
+								{preparation.detail || preparation.stage} · {Math.round(preparation.elapsedSeconds)} s
+							</span>
+						</div>
+						{preparation.operationId &&
+						capabilities?.capabilities.includes("transcription.prepare.cancel") ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								disabled={preparationCancelling}
+								onClick={() => void cancelActivePreparation()}
+							>
+								{preparationCancelling ? "Cancelando…" : "Cancelar preparação"}
+							</Button>
+						) : null}
+					</div>
+				) : null}
+
+				{source && blockedProfiles.length > 0 && !allProfilesReady ? (
 					<p className={styles.notice}>
-						Prepare os quatro perfis antes do benchmark. Downloads/preparação não
-						são misturados com o tempo de inferência.
+						Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
+						atualize o Companion/runtime quando necessário.
 					</p>
 				) : null}
-				{error ? <p className={styles.error} role="alert">{error}</p> : null}
+				{status ? <p className={styles.status} role="status">{status}</p> : null}
+				{error || fileError ? (
+					<p className={styles.error} role="alert">{error ?? fileError}</p>
+				) : null}
 			</section>
 
 			{active ? (
-				<section className={styles.activeCard}>
-					<div>
+				<section className={styles.activeCard} aria-live="polite">
+					<div className={styles.activeCopy}>
 						<span className={styles.eyebrow}>Benchmark em andamento</span>
 						<h3>
 							{active.status === "queued"
@@ -308,14 +698,62 @@ export function ProcessingBenchmark({
 							{active.progress
 								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
 								: "Preparando execução"}
+							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
+						</p>
+						{latestActivity && latestEvent ? (
+							<small>
+								{latestActivity.title}
+								{latestActivity.detail ? ` · ${latestActivity.detail}` : ""}
+								{" · "}
+								{formatClock(latestEvent.at)}
+							</small>
+						) : (
+							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
+						)}
+					</div>
+					<div className={styles.activeActions}>
+						<Button
+							type="button"
+							variant="tertiary"
+							onClick={() => onOpenDiagnostics(active.id)}
+						>
+							Ver log / Diagnóstico
+						</Button>
+						<Button
+							type="button"
+							variant="tertiary"
+							onClick={async () => {
+								await onCancel(active.id);
+								onRefresh();
+							}}
+						>
+							Cancelar benchmark
+						</Button>
+					</div>
+				</section>
+			) : latestProblem ? (
+				<section className={styles.problemCard} role="status">
+					<div>
+						<span className={styles.eyebrow}>Última execução</span>
+						<h3>
+							{latestProblem.status === "cancelled"
+								? "Benchmark cancelado"
+								: latestProblem.status === "interrupted"
+									? "Benchmark interrompido"
+									: "Benchmark falhou"}
+						</h3>
+						<p>
+							{latestProblem.error?.code
+								? `${latestProblem.error.code} · tentativa ${latestProblem.attempt}`
+								: `Tentativa ${latestProblem.attempt}`}
 						</p>
 					</div>
 					<Button
 						type="button"
 						variant="tertiary"
-						onClick={() => void onCancel(active.id)}
+						onClick={() => onOpenDiagnostics(latestProblem.id)}
 					>
-						Cancelar benchmark
+						Ver log / Diagnóstico
 					</Button>
 				</section>
 			) : null}
