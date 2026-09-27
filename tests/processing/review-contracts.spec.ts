@@ -4,6 +4,10 @@ test("completed runs compare locally with source and time filters before an expl
 	await page.goto("/?review-contracts&comparison");
 	await page.getByRole("button", { name: /whisper-detailed/ }).first().click();
 
+	const comparisonDisclosure = page.locator("summary").filter({ hasText: "Comparar runs" }).first();
+	await expect(comparisonDisclosure).toBeVisible();
+	await comparisonDisclosure.click();
+
 	const target = page.getByLabel("Segundo run para comparação");
 	await expect(target.locator("option")).toHaveCount(1);
 	await expect(target.locator("option").first()).toContainText("qwen-quality");
