@@ -587,7 +587,7 @@ export function ProcessingPanel({
 						<div
 							className={styles.overviewTop}
 							data-processing-overview-top="true"
-							data-mode={activeJob ? "running" : "idle"}
+							data-mode={activeJob ? "running" : queued.length ? "queued" : "idle"}
 						>
 							<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
