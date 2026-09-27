@@ -63,23 +63,80 @@ export type CraigSource = {
 	minimumTrackDurationSeconds: number | null;
 	reused: boolean;
 };
+export type SessionStartTimeConfidence =
+	| "trusted_absolute"
+	| "ambiguous"
+	| "opaque"
+	| "missing";
+export type SessionTimelineDecision =
+	| "gap_acknowledged"
+	| "prefer_earlier_until"
+	| "prefer_later_from";
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
 	ordinal: number;
 	selectedRunId: string | null;
 	sourceState: "ready" | "invalid";
+	manualOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
 	createdAt: string;
 	updatedAt: string;
+};
+export type SessionTimelinePart = {
+	partId: string;
+	sourceId: string;
+	ordinal: number;
+	sourceStart: {
+		confidence: SessionStartTimeConfidence;
+		raw: string | null;
+		instantUtc: string | null;
+	};
+	durationSeconds: number | null;
+	manualOffsetSeconds: number | null;
+	sessionOffsetSeconds: number | null;
+	placementAuthority: "trusted_absolute" | "manual" | "unresolved";
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	effectiveStartSeconds: number | null;
+	effectiveEndSeconds: number | null;
+	state: "ready" | "unresolved" | "invalid";
+};
+export type SessionTimelineRelation = {
+	earlierPartId: string;
+	laterPartId: string;
+	kind: "unknown" | "contiguous" | "gap" | "overlap";
+	durationSeconds: number | null;
+	decision: SessionTimelineDecision | null;
+	boundarySeconds: number | null;
+	resolved: boolean;
+	overlapStartSeconds: number | null;
+	overlapEndSeconds: number | null;
+};
+export type SessionWorkspaceTimeline = {
+	schemaVersion: "tda_session_timeline_v1";
+	configSha256: string;
+	ready: boolean;
+	order: {
+		state: "trivial" | "trusted_absolute" | "manual" | "manual_required";
+		workspaceAuthority: "unconfirmed" | "manual";
+		suggestedPartIds: string[] | null;
+		matchesSuggestion: boolean | null;
+	};
+	parts: SessionTimelinePart[];
+	relations: SessionTimelineRelation[];
 };
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
 	campaignId: string;
 	sessionId: string;
 	revision: number;
+	orderAuthority: "unconfirmed" | "manual";
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+	timeline: SessionWorkspaceTimeline | null;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
