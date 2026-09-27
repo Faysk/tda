@@ -341,7 +341,7 @@ test("telemetry stale preserva o último snapshot e orienta sem zerar valores", 
 	await expect(commandBar).not.toContainText("Synthetic GPU · 0%");
 });
 
-test("telemetry visual bridge follows active and idle polling cadence while AT sees the factual target", async ({ page }) => {
+test("telemetry visual bridge follows active and idle polling cadence while AT sees the factual target", async ({ page }, testInfo) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -373,7 +373,6 @@ test("telemetry visual bridge follows active and idle polling cadence while AT s
 	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "1500");
 	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "3");
 
-	state.setJob(null);
 	state.setSystem({
 		cpuPercent: 67,
 		memoryPercent: 67,
@@ -389,11 +388,41 @@ test("telemetry visual bridge follows active and idle polling cadence while AT s
 	});
 	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
-	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "6000");
+	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "1500");
 	await expect(gpuMetric).toHaveAttribute("data-animated-target", "67");
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
 	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "67");
 	await expect(gpuMetric.locator("meter")).toHaveAttribute("aria-valuetext", "67%");
+	await page.screenshot({
+		path: testInfo.outputPath("telemetry-bridge-active.png"),
+		fullPage: true,
+	});
+
+	state.setJob(null);
+	state.setSystem({
+		cpuPercent: 46,
+		memoryPercent: 46,
+		gpus: [
+			{
+				index: 0,
+				name: "Synthetic GPU",
+				utilizationPercent: 46,
+				memoryUsedBytes: 5 * 1024 ** 3,
+				memoryTotalBytes: 8 * 1024 ** 3,
+			},
+		],
+	});
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(gpuMetric).toHaveAttribute("data-animated-sample-ms", "6000");
+	await expect(gpuMetric).toHaveAttribute("data-animated-target", "46");
+	await expect(gpuMetric).toHaveAttribute("data-animated-running", "true");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("value", "46");
+	await expect(gpuMetric.locator("meter")).toHaveAttribute("aria-valuetext", "46%");
+	await page.screenshot({
+		path: testInfo.outputPath("telemetry-bridge-idle-retarget.png"),
+		fullPage: true,
+	});
 });
 
 test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", async ({ page }) => {
