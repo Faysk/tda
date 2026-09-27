@@ -136,6 +136,34 @@ class Store:
                 db.execute("ALTER TABLE jobs ADD COLUMN stage_started_at TEXT")
             if "timing_state" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN timing_state TEXT")
+            workspace_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_workspaces)").fetchall()
+            }
+            if "order_authority" not in workspace_columns:
+                db.execute(
+                    "ALTER TABLE session_workspaces "
+                    "ADD COLUMN order_authority TEXT NOT NULL DEFAULT 'unconfirmed'"
+                )
+            part_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_recording_parts)").fetchall()
+            }
+            if "manual_offset_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN manual_offset_seconds REAL"
+                )
+            if "trim_start_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN trim_start_seconds REAL NOT NULL DEFAULT 0"
+                )
+            if "trim_end_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN trim_end_seconds REAL"
+                )
             db.execute(
                 "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
                 "SELECT idem,id,signature FROM jobs"
