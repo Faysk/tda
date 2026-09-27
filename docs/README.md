@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-28
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -91,6 +91,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 
 - [Lores independentes — liberdade visual e catálogo](features/independent-lores.md)
 - [Especificações de features — índice](features/README.md)
+- [Navegação global do TDA](features/global-navigation.md) — marca = início, launcher = produto e avatar = conta/aparência; capabilities privadas continuam subordinadas aos guards server-side.
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
 - [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato proposto para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.
@@ -207,6 +208,6 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Runtime/deploy: provider atual Vercel, conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 - Control plane: GitHub `Faysk/tda` + GitHub Actions. Providers externos são substituíveis e a infraestrutura é free-first.
 
-Última revisão estrutural: **2026-09-27**.
+Última revisão estrutural: **2026-09-28**.
 
 - [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.
