@@ -280,6 +280,8 @@ test("lost publication recovers after reload without a second write or transcrip
  await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
+ await page.reload();
+ await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
  let abandonmentMessage = "";
  page.once("dialog", async dialog => {
   abandonmentMessage = dialog.message();
