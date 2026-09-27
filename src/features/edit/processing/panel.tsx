@@ -221,6 +221,7 @@ function latestActivity(
 	events: readonly JobEvent[],
 	job: LocalJob,
 	system: SystemSnapshot | null,
+	catalog: readonly ActivityBark[],
 ) {
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
@@ -249,7 +250,10 @@ function latestActivity(
 		) {
 			const factual = presentJobEvent(event);
 			const bark = activityEventCanBeHumorous(event)
-				? selectActivityBark(activityContext(event, job, system), { level: "tda" })
+				? selectActivityBark(activityContext(event, job, system), {
+					level: "tda",
+					catalog,
+				})
 				: null;
 			return {
 				title: bark?.text ?? factual.title,
