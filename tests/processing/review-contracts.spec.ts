@@ -14,13 +14,14 @@ test("base remains unsaved until an explicit editorial action", async ({ page })
 test("older Agent remains readable and requires an update before editing", async ({ page }) => {
 	await page.goto("/?review-contracts&old-agent");
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
-	await expect(page.getByRole("textbox", { name: "Texto", exact: true })).toBeDisabled();
+	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
 	await page.goto("/?review-contracts");
-	const speaker = page.getByRole("textbox", { name: "Speaker", exact: true });
+	await page.getByRole("button", { name: /^Editar / }).first().click();
+	const speaker = page.getByRole("textbox", { name: /^Participante em / }).first();
 	await speaker.fill("😀".repeat(160));
 	await expect(speaker).toHaveValue("😀".repeat(160));
 	await expect(speaker).toHaveAttribute("aria-invalid", "false");
@@ -76,14 +77,15 @@ test("target repair preserves edits and restores only the original destination",
     await page.goto("/?review-contracts&repair");
     const repair = page.getByRole("button", { name: "Reparar vínculo original" });
     await expect(page.getByText(/O vínculo de publicação está danificado/)).toBeVisible();
-    await page.getByRole("textbox", { name: "Texto", exact: true }).fill("Texto preservado");
+    await page.getByRole("button", { name: /^Editar / }).first().click();
+    await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto preservado");
     await expect(repair).toBeDisabled();
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(repair).toBeEnabled();
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
-    await expect(page.getByRole("textbox", { name: "Texto", exact: true })).toHaveValue("Texto preservado");
+    await expect(page.locator("[data-review-segment] p").first()).toHaveText("Texto preservado");
     await expect(page.getByText(/Destino vinculado: yuhara-main/)).toBeVisible();
 });
 
@@ -103,12 +105,13 @@ test("bulk rename isolates a track, preserves exceptions and saves one snapshot"
     await expect(page.getByLabel("Participante de origem")).toBeFocused();
     await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
     await expect(page.getByTestId("save-count")).toHaveText("0");
-    const speakers = page.getByRole("textbox", { name: "Speaker", exact: true });
-    expect(await speakers.evaluateAll((nodes) => nodes.map((node) => (node as HTMLInputElement).value))).toEqual(["Nome normalizado", "Nome normalizado", "Nome normalizado", "Convidado", "Alex"]);
+    const speakers = page.locator("[data-review-segment] strong");
+    await expect(speakers).toHaveCount(5);
+    expect(await speakers.allTextContents()).toEqual(["Nome normalizado", "Nome normalizado", "Nome normalizado", "Convidado", "Alex"]);
     await page.screenshot({ path: testInfo.outputPath("participant-rename.png"), fullPage: true });
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(page.getByTestId("save-count")).toHaveText("1");
-    await expect(speakers.first()).toHaveValue("Nome normalizado");
+    await expect(speakers.first()).toHaveText("Nome normalizado");
 });
 
 test("bulk rename survives a save conflict", async ({ page }) => {
@@ -120,7 +123,7 @@ test("bulk rename survives a save conflict", async ({ page }) => {
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(page.getByRole("alert")).toContainText("mudou em outra aba");
-    await expect(page.getByRole("textbox", { name: "Speaker", exact: true }).first()).toHaveValue("Novo");
+    await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
 });
 
@@ -132,7 +135,7 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await page.getByLabel("Novo nome").fill("Novo");
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
-    await page.getByLabel("Filtrar falas").fill("Fala");
+    await page.getByLabel("Buscar na timeline").fill("Fala");
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await page.getByRole("button", { name: "Comparar com versão mais recente" }).click();
     await expect(page.getByText(/3 mudanças locais · 1 colisões/)).toBeVisible();
@@ -141,10 +144,10 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await page.getByLabel("Manter minha alteração").check();
     await page.screenshot({ path: testInfo.outputPath("review-conflict.png"), fullPage: true });
     await page.getByRole("button", { name: "Reconciliar no draft" }).click();
-    await expect(page.getByLabel("Filtrar falas")).toHaveValue("Fala");
+    await expect(page.getByLabel("Buscar na timeline")).toHaveValue("Fala");
     await expect(page.getByText(/Reconciliado sobre a revisão 2/)).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Speaker", exact: true }).first()).toHaveValue("Novo");
-    await expect(page.getByRole("textbox", { name: "Texto", exact: true }).nth(1)).toHaveValue("Fala remota");
+    await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
+    await expect(page.locator("[data-review-segment] p").nth(1)).toHaveText("Fala remota");
     await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(page.getByText(/Run bruto imutável · draft r3/)).toBeVisible();
