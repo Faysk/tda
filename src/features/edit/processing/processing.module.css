@@ -862,6 +862,15 @@
 	min-width: 0;
 }
 
+.advancedToolsBody > .integrationTool {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.advancedToolsBody > .barkPackAdmin {
+	margin-top: 0;
+}
+
 
 .systemDetails {
 	margin-bottom: 10px;
