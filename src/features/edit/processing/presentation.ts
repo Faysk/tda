@@ -55,6 +55,7 @@ export function presentConnectionError(
 export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 	if (job.kind === "synthetic.fixture") return "Ensaio sintético";
 	if (job.kind === "transcription.craig") return "Transcrição de sessão";
+	if (job.kind === "benchmark.craig") return "Benchmark local de 5 minutos";
 	return job.kind;
 }
 
@@ -67,6 +68,10 @@ export function presentJobError(code: string): string {
 		WORKER_RUNTIME_BOOTSTRAP_FAILED: "O runtime local falhou durante a inicialização antes do processamento.",
 		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
+		BENCHMARK_RESULT_INVALID: "O benchmark terminou com um receipt inconsistente e foi descartado.",
+		BENCHMARK_SAMPLE_TOO_SHORT: "A fonte não possui 5 minutos completos em todas as tracks.",
+		BENCHMARK_PROFILES_NOT_READY: "Os quatro perfis precisam estar preparados antes do benchmark.",
+		BENCHMARK_RESOURCE_BUSY: "Há outro processamento local usando os recursos necessários para o benchmark.",
 		WORKER_COMMAND_INVALID: "O Companion não conseguiu iniciar o worker com um comando local válido.",
 		WORKER_EXITED_WITHOUT_RESULT: "O worker local encerrou sem informar resultado, cancelamento ou erro.",
 		WORKER_EXIT_TIMEOUT: "O processo do worker não encerrou corretamente dentro do limite esperado.",
