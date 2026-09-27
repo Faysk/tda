@@ -940,6 +940,7 @@ export function ProcessingPanel({
 										/>
 									</div>
 								</details>
+							</section>
 						) : null}
 					</section>
 
