@@ -89,24 +89,93 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	).toBe(true);
 });
 
-test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page }) => {
+test("stale Qwen runtime offers an update only when compatible Stable exists", async ({
+	page,
+}) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		qwenRuntimeVersion: "1.0.11",
+		qwenStableRuntimeVersion: "1.0.12",
 		advanceJobs: false,
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
 	await expect(page.getByRole("alert")).toContainText(
-		"runtime 1.0.12 ou mais recente",
+		"Runtime Qwen Stable v1.0.12 disponível",
 	);
+	await expect.poll(() => state.qwenManifestLookupCount).toBeGreaterThan(0);
 
 	await selectCraig(page);
 	await expect(
 		page.getByRole("button", { name: "Adicionar à fila local" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("stale Qwen runtime reports temporary unavailability when Stable is still too old", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenStableRuntimeVersion: "1.0.11",
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Perfil")).toContainText(
+		"temporariamente indisponível",
+	);
+	await expect(page.getByLabel("Perfil")).not.toContainText("atualizar runtime");
+	await expect(page.getByRole("alert")).toContainText(
+		"Stable publicado ainda é v1.0.11",
+	);
+	await expect(page.getByRole("alert")).toContainText(
+		"mínimo v1.0.12",
+	);
+	await expect.poll(() => state.qwenManifestLookupCount).toBeGreaterThan(0);
+
+	await selectCraig(page);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila local" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("stale Qwen runtime fails closed when Stable availability cannot be verified", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenStableManifestFailure: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Perfil")).toContainText(
+		"disponibilidade não confirmada",
+	);
+	await expect(page.getByLabel("Perfil")).not.toContainText("atualizar runtime");
+	await expect(page.getByRole("alert")).toContainText(
+		"não pôde ser confirmada",
+	);
+	await expect(page.getByRole("alert")).toContainText(
+		"mantém o Qwen bloqueado",
+	);
+	await expect.poll(() => state.qwenManifestLookupCount).toBeGreaterThan(0);
+
+	await selectCraig(page);
+	await expect(
+		page.getByRole("button", { name: "Adicionar à fila local" }),
+	).toBeDisabled();
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
 
