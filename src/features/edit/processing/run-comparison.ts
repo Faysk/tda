@@ -95,6 +95,15 @@ function segmentTimelineEnd(segment: LocalReviewSegment): number {
 	return segment.timelineEnd ?? segment.end;
 }
 
+function hasAbsoluteSessionTimeline(segment: LocalReviewSegment): boolean {
+	return (
+		typeof segment.timelineStart === "number" &&
+		Number.isFinite(segment.timelineStart) &&
+		typeof segment.timelineEnd === "number" &&
+		Number.isFinite(segment.timelineEnd)
+	);
+}
+
 function buildRegion(
 	trackNumber: number,
 	leftInput: readonly LocalReviewSegment[],
@@ -242,22 +251,22 @@ export function compareRunSegments(
 		]),
 	].sort((a, b) => a - b);
 
-	return tracks
-		.flatMap((trackNumber) =>
-			compareTrack(
-				trackNumber,
-				left.filter((item) => item.trackNumber === trackNumber),
-				right.filter((item) => item.trackNumber === trackNumber),
-				tolerance,
-			),
-		)
-		.sort(
-			(leftRegion, rightRegion) =>
-				leftRegion.sessionStart - rightRegion.sessionStart ||
-				leftRegion.sessionEnd - rightRegion.sessionEnd ||
-				leftRegion.trackNumber - rightRegion.trackNumber ||
-				compareCanonicalText(leftRegion.id, rightRegion.id),
-		);
+	const regions = tracks.flatMap((trackNumber) =>
+		compareTrack(
+			trackNumber,
+			left.filter((item) => item.trackNumber === trackNumber),
+			right.filter((item) => item.trackNumber === trackNumber),
+			tolerance,
+		),
+	);
+	if (![...left, ...right].every(hasAbsoluteSessionTimeline)) return regions;
+	return regions.sort(
+		(leftRegion, rightRegion) =>
+			leftRegion.sessionStart - rightRegion.sessionStart ||
+			leftRegion.sessionEnd - rightRegion.sessionEnd ||
+			leftRegion.trackNumber - rightRegion.trackNumber ||
+			compareCanonicalText(leftRegion.id, rightRegion.id),
+	);
 }
 
 export function regionOverlapsTimeRange(
