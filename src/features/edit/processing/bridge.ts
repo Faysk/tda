@@ -25,6 +25,7 @@ import {
 	parseJobs,
 	parseLocalReview,
 	parseLocalRunCatalogPage,
+	parseLocalRunDeleteReceipt,
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
@@ -513,6 +514,33 @@ export class LocalBridge {
 		return parseLocalRuns(
 			await this.json(`/sources/${identifier(sourceId)}/runs`, signal),
 		);
+	}
+
+	async deleteLocalRun(
+		sourceId: string,
+		runId: string,
+		transcriptSha256: string,
+		operationId: string,
+		signal: AbortSignal,
+	) {
+		if (!/^[0-9a-f]{64}$/u.test(transcriptSha256))
+			throw new BridgeError("invalid_response");
+		if (!/^[0-9a-f-]{36}$/u.test(operationId))
+			throw new BridgeError("invalid_response");
+		const receipt = parseLocalRunDeleteReceipt(
+			await this.json(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/delete`,
+				signal,
+				{ transcript_sha256: transcriptSha256, operation_id: operationId },
+			),
+		);
+		if (
+			receipt.sourceId !== sourceId ||
+			receipt.runId !== runId ||
+			receipt.transcriptSha256 !== transcriptSha256
+		)
+			throw new BridgeError("invalid_response");
+		return receipt;
 	}
 
 	async localReview(sourceId: string, runId: string, signal: AbortSignal) {
