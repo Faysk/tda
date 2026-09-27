@@ -171,3 +171,205 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
         )
         assert attached.status_code == 200
         assert attached.json()["parts"][0]["source_id"] == SOURCE_A
+
+
+def test_session_timeline_api_classifies_clocks_and_requires_explicit_gap_resolution(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+
+    def package(root, verify_tracks=False):
+        source_id = root.name
+        if source_id == SOURCE_A:
+            start_time = "2026-09-27T20:00:00Z"
+            duration = 60.0
+        elif source_id == SOURCE_B:
+            start_time = "2026-09-27T21:01:00.001+01:00"
+            duration = 60.0
+        else:
+            start_time = "clock unavailable"
+            duration = 60.0
+        return SimpleNamespace(
+            start_time=start_time,
+            tracks=(
+                SimpleNamespace(
+                    duration_seconds=duration,
+                    timeline_offset_seconds=0.0,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(api_module, "load_craig_package", package)
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B, SOURCE_C):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        capabilities = client.get("/api/v1/capabilities", headers=HEADERS).json()
+        assert "transcription.session-timeline" in capabilities["capabilities"]
+
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-time/session-time",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            response = client.post(
+                "/api/v1/session-workspaces/campaign-time/session-time/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            )
+            assert response.status_code == 200
+            workspace = response.json()
+
+        assert [part["start_time"]["confidence"] for part in workspace["timeline"]["parts"]] == [
+            "trusted_absolute",
+            "trusted_absolute",
+        ]
+        assert workspace["timeline"]["boundaries"][0]["kind"] == "gap"
+        assert workspace["timeline"]["boundaries"][0]["duration_ms"] == 1
+        assert workspace["timeline"]["approval_ready"] is False
+
+        parts = workspace["parts"]
+        accepted = client.post(
+            "/api/v1/session-workspaces/campaign-time/session-time/timeline",
+            headers=HEADERS,
+            json={
+                "expected_revision": workspace["revision"],
+                "parts": [
+                    {
+                        "part_id": part["part_id"],
+                        "session_offset_ms": None,
+                        "trim_start_ms": 0,
+                        "trim_end_ms": None,
+                    }
+                    for part in parts
+                ],
+                "boundaries": [
+                    {
+                        "left_part_id": parts[0]["part_id"],
+                        "right_part_id": parts[1]["part_id"],
+                        "mode": "accept_gap",
+                        "boundary_ms": None,
+                    }
+                ],
+            },
+        )
+        assert accepted.status_code == 200
+        body = accepted.json()
+        assert body["revision"] == workspace["revision"] + 1
+        assert body["timeline"]["approval_ready"] is True
+        assert body["timeline"]["boundaries"][0]["resolved"] is True
+        assert len(body["timeline"]["timeline_identity_sha256"]) == 64
+        assert "timeline_config" not in body
+
+        stale = client.post(
+            "/api/v1/session-workspaces/campaign-time/session-time/timeline",
+            headers=HEADERS,
+            json={
+                "expected_revision": workspace["revision"],
+                "parts": [
+                    {
+                        "part_id": part["part_id"],
+                        "session_offset_ms": None,
+                        "trim_start_ms": 0,
+                        "trim_end_ms": None,
+                    }
+                    for part in parts
+                ],
+                "boundaries": [],
+            },
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "SESSION_WORKSPACE_REVISION_CONFLICT"
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(restarted, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-time/session-time",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["timeline"]["approval_ready"] is True
+
+
+def test_session_timeline_rejects_overlap_boundary_outside_owned_region(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+
+    def package(root, verify_tracks=False):
+        start_time = (
+            "2026-09-27T20:00:00Z"
+            if root.name == SOURCE_A
+            else "2026-09-27T20:00:30Z"
+        )
+        return SimpleNamespace(
+            start_time=start_time,
+            tracks=(
+                SimpleNamespace(
+                    duration_seconds=60.0,
+                    timeline_offset_seconds=0.0,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(api_module, "load_craig_package", package)
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-overlap/session-overlap",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            workspace = client.post(
+                "/api/v1/session-workspaces/campaign-overlap/session-overlap/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            ).json()
+        parts = workspace["parts"]
+        invalid = client.post(
+            "/api/v1/session-workspaces/campaign-overlap/session-overlap/timeline",
+            headers=HEADERS,
+            json={
+                "expected_revision": workspace["revision"],
+                "parts": [
+                    {
+                        "part_id": part["part_id"],
+                        "session_offset_ms": None,
+                        "trim_start_ms": 0,
+                        "trim_end_ms": None,
+                    }
+                    for part in parts
+                ],
+                "boundaries": [
+                    {
+                        "left_part_id": parts[0]["part_id"],
+                        "right_part_id": parts[1]["part_id"],
+                        "mode": "prefer_later_from",
+                        "boundary_ms": 75_000,
+                    }
+                ],
+            },
+        )
+        assert invalid.status_code == 409
+        assert invalid.json()["error"]["code"] == "SESSION_TIMELINE_RESOLUTION_INVALID"
+
+        unchanged = client.get(
+            "/api/v1/session-workspaces/campaign-overlap/session-overlap",
+            headers=HEADERS,
+        ).json()
+        assert unchanged["revision"] == workspace["revision"]
+        assert unchanged["timeline"]["boundaries"][0]["resolved"] is False
