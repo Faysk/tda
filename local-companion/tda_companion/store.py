@@ -155,7 +155,7 @@ class Store:
                 "SELECT body FROM jobs WHERE status IN ('queued','running')"
             ).fetchall()
             return any(
-                json.loads(row["body"]).get("kind") == "transcription.craig"
+                json.loads(row["body"]).get("kind") in {"transcription.craig", "benchmark.craig"}
                 for row in rows
             )
 
@@ -452,6 +452,11 @@ class Store:
         if body["kind"] == "transcription.craig":
             context["profile_id"] = body["profile_id"]
             context["cpu"] = bool(body.get("cpu", False))
+        elif body["kind"] == "benchmark.craig":
+            context["sample_identity_sha256"] = body.get("sample_identity_sha256")
+            context["sample_seconds"] = body.get("sample_seconds")
+            context["profiles"] = body.get("profiles", [])
+            context["prepared"] = bool(body.get("prepared", False))
         raw_device = json.loads(row["execution_device"]) if row["execution_device"] else None
         execution_device = sanitize_execution_device(raw_device) if isinstance(raw_device, dict) and raw_device.get("attempt") == row["attempt"] else None
         timing_state = Store._timing_state(row)
@@ -480,7 +485,13 @@ class Store:
             progress=dict(
                 completed=row["completed"],
                 total=body["units"],
-                unit="tracks" if body["kind"] == "transcription.craig" else "items",
+                unit=(
+                    "tracks"
+                    if body["kind"] == "transcription.craig"
+                    else "profiles"
+                    if body["kind"] == "benchmark.craig"
+                    else "items"
+                ),
             ),
             error=(
                 dict(
