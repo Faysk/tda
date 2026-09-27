@@ -421,6 +421,70 @@
 	width: 100%;
 }
 
+.estimatePanel {
+	display: grid;
+	gap: 8px;
+	padding: 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.estimateHeader {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.estimateHeader small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+	text-align: right;
+}
+
+.estimateGrid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.estimateGrid > div {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+	padding: 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+}
+
+.estimateGrid > div[data-selected="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 42%, var(--ds-border));
+}
+
+.estimateGrid span,
+.estimateGrid small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.estimateGrid span,
+.estimateGrid small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.estimateGrid strong {
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.card[data-layout="compact"] .estimateGrid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 720px) {
 	.card {
 		padding: 12px;
@@ -460,6 +524,22 @@
 
 	.dropAction {
 		min-height: 78px;
+	}
+}
+
+@media (max-width: 720px) {
+	.estimateHeader {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.estimateHeader small {
+		text-align: left;
+	}
+
+	.estimateGrid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 
