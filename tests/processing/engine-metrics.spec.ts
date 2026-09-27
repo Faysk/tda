@@ -9,5 +9,8 @@ test("normalized timing distinguishes recovery from fresh throughput", async ({ 
 	await page.screenshot({ path: testInfo.outputPath("engine-metrics.png"), fullPage: true });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 	await page.goto("/?review-contracts&metrics&legacy");
-	await expect(page.getByText("Tempo histórico sem medição comparável entre engines.")).toBeVisible();
+	const legacyMeasurement = page.getByText("Medição", { exact: true }).first();
+	await expect(legacyMeasurement).toBeVisible();
+	await legacyMeasurement.click();
+	await expect(page.getByText("Tempo histórico sem medição comparável entre engines.").first()).toBeVisible();
 });

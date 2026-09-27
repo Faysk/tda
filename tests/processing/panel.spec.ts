@@ -972,6 +972,31 @@ test("Stable 0.3.15 hides completed-run deletion while Results remains usable", 
 	await expect(page.getByLabel("Mais ações do resultado")).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toHaveCount(0);
 });
+test("Results keeps selected-run detail in document flow on Full HD", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	const runCard = page.locator("article").filter({ hasText: "Resultado local" }).first();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+	await expect(runCard.getByText("Integridade e IDs", { exact: true })).toBeVisible();
+	const detail = await runCard.evaluate((card) => {
+		const owner = card.parentElement;
+		if (!owner) return null;
+		const style = getComputedStyle(owner);
+		return { overflowY: style.overflowY, scrollHeight: owner.scrollHeight, clientHeight: owner.clientHeight };
+	});
+	expect(detail).not.toBeNull();
+	expect(["auto", "scroll"]).not.toContain(detail?.overflowY);
+	expect(detail?.scrollHeight).toBe(detail?.clientHeight);
+});
 
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
 	await installCompanionFixture(page, {
