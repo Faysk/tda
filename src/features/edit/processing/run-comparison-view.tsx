@@ -223,7 +223,7 @@ export function RunComparisonView({
 				))}
 			</div>
 
-			<div className={styles.summary} aria-label="Resumo das diferenças">
+			<div className={styles.summary} role="group" aria-label="Resumo das diferenças">
 				<span>{summary.totalRegions} regiões alinhadas</span>
 				<span>{summary.differentRegions} divergentes</span>
 				<span>{summary.speakerChangedRegions} com speaker diferente</span>
