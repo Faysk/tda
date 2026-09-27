@@ -885,6 +885,18 @@ class CraigIngestBoundary:
                 send,
             )
             return
+        comparison_match = CRAIG_COMPARISON_SNAPSHOT_PATH.fullmatch(path)
+        if comparison_match is not None:
+            request = Request(scope, receive=receive)
+            await self._comparison_snapshot(
+                request,
+                comparison_match.group("source_id"),
+                comparison_match.group("run_id"),
+                scope,
+                receive,
+                send,
+            )
+            return
         review_match = CRAIG_REVIEW_PATH.fullmatch(path)
         if review_match is not None:
             request = Request(scope, receive=receive)
