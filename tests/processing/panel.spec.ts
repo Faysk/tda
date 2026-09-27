@@ -338,8 +338,9 @@ test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", a
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 
+	const overview = page.getByRole("tabpanel", { name: "Visão geral" });
 	await expect(
-		page.getByText("Falha de alinhamento Qwen · faixa 1 · janela 206.", {
+		overview.getByText("Falha de alinhamento Qwen · faixa 1 · janela 206.", {
 			exact: true,
 		}),
 	).toBeVisible();
