@@ -264,7 +264,11 @@ def inspect_qwen_runtime(runtime_root: Path, *, verify_worker: bool = False) -> 
         return {"status": "corrupt", "version": version, "worker": None}
     if not qwen_runtime_version_compatible(version):
         return {"status": "incompatible", "version": version, "worker": None}
-    return {"status": "ready", "version": version, "worker": str(worker.resolve())}
+    return {
+        "status": "ready", "version": version, "worker": str(worker.resolve()),
+        "runtime_id": marker["runtime_id"], "worker_sha256": marker["worker_sha256"],
+        "archive_sha256": marker.get("archive_sha256"),
+    }
 
 
 def _replacement_allowed(runtime_root: Path, version: str) -> bool:

@@ -151,6 +151,16 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await expect(page.getByTestId("save-count")).toHaveText("2");
 });
 
+test("exact runtime identity is confined to technical details", async ({ page }, testInfo) => {
+ await page.goto("/?review-contracts&artifact");
+ const detail = page.locator("details").filter({ hasText: "Integridade do runtime usado" });
+ await expect(detail.locator("code").first()).not.toBeVisible();
+ await detail.locator("summary").click();
+ await expect(detail.locator("code").first()).toHaveText("a".repeat(64));
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+ await page.screenshot({ path: testInfo.outputPath("runtime-artifact-details.png"), fullPage: true });
+});
+
 
 test("publication freezes current and requires a fresh confirmation after stale_current", async ({ page }, testInfo) => {
  const first = "11111111-1111-4111-8111-111111111111";

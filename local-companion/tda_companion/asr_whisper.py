@@ -30,6 +30,7 @@ from .asr_models import (
 )
 from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
 from .craig import CraigPackage, CraigTrack
+from .runtime_artifact import artifact_from_environment
 from .transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -471,14 +472,16 @@ def _distribution_version(name: str) -> str:
 
 
 def _whisper_runtime_fingerprint() -> str:
-    return ";".join(
-        (
-            "checkpoint=whisper-track-v2",
-            f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
-            f"faster-whisper={_distribution_version('faster-whisper')}",
-            f"ctranslate2={_distribution_version('ctranslate2')}",
-        )
-    )
+    artifact = artifact_from_environment(os.environ)
+    fields = [
+        "checkpoint=whisper-track-v3" if artifact is not None else "checkpoint=whisper-track-v2",
+        f"runtime={os.environ.get('TDA_ASR_RUNTIME_VERSION', 'development')}",
+        f"faster-whisper={_distribution_version('faster-whisper')}",
+        f"ctranslate2={_distribution_version('ctranslate2')}",
+    ]
+    if artifact is not None:
+        fields.append(f"worker_sha256={artifact['worker_sha256']}")
+    return ";".join(fields)
 
 
 def transcribe_craig_package(

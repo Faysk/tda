@@ -552,3 +552,12 @@ describe("local result/review contracts", () => {
 		).toBe(false);
 	});
 });
+
+it("parses exact runtime artifacts without retroactively inventing legacy identity", () => {
+ const raw = rawReview();
+ expect(parseLocalReview(raw).lineage.executionLineage?.runtimeArtifact).toBeNull();
+ const artifact = { runtime_id: "whisper-ctranslate2", version: "1.1.5", worker_sha256: "a".repeat(64), archive_sha256: "b".repeat(64) };
+ const withArtifact = { ...raw, lineage: { ...raw.lineage, execution_lineage: { ...raw.lineage.execution_lineage, runtime_artifact: artifact } } };
+ expect(parseLocalReview(withArtifact).lineage.executionLineage?.runtimeArtifact).toMatchObject({ workerSha256: "a".repeat(64), archiveSha256: "b".repeat(64) });
+ expect(() => parseLocalReview({ ...withArtifact, lineage: { ...withArtifact.lineage, execution_lineage: { ...withArtifact.lineage.execution_lineage, runtime_artifact: { ...artifact, worker_sha256: "not-hex" } } } })).toThrow();
+});

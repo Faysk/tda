@@ -451,3 +451,8 @@
     overflow: auto;
     font: inherit;
 }
+
+.artifactHash {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}

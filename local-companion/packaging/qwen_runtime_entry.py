@@ -344,8 +344,13 @@ def main() -> int:
         return _acceptance(args)
 
     from tda_companion.asr_worker import run_worker_stdio
+    from tda_companion.runtime_artifact import verify_frozen_runtime_artifact
 
-    return run_worker_stdio(pre_worker_bootstrap=_bootstrap_qwen_runtime)
+    def bootstrap_worker_runtime():
+        verify_frozen_runtime_artifact()
+        return _bootstrap_qwen_runtime()
+
+    return run_worker_stdio(pre_worker_bootstrap=bootstrap_worker_runtime)
 
 
 if __name__ == "__main__":
