@@ -602,7 +602,7 @@ export function ProcessingBenchmark({
 						</label>
 
 						{file ? (
-							<div className={styles.sourceMeta} aria-label="Fonte selecionada">
+							<div className={styles.sourceMeta}>
 								<span>{source ? (source.reused ? "Fonte já verificada" : "Verificada agora") : "Aguardando análise"}</span>
 								{source?.minimumTrackDurationSeconds !== null &&
 								source?.minimumTrackDurationSeconds !== undefined ? (
@@ -753,7 +753,7 @@ export function ProcessingBenchmark({
 							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
 						)}
 					</div>
-					<div className={styles.runSteps} role="list" aria-label="Progresso dos quatro perfis">
+					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
 						{PROFILES.map((id, index) => {
 							const stepState =
 								index < completed
@@ -762,19 +762,18 @@ export function ProcessingBenchmark({
 										? "current"
 										: "pending";
 							return (
-								<span
+								<li
 									key={id}
 									className={styles.runStep}
 									data-state={stepState}
-									role="listitem"
 									aria-current={stepState === "current" ? "step" : undefined}
 								>
 									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
 									<span>{LABELS[id]}</span>
-								</span>
+								</li>
 							);
 						})}
-					</div>
+					</ol>
 					<div className={styles.activeActions}>
 						<Button
 							type="button"
