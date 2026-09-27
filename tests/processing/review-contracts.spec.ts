@@ -221,3 +221,48 @@ test("lost publication recovers after reload without a second write or transcrip
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });
 });
+
+test("A/B comparison uses raw same-source runs with global timeline filters", async ({ page }) => {
+	await page.goto("/?review-contracts&compare");
+	await expect(page.getByRole("heading", { name: "Resultados locais" })).toBeVisible();
+
+	const selector = page.getByLabel("Segundo run para comparação");
+	await expect(selector.locator("option")).toHaveCount(1);
+	await expect(selector).toContainText("qwen-quality");
+	await page.getByRole("button", { name: "Comparar", exact: true }).click();
+
+	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toBeVisible();
+	await expect(page.getByText(/Snapshots brutos imutáveis/)).toBeVisible();
+	await expect(page.getByText("3 divergentes", { exact: true })).toBeVisible();
+	await expect(page.getByText("Base bruta Alpha", { exact: true })).toBeVisible();
+	await expect(page.getByText("Base bruta Alfa", { exact: true })).toBeVisible();
+	await expect(page.getByText("Mesmo texto", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Só B", { exact: true })).toBeVisible();
+	await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+
+	await page.getByRole("button", { name: "Próxima" }).click();
+	await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+
+	await page.getByLabel("Participante").selectOption("Carol");
+	await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+	await expect(page.getByText("Mesmo texto", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Só B", { exact: true })).toHaveCount(0);
+
+	await page.getByLabel("Participante").selectOption("all");
+	await page.getByLabel("Início da faixa temporal da sessão em segundos").fill("100");
+	await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+	await expect(page.getByText("Só B", { exact: true })).toBeVisible();
+	await expect(page.getByText("Base bruta Alpha", { exact: true })).toHaveCount(0);
+	await expect(page.getByText(/Sessão 110\.00–111\.00s · Track 1/)).toBeVisible();
+
+	await page.setViewportSize({ width: 320, height: 800 });
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+		),
+	).toBe(true);
+
+	await page.getByRole("button", { name: "Usar Run B como base" }).click();
+	await expect(page.getByTestId("opened-run")).toHaveText("run-synthetic-b1");
+});
+
