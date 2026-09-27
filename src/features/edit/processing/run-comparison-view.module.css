@@ -120,6 +120,29 @@
 	font-size: .6875rem;
 }
 
+.comparability {
+	display: grid;
+	gap: 3px;
+	padding: 8px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	font-size: .72rem;
+	line-height: 1.4;
+}
+
+.comparability strong {
+	color: var(--ds-foreground);
+}
+
+.comparability span {
+	color: var(--ds-foreground-muted);
+}
+
+.comparability[data-status="limited"] {
+	border-color: color-mix(in srgb, var(--ds-warning) 42%, var(--ds-border));
+}
+
 .toolbar {
 	display: grid;
 	grid-template-columns: auto minmax(110px, .4fr) minmax(150px, .55fr) minmax(210px, .7fr) auto;
