@@ -225,7 +225,7 @@ test("benchmark workspace reflows from mobile to 4K without exposing the native 
 
 	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
 	await expect(panel.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
-	await expect(panel.getByRole("heading", { name: "Perfis" })).toBeVisible();
+	await expect(panel.getByRole("heading", { name: "Perfis", exact: true })).toBeVisible();
 	await expect(panel.getByText("Nenhum benchmark concluído neste Companion.")).toBeVisible();
 
 	for (const viewport of [
