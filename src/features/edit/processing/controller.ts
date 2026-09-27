@@ -24,6 +24,7 @@ export type ProcessingMutationKind =
 	| "cancel"
 	| "retry"
 	| "delete"
+	| "deleteRun"
 	| "synthetic"
 	| "result";
 
@@ -805,6 +806,64 @@ export class ProcessingController {
 		if (this.#state.localReviewBusy) return;
 		this.#recoveryBaseline = null;
 		this.update({ localReview: null, localReviewError: null });
+	};
+
+	assertLocalReviewPublishable = async (review: LocalReview) => {
+		if (this.#state.connection !== "connected")
+			throw new BridgeError("unreachable");
+		const latest = await this.bridge.localReview(
+			review.sourceId,
+			review.runId,
+			this.#request.signal,
+		);
+		if (
+			latest.baseTranscriptSha256 !== review.baseTranscriptSha256 ||
+			latest.draftRevision !== review.draftRevision ||
+			latest.draftSha256 !== review.draftSha256 ||
+			latest.status !== "approved_local" ||
+			latest.approvalCurrent !== true
+		)
+			throw new BridgeError("conflict", "LOCAL_REVIEW_DRAFT_CONFLICT");
+		return latest;
+	};
+
+	deleteLocalRun = async (sourceId: string, runId: string, transcriptSha256: string) => {
+		const current = this.#state.localRuns.find(
+			(run) =>
+				run.sourceId === sourceId &&
+				run.runId === runId &&
+				run.transcriptSha256 === transcriptSha256,
+		);
+		if (this.#state.connection !== "connected" || !current) return;
+		await this.runOperation(
+			{ kind: "deleteRun", targetId: `${sourceId}:${runId}` },
+			async (signal) => {
+				const receipt = await this.bridge.deleteLocalRun(
+					sourceId,
+					runId,
+					transcriptSha256,
+					signal,
+				);
+				if (signal.aborted) return;
+				if (
+					receipt.sourceId !== sourceId ||
+					receipt.runId !== runId ||
+					receipt.transcriptSha256 !== transcriptSha256
+				)
+					throw new BridgeError("invalid_response");
+				if (
+					this.#state.localReview?.sourceId === sourceId &&
+					this.#state.localReview.runId === runId
+				) {
+					this.#recoveryBaseline = null;
+					this.update({
+						localReview: null,
+						localReviewError: "LOCAL_REVIEW_RUN_NOT_VISIBLE",
+					});
+				}
+				await this.read(signal, { deep: false, includeLibrary: true });
+			},
+		);
 	};
 
 	result = async (id: string) => {
