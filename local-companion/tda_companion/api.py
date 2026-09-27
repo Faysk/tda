@@ -43,6 +43,7 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .session_chronology import build_session_chronology
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -68,7 +69,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/parts(?:/(?:detach|reorder|timing))?)?$"
 )
 
 
@@ -172,6 +173,31 @@ class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
     expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceOverlapResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    schema_version: Literal["tda_session_overlap_resolution_v1"]
+    policy: Literal["prefer_earlier_until", "prefer_later_from"]
+    boundary_seconds: float = Field(ge=0)
+
+
+class SessionWorkspacePartTiming(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    schema_version: Literal["tda_session_part_timing_v1"]
+    mode: Literal["automatic", "manual"]
+    session_offset_seconds: float | None = Field(default=None, ge=0)
+    trim_start_seconds: float = Field(default=0, ge=0)
+    trim_end_seconds: float | None = Field(default=None, ge=0)
+    gap_confirmed: bool = False
+    overlap_resolution: SessionWorkspaceOverlapResolution | None = None
+
+
+class SessionWorkspaceTimingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expected_revision: int = Field(ge=0)
+    timing: SessionWorkspacePartTiming
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1411,6 +1437,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-chronology",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1553,14 +1580,22 @@ def create_app(
 
     def session_workspace_response(value):
         parts = []
+        packages = {}
         for part in value["parts"]:
             try:
-                staged_package_under_source_gate(part["source_id"])
+                _, package = staged_package_under_source_gate(part["source_id"])
                 source_state = "ready"
+                packages[part["source_id"]] = package
             except (CraigPackageError, ValueError):
                 source_state = "invalid"
+                packages[part["source_id"]] = None
             parts.append({**part, "source_state": source_state})
-        return {**value, "parts": parts}
+        chronology = build_session_chronology(
+            parts,
+            packages,
+            order_provenance=value.get("order_provenance", "attached"),
+        )
+        return {**value, "parts": parts, "chronology": chronology}
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
     def session_workspace(campaign_id: str, session_id: str):
@@ -1627,6 +1662,22 @@ def create_app(
                 campaign_id,
                 session_id,
                 body.part_ids,
+                body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/timing")
+    def set_session_workspace_part_timing(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceTimingRequest,
+    ):
+        return session_workspace_response(
+            store.set_session_part_timing(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.timing.model_dump(),
                 body.expected_revision,
             )
         )
