@@ -20,6 +20,11 @@ export default async function ProcessingPage() {
 		EDIT_CAPABILITIES.localProcess,
 		"/edit/processamento",
 	);
+	const activityBarksManage = authorizeCampaignCapability(
+		access,
+		EDIT_CAPABILITIES.activityBarksManage,
+		CAMPAIGN_SLUG,
+	).ok;
 	const publicationEnabled =
 		process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true" &&
 		authorizeCampaignCapability(
@@ -32,7 +37,11 @@ export default async function ProcessingPage() {
 		<section className={styles.page} data-processing-workspace="true">
 			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
 
-			<ProcessingPanel publicationEnabled={publicationEnabled} />
+			<ProcessingPanel
+				publicationEnabled={publicationEnabled}
+				activityBarksManage={activityBarksManage}
+				activityPackScope={`${access.profileId ?? "unresolved"}:${CAMPAIGN_SLUG}`}
+			/>
 
 			<details className={pageStyles.companionMaintenance}>
 				<summary>Instalação e canais do TDA Companion</summary>
