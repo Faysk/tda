@@ -543,6 +543,14 @@
 	padding: 10px;
 }
 
+.card[data-layout="compact"] .primaryGrid {
+	grid-template-columns: 1fr;
+}
+
+.card[data-layout="compact"] .sessionControl small {
+	display: block;
+}
+
 .card[data-layout="compact"] .identityGrid,
 .card[data-layout="compact"] .advancedGrid {
 	grid-template-columns: 1fr;
