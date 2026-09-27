@@ -102,7 +102,7 @@ test("local file validation blocks bad input before Companion upload", async ({ 
 	await expect(composer.getByRole("alert")).toContainText("arquivo .zip exportado pelo Craig");
 	expect(state.uploadCount).toBe(0);
 	await expect(
-		composer.getByRole("button", { name: "Adicionar à fila local", exact: true }),
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 	).toBeDisabled();
 });
 
@@ -138,7 +138,7 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 		composer.getByLabel("ID da sessão"),
 		composer.getByLabel("Perfil"),
 		composer.getByText("Ainda sem calibração nesta máquina.", { exact: true }),
-		composer.getByRole("button", { name: "Adicionar à fila local", exact: true }),
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 		composer.getByText("Opções avançadas", { exact: true }),
 	];
 	const boxes = await Promise.all(locators.map((locator) => locator.boundingBox()));
