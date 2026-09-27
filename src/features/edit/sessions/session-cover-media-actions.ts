@@ -10,7 +10,10 @@ import {
 	type SessionCoverMediaMime,
 	type SessionCoverUploadIntent,
 	isSessionCoverIntent,
+	isSessionCoverMime,
+	isSessionCoverSha256,
 	isSessionCoverUuid,
+	sessionCoverObjectKey,
 } from "./session-cover-media";
 import {
 	finalizeSessionCoverPendingUpload,
@@ -216,4 +219,89 @@ export async function finalizeSessionCoverUploadAction(
 		);
 		return { ok: false, reason: "dependency_unavailable" };
 	}
+}
+
+
+export async function getSessionCoverAssetStatusAction(
+	sessionId: string,
+	assetId: string,
+): Promise<
+	| Readonly<{
+			ok: true;
+			assetId: string;
+			status: "staged" | "verified_public";
+			mimeType: SessionCoverMediaMime;
+			bytes: number;
+			width: number;
+			height: number;
+			readBackVerified: true;
+	  }>
+	| Readonly<{ ok: false; reason: SessionCoverUploadFailure }>
+> {
+	if (!worldEntityMediaEnabled())
+		return { ok: false, reason: "media_unavailable" };
+	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
+		return { ok: false, reason: "invalid_payload" };
+
+	const authorization = await authorizeSessionCoverTarget(sessionId);
+	if (!authorization.ok) return authorization;
+
+	const { data, error } = await authorization.target.client
+		.from("media_assets")
+		.select(
+			"id,status,role_hint,object_key,sha256,mime_type,byte_size,width,height,read_back_verified",
+		)
+		.eq("campaign_id", authorization.target.campaignId)
+		.eq("id", assetId)
+		.maybeSingle();
+	if (error)
+		return { ok: false, reason: "dependency_unavailable" };
+	if (!data)
+		return { ok: false, reason: "not_found" };
+
+	const status =
+		data.status === "staged" || data.status === "verified_public"
+			? data.status
+			: null;
+	const mimeType = isSessionCoverMime(data.mime_type) ? data.mime_type : null;
+	const sha256 = isSessionCoverSha256(data.sha256) ? data.sha256 : null;
+	const bytes = Number(data.byte_size);
+	const width = Number(data.width);
+	const height = Number(data.height);
+	if (
+		!status ||
+		data.role_hint !== "session_cover" ||
+		data.read_back_verified !== true ||
+		!mimeType ||
+		!sha256 ||
+		!Number.isSafeInteger(bytes) ||
+		bytes < 24 ||
+		!Number.isSafeInteger(width) ||
+		width < 1 ||
+		!Number.isSafeInteger(height) ||
+		height < 1
+	) {
+		return { ok: false, reason: "not_found" };
+	}
+
+	const extension = mimeType === "image/png" ? "png" : "webp";
+	const expectedKey = sessionCoverObjectKey({
+		campaignSlug: CAMPAIGN_SLUG,
+		sessionId,
+		sha256,
+		extension,
+	});
+	if (!expectedKey || expectedKey !== data.object_key)
+		return { ok: false, reason: "not_found" };
+
+	return {
+		ok: true,
+		assetId,
+		status,
+		mimeType,
+		bytes,
+		width,
+		height,
+		readBackVerified: true,
+	};
 }
