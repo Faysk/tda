@@ -43,22 +43,23 @@ def _junction(path: Path) -> bool:
         return True
 
 
-def _safe_root(package_root: Path, name: str) -> Path:
+def _safe_root(package_root: Path, name: str, *, create: bool) -> Path:
     package = package_root.resolve()
     raw = package / name
     if raw.exists() and (raw.is_symlink() or _junction(raw)):
         raise LocalRunDeleteError("LOCAL_RUN_DELETE_NAMESPACE_UNSAFE")
-    raw.mkdir(parents=True, exist_ok=True)
+    if create:
+        raw.mkdir(parents=True, exist_ok=True)
     resolved = raw.resolve()
     if resolved.parent != package:
         raise LocalRunDeleteError("LOCAL_RUN_DELETE_NAMESPACE_UNSAFE")
     return resolved
 
 
-def _tombstone_path(package_root: Path, run_id: str) -> Path:
+def _tombstone_path(package_root: Path, run_id: str, *, create_root: bool = False) -> Path:
     if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
         raise LocalRunDeleteError("LOCAL_RUN_DELETE_RUN_ID_INVALID")
-    root = _safe_root(package_root, ".run-deletions")
+    root = _safe_root(package_root, ".run-deletions", create=create_root)
     path = root / f"{run_id}.json"
     if path.exists() and (path.is_symlink() or _junction(path)):
         raise LocalRunDeleteError("LOCAL_RUN_DELETE_TOMBSTONE_UNSAFE")
@@ -66,7 +67,7 @@ def _tombstone_path(package_root: Path, run_id: str) -> Path:
 
 
 def _trash_root(package_root: Path, run_id: str) -> Path:
-    root = _safe_root(package_root, ".run-trash")
+    root = _safe_root(package_root, ".run-trash", create=True)
     path = root / run_id
     if path.exists() and (path.is_symlink() or _junction(path)):
         raise LocalRunDeleteError("LOCAL_RUN_DELETE_TRASH_UNSAFE")
@@ -153,7 +154,10 @@ def _write_tombstone(package_root: Path, manifest: dict[str, Any], *, review_exi
         "deleted_at": utc_now(),
     }
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    atomic_write(_tombstone_path(package_root, manifest["run_id"]), payload)
+    atomic_write(
+        _tombstone_path(package_root, manifest["run_id"], create_root=True),
+        payload,
+    )
     return value
 
 
@@ -278,7 +282,14 @@ def _finish_delete(
 
     job_id = tombstone.get("job_id")
     if isinstance(job_id, str) and mark_result_deleted is not None:
-        mark_result_deleted(job_id, tombstone["run_id"], tombstone["transcript_sha256"])
+        try:
+            mark_result_deleted(
+                job_id,
+                tombstone["run_id"],
+                tombstone["transcript_sha256"],
+            )
+        except Exception as exc:
+            raise LocalRunDeleteError("LOCAL_RUN_DELETE_RESULT_STATE_FAILED") from exc
 
     run_dir = _safe_run_dir(package_root, tombstone["run_id"])
     review_dir = _safe_revision_dir(package_root, tombstone["run_id"])
