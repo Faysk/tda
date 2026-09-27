@@ -11,6 +11,11 @@ from uuid import uuid4
 from .execution_device import sanitize_execution_device
 from .legacy.artifacts import sha256_json, utc_now
 from .legacy.publication import build_publication_bundle
+from .session_chronology import (
+    SessionChronologyError,
+    canonical_session_part_timing,
+    default_session_part_timing,
+)
 
 
 _ACTIVITY_METRICS = frozenset(
@@ -34,7 +39,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -91,6 +96,18 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS session_recording_parts_workspace_idx
                     ON session_recording_parts(campaign_id, session_id, ordinal);
+                CREATE TABLE IF NOT EXISTS session_recording_part_timing (
+                    part_id TEXT PRIMARY KEY,
+                    config TEXT NOT NULL,
+                    updated TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS session_workspace_chronology (
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    order_provenance TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    PRIMARY KEY(campaign_id, session_id)
+                );
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -130,7 +147,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=10")
+            db.execute("PRAGMA user_version=11")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -195,31 +212,65 @@ class Store:
     def _session_workspace_dto(db, row):
         parts = db.execute(
             """
-            SELECT part_id,source_id,ordinal,selected_run_id,created,updated
-            FROM session_recording_parts
-            WHERE campaign_id=? AND session_id=?
-            ORDER BY ordinal ASC, part_id ASC
+            SELECT
+                part.part_id,
+                part.source_id,
+                part.ordinal,
+                part.selected_run_id,
+                part.created,
+                part.updated,
+                timing.config AS timing_config
+            FROM session_recording_parts AS part
+            LEFT JOIN session_recording_part_timing AS timing
+                ON timing.part_id=part.part_id
+            WHERE part.campaign_id=? AND part.session_id=?
+            ORDER BY part.ordinal ASC, part.part_id ASC
             """,
             (row["campaign_id"], row["session_id"]),
         ).fetchall()
-        return {
-            "schema_version": "tda_session_workspace_v1",
-            "campaign_id": row["campaign_id"],
-            "session_id": row["session_id"],
-            "revision": row["revision"],
-            "created_at": row["created"],
-            "updated_at": row["updated"],
-            "parts": [
+        chronology = db.execute(
+            """
+            SELECT order_provenance FROM session_workspace_chronology
+            WHERE campaign_id=? AND session_id=?
+            """,
+            (row["campaign_id"], row["session_id"]),
+        ).fetchone()
+        order_provenance = (
+            chronology["order_provenance"] if chronology is not None else "attached"
+        )
+        if order_provenance not in {"attached", "manual"}:
+            raise Conflict("SESSION_WORKSPACE_ORDER_PROVENANCE_INVALID")
+
+        output_parts = []
+        for part in parts:
+            try:
+                timing = (
+                    canonical_session_part_timing(json.loads(part["timing_config"]))
+                    if part["timing_config"] is not None
+                    else default_session_part_timing()
+                )
+            except (json.JSONDecodeError, SessionChronologyError) as exc:
+                raise Conflict("SESSION_WORKSPACE_TIMING_CORRUPT") from exc
+            output_parts.append(
                 {
                     "part_id": part["part_id"],
                     "source_id": part["source_id"],
                     "ordinal": part["ordinal"],
                     "selected_run_id": part["selected_run_id"],
+                    "timing": timing,
                     "created_at": part["created"],
                     "updated_at": part["updated"],
                 }
-                for part in parts
-            ],
+            )
+        return {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": row["campaign_id"],
+            "session_id": row["session_id"],
+            "revision": row["revision"],
+            "order_provenance": order_provenance,
+            "created_at": row["created"],
+            "updated_at": row["updated"],
+            "parts": output_parts,
         }
 
     def session_workspace(self, campaign_id, session_id):
@@ -345,6 +396,10 @@ class Store:
             ).rowcount
             if deleted != 1:
                 raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            db.execute(
+                "DELETE FROM session_recording_part_timing WHERE part_id=?",
+                (part_id,),
+            )
             parts = db.execute(
                 """
                 SELECT part_id FROM session_recording_parts
@@ -405,10 +460,89 @@ class Store:
                     "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
                     (ordinal, now, part_id),
                 )
+            db.execute(
+                """
+                INSERT INTO session_workspace_chronology(
+                    campaign_id,session_id,order_provenance,updated
+                ) VALUES (?,?,?,?)
+                ON CONFLICT(campaign_id,session_id) DO UPDATE SET
+                    order_provenance=excluded.order_provenance,
+                    updated=excluded.updated
+                """,
+                (row["campaign_id"], row["session_id"], "manual", now),
+            )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
             return self._session_workspace_dto(db, bumped)
+
+    def set_session_part_timing(
+        self,
+        campaign_id,
+        session_id,
+        part_id,
+        timing,
+        expected_revision,
+    ):
+        part_id = self._workspace_part_id(part_id)
+        try:
+            canonical = canonical_session_part_timing(timing)
+        except SessionChronologyError as exc:
+            raise Conflict(str(exc)) from None
+        encoded = json.dumps(
+            canonical,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            part = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).fetchone()
+            if part is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            existing = db.execute(
+                "SELECT config FROM session_recording_part_timing WHERE part_id=?",
+                (part_id,),
+            ).fetchone()
+            if existing is None:
+                current = default_session_part_timing()
+            else:
+                try:
+                    current = canonical_session_part_timing(
+                        json.loads(existing["config"])
+                    )
+                except (json.JSONDecodeError, SessionChronologyError) as exc:
+                    raise Conflict("SESSION_WORKSPACE_TIMING_CORRUPT") from exc
+            if current == canonical:
+                return self._session_workspace_dto(db, row)
+            now = utc_now()
+            db.execute(
+                """
+                INSERT INTO session_recording_part_timing(part_id,config,updated)
+                VALUES (?,?,?)
+                ON CONFLICT(part_id) DO UPDATE SET
+                    config=excluded.config,
+                    updated=excluded.updated
+                """,
+                (part_id, encoded, now),
+            )
+            db.execute(
+                "UPDATE session_recording_parts SET updated=? WHERE part_id=?",
+                (now, part_id),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
 
     def has_running_jobs(self):
         with self.read() as db:
