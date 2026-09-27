@@ -599,7 +599,17 @@ Ações por run concluído:
 - Duplicar configuração;
 - Publicar;
 - Arquivar;
-- Excluir.
+- Excluir resultado local.
+
+### Exclusão de resultado local
+
+A exclusão de um run concluído é uma ação destrutiva **somente no armazenamento local**. A UI deve confirmar explicitamente o run selecionado e informar que a fonte Craig compartilhada, outros runs e qualquer revision já publicada na cloud não são removidos.
+
+O Agent registra um tombstone durável por `source_id + run_id + transcript_sha256` antes de retirar o namespace autoritativo. O tombstone impede que crash/restart, o compatibility mirror `transcript.json` ou a manutenção de legado façam o resultado reaparecer. O diretório do run e sua revisão derivada são movidos por rename para quarantine e a limpeza física posterior é best-effort; o tombstone permanece como autoridade da decisão.
+
+A projeção operacional preserva o job terminal como `succeeded` e o payload histórico de resultado, mas passa `result_available=false` com lifecycle `deleted_local`. Limpar a Fila depois disso preserva o mesmo estado no terminal receipt. Excluir localmente nunca significa despublicar.
+
+Uma operação de publicação ainda não reconciliada bloqueia a exclusão na Web. Antes de publicar um review aprovado, a Web revalida o snapshot no Agent; um run removido em outra aba deixa de ser publicável e novas gravações da revisão falham fechadas.
 
 Ações por run incompleto:
 
