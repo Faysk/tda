@@ -393,10 +393,15 @@ export async function commitSessionEditorialPublication(input: {
 		return {
 			ok: false,
 			reason: known.has(reason)
-				? (reason as Exclude<
-					"dependency_unavailable",
-					never
-				  >)
+				? (reason as
+						| "forbidden"
+						| "not_found"
+						| "draft_stale"
+						| "transcript_stale"
+						| "draft_incomplete"
+						| "cover_not_verified"
+						| "conflict"
+						| "operation_conflict")
 				: "dependency_unavailable",
 		};
 	}
