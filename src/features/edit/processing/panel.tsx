@@ -201,6 +201,14 @@ function latestActivity(
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
 		if (!event) continue;
+		// Current cockpit activity must never borrow routine work from an older
+		// retry attempt. Legacy/job-level warnings can still surface factually,
+		// but attempt-scoped info requires authoritative provenance.
+		if (
+			event.attempt !== job.attempt &&
+			!(event.attempt === null && (event.level === "warning" || event.level === "error"))
+		)
+			continue;
 		if (event.level === "warning" || event.level === "error") {
 			const factual = presentJobEvent(event);
 			return {
