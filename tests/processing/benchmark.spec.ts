@@ -30,6 +30,100 @@ async function analyze(panel: import("@playwright/test").Locator) {
 	await expect(panel.getByText(/Fonte validada/u)).toBeVisible();
 }
 
+
+test("benchmark keeps one contextual primary action and a compact empty history", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(
+		panel.getByRole("button", { name: /Arraste o ZIP do Craig aqui/u }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Selecionar ZIP" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
+	await expect(panel.locator('[data-benchmark-history="empty"]')).toContainText(
+		"Nenhum benchmark concluído neste Companion.",
+	);
+
+	await chooseZip(panel);
+	await expect(
+		panel.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
+
+	await analyze(panel);
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toHaveCount(0);
+});
+
+test("benchmark workspace reflows a long selected filename from mobile through 4K and at 200% zoom", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	const longName =
+		"craig-sessao-muito-longa-com-nome-descritivo-e-participantes-que-nao-pode-estourar-o-layout-2026-09-27.zip";
+	await panel.getByLabel("ZIP Craig").setInputFiles({
+		name: longName,
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK synthetic responsive benchmark Craig fixture"),
+	});
+	await expect(panel).toContainText(longName);
+
+	const viewports = [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+		{ width: 3840, height: 2160 },
+	];
+	for (const viewport of viewports) {
+		await page.setViewportSize(viewport);
+		await expect
+			.poll(() =>
+				panel.evaluate(
+					(element) => element.scrollWidth <= element.clientWidth + 1,
+				),
+			)
+			.toBe(true);
+	}
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "200%";
+	});
+	await expect
+		.poll(() =>
+			panel.evaluate(
+				(element) => element.scrollWidth <= element.clientWidth + 1,
+			),
+		)
+		.toBe(true);
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "";
+	});
+});
+
 test("benchmark preflights the source, prepares pending profiles, and opens its live diagnostics", async ({
 	page,
 }) => {
