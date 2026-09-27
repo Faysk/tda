@@ -148,6 +148,53 @@ describe("session workspace protocol", () => {
 		expect(() => parseSessionWorkspace(badClock)).toThrow();
 	});
 
+	it("accepts fail-closed order conflicts and rejects malformed relation metadata", () => {
+		const conflicted = workspace([
+			recordingPart(),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 0,
+				effective_start_seconds: 0,
+				effective_end_seconds: 30,
+				relation_to_previous: "order_conflict",
+				relation_seconds: null,
+			}),
+		]);
+		conflicted.timeline.state = "order_conflict";
+		conflicted.timeline.automatic_order_available = false;
+		(conflicted.timeline as Record<string, unknown>).order_conflict_count = 1;
+		const parsed = parseSessionWorkspace(conflicted);
+		expect(parsed.parts[1].relationToPrevious).toBe("order_conflict");
+		expect(parsed.timeline.orderConflictCount).toBe(1);
+
+		const unknown = structuredClone(conflicted);
+		unknown.parts[1].relation_to_previous = "timey_wimey";
+		expect(() => parseSessionWorkspace(unknown)).toThrow();
+
+		const badCount = structuredClone(conflicted);
+		(badCount.timeline as Record<string, unknown>).order_conflict_count = 0;
+		expect(() => parseSessionWorkspace(badCount)).toThrow();
+
+		const badGapCount = workspace([
+			recordingPart(),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 3601,
+				effective_start_seconds: 3601,
+				effective_end_seconds: 7201,
+				relation_to_previous: "gap",
+				relation_seconds: 1,
+				gap_confirmed: true,
+			}),
+		]);
+		badGapCount.timeline.gap_count = 0;
+		expect(() => parseSessionWorkspace(badGapCount)).toThrow();
+	});
+
 	it("bounds collections and validates deterministic timeline metadata", () => {
 		const oversized = workspace(
 			Array.from({ length: 65 }, (_, index) =>
