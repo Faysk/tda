@@ -124,6 +124,7 @@ describe("session workspace protocol", () => {
 			}),
 		]);
 		raw.timeline.state = "order_conflict";
+		(raw.timeline as Record<string, unknown>).order_conflict_count = 1;
 
 		const parsed = parseSessionWorkspace(raw);
 
