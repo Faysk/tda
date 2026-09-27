@@ -888,15 +888,25 @@ export function ProcessingPanel({
 							onOpen={(sourceId, runId) =>
 								controller.openLocalReview(sourceId, runId)
 							}
+							onDelete={(sourceId, runId, transcriptSha256) =>
+								controller.deleteLocalRun(sourceId, runId, transcriptSha256)
+							}
 							onLoadLatest={controller.loadLatestLocalReview}
 							onRepairTarget={state.capabilities?.capabilities.includes("transcription.target.repair") ? controller.repairPublicationTarget : undefined}
 							onSave={(revision, status, segments) =>
 								controller.saveLocalReview(revision, status, segments)
 							}
 							onClose={controller.closeLocalReview}
-							onPublish={(review, operationId, expectedCurrentRevisionId, profileScope) =>
-								publishApprovedLocalReview(review, operationId, expectedCurrentRevisionId, fetch, profileScope)
-							}
+							onPublish={async (review, operationId, expectedCurrentRevisionId, profileScope) => {
+								await controller.assertLocalReviewPublishable(review);
+								return publishApprovedLocalReview(
+									review,
+									operationId,
+									expectedCurrentRevisionId,
+									fetch,
+									profileScope,
+								);
+							}}
 						/>
 
 						<section className={styles.syncStrip} aria-labelledby="local-sync">
