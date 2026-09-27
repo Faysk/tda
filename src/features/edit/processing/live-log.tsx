@@ -7,6 +7,10 @@ import {
 	selectActivityBark,
 	type ActivityBark,
 } from "./activity-barks";
+import {
+	buildLiveLogRevealPlan,
+	scheduleLiveLogRevealPlan,
+} from "./live-log-pacing";
 import { presentJobEvent } from "./presentation";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import styles from "./processing.module.css";
@@ -118,12 +122,41 @@ function historyCount(value: number): string {
 	return `${value} mais recente${value === 1 ? "" : "s"}`;
 }
 
+function PacedHumanText({
+	text,
+	durationMs,
+}: Readonly<{ text: string; durationMs: number }>) {
+	if (durationMs <= 0) return <span>{text}</span>;
+	const words = [...text.trim().matchAll(/\S+/gu)].map((match) => ({
+		value: match[0],
+		offset: match.index,
+	}));
+	const delayMs = durationMs / Math.max(words.length, 1);
+	return (
+		<span>
+			<span className={styles.visuallyHidden}>{text}</span>
+			<span className={styles.pacedWords} aria-hidden="true">
+				{words.map((word, index) => (
+					<span
+						key={`${word.offset}-${word.value}`}
+						className={styles.pacedWord}
+						style={{ animationDelay: `${Math.round(index * delayMs)}ms` }}
+					>
+						{word.value}{index < words.length - 1 ? " " : ""}
+					</span>
+				))}
+			</span>
+		</span>
+	);
+}
+
 export function ProcessingLiveLog({
 	events,
 	job,
 	system,
 	live,
 	stale,
+	expectedPollMs,
 	activityCatalog,
 }: Readonly<{
 	events: readonly JobEvent[];
@@ -131,6 +164,7 @@ export function ProcessingLiveLog({
 	system: SystemSnapshot | null;
 	live: boolean;
 	stale: boolean;
+	expectedPollMs: number;
 	activityCatalog: readonly ActivityBark[];
 }>) {
 	const [mode, setMode] = useState<"humanized" | "technical">("humanized");
@@ -141,15 +175,130 @@ export function ProcessingLiveLog({
 	const [track, setTrack] = useState("all");
 	const [grouped, setGrouped] = useState(true);
 	const [paused, setPaused] = useState(false);
-	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() => boundedEvents(events));
+	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() =>
+		boundedEvents(events),
+	);
+	const [typeDurationBySeq, setTypeDurationBySeq] = useState<
+		ReadonlyMap<number, number>
+	>(() => new Map());
+	const [reducedMotion, setReducedMotion] = useState(false);
 	const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
 	const scroller = useRef<HTMLDivElement>(null);
 	const nearBottom = useRef(true);
+	const snapshotRef = useRef<readonly JobEvent[]>(snapshot);
+	const revealCancelRef = useRef<() => void>(() => undefined);
+	const lastEventsRef = useRef(events);
+	const previousEventBatchAtRef = useRef<number | null>(performance.now());
+	const skipAnimationThroughSeq = useRef(snapshot.at(-1)?.seq ?? 0);
 	const latestSnapshotSeq = snapshot.at(-1)?.seq ?? null;
 
 	useEffect(() => {
-		if (!paused) setSnapshot(boundedEvents(events));
-	}, [events, paused]);
+		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const sync = () => setReducedMotion(media.matches);
+		sync();
+		media.addEventListener("change", sync);
+		return () => media.removeEventListener("change", sync);
+	}, []);
+
+	useEffect(() => {
+		let observedPollGapMs: number | undefined;
+		if (lastEventsRef.current !== events) {
+			const now = performance.now();
+			const previous = previousEventBatchAtRef.current;
+			observedPollGapMs =
+				previous === null ? undefined : Math.max(0, now - previous);
+			previousEventBatchAtRef.current = now;
+			lastEventsRef.current = events;
+		}
+
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
+		if (paused) return;
+
+		const next = boundedEvents(events);
+		const current = snapshotRef.current;
+		const currentLastSeq = current.at(-1)?.seq ?? null;
+		const sequenceReset =
+			currentLastSeq !== null &&
+			next.length > 0 &&
+			!next.some((event) => event.seq === currentLastSeq);
+
+		if (
+			!live ||
+			reducedMotion ||
+			document.hidden ||
+			currentLastSeq === null ||
+			sequenceReset
+		) {
+			skipAnimationThroughSeq.current =
+				next.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+			snapshotRef.current = next;
+			setSnapshot(next);
+			setTypeDurationBySeq(new Map());
+			return;
+		}
+
+		const pending = next.filter((event) => event.seq > currentLastSeq);
+		if (!pending.length) {
+			if (next.length !== current.length) {
+				snapshotRef.current = next;
+				setSnapshot(next);
+			}
+			return;
+		}
+
+		const plan = buildLiveLogRevealPlan(
+			pending,
+			expectedPollMs,
+			observedPollGapMs,
+			grouped,
+		);
+		revealCancelRef.current = scheduleLiveLogRevealPlan(plan, (step) => {
+			if (step.typeDurationMs > 0) {
+				setTypeDurationBySeq((currentDurations) => {
+					const updated = new Map(currentDurations);
+					if (updated.size > MAX_VISIBLE_EVENTS * 2) updated.clear();
+					for (const event of step.events) {
+						updated.set(event.seq, step.typeDurationMs);
+					}
+					return updated;
+				});
+			}
+			setSnapshot((currentSnapshot) => {
+				const lastSeq = currentSnapshot.at(-1)?.seq ?? null;
+				const additions = step.events.filter(
+					(event) => lastSeq === null || event.seq > lastSeq,
+				);
+				if (!additions.length) return currentSnapshot;
+				const updated = boundedEvents([...currentSnapshot, ...additions]);
+				snapshotRef.current = updated;
+				return updated;
+			});
+		});
+
+		return () => {
+			revealCancelRef.current();
+			revealCancelRef.current = () => undefined;
+		};
+	}, [events, expectedPollMs, grouped, live, paused, reducedMotion]);
+
+	useEffect(() => {
+		const handleVisibility = () => {
+			if (!document.hidden) return;
+			revealCancelRef.current();
+			revealCancelRef.current = () => undefined;
+			const next = boundedEvents(events);
+			skipAnimationThroughSeq.current =
+				next.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+			snapshotRef.current = next;
+			setSnapshot(next);
+			setTypeDurationBySeq(new Map());
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () =>
+			document.removeEventListener("visibilitychange", handleVisibility);
+	}, [events]);
 
 	useEffect(() => {
 		if (!paused && nearBottom.current && latestSnapshotSeq !== null) {
@@ -160,20 +309,24 @@ export function ProcessingLiveLog({
 		}
 	}, [latestSnapshotSeq, paused]);
 
+	const inspectionActive =
+		Boolean(query.trim()) ||
+		level !== "all" ||
+		code !== "all" ||
+		speaker !== "all" ||
+		track !== "all";
+	const displaySnapshot = inspectionActive ? boundedCurrentEvents : snapshot;
 	const filtered = useMemo(
 		() =>
-			snapshot.filter((event) =>
+			displaySnapshot.filter((event) =>
 				matches(event, query.trim(), level, code, speaker, track),
 			),
-		[snapshot, query, level, code, speaker, track],
+		[displaySnapshot, query, level, code, speaker, track],
 	);
-	const rows = useMemo(
-		() => groupRows(filtered, grouped),
-		[filtered, grouped],
-	);
+	const rows = useMemo(() => groupRows(filtered, grouped), [filtered, grouped]);
 	const assistiveAnnouncement = useMemo(() => {
-		for (let index = snapshot.length - 1; index >= 0; index -= 1) {
-			const event = snapshot[index];
+		for (let index = boundedCurrentEvents.length - 1; index >= 0; index -= 1) {
+			const event = boundedCurrentEvents[index];
 			if (!event || GROUPABLE.has(event.code)) continue;
 			if (event.level === "info" && event.code.endsWith("_STARTED")) continue;
 			const presented = humanText(event, job, system, activityCatalog);
@@ -182,53 +335,81 @@ export function ProcessingLiveLog({
 				: presented.title;
 		}
 		return "";
-	}, [snapshot, job, system, activityCatalog]);
+	}, [boundedCurrentEvents, job, system, activityCatalog]);
 	const selected =
-		snapshot.find((event) => event.seq === selectedSeq) ?? null;
-	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+		boundedCurrentEvents.find((event) => event.seq === selectedSeq) ?? null;
 	const newEventCount = paused
 		? boundedCurrentEvents.filter(
 				(event) => latestSnapshotSeq === null || event.seq > latestSnapshotSeq,
 			).length
 		: 0;
 	const codeOptions = useMemo(
-		() => [...new Set(snapshot.map((event) => event.code))].sort(),
-		[snapshot],
+		() => [...new Set(boundedCurrentEvents.map((event) => event.code))].sort(),
+		[boundedCurrentEvents],
 	);
 	const speakerOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.speaker)
-						.filter((value): value is string => typeof value === "string" && Boolean(value)),
+						.filter(
+							(value): value is string =>
+								typeof value === "string" && Boolean(value),
+						),
 				),
 			].sort(),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 	const trackOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.track)
-						.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+						.filter(
+							(value): value is number =>
+								typeof value === "number" && Number.isFinite(value),
+						)
 						.map(String),
 				),
 			].sort((left, right) => Number(left) - Number(right)),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 
+	function flushVisualSnapshot() {
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
+		skipAnimationThroughSeq.current =
+			boundedCurrentEvents.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+		snapshotRef.current = boundedCurrentEvents;
+		setSnapshot(boundedCurrentEvents);
+		setTypeDurationBySeq(new Map());
+	}
+
+	function inspectFactualBuffer() {
+		flushVisualSnapshot();
+	}
+
+	function switchMode(nextMode: "humanized" | "technical") {
+		inspectFactualBuffer();
+		setMode(nextMode);
+	}
+
 	function togglePause() {
-		setPaused((value) => {
-			const next = !value;
-			if (value) setSnapshot(boundedEvents(events));
-			return next;
-		});
+		if (paused) {
+			flushVisualSnapshot();
+			nearBottom.current = true;
+			setPaused(false);
+			return;
+		}
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
+		setPaused(true);
 	}
 
 	function catchUp() {
-		setSnapshot(boundedEvents(events));
+		flushVisualSnapshot();
 		setPaused(false);
 		nearBottom.current = true;
 	}
@@ -254,14 +435,14 @@ export function ProcessingLiveLog({
 					<button
 						type="button"
 						aria-pressed={mode === "humanized"}
-						onClick={() => setMode("humanized")}
+						onClick={() => switchMode("humanized")}
 					>
 						Humanizada
 					</button>
 					<button
 						type="button"
 						aria-pressed={mode === "technical"}
-						onClick={() => setMode("technical")}
+						onClick={() => switchMode("technical")}
 					>
 						Técnica
 					</button>
@@ -280,15 +461,19 @@ export function ProcessingLiveLog({
 					<input
 						className={styles.logSearch}
 						value={query}
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => {
+						inspectFactualBuffer();
+						setQuery(event.target.value);
+					}}
 						placeholder="Buscar code, speaker, stage…"
 					/>
 				</label>
 				<select
 					value={level}
-					onChange={(event) =>
-						setLevel(event.target.value as typeof level)
-					}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setLevel(event.target.value as typeof level);
+					}}
 					aria-label="Filtrar por nível"
 				>
 					<option value="all">Todos os níveis</option>
@@ -298,7 +483,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={code}
-					onChange={(event) => setCode(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setCode(event.target.value);
+					}}
 					aria-label="Filtrar por code"
 				>
 					<option value="all">Todos os codes</option>
@@ -308,7 +496,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={speaker}
-					onChange={(event) => setSpeaker(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setSpeaker(event.target.value);
+					}}
 					aria-label="Filtrar por speaker"
 				>
 					<option value="all">Todos os speakers</option>
@@ -318,7 +509,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={track}
-					onChange={(event) => setTrack(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setTrack(event.target.value);
+					}}
 					aria-label="Filtrar por track"
 				>
 					<option value="all">Todas as tracks</option>
@@ -330,7 +524,10 @@ export function ProcessingLiveLog({
 					<input
 						type="checkbox"
 						checked={grouped}
-						onChange={(event) => setGrouped(event.target.checked)}
+						onChange={(event) => {
+						inspectFactualBuffer();
+						setGrouped(event.target.checked);
+					}}
 					/>
 					Agrupar repetitivos
 				</label>
@@ -354,7 +551,11 @@ export function ProcessingLiveLog({
 					const node = event.currentTarget;
 					nearBottom.current =
 						node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-					if (!nearBottom.current && live && !paused) setPaused(true);
+					if (!nearBottom.current && live && !paused) {
+						revealCancelRef.current();
+						revealCancelRef.current = () => undefined;
+						setPaused(true);
+					}
 				}}
 			>
 				{rows.length ? (
@@ -371,7 +572,7 @@ export function ProcessingLiveLog({
 								<button
 									type="button"
 									key={`group-${first.seq}-${last.seq}`}
-									className={styles.logEntry}
+									className={`${styles.logEntry} ${live && !paused && !reducedMotion && last.seq > skipAnimationThroughSeq.current && (typeDurationBySeq.get(last.seq) ?? 0) > 0 ? styles.logEntryReveal : ""}`}
 									data-level="info"
 									onClick={() => setSelectedSeq(last.seq)}
 								>
@@ -398,7 +599,7 @@ export function ProcessingLiveLog({
 						return (
 							<button
 								type="button"
-								className={styles.logEntry}
+								className={`${styles.logEntry} ${live && !paused && !reducedMotion && row.event.seq > skipAnimationThroughSeq.current && (typeDurationBySeq.get(row.event.seq) ?? 0) > 0 ? styles.logEntryReveal : ""}`}
 								key={row.event.seq}
 								data-level={row.event.level}
 								onClick={() => setSelectedSeq(row.event.seq)}
@@ -407,7 +608,18 @@ export function ProcessingLiveLog({
 									{formatTime(row.event.at)}
 								</time>
 								<div>
-									<span>{presented.title}</span>
+									<PacedHumanText
+									text={presented.title}
+									durationMs={
+										mode === "humanized" &&
+										live &&
+										!paused &&
+										!reducedMotion &&
+										row.event.seq > skipAnimationThroughSeq.current
+											? (typeDurationBySeq.get(row.event.seq) ?? 0)
+											: 0
+									}
+								/>
 									{presented.detail ? (
 										<small>{presented.detail}</small>
 									) : null}
