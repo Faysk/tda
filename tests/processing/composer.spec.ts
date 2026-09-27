@@ -48,7 +48,7 @@ test("dropzone aceita drag/drop e teclado, sugere sessão segura e mantém priva
 	await expect(composer.locator("[data-craig-session-id='true']")).toHaveValue("Sessao-epica-42");
 	await expect(composer).toContainText("Sessão épica #42.zip");
 	await expect(composer).toContainText("Qwen3-ASR · pronto neste Companion");
-	await expect(composer).toContainText("Ainda sem calibração nesta máquina.");
+	await expect(composer).toContainText("Sem calibração compatível nesta máquina.");
 	await expect(
 		composer.getByText(/Áudio permanece nesta máquina\./u),
 	).toBeVisible();
@@ -117,13 +117,13 @@ test("validação local bloqueia arquivo incorreto antes do Companion e archive 
 	);
 	expect(state.uploadCount).toBe(0);
 	await expect(
-		composer.getByRole("button", { name: "Adicionar à fila", exact: true }),
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 	).toBeDisabled();
 
 	await chooseZip(composer);
 	await composer.locator("[data-craig-session-id='true']").fill("sessao-42");
 	await composer
-		.getByRole("button", { name: "Adicionar à fila", exact: true })
+		.getByRole("button", { name: "Analisar ZIP localmente", exact: true })
 		.click();
 	await expect(composer.getByRole("alert")).toContainText(
 		"não contém faixas de áudio reconhecidas",
@@ -146,16 +146,22 @@ test("pending local mostra validar → preparar → enviar e resume fonte reutil
 	await composer.locator("[data-craig-session-id='true']").fill("sessao-42");
 	await chooseZip(composer);
 
+	const analyze = composer.getByRole("button", {
+		name: "Analisar ZIP localmente",
+		exact: true,
+	});
+	await expect(analyze).toBeEnabled();
+	await analyze.click();
+
+	await expect(
+		composer.getByRole("button", { name: "Analisando localmente…", exact: true }),
+	).toBeVisible();
 	const initial = composer.getByRole("button", {
 		name: "Preparar profile",
 		exact: true,
 	});
 	await expect(initial).toBeEnabled();
 	await initial.click();
-
-	await expect(
-		composer.getByRole("button", { name: "Validando ZIP…", exact: true }),
-	).toBeVisible();
 	await expect(
 		composer.getByRole("button", { name: "Preparando profile…", exact: true }),
 	).toBeVisible({ timeout: 2_000 });
@@ -245,11 +251,11 @@ test("mobile mantém ordem arquivo → sessão → profile → calibração → 
 	const drop = composer.locator("[data-craig-dropzone='true']");
 	const session = composer.locator("[data-craig-session-id='true']");
 	const profile = composer.getByLabel("Profile");
-	const estimate = composer.getByText("Ainda sem calibração nesta máquina.", {
+	const estimate = composer.getByText("Sem calibração compatível nesta máquina.", {
 		exact: true,
 	});
 	const cta = composer.getByRole("button", {
-		name: "Adicionar à fila",
+		name: "Analisar ZIP localmente",
 		exact: true,
 	});
 	const advanced = composer.getByText("Contexto e glossário", { exact: true });
