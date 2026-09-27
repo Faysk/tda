@@ -27,6 +27,7 @@ export type ActivityPack = Readonly<{
 	author: string | null;
 	language: string;
 	humorLevel: "light" | "tda";
+	enabled: boolean;
 	templates: readonly ActivityBark[];
 }>;
 
@@ -180,6 +181,7 @@ export function parseActivityPackJson(raw: string): ActivityPack {
 		}
 
 		return {
+			packId: id,
 			id: templateId,
 			family,
 			tone,
@@ -206,6 +208,7 @@ export function parseActivityPackJson(raw: string): ActivityPack {
 		author: optionalString(root.author, 120, "PACK_AUTHOR_INVALID"),
 		language: string(root.language, 16, "PACK_LANGUAGE_INVALID"),
 		humorLevel,
+		enabled: root.enabled === true,
 		templates: parsed,
 	};
 }
@@ -236,4 +239,37 @@ export function activityPackExample(): string {
 		null,
 		2,
 	);
+}
+
+
+export function activityPackJsonValue(
+	pack: ActivityPack,
+	enabled = pack.enabled,
+) {
+	return {
+		schema_version: pack.schemaVersion,
+		id: pack.id,
+		name: pack.name,
+		version: pack.version,
+		description: pack.description,
+		author: pack.author,
+		language: pack.language,
+		humor_level: pack.humorLevel,
+		enabled,
+		templates: pack.templates.map((item) => ({
+			id: item.id,
+			family: item.family,
+			tone: item.tone,
+			event_codes: item.eventCodes,
+			requires: item.requires,
+			text: item.text,
+		})),
+	};
+}
+
+export function serializeActivityPack(
+	pack: ActivityPack,
+	enabled = pack.enabled,
+): string {
+	return JSON.stringify(activityPackJsonValue(pack, enabled), null, 2);
 }
