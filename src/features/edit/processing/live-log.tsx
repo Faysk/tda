@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
 	selectActivityBark,
 	type ActivityBark,
 } from "./activity-barks";
+import {
+	buildLiveLogRevealPlan,
+	scheduleLiveLogReveal,
+} from "./live-log-pacing";
 import { presentJobEvent } from "./presentation";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import styles from "./processing.module.css";
@@ -118,6 +122,48 @@ function historyCount(value: number): string {
 	return `${value} mais recente${value === 1 ? "" : "s"}`;
 }
 
+function PacedLogText({
+	text,
+	animate,
+	durationMs,
+}: Readonly<{
+	text: string;
+	animate: boolean;
+	durationMs: number;
+}>) {
+	const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+	const [visibleWords, setVisibleWords] = useState(() =>
+		animate ? Math.min(1, words.length) : words.length,
+	);
+
+	useEffect(() => {
+		if (!animate || words.length <= 1) {
+			setVisibleWords(words.length);
+			return;
+		}
+		setVisibleWords(1);
+		const delay = Math.max(30, Math.floor(durationMs / words.length));
+		const timers: ReturnType<typeof setTimeout>[] = [];
+		for (let index = 2; index <= words.length; index += 1) {
+			timers.push(setTimeout(() => setVisibleWords(index), delay * (index - 1)));
+		}
+		return () => {
+			for (const timer of timers) clearTimeout(timer);
+		};
+	}, [animate, durationMs, words]);
+
+	if (!animate) return <span>{text}</span>;
+
+	return (
+		<>
+			<span aria-hidden="true" data-live-log-typewriter="true">
+				{words.slice(0, visibleWords).join(" ")}
+			</span>
+			<span className={styles.visuallyHidden}>{text}</span>
+		</>
+	);
+}
+
 export function ProcessingLiveLog({
 	events,
 	job,
@@ -125,6 +171,7 @@ export function ProcessingLiveLog({
 	live,
 	stale,
 	activityCatalog,
+	expectedPollMs,
 }: Readonly<{
 	events: readonly JobEvent[];
 	job: LocalJob;
@@ -132,6 +179,7 @@ export function ProcessingLiveLog({
 	live: boolean;
 	stale: boolean;
 	activityCatalog: readonly ActivityBark[];
+	expectedPollMs: number;
 }>) {
 	const [mode, setMode] = useState<"humanized" | "technical">("humanized");
 	const [query, setQuery] = useState("");
@@ -141,39 +189,131 @@ export function ProcessingLiveLog({
 	const [track, setTrack] = useState("all");
 	const [grouped, setGrouped] = useState(true);
 	const [paused, setPaused] = useState(false);
-	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() => boundedEvents(events));
+	const factualEvents = useMemo(() => boundedEvents(events), [events]);
+	const initialLatestSeq = useRef(factualEvents.at(-1)?.seq ?? null);
+	const revealedThroughRef = useRef<number | null>(initialLatestSeq.current);
+	const [revealedThroughSeq, setRevealedThroughSeq] = useState<number | null>(
+		initialLatestSeq.current,
+	);
 	const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
+	const [reducedMotion, setReducedMotion] = useState(false);
+	const [documentHidden, setDocumentHidden] = useState(false);
+	const [typeDurationMs, setTypeDurationMs] = useState(180);
 	const scroller = useRef<HTMLDivElement>(null);
 	const nearBottom = useRef(true);
-	const latestSnapshotSeq = snapshot.at(-1)?.seq ?? null;
+	const lastBatchAt = useRef<number | null>(null);
+	const skipAnimationThrough = useRef(initialLatestSeq.current ?? -1);
+	const latestFactualSeq = factualEvents.at(-1)?.seq ?? null;
+
+	const revealThrough = useCallback((seq: number) => {
+		const current = revealedThroughRef.current;
+		if (current !== null && seq <= current) return;
+		revealedThroughRef.current = seq;
+		setRevealedThroughSeq(seq);
+	}, []);
 
 	useEffect(() => {
-		if (!paused) setSnapshot(boundedEvents(events));
-	}, [events, paused]);
+		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const sync = () => setReducedMotion(media.matches);
+		sync();
+		media.addEventListener("change", sync);
+		return () => media.removeEventListener("change", sync);
+	}, []);
 
 	useEffect(() => {
-		if (!paused && nearBottom.current && latestSnapshotSeq !== null) {
-			requestAnimationFrame(() => {
+		const sync = () => setDocumentHidden(document.visibilityState !== "visible");
+		sync();
+		document.addEventListener("visibilitychange", sync);
+		return () => document.removeEventListener("visibilitychange", sync);
+	}, []);
+
+	useEffect(() => {
+		if (latestFactualSeq === null) {
+			revealedThroughRef.current = null;
+			setRevealedThroughSeq(null);
+			return;
+		}
+
+		if (paused) return;
+
+		if (!live || stale || reducedMotion || documentHidden) {
+			skipAnimationThrough.current = latestFactualSeq;
+			revealThrough(latestFactualSeq);
+			lastBatchAt.current = performance.now();
+			return;
+		}
+
+		const current = revealedThroughRef.current ?? -1;
+		const pending = factualEvents.filter((event) => event.seq > current);
+		if (!pending.length) return;
+
+		const now = performance.now();
+		const observedGap =
+			lastBatchAt.current === null ? null : now - lastBatchAt.current;
+		lastBatchAt.current = now;
+		const plan = buildLiveLogRevealPlan(pending, expectedPollMs, observedGap);
+		setTypeDurationMs(plan.typeDurationMs || 180);
+
+		if (plan.immediateThroughSeq !== null) {
+			skipAnimationThrough.current = Math.max(
+				skipAnimationThrough.current,
+				plan.immediateThroughSeq,
+			);
+			revealThrough(plan.immediateThroughSeq);
+		}
+
+		return scheduleLiveLogReveal(plan, revealThrough);
+	}, [
+		factualEvents,
+		latestFactualSeq,
+		live,
+		stale,
+		paused,
+		reducedMotion,
+		documentHidden,
+		expectedPollMs,
+		revealThrough,
+	]);
+
+	useEffect(() => {
+		if (!paused && nearBottom.current && revealedThroughSeq !== null) {
+			const frame = requestAnimationFrame(() => {
 				const node = scroller.current;
 				if (node) node.scrollTop = node.scrollHeight;
 			});
+			return () => cancelAnimationFrame(frame);
 		}
-	}, [latestSnapshotSeq, paused]);
+	}, [revealedThroughSeq, paused]);
+
+	const visuallyRevealedEvents = useMemo(
+		() =>
+			revealedThroughSeq === null
+				? []
+				: factualEvents.filter((event) => event.seq <= revealedThroughSeq),
+		[factualEvents, revealedThroughSeq],
+	);
+	const hasActiveFilter =
+		Boolean(query.trim()) ||
+		level !== "all" ||
+		code !== "all" ||
+		speaker !== "all" ||
+		track !== "all";
+	const displayEvents = hasActiveFilter ? factualEvents : visuallyRevealedEvents;
 
 	const filtered = useMemo(
 		() =>
-			snapshot.filter((event) =>
+			displayEvents.filter((event) =>
 				matches(event, query.trim(), level, code, speaker, track),
 			),
-		[snapshot, query, level, code, speaker, track],
+		[displayEvents, query, level, code, speaker, track],
 	);
 	const rows = useMemo(
 		() => groupRows(filtered, grouped),
 		[filtered, grouped],
 	);
 	const assistiveAnnouncement = useMemo(() => {
-		for (let index = snapshot.length - 1; index >= 0; index -= 1) {
-			const event = snapshot[index];
+		for (let index = factualEvents.length - 1; index >= 0; index -= 1) {
+			const event = factualEvents[index];
 			if (!event || GROUPABLE.has(event.code)) continue;
 			if (event.level === "info" && event.code.endsWith("_STARTED")) continue;
 			const presented = humanText(event, job, system, activityCatalog);
@@ -182,53 +322,68 @@ export function ProcessingLiveLog({
 				: presented.title;
 		}
 		return "";
-	}, [snapshot, job, system, activityCatalog]);
+	}, [factualEvents, job, system, activityCatalog]);
 	const selected =
-		snapshot.find((event) => event.seq === selectedSeq) ?? null;
-	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+		factualEvents.find((event) => event.seq === selectedSeq) ?? null;
 	const newEventCount = paused
-		? boundedCurrentEvents.filter(
-				(event) => latestSnapshotSeq === null || event.seq > latestSnapshotSeq,
+		? factualEvents.filter(
+				(event) =>
+					revealedThroughRef.current === null ||
+					event.seq > revealedThroughRef.current,
 			).length
 		: 0;
 	const codeOptions = useMemo(
-		() => [...new Set(snapshot.map((event) => event.code))].sort(),
-		[snapshot],
+		() => [...new Set(factualEvents.map((event) => event.code))].sort(),
+		[factualEvents],
 	);
 	const speakerOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					factualEvents
 						.map((event) => event.data.speaker)
 						.filter((value): value is string => typeof value === "string" && Boolean(value)),
 				),
 			].sort(),
-		[snapshot],
+		[factualEvents],
 	);
 	const trackOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					factualEvents
 						.map((event) => event.data.track)
 						.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
 						.map(String),
 				),
 			].sort((left, right) => Number(left) - Number(right)),
-		[snapshot],
+		[factualEvents],
 	);
+
+	function switchMode(next: "humanized" | "technical") {
+		if (latestFactualSeq !== null) {
+			skipAnimationThrough.current = latestFactualSeq;
+			revealThrough(latestFactualSeq);
+		}
+		setMode(next);
+	}
 
 	function togglePause() {
 		setPaused((value) => {
 			const next = !value;
-			if (value) setSnapshot(boundedEvents(events));
+			if (value && latestFactualSeq !== null) {
+				skipAnimationThrough.current = latestFactualSeq;
+				revealThrough(latestFactualSeq);
+			}
 			return next;
 		});
 	}
 
 	function catchUp() {
-		setSnapshot(boundedEvents(events));
+		if (latestFactualSeq !== null) {
+			skipAnimationThrough.current = latestFactualSeq;
+			revealThrough(latestFactualSeq);
+		}
 		setPaused(false);
 		nearBottom.current = true;
 	}
@@ -237,6 +392,9 @@ export function ProcessingLiveLog({
 		<section
 			className={styles.liveLogExplorer}
 			aria-label="Explorador de eventos do processamento"
+			data-live-log-revealed-through={revealedThroughSeq ?? ""}
+			data-live-log-latest-seq={latestFactualSeq ?? ""}
+			data-live-log-poll-ms={expectedPollMs}
 		>
 			<div className={styles.logHeader}>
 				<div>
@@ -246,7 +404,7 @@ export function ProcessingLiveLog({
 							? "visualização pausada"
 							: live
 								? "● ao vivo"
-								: historyCount(snapshot.length)}
+								: historyCount(factualEvents.length)}
 					</span>
 				</div>
 				<fieldset className={styles.logModeSwitch}>
@@ -254,14 +412,14 @@ export function ProcessingLiveLog({
 					<button
 						type="button"
 						aria-pressed={mode === "humanized"}
-						onClick={() => setMode("humanized")}
+						onClick={() => switchMode("humanized")}
 					>
 						Humanizada
 					</button>
 					<button
 						type="button"
 						aria-pressed={mode === "technical"}
-						onClick={() => setMode("technical")}
+						onClick={() => switchMode("technical")}
 					>
 						Técnica
 					</button>
@@ -370,9 +528,10 @@ export function ProcessingLiveLog({
 							return (
 								<button
 									type="button"
-									key={`group-${first.seq}-${last.seq}`}
-									className={styles.logEntry}
+									key={`group-${first.seq}-${row.code}`}
+									className={`${styles.logEntry} ${last.seq > skipAnimationThrough.current && !reducedMotion ? styles.logEntryReveal : ""}`}
 									data-level="info"
+									data-paced-seq={last.seq}
 									onClick={() => setSelectedSeq(last.seq)}
 								>
 									<time dateTime={last.at}>{formatTime(last.at)}</time>
@@ -398,16 +557,28 @@ export function ProcessingLiveLog({
 						return (
 							<button
 								type="button"
-								className={styles.logEntry}
+								className={`${styles.logEntry} ${row.event.seq > skipAnimationThrough.current && !reducedMotion ? styles.logEntryReveal : ""}`}
 								key={row.event.seq}
 								data-level={row.event.level}
+								data-paced-seq={row.event.seq}
 								onClick={() => setSelectedSeq(row.event.seq)}
 							>
 								<time dateTime={row.event.at}>
 									{formatTime(row.event.at)}
 								</time>
 								<div>
-									<span>{presented.title}</span>
+									<PacedLogText
+										text={presented.title}
+										animate={
+											mode === "humanized" &&
+											!hasActiveFilter &&
+											!paused &&
+											!reducedMotion &&
+											!documentHidden &&
+											row.event.seq > skipAnimationThrough.current
+										}
+										durationMs={typeDurationMs}
+									/>
 									{presented.detail ? (
 										<small>{presented.detail}</small>
 									) : null}

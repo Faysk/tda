@@ -953,6 +953,22 @@
 	border-top: 0;
 }
 
+.logEntryReveal {
+	animation: log-row-reveal 140ms ease-out both;
+}
+
+@keyframes log-row-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(3px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 .logEntry::before {
 	position: absolute;
 	top: 10px;
@@ -1090,6 +1106,12 @@
 	justify-content: flex-end;
 	gap: 8px;
 	margin-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.logEntryReveal {
+		animation: none;
+	}
 }
 
 @media (max-width: 1420px) {

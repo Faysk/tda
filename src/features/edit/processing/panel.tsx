@@ -1170,12 +1170,14 @@ export function ProcessingPanel({
 								<div className={styles.diagnosticsEventPane} data-diagnostics-events="true">
 									{observedJob ? (
 										<ProcessingLiveLog
+											key={`${observedJob.id}:${observedJob.attempt}`}
 											events={state.events}
 											job={observedJob}
 											system={state.system}
 											live={observedJobLive}
 											stale={Boolean(state.eventsRefreshError)}
 											activityCatalog={activityCatalog}
+											expectedPollMs={processingPollMs(running.length > 0)}
 										/>
 									) : null}
 
