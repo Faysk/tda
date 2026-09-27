@@ -115,10 +115,8 @@ export function ActivityPackAdmin({ scope }: Readonly<{ scope: string }>) {
 				</p>
 			</div>
 
-			<div
+			<fieldset
 				className={styles.barkPackDrop}
-				role="group"
-				aria-label="Importar pack JSON"
 				data-dragging={dragging}
 				onDragEnter={(event) => {
 					event.preventDefault();
@@ -132,6 +130,7 @@ export function ActivityPackAdmin({ scope }: Readonly<{ scope: string }>) {
 					void read(event.dataTransfer.files?.[0]);
 				}}
 			>
+				<legend className={styles.visuallyHidden}>Importar pack JSON</legend>
 				<strong>Arraste seu pack JSON aqui</strong>
 				<span>ou use o seletor de arquivo</span>
 				<label>
@@ -142,7 +141,7 @@ export function ActivityPackAdmin({ scope }: Readonly<{ scope: string }>) {
 						onChange={(event) => void read(event.target.files?.[0])}
 					/>
 				</label>
-			</div>
+			</fieldset>
 
 			<div className={styles.barkPackActions}>
 				<Button
