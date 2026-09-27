@@ -154,13 +154,14 @@ export function estimateProfileProcessing(input: Readonly<{
 			reason: "profile_identity_unavailable",
 		};
 
-	const gpuModel = currentGpuModel(profile, system);
-	if (!gpuModel)
+	const gpuIdentity = currentGpuIdentity(profile, system);
+	if (!gpuIdentity)
 		return {
 			available: false,
 			version: PROCESSING_ESTIMATOR_VERSION,
 			reason: "gpu_identity_unavailable",
 		};
+	const gpuModel = gpuIdentity.model;
 
 	const baseRuns = [...runs]
 		.sort((left, right) => completedAtValue(right) - completedAtValue(left))
@@ -174,6 +175,7 @@ export function estimateProfileProcessing(input: Readonly<{
 				lineage?.runtimeVersion === profile.runtimeVersion &&
 				lineage?.runtimeArtifact?.workerSha256 === profile.runtimeWorkerSha256 &&
 				lineage?.gpu?.model === gpuModel &&
+				matchesPhysicalGpu(lineage, gpuIdentity) &&
 				(!profile.gpuComputeCapability ||
 					lineage?.gpu?.computeCapability === profile.gpuComputeCapability) &&
 				runRtf(run) !== null
@@ -202,6 +204,7 @@ export function estimateProfileProcessing(input: Readonly<{
 				lineage?.runtimeVersion === profile.runtimeVersion &&
 				lineage?.runtimeArtifact?.workerSha256 === profile.runtimeWorkerSha256 &&
 				lineage?.gpu?.model === gpuModel &&
+				matchesPhysicalGpu(lineage, gpuIdentity) &&
 				(!profile.gpuComputeCapability ||
 					lineage?.gpu?.computeCapability === profile.gpuComputeCapability)
 			);
