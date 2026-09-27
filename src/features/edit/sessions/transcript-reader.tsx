@@ -59,9 +59,6 @@ export function SessionTranscriptReader({ segments }: Props) {
 		);
 	}, [normalized, segments]);
 
-	useEffect(() => {
-		setVisibleCount(CHUNK);
-	}, [normalized]);
 
 	useEffect(() => {
 		const node = sentinel.current;
@@ -114,7 +111,10 @@ export function SessionTranscriptReader({ segments }: Props) {
 					Buscar na transcrição inteira
 					<input
 						className={styles.search}
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => {
+						setQuery(event.target.value);
+						setVisibleCount(CHUNK);
+					}}
 						placeholder="Speaker ou texto…"
 						type="search"
 						value={query}
