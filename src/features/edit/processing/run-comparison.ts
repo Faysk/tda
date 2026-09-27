@@ -280,6 +280,70 @@ export function regionOverlapsTimeRange(
 	return true;
 }
 
+export type RunPerformanceComparability = Readonly<{
+	status: "comparable" | "limited";
+	reasons: readonly string[];
+}>;
+
+function executionDeviceIdentity(run: LocalRunSummary): string | null {
+	const device = run.executionLineage?.executionDevice;
+	if (!device) return null;
+	if (device.kind === "cpu") return "cpu";
+	const physical = device.physicalUuid ?? device.pciBusId;
+	return physical ? `cuda:${physical}` : null;
+}
+
+/**
+ * Performance facts remain visible for every pair, but this gate decides whether
+ * normalized throughput may be read as an apples-to-apples comparison.
+ */
+export function compareRunPerformanceSemantics(
+	left: LocalRunSummary,
+	right: LocalRunSummary,
+): RunPerformanceComparability {
+	const reasons: string[] = [];
+	const leftMetrics = left.stats.processingMetrics;
+	const rightMetrics = right.stats.processingMetrics;
+
+	if (!leftMetrics || !rightMetrics) {
+		reasons.push("medição engine_processing_v1 ausente");
+	} else {
+		if (!leftMetrics.freshCalibrationEligible || !rightMetrics.freshCalibrationEligible)
+			reasons.push("há execução com checkpoint/reaproveitamento");
+		if (
+			Math.abs(
+				leftMetrics.freshAudioWorkSeconds - rightMetrics.freshAudioWorkSeconds,
+			) > 0.001
+		)
+			reasons.push("audio work fresco medido é diferente");
+	}
+
+	if (
+		left.stats.durationSemantics !== "session_extent_v1" ||
+		right.stats.durationSemantics !== "session_extent_v1"
+	)
+		reasons.push("semântica de duração da sessão não é equivalente");
+
+	if (
+		!left.executionLineage?.runtimeArtifact ||
+		!right.executionLineage?.runtimeArtifact
+	)
+		reasons.push("identidade exata do runtime não foi registrada");
+
+	const leftDevice = executionDeviceIdentity(left);
+	const rightDevice = executionDeviceIdentity(right);
+	if (!leftDevice || !rightDevice) {
+		reasons.push("identidade física do dispositivo não foi comprovada");
+	} else if (leftDevice !== rightDevice) {
+		reasons.push("execuções usaram dispositivos físicos diferentes");
+	}
+
+	return {
+		status: reasons.length === 0 ? "comparable" : "limited",
+		reasons,
+	};
+}
+
 export function summarizeRunComparison(
 	regions: readonly RunComparisonRegion[],
 ): RunComparisonSummary {
