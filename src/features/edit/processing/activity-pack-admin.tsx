@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	ACTIVITY_PACK_VARIABLES,
@@ -27,13 +27,17 @@ function downloadJson(name: string, body: string) {
 }
 
 export function ActivityPackAdmin({ scope }: Readonly<{ scope: string }>) {
-	const [packs, setPacks] = useState<ActivityPack[]>(() => loadActivityPacks(scope));
+	const [packs, setPacks] = useState<ActivityPack[]>([]);
 	const [preview, setPreview] = useState<ActivityPack | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [dragging, setDragging] = useState(false);
 	const example = useMemo(activityPackExample, []);
 	const prompt = useMemo(activityPackPrompt, []);
+	useEffect(() => {
+		setPacks(loadActivityPacks(scope));
+	}, [scope]);
+
 	const variables = ACTIVITY_PACK_VARIABLES.filter((item) =>
 		[item.name, item.type, item.when]
 			.join(" ")
