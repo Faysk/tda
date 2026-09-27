@@ -292,3 +292,53 @@ test("lost publication recovers after reload without a second write or transcrip
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });
 });
+
+test("abandonment warning keeps the pending handoff private and preserves recovery on cancel", async ({ page }) => {
+ let posts = 0;
+ await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: null } } }));
+ await page.route(/\/api\/transcript-publications$/, async route => {
+  posts++;
+  await route.abort();
+ });
+ await page.route("**/api/transcript-publications/receipt", route => route.fulfill({ status: 503, json: { ok: false, reason: "dependency_unavailable" } }));
+
+ await page.goto("/?review-contracts&publication");
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
+ await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
+
+ await page.reload();
+ const abandon = page.getByRole("button", { name: "Abandonar handoff anterior" });
+ await expect(abandon).toBeVisible();
+
+ const dismissed = new Promise<string>((resolve) => {
+  page.once("dialog", async dialog => {
+   const message = dialog.message();
+   await dialog.dismiss();
+   resolve(message);
+  });
+ });
+ await abandon.click();
+ const cancelMessage = await dismissed;
+ expect(cancelMessage).toContain("O handoff privado anterior pode já ter sido concluído");
+ expect(cancelMessage).toContain("revisão privada da transcrição");
+ expect(cancelMessage).toContain("não publica sessão, capa, resumo ou transcrição no site");
+ expect(cancelMessage).not.toContain("A publicação anterior pode ter sido concluída");
+ expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(1);
+ await expect(abandon).toBeVisible();
+
+ const accepted = new Promise<string>((resolve) => {
+  page.once("dialog", async dialog => {
+   const message = dialog.message();
+   await dialog.accept();
+   resolve(message);
+  });
+ });
+ await abandon.click();
+ const acceptMessage = await accepted;
+ expect(acceptMessage).toContain("nova intenção editorial");
+ await expect(abandon).toHaveCount(0);
+ await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")).length)).toBe(0);
+ expect(posts).toBe(1);
+});
+
