@@ -195,6 +195,7 @@ def test_overlap_blocks_until_boundary_resolution_is_explicit(overlap):
         "version": "boundary_v1",
         "mode": "prefer_later_from",
         "boundary_seconds": boundary,
+        "segment_policy": "segment_start_owner_v1",
     }
     assert second["ready_for_assembly"] is True
 
@@ -326,3 +327,18 @@ def test_three_parts_can_preserve_gap_and_resolve_overlap_simultaneously():
         "mode": "prefer_later_from",
         "boundary_seconds": 95.0,
     }
+
+
+def test_segment_boundary_ownership_is_start_based_and_exact_boundary_belongs_to_later():
+    boundary = 90.0
+    assert segment_owner_at_boundary(89.999, boundary) == "earlier"
+    assert segment_owner_at_boundary(90.0, boundary) == "later"
+    assert segment_owner_at_boundary(95.0, boundary) == "later"
+
+
+def test_segment_crossing_boundary_is_not_split_implicitly():
+    boundary = 90.0
+    segment_start = 85.0
+    segment_end = 95.0
+    assert segment_start < boundary < segment_end
+    assert segment_owner_at_boundary(segment_start, boundary) == "earlier"
