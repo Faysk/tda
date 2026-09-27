@@ -25,7 +25,12 @@ from tda_companion.transcript import (
 from tda_companion.transcription_runs import write_completed_run
 
 
-def _document(source_sha: str, text: str = "Texto original") -> TranscriptDocument:
+def _document(
+    source_sha: str,
+    text: str = "Texto original",
+    *,
+    timeline_offset_seconds: float = 0.0,
+) -> TranscriptDocument:
     first = TranscriptSegment(
         id="1-0",
         start=0.0,
@@ -47,6 +52,7 @@ def _document(source_sha: str, text: str = "Texto original") -> TranscriptDocume
         source_sha256="a" * 64,
         duration_seconds=3.0,
         segments=(first, second),
+        timeline_offset_seconds=timeline_offset_seconds,
     )
     return TranscriptDocument(
         recording_id="recording",
@@ -67,14 +73,18 @@ def _document(source_sha: str, text: str = "Texto original") -> TranscriptDocume
     )
 
 
-def _package(tmp_path: Path) -> tuple[Path, str, dict]:
+def _package(
+    tmp_path: Path,
+    *,
+    timeline_offset_seconds: float = 0.0,
+) -> tuple[Path, str, dict]:
     source_sha = "b" * 64
     source_id = f"craig-{source_sha}"
     package_root = tmp_path / source_id
     package_root.mkdir()
     run = write_completed_run(
         package_root,
-        _document(source_sha),
+        _document(source_sha, timeline_offset_seconds=timeline_offset_seconds),
         job_id="job-review",
         attempt=1,
     )
@@ -115,6 +125,19 @@ def test_open_review_is_pure_without_mutating_raw_run(tmp_path: Path):
     assert [item["segment_id"] for item in review["segments"]] == ["1-0", "1-1"]
     assert transcript.read_bytes() == raw_before
     assert not (package_root / "revisions").exists()
+
+
+def test_open_review_exposes_global_timeline_without_changing_local_times(tmp_path: Path):
+    package_root, source_id, run = _package(tmp_path, timeline_offset_seconds=120.0)
+    review = open_review(package_root, source_id=source_id, run_id=run["run_id"])
+
+    assert [
+        (item["start"], item["end"], item["timeline_start"], item["timeline_end"])
+        for item in review["segments"]
+    ] == [
+        (0.0, 1.0, 120.0, 121.0),
+        (1.2, 2.2, 121.2, 122.2),
+    ]
 
 
 def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
