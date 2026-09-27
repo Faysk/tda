@@ -811,6 +811,58 @@
 }
 
 
+.advancedTools {
+	grid-column: 1 / -1;
+	min-width: 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	padding-top: 4px;
+}
+
+.advancedTools > summary {
+	display: flex;
+	align-items: center;
+	min-height: 34px;
+	cursor: pointer;
+	color: var(--ds-foreground-soft);
+	font-size: 0.75rem;
+	list-style-position: outside;
+}
+
+.advancedTools > summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+	border-radius: var(--ds-radius-sm);
+}
+
+.advancedTools > summary span {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.advancedTools > summary strong {
+	font-weight: 700;
+}
+
+.advancedTools > summary small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+	font-weight: 500;
+}
+
+.advancedTools[open] > summary {
+	margin-bottom: 8px;
+}
+
+.advancedToolsBody {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+
 .systemDetails {
 	margin-bottom: 10px;
 	padding-bottom: 10px;
