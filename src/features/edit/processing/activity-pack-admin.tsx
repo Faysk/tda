@@ -117,6 +117,8 @@ export function ActivityPackAdmin({ scope }: Readonly<{ scope: string }>) {
 
 			<div
 				className={styles.barkPackDrop}
+				role="group"
+				aria-label="Importar pack JSON"
 				data-dragging={dragging}
 				onDragEnter={(event) => {
 					event.preventDefault();
