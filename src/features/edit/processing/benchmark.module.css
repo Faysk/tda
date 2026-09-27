@@ -1,126 +1,462 @@
 .workspace {
 	display: grid;
-	gap: 14px;
+	gap: 16px;
+	min-width: 0;
 }
 
-.launchCard,
-.activeCard,
-.problemCard,
-.resultCard,
-.history {
-	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-lg);
-	background: var(--ds-surface);
-}
-
-.launchCard,
-.activeCard,
-.problemCard,
-.history {
-	padding: 14px;
-}
-
-.launchCard {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 20px;
+.workspaceIntro {
+	display: flex;
 	align-items: end;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 2px 2px 0;
 }
 
-.launchCard h2,
-.launchCard p,
-.activeCard h3,
-.activeCard p,
+.workspaceIntro > div,
+.sectionHeading > div,
+.activeCopy,
+.nextActionCopy,
+.receiptIdentity > span {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.workspaceIntro h2,
+.workspaceIntro p,
+.activeSection h3,
+.activeSection p,
+.problemSection h3,
+.problemSection p,
 .history h2,
-.resultCard h3 {
+.resultHeader h3 {
 	margin: 0;
 }
 
-.launchCard p,
-.activeCard p,
-.qualityNotice span,
-.notice,
-.empty,
-.loading {
+.workspaceIntro p {
+	max-width: 620px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.76rem;
+	font-size: 0.78rem;
 	line-height: 1.5;
+	text-align: right;
 }
 
 .eyebrow {
 	display: block;
-	margin-bottom: 3px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.67rem;
+	font-size: 0.68rem;
 	font-weight: 700;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 }
 
-.launchControls {
-	display: flex;
-	align-items: end;
-	gap: 8px;
+.setupShell {
+	display: grid;
+	grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+	min-width: 0;
+	border-block: 1px solid var(--ds-border-subtle);
 }
 
-.launchControls label {
+.sourcePane,
+.readinessPane {
+	display: grid;
+	align-content: start;
+	gap: 10px;
+	min-width: 0;
+	padding-block: 14px;
+}
+
+.sourcePane {
+	padding-right: 18px;
+	border-right: 1px solid var(--ds-border-subtle);
+}
+
+.readinessPane {
+	padding-left: 18px;
+}
+
+.sectionHeading,
+.historyHeader,
+.activeHeader,
+.sourceToolbar,
+.actionBand,
+.preparationStatus,
+.problemSection,
+.resultHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+}
+
+.sectionHeading strong {
+	font-size: 0.86rem;
+}
+
+.sectionHeading small,
+.historyHeader > span,
+.sourceFacts,
+.sourceCopy span,
+.activeMeta,
+.activeCopy p,
+.problemSection p,
+.receiptFacts,
+.receiptIdentity small,
+.receiptSummary,
+.notice,
+.empty,
+.loading,
+.status,
+.preparationStatus span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.45;
+}
+
+.fileInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.sourcePicker {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-width: 0;
+	padding: 12px;
+	border: 1px dashed var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	text-align: left;
+	cursor: pointer;
+	transition:
+		border-color 120ms ease,
+		background 120ms ease,
+		transform 120ms ease;
+}
+
+.sourcePicker:hover:not(:disabled),
+.sourcePicker[data-active="true"] {
+	border-color: var(--ds-foreground-muted);
+	background: var(--ds-surface);
+}
+
+.sourcePicker:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.sourcePicker:disabled {
+	cursor: default;
+	opacity: 0.65;
+}
+
+.sourceGlyph {
+	display: grid;
+	place-items: center;
+	flex: 0 0 42px;
+	width: 42px;
+	height: 42px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+	font-family: var(--font-mono), monospace;
+	font-size: 0.7rem;
+	font-weight: 750;
+}
+
+.sourcePicker[data-selected="true"] .sourceGlyph {
+	color: var(--ds-success-foreground);
+}
+
+.sourceCopy {
 	display: grid;
 	gap: 4px;
-	font-size: 0.7rem;
-	font-weight: 650;
+	min-width: 0;
 }
 
-.launchControls input {
-	max-width: 250px;
-	font-size: 0.7rem;
+.sourceCopy strong {
+	overflow: hidden;
+	font-size: 0.82rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sourceToolbar {
+	align-items: flex-start;
+}
+
+.sourceFacts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	min-width: 0;
+}
+
+.sourceActions,
+.primaryActions,
+.activeActions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+}
+
+.readinessList {
+	display: grid;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.profileRow {
+	display: grid;
+	grid-template-columns: minmax(128px, 0.85fr) minmax(180px, 1.15fr);
+	gap: 8px 14px;
+	align-items: center;
+	min-width: 0;
+	padding: 8px 2px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	font-size: 0.74rem;
+}
+
+.profileRow > strong {
+	font-size: 0.76rem;
+}
+
+.profileRow > span {
+	color: var(--ds-foreground-muted);
+}
+
+.profileRow[data-state="ready"] > span {
+	color: var(--ds-success-foreground);
+}
+
+.profileRow[data-state="blocked"] > span {
+	color: var(--ds-danger-foreground);
+}
+
+.profileRow small {
+	grid-column: 1 / -1;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ds-foreground-muted);
+	font-family: var(--font-mono), monospace;
+	font-size: 0.64rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.actionBand {
+	padding: 2px 0 12px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.nextActionCopy strong {
+	font-size: 0.84rem;
+}
+
+.preparationStatus {
+	padding: 10px 12px;
+	border-left: 3px solid var(--ds-foreground-muted);
+	background: var(--ds-canvas-subtle);
+}
+
+.preparationStatus > div {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
 }
 
 .notice,
-.error {
-	grid-column: 1 / -1;
-	margin: 0;
+.error,
+.status {
+	margin: -4px 0 0;
+	padding-inline: 2px;
 }
 
 .error {
 	color: var(--ds-danger-foreground);
 	font-size: 0.74rem;
+	line-height: 1.45;
 }
 
-.activeCard,
-.problemCard,
-.resultHeader,
-.historyHeader {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
+.activeSection,
+.problemSection,
 .history {
+	min-width: 0;
+	padding-top: 14px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.activeSection {
 	display: grid;
 	gap: 10px;
 }
 
-.historyHeader > span {
-	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
+.activeHeader {
+	align-items: flex-start;
 }
 
-.resultCard {
+.activeCopy h3 {
+	font-size: 1rem;
+}
+
+.profileStepper {
 	display: grid;
-	gap: 9px;
-	padding: 12px;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.profileStepper > span {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+	padding-top: 7px;
+	border-top: 3px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+}
+
+.profileStepper > span[data-state="done"] {
+	border-top-color: var(--ds-success-foreground);
+	color: var(--ds-foreground);
+}
+
+.profileStepper > span[data-state="current"] {
+	border-top-color: var(--ds-foreground);
+	color: var(--ds-foreground);
+}
+
+.profileStepper strong {
+	font-family: var(--font-mono), monospace;
+	font-size: 0.68rem;
+}
+
+.profileStepper small {
+	overflow: hidden;
+	font-size: 0.68rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.activeMeta {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.problemSection {
+	align-items: flex-start;
+}
+
+.problemSection > div {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.history {
+	display: grid;
+	gap: 8px;
+}
+
+.historyHeader {
+	align-items: end;
+}
+
+.receiptList {
+	display: grid;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.resultReceipt {
+	min-width: 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.resultReceipt > summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	min-width: 0;
+	padding: 10px 2px;
+	cursor: pointer;
+	list-style: none;
+}
+
+.resultReceipt > summary::-webkit-details-marker {
+	display: none;
+}
+
+.resultReceipt > summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.receiptIdentity {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.receiptIdentity > span:last-child {
+	overflow: hidden;
+}
+
+.receiptIdentity strong,
+.receiptIdentity small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.receiptDot {
+	flex: 0 0 8px;
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: var(--ds-success-foreground);
+}
+
+.receiptSummary {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px 12px;
+	text-align: right;
+}
+
+.receiptSummary span:last-child {
+	color: var(--ds-foreground);
+	font-weight: 700;
+}
+
+.receiptBody {
+	display: grid;
+	gap: 10px;
+	padding: 2px 2px 12px;
+}
+
+.resultHeader {
+	align-items: flex-start;
 }
 
 .receiptFacts {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px 12px;
-	color: var(--ds-foreground-muted);
-	font-size: 0.68rem;
 }
 
 .tableWrap {
+	max-width: 100%;
 	overflow-x: auto;
 }
 
@@ -152,7 +488,7 @@
 .qualityNotice {
 	display: flex;
 	gap: 8px;
-	padding: 8px;
+	padding: 8px 10px;
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-canvas-subtle);
 }
@@ -162,162 +498,77 @@
 	font-size: 0.72rem;
 }
 
-@media (max-width: 800px) {
-	.launchCard {
+.qualityNotice span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.45;
+}
+
+.empty,
+.loading {
+	margin: 0;
+	padding: 8px 2px;
+}
+
+@media (max-width: 1100px) {
+	.setupShell {
 		grid-template-columns: 1fr;
 	}
 
-	.launchControls,
-	.activeCard,
-	.qualityNotice {
+	.sourcePane {
+		padding-right: 0;
+		border-right: 0;
+	}
+
+	.readinessPane {
+		padding-left: 0;
+		border-top: 1px solid var(--ds-border-subtle);
+	}
+}
+
+@media (max-width: 700px) {
+	.workspace {
+		gap: 14px;
+	}
+
+	.workspaceIntro,
+	.actionBand,
+	.activeHeader,
+	.problemSection,
+	.historyHeader,
+	.sourceToolbar,
+	.preparationStatus,
+	.resultHeader,
+	.resultReceipt > summary {
 		align-items: stretch;
 		flex-direction: column;
 	}
 
-	.launchControls input {
-		max-width: 100%;
+	.workspaceIntro p {
+		max-width: none;
+		text-align: left;
 	}
-}
 
+	.sourcePicker {
+		align-items: flex-start;
+	}
 
-.sourceFacts,
-.profileReadiness,
-.primaryActions,
-.preparationStatus,
-.status {
-	grid-column: 1 / -1;
-}
+	.sourceToolbar {
+		gap: 8px;
+	}
 
-.sourceFacts {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px 12px;
-	padding: 8px 10px;
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-subtle);
-	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
-}
+	.sourceActions,
+	.primaryActions,
+	.activeActions {
+		width: 100%;
+	}
 
-.sourceFacts span:first-child {
-	max-width: min(520px, 100%);
-	overflow: hidden;
-	color: var(--ds-foreground);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
+	.sourceActions > *,
+	.primaryActions > *,
+	.activeActions > * {
+		flex: 1 1 auto;
+	}
 
-.profileReadiness {
-	display: grid;
-	gap: 6px;
-	padding-top: 2px;
-}
-
-.readinessHeader {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
-}
-
-.readinessHeader strong {
-	color: var(--ds-foreground);
-}
-
-.profileRow {
-	display: grid;
-	grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1.3fr) minmax(0, 1fr);
-	gap: 8px;
-	align-items: center;
-	padding: 7px 9px;
-	border-top: 1px solid var(--ds-border-subtle);
-	font-size: 0.72rem;
-}
-
-.profileRow > span {
-	color: var(--ds-foreground-muted);
-}
-
-.profileRow[data-state="ready"] > span {
-	color: var(--ds-success-foreground);
-}
-
-.profileRow[data-state="blocked"] > span {
-	color: var(--ds-danger-foreground);
-}
-
-.profileRow small {
-	min-width: 0;
-	overflow: hidden;
-	color: var(--ds-foreground-muted);
-	font-family: var(--font-mono), monospace;
-	font-size: 0.64rem;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.primaryActions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	align-items: center;
-}
-
-.preparationStatus {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 9px 10px;
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-subtle);
-}
-
-.preparationStatus > div,
-.activeCopy {
-	display: grid;
-	gap: 3px;
-}
-
-.preparationStatus span,
-.activeCopy small {
-	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
-}
-
-.status {
-	margin: 0;
-	color: var(--ds-foreground-muted);
-	font-size: 0.74rem;
-}
-
-.activeActions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	justify-content: flex-end;
-}
-
-.problemCard {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.problemCard h3,
-.problemCard p {
-	margin: 0;
-}
-
-.problemCard p {
-	color: var(--ds-foreground-muted);
-	font-size: 0.74rem;
-}
-
-@media (max-width: 800px) {
 	.profileRow {
 		grid-template-columns: 1fr;
 		gap: 3px;
@@ -325,17 +576,25 @@
 
 	.profileRow small {
 		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 
-	.primaryActions,
-	.preparationStatus,
-	.activeActions,
-	.problemCard {
-		align-items: stretch;
+	.profileStepper {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.receiptSummary {
+		justify-content: flex-start;
+		text-align: left;
+	}
+
+	.qualityNotice {
 		flex-direction: column;
 	}
+}
 
-	.sourceFacts span:first-child {
-		width: 100%;
+@media (prefers-reduced-motion: reduce) {
+	.sourcePicker {
+		transition: none;
 	}
 }
