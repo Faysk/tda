@@ -1582,14 +1582,34 @@ def create_app(
 
     def session_workspace_response(value):
         parts = []
+        source_facts = {}
         for part in value["parts"]:
+            source_id = part["source_id"]
             try:
-                staged_package_under_source_gate(part["source_id"])
+                _package_root, package = staged_package_under_source_gate(source_id)
                 source_state = "ready"
+                start_time = getattr(package, "start_time", None)
+                duration_seconds = package_duration_seconds(package)
             except (CraigPackageError, ValueError):
                 source_state = "invalid"
+                start_time = None
+                duration_seconds = None
+            source_facts[part["part_id"]] = {
+                "source_state": source_state,
+                "start_time": start_time,
+                "duration_seconds": duration_seconds,
+            }
             parts.append({**part, "source_state": source_state})
-        return {**value, "parts": parts}
+        try:
+            timeline = build_session_timeline(value, source_facts)
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from None
+        public_value = {
+            key: item
+            for key, item in value.items()
+            if key != "timeline_decisions"
+        }
+        return {**public_value, "parts": parts, "timeline": timeline}
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
     def session_workspace(campaign_id: str, session_id: str):
@@ -1657,6 +1677,56 @@ def create_app(
                 session_id,
                 body.part_ids,
                 body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/timing")
+    def update_session_workspace_part_timing(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceTimingRequest,
+    ):
+        return session_workspace_response(
+            store.update_session_part_timing(
+                campaign_id,
+                session_id,
+                body.part_id,
+                manual_offset_seconds=body.manual_offset_seconds,
+                trim_start_seconds=body.trim_start_seconds,
+                trim_end_seconds=body.trim_end_seconds,
+                expected_revision=body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline/resolve")
+    def resolve_session_workspace_timeline(
+        campaign_id: str,
+        session_id: str,
+        body: SessionTimelineDecisionRequest,
+    ):
+        current = store.session_workspace(campaign_id, session_id)
+        if current["revision"] != body.expected_revision:
+            raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+        snapshot = session_workspace_response(current)
+        try:
+            validate_relation_decision(
+                snapshot["timeline"],
+                earlier_part_id=body.earlier_part_id,
+                later_part_id=body.later_part_id,
+                decision=body.decision,
+                boundary_seconds=body.boundary_seconds,
+            )
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from None
+        return session_workspace_response(
+            store.set_session_timeline_decision(
+                campaign_id,
+                session_id,
+                body.earlier_part_id,
+                body.later_part_id,
+                decision=body.decision,
+                boundary_seconds=body.boundary_seconds,
+                expected_revision=body.expected_revision,
             )
         )
 
