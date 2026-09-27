@@ -19,6 +19,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
 
+[Publicação editorial versionada de sessões](session-editorial-publication.md) — boundary explícito draft privado → snapshot público com cover promotion, CAS, receipt, replace, restore e unpublish sem expor transcript.
+
 [Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — proposta para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
 
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
@@ -33,7 +35,8 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
 | Edit / múltiplas gravações por sessão | em desenho; backlog #843 | [Multi-recording sessions](multi-recording-sessions.md) |
-| Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
+| Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação incremental | [Runs, revisão e publicação](transcript-review-publication.md) |
+| Edit / publicação editorial de sessão | snapshots versionados + current pointer + confirmação explícita | [Publicação editorial de sessões](session-editorial-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | Lembra / referências visuais | persistência compartilhada em Production; refinamento visual em andamento | [Lembra](lembra.md) |
