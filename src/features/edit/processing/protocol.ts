@@ -777,6 +777,157 @@ export function parseCraigSource(value: unknown): CraigSource {
 		reused: boolean(row.reused),
 	};
 }
+function parseSessionWorkspaceTimeline(
+	value: unknown,
+	partIds: readonly string[],
+): SessionWorkspaceTimeline {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_timeline_v1") return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length !== partIds.length)
+		return invalid();
+	if (!Array.isArray(row.relations) || row.relations.length > Math.max(0, partIds.length - 1))
+		return invalid();
+
+	const order = record(row.order);
+	const orderState = text(order.state, 32);
+	if (
+		!["trivial", "trusted_absolute", "manual", "manual_required"].includes(
+			orderState,
+		)
+	)
+		return invalid();
+	const workspaceAuthority = text(order.workspace_authority, 16);
+	if (workspaceAuthority !== "unconfirmed" && workspaceAuthority !== "manual")
+		return invalid();
+	let suggestedPartIds: string[] | null = null;
+	if (order.suggested_part_ids !== null && order.suggested_part_ids !== undefined) {
+		if (
+			!Array.isArray(order.suggested_part_ids) ||
+			order.suggested_part_ids.length !== partIds.length
+		)
+			return invalid();
+		suggestedPartIds = order.suggested_part_ids.map((value) => {
+			const parsed = text(value, 32);
+			if (!/^[0-9a-f]{32}$/u.test(parsed)) return invalid();
+			return parsed;
+		});
+		if (
+			new Set(suggestedPartIds).size !== suggestedPartIds.length ||
+			suggestedPartIds.some((id) => !partIds.includes(id))
+		)
+			return invalid();
+	}
+	const matchesSuggestion =
+		order.matches_suggestion === null || order.matches_suggestion === undefined
+			? null
+			: boolean(order.matches_suggestion);
+
+	const parts = row.parts.map((raw, index) => {
+		const part = record(raw);
+		const partId = text(part.part_id, 32);
+		const sourceId = identifier(part.source_id);
+		const ordinal = nonNegativeInteger(part.ordinal);
+		if (partId !== partIds[index] || ordinal !== index) return invalid();
+		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
+		const sourceStart = record(part.source_start);
+		const confidence = text(sourceStart.confidence, 32);
+		if (
+			!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(
+				confidence,
+			)
+		)
+			return invalid();
+		const placementAuthority = text(part.placement_authority, 32);
+		if (
+			!["trusted_absolute", "manual", "unresolved"].includes(
+				placementAuthority,
+			)
+		)
+			return invalid();
+		const state = text(part.state, 16);
+		if (!["ready", "unresolved", "invalid"].includes(state)) return invalid();
+		return {
+			partId,
+			sourceId,
+			ordinal,
+			sourceStart: {
+				confidence: confidence as SessionStartTimeConfidence,
+				raw: nullableText(sourceStart.raw, 128),
+				instantUtc: nullableIsoDate(sourceStart.instant_utc),
+			},
+			durationSeconds: nullableNonNegativeNumber(part.duration_seconds),
+			manualOffsetSeconds: nullableNonNegativeNumber(
+				part.manual_offset_seconds,
+			),
+			sessionOffsetSeconds: nullableNonNegativeNumber(
+				part.session_offset_seconds,
+			),
+			placementAuthority: placementAuthority as SessionTimelinePart["placementAuthority"],
+			trimStartSeconds: nonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			effectiveStartSeconds: nullableNonNegativeNumber(
+				part.effective_start_seconds,
+			),
+			effectiveEndSeconds: nullableNonNegativeNumber(part.effective_end_seconds),
+			state: state as SessionTimelinePart["state"],
+		} satisfies SessionTimelinePart;
+	});
+
+	const relations = row.relations.map((raw, index) => {
+		const relation = record(raw);
+		const earlierPartId = text(relation.earlier_part_id, 32);
+		const laterPartId = text(relation.later_part_id, 32);
+		if (
+			earlierPartId !== partIds[index] ||
+			laterPartId !== partIds[index + 1]
+		)
+			return invalid();
+		const kind = text(relation.kind, 16);
+		if (!["unknown", "contiguous", "gap", "overlap"].includes(kind))
+			return invalid();
+		const decision =
+			relation.decision === null || relation.decision === undefined
+				? null
+				: text(relation.decision, 32);
+		if (
+			decision !== null &&
+			![
+				"gap_acknowledged",
+				"prefer_earlier_until",
+				"prefer_later_from",
+			].includes(decision)
+		)
+			return invalid();
+		return {
+			earlierPartId,
+			laterPartId,
+			kind: kind as SessionTimelineRelation["kind"],
+			durationSeconds: nullableNonNegativeNumber(relation.duration_seconds),
+			decision: decision as SessionTimelineDecision | null,
+			boundarySeconds: nullableNonNegativeNumber(relation.boundary_seconds),
+			resolved: boolean(relation.resolved),
+			overlapStartSeconds: nullableNonNegativeNumber(
+				relation.overlap_start_seconds,
+			),
+			overlapEndSeconds: nullableNonNegativeNumber(relation.overlap_end_seconds),
+		} satisfies SessionTimelineRelation;
+	});
+
+	return {
+		schemaVersion: "tda_session_timeline_v1",
+		configSha256: sha256(row.config_sha256),
+		ready: boolean(row.ready),
+		order: {
+			state: orderState as SessionWorkspaceTimeline["order"]["state"],
+			workspaceAuthority,
+			suggestedPartIds,
+			matchesSuggestion,
+		},
+		parts,
+		relations,
+	};
+}
+
 export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
@@ -800,6 +951,18 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					? null
 					: runIdentifier(part.selected_run_id),
 			sourceState,
+			manualOffsetSeconds:
+				part.manual_offset_seconds === undefined
+					? null
+					: nullableNonNegativeNumber(part.manual_offset_seconds),
+			trimStartSeconds:
+				part.trim_start_seconds === undefined
+					? 0
+					: nonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds:
+				part.trim_end_seconds === undefined
+					? null
+					: nullableNonNegativeNumber(part.trim_end_seconds),
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -808,14 +971,27 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		return invalid();
 	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
 		return invalid();
+	const orderAuthority =
+		row.order_authority === undefined ? "unconfirmed" : text(row.order_authority, 16);
+	if (orderAuthority !== "unconfirmed" && orderAuthority !== "manual")
+		return invalid();
+	const timeline =
+		row.timeline === undefined || row.timeline === null
+			? null
+			: parseSessionWorkspaceTimeline(
+					row.timeline,
+					parts.map((part) => part.partId),
+				);
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		revision: nonNegativeInteger(row.revision),
+		orderAuthority,
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+		timeline,
 	};
 }
 
