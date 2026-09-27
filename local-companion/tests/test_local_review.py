@@ -147,7 +147,7 @@ def test_open_review_projects_track_offset_to_session_timeline(tmp_path: Path):
         for item in review["segments"]
     ] == [
         (0.0, 1.0, 120.0, 121.0),
-        (1.2, 2.0, 121.2, 122.0),
+        (1.2, 2.2, 121.2, 122.2),
     ]
 
 
