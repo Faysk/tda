@@ -30,7 +30,8 @@ def _finite_non_negative(value: object, code: str, *, allow_none: bool = False) 
     number = float(value)
     if not math.isfinite(number) or number < 0:
         raise SessionTimelineError(code)
-    return number
+    normalized = round(number, 6)
+    return 0.0 if normalized == 0 else normalized
 
 
 def classify_start_time(value: object) -> dict[str, object]:
@@ -253,7 +254,9 @@ def build_session_timeline(
             trusted_instants[part_id] = trusted
 
     all_trusted = bool(parts_value) and len(trusted_instants) == len(parts_value)
-    trusted_anchor = min(trusted_instants.values()) if trusted_instants else None
+    trusted_values = list(trusted_instants.values())
+    unique_trusted_instants = len(set(trusted_values)) == len(trusted_values)
+    trusted_anchor = min(trusted_values) if trusted_values else None
     suggested_order = (
         [
             str(part["part_id"])
@@ -265,7 +268,7 @@ def build_session_timeline(
                 ),
             )
         ]
-        if all_trusted
+        if all_trusted and unique_trusted_instants
         else None
     )
     current_order = [str(part["part_id"]) for part in parts_value]
@@ -400,7 +403,16 @@ def build_session_timeline(
             relations.append(relation)
             continue
 
-        delta = float(later_start) - float(earlier_end)
+        a_start = float(earlier.get("effective_start_seconds", 0.0))
+        a_end = float(earlier_end)
+        b_start = float(later_start)
+        b_end_raw = later.get("effective_end_seconds")
+        if not isinstance(b_end_raw, (int, float)):
+            relations_ready = False
+            relations.append(relation)
+            continue
+        b_end = float(b_end_raw)
+        delta = b_start - a_end
         decision_row = decision_map.get((earlier_id, later_id))
         decision = decision_row.get("decision") if decision_row else None
         boundary = decision_row.get("boundary_seconds") if decision_row else None
@@ -417,7 +429,7 @@ def build_session_timeline(
             relation.update(
                 {
                     "kind": "gap",
-                    "duration_seconds": delta,
+                    "duration_seconds": round(delta, 6),
                     "decision": decision if resolved else None,
                     "resolved": resolved,
                 }
@@ -425,14 +437,20 @@ def build_session_timeline(
             if not resolved:
                 relations_ready = False
         else:
-            overlap_seconds = -delta
-            overlap_start = float(later_start)
-            later_end = later.get("effective_end_seconds")
-            overlap_end = (
-                min(float(earlier_end), float(later_end))
-                if isinstance(later_end, (int, float))
-                else float(earlier_end)
-            )
+            overlap_start = max(a_start, b_start)
+            overlap_end = min(a_end, b_end)
+            if overlap_end <= overlap_start + _EPSILON_SECONDS:
+                relation.update(
+                    {
+                        "kind": "order_conflict",
+                        "duration_seconds": None,
+                        "resolved": False,
+                    }
+                )
+                relations_ready = False
+                relations.append(relation)
+                continue
+            overlap_seconds = round(overlap_end - overlap_start, 6)
             valid_policy = decision in {
                 "prefer_earlier_until",
                 "prefer_later_from",
@@ -449,10 +467,10 @@ def build_session_timeline(
                 {
                     "kind": "overlap",
                     "duration_seconds": overlap_seconds,
-                    "overlap_start_seconds": overlap_start,
-                    "overlap_end_seconds": overlap_end,
+                    "overlap_start_seconds": round(overlap_start, 6),
+                    "overlap_end_seconds": round(overlap_end, 6),
                     "decision": decision if valid_boundary else None,
-                    "boundary_seconds": float(boundary) if valid_boundary else None,
+                    "boundary_seconds": round(float(boundary), 6) if valid_boundary else None,
                     "resolved": bool(valid_boundary),
                 }
             )
@@ -476,6 +494,23 @@ def build_session_timeline(
         "parts": part_states,
         "relations": relations,
     }
+
+
+def segment_owner_at_boundary(
+    segment_start_seconds: object,
+    boundary_seconds: object,
+) -> str:
+    """Deterministic overlap ownership: start < boundary is earlier, else later."""
+    start = _finite_non_negative(
+        segment_start_seconds,
+        "SESSION_TIMELINE_SEGMENT_START_INVALID",
+    )
+    boundary = _finite_non_negative(
+        boundary_seconds,
+        "SESSION_TIMELINE_BOUNDARY_INVALID",
+    )
+    assert start is not None and boundary is not None
+    return "earlier" if start < boundary else "later"
 
 
 def validate_relation_decision(
