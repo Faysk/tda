@@ -332,17 +332,25 @@ export function SessionEditorialDraftEditor({
 			return;
 		}
 
-		setCurrentPublicationId(result.receipt.publicationId);
-		setCurrentPublicationVersion(result.receipt.version);
+		if (result.receipt.currentlyActive) {
+			setCurrentPublicationId(result.receipt.publicationId);
+			setCurrentPublicationVersion(result.receipt.version);
+		}
 		setPublishIntent(null);
 		setPublishPhase("published");
 		setPublishMessage(
-			(result.receipt.replayed ? "Publicação recuperada" : "Publicação concluída") +
-				" · versão pública v" +
-				result.receipt.version +
-				(result.receipt.cachePending
-					? " · propagação de cache pendente."
-					: "."),
+			result.receipt.replayed && !result.receipt.currentlyActive
+				? "Publicação v" +
+						result.receipt.version +
+						" recuperada pelo receipt; uma versão pública mais nova já está ativa."
+				: (result.receipt.replayed
+						? "Publicação recuperada"
+						: "Publicação concluída") +
+						" · versão pública v" +
+						result.receipt.version +
+						(result.receipt.cachePending
+							? " · propagação de cache pendente."
+							: "."),
 		);
 		router.refresh();
 	}
