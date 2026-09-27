@@ -11,6 +11,7 @@ import { SessionEditorialDraftEditor } from "@/features/edit/sessions/editorial-
 import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { findUnsafeEditSessionBySourceId } from "@/features/edit/sessions/repository";
+import { readSessionPublicationState } from "@/features/edit/sessions/session-publication-repository";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
@@ -69,6 +70,11 @@ export default async function EditSessionPage({ params }: PageProps) {
 		EDIT_CAPABILITIES.contentEdit,
 		CAMPAIGN_SLUG,
 	).ok;
+	const canPublish = authorizeCampaignCapability(
+		accessContext,
+		EDIT_CAPABILITIES.transcriptPublish,
+		CAMPAIGN_SLUG,
+	).ok;
 
 	let session: Awaited<ReturnType<typeof findUnsafeEditSessionBySourceId>>;
 	try {
@@ -90,10 +96,14 @@ export default async function EditSessionPage({ params }: PageProps) {
 	if (!snapshot) return <UnavailableTranscript />;
 
 	let draft: Awaited<ReturnType<typeof readSessionEditorialDraft>> = null;
+	let publication: Awaited<ReturnType<typeof readSessionPublicationState>> = null;
 	let draftUnavailable = false;
 	if (snapshot.source === "current_revision" && snapshot.revisionId) {
 		try {
-			draft = await readSessionEditorialDraft(session.id);
+			[draft, publication] = await Promise.all([
+				readSessionEditorialDraft(session.id),
+				readSessionPublicationState(session.id),
+			]);
 		} catch {
 			draftUnavailable = true;
 		}
@@ -166,10 +176,12 @@ export default async function EditSessionPage({ params }: PageProps) {
 								A transcrição continua legível. Nenhum campo público foi alterado.
 							</p>
 						</div>
-					) : draft ? (
+					) : draft && publication ? (
 						<SessionEditorialDraftEditor
 							editable={canEdit}
 							initial={draft}
+							initialPublication={publication}
+							publishable={canPublish && process.env.VERCEL_ENV === "production"}
 							sessionId={session.id}
 						/>
 					) : (
