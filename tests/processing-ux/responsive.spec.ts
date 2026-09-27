@@ -529,3 +529,58 @@ test("queue overflow actions do not create horizontal overflow at 320px", async 
 	expect(box?.x ?? -1).toBeGreaterThanOrEqual(8);
 	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(312);
 });
+
+test("live-log grouping checkbox stays compact and keyboard operable", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await openRunningWorkspace(page, viewport.width, viewport.height);
+		await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+		const checkbox = page.getByRole("checkbox", {
+			name: "Agrupar repetitivos",
+		});
+		await expect(checkbox).toBeVisible();
+		await expect(checkbox).toBeChecked();
+
+		const geometry = await checkbox.evaluate((element) => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return {
+				width: rect.width,
+				height: rect.height,
+				minWidth: style.minWidth,
+				paddingInlineStart: style.paddingInlineStart,
+				paddingInlineEnd: style.paddingInlineEnd,
+			};
+		});
+		expect(geometry.width).toBeLessThanOrEqual(20);
+		expect(geometry.height).toBeLessThanOrEqual(20);
+		expect(geometry.minWidth).not.toBe("260px");
+		expect(geometry.paddingInlineStart).toBe("0px");
+		expect(geometry.paddingInlineEnd).toBe("0px");
+
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+	}
+
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	const checkbox = page.getByRole("checkbox", { name: "Agrupar repetitivos" });
+
+	await page.getByText("Agrupar repetitivos", { exact: true }).click();
+	await expect(checkbox).not.toBeChecked();
+
+	await checkbox.focus();
+	await expect(checkbox).toBeFocused();
+	await page.keyboard.press("Space");
+	await expect(checkbox).toBeChecked();
+});
+
