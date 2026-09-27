@@ -107,11 +107,23 @@ function eligible(template: ActivityBark, context: ActivityContext, level: Activ
 }
 
 function render(template: string, context: ActivityContext): string {
-	return template
-		.replaceAll("{speaker}", context.speaker ?? "")
-		.replaceAll("{window}", context.window === null ? "" : String(context.window))
-		.replaceAll("{segment}", context.segment === null ? "" : String(context.segment))
-		.replaceAll("{gpu}", context.gpuName ?? "");
+	return template.replace(
+		/\{(speaker|window|segment|gpu)\}/gu,
+		(match, placeholder: string) => {
+			switch (placeholder) {
+				case "speaker":
+					return context.speaker ?? "";
+				case "window":
+					return context.window === null ? "" : String(context.window);
+				case "segment":
+					return context.segment === null ? "" : String(context.segment);
+				case "gpu":
+					return context.gpuName ?? "";
+				default:
+					return match;
+			}
+		},
+	);
 }
 
 export function selectActivityBark(

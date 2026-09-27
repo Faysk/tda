@@ -257,6 +257,8 @@ Exemplos:
 
 O Companion persiste fatos, não piadas. A interface nunca deve fingir que executou uma operação só para ficar engraçada.
 
+A interpolação de placeholders da camada Humanizada acontece em **uma única passagem sobre o template original**. Valores factuais inseridos são texto terminal: se um speaker contiver `{gpu}`, `<script>` ou qualquer outra sequência parecida com template/markup, esse valor não é reinterpretado como outro placeholder, HTML ou uma segunda linguagem de apresentação.
+
 ## Telemetria
 
 Quando `system.telemetry` é anunciado, a UI consulta `GET /api/v1/system` e recebe uma projeção limitada de SO, CPU, RAM e GPUs. CPU/RAM usam `psutil`; NVIDIA GPU/VRAM usam NVML através de `nvidia-ml-py`.
