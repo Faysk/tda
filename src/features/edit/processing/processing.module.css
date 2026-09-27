@@ -1188,3 +1188,174 @@
 		transition: none;
 	}
 }
+
+
+/* #598 — the tab strip owns horizontal overflow only. Vertical scrollbars here
+   are always accidental and compete visually with the workspace scroll owner. */
+.processingTabs {
+	overflow-x: auto;
+	overflow-y: hidden;
+	overscroll-behavior-inline: contain;
+	scrollbar-gutter: stable;
+}
+
+.viewPanel {
+	min-height: 0;
+}
+
+.inspectorFull {
+	min-height: 0;
+}
+
+/* Full-HD and larger desktops keep technical history inside its owning view
+   instead of growing the whole page. Short viewports intentionally keep normal
+   page flow via the existing smaller-height/mobile rules. */
+@media (min-width: 1440px) and (min-height: 820px) {
+	.inspectorFull {
+		display: grid;
+		grid-template-columns: minmax(260px, .38fr) minmax(0, 1.62fr);
+		grid-template-rows: auto auto minmax(230px, 1fr) auto;
+		column-gap: 12px;
+		max-height: calc(100dvh - 168px);
+		overflow: hidden;
+	}
+
+	.inspectorFull > .inspectorHeader {
+		grid-column: 1 / -1;
+	}
+
+	.inspectorFull > .systemDetails {
+		grid-row: 2;
+		grid-column: 1;
+		min-height: 0;
+		max-height: 32dvh;
+		overflow: auto;
+	}
+
+	.inspectorFull > .jobDetails {
+		grid-row: 3;
+		grid-column: 1;
+		align-self: start;
+		min-height: 0;
+		max-height: 34dvh;
+		overflow: auto;
+	}
+
+	.inspectorFull > .logHeader {
+		grid-row: 2;
+		grid-column: 2;
+		align-self: end;
+	}
+
+	.inspectorFull > .log {
+		grid-row: 3;
+		grid-column: 2;
+		min-height: 0;
+		max-height: none;
+		height: 100%;
+		overscroll-behavior: contain;
+	}
+
+	.inspectorFull > [role="status"] {
+		grid-column: 2;
+	}
+
+	.inspectorFull > .integrationTool {
+		grid-column: 1 / -1;
+	}
+}
+
+/* QHD/ultrawide uses additional width for density instead of only increasing
+   whitespace. The page-level max width remains owned by the design system. */
+@media (min-width: 2048px) {
+	.overviewTop {
+		grid-template-columns: minmax(0, 2.35fr) minmax(340px, .8fr);
+		gap: 14px;
+	}
+
+	.overviewMetrics .metricsStrip {
+		grid-template-columns: repeat(10, minmax(0, 1fr));
+	}
+
+	.overviewMetrics .metric:nth-child(n) {
+		border-inline-start: 1px solid var(--ds-border-subtle);
+	}
+
+	.overviewMetrics .metric:first-child {
+		border-inline-start: 0;
+	}
+}
+
+/* 4K stays bounded by --ds-layout-max, but local density may grow without
+   stretching text columns edge-to-edge. */
+@media (min-width: 3000px) {
+	.page {
+		padding-inline: max(var(--ds-page-gutter), 28px);
+	}
+
+	.activeJob {
+		grid-template-columns: minmax(0, 1.5fr) minmax(280px, .5fr);
+		align-items: start;
+	}
+
+	.activeHeader,
+	.activeMeta,
+	.activeProgress,
+	.activeActivity {
+		grid-column: 1;
+	}
+
+	.pipeline,
+	.activeActions {
+		grid-column: 2;
+	}
+
+	.pipeline {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* Browser zoom / narrow screens use page flow, never clipped nested regions. */
+@media (max-width: 900px), (max-height: 700px) {
+	.processingTabs {
+		scrollbar-gutter: auto;
+	}
+
+	.inspectorFull {
+		display: grid;
+		max-height: none;
+		overflow: visible;
+	}
+
+	.inspectorFull .log {
+		max-height: 320px;
+	}
+
+	.pipeline {
+		grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+	}
+}
+
+@media (max-width: 480px) {
+	.processingTabs {
+		gap: 16px;
+		padding-bottom: 1px;
+	}
+
+	.overviewTop,
+	.workspace {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.activeMeta {
+		gap: 5px 9px;
+	}
+
+	.activeMeta span:not(:first-child)::before {
+		margin-right: 5px;
+	}
+
+	.pipeline {
+		grid-template-columns: 1fr;
+	}
+}
