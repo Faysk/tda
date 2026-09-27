@@ -33,6 +33,7 @@ type Props = Readonly<{
 	busy: boolean;
 	error: string | null;
 	publicationEnabled: boolean;
+	comparisonEnabled?: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
 	onLoadSnapshot: (sourceId: string, runId: string) => Promise<LocalReview>;
 	onDeleteRun?: (sourceId: string, runId: string, transcriptSha256: string) => Promise<boolean>;
@@ -828,6 +829,7 @@ export function LocalReviewWorkspace({
 	busy,
 	error,
 	publicationEnabled,
+	comparisonEnabled = false,
 	onOpen,
 	onLoadSnapshot,
 	onDeleteRun,
@@ -903,7 +905,7 @@ export function LocalReviewWorkspace({
 		filteredRuns[0] ??
 		null;
 
-	const comparisonCandidates = selectedRun
+	const comparisonCandidates = selectedRun && comparisonEnabled
 		? runs.filter(
 			(run) =>
 				run.sourceId === selectedRun.sourceId &&
@@ -1137,7 +1139,9 @@ export function LocalReviewWorkspace({
 											<strong>Comparar runs</strong>
 											<span>Somente resultados da mesma fonte podem ser comparados.</span>
 										</div>
-										{comparisonCandidates.length ? (
+										{!comparisonEnabled ? (
+											<small>Comparação A/B requer um Companion compatível com leitura imutável do run.</small>
+										) : comparisonCandidates.length ? (
 											<>
 												<select aria-label="Segundo run para comparação" value={effectiveComparisonTargetKey} onChange={(event) => setComparisonTargetKey(event.target.value)}>
 													{comparisonCandidates.map((run) => {
