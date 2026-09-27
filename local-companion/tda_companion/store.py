@@ -132,6 +132,11 @@ class Store:
                 db.execute(
                     "ALTER TABLE session_recording_parts ADD COLUMN trim_end_seconds REAL"
                 )
+            if "gap_confirmed" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN gap_confirmed "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
             if "overlap_resolution" not in part_columns:
                 db.execute(
                     "ALTER TABLE session_recording_parts ADD COLUMN overlap_resolution TEXT"
@@ -236,8 +241,8 @@ class Store:
             """
             SELECT part_id,source_id,ordinal,selected_run_id,
                    timeline_mode,session_offset_seconds,trim_start_seconds,
-                   trim_end_seconds,overlap_resolution,overlap_boundary_seconds,
-                   created,updated
+                   trim_end_seconds,gap_confirmed,overlap_resolution,
+                   overlap_boundary_seconds,created,updated
             FROM session_recording_parts
             WHERE campaign_id=? AND session_id=?
             ORDER BY ordinal ASC, part_id ASC
@@ -262,6 +267,7 @@ class Store:
                     "session_offset_seconds": part["session_offset_seconds"],
                     "trim_start_seconds": part["trim_start_seconds"],
                     "trim_end_seconds": part["trim_end_seconds"],
+                    "gap_confirmed": bool(part["gap_confirmed"]),
                     "overlap_resolution": part["overlap_resolution"],
                     "overlap_boundary_seconds": part["overlap_boundary_seconds"],
                     "created_at": part["created"],
@@ -362,9 +368,9 @@ class Store:
                 INSERT INTO session_recording_parts(
                     part_id,campaign_id,session_id,source_id,ordinal,
                     selected_run_id,timeline_mode,session_offset_seconds,
-                    trim_start_seconds,trim_end_seconds,overlap_resolution,
-                    overlap_boundary_seconds,created,updated
-                ) VALUES (?,?,?,?,?,NULL,'unresolved',NULL,0,NULL,NULL,NULL,?,?)
+                    trim_start_seconds,trim_end_seconds,gap_confirmed,
+                    overlap_resolution,overlap_boundary_seconds,created,updated
+                ) VALUES (?,?,?,?,?,NULL,'unresolved',NULL,0,NULL,0,NULL,NULL,?,?)
                 """,
                 (
                     uuid4().hex,
@@ -502,6 +508,7 @@ class Store:
         session_offset_seconds,
         trim_start_seconds=0.0,
         trim_end_seconds=None,
+        gap_confirmed=False,
         overlap_resolution=None,
         overlap_boundary_seconds=None,
     ):
@@ -515,6 +522,8 @@ class Store:
         )
         if trim_end is not None and trim_end <= trim_start:
             raise Conflict("SESSION_WORKSPACE_TRIM_RANGE_INVALID")
+        if not isinstance(gap_confirmed, bool):
+            raise Conflict("SESSION_WORKSPACE_GAP_CONFIRMATION_INVALID")
         resolution = self._workspace_overlap_resolution(overlap_resolution)
         boundary = self._workspace_seconds(
             overlap_boundary_seconds, "OVERLAP_BOUNDARY", nullable=True
@@ -540,6 +549,7 @@ class Store:
                 offset,
                 trim_start,
                 trim_end,
+                int(gap_confirmed),
                 resolution,
                 boundary,
             )
@@ -548,6 +558,7 @@ class Store:
                 part["session_offset_seconds"],
                 part["trim_start_seconds"],
                 part["trim_end_seconds"],
+                int(part["gap_confirmed"]),
                 part["overlap_resolution"],
                 part["overlap_boundary_seconds"],
             )
@@ -557,7 +568,7 @@ class Store:
                 """
                 UPDATE session_recording_parts
                 SET timeline_mode=?,session_offset_seconds=?,
-                    trim_start_seconds=?,trim_end_seconds=?,
+                    trim_start_seconds=?,trim_end_seconds=?,gap_confirmed=?,
                     overlap_resolution=?,overlap_boundary_seconds=?,updated=?
                 WHERE part_id=?
                 """,
@@ -644,8 +655,8 @@ class Store:
                     """
                     UPDATE session_recording_parts
                     SET ordinal=?,timeline_mode='automatic',
-                        session_offset_seconds=?,overlap_resolution=NULL,
-                        overlap_boundary_seconds=NULL,updated=?
+                        session_offset_seconds=?,gap_confirmed=0,
+                        overlap_resolution=NULL,overlap_boundary_seconds=NULL,updated=?
                     WHERE part_id=?
                     """,
                     (
