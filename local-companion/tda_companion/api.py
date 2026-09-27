@@ -43,6 +43,12 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .session_timeline import (
+    SessionTimelineError,
+    build_session_timeline,
+    package_duration_seconds,
+    validate_relation_decision,
+)
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -68,7 +74,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/parts(?:/(?:detach|reorder|timing))?|/timeline/resolve)?$"
 )
 
 
@@ -171,6 +177,28 @@ class SessionWorkspaceDetachRequest(BaseModel):
 class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceTimingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    manual_offset_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    trim_start_seconds: float = Field(default=0, ge=0, allow_inf_nan=False)
+    trim_end_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    expected_revision: int = Field(ge=0)
+
+
+class SessionTimelineDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    earlier_part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    later_part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    decision: Literal[
+        "gap_acknowledged",
+        "prefer_earlier_until",
+        "prefer_later_from",
+    ] | None = None
+    boundary_seconds: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     expected_revision: int = Field(ge=0)
 
 
@@ -1411,6 +1439,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-timeline",
         ]
         catalog = profile_catalog(
             resolved_state_root,
