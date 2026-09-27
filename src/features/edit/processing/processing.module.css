@@ -126,6 +126,39 @@
 	max-height: min(56dvh, 620px);
 }
 
+.diagnosticsCore {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 10px;
+	min-width: 0;
+	min-height: 0;
+}
+
+.diagnosticsSummaryRail,
+.diagnosticsEventPane,
+.diagnosticsTools {
+	min-width: 0;
+}
+
+.diagnosticsSummaryRail {
+	display: grid;
+	align-content: start;
+	gap: 10px;
+}
+
+.diagnosticsSummaryRail > .systemDetails {
+	margin-bottom: 0;
+}
+
+.diagnosticsEventPane {
+	min-height: 0;
+}
+
+.diagnosticsTools {
+	display: grid;
+	gap: 8px;
+}
+
 .connection,
 .activeJob,
 .inspector,
@@ -1331,55 +1364,51 @@
 @media (min-width: 1440px) and (min-height: 820px) {
 	.inspectorFull {
 		display: grid;
-		grid-template-columns: minmax(260px, .38fr) minmax(0, 1.62fr);
-		grid-template-rows: auto auto minmax(230px, 1fr) auto;
-		column-gap: 12px;
+		grid-template-rows: auto minmax(0, 1fr) auto auto;
+		gap: 10px;
 		max-height: calc(100dvh - 168px);
 		overflow: hidden;
 	}
 
-	.inspectorFull > .inspectorHeader {
-		grid-column: 1 / -1;
-	}
-
-	.inspectorFull > .systemDetails {
-		grid-row: 2;
-		grid-column: 1;
+	.diagnosticsCore {
+		grid-template-columns: minmax(250px, .36fr) minmax(0, 1.64fr);
+		gap: 14px;
 		min-height: 0;
-		max-height: 32dvh;
-		overflow: auto;
+		overflow: hidden;
 	}
 
-	.inspectorFull > .jobDetails {
-		grid-row: 3;
-		grid-column: 1;
+	.diagnosticsSummaryRail {
 		align-self: start;
 		min-height: 0;
-		max-height: 34dvh;
-		overflow: auto;
 	}
 
-	.inspectorFull > .logHeader {
-		grid-row: 2;
-		grid-column: 2;
-		align-self: end;
+	.diagnosticsEventPane {
+		display: grid;
+		min-height: 0;
+		overflow: hidden;
 	}
 
-	.inspectorFull > .log {
-		grid-row: 3;
-		grid-column: 2;
+	.diagnosticsEventPane .liveLogExplorer {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		height: 100%;
+	}
+
+	.diagnosticsEventPane .log {
+		flex: 1 1 auto;
 		min-height: 0;
 		max-height: none;
-		height: 100%;
+		height: auto;
 		overscroll-behavior: contain;
 	}
 
-	.inspectorFull > [role="status"] {
-		grid-column: 2;
+	.diagnosticsTools {
+		align-self: end;
 	}
 
-	.inspectorFull > .integrationTool {
-		grid-column: 1 / -1;
+	.inspectorFull > [role="alert"] {
+		margin: 0;
 	}
 }
 
