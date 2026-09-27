@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
+	COMPLETED_RUN_DELETE_MINIMUM_VERSION,
 	QWEN_ALIGNMENT_RUNTIME_MINIMUM_VERSION,
 	supportsAutomaticLoopbackSession,
+	supportsCompletedRunDelete,
 	supportsQwenAlignmentRuntime,
 	supportsTerminalJobDelete,
 } from "./compatibility";
@@ -38,6 +40,25 @@ describe("processing compatibility", () => {
 		expect(supportsTerminalJobDelete(version)).toBe(expected);
 	});
 
+
+	it("publishes one minimum version for completed-run deletion", () => {
+		expect(COMPLETED_RUN_DELETE_MINIMUM_VERSION).toBe("0.3.16");
+	});
+
+	it.each([
+		[undefined, false],
+		[null, false],
+		["", false],
+		["0.3.14", false],
+		["0.3.15", false],
+		["0.3.16", true],
+		["0.3.16-rc.1", true],
+		["0.3.17", true],
+		["0.4.0", true],
+		["garbage", false],
+	])("completed-run deletion compatibility for %s", (version, expected) => {
+		expect(supportsCompletedRunDelete(version)).toBe(expected);
+	});
 
 	it.each([
 		[undefined, false],
