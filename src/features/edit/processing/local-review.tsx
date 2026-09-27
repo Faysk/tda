@@ -37,7 +37,7 @@ type Props = Readonly<{
 		sourceId: string,
 		runId: string,
 		transcriptSha256: string,
-	) => void | Promise<void>;
+	) => boolean | Promise<boolean>;
 	onSave: (
 		baseline: LocalReview,
 		status: LocalReviewStatus,
@@ -1082,12 +1082,12 @@ export function LocalReviewWorkspace({
 									variant="primary"
 									disabled={busy}
 									onClick={async () => {
-										await onDelete(
+										const deleted = await onDelete(
 											deleteCandidate.sourceId,
 											deleteCandidate.runId,
 											deleteCandidate.transcriptSha256,
 										);
-										setDeleteCandidate(null);
+										if (deleted) setDeleteCandidate(null);
 									}}
 								>
 									Excluir resultado local
