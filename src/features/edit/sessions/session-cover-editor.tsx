@@ -17,6 +17,7 @@ import {
 import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
 	type SessionCoverMediaMime,
+	isExistingPublishedSessionCoverReference,
 	isSessionCoverUuid,
 	sessionCoverPreviewUrl,
 } from "./session-cover-media";
@@ -57,36 +58,7 @@ function formatBytes(bytes: number): string {
 
 function safeExistingCoverUrl(value: string): string | undefined {
 	const raw = value.trim();
-	if (!raw) return undefined;
-	if (raw.startsWith("/assets/sessions/")) return raw;
-	try {
-		const url = new URL(raw);
-		if (
-			url.protocol !== "https:" ||
-			url.port ||
-			url.search ||
-			url.hash ||
-			url.username ||
-			url.password
-		) {
-			return undefined;
-		}
-		if (
-			url.hostname === "media.dnd.faysk.dev" &&
-			url.pathname.startsWith("/campaigns/yuhara-main/sessions/")
-		) {
-			return url.toString();
-		}
-		if (
-			url.hostname === "dnd.faysk.dev" &&
-			url.pathname.startsWith("/assets/sessions/")
-		) {
-			return url.toString();
-		}
-		return undefined;
-	} catch {
-		return undefined;
-	}
+	return isExistingPublishedSessionCoverReference(raw) ? raw : undefined;
 }
 
 function failureMessage(reason: string): string {
