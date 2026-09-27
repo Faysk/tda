@@ -2,8 +2,40 @@ from __future__ import annotations
 
 import pytest
 
+from tda_companion.store import Store
 from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
+
+
+def test_benchmark_idempotency_reuses_ambiguous_retry_but_allows_a_new_deliberate_run(tmp_path):
+    store = Store(tmp_path)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": "craig-" + "a" * 64,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": "b" * 64,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": [
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        ],
+        "prepared": True,
+    }
+
+    first = store.submit("benchmark-intent-1", body)
+    replay = store.submit("benchmark-intent-1", body)
+    second = store.submit("benchmark-intent-2", body)
+
+    assert replay["id"] == first["id"]
+    assert second["id"] != first["id"]
 
 
 def test_benchmark_worker_command_requires_exact_five_minute_sample():
