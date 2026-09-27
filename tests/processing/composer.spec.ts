@@ -108,7 +108,7 @@ test("local file validation blocks bad input before Companion upload", async ({ 
 
 test("idle composer expands and running work switches it to compact mode", async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await installCompanionFixture(page, { profileReady: true, advanceJobs: false });
+	const state = await installCompanionFixture(page, { profileReady: true, advanceJobs: false });
 	let composer = await openComposer(page);
 	const overview = page.locator("[data-processing-overview-top='true']");
 	await expect(overview).toHaveAttribute("data-mode", "idle");
@@ -117,11 +117,7 @@ test("idle composer expands and running work switches it to compact mode", async
 	const idleBox = await composer.boundingBox();
 	expect(idleBox?.width ?? 0).toBeGreaterThan(700);
 
-	await installCompanionFixture(page, {
-		profileReady: true,
-		advanceJobs: false,
-		initialJobs: [fixtureJob("running")],
-	});
+	state.setJob(fixtureJob("running"));
 	await page.reload();
 	composer = await openComposer(page);
 	await expect(overview).toHaveAttribute("data-mode", "running");
