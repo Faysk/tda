@@ -171,3 +171,235 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
         )
         assert attached.status_code == 200
         assert attached.json()["parts"][0]["source_id"] == SOURCE_A
+
+
+
+def test_participant_mapping_api_uses_discord_identity_and_persists_manual_resolution(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+
+    def track(number, speaker, *, username=None, discord_id=None):
+        return SimpleNamespace(
+            number=number,
+            speaker=speaker,
+            identity=SimpleNamespace(
+                username=username,
+                discriminator=None,
+                discord_id=discord_id,
+            ),
+            timeline_offset_seconds=0.0,
+            duration_seconds=60.0,
+        )
+
+    packages = {
+        SOURCE_A: SimpleNamespace(
+            start_time="2026-09-27T20:00:00Z",
+            tracks=(
+                track(1, "Renan", username="Renan", discord_id="111"),
+                track(2, "Guest", username="Guest"),
+            ),
+        ),
+        SOURCE_B: SimpleNamespace(
+            start_time="2026-09-27T21:00:00Z",
+            tracks=(
+                track(7, "Faysk", username="Faysk", discord_id="111"),
+                track(8, "Guest", username="Guest"),
+            ),
+        ),
+    }
+
+    def load_package(root, verify_tracks=False):
+        del verify_tracks
+        return packages[root.name]
+
+    monkeypatch.setattr(api_module, "load_craig_package", load_package)
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        capabilities = client.get("/api/v1/capabilities", headers=HEADERS)
+        assert capabilities.status_code == 200
+        assert "transcription.session-participants" in capabilities.json()["capabilities"]
+
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-map/session-map",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            response = client.post(
+                "/api/v1/session-workspaces/campaign-map/session-map/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            )
+            assert response.status_code == 200
+            workspace = response.json()
+
+        projection = client.get(
+            "/api/v1/session-workspaces/campaign-map/session-map/participants",
+            headers=HEADERS,
+        )
+        assert projection.status_code == 200
+        body = projection.json()
+        assert body["schema_version"] == "tda_session_participant_mapping_v1"
+        assert body["policy"] == "strong_discord_or_manual_v1"
+        assert body["workspace_revision"] == workspace["revision"]
+        assert body["approval_blocked"] is True
+        assert all(
+            participant["profile_id"] is None for participant in body["participants"]
+        )
+
+        renan_observations = [
+            row for row in body["observations"] if row["discord_id"] == "111"
+        ]
+        assert len(renan_observations) == 2
+        renan_participants = [
+            participant["participant_id"]
+            for participant in body["participants"]
+            if any(
+                observation["observation_id"] in participant["observation_ids"]
+                for observation in renan_observations
+            )
+        ]
+        assert len(set(renan_participants)) == 1
+        assert any(
+            conflict["code"] == "DISCORD_LABEL_DRIFT"
+            for conflict in body["conflicts"]
+        )
+
+        guests = [
+            row for row in body["observations"] if row["raw_speaker"] == "Guest"
+        ]
+        assert len(guests) == 2
+        assert any(
+            conflict["code"] == "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
+            for conflict in body["conflicts"]
+        )
+        unresolved_hash = body["mapping_sha256"]
+
+        manual_participant = "e" * 32
+        resolved = client.post(
+            "/api/v1/session-workspaces/campaign-map/session-map/participants",
+            headers=HEADERS,
+            json={
+                "expected_revision": workspace["revision"],
+                "assignments": [
+                    {
+                        "observation_id": observation["observation_id"],
+                        "participant_id": manual_participant,
+                    }
+                    for observation in guests
+                ],
+            },
+        )
+        assert resolved.status_code == 200
+        body = resolved.json()
+        assert body["workspace_revision"] == workspace["revision"] + 1
+        assert body["approval_blocked"] is False
+        assert body["mapping_sha256"] != unresolved_hash
+        assert any(
+            participant["participant_id"] == manual_participant
+            and participant["resolution"] == "manual"
+            and len(participant["observation_ids"]) == 2
+            for participant in body["participants"]
+        )
+        resolved_hash = body["mapping_sha256"]
+        serialized = resolved.text.lower()
+        assert str(tmp_path).lower() not in serialized
+        assert TOKEN.lower() not in serialized
+
+        stale = client.post(
+            "/api/v1/session-workspaces/campaign-map/session-map/participants",
+            headers=HEADERS,
+            json={
+                "expected_revision": workspace["revision"],
+                "assignments": [],
+            },
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "SESSION_WORKSPACE_REVISION_CONFLICT"
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(restarted, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-map/session-map/participants",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["mapping_sha256"] == resolved_hash
+        assert recovered.json()["approval_blocked"] is False
+
+
+def test_browser_session_is_scoped_to_participant_mapping_routes(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    package = SimpleNamespace(
+        start_time="2026-09-27T20:00:00Z",
+        tracks=(
+            SimpleNamespace(
+                number=1,
+                speaker="Guest",
+                identity=SimpleNamespace(
+                    username="Guest",
+                    discriminator=None,
+                    discord_id=None,
+                ),
+                timeline_offset_seconds=0.0,
+                duration_seconds=60.0,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: package,
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    _stage(data_root, SOURCE_A)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        session = client.post("/api/v1/session", headers={"Origin": ORIGIN}, json={})
+        assert session.status_code == 200
+        browser_headers = {
+            "Authorization": f"Bearer {session.json()['token']}",
+            "Origin": ORIGIN,
+        }
+        created = client.post(
+            "/api/v1/session-workspaces/campaign-browser/session-browser",
+            headers=browser_headers,
+            json={},
+        ).json()
+        attached = client.post(
+            "/api/v1/session-workspaces/campaign-browser/session-browser/parts",
+            headers=browser_headers,
+            json={"source_id": SOURCE_A, "expected_revision": created["revision"]},
+        ).json()
+
+        projection = client.get(
+            "/api/v1/session-workspaces/campaign-browser/session-browser/participants",
+            headers=browser_headers,
+        )
+        assert projection.status_code == 200
+        observation = projection.json()["observations"][0]
+
+        updated = client.post(
+            "/api/v1/session-workspaces/campaign-browser/session-browser/participants",
+            headers=browser_headers,
+            json={
+                "expected_revision": attached["revision"],
+                "assignments": [
+                    {
+                        "observation_id": observation["observation_id"],
+                        "participant_id": "f" * 32,
+                    }
+                ],
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["participants"][0]["participant_id"] == "f" * 32
+        assert updated.json()["participants"][0]["profile_id"] is None
