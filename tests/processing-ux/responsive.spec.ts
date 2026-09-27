@@ -409,6 +409,120 @@ test("desktop diagnostics gives the log its own scroll owner", async ({ page }) 
 	expect(ownership.logWidth).toBeGreaterThan(ownership.panelWidth * 0.5);
 });
 
+
+test("desktop diagnostics pairs the observed-job summary with the event explorer", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const core = page.locator("[data-diagnostics-core='true']");
+	const summary = page.locator("[data-diagnostics-summary='true']");
+	const events = page.locator("[data-diagnostics-events='true']");
+	const log = page.getByRole("log");
+	await expect(core).toBeVisible();
+	await expect(summary).toBeVisible();
+	await expect(events).toBeVisible();
+	await expect(log).toBeVisible();
+
+	const [coreBox, summaryBox, eventsBox] = await Promise.all([
+		core.boundingBox(),
+		summary.boundingBox(),
+		events.boundingBox(),
+	]);
+	expect(coreBox).not.toBeNull();
+	expect(summaryBox).not.toBeNull();
+	expect(eventsBox).not.toBeNull();
+	expect(Math.abs((summaryBox?.y ?? 0) - (eventsBox?.y ?? 0))).toBeLessThanOrEqual(2);
+	expect(eventsBox?.x ?? 0).toBeGreaterThan(
+		(summaryBox?.x ?? 0) + (summaryBox?.width ?? 0),
+	);
+	expect(eventsBox?.width ?? 0).toBeGreaterThan((coreBox?.width ?? 0) * 0.6);
+
+	const workLabel = summary.getByText("Trabalho", { exact: true });
+	const machineDisclosure = summary.getByText("Companion e máquina", { exact: true });
+	const [workBox, machineBox] = await Promise.all([
+		workLabel.boundingBox(),
+		machineDisclosure.boundingBox(),
+	]);
+	expect(workBox).not.toBeNull();
+	expect(machineBox).not.toBeNull();
+	expect(workBox?.y ?? 9999).toBeLessThan(machineBox?.y ?? 0);
+
+	const ownership = await page.evaluate(() => {
+		const summaryNode = document.querySelector<HTMLElement>(
+			"[data-diagnostics-summary='true']",
+		);
+		const logNode = document.querySelector<HTMLElement>("[role='log']");
+		return {
+			documentScrollHeight: document.documentElement.scrollHeight,
+			documentClientHeight: document.documentElement.clientHeight,
+			summaryScrollable: summaryNode
+				? summaryNode.scrollHeight > summaryNode.clientHeight + 1
+				: true,
+			logOverflowY: logNode ? getComputedStyle(logNode).overflowY : "",
+		};
+	});
+	expect(ownership.documentScrollHeight).toBeLessThanOrEqual(
+		ownership.documentClientHeight + 1,
+	);
+	expect(ownership.summaryScrollable).toBe(false);
+	expect(["auto", "scroll"]).toContain(ownership.logOverflowY);
+});
+
+test("diagnostics stacks summary before events on short and narrow viewports", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 960, height: 540 },
+		{ width: 1366, height: 768 },
+	]) {
+		await openRunningWorkspace(page, viewport.width, viewport.height);
+		await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+		const summary = page.locator("[data-diagnostics-summary='true']");
+		const events = page.locator("[data-diagnostics-events='true']");
+		const [summaryBox, eventsBox] = await Promise.all([
+			summary.boundingBox(),
+			events.boundingBox(),
+		]);
+		expect(summaryBox).not.toBeNull();
+		expect(eventsBox).not.toBeNull();
+		expect(eventsBox?.y ?? 0).toBeGreaterThanOrEqual(
+			(summaryBox?.y ?? 0) + (summaryBox?.height ?? 0) - 1,
+		);
+
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+	}
+});
+
+test("machine disclosure stays usable without displacing the event explorer", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const summary = page.locator("[data-diagnostics-summary='true']");
+	const events = page.locator("[data-diagnostics-events='true']");
+	const disclosure = summary.getByText("Companion e máquina", { exact: true });
+	await disclosure.click();
+	await expect(summary.locator("details")).toHaveAttribute("open", "");
+
+	await summary.getByText("Capabilities", { exact: true }).scrollIntoViewIfNeeded();
+	await expect(summary.getByText("Capabilities", { exact: true })).toBeVisible();
+	await expect(events.getByRole("log")).toBeVisible();
+
+	const eventBox = await events.boundingBox();
+	expect(eventBox).not.toBeNull();
+	expect((eventBox?.y ?? 0) + (eventBox?.height ?? 0)).toBeLessThanOrEqual(1080);
+});
+
 test("short desktop falls back to document flow instead of clipping nested owners", async ({
 	page,
 }) => {
