@@ -191,3 +191,48 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
 });
+
+test("benchmark workspace keeps source, readiness, and next action usable across target widths", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "qwen-fast"],
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	const sourceRegion = panel.locator('[data-benchmark-region="source"]');
+	const readinessRegion = panel.locator('[data-benchmark-region="readiness"]');
+	const nextAction = panel.locator('[data-benchmark-region="next-action"]');
+
+	await expect(sourceRegion).toBeVisible();
+	await expect(readinessRegion).toBeVisible();
+	await expect(nextAction).toContainText("Selecione a fonte que será comparada.");
+	await expect(panel.getByRole("button", { name: "Selecionar ZIP Craig" })).toBeVisible();
+	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
+
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+		{ width: 3840, height: 2160 },
+	]) {
+		await page.setViewportSize(viewport);
+		await expect(sourceRegion).toBeVisible();
+		await expect(readinessRegion).toBeVisible();
+		const hasHorizontalOverflow = await page.evaluate(
+			() => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+		);
+		expect(hasHorizontalOverflow).toBe(false);
+	}
+
+	await chooseZip(panel);
+	await expect(sourceRegion).toContainText("benchmark-craig.zip");
+	await expect(sourceRegion.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
+	await expect(nextAction).toContainText("Valide a amostra no Companion.");
+	await expect(
+		nextAction.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toBeEnabled();
+});
