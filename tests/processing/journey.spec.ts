@@ -107,7 +107,7 @@ test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page })
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila", exact: true }),
+		page.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
@@ -134,6 +134,8 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
+	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await expect.poll(() => state.uploadCount).toBe(1);
 	await page.getByRole("button", { name: "Preparar profile" }).click();
 
 	await expect
@@ -206,6 +208,8 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
+	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await expect.poll(() => state.uploadCount).toBe(1);
 
 	await page.getByRole("button", { name: "Adicionar à fila" }).click();
 	await expect(page.getByRole("alert")).toContainText(
@@ -235,7 +239,7 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
 	await expect(
-		page.getByRole("button", { name: "Adicionar à fila" }),
+		page.getByRole("button", { name: "Analisar ZIP localmente" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(
