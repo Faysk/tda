@@ -302,6 +302,7 @@ export function activityPackCatalog(
 			});
 		}
 	}
+	custom.sort((left, right) => left.id.localeCompare(right.id));
 	return [...CORE_ACTIVITY_BARKS, ...custom];
 }
 
