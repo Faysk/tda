@@ -376,6 +376,7 @@ export function RunComparisonView({
 						id={`run-comparison-region-${index}`}
 						key={region.id}
 						className={styles.region}
+						data-run-comparison-region="true"
 						data-kind={region.kind}
 						data-active={index === activeVisibleIndex ? "true" : "false"}
 					>

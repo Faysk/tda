@@ -1,5 +1,38 @@
 import { expect, test } from "@playwright/test";
 
+test("completed runs compare locally with source and time filters before an explicit base choice", async ({ page }, testInfo) => {
+	await page.goto("/?review-contracts&comparison");
+	await page.getByRole("button", { name: /whisper-detailed/ }).first().click();
+
+	const target = page.getByLabel("Segundo run para comparação");
+	await expect(target.locator("option")).toHaveCount(1);
+	await expect(target.locator("option").first()).toContainText("qwen-quality");
+	await expect(target).not.toContainText("other-source");
+
+	await page.getByRole("button", { name: "Comparar" }).click();
+	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toBeVisible();
+	await expect(page.getByText("Audio work", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Duração", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Tracks", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Turnos", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Revisão", { exact: true })).toHaveCount(2);
+
+	const regions = page.locator("[data-run-comparison-region='true']");
+	await expect(regions).toHaveCount(2);
+	await page.getByLabel("Início da faixa (s)").fill("9");
+	await page.getByLabel("Fim da faixa (s)").fill("12");
+	await expect(regions).toHaveCount(1);
+	await expect(regions.first()).toContainText("Versão A");
+	await expect(regions.first()).toContainText("Versão B");
+	await expect(regions.first()).toContainText("texto diferente");
+	await expect(page.getByText("Somente A", { exact: true })).toHaveCount(0);
+
+	await page.screenshot({ path: testInfo.outputPath("run-comparison.png"), fullPage: true });
+	await page.getByRole("button", { name: "Usar Run B como base" }).click();
+	await expect(page.getByTestId("opened-run-id")).toHaveText("run-synthetic-b2");
+	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
+});
+
 test("base remains unsaved until an explicit editorial action", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
