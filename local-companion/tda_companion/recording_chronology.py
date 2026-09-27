@@ -117,6 +117,9 @@ def derive_recording_chronology(
             raise ValueError("RECORDING_CHRONOLOGY_ORDER_INVALID")
 
         facts = source_facts.get(part_id, {})
+        source_available = bool(facts.get("available", bool(facts)))
+        if not source_available:
+            blocking.append(f"SOURCE_INVALID:{part_id}")
         start_time = facts.get("start_time")
         classified = classify_start_time(start_time)
         trusted_epoch = _trusted_epoch(start_time)
