@@ -528,9 +528,36 @@ export async function installCompanionFixture(
 			} catch {
 				return invalidRequest(route);
 			}
+			if (!idempotencyKey || !/^[A-Za-z0-9_-]{1,128}$/u.test(idempotencyKey))
+				return invalidRequest(route);
+			const benchmarkRequest = exactObject(payload, {
+				kind: "benchmark.craig",
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				source_id: CRAIG_SOURCE_ID,
+				glossary: "",
+				context: "",
+			});
+			if (benchmarkRequest && options.benchmarkProfiles) {
+				if (options.benchmarkSubmitError)
+					return json(
+						route,
+						{
+							error: {
+								code: options.benchmarkSubmitError,
+								recoverable: true,
+							},
+						},
+						409,
+					);
+				state.jobPostCount += 1;
+				state.idempotencyKeys.push(idempotencyKey);
+				state.job = fixtureBenchmarkJob("queued");
+				submittedJob = true;
+				jobsReads = 0;
+				return json(route, state.job);
+			}
 			if (
-				!idempotencyKey ||
-				!/^[A-Za-z0-9_-]{1,128}$/u.test(idempotencyKey) ||
 				!exactObject(payload, {
 					kind: "transcription.craig",
 					campaign_id: "yuhara-main",
@@ -566,8 +593,15 @@ export async function installCompanionFixture(
 				(options.advanceJobs ?? true)
 			) {
 				jobsReads += 1;
-				if (jobsReads === 2) state.job = fixtureJob("running");
-				else if (jobsReads >= 3) state.job = fixtureJob("succeeded");
+				const benchmark = state.job.kind === "benchmark.craig";
+				if (jobsReads === 2)
+					state.job = benchmark
+						? fixtureBenchmarkJob("running")
+						: fixtureJob("running");
+				else if (jobsReads >= 3)
+					state.job = benchmark
+						? fixtureBenchmarkJob("succeeded")
+						: fixtureJob("succeeded");
 			}
 			const status = state.job?.status;
 			if (typeof status === "string") state.jobStatusesServed.push(status);
