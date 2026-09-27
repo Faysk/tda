@@ -244,6 +244,31 @@ describe("calibrated processing estimator", () => {
 		});
 	});
 
+	it("rejects an identical GPU model from a different physical device", () => {
+		const otherGpu = run(0.6);
+		const lineage = otherGpu.executionLineage;
+		if (!lineage) throw new Error("fixture lineage missing");
+		otherGpu.executionLineage = {
+			...lineage,
+			executionDevice: {
+				kind: "cuda",
+				logicalIndex: 0,
+				physicalUuid: "GPU-22222222-2222-2222-2222-222222222222",
+				pciBusId: "00000000:02:00.0",
+			},
+		};
+		const estimate = estimateProfileProcessing({
+			audioWorkSeconds: 600,
+			profile,
+			system,
+			runs: [run(0.5), otherGpu],
+		});
+		expect(estimate).toMatchObject({
+			available: false,
+			reason: "insufficient_history",
+		});
+	});
+
 	it("rejects a run produced by different worker bytes under the same version", () => {
 		const mismatch = run(0.6);
 		const lineage = mismatch.executionLineage;
