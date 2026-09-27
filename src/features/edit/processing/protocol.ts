@@ -69,6 +69,11 @@ export type SessionWorkspacePart = {
 	ordinal: number;
 	selectedRunId: string | null;
 	sourceState: "ready" | "invalid";
+	manualOffsetSeconds: number | null;
+	trimStartSeconds: number | null;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapBoundarySeconds: number | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -77,9 +82,63 @@ export type SessionWorkspace = {
 	campaignId: string;
 	sessionId: string;
 	revision: number;
+	chronologyMode: "automatic" | "manual";
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+};
+export type SessionTimelineStartEvidence = {
+	classification: "trusted_absolute" | "ambiguous" | "opaque" | "missing";
+	raw: string | null;
+	epochSeconds: number | null;
+};
+export type SessionTimelinePart = {
+	partId: string;
+	sourceId: string;
+	workspaceOrdinal: number;
+	timelineOrdinal: number;
+	sourceState: "ready" | "invalid";
+	startTime: SessionTimelineStartEvidence;
+	durationSeconds: number | null;
+	manualOffsetSeconds: number | null;
+	trimStartSeconds: number | null;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapBoundarySeconds: number | null;
+	configurationValid: boolean;
+	placementAuthority: "trusted_absolute" | "manual" | "unresolved";
+	sessionOffsetSeconds: number | null;
+	effectiveStartSeconds: number | null;
+	effectiveEndSeconds: number | null;
+};
+export type SessionTimelineRelation = {
+	earlierPartId: string;
+	laterPartId: string;
+	kind: "contiguous" | "gap" | "overlap" | "unresolved";
+	seconds: number | null;
+	resolved: boolean;
+	resolution: string | null;
+	boundarySeconds: number | null;
+};
+export type SessionTimeline = {
+	schemaVersion: "tda_session_timeline_v1";
+	campaignId: string;
+	sessionId: string;
+	workspaceRevision: number;
+	chronologyMode: "automatic" | "manual";
+	segmentBoundaryPolicy: "segment_start_v1";
+	overlapPolicy: "split_boundary_v1";
+	configurationSha256: string;
+	approvalBlocked: boolean;
+	parts: SessionTimelinePart[];
+	relations: SessionTimelineRelation[];
+};
+export type SessionPartTimingInput = {
+	manualOffsetSeconds: number | null;
+	trimStartSeconds: number | null;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapBoundarySeconds: number | null;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
@@ -481,6 +540,11 @@ function nullableNonNegativeNumber(value: unknown): number | null {
 		return invalid();
 	return value;
 }
+function nullableFiniteNumber(value: unknown): number | null {
+	if (value === null || value === undefined) return null;
+	if (typeof value !== "number" || !Number.isFinite(value)) return invalid();
+	return value;
+}
 function nullablePercent(value: unknown): number | null {
 	const parsed = nullableNonNegativeNumber(value);
 	if (parsed !== null && parsed > 100) return invalid();
@@ -724,6 +788,9 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	const chronologyMode =
+		row.chronology_mode === undefined ? "automatic" : text(row.chronology_mode, 16);
+	if (chronologyMode !== "automatic" && chronologyMode !== "manual") return invalid();
 	const parts = row.parts.map((raw, index) => {
 		const part = record(raw);
 		const partId = text(part.part_id, 32);
@@ -743,6 +810,14 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					? null
 					: runIdentifier(part.selected_run_id),
 			sourceState,
+			manualOffsetSeconds: nullableNonNegativeNumber(part.manual_offset_seconds),
+			trimStartSeconds: nullableNonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			gapConfirmed:
+				part.gap_confirmed === undefined ? false : boolean(part.gap_confirmed),
+			overlapBoundarySeconds: nullableNonNegativeNumber(
+				part.overlap_boundary_seconds,
+			),
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -756,9 +831,112 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		revision: nonNegativeInteger(row.revision),
+		chronologyMode,
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+	};
+}
+
+export function parseSessionTimeline(value: unknown): SessionTimeline {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_timeline_v1") return invalid();
+	const chronologyMode = text(row.chronology_mode, 16);
+	if (chronologyMode !== "automatic" && chronologyMode !== "manual") return invalid();
+	if (row.segment_boundary_policy !== "segment_start_v1") return invalid();
+	if (row.overlap_policy !== "split_boundary_v1") return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	if (!Array.isArray(row.relations) || row.relations.length > 63) return invalid();
+
+	const parts = row.parts.map((raw, index) => {
+		const part = record(raw);
+		const start = record(part.start_time);
+		const classification = text(start.classification, 32);
+		if (
+			!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(
+				classification,
+			)
+		)
+			return invalid();
+		const authority = text(part.placement_authority, 32);
+		if (!["trusted_absolute", "manual", "unresolved"].includes(authority))
+			return invalid();
+		const sourceState = text(part.source_state, 16);
+		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
+		const partId = text(part.part_id, 32);
+		const sourceId = identifier(part.source_id);
+		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
+		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
+		const timelineOrdinal = nonNegativeInteger(part.timeline_ordinal);
+		if (timelineOrdinal !== index) return invalid();
+		return {
+			partId,
+			sourceId,
+			workspaceOrdinal: nonNegativeInteger(part.workspace_ordinal),
+			timelineOrdinal,
+			sourceState,
+			startTime: {
+				classification: classification as SessionTimelineStartEvidence["classification"],
+				raw:
+					start.raw === null || start.raw === undefined ? null : text(start.raw, 128),
+				epochSeconds: nullableFiniteNumber(start.epoch_seconds),
+			},
+			durationSeconds: nullableNonNegativeNumber(part.duration_seconds),
+			manualOffsetSeconds: nullableNonNegativeNumber(part.manual_offset_seconds),
+			trimStartSeconds: nullableNonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			gapConfirmed: boolean(part.gap_confirmed),
+			overlapBoundarySeconds: nullableNonNegativeNumber(
+				part.overlap_boundary_seconds,
+			),
+			configurationValid: boolean(part.configuration_valid),
+			placementAuthority: authority as SessionTimelinePart["placementAuthority"],
+			sessionOffsetSeconds: nullableNonNegativeNumber(part.session_offset_seconds),
+			effectiveStartSeconds: nullableNonNegativeNumber(part.effective_start_seconds),
+			effectiveEndSeconds: nullableNonNegativeNumber(part.effective_end_seconds),
+		} satisfies SessionTimelinePart;
+	});
+	if (new Set(parts.map((part) => part.partId)).size !== parts.length)
+		return invalid();
+	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
+		return invalid();
+
+	const partIds = new Set(parts.map((part) => part.partId));
+	const relations = row.relations.map((raw) => {
+		const relation = record(raw);
+		const earlierPartId = text(relation.earlier_part_id, 32);
+		const laterPartId = text(relation.later_part_id, 32);
+		if (!partIds.has(earlierPartId) || !partIds.has(laterPartId))
+			return invalid();
+		const kind = text(relation.kind, 16);
+		if (!["contiguous", "gap", "overlap", "unresolved"].includes(kind))
+			return invalid();
+		return {
+			earlierPartId,
+			laterPartId,
+			kind: kind as SessionTimelineRelation["kind"],
+			seconds: nullableNonNegativeNumber(relation.seconds),
+			resolved: boolean(relation.resolved),
+			resolution:
+				relation.resolution === null || relation.resolution === undefined
+					? null
+					: text(relation.resolution, 64),
+			boundarySeconds: nullableNonNegativeNumber(relation.boundary_seconds),
+		} satisfies SessionTimelineRelation;
+	});
+
+	return {
+		schemaVersion: "tda_session_timeline_v1",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		workspaceRevision: nonNegativeInteger(row.workspace_revision),
+		chronologyMode,
+		segmentBoundaryPolicy: "segment_start_v1",
+		overlapPolicy: "split_boundary_v1",
+		configurationSha256: sha256(row.configuration_sha256),
+		approvalBlocked: boolean(row.approval_blocked),
+		parts,
+		relations,
 	};
 }
 
