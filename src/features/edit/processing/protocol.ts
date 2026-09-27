@@ -108,7 +108,6 @@ export type SessionChronologyRelation = {
 		mode: "prefer_earlier_until" | "prefer_later_from";
 		boundarySeconds: number;
 		segmentPolicy: "segment_start_owner_v1";
-		segmentPolicy: "segment_start_owner_v1";
 	}> | null;
 };
 export type SessionChronology = {
