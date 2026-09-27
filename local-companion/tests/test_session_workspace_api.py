@@ -35,7 +35,7 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
     monkeypatch.setattr(
         api_module,
         "load_craig_package",
-        lambda _root, verify_tracks=False: SimpleNamespace(),
+        lambda _root, verify_tracks=False: SimpleNamespace(start_time=None, tracks=()),
     )
 
     app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
@@ -145,7 +145,7 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
     monkeypatch.setattr(
         api_module,
         "load_craig_package",
-        lambda _root, verify_tracks=False: SimpleNamespace(),
+        lambda _root, verify_tracks=False: SimpleNamespace(start_time=None, tracks=()),
     )
     app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
     _stage(data_root, SOURCE_A)
@@ -171,3 +171,155 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
         )
         assert attached.status_code == 200
         assert attached.json()["parts"][0]["source_id"] == SOURCE_A
+
+
+
+def test_session_workspace_chronology_derives_trusted_offsets_and_persists_manual_resolution(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+
+    def package(root, verify_tracks=False):
+        source_id = Path(root).name
+        if source_id == SOURCE_A:
+            return SimpleNamespace(
+                start_time="2026-09-27T20:00:00Z",
+                tracks=(SimpleNamespace(timeline_offset_seconds=0.0, duration_seconds=60.0),),
+            )
+        if source_id == SOURCE_B:
+            return SimpleNamespace(
+                start_time="2026-09-27T21:01:30+01:00",
+                tracks=(SimpleNamespace(timeline_offset_seconds=0.0, duration_seconds=45.0),),
+            )
+        raise ValueError("unknown synthetic source")
+
+    monkeypatch.setattr(api_module, "load_craig_package", package)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        capabilities = client.get("/api/v1/capabilities", headers=HEADERS)
+        assert capabilities.status_code == 200
+        assert "transcription.session-chronology" in capabilities.json()["capabilities"]
+
+        created = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a",
+            headers=HEADERS,
+            json={},
+        ).json()
+        first = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts",
+            headers=HEADERS,
+            json={"source_id": SOURCE_A, "expected_revision": created["revision"]},
+        ).json()
+        second = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts",
+            headers=HEADERS,
+            json={"source_id": SOURCE_B, "expected_revision": first["revision"]},
+        ).json()
+
+        assert second["chronology"]["parts"][0]["session_offset_seconds"] == 0.0
+        assert second["chronology"]["parts"][1]["session_offset_seconds"] == 90.0
+        assert second["chronology"]["relations"][0]["kind"] == "gap"
+        assert second["chronology"]["relations"][0]["seconds"] == 30.0
+        assert second["chronology"]["ready_for_assembly"] is False
+        part_b = second["parts"][1]["part_id"]
+
+        confirmed = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timeline",
+            headers=HEADERS,
+            json={
+                "part_id": part_b,
+                "expected_revision": second["revision"],
+                "session_offset_seconds": None,
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": True,
+                "overlap_resolution": None,
+                "overlap_boundary_seconds": None,
+            },
+        )
+        assert confirmed.status_code == 200
+        body = confirmed.json()
+        assert body["chronology"]["ready_for_assembly"] is True
+        confirmed_sha = body["chronology"]["sha256"]
+
+        overlapped = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timeline",
+            headers=HEADERS,
+            json={
+                "part_id": part_b,
+                "expected_revision": body["revision"],
+                "session_offset_seconds": 30.0,
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": False,
+                "overlap_resolution": None,
+                "overlap_boundary_seconds": None,
+            },
+        )
+        assert overlapped.status_code == 200
+        body = overlapped.json()
+        assert body["chronology"]["relations"][0]["kind"] == "overlap"
+        assert body["chronology"]["relations"][0]["seconds"] == 30.0
+        assert body["chronology"]["ready_for_assembly"] is False
+        assert body["chronology"]["sha256"] != confirmed_sha
+
+        resolved = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timeline",
+            headers=HEADERS,
+            json={
+                "part_id": part_b,
+                "expected_revision": body["revision"],
+                "session_offset_seconds": 30.0,
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": False,
+                "overlap_resolution": "prefer_later_from",
+                "overlap_boundary_seconds": 45.0,
+            },
+        )
+        assert resolved.status_code == 200
+        body = resolved.json()
+        assert body["chronology"]["ready_for_assembly"] is True
+        assert body["chronology"]["relations"][0]["overlap_resolution"] == {
+            "version": "boundary_v1",
+            "mode": "prefer_later_from",
+            "boundary_seconds": 45.0,
+            "segment_policy": "segment_start_owner_v1",
+        }
+        revision = body["revision"]
+        resolved_sha = body["chronology"]["sha256"]
+
+        stale = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timeline",
+            headers=HEADERS,
+            json={
+                "part_id": part_b,
+                "expected_revision": second["revision"],
+                "session_offset_seconds": 90.0,
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": True,
+                "overlap_resolution": None,
+                "overlap_boundary_seconds": None,
+            },
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "SESSION_WORKSPACE_REVISION_CONFLICT"
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(restarted, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-a/session-a",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        body = recovered.json()
+        assert body["revision"] == revision
+        assert body["parts"][1]["session_offset_seconds"] == 30.0
+        assert body["parts"][1]["overlap_resolution"] == "prefer_later_from"
+        assert body["chronology"]["ready_for_assembly"] is True
+        assert body["chronology"]["sha256"] == resolved_sha
