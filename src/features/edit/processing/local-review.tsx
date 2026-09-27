@@ -475,7 +475,7 @@ function ReviewEditor({
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
     async function abandonPublication() {
-        if (!publicationRecovery?.pending || !window.confirm("A publicação anterior pode ter sido concluída. Abandonar a recuperação permite criar outra revisão. Continuar?")) return;
+        if (!publicationRecovery?.pending || !window.confirm("O handoff anterior pode ter sido concluído. Abandonar a recuperação permite criar outra revisão privada. Continuar?")) return;
         setPublishing(true); setPublishConfirmation(false);
         try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationError(null); }
         catch (cause) { setPublicationRecovery(null); setPublicationError(recoveryError(cause)); }
@@ -599,7 +599,7 @@ function ReviewEditor({
 							disabled={publishing}
 							onClick={() => void confirmPublication()}
 						>
-							{publishing ? "Preparando…" : "Confirmar publicação"}
+							{publishing ? "Preparando…" : "Preparar sessão"}
 						</Button>
 					</div>
 				</section>
@@ -1019,7 +1019,7 @@ export function LocalReviewWorkspace({
 	function requestDelete(run: LocalRunSummary) {
 		setDeleteError(null);
 		if (browserHasPendingPublicationForRun(run.sourceId, run.runId)) {
-			setDeleteError("Existe uma publicação não reconciliada para este resultado. Reabra a revisão e reconcilie ou abandone a recuperação antes de excluir.");
+			setDeleteError("Existe um handoff privado não reconciliado para este resultado. Reabra a revisão e reconcilie ou abandone a recuperação antes de excluir.");
 			return;
 		}
 		setDeleteTarget(run);
@@ -1175,7 +1175,7 @@ export function LocalReviewWorkspace({
 			) : (
 				<p className={styles.emptyCompact}>
 					Nenhum resultado local concluído ainda.
-					<span> Runs concluídos aparecem aqui sem publicação automática.</span>
+					<span> Runs concluídos aparecem aqui sem handoff automático para o Edit.</span>
 				</p>
 			)}
 			{deleteError ? <p className={styles.deleteError} role="alert">{deleteError}</p> : null}
@@ -1192,7 +1192,7 @@ export function LocalReviewWorkspace({
 						<h3>Excluir resultado local?</h3>
 						<p><strong>{deleteTarget.profileId}</strong> · {formatDate(deleteTarget.completedAt)}</p>
 						<p>Serão removidos deste computador o transcript, detalhes técnicos e a revisão local vinculada a este run.</p>
-						<p>A source Craig e os outros resultados permanecem. Uma publicação já feita no TDA não será desfeita.</p>
+						<p>A source Craig e os outros resultados permanecem. Um handoff privado já confirmado no TDA não será desfeito.</p>
 						<div className={styles.deleteDialogActions}>
 							<Button variant="tertiary" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
 							<Button variant="primary" disabled={busy} onClick={() => void confirmDelete()}>
