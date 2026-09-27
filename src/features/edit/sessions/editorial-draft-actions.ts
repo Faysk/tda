@@ -7,6 +7,11 @@ import {
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { getSessionCoverAssetStatusAction } from "./session-cover-media-actions";
+import {
+	isExistingPublishedSessionCoverReference,
+	isSessionCoverUuid,
+} from "./session-cover-media";
 import {
 	type SessionEditorialDraftInput,
 	validateSessionEditorialDraftInput,
@@ -32,7 +37,15 @@ export async function saveSessionEditorialDraftAction(
 			issues: ["identity"] as const,
 		};
 	}
-	const issues = validateSessionEditorialDraftInput(input);
+	const issues = [...validateSessionEditorialDraftInput(input)];
+	const coverReference = input.coverAssetId.trim();
+	if (
+		coverReference &&
+		!isSessionCoverUuid(coverReference) &&
+		!isExistingPublishedSessionCoverReference(coverReference)
+	) {
+		issues.push("cover_asset_unverified");
+	}
 	if (issues.length) {
 		return { ok: false as const, reason: "validation" as const, issues };
 	}
@@ -64,6 +77,26 @@ export async function saveSessionEditorialDraftAction(
 				reason: access.reason,
 				issues: [access.reason],
 			};
+
+		if (coverReference && isSessionCoverUuid(coverReference)) {
+			const cover = await getSessionCoverAssetStatusAction(
+				input.sessionId,
+				coverReference,
+			);
+			if (!cover.ok) {
+				if (cover.reason === "dependency_unavailable")
+					return {
+						ok: false as const,
+						reason: "dependency_unavailable" as const,
+						issues: ["dependency_unavailable"] as const,
+					};
+				return {
+					ok: false as const,
+					reason: "validation" as const,
+					issues: ["cover_asset_unverified"] as const,
+				};
+			}
+		}
 
 		const result = await persistSessionEditorialDraft(access.profileId, input);
 		if (!result.ok) {
