@@ -3,6 +3,7 @@ import { LocalBridge } from "./bridge";
 import {
 	BridgeError,
 	parseLocalReview,
+	parseLocalRunComparisonProjection,
 	parseLocalRuns,
 	parseLocalSources,
 	type LocalReviewSegment,
@@ -113,6 +114,28 @@ function rawReview(
 		},
 		segments,
 		sync: { status: "not_configured" },
+	};
+}
+
+function rawComparison() {
+	return {
+		schema_version: "tda_run_comparison_projection_v1",
+		source_id: sourceId,
+		run_id: runId,
+		transcript_sha256: transcriptSha,
+		segments: [
+			{
+				track_number: 1,
+				segment_id: "1-0",
+				start: 0.1,
+				end: 0.9,
+				timeline_start: 12.1,
+				timeline_end: 12.9,
+				text: "Texto bruto",
+				speaker: "Alice",
+				reviewed: false,
+			},
+		],
 	};
 }
 
@@ -551,6 +574,48 @@ describe("local result/review contracts", () => {
 			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
 		).toBe(false);
 	});
+	it("parses a raw comparison projection with absolute timeline coordinates", () => {
+		const parsed = parseLocalRunComparisonProjection(rawComparison());
+		expect(parsed).toMatchObject({
+			schemaVersion: "tda_run_comparison_projection_v1",
+			sourceId,
+			runId,
+			transcriptSha256: transcriptSha,
+		});
+		expect(parsed.segments[0]).toMatchObject({
+			trackNumber: 1,
+			segmentId: "1-0",
+			start: 0.1,
+			end: 0.9,
+			timelineStart: 12.1,
+			timelineEnd: 12.9,
+			text: "Texto bruto",
+			speaker: "Alice",
+			reviewed: false,
+		});
+		const invalidTimeline = rawComparison();
+		invalidTimeline.segments[0].timeline_end = 13.2;
+		expect(() => parseLocalRunComparisonProjection(invalidTimeline)).toThrow();
+		const editorialLeak = rawComparison();
+		editorialLeak.segments[0].reviewed = true;
+		expect(() => parseLocalRunComparisonProjection(editorialLeak)).toThrow();
+	});
+
+	it("loads comparison bytes from the dedicated GET route, never the review route", async () => {
+		const payload = rawComparison();
+		payload.segments[0].text = "x".repeat(95_000);
+		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+		const projection = await bridge.localRunComparison(sourceId, runId, signal());
+		expect(projection.segments[0].text).toHaveLength(95_000);
+		expect(request).toHaveBeenCalledWith(
+			`http://127.0.0.1:8765/api/v1/sources/${sourceId}/runs/${runId}/comparison`,
+			expect.objectContaining({ method: "GET" }),
+		);
+		expect(request.mock.calls.some(([url]) => String(url).endsWith("/review"))).toBe(false);
+	});
+
 });
 
 it("parses exact runtime artifacts without retroactively inventing legacy identity", () => {
