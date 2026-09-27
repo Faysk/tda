@@ -67,6 +67,8 @@ def facts(seed: int, *, start: str | None, duration: float):
             "2026-09-27T21:00:00Z",
         ),
         ("2026-09-27T21:00:00", "ambiguous", None),
+        ("21:00:00", "ambiguous", None),
+        ("21:00:00+01:00", "ambiguous", None),
         ("Craig sometime after dinner", "opaque", None),
         (None, "missing", None),
     ],
@@ -112,7 +114,7 @@ def test_automatic_placement_requires_every_source_to_have_absolute_time():
         automatic_placements(parts, ambiguous)
 
 
-def test_equal_absolute_starts_use_stable_part_identity_tiebreak():
+def test_equal_absolute_starts_require_manual_order_instead_of_synthetic_tiebreak():
     parts = [
         part(2, 0, offset=None),
         part(1, 1, offset=None),
@@ -124,13 +126,21 @@ def test_equal_absolute_starts_use_stable_part_identity_tiebreak():
         ]
     )
 
-    placements = automatic_placements(parts, source_facts)
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS"
+    ):
+        automatic_placements(parts, source_facts)
 
-    assert [item["part_id"] for item in placements] == [
-        f"{1:032x}",
-        f"{2:032x}",
-    ]
-    assert [item["session_offset_seconds"] for item in placements] == [0.0, 0.0]
+
+def test_explicit_dst_offsets_preserve_absolute_meaning():
+    summer = classify_start_time("2026-10-25T01:30:00+01:00")
+    same_instant = classify_start_time("2026-10-25T00:30:00Z")
+    winter_offset = classify_start_time("2026-10-25T01:30:00+00:00")
+
+    assert summer["confidence"] == "trusted_absolute"
+    assert summer["instant_utc"] == same_instant["instant_utc"]
+    assert winter_offset["confidence"] == "trusted_absolute"
+    assert winter_offset["instant_utc"] != summer["instant_utc"]
 
 
 def test_gap_overlap_and_resolution_are_explicit_and_deterministic():
