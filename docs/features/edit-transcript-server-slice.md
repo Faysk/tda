@@ -247,3 +247,23 @@ Depois da aplicação controlada e verificação remota do SQL transacional, Aut
 3. validar conflito real ponta a ponta com a revision já entregue pela leitura;
 4. trocar a UI para a mutation canônica;
 5. remover `TDA_EDIT_UNSAFE` e `unsafe-mutation.ts` em recorte próprio, sem misturar essa remoção com a migration de banco.
+
+
+## Leitura editorial contínua da sessão (#790)
+
+A workspace privada `/edit/sessoes/[id]` passa a tratar a **current transcript revision** como fonte autoritativa quando `sessions.current_transcript_revision_id` existe. A leitura resolve o ponteiro uma vez e busca exatamente aquela revision imutável; se o ponteiro estiver inválido ou a revision não puder ser validada, a UI falha fechada e **não** mistura nem faz fallback silencioso para `transcript_segments`.
+
+Sessões históricas sem `current_transcript_revision_id` continuam legíveis por compatibilidade, mas a origem é apresentada explicitamente como `transcript_segments` legado. Esse fallback só existe quando nenhum handoff moderno foi ativado.
+
+A experiência normal é read-first:
+
+- timeline global ordenada por `start -> end -> track_number -> segment_id`;
+- overlaps e empates permanecem como falas independentes;
+- timestamp suporta sessões acima de uma hora e preserva milissegundos no contrato/export;
+- a tela não expõe paginação por lote; o DOM cresce progressivamente conforme o scroll;
+- busca por texto/speaker e jump por timestamp operam sobre o snapshot completo;
+- edição de fala não é misturada ao estado normal desta workspace.
+
+O download Markdown usa o mesmo boundary privado e a mesma capability `campaign.transcript.read`. Cada request captura uma única revision/snapshot e gera o arquivo somente a partir dela, com `Content-Type: text/markdown; charset=utf-8`, `Content-Disposition: attachment` e `Cache-Control: private, no-store`. Falhas de autorização por capability/scope são colapsadas para `not_found` onde necessário para evitar disclosure cross-campaign; conteúdo da transcript não vira asset público nem entra em rota pública.
+
+A exportação preserva Unicode no corpo, sanitiza apenas o nome do arquivo e não inclui por padrão paths locais, hardware, tokens, operation ids ou lineage técnico irrelevante.
