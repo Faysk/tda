@@ -110,6 +110,7 @@ def _client(tmp_path: Path) -> TestClient:
         source_gate=api.state.source_gate,
         source_running=api.state.source_in_use,
         run_visible=api.state.transcription_run_visible,
+        mark_result_deleted=api.state.store.mark_result_deleted,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -594,3 +595,135 @@ def test_run_discovery_preflight_allows_only_get_authorization(tmp_path: Path):
         )
         assert rejected.status_code == 403
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
+
+
+
+def test_browser_can_delete_exact_completed_run_without_erasing_job_truth(tmp_path: Path):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        ingested = client.post(
+            "/api/v1/sources/craig",
+            headers=headers,
+            content=payload,
+        )
+        assert ingested.status_code == 200
+        source_id = ingested.json()["source_id"]
+        package_root = client.app.app.state.data_root / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="delete-local-run",
+        )
+        run = write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+        assert store.progress(
+            job["id"],
+            1,
+            completed=1,
+            total=1,
+            stage="transcribing",
+        )
+        assert store.complete(
+            job["id"],
+            1,
+            {
+                "schema_version": "tda_local_result_v1",
+                "transcription": {
+                    "run_id": run["run_id"],
+                    "sha256": run["transcript_sha256"],
+                },
+            },
+        )
+
+        response = client.post(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/delete",
+            headers={
+                "Authorization": f"Bearer {TOKEN}",
+                "Origin": ORIGIN,
+                "Content-Type": "application/json",
+            },
+            json={"transcript_sha256": run["transcript_sha256"]},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "schema_version": "tda_local_run_delete_receipt_v1",
+            "source_id": source_id,
+            "run_id": run["run_id"],
+            "transcript_sha256": run["transcript_sha256"],
+            "deleted": True,
+            "review_deleted": False,
+            "cloud_changed": False,
+        }
+        assert store.get(job["id"])["status"] == "succeeded"
+        assert store.get(job["id"])["result_available"] is False
+
+        listed = client.get(
+            f"/api/v1/sources/{source_id}/runs",
+            headers={"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN},
+        )
+        assert listed.status_code == 200
+        assert listed.json()["runs"] == []
+
+        result = client.get(
+            f"/api/v1/jobs/{job['id']}/result",
+            headers={"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN},
+        )
+        assert result.status_code == 409
+        assert result.json()["error"]["code"] == "RESULT_DELETED_LOCAL"
+
+
+def test_delete_endpoint_rejects_stale_sha_and_busy_source(tmp_path: Path):
+    payload = _payload()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    with _client(tmp_path) as client:
+        ingested = client.post("/api/v1/sources/craig", headers=headers, content=payload)
+        source_id = ingested.json()["source_id"]
+        package_root = client.app.app.state.data_root / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+        run = write_completed_run(
+            package_root,
+            _document(package),
+            job_id="standalone-delete",
+            attempt=1,
+        )
+
+        stale = client.post(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/delete",
+            headers={
+                "Authorization": f"Bearer {TOKEN}",
+                "Origin": ORIGIN,
+                "Content-Type": "application/json",
+            },
+            json={"transcript_sha256": "0" * 64},
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "LOCAL_RUN_DELETE_STALE"
+
+        store, job = _running_job_for_source(client, source_id, key="busy-delete")
+        busy = client.post(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/delete",
+            headers={
+                "Authorization": f"Bearer {TOKEN}",
+                "Origin": ORIGIN,
+                "Content-Type": "application/json",
+            },
+            json={"transcript_sha256": run["transcript_sha256"]},
+        )
+        assert busy.status_code == 409
+        assert busy.json()["error"]["code"] == "LOCAL_RUN_DELETE_SOURCE_BUSY"
+        assert store.get(job["id"])["status"] == "running"
