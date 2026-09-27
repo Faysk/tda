@@ -593,6 +593,9 @@ export function ProcessingSubmission({
 		}
 	}
 
+	const selectedEstimate = selectedProfile
+		? profileEstimates.get(selectedProfile.id)
+		: undefined;
 	const readiness = profileReadinessCopy(selectedProfile);
 	const readinessReason =
 		selectedProfile?.reason && !selectedProfile.ready
@@ -871,10 +874,10 @@ export function ProcessingSubmission({
 								</span>
 							</div>
 							<small>
-								{profileEstimates.get(selectedProfile.id)?.available
+								{selectedEstimate?.available
 									? `Estimativa ${formatEstimateRange(
-											profileEstimates.get(selectedProfile.id)!.lowerSeconds,
-											profileEstimates.get(selectedProfile.id)!.upperSeconds,
+											selectedEstimate.lowerSeconds,
+											selectedEstimate.upperSeconds,
 										)}`
 									: "Sem calibração compatível nesta máquina."}
 							</small>
