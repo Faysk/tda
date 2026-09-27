@@ -348,7 +348,7 @@ describe("session workspace bridge", () => {
 				},
 			],
 		};
-		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(mapping));
+		const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(mapping));
 		const bridge = new LocalBridge(request);
 		bridge.pair(token);
 
