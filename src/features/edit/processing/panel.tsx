@@ -38,7 +38,7 @@ import {
 	estimateRemainingProcessing,
 	formatEstimateRange,
 } from "./processing-estimator";
-import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
+import type { BenchmarkResult, JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -297,6 +297,7 @@ export function ProcessingPanel({
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const [logMode, setLogMode] = useState<"humanized" | "technical">("humanized");
 	const [clockNow, setClockNow] = useState(() => Date.now());
+	const [benchmarkResults, setBenchmarkResults] = useState<readonly BenchmarkResult[]>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -364,6 +365,7 @@ export function ProcessingPanel({
 		audioWorkSeconds: activeJob?.context?.audioWorkSeconds ?? null,
 		profile: activeProfile,
 		runs: state.localRuns,
+		benchmarks: benchmarkResults,
 		system: state.system,
 	});
 	const activeRemaining =
@@ -700,7 +702,11 @@ export function ProcessingPanel({
 														medium: "média",
 														low: "baixa",
 													}[activeEstimate.confidence]}{" "}
-													· {activeEstimate.sampleCount} runs locais compatíveis
+													· {activeEstimate.source === "benchmark"
+									? `${activeEstimate.benchmarkSampleCount} benchmark local`
+									: activeEstimate.source === "local_runs+benchmark"
+										? `${activeEstimate.runSampleCount} run local + ${activeEstimate.benchmarkSampleCount} benchmark`
+										: `${activeEstimate.runSampleCount} runs locais compatíveis`}
 												</span>
 											</div>
 										) : null}
@@ -804,6 +810,7 @@ export function ProcessingPanel({
 								className={styles.submissionCard}
 								compact
 								runs={state.localRuns}
+								benchmarks={benchmarkResults}
 								system={state.system}
 							/>
 						</div>
@@ -996,6 +1003,7 @@ export function ProcessingPanel({
 							connected={connected}
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onResultsChange={setBenchmarkResults}
 						/>
 					</section>
 
