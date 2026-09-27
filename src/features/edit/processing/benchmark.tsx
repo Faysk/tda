@@ -99,70 +99,99 @@ function bridgeMessage(error: unknown, fallback: string): string {
 }
 
 function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
+	const hardware =
+		result.profiles
+			.map((profile) => profile.executionLineage?.gpu?.model)
+			.find((value): value is string => Boolean(value)) ?? "Hardware não informado";
+	const warnings = result.profiles.reduce(
+		(total, profile) => total + profile.warningCount,
+		0,
+	);
+
 	return (
-		<article className={styles.resultCard}>
-			<header className={styles.resultHeader}>
-				<div>
-					<span className={styles.eyebrow}>Benchmark local · 5:00</span>
-					<h3>Quatro perfis · mesma amostra</h3>
+		<details className={styles.resultReceipt}>
+			<summary>
+				<div className={styles.receiptIdentity}>
+					<span className={styles.receiptDot} aria-hidden="true" />
+					<span>
+						<strong>Quatro perfis · mesma amostra</strong>
+						<small>
+							Sample {result.sampleIdentitySha256.slice(0, 12)}… · {result.trackCount} tracks
+						</small>
+					</span>
 				</div>
-				<StatusPill tone="success">Concluído</StatusPill>
-			</header>
-			<div className={styles.receiptFacts}>
-				<span title={result.sampleIdentitySha256}>
-					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
-				</span>
-				<span>{result.trackCount} tracks</span>
-				<span>{formatSeconds(result.audioWorkSeconds)} de trabalho de áudio</span>
-				<span>{result.prepared ? "Artefatos preparados" : "Preparação desconhecida"}</span>
-				<span>Worker novo por perfil · model load incluído</span>
-			</div>
-			<div className={styles.tableWrap}>
-				<table>
-					<thead>
-						<tr>
-							<th>Perfil</th>
-							<th>Tempo</th>
-							<th>RTF</th>
-							<th>× realtime</th>
-							<th>Palavras</th>
-							<th>Segmentos</th>
-							<th>Avisos</th>
-							<th>Runtime / compute</th>
-						</tr>
-					</thead>
-					<tbody>
-						{result.profiles.map((profile) => (
-							<tr key={profile.profileId}>
-								<th scope="row">{LABELS[profile.profileId]}</th>
-								<td>{formatSeconds(profile.processingSeconds)}</td>
-								<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
-								<td>{formatRealtime(profile.rtf)}</td>
-								<td>{profile.wordCount}</td>
-								<td>{profile.segmentCount}</td>
-								<td>{profile.warningCount}</td>
-								<td>
-									{[
-										profile.executionLineage?.runtimeVersion,
-										profile.computeType,
-										profile.executionLineage?.gpu?.model,
-									]
-										.filter(Boolean)
-										.join(" · ") || "—"}
-								</td>
+				<div className={styles.receiptSummary}>
+					<span>{hardware}</span>
+					<span>{warnings} aviso{warnings === 1 ? "" : "s"}</span>
+					<span>Concluído</span>
+					<span>Abrir receipt</span>
+				</div>
+			</summary>
+
+			<div className={styles.receiptBody}>
+				<header className={styles.resultHeader}>
+					<div>
+						<span className={styles.eyebrow}>Benchmark local · 5:00</span>
+						<h3>Receipt comparável</h3>
+					</div>
+					<StatusPill tone="success">Concluído</StatusPill>
+				</header>
+				<div className={styles.receiptFacts}>
+					<span title={result.sampleIdentitySha256}>
+						Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
+					</span>
+					<span>{result.trackCount} tracks</span>
+					<span>{formatSeconds(result.audioWorkSeconds)} de trabalho de áudio</span>
+					<span>{result.prepared ? "Artefatos preparados" : "Preparação desconhecida"}</span>
+					<span>Worker novo por perfil · model load incluído</span>
+				</div>
+				<div className={styles.tableWrap}>
+					<table>
+						<thead>
+							<tr>
+								<th>Perfil</th>
+								<th>Tempo</th>
+								<th>RTF</th>
+								<th>× realtime</th>
+								<th>Palavras</th>
+								<th>Segmentos</th>
+								<th>Avisos</th>
+								<th>Runtime / compute</th>
 							</tr>
-						))}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{result.profiles.map((profile) => (
+								<tr key={profile.profileId}>
+									<th scope="row">{LABELS[profile.profileId]}</th>
+									<td>{formatSeconds(profile.processingSeconds)}</td>
+									<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
+									<td>{formatRealtime(profile.rtf)}</td>
+									<td>{profile.wordCount}</td>
+									<td>{profile.segmentCount}</td>
+									<td>{profile.warningCount}</td>
+									<td>
+										{[
+											profile.executionLineage?.runtimeVersion,
+											profile.computeType,
+											profile.executionLineage?.gpu?.model,
+										]
+											.filter(Boolean)
+											.join(" · ") || "—"}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+				<div className={styles.qualityNotice}>
+					<strong>Qualidade não medida.</strong>
+					<span>
+						Este benchmark compara performance. Sem transcrição humana de referência,
+						WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
+					</span>
+				</div>
 			</div>
-			<div className={styles.qualityNotice}>
-				<strong>Qualidade não medida.</strong>
-				<span>
-					Este benchmark compara performance. Sem transcrição humana de referência,
-					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
-				</span>
-			</div>
-		</article>
+		</details>
 	);
 }
 
@@ -229,6 +258,7 @@ export function ProcessingBenchmark({
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
+	const [dragActive, setDragActive] = useState(false);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
 	const pending = useRef<PendingBenchmark | null>(null);
@@ -318,6 +348,17 @@ export function ProcessingBenchmark({
 	}, [bridge, connected, latestCompleted, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
+
+	function applyFile(next: File | null) {
+		setFile(next);
+		setSource(null);
+		setPreparation(null);
+		setError(next ? validateCraigFile(next) : null);
+		setStatus(null);
+		setDragActive(false);
+		pending.current = null;
+		if (!next && fileInput.current) fileInput.current.value = "";
+	}
 
 	async function refreshCatalog(signal: AbortSignal) {
 		const refreshed = await bridge.capabilities(signal);
@@ -515,87 +556,191 @@ export function ProcessingBenchmark({
 
 	return (
 		<div className={styles.workspace}>
-			<section className={styles.launchCard}>
+			<header className={styles.workspaceIntro}>
 				<div>
 					<span className={styles.eyebrow}>Benchmark exploratório local</span>
 					<h2>Mesmos 5 minutos · quatro perfis</h2>
-					<p>
-						Executa Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen Quality em
-						sequência sobre exatamente a mesma fonte e o mesmo corte temporal.
-					</p>
 				</div>
+				<p>
+					Mesma fonte, mesmo corte e workers isolados. Preparação fica fora da medição.
+				</p>
+			</header>
 
-				<div className={styles.launchControls}>
-					<label>
-						<span>ZIP Craig</span>
-						<input
-							ref={fileInput}
-							type="file"
-							accept=".zip,application/zip"
-							disabled={
-								sourceBusy ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active)
-							}
-							onChange={(event) => {
-								const next = event.target.files?.[0] ?? null;
-								setFile(next);
-								setSource(null);
-								setPreparation(null);
-								setError(next ? validateCraigFile(next) : null);
-								setStatus(null);
-								pending.current = null;
-							}}
-						/>
-					</label>
-					{file ? (
-						<Button
-							type="button"
-							variant="tertiary"
-							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
-							onClick={() => {
-								if (fileInput.current) fileInput.current.value = "";
-								setFile(null);
-								setSource(null);
-								setPreparation(null);
-								setError(null);
-								setStatus(null);
-								pending.current = null;
-							}}
-						>
-							Remover arquivo
-						</Button>
-					) : null}
-				</div>
-
-				{file ? (
-					<section className={styles.sourceFacts} aria-label="Fonte selecionada">
-						<span title={file.name}><strong>{file.name}</strong></span>
-						<span>{formatSubmissionBytes(file.size)}</span>
-						{source ? (
-							<>
-								<span>{source.trackCount} tracks</span>
-								<span>{source.reused ? "Fonte já verificada" : "Verificada agora"}</span>
-								{source.minimumTrackDurationSeconds !== null ? (
-									<span>
-										Menor track {formatSeconds(source.minimumTrackDurationSeconds)}
-									</span>
-								) : null}
-							</>
-						) : null}
-					</section>
-				) : null}
-
-				<section className={styles.profileReadiness} aria-label="Prontidão dos perfis">
-					<div className={styles.readinessHeader}>
-						<strong>Prontidão</strong>
-						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
+			<section
+				className={styles.setupShell}
+				data-benchmark-setup="true"
+				aria-label="Preparação do benchmark"
+			>
+				<section
+					className={styles.sourcePane}
+					data-benchmark-source="true"
+					aria-labelledby="benchmark-source-title"
+				>
+					<div className={styles.sectionHeading}>
+						<div>
+							<span className={styles.eyebrow}>Source</span>
+							<strong id="benchmark-source-title">Amostra Craig</strong>
+						</div>
+						<small>
+							{source
+								? sampleEligible
+									? "Amostra apta"
+									: "Amostra curta"
+								: file
+									? "Aguardando análise"
+									: "Nenhum ZIP selecionado"}
+						</small>
 					</div>
-					{PROFILES.map((id, index) => (
-						<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
-					))}
+
+					<input
+						ref={fileInput}
+						className={styles.fileInput}
+						type="file"
+						accept=".zip,application/zip"
+						aria-label="ZIP Craig"
+						disabled={
+							sourceBusy ||
+							busy ||
+							preparingProfiles ||
+							Boolean(active)
+						}
+						onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+					/>
+
+					<button
+						type="button"
+						className={styles.sourcePicker}
+						data-selected={file ? "true" : "false"}
+						data-active={dragActive ? "true" : "false"}
+						disabled={
+							sourceBusy ||
+							busy ||
+							preparingProfiles ||
+							Boolean(active)
+						}
+						onClick={() => fileInput.current?.click()}
+						onDragEnter={(event) => {
+							event.preventDefault();
+							if (!sourceBusy && !busy && !preparingProfiles && !active)
+								setDragActive(true);
+						}}
+						onDragOver={(event) => {
+							event.preventDefault();
+							if (!sourceBusy && !busy && !preparingProfiles && !active)
+								setDragActive(true);
+						}}
+						onDragLeave={(event) => {
+							if (event.currentTarget.contains(event.relatedTarget as Node | null))
+								return;
+							setDragActive(false);
+						}}
+						onDrop={(event) => {
+							event.preventDefault();
+							setDragActive(false);
+							if (sourceBusy || busy || preparingProfiles || active) return;
+							applyFile(event.dataTransfer.files?.[0] ?? null);
+						}}
+					>
+						<span className={styles.sourceGlyph} aria-hidden="true">
+							{file ? "✓" : "ZIP"}
+						</span>
+						<span className={styles.sourceCopy}>
+							<strong title={file?.name}>
+								{file ? file.name : "Escolher ZIP Craig"}
+							</strong>
+							<span>
+								{file
+									? source
+										? `${formatSubmissionBytes(file.size)} · ${source.trackCount} tracks · ${sampleEligible ? "amostra apta" : "amostra curta"}`
+										: `${formatSubmissionBytes(file.size)} · analisar localmente antes de executar`
+									: "Clique ou arraste o export do Craig para esta área"}
+							</span>
+						</span>
+					</button>
+
+					{file ? (
+						<div className={styles.sourceToolbar}>
+							<div className={styles.sourceFacts}>
+								{source ? (
+									<>
+										<span>{source.reused ? "Fonte já verificada" : "Verificada agora"}</span>
+										{source.minimumTrackDurationSeconds !== null ? (
+											<span>
+												Menor track {formatSeconds(source.minimumTrackDurationSeconds)}
+											</span>
+										) : null}
+									</>
+								) : (
+									<span>Nenhum ASR iniciado.</span>
+								)}
+							</div>
+							<div className={styles.sourceActions}>
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+									onClick={() => fileInput.current?.click()}
+								>
+									Trocar
+								</Button>
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+									onClick={() => applyFile(null)}
+								>
+									Remover
+								</Button>
+							</div>
+						</div>
+					) : null}
 				</section>
+
+				<section
+					className={styles.readinessPane}
+					data-benchmark-readiness="true"
+					aria-labelledby="benchmark-readiness-title"
+				>
+					<div className={styles.sectionHeading}>
+						<div>
+							<span className={styles.eyebrow}>Readiness</span>
+							<strong id="benchmark-readiness-title">Quatro perfis</strong>
+						</div>
+						<small>{readyCount} / {PROFILES.length} prontos</small>
+					</div>
+					<div className={styles.readinessList}>
+						{PROFILES.map((id, index) => (
+							<ProfileReadiness
+								key={id}
+								id={id}
+								profile={profileStates[index] ?? null}
+							/>
+						))}
+					</div>
+				</section>
+			</section>
+
+			<section
+				className={styles.actionBand}
+				data-benchmark-actions="true"
+				aria-label="Próxima ação do benchmark"
+			>
+				<div className={styles.nextActionCopy}>
+					<span className={styles.eyebrow}>Próxima ação</span>
+					<strong>
+						{!file
+							? "Selecione uma source Craig"
+							: !source
+								? "Valide a amostra localmente"
+								: !sampleEligible
+									? "Troque por uma source com pelo menos 5:00 por track"
+									: pendingProfiles.length > 0
+										? "Prepare os perfis pendentes"
+										: blockedProfiles.length > 0
+											? "Resolva os perfis bloqueados"
+											: "Execute a rodada comparável"}
+					</strong>
+				</div>
 
 				<div className={styles.primaryActions}>
 					{!source ? (
@@ -615,17 +760,14 @@ export function ProcessingBenchmark({
 						>
 							{sourceBusy ? "Analisando amostra…" : "Analisar amostra localmente"}
 						</Button>
-					) : null}
-
-					{source && pendingProfiles.length > 0 ? (
+					) : source && sampleEligible && pendingProfiles.length > 0 ? (
 						<Button
 							type="button"
-							variant="secondary"
+							variant="primary"
 							disabled={
 								preparingProfiles ||
 								busy ||
-								Boolean(active) ||
-								!sampleEligible
+								Boolean(active)
 							}
 							onClick={() => void preparePending()}
 						>
@@ -635,9 +777,7 @@ export function ProcessingBenchmark({
 									? "Preparar 1 perfil pendente"
 									: `Preparar ${pendingProfiles.length} perfis pendentes`}
 						</Button>
-					) : null}
-
-					{source ? (
+					) : source && sampleEligible && blockedProfiles.length === 0 ? (
 						<Button
 							type="button"
 							variant="primary"
@@ -646,8 +786,7 @@ export function ProcessingBenchmark({
 								busy ||
 								preparingProfiles ||
 								Boolean(active) ||
-								!allProfilesReady ||
-								!sampleEligible
+								!allProfilesReady
 							}
 							onClick={() => void runBenchmark()}
 						>
@@ -655,91 +794,126 @@ export function ProcessingBenchmark({
 						</Button>
 					) : null}
 				</div>
+			</section>
 
-				{preparation?.active ? (
-					<div className={styles.preparationStatus} role="status">
-						<div>
-							<strong>{preparationLabel ?? preparation.title}</strong>
-							<span>
-								{preparation.detail || preparation.stage} · {Math.round(preparation.elapsedSeconds)} s
-							</span>
+			{preparation?.active ? (
+				<div className={styles.preparationStatus} role="status">
+					<div>
+						<strong>{preparationLabel ?? preparation.title}</strong>
+						<span>
+							{preparation.detail || preparation.stage} · {Math.round(preparation.elapsedSeconds)} s
+						</span>
+					</div>
+					{preparation.operationId &&
+					capabilities?.capabilities.includes("transcription.prepare.cancel") ? (
+						<Button
+							type="button"
+							variant="tertiary"
+							disabled={preparationCancelling}
+							onClick={() => void cancelActivePreparation()}
+						>
+							{preparationCancelling ? "Cancelando…" : "Cancelar preparação"}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+
+			{source && blockedProfiles.length > 0 && !allProfilesReady ? (
+				<p className={styles.notice}>
+					Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
+					atualize o Companion/runtime quando necessário.
+				</p>
+			) : null}
+			{status ? <p className={styles.status} role="status">{status}</p> : null}
+			{error || fileError ? (
+				<p className={styles.error} role="alert">{error ?? fileError}</p>
+			) : null}
+
+			{active ? (
+				<section className={styles.activeSection} aria-live="polite">
+					<div className={styles.activeHeader}>
+						<div className={styles.activeCopy}>
+							<span className={styles.eyebrow}>Benchmark em andamento</span>
+							<h3>
+								{active.status === "queued"
+									? "Aguardando worker local"
+									: currentProfile
+										? LABELS[currentProfile]
+										: "Finalizando"}
+							</h3>
+							<p>
+								{active.progress
+									? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
+									: "Preparando execução"}
+								{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
+							</p>
 						</div>
-						{preparation.operationId &&
-						capabilities?.capabilities.includes("transcription.prepare.cancel") ? (
+						<div className={styles.activeActions}>
 							<Button
 								type="button"
 								variant="tertiary"
-								disabled={preparationCancelling}
-								onClick={() => void cancelActivePreparation()}
+								onClick={() => onOpenDiagnostics(active.id)}
 							>
-								{preparationCancelling ? "Cancelando…" : "Cancelar preparação"}
+								Ver log / Diagnóstico
 							</Button>
-						) : null}
+							<Button
+								type="button"
+								variant="tertiary"
+								onClick={async () => {
+									await onCancel(active.id);
+									onRefresh();
+								}}
+							>
+								Cancelar benchmark
+							</Button>
+						</div>
 					</div>
-				) : null}
 
-				{source && blockedProfiles.length > 0 && !allProfilesReady ? (
-					<p className={styles.notice}>
-						Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
-						atualize o Companion/runtime quando necessário.
-					</p>
-				) : null}
-				{status ? <p className={styles.status} role="status">{status}</p> : null}
-				{error || fileError ? (
-					<p className={styles.error} role="alert">{error ?? fileError}</p>
-				) : null}
-			</section>
+					<div
+						className={styles.profileStepper}
+						data-benchmark-stepper="true"
+						aria-label="Progresso dos quatro perfis"
+					>
+						{PROFILES.map((id, index) => {
+							const currentIndex = Math.min(completed, PROFILES.length - 1);
+							const stepState =
+								active.status === "queued"
+									? "pending"
+									: index < completed
+										? "done"
+										: index === currentIndex
+											? "current"
+											: "pending";
+							return (
+								<span
+									key={id}
+									data-state={stepState}
+									aria-current={stepState === "current" ? "step" : undefined}
+								>
+									<strong>{index + 1}</strong>
+									<small>{LABELS[id]}</small>
+								</span>
+							);
+						})}
+					</div>
 
-			{active ? (
-				<section className={styles.activeCard} aria-live="polite">
-					<div className={styles.activeCopy}>
-						<span className={styles.eyebrow}>Benchmark em andamento</span>
-						<h3>
-							{active.status === "queued"
-								? "Aguardando worker local"
-								: currentProfile
-									? LABELS[currentProfile]
-									: "Finalizando"}
-						</h3>
-						<p>
-							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
-								: "Preparando execução"}
-							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
-						</p>
+					<div className={styles.activeMeta}>
 						{latestActivity && latestEvent ? (
-							<small>
+							<span>
 								{latestActivity.title}
 								{latestActivity.detail ? ` · ${latestActivity.detail}` : ""}
 								{" · "}
 								{formatClock(latestEvent.at)}
-							</small>
+							</span>
 						) : (
-							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
+							<span>
+								Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}
+							</span>
 						)}
-					</div>
-					<div className={styles.activeActions}>
-						<Button
-							type="button"
-							variant="tertiary"
-							onClick={() => onOpenDiagnostics(active.id)}
-						>
-							Ver log / Diagnóstico
-						</Button>
-						<Button
-							type="button"
-							variant="tertiary"
-							onClick={async () => {
-								await onCancel(active.id);
-								onRefresh();
-							}}
-						>
-							Cancelar benchmark
-						</Button>
 					</div>
 				</section>
 			) : latestProblem ? (
-				<section className={styles.problemCard} role="status">
+				<section className={styles.problemSection} role="status">
 					<div>
 						<span className={styles.eyebrow}>Última execução</span>
 						<h3>
@@ -765,25 +939,33 @@ export function ProcessingBenchmark({
 				</section>
 			) : null}
 
-			<section className={styles.history}>
+			<section
+				className={styles.history}
+				data-benchmark-history="true"
+				aria-labelledby="benchmark-history-title"
+			>
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Receipts comparáveis</h2>
+						<h2 id="benchmark-history-title">Receipts comparáveis</h2>
 					</div>
 					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
 				</div>
 				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
-						results[job.id] ? (
-							<ResultCard key={job.id} result={results[job.id]!} />
-						) : (
-							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
-						),
-					)
+					<div className={styles.receiptList}>
+						{latestCompleted.slice(0, 10).map((job) =>
+							results[job.id] ? (
+								<ResultCard key={job.id} result={results[job.id]!} />
+							) : (
+								<p key={job.id} className={styles.loading}>
+									Carregando receipt {job.id.slice(0, 8)}…
+								</p>
+							),
+						)}
+					</div>
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
+						Nenhum benchmark concluído neste Companion. O primeiro receipt aparecerá aqui.
 					</p>
 				)}
 			</section>
