@@ -43,6 +43,7 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .session_timeline import build_session_timeline
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -68,7 +69,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/parts(?:/(?:detach|reorder|timing))?|/timeline)?$"
 )
 
 
@@ -172,6 +173,17 @@ class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
     expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceTimingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expected_revision: int = Field(ge=0)
+    manual_offset_seconds: float | None = Field(default=None, ge=0)
+    trim_start_seconds: float | None = Field(default=None, ge=0)
+    trim_end_seconds: float | None = Field(default=None, ge=0)
+    gap_confirmed: bool = False
+    overlap_boundary_seconds: float | None = Field(default=None, ge=0)
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1411,6 +1423,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-timeline",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1630,6 +1643,45 @@ def create_app(
                 body.expected_revision,
             )
         )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/timing")
+    def update_session_workspace_part_timing(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceTimingRequest,
+    ):
+        return session_workspace_response(
+            store.update_session_part_timing(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.expected_revision,
+                manual_offset_seconds=body.manual_offset_seconds,
+                trim_start_seconds=body.trim_start_seconds,
+                trim_end_seconds=body.trim_end_seconds,
+                gap_confirmed=body.gap_confirmed,
+                overlap_boundary_seconds=body.overlap_boundary_seconds,
+            )
+        )
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline")
+    def session_workspace_timeline(campaign_id: str, session_id: str):
+        try:
+            value = store.session_workspace(campaign_id, session_id)
+        except Conflict as exc:
+            if str(exc) == "SESSION_WORKSPACE_NOT_FOUND":
+                return error("SESSION_WORKSPACE_NOT_FOUND", 404)
+            raise
+        workspace = session_workspace_response(value)
+        packages: dict[str, object | None] = {}
+        for part in workspace["parts"]:
+            source_id = part["source_id"]
+            try:
+                _package_root, package = staged_package_under_source_gate(source_id)
+                packages[source_id] = package
+            except (CraigPackageError, ValueError):
+                packages[source_id] = None
+        return build_session_timeline(workspace, packages)
 
     @app.get("/api/v1/jobs")
     def jobs(
