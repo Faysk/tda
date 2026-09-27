@@ -1737,3 +1737,66 @@
 		grid-template-columns: 1fr;
 	}
 }
+
+
+/* #809 — completed-run facts stay available without competing with the idle task. */
+.resultDetails {
+	margin-top: 3px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.resultDetails > summary {
+	width: fit-content;
+	margin-left: auto;
+	padding: 5px 2px;
+	color: var(--ds-foreground-muted);
+	cursor: pointer;
+	font-size: .7rem;
+	font-weight: 700;
+}
+
+.resultDetails > summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.resultDetails dl {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 6px 10px;
+	margin: 0;
+	padding: 7px 2px 4px;
+}
+
+.resultDetails dl > div {
+	min-width: 0;
+}
+
+.resultDetails dt {
+	color: var(--ds-foreground-muted);
+	font-size: .65rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.resultDetails dd {
+	margin: 2px 0 0;
+	overflow-wrap: anywhere;
+	color: var(--ds-foreground-soft);
+	font-size: .72rem;
+}
+
+@media (max-width: 900px) {
+	.resultDetails dl {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 480px) {
+	.resultDetails > summary {
+		margin-left: 0;
+	}
+	.resultDetails dl {
+		grid-template-columns: 1fr;
+	}
+}
