@@ -304,14 +304,26 @@ export function estimateRemainingProcessing(
 		completedTracks >= trackDurationsSeconds.length
 	)
 		return null;
-	const remainingAudio = trackDurationsSeconds
-		.slice(completedTracks)
-		.reduce((sum, value) => sum + (Number.isFinite(value) && value >= 0 ? value : 0), 0);
-	if (remainingAudio <= 0) return null;
+	const durations = trackDurationsSeconds.filter(
+		(value) => Number.isFinite(value) && value >= 0,
+	);
+	if (durations.length !== trackDurationsSeconds.length) return null;
+	const remainingCount = durations.length - completedTracks;
+	if (remainingCount <= 0) return null;
+	const sortedDurations = [...durations].sort((left, right) => left - right);
+	const lowerAudio = sortedDurations
+		.slice(0, remainingCount)
+		.reduce((sum, value) => sum + value, 0);
+	const upperAudio = sortedDurations
+		.slice(sortedDurations.length - remainingCount)
+		.reduce((sum, value) => sum + value, 0);
+	const totalAudio = durations.reduce((sum, value) => sum + value, 0);
+	const medianAudio = (totalAudio * remainingCount) / durations.length;
+	if (upperAudio <= 0) return null;
 	return {
-		lowerSeconds: remainingAudio * estimate.lowerRtf,
-		medianSeconds: remainingAudio * estimate.medianRtf,
-		upperSeconds: remainingAudio * estimate.upperRtf,
+		lowerSeconds: lowerAudio * estimate.lowerRtf,
+		medianSeconds: medianAudio * estimate.medianRtf,
+		upperSeconds: upperAudio * estimate.upperRtf,
 	};
 }
 
