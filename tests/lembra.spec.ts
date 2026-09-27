@@ -313,9 +313,10 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 	await expect(cardImage).toBeVisible();
 	expect(await cardImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
 	expect(
-		await cardImage.evaluate(
-			(element) => element.naturalWidth / Math.max(1, element.naturalHeight),
-		),
+		await cardImage.evaluate((element) => {
+			const image = element as HTMLImageElement;
+			return image.naturalWidth / Math.max(1, image.naturalHeight);
+		}),
 	).toBeCloseTo(1, 4);
 
 	await page.getByRole("button", { name: "Quadrada", exact: true }).click();
