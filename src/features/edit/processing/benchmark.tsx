@@ -570,7 +570,7 @@ export function ProcessingBenchmark({
 				</div>
 
 				{file ? (
-					<div className={styles.sourceFacts} aria-label="Fonte selecionada">
+					<div className={styles.sourceFacts} role="group" aria-label="Fonte selecionada">
 						<span title={file.name}><strong>{file.name}</strong></span>
 						<span>{formatSubmissionBytes(file.size)}</span>
 						{source ? (
@@ -587,7 +587,7 @@ export function ProcessingBenchmark({
 					</div>
 				) : null}
 
-				<div className={styles.profileReadiness} aria-label="Prontidão dos perfis">
+				<div className={styles.profileReadiness} role="group" aria-label="Prontidão dos perfis">
 					<div className={styles.readinessHeader}>
 						<strong>Prontidão</strong>
 						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
