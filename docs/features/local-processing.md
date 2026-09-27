@@ -193,6 +193,15 @@ Os perfis executáveis vêm de `capabilities`:
 
 Qwen prepara runtime/modelos e executa o gate necessário antes do job. Para aceitação física, uma faixa Craig suficientemente longa pode gerar uma janela temporária de 180 s escolhida por energia; essa amostra é local e removida após o gate. O receipt do gate não deve carregar transcript integral.
 
+A Web aplica adicionalmente o piso de compatibilidade **Qwen Runtime 1.0.12** para o
+fluxo de alinhamento seguro. Um runtime local abaixo desse piso continua bloqueado
+antes do upload Craig. A mensagem de recuperação depende do Stable realmente
+publicado em
+`/api/downloads/companion/windows/qwen-runtime/manifest`: Stable compatível
+oferece atualização; Stable ainda abaixo do piso informa indisponibilidade
+temporária; falha na consulta mantém estado conservador de disponibilidade não
+confirmada. A UI nunca afirma que existe atualização sem verificar esse manifest.
+
 ## Progresso e dados editoriais
 
 A UI usa somente progresso que o Companion realmente reporta. `completed/total/unit` pode ser convertido em porcentagem quando esses valores existem; ausência de medida não vira estimativa.
