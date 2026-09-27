@@ -810,3 +810,104 @@
 		min-height: 260px;
 	}
 }
+
+
+.sessionCoverEditor {
+	display: grid;
+	gap: 10px;
+}
+
+.coverUploadActions {
+	display: flex;
+	align-items: stretch;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.coverDropZone {
+	display: grid;
+	flex: 1 1 220px;
+	gap: 3px;
+	min-height: 58px;
+	padding: 10px 12px;
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.coverDropZone span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.76rem;
+}
+
+.coverDropZone[data-dragging="true"] {
+	border-style: solid;
+	border-color: var(--ds-accent-strong);
+	background: var(--ds-surface-hover);
+}
+
+.coverDropZone:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.coverDropZone:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.visuallyHiddenInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.coverProgress {
+	height: 4px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: var(--ds-border);
+}
+
+.coverProgress span {
+	display: block;
+	height: 100%;
+	background: var(--ds-accent-strong);
+	transition: width 140ms ease-out;
+}
+
+.coverMetadata,
+.coverStatus,
+.coverError {
+	margin: 0;
+	font-size: 0.78rem;
+	line-height: 1.45;
+}
+
+.coverMetadata,
+.coverStatus {
+	color: var(--ds-foreground-muted);
+}
+
+.coverError {
+	color: var(--ds-danger-foreground, var(--ds-foreground));
+}
+
+@media (max-width: 640px) {
+	.coverUploadActions {
+		flex-direction: column;
+	}
+
+	.coverUploadActions > * {
+		width: 100%;
+	}
+}
