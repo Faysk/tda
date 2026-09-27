@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 TIMING_POLICY_VERSION = "tda_session_timeline_v1"
+SEGMENT_BOUNDARY_POLICY = "segment_start_owner_v1"
 _START_CONFIDENCES = frozenset({"trusted_absolute", "ambiguous", "opaque", "missing"})
 _TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual"})
 _OVERLAP_RESOLUTIONS = frozenset({"prefer_earlier_until", "prefer_later_from"})
@@ -131,6 +132,7 @@ def enrich_workspace_timeline(
     gap_count = 0
     overlap_count = 0
     unresolved_overlap_count = 0
+    unconfirmed_gap_count = 0
     source_invalid = False
     needs_timing = not bool(workspace.get("parts"))
     all_sources_trusted = bool(workspace.get("parts"))
@@ -182,6 +184,8 @@ def enrich_workspace_timeline(
                     relation = "gap"
                     relation_seconds = delta
                     gap_count += 1
+                    if part.get("gap_confirmed") is not True:
+                        unconfirmed_gap_count += 1
                 elif delta < -_EPSILON:
                     relation = "overlap"
                     relation_seconds = -delta
@@ -212,6 +216,7 @@ def enrich_workspace_timeline(
             "effective_end_seconds": effective_end,
             "relation_to_previous": relation,
             "relation_seconds": relation_seconds,
+            "gap_confirmed": bool(part.get("gap_confirmed", False)),
             "overlap_resolution_valid": overlap_resolution_valid,
         }
         enriched_parts.append(enriched)
@@ -219,6 +224,7 @@ def enrich_workspace_timeline(
 
     fingerprint_payload = {
         "schema_version": TIMING_POLICY_VERSION,
+        "segment_boundary_policy": SEGMENT_BOUNDARY_POLICY,
         "campaign_id": workspace.get("campaign_id"),
         "session_id": workspace.get("session_id"),
         "ordering_mode": workspace.get("ordering_mode", "attachment"),
@@ -231,6 +237,7 @@ def enrich_workspace_timeline(
                 "session_offset_seconds": part.get("session_offset_seconds"),
                 "trim_start_seconds": part.get("trim_start_seconds", 0.0),
                 "trim_end_seconds": part.get("trim_end_seconds"),
+                "gap_confirmed": bool(part.get("gap_confirmed", False)),
                 "overlap_resolution": part.get("overlap_resolution"),
                 "overlap_boundary_seconds": part.get("overlap_boundary_seconds"),
             }
@@ -252,6 +259,8 @@ def enrich_workspace_timeline(
         state = "needs_timing"
     elif unresolved_overlap_count:
         state = "overlap_unresolved"
+    elif unconfirmed_gap_count:
+        state = "gap_unconfirmed"
     else:
         state = "ready"
 
@@ -260,6 +269,7 @@ def enrich_workspace_timeline(
         "parts": enriched_parts,
         "timeline": {
             "policy_version": TIMING_POLICY_VERSION,
+            "segment_boundary_policy": SEGMENT_BOUNDARY_POLICY,
             "fingerprint_sha256": fingerprint,
             "state": state,
             "all_sources_trusted": all_sources_trusted,
@@ -267,6 +277,7 @@ def enrich_workspace_timeline(
             "gap_count": gap_count,
             "overlap_count": overlap_count,
             "unresolved_overlap_count": unresolved_overlap_count,
+            "unconfirmed_gap_count": unconfirmed_gap_count,
         },
     }
 
@@ -286,3 +297,19 @@ def validate_overlap_boundary(
             raise ValueError("SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID")
         return
     raise ValueError("SESSION_WORKSPACE_PART_NOT_FOUND")
+
+
+def segment_owner_at_boundary(
+    segment_global_start_seconds: object,
+    boundary_seconds: object,
+) -> str:
+    start = _number(segment_global_start_seconds)
+    boundary = _number(boundary_seconds)
+    if (
+        start is None
+        or boundary is None
+        or start < 0
+        or boundary < 0
+    ):
+        raise ValueError("SESSION_WORKSPACE_SEGMENT_BOUNDARY_INVALID")
+    return "earlier" if start < boundary else "later"
