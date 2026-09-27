@@ -302,6 +302,7 @@ function ReviewEditor({
 	const [dirty, setDirty] = useState(false);
 	const [query, setQuery] = useState("");
 	const [editingKey, setEditingKey] = useState<string | null>(null);
+	const editingTextRef = useRef<HTMLTextAreaElement | null>(null);
 	const [publicationRecovery, setPublicationRecovery] = useState<PublicationConfirmation | null>(null);
     const publicationCurrent = publicationRecovery?.current;
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
@@ -312,6 +313,10 @@ function ReviewEditor({
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
 	const ephemeral = review.persistence === "ephemeral_base";
+
+	useEffect(() => {
+		if (editingKey) editingTextRef.current?.focus();
+	}, [editingKey]);
 
 	useEffect(() => {
 		const serverAdvanced =
@@ -756,7 +761,7 @@ function ReviewEditor({
 							<div className={styles.timelineText}>
 								{editing ? (
 									<textarea
-										autoFocus
+										ref={editingTextRef}
 										value={segment.text}
 										maxLength={200_000}
 										aria-label={`Texto em ${formatTimestamp(timelineStart(segment))}`}
