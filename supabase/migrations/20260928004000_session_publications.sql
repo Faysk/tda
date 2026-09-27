@@ -258,7 +258,9 @@ begin
     return;
   end if;
 
-  if v_draft.cover_asset_id is null
+  if v_source_session_id is null
+     or btrim(v_source_session_id) = ''
+     or v_draft.cover_asset_id is null
      or btrim(v_draft.cover_asset_id) = ''
      or btrim(v_draft.title) = ''
      or btrim(v_draft.summary_short) = ''
