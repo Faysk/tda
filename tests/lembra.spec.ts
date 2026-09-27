@@ -207,7 +207,7 @@ test("Lembra does not keep generic clipboard filenames as searchable titles", as
 });
 
 
-test("Lembra expands the gallery on desktop and stays single-column at 320px", async ({ page }) => {
+test("Lembra justifies desktop rows and becomes single-column at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 1600, height: 900 });
 	await page.goto("/lembra");
 	await addReference(page, "Um", "Primeira");
@@ -215,16 +215,29 @@ test("Lembra expands the gallery on desktop and stays single-column at 320px", a
 	await addReference(page, "Três", "Terceira");
 	await addReference(page, "Quatro", "Quarta");
 
-	const desktopColumns = await page.locator("article").first().evaluate((element) => {
-		const grid = element.parentElement;
-		if (!grid) return 0;
-		return getComputedStyle(grid)
-			.gridTemplateColumns.split(" ")
-			.filter(Boolean).length;
-	});
-	expect(desktopColumns).toBeGreaterThanOrEqual(3);
+	const desktopRows = page.locator("[data-gallery-row]");
+	await expect(desktopRows).toHaveCount(1);
+	await expect(desktopRows.first()).toHaveAttribute("data-justified", "true");
+
+	const desktopMedia = desktopRows.first().locator("[data-gallery-media]");
+	const mediaBoxes = await desktopMedia.evaluateAll((elements) =>
+		elements.map((element) => {
+			const box = element.getBoundingClientRect();
+			return { x: box.x, y: box.y, width: box.width, height: box.height };
+		}),
+	);
+	expect(mediaBoxes).toHaveLength(4);
+	expect(
+		Math.max(...mediaBoxes.map((box) => box.height)) -
+			Math.min(...mediaBoxes.map((box) => box.height)),
+	).toBeLessThan(1);
+	expect(
+		Math.max(...mediaBoxes.map((box) => box.y)) -
+			Math.min(...mediaBoxes.map((box) => box.y)),
+	).toBeLessThan(1);
 
 	await page.setViewportSize({ width: 320, height: 760 });
+	await expect(page.locator("[data-gallery-row]")).toHaveCount(4);
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= window.innerWidth,
@@ -298,10 +311,13 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 
 	const cardImage = page.locator("article").filter({ hasText: "Quadrada" }).locator("img");
 	await expect(cardImage).toBeVisible();
-	const cardBox = await cardImage.boundingBox();
-	expect(cardBox).not.toBeNull();
-	expect(Math.abs((cardBox?.width ?? 0) - (cardBox?.height ?? 0))).toBeLessThan(2);
 	expect(await cardImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+	expect(
+		await cardImage.evaluate((element) => {
+			const image = element as HTMLImageElement;
+			return image.naturalWidth / Math.max(1, image.naturalHeight);
+		}),
+	).toBeCloseTo(1, 4);
 
 	await page.getByRole("button", { name: "Quadrada", exact: true }).click();
 	const viewerImage = page.getByAltText("Referência visual: Quadrada");

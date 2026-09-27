@@ -1,8 +1,8 @@
 # Lembra — biblioteca compartilhada de referências visuais
 
-> Status: persistência compartilhada em Production; refinamento de feedback/proporção em implementação na #476
+> Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-22
+> Última revisão: 2026-09-27
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -55,10 +55,14 @@ A workspace prioriza conteúdo:
 - busca e controles aparecem na primeira faixa útil;
 - galeria começa imediatamente depois;
 - toolbar permanece disponível durante navegação;
-- grid cresce e reduz colunas conforme o espaço real;
+- galeria usa linhas justificadas calculadas pela largura útil e pelas proporções das referências;
+- linhas completas equilibram uma altura de mídia comum e ocupam a largura disponível sem deformar imagens;
+- a última linha não é ampliada artificialmente apenas para preencher espaço;
+- proporções extremas usam uma caixa de layout ergonomicamente limitada enquanto a imagem permanece inteira com `object-fit: contain`;
+- em 390 px ou menos, cada referência ocupa sua própria linha para preservar leitura e touch;
 - sidebar some em viewports menores;
 - viewer amplo abre sem navegar para outra página;
-- preview, galeria e viewer preservam a proporção original da imagem; não há crop editorial automático.
+- preview, galeria e viewer preservam a imagem inteira; não há crop editorial automático.
 
 ### Entrada de mídia
 
