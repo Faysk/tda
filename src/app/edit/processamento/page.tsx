@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata } from "next";\nimport Link from "next/link";
 import { requireCapability } from "@/features/auth/server";
 import {
 	authorizeCampaignCapability,
@@ -20,6 +20,11 @@ export default async function ProcessingPage() {
 		EDIT_CAPABILITIES.localProcess,
 		"/edit/processamento",
 	);
+	const activityBarksManage = authorizeCampaignCapability(
+		access,
+		EDIT_CAPABILITIES.activityBarksManage,
+		CAMPAIGN_SLUG,
+	).ok;
 	const publicationEnabled =
 		process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true" &&
 		authorizeCampaignCapability(
@@ -32,7 +37,24 @@ export default async function ProcessingPage() {
 		<section className={styles.page} data-processing-workspace="true">
 			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
 
-			<ProcessingPanel publicationEnabled={publicationEnabled} />
+			<ProcessingPanel
+				publicationEnabled={publicationEnabled}
+				activityPackScope={
+					access.profileId
+						? { profileId: access.profileId, campaignSlug: CAMPAIGN_SLUG }
+						: null
+				}
+			/>
+
+			{activityBarksManage ? (
+				<Link
+					className={pageStyles.companionDownload}
+					href="/edit/processamento/linguica"
+				>
+					<span>Linguiça no Log</span>
+					<small>Administrar activity bark packs locais</small>
+				</Link>
+			) : null}
 
 			<details className={pageStyles.companionMaintenance}>
 				<summary>Instalação e canais do TDA Companion</summary>
