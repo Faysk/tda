@@ -8,7 +8,7 @@ from typing import Any, Mapping, Sequence
 
 CHRONOLOGY_SCHEMA = "tda_recording_chronology_v1"
 OVERLAP_RESOLUTION_VERSION = "boundary_v1"
-SEGMENT_BOUNDARY_POLICY = "segment_start_v1"
+SEGMENT_BOUNDARY_POLICY = "segment_start_owner_v1"
 OVERLAP_MODES = frozenset({"prefer_earlier_until", "prefer_later_from"})
 _MAX_SECONDS = 7 * 24 * 60 * 60
 _EPSILON = 1e-9
