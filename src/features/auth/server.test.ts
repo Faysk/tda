@@ -52,6 +52,29 @@ describe("verified identity and authorization", () => {
 		});
 		expect(mocks.load).toHaveBeenCalledWith("verified");
 	});
+	it("projects only sanitized presentation metadata from the verified user", async () => {
+		mocks.getUser.mockResolvedValueOnce({
+			data: {
+				user: {
+					id: "verified",
+					user_metadata: {
+						full_name: "  Renan\u0000   Silva  ",
+						avatar_url: "https://evil.test/private.png",
+						role: "owner",
+					},
+				},
+			},
+			error: null,
+		});
+		expect(await getVerifiedServerIdentity()).toEqual({
+			ok: true,
+			authUserId: "verified",
+			navigationIdentity: {
+				displayName: "Renan Silva",
+				avatarUrl: null,
+			},
+		});
+	});
 	it("denies expired or invalid sessions before profile lookup", async () => {
 		mocks.getUser.mockResolvedValue({
 			data: { user: null },
