@@ -418,7 +418,7 @@ export class ProcessingController {
 							return previousByJob.get(job.id) ?? null;
 						}
 					}),
-			).filter((result): result is BenchmarkResult => result !== null);
+			)).filter((result): result is BenchmarkResult => result !== null);
 		}
 		const reloadLibrary =
 			reviewEnabled && ((options.includeLibrary ?? true) || terminalTransition);
