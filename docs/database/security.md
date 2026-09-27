@@ -442,3 +442,32 @@ Contrato candidato:
 - service role e credenciais R2 nunca são enviados ao browser.
 
 Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+
+## Publicação editorial de sessão — boundary server-only
+
+A fatia #793 usa `session_editorial_publications` e
+`session_editorial_publication_receipts` como storage server-only para a
+promoção explícita do draft editorial da sessão.
+
+Regras:
+
+- RLS habilitado nas duas tabelas e nenhuma policy de browser;
+- `PUBLIC`, `anon` e `authenticated` sem acesso direto;
+- `service_role` recebe somente `SELECT/INSERT` nesses snapshots/receipts;
+- RPCs `publish_session_editorial_snapshot_atomic`,
+  `restore_session_editorial_publication_atomic` e
+  `unpublish_session_editorial_snapshot_atomic` são `SECURITY INVOKER`;
+- `EXECUTE` é revogado de `PUBLIC`, `anon` e `authenticated`;
+- o SQL revalida auth user → profile, assignment ativo,
+  `campaign.transcript.publish`, campaign/session, current draft,
+  current transcript base e optimistic CAS do current publication pointer;
+- receipt é persistido na mesma transação do snapshot/public pointer;
+- audit/receipt carregam IDs, hashes e metadata, nunca transcript;
+- promoção/read-back da capa pública acontece antes do commit SQL;
+- o browser não envia os cinco campos editoriais como autoridade de publicação:
+  o servidor relê o draft salvo antes do commit.
+
+O read model público continua sendo `sessions` filtrado por
+`status='published'`. O novo pointer versionado não amplia audience e não cria
+join público para transcript/draft.
