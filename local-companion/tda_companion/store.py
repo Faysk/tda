@@ -241,10 +241,23 @@ class Store:
     def _session_workspace_dto(db, row):
         parts = db.execute(
             """
-            SELECT part_id,source_id,ordinal,selected_run_id,created,updated
+            SELECT
+                part_id,source_id,ordinal,selected_run_id,
+                manual_offset_seconds,trim_start_seconds,trim_end_seconds,
+                created,updated
             FROM session_recording_parts
             WHERE campaign_id=? AND session_id=?
             ORDER BY ordinal ASC, part_id ASC
+            """,
+            (row["campaign_id"], row["session_id"]),
+        ).fetchall()
+        decisions = db.execute(
+            """
+            SELECT
+                earlier_part_id,later_part_id,decision,boundary_seconds,created,updated
+            FROM session_timeline_decisions
+            WHERE campaign_id=? AND session_id=?
+            ORDER BY earlier_part_id ASC,later_part_id ASC
             """,
             (row["campaign_id"], row["session_id"]),
         ).fetchall()
@@ -253,6 +266,7 @@ class Store:
             "campaign_id": row["campaign_id"],
             "session_id": row["session_id"],
             "revision": row["revision"],
+            "order_authority": row["order_authority"],
             "created_at": row["created"],
             "updated_at": row["updated"],
             "parts": [
@@ -261,10 +275,24 @@ class Store:
                     "source_id": part["source_id"],
                     "ordinal": part["ordinal"],
                     "selected_run_id": part["selected_run_id"],
+                    "manual_offset_seconds": part["manual_offset_seconds"],
+                    "trim_start_seconds": part["trim_start_seconds"],
+                    "trim_end_seconds": part["trim_end_seconds"],
                     "created_at": part["created"],
                     "updated_at": part["updated"],
                 }
                 for part in parts
+            ],
+            "timeline_decisions": [
+                {
+                    "earlier_part_id": decision["earlier_part_id"],
+                    "later_part_id": decision["later_part_id"],
+                    "decision": decision["decision"],
+                    "boundary_seconds": decision["boundary_seconds"],
+                    "created_at": decision["created"],
+                    "updated_at": decision["updated"],
+                }
+                for decision in decisions
             ],
         }
 
