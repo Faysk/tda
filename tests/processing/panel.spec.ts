@@ -23,6 +23,59 @@ function fulfillJson(
 	});
 }
 
+async function installCompletedRunCatalog(page: import("@playwright/test").Page) {
+	await page.route(`${LOCAL_API}/sources`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_craig_sources_v1",
+			sources: [
+				{
+					source_id: CRAIG_SOURCE_ID,
+					source_sha256: "a".repeat(64),
+					recording_id: null,
+					track_count: 2,
+				},
+			],
+		}),
+	);
+	await page.route(`${LOCAL_API}/sources/${CRAIG_SOURCE_ID}/runs`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_transcription_runs_v1",
+			source_id: CRAIG_SOURCE_ID,
+			runs: [
+				{
+					run_id: "run-delete-compat-1",
+					status: "completed",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: "whisper-detailed",
+					engine: "faster-whisper",
+					model: "large-v3",
+					model_revision: "rev",
+					device: "cuda",
+					completed_at: "2026-09-27T18:00:00.000Z",
+					transcript_sha256: "b".repeat(64),
+					transcript_size_bytes: 900,
+					stats: {
+						processing_seconds: 12,
+						session_duration_seconds: 60,
+						duration_semantics: "session_extent_v1",
+						rtf: 0.2,
+						word_count: 2,
+						segment_count: 1,
+						track_count: 1,
+						turn_count: 1,
+						warning_count: 0,
+					},
+					execution_lineage: {
+						schema_version: "tda_execution_lineage_v1",
+						device: "cuda",
+						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+					},
+				},
+			],
+		}),
+	);
+}
+
 test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
 }, testInfo) => {
@@ -758,4 +811,39 @@ test("Overview gives truly idle space to the Craig composer when the queue is em
 		path: testInfo.outputPath("overview-idle-composer.png"),
 		fullPage: true,
 	});
+});
+
+
+test("Stable 0.3.15 hides completed-run deletion while Results remains usable", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.15",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+	await expect(page.getByLabel("Mais ações do resultado")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toHaveCount(0);
+});
+
+test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+	const moreActions = page.getByLabel("Mais ações do resultado");
+	await expect(moreActions).toBeVisible();
+	await moreActions.click();
+	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
 });
