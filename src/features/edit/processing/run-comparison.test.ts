@@ -156,9 +156,9 @@ describe("run comparison", () => {
 		);
 		expect(regions.map((item) => item.kind)).toEqual([
 			"changed",
+			"equal",
 			"left_only",
 			"right_only",
-			"equal",
 		]);
 		expect(summarizeRunComparison(regions)).toMatchObject({
 			totalRegions: 4,
