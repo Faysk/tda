@@ -335,7 +335,7 @@ export function ProcessingBenchmark({
 		pending.current = null;
 	}
 
-	function handleSourceDrop(event: DragEvent<HTMLDivElement>) {
+	function handleSourceDrop(event: DragEvent<HTMLButtonElement>) {
 		event.preventDefault();
 		setDragActive(false);
 		if (sourceBusy || busy || preparingProfiles || active) return;
