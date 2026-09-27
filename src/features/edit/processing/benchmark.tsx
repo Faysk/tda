@@ -123,6 +123,7 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 				<div className={styles.receiptSummary}>
 					<span>{hardware}</span>
 					<span>{warnings} aviso{warnings === 1 ? "" : "s"}</span>
+					<span>Concluído</span>
 					<span>Abrir receipt</span>
 				</div>
 			</summary>
@@ -832,7 +833,7 @@ export function ProcessingBenchmark({
 				<section className={styles.activeSection} aria-live="polite">
 					<div className={styles.activeHeader}>
 						<div className={styles.activeCopy}>
-							<span className={styles.eyebrow}>Execução atual</span>
+							<span className={styles.eyebrow}>Benchmark em andamento</span>
 							<h3>
 								{active.status === "queued"
 									? "Aguardando worker local"
