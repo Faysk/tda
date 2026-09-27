@@ -21,6 +21,11 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-quality": "Qwen Quality",
 };
 
+type PendingBenchmark = {
+	key: string;
+	signature: string;
+};
+
 function formatSeconds(value: number): string {
 	if (!Number.isFinite(value) || value < 0) return "—";
 	const seconds = Math.round(value);
@@ -141,6 +146,7 @@ export function ProcessingBenchmark({
 	const [error, setError] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
 	const request = useRef<AbortController | null>(null);
+	const pending = useRef<PendingBenchmark | null>(null);
 
 	const benchmarkJobs = useMemo(
 		() =>
@@ -204,6 +210,16 @@ export function ProcessingBenchmark({
 		try {
 			const staged = source ?? (await bridge.craigSource(file, controller.signal));
 			setSource(staged);
+			const signature = JSON.stringify([
+				"benchmark-local",
+				"benchmark-local",
+				staged.sourceId,
+				"",
+				"",
+			]);
+			if (!pending.current || pending.current.signature !== signature) {
+				pending.current = { key: crypto.randomUUID(), signature };
+			}
 			await bridge.benchmark(
 				{
 					campaignId: "benchmark-local",
@@ -212,9 +228,10 @@ export function ProcessingBenchmark({
 					glossary: "",
 					context: "",
 				},
-				`benchmark-${staged.sourceSha256.slice(0, 48)}`,
+				pending.current.key,
 				controller.signal,
 			);
+			pending.current = null;
 			onRefresh();
 		} catch (cause) {
 			setError(benchmarkError(cause));
