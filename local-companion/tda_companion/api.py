@@ -1425,6 +1425,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-chronology",
         ]
         catalog = profile_catalog(
             resolved_state_root,
