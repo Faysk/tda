@@ -3,6 +3,7 @@ import { PublicLink as Link } from "@/components/public-link";
 import { StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import { sessionEditorialLabel, sessionEditorialState } from "@/features/edit/sessions/library-model";
 import { listEditSessionLibrary } from "@/features/edit/sessions/library-repository";
 import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
@@ -67,7 +68,7 @@ export default async function EditSessionsPage() {
 					>
 						<div className={styles.sessionMeta}>
 							<StatusPill tone={session.status === "published" ? "success" : "neutral"}>
-								{session.status}
+								{sessionEditorialLabel(sessionEditorialState(session))}
 							</StatusPill>
 							{session.arc ? <StatusPill tone="accent">{session.arc}</StatusPill> : null}
 						</div>
