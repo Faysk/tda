@@ -132,12 +132,14 @@ export function ProcessingBenchmark({
 	connected,
 	onRefresh,
 	onCancel,
+	onResultsChange,
 }: Readonly<{
 	jobs: readonly LocalJob[];
 	capabilities: Capabilities | null;
 	connected: boolean;
 	onRefresh: () => void;
 	onCancel: (jobId: string) => void | Promise<void>;
+	onResultsChange?: (results: readonly BenchmarkResult[]) => void;
 }>) {
 	const [bridge] = useState(() => new LocalBridge());
 	const [file, setFile] = useState<File | null>(null);
@@ -197,6 +199,10 @@ export function ProcessingBenchmark({
 		});
 		return () => controller.abort();
 	}, [bridge, connected, latestCompleted, results]);
+
+	useEffect(() => {
+		onResultsChange?.(Object.values(results));
+	}, [onResultsChange, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
