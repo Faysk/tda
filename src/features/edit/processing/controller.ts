@@ -837,6 +837,7 @@ export class ProcessingController {
 	loadLocalReviewSnapshot = async (sourceId: string, runId: string) => {
 		if (
 			this.#state.connection !== "connected" ||
+			!this.#state.capabilities?.capabilities.includes("transcription.review.base") ||
 			!this.#state.localRuns.some(
 				(run) => run.sourceId === sourceId && run.runId === runId,
 			)
