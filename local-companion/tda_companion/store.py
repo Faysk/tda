@@ -34,7 +34,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -69,6 +69,28 @@ class Store:
                     updated TEXT NOT NULL,
                     PRIMARY KEY(job_id, attempt, track, metric)
                 );
+                CREATE TABLE IF NOT EXISTS session_workspaces (
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    revision INTEGER NOT NULL DEFAULT 0,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    PRIMARY KEY(campaign_id, session_id)
+                );
+                CREATE TABLE IF NOT EXISTS session_recording_parts (
+                    part_id TEXT PRIMARY KEY,
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    ordinal INTEGER NOT NULL,
+                    selected_run_id TEXT,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    UNIQUE(campaign_id, session_id, source_id),
+                    UNIQUE(campaign_id, session_id, ordinal)
+                );
+                CREATE INDEX IF NOT EXISTS session_recording_parts_workspace_idx
+                    ON session_recording_parts(campaign_id, session_id, ordinal);
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -108,7 +130,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=9")
+            db.execute("PRAGMA user_version=10")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -144,6 +166,249 @@ class Store:
     def pause(self, paused):
         with self.tx() as db:
             db.execute("UPDATE settings SET value=? WHERE key='paused'", (json.dumps(paused),))
+
+    @staticmethod
+    def _workspace_identity(value, field):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+            raise Conflict(f"SESSION_WORKSPACE_{field}_INVALID")
+        return value
+
+    @staticmethod
+    def _workspace_revision(value):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise Conflict("SESSION_WORKSPACE_REVISION_INVALID")
+        return value
+
+    @staticmethod
+    def _workspace_part_id(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
+            raise Conflict("SESSION_WORKSPACE_PART_INVALID")
+        return value
+
+    @staticmethod
+    def _workspace_source_id(value):
+        if not isinstance(value, str) or not re.fullmatch(r"craig-[0-9a-f]{64}", value):
+            raise Conflict("SESSION_WORKSPACE_SOURCE_INVALID")
+        return value
+
+    @staticmethod
+    def _session_workspace_dto(db, row):
+        parts = db.execute(
+            """
+            SELECT part_id,source_id,ordinal,selected_run_id,created,updated
+            FROM session_recording_parts
+            WHERE campaign_id=? AND session_id=?
+            ORDER BY ordinal ASC, part_id ASC
+            """,
+            (row["campaign_id"], row["session_id"]),
+        ).fetchall()
+        return {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": row["campaign_id"],
+            "session_id": row["session_id"],
+            "revision": row["revision"],
+            "created_at": row["created"],
+            "updated_at": row["updated"],
+            "parts": [
+                {
+                    "part_id": part["part_id"],
+                    "source_id": part["source_id"],
+                    "ordinal": part["ordinal"],
+                    "selected_run_id": part["selected_run_id"],
+                    "created_at": part["created"],
+                    "updated_at": part["updated"],
+                }
+                for part in parts
+            ],
+        }
+
+    def session_workspace(self, campaign_id, session_id):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        with self.read() as db:
+            row = db.execute(
+                "SELECT * FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+                (campaign_id, session_id),
+            ).fetchone()
+            if row is None:
+                raise Conflict("SESSION_WORKSPACE_NOT_FOUND")
+            return self._session_workspace_dto(db, row)
+
+    def ensure_session_workspace(self, campaign_id, session_id):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        with self.tx() as db:
+            now = utc_now()
+            db.execute(
+                """
+                INSERT OR IGNORE INTO session_workspaces(
+                    campaign_id,session_id,revision,created,updated
+                ) VALUES (?,?,0,?,?)
+                """,
+                (campaign_id, session_id, now, now),
+            )
+            row = db.execute(
+                "SELECT * FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+                (campaign_id, session_id),
+            ).fetchone()
+            return self._session_workspace_dto(db, row)
+
+    def _session_workspace_for_update(self, db, campaign_id, session_id, expected_revision):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        expected_revision = self._workspace_revision(expected_revision)
+        row = db.execute(
+            "SELECT * FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+            (campaign_id, session_id),
+        ).fetchone()
+        if row is None:
+            raise Conflict("SESSION_WORKSPACE_NOT_FOUND")
+        if row["revision"] != expected_revision:
+            raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+        return row
+
+    @staticmethod
+    def _bump_session_workspace(db, campaign_id, session_id, revision):
+        now = utc_now()
+        changed = db.execute(
+            """
+            UPDATE session_workspaces
+            SET revision=?,updated=?
+            WHERE campaign_id=? AND session_id=? AND revision=?
+            """,
+            (revision + 1, now, campaign_id, session_id, revision),
+        ).rowcount
+        if changed != 1:
+            raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+        return db.execute(
+            "SELECT * FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+            (campaign_id, session_id),
+        ).fetchone()
+
+    def attach_session_source(self, campaign_id, session_id, source_id, expected_revision):
+        source_id = self._workspace_source_id(source_id)
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            existing = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND source_id=?
+                """,
+                (row["campaign_id"], row["session_id"], source_id),
+            ).fetchone()
+            if existing is not None:
+                return self._session_workspace_dto(db, row)
+            ordinal = db.execute(
+                """
+                SELECT COUNT(*) FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchone()[0]
+            now = utc_now()
+            db.execute(
+                """
+                INSERT INTO session_recording_parts(
+                    part_id,campaign_id,session_id,source_id,ordinal,
+                    selected_run_id,created,updated
+                ) VALUES (?,?,?,?,?,NULL,?,?)
+                """,
+                (
+                    uuid4().hex,
+                    row["campaign_id"],
+                    row["session_id"],
+                    source_id,
+                    ordinal,
+                    now,
+                    now,
+                ),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def detach_session_part(self, campaign_id, session_id, part_id, expected_revision):
+        part_id = self._workspace_part_id(part_id)
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            deleted = db.execute(
+                """
+                DELETE FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).rowcount
+            if deleted != 1:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            parts = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            for ordinal, part in enumerate(parts):
+                db.execute(
+                    "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
+                    (ordinal, utc_now(), part["part_id"]),
+                )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def reorder_session_parts(
+        self, campaign_id, session_id, part_ids, expected_revision
+    ):
+        if (
+            not isinstance(part_ids, (list, tuple))
+            or len(part_ids) > 64
+            or any(not isinstance(value, str) for value in part_ids)
+        ):
+            raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
+        normalized = [self._workspace_part_id(value) for value in part_ids]
+        if len(set(normalized)) != len(normalized):
+            raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            current = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            current_ids = [part["part_id"] for part in current]
+            if set(current_ids) != set(normalized) or len(current_ids) != len(normalized):
+                raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
+            if current_ids == normalized:
+                return self._session_workspace_dto(db, row)
+            now = utc_now()
+            db.execute(
+                """
+                UPDATE session_recording_parts SET ordinal=ordinal+1000
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            for ordinal, part_id in enumerate(normalized):
+                db.execute(
+                    "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
+                    (ordinal, now, part_id),
+                )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
 
     def has_running_jobs(self):
         with self.read() as db:
