@@ -9,7 +9,7 @@ export type ActivityContext = Readonly<{
 	seq: number;
 	eventAt: string;
 	jobId: string;
-	attempt: number;
+	attempt: number | null;
 	sessionId: string | null;
 	profileId: string | null;
 	speaker: string | null;
@@ -69,7 +69,7 @@ export function activityContext(
 		seq: event.seq,
 		eventAt: event.at,
 		jobId: job.id,
-		attempt: event.attempt ?? job.attempt,
+		attempt: event.attempt,
 		sessionId: job.context?.sessionId ?? null,
 		profileId: job.context?.profileId ?? null,
 		speaker: asString(event.data.speaker),
