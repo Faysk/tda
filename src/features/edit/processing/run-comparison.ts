@@ -238,6 +238,26 @@ export function compareRunSegments(
 	);
 }
 
+export function regionOverlapsTimeRange(
+	region: RunComparisonRegion,
+	startSeconds: number | null,
+	endSeconds: number | null,
+): boolean {
+	for (const value of [startSeconds, endSeconds]) {
+		if (value !== null && (!Number.isFinite(value) || value < 0))
+			throw new Error("RUN_COMPARISON_TIME_RANGE_INVALID");
+	}
+	if (
+		startSeconds !== null &&
+		endSeconds !== null &&
+		startSeconds > endSeconds
+	)
+		return false;
+	if (startSeconds !== null && region.end < startSeconds) return false;
+	if (endSeconds !== null && region.start > endSeconds) return false;
+	return true;
+}
+
 export function summarizeRunComparison(
 	regions: readonly RunComparisonRegion[],
 ): RunComparisonSummary {
