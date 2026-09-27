@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import {
 	findTranscriptJumpIndex,
@@ -47,6 +47,7 @@ export function TranscriptReader({
 		Math.min(INITIAL_VISIBLE, segments.length),
 	);
 	const segmentRefs = useRef(new Map<number, HTMLElement>());
+	const sentinelRef = useRef<HTMLDivElement>(null);
 	const normalizedQuery = normalizeSearch(query);
 	const matches = useMemo(() => {
 		if (!normalizedQuery) return [] as number[];
@@ -97,6 +98,22 @@ export function TranscriptReader({
 			/* Clipboard may be unavailable; timestamp remains selectable. */
 		}
 	}
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel || visibleCount >= segments.length) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (!entries.some((entry) => entry.isIntersecting)) return;
+				setVisibleCount((count) =>
+					Math.min(segments.length, count + VISIBLE_STEP),
+				);
+			},
+			{ rootMargin: "600px 0px" },
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [segments.length, visibleCount]);
 
 	const visible = segments.slice(0, visibleCount);
 
@@ -179,17 +196,7 @@ export function TranscriptReader({
 					</article>
 				))}
 				{visibleCount < segments.length ? (
-					<Button
-						className={styles.continue}
-						variant="tertiary"
-						onClick={() =>
-							setVisibleCount((count) =>
-								Math.min(segments.length, count + VISIBLE_STEP),
-							)
-						}
-					>
-						Continuar leitura · {Math.min(VISIBLE_STEP, segments.length - visibleCount)} falas
-					</Button>
+					<div ref={sentinelRef} className={styles.more} aria-hidden="true" />
 				) : null}
 				{!segments.length ? <p className={styles.empty}>Nenhuma fala disponível nesta sessão.</p> : null}
 			</div>
