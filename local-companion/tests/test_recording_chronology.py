@@ -342,3 +342,36 @@ def test_segment_crossing_boundary_is_not_split_implicitly():
     segment_end = 95.0
     assert segment_start < boundary < segment_end
     assert segment_owner_at_boundary(segment_start, boundary) == "earlier"
+
+
+def test_same_trusted_start_time_is_an_explicit_overlap_not_fake_continuity():
+    a = "a" * 32
+    b = "b" * 32
+    parts = [
+        part(a, "craig-" + "1" * 64, 0),
+        part(b, "craig-" + "2" * 64, 1),
+    ]
+    source_facts = {
+        a: facts("2026-09-27T20:00:00Z", 60.0),
+        b: facts("2026-09-27T20:00:00+00:00", 45.0),
+    }
+
+    chronology = derive_recording_chronology(parts, source_facts)
+
+    assert chronology["parts"][0]["session_offset_seconds"] == 0.0
+    assert chronology["parts"][1]["session_offset_seconds"] == 0.0
+    assert chronology["relations"][0]["kind"] == "overlap"
+    assert chronology["relations"][0]["seconds"] == 60.0
+    assert chronology["relations"][0]["confirmed"] is False
+    assert chronology["ready_for_assembly"] is False
+
+
+def test_explicit_dst_offsets_normalize_to_the_same_absolute_instant():
+    before_fallback = classify_start_time("2026-10-25T01:30:00+01:00")
+    utc_equivalent = classify_start_time("2026-10-25T00:30:00Z")
+    after_fallback = classify_start_time("2026-10-25T01:30:00+00:00")
+
+    assert before_fallback["kind"] == "trusted_absolute"
+    assert before_fallback["instant_utc"] == utc_equivalent["instant_utc"]
+    assert after_fallback["kind"] == "trusted_absolute"
+    assert after_fallback["instant_utc"] != before_fallback["instant_utc"]
