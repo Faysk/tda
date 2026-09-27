@@ -32,6 +32,10 @@ import {
 	type LembraDateRange,
 } from "../search";
 import {
+	buildLembraJustifiedRows,
+	type LembraJustifiedItem,
+} from "../justified-layout";
+import {
 	sortLembraReferences,
 	type LembraSort,
 } from "../sort";
@@ -319,10 +323,12 @@ export function LembraExperience({
 	);
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
+	const [galleryWidth, setGalleryWidth] = useState(0);
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const dateFilterRef = useRef<HTMLDetailsElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const galleryRef = useRef<HTMLDivElement>(null);
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const viewerRef = useRef<HTMLDialogElement>(null);
 	const titleRef = useRef<HTMLInputElement>(null);
@@ -506,6 +512,39 @@ export function LembraExperience({
 		});
 		return sortLembraReferences(filtered, sort);
 	}, [dateRange, deferredQuery, favoriteIds, references, sort, view]);
+
+	useEffect(() => {
+		const gallery = galleryRef.current;
+		if (!gallery) return;
+
+		const updateWidth = (width: number) => {
+			if (!Number.isFinite(width) || width <= 0) return;
+			const next = Math.round(width * 100) / 100;
+			setGalleryWidth((current) =>
+				Math.abs(current - next) < 0.5 ? current : next,
+			);
+		};
+
+		updateWidth(gallery.getBoundingClientRect().width);
+
+		if (typeof ResizeObserver === "undefined") {
+			const onResize = () => updateWidth(gallery.getBoundingClientRect().width);
+			window.addEventListener("resize", onResize);
+			return () => window.removeEventListener("resize", onResize);
+		}
+
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (entry) updateWidth(entry.contentRect.width);
+		});
+		observer.observe(gallery);
+		return () => observer.disconnect();
+	}, [visibleReferences.length]);
+
+	const galleryLayout = useMemo(
+		() => buildLembraJustifiedRows(visibleReferences, galleryWidth),
+		[galleryWidth, visibleReferences],
+	);
 
 	const selectedIndex = selectedId
 		? visibleReferences.findIndex((item) => item.id === selectedId)
@@ -896,6 +935,93 @@ export function LembraExperience({
 		},
 	];
 
+	function renderReferenceCard(
+		item: LembraReference,
+		geometry?: LembraJustifiedItem,
+	) {
+		const favorite = favoriteIds.has(item.id);
+		return (
+			<article
+				className={styles.card}
+				key={item.id}
+				style={geometry ? { width: `${geometry.width}px` } : undefined}
+				data-gallery-card
+			>
+				<div
+					className={styles.media}
+					data-gallery-media
+					style={
+						geometry
+							? { height: `${geometry.height}px` }
+							: item.width && item.height
+								? { aspectRatio: `${item.width} / ${item.height}` }
+								: undefined
+					}
+				>
+					{brokenImageIds.has(item.id) ? (
+						<div className={styles.mediaFallback} aria-hidden="true">
+							<ImageIcon />
+							<span>Imagem indisponível</span>
+						</div>
+					) : (
+						<img
+							src={item.imageUrl}
+							alt=""
+							width={item.width}
+							height={item.height}
+							loading="lazy"
+							decoding="async"
+							onError={() =>
+								setBrokenImageIds((current) => {
+									const next = new Set(current);
+									next.add(item.id);
+									return next;
+								})
+							}
+						/>
+					)}
+					<button
+						type="button"
+						className={styles.mediaOpen}
+						onClick={() => openViewer(item.id)}
+						aria-label={`Abrir referência ${item.title}`}
+					/>
+					<button
+						type="button"
+						className={favorite ? styles.favoriteActive : styles.favorite}
+						onClick={() => toggleFavorite(item.id)}
+						aria-pressed={favorite}
+						aria-label={
+							favorite
+								? `Remover ${item.title} dos favoritos`
+								: `Adicionar ${item.title} aos favoritos`
+						}
+					>
+						<HeartIcon filled={favorite} />
+					</button>
+				</div>
+				<div className={styles.cardBody}>
+					<h2>
+						<button
+							type="button"
+							className={styles.cardTitleButton}
+							onClick={() => openViewer(item.id)}
+						>
+							{item.title}
+						</button>
+					</h2>
+					{item.description ? <p>{item.description}</p> : null}
+					<div className={styles.cardMeta}>
+						<span>Por {item.author}</span>
+						<time dateTime={item.createdAt}>
+							{DATE_FORMATTER.format(new Date(item.createdAt))}
+						</time>
+					</div>
+				</div>
+			</article>
+		);
+	}
+
 	return (
 		<div className={styles.shell}>
 			<aside className={styles.sidebar} aria-label="Filtros do Lembra">
@@ -1056,82 +1182,33 @@ export function LembraExperience({
 				) : null}
 
 				{visibleReferences.length ? (
-					<div className={styles.grid}>
-						{visibleReferences.map((item) => {
-							const favorite = favoriteIds.has(item.id);
-							return (
-								<article className={styles.card} key={item.id}>
-									<div
-										className={styles.media}
-										style={
-											item.width && item.height
-												? { aspectRatio: `${item.width} / ${item.height}` }
-												: undefined
-										}
-									>
-										{brokenImageIds.has(item.id) ? (
-											<div className={styles.mediaFallback} aria-hidden="true">
-												<ImageIcon />
-												<span>Imagem indisponível</span>
-											</div>
-										) : (
-											<img
-												src={item.imageUrl}
-												alt=""
-												width={item.width}
-												height={item.height}
-												loading="lazy"
-												decoding="async"
-												onError={() =>
-													setBrokenImageIds((current) => {
-														const next = new Set(current);
-														next.add(item.id);
-														return next;
-													})
-												}
-											/>
-										)}
-										<button
-											type="button"
-											className={styles.mediaOpen}
-											onClick={() => openViewer(item.id)}
-											aria-label={`Abrir referência ${item.title}`}
-										/>
-										<button
-											type="button"
-											className={favorite ? styles.favoriteActive : styles.favorite}
-											onClick={() => toggleFavorite(item.id)}
-											aria-pressed={favorite}
-											aria-label={
-												favorite
-													? `Remover ${item.title} dos favoritos`
-													: `Adicionar ${item.title} aos favoritos`
-											}
-										>
-											<HeartIcon filled={favorite} />
-										</button>
-									</div>
-									<div className={styles.cardBody}>
-										<h2>
-											<button
-												type="button"
-												className={styles.cardTitleButton}
-												onClick={() => openViewer(item.id)}
-											>
-												{item.title}
-											</button>
-										</h2>
-										{item.description ? <p>{item.description}</p> : null}
-										<div className={styles.cardMeta}>
-											<span>Por {item.author}</span>
-											<time dateTime={item.createdAt}>
-												{DATE_FORMATTER.format(new Date(item.createdAt))}
-											</time>
-										</div>
-									</div>
-								</article>
-							);
-						})}
+					<div
+						ref={galleryRef}
+						className={styles.gallery}
+						data-gallery
+						style={
+							galleryWidth > 0 ? { gap: `${galleryLayout.gap}px` } : undefined
+						}
+					>
+						{galleryWidth > 0 ? (
+							galleryLayout.rows.map((row, rowIndex) => (
+								<div
+									className={styles.galleryRow}
+									data-gallery-row
+									data-justified={row.justified ? "true" : "false"}
+									key={`row-${rowIndex}-${row.items[0]?.reference.id ?? "empty"}`}
+									style={{ gap: `${galleryLayout.gap}px` }}
+								>
+									{row.items.map((geometry) =>
+										renderReferenceCard(geometry.reference, geometry),
+									)}
+								</div>
+							))
+						) : (
+							<div className={styles.gridFallback}>
+								{visibleReferences.map((item) => renderReferenceCard(item))}
+							</div>
+						)}
 					</div>
 				) : (
 					<div className={styles.emptyState}>
