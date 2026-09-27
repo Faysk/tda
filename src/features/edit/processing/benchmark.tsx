@@ -522,7 +522,7 @@ export function ProcessingBenchmark({
 				: !sampleEligible
 					? "Esta fonte não possui 5:00 válidos em todas as tracks."
 					: pendingProfiles.length > 0
-						? `Prepare ${pendingProfiles.length} perfil${pendingProfiles.length === 1 ? "" : "is"} pendente${pendingProfiles.length === 1 ? "" : "s"}.`
+						? `Prepare ${pendingProfiles.length} ${pendingProfiles.length === 1 ? "perfil pendente" : "perfis pendentes"}.`
 						: blockedProfiles.length > 0
 							? "Resolva os perfis bloqueados antes de executar."
 							: allProfilesReady
