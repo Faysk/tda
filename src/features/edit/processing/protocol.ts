@@ -824,7 +824,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			),
 			trimStartSeconds: nonNegativeNumber(part.trim_start_seconds),
 			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
-			gapConfirmed: boolean(part.gap_confirmed),
+			gapConfirmed:
+				part.gap_confirmed === undefined ? false : boolean(part.gap_confirmed),
 			overlapResolution: overlapResolution as SessionOverlapResolution | null,
 			overlapBoundarySeconds: nullableNonNegativeNumber(
 				part.overlap_boundary_seconds,
