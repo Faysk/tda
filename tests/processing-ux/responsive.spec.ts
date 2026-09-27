@@ -107,7 +107,18 @@ for (const viewport of viewports) {
 			const workspace = page.locator("[data-processing-workspace='true']");
 			const box = await workspace.boundingBox();
 			expect(box).not.toBeNull();
-			expect(box?.width ?? 9999).toBeLessThanOrEqual(2161);
+			const layoutMax = await workspace.evaluate(() =>
+				Number.parseFloat(
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--ds-layout-max")
+						.trim(),
+				),
+			);
+			expect(layoutMax).toBeGreaterThan(0);
+			expect(box?.width ?? 9999).toBeLessThanOrEqual(layoutMax + 1);
+			// 4K must actually consume the configured layout budget instead of
+			// regressing into a tiny centered desktop island.
+			expect(box?.width ?? 0).toBeGreaterThanOrEqual(layoutMax - 2);
 			const leftGap = box?.x ?? 0;
 			const rightGap = viewport.width - ((box?.x ?? 0) + (box?.width ?? 0));
 			expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2);
@@ -145,6 +156,11 @@ test("workspace tabs implement roving keyboard navigation", async ({ page }) => 
 	const diagnostics = page.getByRole("tab", { name: "Diagnóstico" });
 	await expect(diagnostics).toBeFocused();
 	await expect(diagnostics).toHaveAttribute("aria-selected", "true");
+	expect(
+		await page
+			.getByRole("tablist", { name: "Áreas do processamento" })
+			.evaluate((element) => element.scrollTop),
+	).toBe(0);
 	await expect(
 		page.getByRole("heading", { name: "Detalhes do processamento" }),
 	).toBeVisible();
@@ -155,7 +171,7 @@ test("workspace tabs implement roving keyboard navigation", async ({ page }) => 
 });
 
 for (const theme of ["dark", "light"] as const) {
-	test(`${theme} theme keeps operational contrast tokens and layout intact`, async ({
+	test(`${theme} theme keeps WCAG operational contrast and layout intact`, async ({
 		page,
 	}) => {
 		await page.addInitScript((value) => {
@@ -163,17 +179,50 @@ for (const theme of ["dark", "light"] as const) {
 		}, theme);
 		await openRunningWorkspace(page, 1440, 900);
 		const values = await page.evaluate(() => {
-			const style = getComputedStyle(document.documentElement);
+			const resolveColor = (token: string) => {
+				const probe = document.createElement("span");
+				probe.style.color = `var(${token})`;
+				document.body.append(probe);
+				const color = getComputedStyle(probe).color;
+				probe.remove();
+				return color;
+			};
+			const luminance = (rgb: string) => {
+				const components = (rgb.match(/[\d.]+/g) ?? [])
+					.slice(0, 3)
+					.map((value) => {
+						const channel = Number(value) / 255;
+						return channel <= 0.04045
+							? channel / 12.92
+							: ((channel + 0.055) / 1.055) ** 2.4;
+					});
+				return (
+					(components[0] ?? 0) * 0.2126 +
+					(components[1] ?? 0) * 0.7152 +
+					(components[2] ?? 0) * 0.0722
+				);
+			};
+			const contrast = (left: string, right: string) => {
+				const a = luminance(left);
+				const b = luminance(right);
+				return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+			};
+			const canvas = resolveColor("--ds-canvas");
+			const surface = resolveColor("--ds-surface");
+			const foreground = resolveColor("--ds-foreground");
+			const muted = resolveColor("--ds-foreground-muted");
+			const focus = resolveColor("--ds-control-focus-ring");
 			return {
-				canvas: style.getPropertyValue("--ds-canvas").trim(),
-				foreground: style.getPropertyValue("--ds-foreground").trim(),
+				foregroundContrast: contrast(foreground, canvas),
+				mutedContrast: contrast(muted, canvas),
+				focusContrast: contrast(focus, surface),
 				scrollWidth: document.documentElement.scrollWidth,
 				clientWidth: document.documentElement.clientWidth,
 			};
 		});
-		expect(values.canvas).not.toBe("");
-		expect(values.foreground).not.toBe("");
-		expect(values.canvas).not.toBe(values.foreground);
+		expect(values.foregroundContrast).toBeGreaterThanOrEqual(4.5);
+		expect(values.mutedContrast).toBeGreaterThanOrEqual(4.5);
+		expect(values.focusContrast).toBeGreaterThanOrEqual(3);
 		expect(values.scrollWidth).toBeLessThanOrEqual(values.clientWidth);
 	});
 }
@@ -390,4 +439,93 @@ test("QHD uses additional overview width without breaking the design-system max"
 	expect(geometry.workspaceWidth).toBeGreaterThan(1200);
 	const workspaceBox = await workspace.boundingBox();
 	expect(workspaceBox?.width ?? 9999).toBeLessThanOrEqual(2161);
+});
+
+
+test("queue last-row actions stay inside the viewport and restore focus", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1024, height: 768 });
+	const jobs = Array.from({ length: 30 }, (_, index) =>
+		fixtureJob("succeeded", {
+			id: `job-done-${String(index).padStart(2, "0")}`,
+			context: {
+				campaign_id: "yuhara-main",
+				session_id: `sessao-${String(index).padStart(2, "0")}`,
+				source_id: `source-${String(index).padStart(2, "0")}`,
+				profile_id: "whisper-turbo",
+			},
+			updated_at: `2026-09-25T10:${String(index).padStart(2, "0")}:00Z`,
+		}),
+	);
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: jobs,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Todos/ }).click();
+
+	const trigger = queue.getByRole("button", {
+		name: "Mais ações para sessao-00",
+	});
+	await trigger.scrollIntoViewIfNeeded();
+	await trigger.click();
+
+	const popup = page.locator("[data-queue-actions='true']");
+	await expect(popup).toBeVisible();
+	const box = await popup.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.x ?? -1).toBeGreaterThanOrEqual(8);
+	expect(box?.y ?? -1).toBeGreaterThanOrEqual(8);
+	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(1016);
+	expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(760);
+
+	await page.keyboard.press("Escape");
+	await expect(popup).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+});
+
+test("queue overflow actions do not create horizontal overflow at 320px", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 568 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("succeeded", {
+				id: "job-mobile-done",
+				context: {
+					campaign_id: "yuhara-main",
+					session_id: "sessao-mobile-done",
+					source_id: "source-mobile-done",
+					profile_id: "whisper-turbo",
+				},
+			}),
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Todos/ }).click();
+	await queue
+		.getByRole("button", { name: "Mais ações para sessao-mobile-done" })
+		.click();
+	const popup = page.locator("[data-queue-actions='true']");
+	await expect(popup).toBeVisible();
+
+	const geometry = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+	const box = await popup.boundingBox();
+	expect(box).not.toBeNull();
+	expect(box?.x ?? -1).toBeGreaterThanOrEqual(8);
+	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(312);
 });
