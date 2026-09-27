@@ -486,20 +486,223 @@ class Store:
             current_ids = [part["part_id"] for part in current]
             if set(current_ids) != set(normalized) or len(current_ids) != len(normalized):
                 raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
-            if current_ids == normalized:
+            if current_ids == normalized and row["order_authority"] == "manual":
                 return self._session_workspace_dto(db, row)
+
             now = utc_now()
+            if current_ids != normalized:
+                db.execute(
+                    """
+                    UPDATE session_recording_parts SET ordinal=ordinal+1000
+                    WHERE campaign_id=? AND session_id=?
+                    """,
+                    (row["campaign_id"], row["session_id"]),
+                )
+                for ordinal, part_id in enumerate(normalized):
+                    db.execute(
+                        "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
+                        (ordinal, now, part_id),
+                    )
+                db.execute(
+                    """
+                    DELETE FROM session_timeline_decisions
+                    WHERE campaign_id=? AND session_id=?
+                    """,
+                    (row["campaign_id"], row["session_id"]),
+                )
             db.execute(
                 """
-                UPDATE session_recording_parts SET ordinal=ordinal+1000
+                UPDATE session_workspaces
+                SET order_authority='manual'
                 WHERE campaign_id=? AND session_id=?
                 """,
                 (row["campaign_id"], row["session_id"]),
             )
-            for ordinal, part_id in enumerate(normalized):
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def update_session_part_timing(
+        self,
+        campaign_id,
+        session_id,
+        part_id,
+        *,
+        manual_offset_seconds,
+        trim_start_seconds,
+        trim_end_seconds,
+        expected_revision,
+    ):
+        part_id = self._workspace_part_id(part_id)
+        try:
+            timing = normalize_part_timing(
+                manual_offset_seconds=manual_offset_seconds,
+                trim_start_seconds=trim_start_seconds,
+                trim_end_seconds=trim_end_seconds,
+            )
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from None
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            part = db.execute(
+                """
+                SELECT manual_offset_seconds,trim_start_seconds,trim_end_seconds
+                FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).fetchone()
+            if part is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            current = {
+                "manual_offset_seconds": part["manual_offset_seconds"],
+                "trim_start_seconds": float(part["trim_start_seconds"]),
+                "trim_end_seconds": part["trim_end_seconds"],
+            }
+            if current == timing:
+                return self._session_workspace_dto(db, row)
+
+            now = utc_now()
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET manual_offset_seconds=?,trim_start_seconds=?,trim_end_seconds=?,updated=?
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (
+                    timing["manual_offset_seconds"],
+                    timing["trim_start_seconds"],
+                    timing["trim_end_seconds"],
+                    now,
+                    row["campaign_id"],
+                    row["session_id"],
+                    part_id,
+                ),
+            )
+            db.execute(
+                """
+                DELETE FROM session_timeline_decisions
+                WHERE campaign_id=? AND session_id=?
+                  AND (earlier_part_id=? OR later_part_id=?)
+                """,
+                (
+                    row["campaign_id"],
+                    row["session_id"],
+                    part_id,
+                    part_id,
+                ),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def set_session_timeline_decision(
+        self,
+        campaign_id,
+        session_id,
+        earlier_part_id,
+        later_part_id,
+        *,
+        decision,
+        boundary_seconds,
+        expected_revision,
+    ):
+        earlier_part_id = self._workspace_part_id(earlier_part_id)
+        later_part_id = self._workspace_part_id(later_part_id)
+        if earlier_part_id == later_part_id:
+            raise Conflict("SESSION_TIMELINE_RELATION_NOT_FOUND")
+        try:
+            normalized_decision, normalized_boundary = normalize_decision(
+                decision,
+                boundary_seconds,
+            )
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from None
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            ordered = db.execute(
+                """
+                SELECT part_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            ordered_ids = [part["part_id"] for part in ordered]
+            adjacent = any(
+                ordered_ids[index] == earlier_part_id
+                and ordered_ids[index + 1] == later_part_id
+                for index in range(max(0, len(ordered_ids) - 1))
+            )
+            if not adjacent:
+                raise Conflict("SESSION_TIMELINE_RELATION_NOT_FOUND")
+
+            existing = db.execute(
+                """
+                SELECT decision,boundary_seconds
+                FROM session_timeline_decisions
+                WHERE campaign_id=? AND session_id=?
+                  AND earlier_part_id=? AND later_part_id=?
+                """,
+                (
+                    row["campaign_id"],
+                    row["session_id"],
+                    earlier_part_id,
+                    later_part_id,
+                ),
+            ).fetchone()
+            if normalized_decision is None:
+                if existing is None:
+                    return self._session_workspace_dto(db, row)
                 db.execute(
-                    "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
-                    (ordinal, now, part_id),
+                    """
+                    DELETE FROM session_timeline_decisions
+                    WHERE campaign_id=? AND session_id=?
+                      AND earlier_part_id=? AND later_part_id=?
+                    """,
+                    (
+                        row["campaign_id"],
+                        row["session_id"],
+                        earlier_part_id,
+                        later_part_id,
+                    ),
+                )
+            else:
+                if (
+                    existing is not None
+                    and existing["decision"] == normalized_decision
+                    and existing["boundary_seconds"] == normalized_boundary
+                ):
+                    return self._session_workspace_dto(db, row)
+                now = utc_now()
+                db.execute(
+                    """
+                    INSERT INTO session_timeline_decisions(
+                        campaign_id,session_id,earlier_part_id,later_part_id,
+                        decision,boundary_seconds,created,updated
+                    ) VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT(campaign_id,session_id,earlier_part_id,later_part_id)
+                    DO UPDATE SET
+                        decision=excluded.decision,
+                        boundary_seconds=excluded.boundary_seconds,
+                        updated=excluded.updated
+                    """,
+                    (
+                        row["campaign_id"],
+                        row["session_id"],
+                        earlier_part_id,
+                        later_part_id,
+                        normalized_decision,
+                        normalized_boundary,
+                        now,
+                        now,
+                    ),
                 )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
