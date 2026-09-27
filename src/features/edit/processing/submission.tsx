@@ -18,12 +18,20 @@ import {
 } from "./bridge";
 import {
 	BridgeError,
+	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
+	type LocalRunSummary,
 	type PreparationStatus,
+	type SystemSnapshot,
 	type TranscriptionProfileId,
 } from "./protocol";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
+import {
+	estimateProfileProcessing,
+	formatEstimateProvenance,
+	formatEstimateRange,
+} from "./processing-estimator";
 import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
@@ -162,14 +170,23 @@ function sourceMustBeRestaged(code: string | null): boolean {
 	);
 }
 
+const EMPTY_RUNS: readonly LocalRunSummary[] = [];
+const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
+
 export function ProcessingSubmission({
 	className,
 	compact = false,
 	onOpenDiagnostics,
+	runs = EMPTY_RUNS,
+	benchmarks = EMPTY_BENCHMARKS,
+	system = null,
 }: Readonly<{
 	className?: string;
 	compact?: boolean;
 	onOpenDiagnostics?: () => void;
+	runs?: readonly LocalRunSummary[];
+	benchmarks?: readonly BenchmarkResult[];
+	system?: SystemSnapshot | null;
 }> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
@@ -318,6 +335,23 @@ export function ProcessingSubmission({
 		() => availableProfiles.find((item) => item.id === profile) ?? null,
 		[availableProfiles, profile],
 	);
+	const profileEstimates = useMemo(
+		() =>
+			new Map(
+				availableProfiles.map((item) => [
+					item.id,
+					estimateProfileProcessing({
+						audioWorkSeconds: source?.audioWorkSeconds ?? null,
+						profile: item,
+						runs,
+						benchmarks,
+						system,
+					}),
+				]),
+			),
+		[availableProfiles, benchmarks, runs, source?.audioWorkSeconds, system],
+	);
+	const selectedEstimate = profile ? (profileEstimates.get(profile) ?? null) : null;
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
 	const profileBlocked = Boolean(
@@ -404,9 +438,49 @@ export function ProcessingSubmission({
 		applyFile(event.dataTransfer.files.item(0));
 	}
 
+	async function analyzeSource() {
+		if (busy || !file || !profile || !canSubmit) return;
+		const fileValidation = validateCraigFile(file);
+		if (fileValidation) {
+			setFileError(fileValidation);
+			return;
+		}
+		const controller = new AbortController();
+		request.current?.abort();
+		request.current = controller;
+		setBusy(true);
+		setPendingStage("validating");
+		setError(null);
+		setFileError(null);
+		setStatus("Analisando o ZIP diretamente no Companion local…");
+		try {
+			const staged = await bridge.craigSource(file, controller.signal);
+			setSource(staged);
+			setStatus(
+				`ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
+					staged.audioWorkSeconds ?? 0,
+				)} s de trabalho de áudio.`,
+			);
+		} catch (cause) {
+			setSource(null);
+			if (cause instanceof BridgeError) {
+				setError(
+					cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+			} else {
+				setError(messageFor("service_error"));
+			}
+		} finally {
+			setBusy(false);
+			setPendingStage(null);
+		}
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canSubmit || profileBlocked) return;
+		if (busy || !file || !source || !profile || !canSubmit || profileBlocked) return;
 		if (qwenRuntimeUpgradeRequired) {
 			setError(qwenRuntimeBlockMessage);
 			return;
@@ -434,19 +508,10 @@ export function ProcessingSubmission({
 		setPendingStage("validating");
 		setError(null);
 		setFileError(null);
-		setStatus(
-			source
-				? "Reutilizando a fonte já verificada neste Companion…"
-				: "Enviando o ZIP diretamente para o Companion local…",
-		);
+		setStatus("Reutilizando a fonte já verificada neste Companion…");
 		try {
-			const staged = source ?? (await bridge.craigSource(file, controller.signal));
-			if (!source) setSource(staged);
-			setStatus(
-				staged.reused || source
-					? `Fonte local já verificada · ${staged.trackCount} tracks.`
-					: `ZIP verificado · ${staged.trackCount} tracks.`,
-			);
+			const staged = source;
+			setStatus(`Fonte local verificada · ${staged.trackCount} tracks.`);
 
 			// Uploads grandes can take long enough for runtime/model readiness to
 			// change. Decide preparation from a fresh Agent snapshot, not from the
@@ -820,8 +885,52 @@ export function ProcessingSubmission({
 											: " · indisponível"}
 								</span>
 							</div>
-							<small>Ainda sem calibração nesta máquina.</small>
+							<small>
+								{!source
+									? "Analise o ZIP para calcular nesta máquina."
+									: selectedEstimate?.available
+										? `${formatEstimateRange(selectedEstimate.lowerSeconds, selectedEstimate.upperSeconds)} · confiança ${{
+												high: "alta",
+												medium: "média",
+												low: "baixa",
+											}[selectedEstimate.confidence]} · ${formatEstimateProvenance(selectedEstimate)}`
+										: "Sem estimativa calibrada nesta máquina."}
+							</small>
 						</div>
+					) : null}
+
+					{source ? (
+						<section className={styles.estimatePanel} aria-label="Estimativas locais por perfil">
+							<div>
+								<strong>Estimativa nesta máquina</strong>
+								<small>{Math.round(source.audioWorkSeconds ?? 0)} s de trabalho de áudio · intervalo, não promessa</small>
+							</div>
+							<div className={styles.estimateGrid}>
+								{availableProfiles.map((item) => {
+									const estimate = profileEstimates.get(item.id);
+									return (
+										<div key={item.id} data-selected={item.id === profile ? "true" : "false"}>
+											<span>{submissionProfileLabel(item.id)}</span>
+											<strong>
+												{estimate?.available
+													? formatEstimateRange(estimate.lowerSeconds, estimate.upperSeconds)
+													: "Sem estimativa calibrada"}
+											</strong>
+											<small>
+												{estimate?.available
+													? `Confiança ${{
+															high: "alta",
+															medium: "média",
+															low: "baixa",
+														}[estimate.confidence]} · ${formatEstimateProvenance(estimate)}`
+													: "Histórico compatível insuficiente"}
+												{item.preparationRequired ? " · + preparação necessária" : ""}
+											</small>
+										</div>
+									);
+								})}
+							</div>
+						</section>
 					) : null}
 
 					{readiness ? (
@@ -842,13 +951,24 @@ export function ProcessingSubmission({
 					) : null}
 
 					<div className={styles.submitRow}>
-						<Button
-							type="submit"
-							variant="primary"
-							disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
-						>
-							{submissionCtaLabel(selectedProfileState, pendingStage)}
-						</Button>
+						{source ? (
+							<Button
+								type="submit"
+								variant="primary"
+								disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
+							>
+								{submissionCtaLabel(selectedProfileState, pendingStage)}
+							</Button>
+						) : (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={busy || !file || !profile || !canSubmit}
+								onClick={() => void analyzeSource()}
+							>
+								{busy ? "Analisando localmente…" : "Analisar ZIP localmente"}
+							</Button>
+						)}
 						{requestTooLarge ? (
 							<span className={styles.budgetWarning}>
 								{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
