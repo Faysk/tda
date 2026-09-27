@@ -237,6 +237,10 @@ describe("publication client", () => {
 			},
 		});
 		expect(body.review.lineage).not.toHaveProperty("executionLineage");
+		expect(body).not.toHaveProperty("status");
+		expect(body).not.toHaveProperty("title");
+		expect(body).not.toHaveProperty("summary");
+		expect(body).not.toHaveProperty("cover");
 		expect(JSON.stringify(body)).not.toContain("NVIDIA Test GPU");
         expect(JSON.stringify(body)).not.toContain("f".repeat(64));
 	});
