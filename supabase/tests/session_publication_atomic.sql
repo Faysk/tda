@@ -155,6 +155,33 @@ begin
       v_status, v_draft_1, v_version;
   end if;
 
+  -- A session without the route identity consumed by /sessoes/[id] cannot become
+  -- a ghost published row.
+  update public.sessions
+  set source_session_id = null
+  where id='22222222-2222-4222-8222-222222222222';
+
+  select p.status
+  into v_status
+  from public.publish_session_editorial_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_draft_1,
+    null,
+    '90000000-0000-4000-8000-000000000099',
+    v_url
+  ) p;
+  if v_status <> 'not_ready'
+     or (select count(*) from public.session_publications) <> 0
+     or (select count(*) from public.session_publication_operations) <> 0 then
+    raise exception 'SESSION_PUBLICATION_ROUTELESS_SESSION_ACCEPTED:%', v_status;
+  end if;
+
+  update public.sessions
+  set source_session_id = 'synthetic-public-id'
+  where id='22222222-2222-4222-8222-222222222222';
+
   select p.status, p.publication_id, p.version, p.previous_publication_id, p.payload_sha256
   into v_status, v_pub_1, v_version, v_previous, v_hash_1
   from public.publish_session_editorial_atomic(
