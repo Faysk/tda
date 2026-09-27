@@ -10,7 +10,7 @@ import { formatSessionDate } from "@/features/sessions/model";
 
 export const metadata: Metadata = {
 	title: "Sessões · Edit",
-	description: "Sessões disponíveis para revisão administrativa.",
+	description: "Biblioteca editorial privada de sessões do TDA.",
 };
 
 function DisabledEdit() {
