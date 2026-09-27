@@ -112,6 +112,27 @@ def test_automatic_placement_requires_every_source_to_have_absolute_time():
         automatic_placements(parts, ambiguous)
 
 
+def test_equal_absolute_starts_use_stable_part_identity_tiebreak():
+    parts = [
+        part(2, 0, offset=None),
+        part(1, 1, offset=None),
+    ]
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T21:00:00+01:00", duration=60.0),
+        ]
+    )
+
+    placements = automatic_placements(parts, source_facts)
+
+    assert [item["part_id"] for item in placements] == [
+        f"{1:032x}",
+        f"{2:032x}",
+    ]
+    assert [item["session_offset_seconds"] for item in placements] == [0.0, 0.0]
+
+
 def test_gap_overlap_and_resolution_are_explicit_and_deterministic():
     workspace = {
         "schema_version": "tda_session_workspace_v1",
