@@ -23,6 +23,7 @@ import { applyParticipantRename } from "./participant-rename";
 import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
 import { localRunKey, serializeLocalRunKey } from "./local-run-key";
 import { processingStageLabels } from "./engine-metrics";
+import { RunComparisonView } from "./run-comparison-view";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -33,6 +34,7 @@ type Props = Readonly<{
 	error: string | null;
 	publicationEnabled: boolean;
 	onOpen: (sourceId: string, runId: string) => void | Promise<void>;
+	onLoadSnapshot: (sourceId: string, runId: string) => Promise<LocalReview>;
 	onDeleteRun?: (sourceId: string, runId: string, transcriptSha256: string) => Promise<boolean>;
 	onSave: (
 		baseline: LocalReview,
@@ -827,6 +829,7 @@ export function LocalReviewWorkspace({
 	error,
 	publicationEnabled,
 	onOpen,
+	onLoadSnapshot,
 	onDeleteRun,
 	onSave,
 	onClose,
@@ -839,6 +842,15 @@ export function LocalReviewWorkspace({
 	const [reviewFilter, setReviewFilter] = useState("all");
 	const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "fastest">("newest");
 	const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null);
+	const [comparisonTargetKey, setComparisonTargetKey] = useState("");
+	const [comparisonBusy, setComparisonBusy] = useState(false);
+	const [comparisonError, setComparisonError] = useState<string | null>(null);
+	const [comparisonPair, setComparisonPair] = useState<Readonly<{
+		leftRun: LocalRunSummary;
+		rightRun: LocalRunSummary;
+		leftReview: LocalReview;
+		rightReview: LocalReview;
+	}> | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<LocalRunSummary | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const deleteDialog = useRef<HTMLDialogElement>(null);
@@ -891,6 +903,23 @@ export function LocalReviewWorkspace({
 		filteredRuns[0] ??
 		null;
 
+	const comparisonCandidates = selectedRun
+		? runs.filter(
+			(run) =>
+				run.sourceId === selectedRun.sourceId &&
+				run.runId !== selectedRun.runId,
+		)
+		: [];
+	const comparisonTarget =
+		comparisonCandidates.find(
+			(run) => serializeLocalRunKey(localRunKey(run)) === comparisonTargetKey,
+		) ??
+		comparisonCandidates[0] ??
+		null;
+	const effectiveComparisonTargetKey = comparisonTarget
+		? serializeLocalRunKey(localRunKey(comparisonTarget))
+		: "";
+
 	useEffect(() => {
 		if (deleteTarget) deleteDialog.current?.showModal();
 		else deleteDialog.current?.close();
@@ -905,6 +934,39 @@ export function LocalReviewWorkspace({
 		if (selectedRunKey !== key) setSelectedRunKey(key);
 	}, [selectedRun, selectedRunKey]);
 
+	async function startComparison() {
+		if (!selectedRun || !comparisonTarget || comparisonBusy) return;
+		setComparisonBusy(true);
+		setComparisonError(null);
+		try {
+			const [leftReview, rightReview] = await Promise.all([
+				onLoadSnapshot(selectedRun.sourceId, selectedRun.runId),
+				onLoadSnapshot(comparisonTarget.sourceId, comparisonTarget.runId),
+			]);
+			if (
+				leftReview.sourceId !== selectedRun.sourceId ||
+				rightReview.sourceId !== selectedRun.sourceId ||
+				leftReview.runId !== selectedRun.runId ||
+				rightReview.runId !== comparisonTarget.runId ||
+				leftReview.persistence !== "ephemeral_base" ||
+				rightReview.persistence !== "ephemeral_base"
+			)
+				throw new Error("RUN_COMPARISON_SNAPSHOT_MISMATCH");
+			setComparisonPair({
+				leftRun: selectedRun,
+				rightRun: comparisonTarget,
+				leftReview,
+				rightReview,
+			});
+		} catch {
+			setComparisonError(
+				"Não foi possível carregar os dois runs brutos locais para comparação.",
+			);
+		} finally {
+			setComparisonBusy(false);
+		}
+	}
+
 	if (review) {
 		return (
 			<ReviewEditor
@@ -918,6 +980,22 @@ export function LocalReviewWorkspace({
 				onLoadLatest={onLoadLatest}
 				onRepairTarget={onRepairTarget}
 				onPublish={onPublish}
+			/>
+		);
+	}
+
+	if (comparisonPair) {
+		return (
+			<RunComparisonView
+				leftRun={comparisonPair.leftRun}
+				rightRun={comparisonPair.rightRun}
+				leftReview={comparisonPair.leftReview}
+				rightReview={comparisonPair.rightReview}
+				onClose={() => setComparisonPair(null)}
+				onUseRun={(run) => {
+					setComparisonPair(null);
+					return onOpen(run.sourceId, run.runId);
+				}}
 			/>
 		);
 	}
@@ -1051,12 +1129,49 @@ export function LocalReviewWorkspace({
 						</nav>
 						<div className={styles.runDetail}>
 							{selectedRun ? (
-								<RunCard
-									run={selectedRun}
-									busy={busy}
-									onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
-									onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
-								/>
+								<>
+									<RunCard
+										run={selectedRun}
+										busy={busy}
+										onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
+										onDelete={onDeleteRun ? () => requestDelete(selectedRun) : undefined}
+									/>
+									<div className={styles.runCompareActions}>
+										<div>
+											<strong>Comparar runs</strong>
+											<span>Somente runs brutos da mesma fonte podem ser comparados.</span>
+										</div>
+										{comparisonCandidates.length ? (
+											<>
+												<select
+													aria-label="Segundo run para comparação"
+													value={effectiveComparisonTargetKey}
+													onChange={(event) => setComparisonTargetKey(event.target.value)}
+												>
+													{comparisonCandidates.map((run) => {
+														const key = serializeLocalRunKey(localRunKey(run));
+														return (
+															<option key={key} value={key}>
+																{run.profileId} · {formatDate(run.completedAt)}
+															</option>
+														);
+													})}
+												</select>
+												<Button
+													size="sm"
+													variant="tertiary"
+													disabled={comparisonBusy}
+													onClick={() => void startComparison()}
+												>
+													{comparisonBusy ? "Carregando…" : "Comparar"}
+												</Button>
+											</>
+										) : (
+											<small>Nenhum segundo run compatível nesta fonte.</small>
+										)}
+										{comparisonError ? <p role="status">{comparisonError}</p> : null}
+									</div>
+								</>
 							) : (
 								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
 							)}
