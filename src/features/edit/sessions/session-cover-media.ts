@@ -1,5 +1,6 @@
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
+	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
 	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
 	WORLD_ENTITY_MEDIA_MAX_UPLOAD_CHUNKS,
 	type WorldEntityMediaMime,
@@ -127,6 +128,24 @@ export function sessionCoverObjectKey(input: {
 		"." +
 		input.extension
 	);
+}
+
+export function sessionCoverPublicUrl(objectKey: string): string | null {
+	if (
+		!objectKey.startsWith("campaigns/yuhara-main/sessions/") ||
+		objectKey.includes("?") ||
+		objectKey.includes("#")
+	)
+		return null;
+	return WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN + "/" + objectKey;
+}
+
+export function normalizePublishedSessionCoverReference(value: string): string | null {
+	const raw = value.trim();
+	if (!isExistingPublishedSessionCoverReference(raw)) return null;
+	return raw.startsWith("/assets/sessions/")
+		? "https://dnd.faysk.dev" + raw
+		: raw;
 }
 
 export function sessionCoverPendingChunkObjectKey(input: {
