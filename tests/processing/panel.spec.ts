@@ -522,9 +522,9 @@ test("Overview omits percent when the progress denominator is absent", async ({
 		page.getByText("Progresso percentual ainda não disponível.", { exact: true }),
 	).toHaveCount(0);
 	await expect(
-		page.getByRole("tabpanel", { name: "Visão geral" }).getByText("Transcrição", {
-			exact: true,
-		}),
+		page
+			.getByRole("region", { name: "Etapa atual do processamento" })
+			.getByText("Transcrição", { exact: true }),
 	).toBeVisible();
 });
 

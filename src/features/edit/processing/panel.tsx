@@ -113,31 +113,6 @@ function OverviewMetric({
 	);
 }
 
-const preparationStages = new Set([
-	"queued",
-	"preparing",
-	"runtime_validation",
-	"runtime_bootstrap",
-	"runtime_fingerprint",
-	"checkpoint_scan",
-	"source_validation",
-	"checking_model",
-	"downloading_model",
-	"model_prepare",
-	"model_load",
-	"loading_cpu",
-	"loading_cuda",
-	"loading_cuda_fallback",
-]);
-const processingStages = new Set([
-	"fixture",
-	"transcribing",
-	"transcription",
-	"diarization",
-	"noise_cleanup",
-	"resuming",
-	"alignment",
-]);
 const consolidationStages = new Set([
 	"energy_analysis",
 	"cross_track_dedup",
@@ -148,22 +123,102 @@ const consolidationStages = new Set([
 	"complete",
 ]);
 
+const pipelineSteps = [
+	{
+		id: "source",
+		label: "Fonte",
+		stages: new Set(["queued", "preparing", "source_validation"]),
+	},
+	{
+		id: "model",
+		label: "Modelo",
+		stages: new Set([
+			"runtime_validation",
+			"runtime_bootstrap",
+			"runtime_fingerprint",
+			"checkpoint_scan",
+			"checking_model",
+			"downloading_model",
+			"model_prepare",
+			"model_load",
+			"loading_cpu",
+			"loading_cuda",
+			"loading_cuda_fallback",
+		]),
+	},
+	{
+		id: "transcription",
+		label: "Transcrição",
+		stages: new Set([
+			"fixture",
+			"transcribing",
+			"transcription",
+			"diarization",
+			"noise_cleanup",
+			"resuming",
+		]),
+	},
+	{ id: "alignment", label: "Alignment", stages: new Set(["alignment"]) },
+	{
+		id: "consolidation",
+		label: "Consolidação",
+		stages: consolidationStages,
+	},
+] as const;
+
 function pipelineState(
 	stage: string,
-	phase: "preparation" | "processing" | "consolidation",
+	stepIndex: number,
 ): "current" | "done" | "pending" | "unknown" {
-	if (
-		!preparationStages.has(stage) &&
-		!processingStages.has(stage) &&
-		!consolidationStages.has(stage)
-	)
-		return "unknown";
-	if (phase === "preparation") return preparationStages.has(stage) ? "current" : "done";
-	if (phase === "processing") {
-		if (processingStages.has(stage)) return "current";
-		return consolidationStages.has(stage) ? "done" : "pending";
+	const currentIndex = pipelineSteps.findIndex((step) => step.stages.has(stage));
+	if (currentIndex < 0) return "unknown";
+	if (stepIndex < currentIndex) return "done";
+	if (stepIndex === currentIndex) return "current";
+	return "pending";
+}
+
+function latestActivity(events: readonly JobEvent[]) {
+	for (let index = events.length - 1; index >= 0; index -= 1) {
+		const event = events[index];
+		if (!event) continue;
+		const speaker =
+			typeof event.data.speaker === "string" ? event.data.speaker : null;
+		if (event.code === "QWEN_WINDOW_TRANSCRIBED") {
+			const window =
+				typeof event.data.window === "number" ? event.data.window : null;
+			return {
+				title: speaker ? `Qwen processando ${speaker}` : "Qwen processando áudio",
+				detail: window === null ? null : `Janela ${window} concluída`,
+				at: event.at,
+			};
+		}
+		if (event.code === "WHISPER_SEGMENT_TRANSCRIBED") {
+			const segment =
+				typeof event.data.segment === "number" ? event.data.segment : null;
+			return {
+				title: speaker
+					? `Whisper processando ${speaker}`
+					: "Whisper processando áudio",
+				detail: segment === null ? null : `Segmento ${segment} concluído`,
+				at: event.at,
+			};
+		}
+		if (event.code === "TRACK_STARTED" || event.code === "TRACK_COMPLETED") {
+			return {
+				title:
+					event.code === "TRACK_STARTED"
+						? speaker
+							? `Iniciando ${speaker}`
+							: "Iniciando próxima track"
+						: speaker
+							? `${speaker} concluído`
+							: "Track concluída",
+				detail: null,
+				at: event.at,
+			};
+		}
 	}
-	return consolidationStages.has(stage) ? "current" : "pending";
+	return null;
 }
 
 function eventTrackContext(events: readonly JobEvent[]) {
@@ -271,6 +326,10 @@ export function ProcessingPanel({
 	const trackContext =
 		activeJob && state.observedJobId === activeJob.id
 			? eventTrackContext(state.events)
+			: null;
+	const activeActivity =
+		activeJob && state.observedJobId === activeJob.id
+			? latestActivity(state.events)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 
@@ -536,35 +595,25 @@ export function ProcessingPanel({
 												</p>
 											) : null
 										)}
-										<section
-											className={styles.pipeline}
-											aria-label="Etapa atual do processamento"
-										>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"preparation",
-												)}
-											>
-												Preparação
-											</span>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"processing",
-												)}
-											>
-												Processamento
-											</span>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"consolidation",
-												)}
-											>
-												Consolidação
-											</span>
-										</section>
+						{activeActivity ? (
+							<div className={styles.activeActivity} aria-live="polite">
+								<strong>{activeActivity.title}</strong>
+								<span>
+									{activeActivity.detail ? `${activeActivity.detail} · ` : ""}
+									última atividade às {formatTime(activeActivity.at)}
+								</span>
+							</div>
+						) : null}
+						<section
+							className={styles.pipeline}
+							aria-label="Etapa atual do processamento"
+						>
+							{pipelineSteps.map((step, index) => (
+								<span key={step.id} data-state={pipelineState(activeJob.stage, index)}>
+									{step.label}
+								</span>
+							))}
+						</section>
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
