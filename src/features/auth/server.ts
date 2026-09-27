@@ -11,6 +11,7 @@ import {
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { authClient } from "./client";
 import { safeReturnPath } from "./config";
+import { navigationIdentityFromMetadata } from "./presentation";
 
 export async function serverAuthClient() {
 	const jar = await cookies();
@@ -41,7 +42,13 @@ export async function getVerifiedServerIdentity() {
 						? "dependency_unavailable"
 						: "unauthenticated",
 			} as const;
-		return { ok: true, authUserId: data.user.id } as const;
+		return {
+			ok: true,
+			authUserId: data.user.id,
+			navigationIdentity: navigationIdentityFromMetadata(
+				data.user.user_metadata,
+			),
+		} as const;
 	} catch {
 		return { ok: false, reason: "dependency_unavailable" } as const;
 	}
@@ -78,11 +85,21 @@ export const currentAccess = cache(async () => {
 				state:
 					identity.reason === "unauthenticated" ? "anonymous" : "unavailable",
 				context: null,
+				identity: null,
 			} as const;
 		const context = await loadEditAccessContext(identity.authUserId);
-		if (!context) return { state: "unavailable", context: null } as const;
+		if (!context)
+			return {
+				state: "unavailable",
+				context: null,
+				identity: identity.navigationIdentity,
+			} as const;
 		if (!context.profileId)
-			return { state: "authenticated_unlinked", context } as const;
+			return {
+				state: "authenticated_unlinked",
+				context,
+				identity: identity.navigationIdentity,
+			} as const;
 		const effective = Object.values(EDIT_CAPABILITIES).some(
 			(action) =>
 				authorizeCampaignCapability(context, action, CAMPAIGN_SLUG).ok,
@@ -92,9 +109,10 @@ export const currentAccess = cache(async () => {
 				? "authenticated_linked"
 				: "authenticated_linked_no_grants",
 			context,
+			identity: identity.navigationIdentity,
 		} as const;
 	} catch {
-		return { state: "unavailable", context: null } as const;
+		return { state: "unavailable", context: null, identity: null } as const;
 	}
 });
 
