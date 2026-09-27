@@ -428,6 +428,19 @@ class Store:
             ).rowcount
             if deleted != 1:
                 raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            db.execute(
+                """
+                DELETE FROM session_timeline_decisions
+                WHERE campaign_id=? AND session_id=?
+                  AND (earlier_part_id=? OR later_part_id=?)
+                """,
+                (
+                    row["campaign_id"],
+                    row["session_id"],
+                    part_id,
+                    part_id,
+                ),
+            )
             parts = db.execute(
                 """
                 SELECT part_id FROM session_recording_parts
