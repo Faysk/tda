@@ -1,6 +1,7 @@
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 
 export const ACTIVITY_BARK_LIBRARY_VERSION = "tda_activity_barks_v1" as const;
+export const CORE_ACTIVITY_PACK_ID = "tda-core" as const;
 export type ActivityHumorLevel = "off" | "light" | "tda";
 export type BarkFamily = "speaker" | "devops" | "rpg" | "gpu" | "meta";
 
@@ -23,12 +24,25 @@ export type ActivityContext = Readonly<{
 	gpuUtilizationPercent: number | null;
 }>;
 
+export type ActivityBarkRequirement = "speaker" | "window" | "segment" | "gpu" | "profile" | "attempt" | "track" | "total_tracks" | "gpu_utilization";
+
+export type ActivityBarkConditions = Readonly<{
+	speaker?: readonly string[];
+	profile?: readonly string[];
+	windowMin?: number;
+	windowMax?: number;
+	gpuUtilizationMin?: number;
+	attemptMin?: number;
+}>;
+
 export type ActivityBark = Readonly<{
+	packId?: string;
 	id: string;
 	family: BarkFamily;
 	tone: Exclude<ActivityHumorLevel, "off">;
 	eventCodes: readonly string[];
-	requires?: readonly ("speaker" | "window" | "segment" | "gpu")[];
+	requires?: readonly ActivityBarkRequirement[];
+	conditions?: ActivityBarkConditions;
 	text: string;
 }>;
 
@@ -102,13 +116,25 @@ function eligible(template: ActivityBark, context: ActivityContext, level: Activ
 		if (requirement === "window" && context.window === null) return false;
 		if (requirement === "segment" && context.segment === null) return false;
 		if (requirement === "gpu" && !context.gpuName) return false;
+		if (requirement === "profile" && !context.profileId) return false;
+		if (requirement === "attempt" && context.attempt === null) return false;
+		if (requirement === "track" && context.track === null) return false;
+		if (requirement === "total_tracks" && context.totalTracks === null) return false;
+		if (requirement === "gpu_utilization" && context.gpuUtilizationPercent === null) return false;
 	}
+	const conditions = template.conditions;
+	if (conditions?.speaker && (!context.speaker || !conditions.speaker.includes(context.speaker.toLocaleLowerCase("pt-BR")))) return false;
+	if (conditions?.profile && (!context.profileId || !conditions.profile.includes(context.profileId))) return false;
+	if (conditions?.windowMin !== undefined && (context.window === null || context.window < conditions.windowMin)) return false;
+	if (conditions?.windowMax !== undefined && (context.window === null || context.window > conditions.windowMax)) return false;
+	if (conditions?.gpuUtilizationMin !== undefined && (context.gpuUtilizationPercent === null || context.gpuUtilizationPercent < conditions.gpuUtilizationMin)) return false;
+	if (conditions?.attemptMin !== undefined && (context.attempt === null || context.attempt < conditions.attemptMin)) return false;
 	return true;
 }
 
 function render(template: string, context: ActivityContext): string {
 	return template.replace(
-		/\{(speaker|window|segment|gpu)\}/gu,
+		/\{(speaker|window|segment|gpu|profile|attempt|track|total_tracks|gpu_utilization)\}/gu,
 		(match, placeholder: string) => {
 			switch (placeholder) {
 				case "speaker":
@@ -119,6 +145,16 @@ function render(template: string, context: ActivityContext): string {
 					return context.segment === null ? "" : String(context.segment);
 				case "gpu":
 					return context.gpuName ?? "";
+				case "profile":
+					return context.profileId ?? "";
+				case "attempt":
+					return context.attempt === null ? "" : String(context.attempt);
+				case "track":
+					return context.track === null ? "" : String(context.track);
+				case "total_tracks":
+					return context.totalTracks === null ? "" : String(context.totalTracks);
+				case "gpu_utilization":
+					return context.gpuUtilizationPercent === null ? "" : String(Math.round(context.gpuUtilizationPercent));
 				default:
 					return match;
 			}
@@ -134,14 +170,19 @@ export function selectActivityBark(
 		recentFamilies?: readonly BarkFamily[];
 		catalog?: readonly ActivityBark[];
 	}> = {},
-): Readonly<{ templateId: string; family: BarkFamily; text: string }> | null {
+): Readonly<{ packId: string; templateId: string; family: BarkFamily; text: string }> | null {
 	const level = options.level ?? "tda";
 	const catalog = options.catalog ?? CORE_ACTIVITY_BARKS;
 	const recentIds = new Set(options.recentTemplateIds ?? []);
 	const recentFamily = options.recentFamilies?.at(-1) ?? null;
-	let candidates = catalog.filter((item) => eligible(item, context, level));
+	let candidates = catalog
+		.filter((item) => eligible(item, context, level))
+		.toSorted((left, right) => `${left.packId ?? CORE_ACTIVITY_PACK_ID}:${left.id}`.localeCompare(`${right.packId ?? CORE_ACTIVITY_PACK_ID}:${right.id}`));
 	if (!candidates.length) return null;
-	const withoutRecent = candidates.filter((item) => !recentIds.has(item.id));
+	const withoutRecent = candidates.filter((item) => {
+		const packId = item.packId ?? CORE_ACTIVITY_PACK_ID;
+		return !recentIds.has(item.id) && !recentIds.has(`${packId}:${item.id}`);
+	});
 	if (withoutRecent.length) candidates = withoutRecent;
 	const withoutFamily = candidates.filter((item) => item.family !== recentFamily);
 	if (withoutFamily.length) candidates = withoutFamily;
@@ -151,6 +192,7 @@ export function selectActivityBark(
 	const selected = candidates[seed % candidates.length];
 	if (!selected) return null;
 	return {
+		packId: selected.packId ?? CORE_ACTIVITY_PACK_ID,
 		templateId: selected.id,
 		family: selected.family,
 		text: render(selected.text, context),
