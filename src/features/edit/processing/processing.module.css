@@ -383,13 +383,33 @@
 	flex-direction: column;
 }
 
-.overviewTop > section:first-child > :last-child {
+.overviewTop > section:first-child > .activeJob {
 	flex: 1 1 auto;
 }
 
 .submissionCard {
 	height: 100%;
 	margin: 0;
+}
+
+.overviewMetrics {
+	min-width: 0;
+}
+
+.overviewMetrics .metricsStrip {
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.overviewMetrics .metric {
+	min-height: 46px;
+}
+
+.overviewMetrics .metric:nth-child(5n + 1) {
+	border-inline-start: 0;
+}
+
+.overviewMetrics .metric > strong {
+	overflow-wrap: anywhere;
 }
 
 .workspace {
@@ -1000,6 +1020,14 @@
 		min-width: 0;
 	}
 
+	.overviewMetrics .metricsStrip {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.overviewMetrics .metric:nth-child(4n + 1) {
+		border-inline-start: 0;
+	}
+
 	.pairing {
 		min-width: 0;
 	}
@@ -1016,6 +1044,14 @@
 @media (max-width: 700px) {
 	.metricsStrip {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.overviewMetrics .metricsStrip {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.overviewMetrics .metric:nth-child(3n + 1) {
+		border-inline-start: 0;
 	}
 
 	.jobRow {
@@ -1065,9 +1101,17 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
+	.overviewMetrics .metricsStrip {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
 	.metric {
 		min-height: 52px;
 		padding-block: 8px;
+	}
+
+	.overviewMetrics .metric:nth-child(2n + 1) {
+		border-inline-start: 0;
 	}
 
 	.metric:nth-child(odd) {

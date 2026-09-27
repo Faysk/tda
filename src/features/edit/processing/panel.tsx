@@ -34,18 +34,24 @@ type Confirmation =
 	| { id: string; action: "cancel" | "retry" | "delete" }
 	| { action: "resume" };
 
-type ProcessingView = "overview" | "queue" | "results" | "diagnostics";
+type ProcessingView = "overview" | "queue" | "results" | "benchmark" | "diagnostics";
 
 const processingViews: readonly { id: ProcessingView; label: string }[] = [
 	{ id: "overview", label: "Visão geral" },
 	{ id: "queue", label: "Fila" },
 	{ id: "results", label: "Resultados" },
+	{ id: "benchmark", label: "Benchmark" },
 	{ id: "diagnostics", label: "Diagnóstico" },
 ];
 
 function progressPercent(job: LocalJob): number | null {
 	if (!job.progress) return null;
-	if (job.progress.completed === 0 && job.status !== "succeeded") return null;
+	if (
+		job.progress.total <= 0 ||
+		job.progress.completed < 0 ||
+		job.progress.completed > job.progress.total
+	)
+		return null;
 	if (
 		job.status === "running" &&
 		(job.progress.completed >= job.progress.total ||
@@ -62,11 +68,31 @@ function formatBytes(value: number | null): string {
 }
 
 function formatTime(value: string): string {
-	return new Date(value).toLocaleTimeString("pt-BR", {
+	const date = new Date(value);
+	if (!Number.isFinite(date.getTime())) return "—";
+	return date.toLocaleTimeString("pt-BR", {
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
 	});
+}
+
+function formatDuration(seconds: number | null): string {
+	if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return "—";
+	const rounded = Math.round(seconds);
+	const hours = Math.floor(rounded / 3600);
+	const minutes = Math.floor((rounded % 3600) / 60);
+	const remainder = rounded % 60;
+	return hours
+		? `${hours}h ${String(minutes).padStart(2, "0")}m`
+		: minutes
+			? `${minutes}m ${String(remainder).padStart(2, "0")}s`
+			: `${remainder}s`;
+}
+
+function formatRealtime(rtf: number | null): string {
+	if (rtf === null || !Number.isFinite(rtf) || rtf <= 0) return "—";
+	return `${(1 / rtf).toFixed(2)}×`;
 }
 
 function progressCopy(job: LocalJob): string {
@@ -75,10 +101,25 @@ function progressCopy(job: LocalJob): string {
 	return `${job.progress.completed} de ${job.progress.total} ${unit}`;
 }
 
+function OverviewMetric({
+	label,
+	value,
+}: Readonly<{ label: string; value: number | string }>) {
+	return (
+		<div className={styles.metric}>
+			<span>{label}</span>
+			<strong>{value}</strong>
+		</div>
+	);
+}
+
 const preparationStages = new Set([
 	"queued",
 	"preparing",
 	"runtime_validation",
+	"runtime_bootstrap",
+	"runtime_fingerprint",
+	"checkpoint_scan",
 	"source_validation",
 	"checking_model",
 	"downloading_model",
@@ -110,7 +151,13 @@ const consolidationStages = new Set([
 function pipelineState(
 	stage: string,
 	phase: "preparation" | "processing" | "consolidation",
-): "current" | "done" | "pending" {
+): "current" | "done" | "pending" | "unknown" {
+	if (
+		!preparationStages.has(stage) &&
+		!processingStages.has(stage) &&
+		!consolidationStages.has(stage)
+	)
+		return "unknown";
 	if (phase === "preparation") return preparationStages.has(stage) ? "current" : "done";
 	if (phase === "processing") {
 		if (processingStages.has(stage)) return "current";
@@ -214,6 +261,9 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	const latestCompletedRun = activeJob
+		? null
+		: (state.localRuns[0] ?? null);
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const observedJobLive =
 		observedJob !== null &&
@@ -456,8 +506,14 @@ export function ProcessingPanel({
 											{activeJob.attempt > 0 ? (
 												<span>Tentativa {activeJob.attempt}</span>
 											) : null}
+											{activeJob.context?.profileId ? (
+												<span>Perfil {activeJob.context.profileId}</span>
+											) : null}
 											<span>
-												Worker ativo · {formatTime(activeJob.updated_at)}
+												Trabalho atualizado às{" "}
+												<time dateTime={activeJob.updated_at}>
+													{formatTime(activeJob.updated_at)}
+												</time>
 											</span>
 										</div>
 										{activeJob.progress && activePercent !== null ? (
@@ -473,12 +529,12 @@ export function ProcessingPanel({
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
-											<p className={styles.noProgress}>
-												{activeJob.progress &&
-												activeJob.progress.completed > 0
-													? `${progressCopy(activeJob)} concluídos · ${stageLabels[activeJob.stage] ?? activeJob.stage}.`
-													: "Progresso percentual ainda não disponível. O stage e a atividade do worker continuam sendo atualizados."}
-											</p>
+											activeJob.progress ? (
+												<p className={styles.noProgress}>
+													{progressCopy(activeJob)} ·{" "}
+													{stageLabels[activeJob.stage] ?? activeJob.stage}.
+												</p>
+											) : null
 										)}
 										<section
 											className={styles.pipeline}
@@ -547,6 +603,87 @@ export function ProcessingPanel({
 								compact
 							/>
 						</div>
+						{latestCompletedRun ? (
+							<section
+								className={styles.overviewMetrics}
+								aria-label="Métricas do último resultado concluído"
+							>
+								<div className={styles.sectionHeading}>
+									<h2>Último resultado concluído</h2>
+									<span>
+										{latestCompletedRun.profileId} ·{" "}
+										{latestCompletedRun.completedAt
+											? formatTime(latestCompletedRun.completedAt)
+											: "data indisponível"}
+									</span>
+								</div>
+								<div className={styles.metricsStrip}>
+									<OverviewMetric
+										label="Processamento"
+										value={formatDuration(
+											latestCompletedRun.stats.processingSeconds,
+										)}
+									/>
+									<OverviewMetric
+										label="Duração da sessão"
+										value={
+											latestCompletedRun.stats.durationSemantics ===
+											"session_extent_v1"
+												? formatDuration(
+														latestCompletedRun.stats.sessionDurationSeconds,
+													)
+												: "—"
+										}
+									/>
+									<OverviewMetric
+										label="RTF"
+										value={
+											latestCompletedRun.stats.rtf === null
+												? "—"
+												: latestCompletedRun.stats.rtf.toFixed(3)
+										}
+									/>
+									<OverviewMetric
+										label="× realtime"
+										value={formatRealtime(latestCompletedRun.stats.rtf)}
+									/>
+									<OverviewMetric
+										label="Palavras"
+										value={latestCompletedRun.stats.wordCount ?? "—"}
+									/>
+									<OverviewMetric
+										label="Segmentos"
+										value={latestCompletedRun.stats.segmentCount ?? "—"}
+									/>
+									<OverviewMetric
+										label="Turnos"
+										value={latestCompletedRun.stats.turnCount ?? "—"}
+									/>
+									<OverviewMetric
+										label="Tracks"
+										value={latestCompletedRun.stats.trackCount ?? "—"}
+									/>
+									<OverviewMetric
+										label="Warnings"
+										value={latestCompletedRun.stats.warningCount ?? "—"}
+									/>
+									<OverviewMetric
+										label="Engine · hardware"
+										value={
+											[
+												latestCompletedRun.engine,
+												latestCompletedRun.model,
+												latestCompletedRun.executionLineage?.gpu?.model ??
+													latestCompletedRun.executionLineage?.device ??
+													latestCompletedRun.device,
+											]
+												.filter(Boolean)
+												.join(" · ") || "—"
+										}
+									/>
+								</div>
+							</section>
+						) : null}
 					</section>
 
 					<section
@@ -640,6 +777,21 @@ export function ProcessingPanel({
 								</div>
 							) : null}
 						</section>
+					</section>
+
+					<section
+						id="processing-view-benchmark"
+						className={styles.viewPanel}
+						role="tabpanel"
+						aria-labelledby="processing-tab-benchmark"
+						hidden={view !== "benchmark"}
+					>
+						<div className={styles.emptyState}>
+							<strong>Benchmark comparativo ainda não disponível.</strong>
+							<span>
+								Os runs concluídos e suas métricas ficam em Resultados.
+							</span>
+						</div>
 					</section>
 
 					<section
