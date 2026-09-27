@@ -77,6 +77,13 @@ function formatTime(value: string): string {
 	});
 }
 
+function elapsedSince(value: string | null, now: number): number | null {
+	if (!value) return null;
+	const started = Date.parse(value);
+	if (!Number.isFinite(started) || started > now + 5_000) return null;
+	return Math.max(0, (now - started) / 1000);
+}
+
 function formatDuration(seconds: number | null): string {
 	if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return "—";
 	const rounded = Math.round(seconds);
@@ -259,6 +266,7 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -316,6 +324,18 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	useEffect(() => {
+		if (!activeJob) return;
+		setClockNow(Date.now());
+		const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+		return () => window.clearInterval(timer);
+	}, [activeJob?.id, activeJob?.attempt]);
+	const jobElapsed = activeJob ? elapsedSince(activeJob.jobStartedAt, clockNow) : null;
+	const attemptElapsed = activeJob ? elapsedSince(activeJob.attemptStartedAt, clockNow) : null;
+	const stageElapsed = activeJob ? elapsedSince(activeJob.stageStartedAt, clockNow) : null;
+	const trackElapsed = activeJob?.currentTrack
+		? elapsedSince(activeJob.currentTrack.startedAt, clockNow)
+		: null;
 	const latestCompletedRun = activeJob
 		? null
 		: (state.localRuns[0] ?? null);
@@ -564,6 +584,15 @@ export function ProcessingPanel({
 											) : null}
 											{activeJob.attempt > 0 ? (
 												<span>Tentativa {activeJob.attempt}</span>
+											) : null}
+											{jobElapsed !== null ? <span>Executando há {formatDuration(jobElapsed)}</span> : null}
+											{attemptElapsed !== null ? <span>Attempt há {formatDuration(attemptElapsed)}</span> : null}
+											{stageElapsed !== null ? <span>Etapa há {formatDuration(stageElapsed)}</span> : null}
+											{activeJob.currentTrack ? (
+												<span>
+													Track {activeJob.currentTrack.track} · {activeJob.currentTrack.speaker}
+													{trackElapsed !== null ? ` · ${formatDuration(trackElapsed)}` : ""}
+												</span>
 											) : null}
 											{activeJob.context?.profileId ? (
 												<span>Perfil {activeJob.context.profileId}</span>
