@@ -74,6 +74,23 @@ export type JobContext = {
 	profileId?: TranscriptionProfileId;
 };
 export type ExecutionDevice = Readonly<{ kind: "cpu" | "cuda"; logicalIndex: number | null; physicalUuid: string | null; pciBusId: string | null }>;
+export type JobTimingTrack = {
+	track: number;
+	speaker: string | null;
+	startedAt: string | null;
+	completedAt: string | null;
+	reused: boolean;
+};
+export type JobTiming = {
+	schemaVersion: "tda_job_timing_v1";
+	attempt: number;
+	submittedAt: string | null;
+	jobStartedAt: string | null;
+	attemptStartedAt: string | null;
+	stage: string | null;
+	stageStartedAt: string | null;
+	tracks: readonly JobTimingTrack[];
+};
 export type LocalJob = {
 	executionDevice?: ExecutionDevice | null;
 	id: string;
@@ -84,6 +101,10 @@ export type LocalJob = {
 	error: null | { code: string; recoverable: boolean };
 	result_available: boolean;
 	updated_at: string;
+	submittedAt: string | null;
+	jobStartedAt: string | null;
+	attemptStartedAt: string | null;
+	stageStartedAt: string | null;
 	attempt: number;
 	context: JobContext | null;
 };
@@ -644,6 +665,10 @@ export function parseJob(value: unknown): LocalJob {
 			: null,
 		result_available: boolean(row.result_available),
 		updated_at: isoDate(row.updated_at),
+		submittedAt: row.submitted_at === undefined || row.submitted_at === null ? null : isoDate(row.submitted_at),
+		jobStartedAt: row.job_started_at === undefined || row.job_started_at === null ? null : isoDate(row.job_started_at),
+		attemptStartedAt: row.attempt_started_at === undefined || row.attempt_started_at === null ? null : isoDate(row.attempt_started_at),
+		stageStartedAt: row.stage_started_at === undefined || row.stage_started_at === null ? null : isoDate(row.stage_started_at),
 		attempt:
 			row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
 		context,
@@ -691,6 +716,44 @@ export function parseJobListPage(value: unknown): JobListPage {
 		nextCursor,
 		totalMatching,
 		counts,
+	};
+}
+
+export function parseJobTiming(value: unknown): JobTiming {
+	const row = record(value);
+	if (row.schema_version !== "tda_job_timing_v1") return invalid();
+	const nullableIso = (raw: unknown) =>
+		raw === undefined || raw === null ? null : isoDate(raw);
+	const attempt = nonNegativeInteger(row.attempt);
+	const stage =
+		row.stage === undefined || row.stage === null ? null : text(row.stage, 64);
+	if (!Array.isArray(row.tracks) || row.tracks.length > 256) return invalid();
+	const tracks = row.tracks.map((raw) => {
+		const item = record(raw);
+		const track = nonNegativeInteger(item.track);
+		if (track < 1) return invalid();
+		return {
+			track,
+			speaker:
+				item.speaker === undefined || item.speaker === null
+					? null
+					: text(item.speaker, 160),
+			startedAt: nullableIso(item.started_at),
+			completedAt: nullableIso(item.completed_at),
+			reused: boolean(item.reused),
+		};
+	});
+	if (new Set(tracks.map((item) => item.track)).size !== tracks.length)
+		return invalid();
+	return {
+		schemaVersion: "tda_job_timing_v1",
+		attempt,
+		submittedAt: nullableIso(row.submitted_at),
+		jobStartedAt: nullableIso(row.job_started_at),
+		attemptStartedAt: nullableIso(row.attempt_started_at),
+		stage,
+		stageStartedAt: nullableIso(row.stage_started_at),
+		tracks,
 	};
 }
 
