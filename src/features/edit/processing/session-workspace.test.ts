@@ -37,6 +37,7 @@ function workspace(parts = [
 function chronology() {
 	return {
 		schema_version: "tda_recording_chronology_v1",
+		segment_boundary_policy: "segment_start_owner_v1",
 		sha256: "c".repeat(64),
 		ready_for_assembly: false,
 		blocking_reasons: [`OVERLAP_UNRESOLVED:${partB}`],
@@ -149,6 +150,7 @@ describe("session workspace protocol", () => {
 		const parsed = parseSessionWorkspace({ ...raw, chronology: chronology() });
 		expect(parsed.chronology).toMatchObject({
 			schemaVersion: "tda_recording_chronology_v1",
+			segmentBoundaryPolicy: "segment_start_owner_v1",
 			sha256: "c".repeat(64),
 			readyForAssembly: false,
 			blockingReasons: [`OVERLAP_UNRESOLVED:${partB}`],
