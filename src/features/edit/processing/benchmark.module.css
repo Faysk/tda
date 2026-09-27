@@ -311,11 +311,14 @@
 
 .profileStepper {
 	display: grid;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 8px;
 }
 
-.profileStepper > span {
+.profileStepper > li {
 	display: grid;
 	gap: 4px;
 	min-width: 0;
@@ -324,12 +327,12 @@
 	color: var(--ds-foreground-muted);
 }
 
-.profileStepper > span[data-state="done"] {
+.profileStepper > li[data-state="done"] {
 	border-top-color: var(--ds-success-foreground);
 	color: var(--ds-foreground);
 }
 
-.profileStepper > span[data-state="current"] {
+.profileStepper > li[data-state="current"] {
 	border-top-color: var(--ds-foreground);
 	color: var(--ds-foreground);
 }
