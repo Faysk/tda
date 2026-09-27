@@ -237,6 +237,70 @@
 	text-align: right;
 }
 
+.estimatePanel {
+	display: grid;
+	gap: 8px;
+	padding: 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.estimateHeading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.estimateHeading strong {
+	font-size: 0.78rem;
+}
+
+.estimateHeading small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.estimateGrid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 5px;
+}
+
+.estimateGrid > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+	padding: 7px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+}
+
+.estimateGrid > div[data-selected="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 40%, var(--ds-border));
+}
+
+.estimateGrid span,
+.estimateGrid strong,
+.estimateGrid small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.estimateGrid span,
+.estimateGrid small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.estimateGrid strong {
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+}
+
 .readiness,
 .blocked {
 	display: flex;
@@ -398,7 +462,8 @@
 }
 
 .card[data-layout="compact"] .identityGrid,
-.card[data-layout="compact"] .advancedGrid {
+.card[data-layout="compact"] .advancedGrid,
+.card[data-layout="compact"] .estimateGrid {
 	grid-template-columns: 1fr;
 }
 
@@ -433,7 +498,8 @@
 	}
 
 	.identityGrid,
-	.advancedGrid {
+	.advancedGrid,
+	.estimateGrid {
 		grid-template-columns: 1fr;
 	}
 
@@ -444,7 +510,8 @@
 	.profileSummary,
 	.submitRow,
 	.readiness,
-	.blocked {
+	.blocked,
+	.estimateHeading {
 		align-items: stretch;
 		flex-direction: column;
 	}
