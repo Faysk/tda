@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any, Mapping, Sequence
 
 CHRONOLOGY_SCHEMA = "tda_recording_chronology_v1"
 OVERLAP_RESOLUTION_VERSION = "boundary_v1"
+SEGMENT_BOUNDARY_POLICY = "segment_start_v1"
 OVERLAP_MODES = frozenset({"prefer_earlier_until", "prefer_later_from"})
 _MAX_SECONDS = 7 * 24 * 60 * 60
 _EPSILON = 1e-9
@@ -35,7 +36,11 @@ def classify_start_time(value: object) -> dict[str, object]:
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        return {"kind": "opaque", "instant_utc": None}
+        try:
+            time.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return {"kind": "opaque", "instant_utc": None}
+        return {"kind": "ambiguous", "instant_utc": None}
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return {"kind": "ambiguous", "instant_utc": None}
     instant = parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -56,6 +61,7 @@ def chronology_config_fingerprint(
 ) -> str:
     payload = {
         "schema_version": CHRONOLOGY_SCHEMA,
+        "segment_boundary_policy": SEGMENT_BOUNDARY_POLICY,
         "parts": [
             {
                 "part_id": part.get("part_id"),
@@ -84,6 +90,19 @@ def chronology_config_fingerprint(
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def overlap_segment_owner(
+    segment_start_seconds: object,
+    segment_end_seconds: object,
+    boundary_seconds: object,
+) -> str:
+    start = _finite_non_negative(segment_start_seconds)
+    end = _finite_non_negative(segment_end_seconds)
+    boundary = _finite_non_negative(boundary_seconds)
+    if start is None or end is None or boundary is None or end < start:
+        raise ValueError("RECORDING_CHRONOLOGY_SEGMENT_INVALID")
+    return "earlier" if start < boundary else "later"
 
 
 def derive_recording_chronology(
@@ -284,6 +303,7 @@ def derive_recording_chronology(
     unique_blocking = list(dict.fromkeys(blocking))
     return {
         "schema_version": CHRONOLOGY_SCHEMA,
+        "segment_boundary_policy": SEGMENT_BOUNDARY_POLICY,
         "sha256": chronology_config_fingerprint(parts, source_facts),
         "ready_for_assembly": not unique_blocking,
         "blocking_reasons": unique_blocking,
