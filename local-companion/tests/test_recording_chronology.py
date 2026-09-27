@@ -4,8 +4,10 @@ import pytest
 
 from tda_companion.recording_chronology import (
     CHRONOLOGY_SCHEMA,
+    SEGMENT_BOUNDARY_POLICY,
     classify_start_time,
     derive_recording_chronology,
+    overlap_segment_owner,
 )
 
 
@@ -48,6 +50,7 @@ def facts(start_time: str | None, duration: float | None):
             "2026-09-27T20:00:00Z",
         ),
         ("2026-09-27T20:00:00", "ambiguous", None),
+        ("20:00:00", "ambiguous", None),
         ("domingo depois da sessão", "opaque", None),
         (None, "missing", None),
         ("", "missing", None),
@@ -71,6 +74,7 @@ def test_trusted_absolute_timestamps_derive_deterministic_contiguous_offsets():
     chronology = derive_recording_chronology(parts, source_facts)
 
     assert chronology["schema_version"] == CHRONOLOGY_SCHEMA
+    assert chronology["segment_boundary_policy"] == SEGMENT_BOUNDARY_POLICY
     assert chronology["ready_for_assembly"] is True
     assert chronology["blocking_reasons"] == []
     assert chronology["parts"][0]["session_offset_seconds"] == 0.0
@@ -269,3 +273,56 @@ def test_trim_changes_effective_interval_and_fingerprint_without_rewriting_durat
     assert after["parts"][0]["effective_end_seconds"] == 90.0
     assert after["sha256"] != before["sha256"]
     assert source_facts[a]["duration_seconds"] == 120.0
+
+
+def test_overlap_segment_boundary_is_start_owned_and_never_splits_a_segment():
+    assert overlap_segment_owner(9.999, 12.0, 10.0) == "earlier"
+    assert overlap_segment_owner(10.0, 12.0, 10.0) == "later"
+    assert overlap_segment_owner(10.001, 12.0, 10.0) == "later"
+
+    with pytest.raises(ValueError, match="RECORDING_CHRONOLOGY_SEGMENT_INVALID"):
+        overlap_segment_owner(12.0, 11.0, 10.0)
+
+
+def test_three_parts_can_preserve_gap_and_resolve_overlap_simultaneously():
+    a = "a" * 32
+    b = "b" * 32
+    c = "c" * 32
+    source_facts = {
+        a: facts(None, 60.0),
+        b: facts(None, 30.0),
+        c: facts(None, 40.0),
+    }
+    parts = [
+        part(a, "craig-" + "1" * 64, 0, offset=0.0),
+        part(
+            b,
+            "craig-" + "2" * 64,
+            1,
+            offset=70.0,
+            gap_confirmed=True,
+        ),
+        part(
+            c,
+            "craig-" + "3" * 64,
+            2,
+            offset=90.0,
+            overlap_resolution="prefer_later_from",
+            overlap_boundary=95.0,
+        ),
+    ]
+
+    chronology = derive_recording_chronology(parts, source_facts)
+
+    assert chronology["ready_for_assembly"] is True
+    assert [relation["kind"] for relation in chronology["relations"]] == [
+        "gap",
+        "overlap",
+    ]
+    assert chronology["relations"][0]["seconds"] == 10.0
+    assert chronology["relations"][1]["seconds"] == 10.0
+    assert chronology["relations"][1]["overlap_resolution"] == {
+        "version": "boundary_v1",
+        "mode": "prefer_later_from",
+        "boundary_seconds": 95.0,
+    }
