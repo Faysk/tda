@@ -62,6 +62,36 @@ Navegador desktop 1440px e mobile 390px: total 5.000, projeção limitada, fallb
 histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado aqui
 é de candidato; merge e release exigem evidências independentes.
 
+## Exclusão local de runs concluídos — #659
+
+A Biblioteca de Resultados trata **Excluir resultado local** como lifecycle próprio,
+separado de remover uma row da Fila e separado de unpublish cloud. A ação exige a
+identidade exata `(source_id, run_id, transcript_sha256)`, grava primeiro um receipt
+metadata-only `tda_local_run_delete_receipt_v1` e, a partir desse tombstone, o run
+deixa de ser legível/listável mesmo se a limpeza física ainda não terminou.
+
+Depois do tombstone, run e revisão derivada são movidos para quarantine no mesmo
+package e removidos best-effort. Falha ou queda após o commit do tombstone não
+ressuscita o resultado: no startup seguinte o Agent revalida somente receipts dentro
+de `.deleted-runs` e retoma a limpeza confinada de `runs/<run_id>`,
+`revisions/<run_id>` e da quarantine da operação. Symlink/junction/reparse fora
+do namespace esperado falha fechado. Receipt inválido não autoriza cleanup.
+
+A row operacional do job pode continuar `succeeded`; somente o pointer local de
+resultado é destacado e `result_available=false`. Idempotency, attempt fences,
+terminal receipts e tombstones de autoridade permanecem. Repetir a mesma exclusão
+retorna o receipt original. A source Craig, runs irmãos, checkpoints e dados cloud
+não são apagados.
+
+A Web expõe a ação no overflow do resultado, confirma explicitamente o escopo
+local e bloqueia a ação quando existe recuperação de publicação `unresolved` para
+o mesmo run. Um review aberto do mesmo run também impede o controller de deletar.
+A remoção visual só acontece após receipt válido do Companion.
+
+Rollback deve preservar leitores de tombstone: reinstalar uma versão que ignore
+`.deleted-runs` pode reapresentar um artefato deliberadamente removido. Não apagar
+receipts de delete para simular rollback.
+
 ## Objetivo
 
 ### Preservação de legados e listagem — candidato #674

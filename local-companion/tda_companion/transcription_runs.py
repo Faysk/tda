@@ -235,6 +235,63 @@ def _cleanup_deleted_run(package_root: Path, receipt: dict[str, Any]) -> bool:
     return True
 
 
+def recover_deleted_run_cleanup(data_root: Path) -> dict[str, int]:
+    """Finish tombstoned local-run cleanup after an interrupted delete.
+
+    Tombstones remain authoritative. Startup only resumes physical cleanup for
+    exact validated receipts and never follows a source/revision/trash reparse
+    point outside the staged package.
+    """
+    counts = {"recovered": 0, "pending": 0, "failed": 0}
+    staging = data_root.resolve() / "staging"
+    if not staging.is_dir():
+        return counts
+
+    for package_root in staging.iterdir():
+        if (
+            not _SOURCE_ID.fullmatch(package_root.name)
+            or package_root.is_symlink()
+            or getattr(package_root, "is_junction", lambda: False)()
+            or not package_root.is_dir()
+        ):
+            continue
+        try:
+            deleted_root = _deleted_runs_root(package_root)
+        except TranscriptionRunError:
+            counts["failed"] += 1
+            continue
+        if not deleted_root.is_dir():
+            continue
+
+        for receipt_path in sorted(deleted_root.iterdir(), key=lambda item: item.name):
+            if (
+                receipt_path.is_symlink()
+                or not receipt_path.is_file()
+                or receipt_path.suffix != ".json"
+                or not _RUN_ID.fullmatch(receipt_path.stem)
+            ):
+                continue
+            try:
+                receipt = _read_delete_receipt(package_root, receipt_path.stem)
+                if receipt is None:
+                    continue
+                run = _runs_root(package_root) / receipt_path.stem
+                revision = package_root.resolve() / "revisions" / receipt_path.stem
+                quarantine = _delete_quarantine_root(
+                    package_root,
+                    str(receipt["operation_id"]),
+                )
+                if not (run.exists() or revision.exists() or quarantine.exists()):
+                    continue
+                if _cleanup_deleted_run(package_root, receipt):
+                    counts["recovered"] += 1
+                else:
+                    counts["pending"] += 1
+            except (OSError, TranscriptionRunError):
+                counts["failed"] += 1
+    return counts
+
+
 def delete_completed_run(
     package_root: Path,
     *,
