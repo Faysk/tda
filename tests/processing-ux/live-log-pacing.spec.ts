@@ -114,6 +114,11 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 		page.getByText("TRACK_PROGRESS · seq 10", { exact: true }),
 	).toBeVisible({ timeout: 350 });
 
+	await page.screenshot({
+		path: testInfo.outputPath("live-log-urgent-bypass.png"),
+		fullPage: true,
+	});
+
 	await page.getByRole("button", { name: "Pausar visualização" }).click();
 	const pausedReadCount = eventReads(state);
 	state.setJobEvents([
@@ -155,7 +160,7 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 
 test("reduced motion reveals the complete factual batch without cosmetic pacing", async ({
 	page,
-}) => {
+}, testInfo) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	const state = await openLiveLog(page);
 	const firstReadCount = eventReads(state);
@@ -179,4 +184,9 @@ test("reduced motion reveals the complete factual batch without cosmetic pacing"
 			.locator('button[data-event-seq="5"]')
 			.evaluate((node) => getComputedStyle(node).animationName),
 	).toBe("none");
+
+	await page.screenshot({
+		path: testInfo.outputPath("live-log-reduced-motion.png"),
+		fullPage: true,
+	});
 });
