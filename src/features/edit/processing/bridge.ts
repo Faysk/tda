@@ -31,6 +31,7 @@ import {
 	parseResultSummary,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
+	type SessionTimelineUpdateInput,
 	runIdentifier,
 } from "./protocol";
 import {
@@ -377,6 +378,34 @@ export class LocalBridge {
 				{
 					part_ids: partIds.map(identifier),
 					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async updateSessionTimeline(
+		campaignId: string,
+		sessionId: string,
+		input: SessionTimelineUpdateInput,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/timeline`,
+				signal,
+				{
+					expected_revision: input.expectedRevision,
+					parts: input.parts.map((part) => ({
+						part_id: identifier(part.partId),
+						session_offset_ms: part.sessionOffsetMs,
+						trim_start_ms: part.trimStartMs,
+						trim_end_ms: part.trimEndMs,
+					})),
+					boundaries: input.boundaries.map((boundary) => ({
+						left_part_id: identifier(boundary.leftPartId),
+						right_part_id: identifier(boundary.rightPartId),
+						mode: boundary.mode,
+						boundary_ms: boundary.boundaryMs,
+					})),
 				},
 			),
 		);
