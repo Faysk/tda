@@ -439,6 +439,8 @@ test("desktop diagnostics aligns the summary rail with the event explorer", asyn
 			eventLeft: eventBox.left,
 			coreWidth: coreBox.width,
 			logWidth: logBox.width,
+			pageScrollHeight: document.documentElement.scrollHeight,
+			viewportHeight: document.documentElement.clientHeight,
 		};
 	});
 
@@ -446,6 +448,7 @@ test("desktop diagnostics aligns the summary rail with the event explorer", asyn
 	expect(geometry.topDelta).toBeLessThanOrEqual(1);
 	expect(geometry.eventLeft).toBeGreaterThan(geometry.summaryRight);
 	expect(geometry.logWidth).toBeGreaterThan(geometry.coreWidth * 0.55);
+	expect(geometry.pageScrollHeight).toBeLessThanOrEqual(geometry.viewportHeight + 1);
 });
 
 test("mobile diagnostics stacks summary and events without horizontal overflow", async ({ page }) => {
