@@ -404,6 +404,7 @@ export class LocalBridge {
 			sessionOffsetSeconds: number;
 			trimStartSeconds?: number;
 			trimEndSeconds?: number | null;
+			gapConfirmed?: boolean;
 			overlapResolution?:
 				| "prefer_earlier_until"
 				| "prefer_later_from"
@@ -422,6 +423,7 @@ export class LocalBridge {
 					session_offset_seconds: input.sessionOffsetSeconds,
 					trim_start_seconds: input.trimStartSeconds ?? 0,
 					trim_end_seconds: input.trimEndSeconds ?? null,
+					gap_confirmed: input.gapConfirmed ?? false,
 					overlap_resolution: input.overlapResolution ?? null,
 					overlap_boundary_seconds:
 						input.overlapBoundarySeconds ?? null,
