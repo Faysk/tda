@@ -117,6 +117,7 @@ class AgentController:
                 source_gate=api.state.source_gate,
                 source_running=api.state.source_in_use,
                 run_visible=api.state.transcription_run_visible,
+                mark_result_deleted=api.state.store.mark_result_deleted,
             )
             config = uvicorn.Config(
                 app,
