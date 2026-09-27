@@ -1,5 +1,68 @@
 import { expect, test } from "@playwright/test";
 
+test("completed runs compare locally with source and time filters before an explicit base choice", async ({ page }, testInfo) => {
+	await page.goto("/?review-contracts&comparison");
+	await page.getByRole("button", { name: /whisper-detailed/ }).first().click();
+
+	const target = page.getByLabel("Segundo run para comparação");
+	await expect(target.locator("option")).toHaveCount(1);
+	await expect(target.locator("option").first()).toContainText("qwen-quality");
+	await expect(target).not.toContainText("other-source");
+
+	await page.getByRole("button", { name: "Comparar" }).click();
+	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toBeVisible();
+	await expect(page.getByText("Audio work", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Duração da sessão", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Tracks", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Turnos", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Revisão", { exact: true })).toHaveCount(2);
+	await expect(
+		page.getByText("Comparabilidade de performance: limitada", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByRole("status")).toContainText(
+		"identidade exata do runtime não foi registrada",
+	);
+
+	const regions = page.locator("[data-run-comparison-region='true']");
+	await expect(regions).toHaveCount(2);
+
+	const activeRegion = page.locator("[data-run-comparison-region='true'][data-active='true']");
+	await expect(activeRegion).toContainText("Versão A");
+	await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Próxima" }).click();
+	await expect(activeRegion).toContainText("Somente A");
+	await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Anterior" }).click();
+	await expect(activeRegion).toContainText("Versão A");
+
+	const participant = page.getByLabel("Participante");
+	await participant.selectOption({ label: "Bia" });
+	await expect(regions).toHaveCount(1);
+	await expect(regions.first()).toContainText("Versão B");
+	await participant.selectOption("all");
+	await expect(regions).toHaveCount(2);
+
+	await page.getByLabel("Somente divergências").uncheck();
+	await expect(regions).toHaveCount(3);
+	await expect(page.getByText("Mesmo começo", { exact: true })).toHaveCount(2);
+	await page.getByLabel("Somente divergências").check();
+	await expect(regions).toHaveCount(2);
+
+	await page.getByLabel("Início da faixa da sessão (s)").fill("29");
+	await page.getByLabel("Fim da faixa da sessão (s)").fill("32");
+	await expect(regions).toHaveCount(1);
+	await expect(regions.first()).toContainText("Versão A");
+	await expect(regions.first()).toContainText("Versão B");
+	await expect(regions.first()).toContainText("texto diferente");
+	await expect(regions.first()).toContainText("30.00–31.10s da sessão");
+	await expect(page.getByText("Somente A", { exact: true })).toHaveCount(0);
+
+	await page.screenshot({ path: testInfo.outputPath("run-comparison.png"), fullPage: true });
+	await page.getByRole("button", { name: "Usar Run B como base" }).click();
+	await expect(page.getByTestId("opened-run-id")).toHaveText("run-synthetic-b2");
+	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
+});
+
 test("base remains unsaved until an explicit editorial action", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();

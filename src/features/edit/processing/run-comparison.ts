@@ -8,6 +8,8 @@ export type RunComparisonRegion = Readonly<{
 	trackNumber: number;
 	start: number;
 	end: number;
+	sessionStart: number;
+	sessionEnd: number;
 	kind: RunComparisonKind;
 	left: readonly LocalReviewSegment[];
 	right: readonly LocalReviewSegment[];
@@ -57,6 +59,18 @@ function ordered(values: readonly LocalReviewSegment[]): LocalReviewSegment[] {
 	);
 }
 
+function groupedByTrack(
+	values: readonly LocalReviewSegment[],
+): Map<number, LocalReviewSegment[]> {
+	const grouped = new Map<number, LocalReviewSegment[]>();
+	for (const item of values) {
+		const existing = grouped.get(item.trackNumber);
+		if (existing) existing.push(item);
+		else grouped.set(item.trackNumber, [item]);
+	}
+	return grouped;
+}
+
 function comparableInTime(
 	left: LocalReviewSegment,
 	right: LocalReviewSegment,
@@ -85,6 +99,23 @@ function regionId(
 	]);
 }
 
+function segmentTimelineStart(segment: LocalReviewSegment): number {
+	return segment.timelineStart ?? segment.start;
+}
+
+function segmentTimelineEnd(segment: LocalReviewSegment): number {
+	return segment.timelineEnd ?? segment.end;
+}
+
+function hasAbsoluteSessionTimeline(segment: LocalReviewSegment): boolean {
+	return (
+		typeof segment.timelineStart === "number" &&
+		Number.isFinite(segment.timelineStart) &&
+		typeof segment.timelineEnd === "number" &&
+		Number.isFinite(segment.timelineEnd)
+	);
+}
+
 function buildRegion(
 	trackNumber: number,
 	leftInput: readonly LocalReviewSegment[],
@@ -95,6 +126,8 @@ function buildRegion(
 	const all = [...left, ...right];
 	const start = Math.min(...all.map((item) => item.start));
 	const end = Math.max(...all.map((item) => item.end));
+	const sessionStart = Math.min(...all.map(segmentTimelineStart));
+	const sessionEnd = Math.max(...all.map(segmentTimelineEnd));
 	const leftText = left.map((item) => item.text).join(" ").trim();
 	const rightText = right.map((item) => item.text).join(" ").trim();
 	const kind: RunComparisonKind =
@@ -110,6 +143,8 @@ function buildRegion(
 		trackNumber,
 		start,
 		end,
+		sessionStart,
+		sessionEnd,
 		kind,
 		left,
 		right,
@@ -221,21 +256,112 @@ export function compareRunSegments(
 
 	const left = ordered(leftInput);
 	const right = ordered(rightInput);
+	const leftByTrack = groupedByTrack(left);
+	const rightByTrack = groupedByTrack(right);
 	const tracks = [
-		...new Set([
-			...left.map((item) => item.trackNumber),
-			...right.map((item) => item.trackNumber),
-		]),
+		...new Set([...leftByTrack.keys(), ...rightByTrack.keys()]),
 	].sort((a, b) => a - b);
 
-	return tracks.flatMap((trackNumber) =>
+	const regions = tracks.flatMap((trackNumber) =>
 		compareTrack(
 			trackNumber,
-			left.filter((item) => item.trackNumber === trackNumber),
-			right.filter((item) => item.trackNumber === trackNumber),
+			leftByTrack.get(trackNumber) ?? [],
+			rightByTrack.get(trackNumber) ?? [],
 			tolerance,
 		),
 	);
+	if (![...left, ...right].every(hasAbsoluteSessionTimeline)) return regions;
+	return regions.sort(
+		(leftRegion, rightRegion) =>
+			leftRegion.sessionStart - rightRegion.sessionStart ||
+			leftRegion.sessionEnd - rightRegion.sessionEnd ||
+			leftRegion.trackNumber - rightRegion.trackNumber ||
+			compareCanonicalText(leftRegion.id, rightRegion.id),
+	);
+}
+
+export function regionOverlapsTimeRange(
+	region: RunComparisonRegion,
+	startSeconds: number | null,
+	endSeconds: number | null,
+): boolean {
+	for (const value of [startSeconds, endSeconds]) {
+		if (value !== null && (!Number.isFinite(value) || value < 0))
+			throw new Error("RUN_COMPARISON_TIME_RANGE_INVALID");
+	}
+	if (
+		startSeconds !== null &&
+		endSeconds !== null &&
+		startSeconds > endSeconds
+	)
+		return false;
+	if (startSeconds !== null && region.sessionEnd < startSeconds) return false;
+	if (endSeconds !== null && region.sessionStart > endSeconds) return false;
+	return true;
+}
+
+export type RunPerformanceComparability = Readonly<{
+	status: "comparable" | "limited";
+	reasons: readonly string[];
+}>;
+
+function executionDeviceIdentity(run: LocalRunSummary): string | null {
+	const device = run.executionLineage?.executionDevice;
+	if (!device) return null;
+	if (device.kind === "cpu") return "cpu";
+	const physical = device.physicalUuid ?? device.pciBusId;
+	return physical ? `cuda:${physical}` : null;
+}
+
+/**
+ * Performance facts remain visible for every pair, but this gate decides whether
+ * normalized throughput may be read as an apples-to-apples comparison.
+ */
+export function compareRunPerformanceSemantics(
+	left: LocalRunSummary,
+	right: LocalRunSummary,
+): RunPerformanceComparability {
+	const reasons: string[] = [];
+	const leftMetrics = left.stats.processingMetrics;
+	const rightMetrics = right.stats.processingMetrics;
+
+	if (!leftMetrics || !rightMetrics) {
+		reasons.push("medição engine_processing_v1 ausente");
+	} else {
+		if (!leftMetrics.freshCalibrationEligible || !rightMetrics.freshCalibrationEligible)
+			reasons.push("há execução com checkpoint/reaproveitamento");
+		if (
+			Math.abs(
+				leftMetrics.freshAudioWorkSeconds - rightMetrics.freshAudioWorkSeconds,
+			) > 0.001
+		)
+			reasons.push("audio work fresco medido é diferente");
+	}
+
+	if (
+		left.stats.durationSemantics !== "session_extent_v1" ||
+		right.stats.durationSemantics !== "session_extent_v1"
+	)
+		reasons.push("semântica de duração da sessão não é equivalente");
+
+	if (
+		!left.executionLineage?.runtimeArtifact ||
+		!right.executionLineage?.runtimeArtifact
+	)
+		reasons.push("identidade exata do runtime não foi registrada");
+
+	const leftDevice = executionDeviceIdentity(left);
+	const rightDevice = executionDeviceIdentity(right);
+	if (!leftDevice || !rightDevice) {
+		reasons.push("identidade física do dispositivo não foi comprovada");
+	} else if (leftDevice !== rightDevice) {
+		reasons.push("execuções usaram dispositivos físicos diferentes");
+	}
+
+	return {
+		status: reasons.length === 0 ? "comparable" : "limited",
+		reasons,
+	};
 }
 
 export function summarizeRunComparison(

@@ -323,9 +323,26 @@ Nada foi publicado no TDA.
 [ Publicar no TDA ]
 ```
 
-O Slice 1 implementa a persistência/listagem local necessária para essa UX, mas **não habilita ainda esses controles editoriais na interface**.
+A área **Resultados** já expõe revisão e comparação A/B local. A comparação aceita
+somente dois runs concluídos da mesma fonte e exige a capability
+`transcription.review.base`: o Companion devolve uma projeção somente-leitura do
+transcript bruto imutável em
+`GET /api/v1/sources/<source_id>/runs/<run_id>/review/base`, mesmo quando já
+existe um draft humano. Abrir A/B não cria nem altera `draft.json`; somente a
+escolha explícita de Run A ou Run B entra no fluxo editorial normal.
 
-Publicação futura deve consumir **resultado/revision aprovado**, não o evento terminal do worker.
+O alinhamento continua track-local, enquanto filtros e navegação usam
+`timeline_start/timeline_end` absolutos da sessão. Métricas dos dois runs ficam
+visíveis como fatos, mas a UI marca a comparabilidade de performance como
+**limitada** quando faltam timing `engine_processing_v1` fresh, semântica de
+duração equivalente, identidade exata do runtime ou identidade física de
+execução. A comparação nunca escolhe vencedor automaticamente.
+
+Companions sem `transcription.review.base` continuam compatíveis com a biblioteca
+e revisão existentes; a Web não oferece A/B nesses Agents em vez de cair para um
+snapshot editorial potencialmente mutado.
+
+Publicação deve consumir **resultado/revision aprovado**, não o evento terminal do worker.
 
 Depois de publicado, o mesmo source continua podendo gerar novos runs. A revisão ativa no site permanece intacta até uma nova publicação/substituição ser confirmada.
 

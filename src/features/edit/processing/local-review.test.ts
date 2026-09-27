@@ -159,6 +159,41 @@ describe("local result/review contracts", () => {
 		expect(() => parseLocalReview({ ...raw, status: "approved_local" })).toThrow();
 		expect(() => parseLocalReview({ ...raw, snapshot_contract: undefined })).toThrow();
 	});
+	it("requires explicit absolute timeline coordinates for comparison-base parsing", () => {
+		const raw = {
+			...rawReview(),
+			snapshot_contract: "tda_local_review_cas_v1",
+			persistence: "ephemeral_base",
+			draft_revision: null,
+			draft_sha256: null,
+			created_at: null,
+			updated_at: null,
+		};
+		// Normal review parsing keeps legacy compatibility.
+		expect(parseLocalReview(raw).segments[0]).toMatchObject({
+			timelineStart: 0,
+			timelineEnd: 1,
+		});
+		// Comparison bases must never reinterpret track-local seconds as session time.
+		expect(() =>
+			parseLocalReview(raw, { requireAbsoluteTimeline: true }),
+		).toThrow(BridgeError);
+		const withTimeline = {
+			...raw,
+			segments: raw.segments.map((segment) => ({
+				...segment,
+				timeline_start: segment.start + 12,
+				timeline_end: segment.end + 12,
+			})),
+		};
+		expect(
+			parseLocalReview(withTimeline, { requireAbsoluteTimeline: true }).segments[0],
+		).toMatchObject({
+			timelineStart: 12,
+			timelineEnd: 13,
+		});
+	});
+
 	it("transmits the opened snapshot identity and rejects legacy writes", async () => {
 		const transport = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(rawReview()));
 		const bridge = new LocalBridge(transport);

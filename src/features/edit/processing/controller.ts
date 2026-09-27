@@ -834,6 +834,35 @@ export class ProcessingController {
 		);
 	};
 
+	loadLocalReviewSnapshot = async (sourceId: string, runId: string) => {
+		if (
+			this.#state.connection !== "connected" ||
+			!this.#state.capabilities?.capabilities.includes("transcription.review.base")
+		)
+			throw new BridgeError("invalid_response");
+		const run = this.#state.localRuns.find(
+			(candidate) =>
+				candidate.sourceId === sourceId && candidate.runId === runId,
+		);
+		if (!run) throw new BridgeError("invalid_response");
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		const snapshot = await this.bridge.localReviewBase(sourceId, runId, signal);
+		const current = this.#state.localRuns.find(
+			(candidate) =>
+				candidate.sourceId === sourceId && candidate.runId === runId,
+		);
+		if (
+			epoch !== this.#epoch ||
+			signal.aborted ||
+			!current ||
+			current.transcriptSha256 !== run.transcriptSha256 ||
+			snapshot.baseTranscriptSha256 !== run.transcriptSha256
+		)
+			throw new BridgeError("invalid_response");
+		return snapshot;
+	};
+
     loadLatestLocalReview = async () => {
         const current = this.#state.localReview;
         const epoch = this.#epoch;

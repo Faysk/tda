@@ -10,8 +10,10 @@ export function ReviewFixture() {
 	const ephemeral = new URLSearchParams(location.search).has("ephemeral");
 	const oldAgent = new URLSearchParams(location.search).has("old-agent");
 	const bulk = new URLSearchParams(location.search).has("bulk");
-	const metricsMode = new URLSearchParams(location.search).has("metrics");
+	const comparisonMode = new URLSearchParams(location.search).has("comparison");
+	const metricsMode = new URLSearchParams(location.search).has("metrics") || comparisonMode;
     const [saveCount, setSaveCount] = useState(0);
+    const [openedRunId, setOpenedRunId] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
 		sourceId: `craig-${"a".repeat(64)}`,
@@ -98,16 +100,87 @@ export function ReviewFixture() {
 				totalProcessingSeconds: 35, totalTracks: 4, freshAsrTracks: 1, textCheckpointReusedTracks: 1,
 				completedCheckpointReusedTracks: 2, freshAudioWorkSeconds: 100, reusedAudioWorkSeconds: 300, freshCalibrationEligible: false } },
 	};
+	const comparisonLeftReview: LocalReview = {
+		...review,
+		persistence: "ephemeral_base",
+		draftRevision: null,
+		draftSha256: null,
+		status: "draft",
+		approvalCurrent: false,
+		approvedAt: null,
+		createdAt: null,
+		updatedAt: null,
+		segments: [
+			{ trackNumber: 1, segmentId: "cmp-a-1", start: 0, end: 1, timelineStart: 5, timelineEnd: 6, text: "Mesmo começo", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-a-2", start: 10, end: 11, timelineStart: 30, timelineEnd: 31, text: "Versão A", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-a-3", start: 20, end: 21, timelineStart: 50, timelineEnd: 51, text: "Somente A", speaker: "Alex", reviewed: true },
+		],
+	};
+	const comparisonRightReview: LocalReview = {
+		...comparisonLeftReview,
+		runId: "run-synthetic-b2",
+		baseTranscriptSha256: "d".repeat(64),
+		lineage: {
+			...comparisonLeftReview.lineage,
+			profileId: "qwen-quality",
+			engine: "qwen",
+			model: "Qwen3-ASR",
+			modelRevision: "synthetic-r2",
+			completedAt: "2026-09-26T12:05:00Z",
+		},
+		segments: [
+			{ trackNumber: 1, segmentId: "cmp-b-1", start: 0, end: 1, timelineStart: 5.02, timelineEnd: 6.02, text: "Mesmo começo", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-b-2", start: 10.1, end: 11.1, timelineStart: 30.1, timelineEnd: 31.1, text: "Versão B", speaker: "Bia", reviewed: true },
+		],
+	};
+	const comparisonRunB: LocalRunSummary = {
+		...run,
+		runId: comparisonRightReview.runId,
+		profileId: "qwen-quality",
+		engine: "qwen",
+		model: "Qwen3-ASR",
+		modelRevision: "synthetic-r2",
+		completedAt: "2026-09-26T12:05:00Z",
+		transcriptSha256: comparisonRightReview.baseTranscriptSha256,
+		review: { status: "reviewed", draftRevision: 2, reviewPercent: 100, updatedAt: "2026-09-26T12:06:00Z" },
+		stats: {
+			...run.stats,
+			audioWorkSeconds: 420,
+			sessionDurationSeconds: 120,
+			turnCount: 3,
+			trackCount: 1,
+			wordCount: 6,
+			segmentCount: 2,
+			warningCount: 1,
+		},
+	};
+	const otherSourceRun: LocalRunSummary = {
+		...comparisonRunB,
+		sourceId: `craig-${"z".repeat(64)}`,
+		runId: "run-other-source",
+		profileId: "other-source",
+		transcriptSha256: "e".repeat(64),
+	};
+	async function loadSnapshot(sourceId: string, runId: string): Promise<LocalReview> {
+		if (!comparisonMode) return review;
+		if (sourceId !== review.sourceId) throw new Error("FIXTURE_SOURCE_MISMATCH");
+		if (runId === run.runId) return comparisonLeftReview;
+		if (runId === comparisonRunB.runId) return comparisonRightReview;
+		throw new Error("FIXTURE_RUN_MISMATCH");
+	}
 	return (
 		<>
         <span data-testid="save-count">{saveCount}</span>
+        <span data-testid="opened-run-id" hidden>{openedRunId}</span>
         <LocalReviewWorkspace
-			runs={metricsMode ? [run] : []}
+			runs={comparisonMode ? [run, comparisonRunB, otherSourceRun] : metricsMode ? [run] : []}
 			review={metricsMode ? null : review}
 			busy={false}
 			error={saveError}
 			publicationEnabled={publication}
-			onOpen={() => {}}
+			comparisonEnabled={comparisonMode}
+			onOpen={(_sourceId, runId) => setOpenedRunId(runId)}
+			onLoadSnapshot={loadSnapshot}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);

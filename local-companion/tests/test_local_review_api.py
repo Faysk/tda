@@ -232,6 +232,33 @@ def test_review_api_loads_only_on_explicit_selection_and_persists_draft(tmp_path
         assert reopened.json()["draft_revision"] == 1
         assert reopened.json()["segments"][0]["text"] == "Texto revisado"
 
+        base = client.get(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review/base",
+            headers=headers,
+        )
+        assert base.status_code == 200
+        base_value = base.json()
+        assert base_value["persistence"] == "ephemeral_base"
+        assert base_value["draft_revision"] is None
+        assert base_value["draft_sha256"] is None
+        assert base_value["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
+        assert raw_path.read_bytes() == raw_before
+
+        still_reopened = client.get(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review",
+            headers=headers,
+        )
+        assert still_reopened.status_code == 200
+        assert still_reopened.json()["draft_revision"] == 1
+        assert still_reopened.json()["segments"][0]["text"] == "Texto revisado"
+
+        rejected_write = client.post(
+            f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review/base",
+            headers={**headers, "Content-Type": "application/json"},
+            json={},
+        )
+        assert rejected_write.status_code == 405
+
 
 def test_review_api_exposes_only_sanitized_durable_publication_target(tmp_path: Path):
     with _client(tmp_path) as client:
