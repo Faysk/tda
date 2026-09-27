@@ -452,6 +452,7 @@ def transcribe_craig_package_qwen_strict(
     report: ProgressCallback | None = None,
     is_cancelled: CancelCallback | None = None,
     checkpoints: bool = True,
+    sample_seconds: float | None = None,
     plan_resolver=_resolve_plan,
     model_prepare=_prepare_model,
     aligner_prepare=_prepare_aligner,
@@ -461,6 +462,39 @@ def transcribe_craig_package_qwen_strict(
     energy_reader: EnergyReader = _window_energy_db,
     right_context_builder=_right_context_alignment_window,
 ) -> TranscriptDocument:
+    if sample_seconds is not None and (
+        isinstance(sample_seconds, bool)
+        or not isinstance(sample_seconds, (int, float))
+        or not math.isfinite(float(sample_seconds))
+        or float(sample_seconds) != 300.0
+    ):
+        raise QwenRuntimeError("QWEN_SAMPLE_SECONDS_INVALID")
+
+    def benchmark_window_reader(source: Path):
+        if sample_seconds is None:
+            yield from window_reader(source)
+            return
+        limit = float(sample_seconds)
+        for window in benchmark_window_reader(source):
+            if window.start >= limit:
+                break
+            if window.end <= limit:
+                yield window
+                continue
+            samples = int(round((limit - window.start) * QWEN_SAMPLE_RATE))
+            if samples <= 0:
+                break
+            audio = window.audio[:samples].copy()
+            if getattr(audio, "size", 0) <= 0:
+                break
+            yield AudioWindow(
+                index=window.index,
+                start=window.start,
+                end=limit,
+                audio=audio,
+            )
+            break
+
     profile = get_profile(profile_id)
     if profile.engine != "qwen3":
         raise QwenRuntimeError("QWEN_PROFILE_REQUIRED")
@@ -491,6 +525,11 @@ def transcribe_craig_package_qwen_strict(
         "dtype": plan.dtype,
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": QWEN_ALIGNMENT_POLICY,
+        **(
+            {"benchmark_sample_seconds": float(sample_seconds)}
+            if sample_seconds is not None
+            else {}
+        ),
     }
     compatible_text_recipes = (
         {
@@ -725,7 +764,7 @@ def transcribe_craig_package_qwen_strict(
                     for item in prefix
                 ]
                 fresh_window_count = 0
-                for window in window_reader(source):
+                for window in benchmark_window_reader(source):
                     if is_cancelled():
                         raise QwenRuntimeError("ASR_CANCELLED")
                     if window.index <= len(prefix):
@@ -880,7 +919,7 @@ def transcribe_craig_package_qwen_strict(
                 last_index = expected[-1].index
                 # Replay with a one-window lookahead. This keeps memory bounded
                 # while allowing one alignment-only retry with real right context.
-                windows_iter = iter(window_reader(source))
+                windows_iter = iter(benchmark_window_reader(source))
                 window = next(windows_iter, None)
                 while window is not None:
                     next_window = next(windows_iter, None)
@@ -1135,7 +1174,7 @@ def transcribe_craig_package_qwen_strict(
             source = _safe_track_path(package_root, source_track)
             transcript_track = tracks_by_number[source_track.number]
             remaining = list(transcript_track.segments)
-            for window in window_reader(source):
+            for window in benchmark_window_reader(source):
                 if is_cancelled():
                     raise QwenRuntimeError("ASR_CANCELLED")
                 next_remaining: list[TranscriptSegment] = []
