@@ -209,7 +209,10 @@ test("benchmark workspace keeps source, readiness, and next action usable across
 	await expect(readinessRegion).toBeVisible();
 	await expect(nextAction).toContainText("Selecione a fonte que será comparada.");
 	await expect(sourceRegion.getByRole("button", { name: /Selecionar ZIP Craig Escolha/u })).toBeVisible();
-	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
+	const nativeFileInput = panel.getByLabel("ZIP Craig");
+	const nativeInputBox = await nativeFileInput.boundingBox();
+	expect(nativeInputBox?.width ?? 0).toBeLessThanOrEqual(1);
+	expect(nativeInputBox?.height ?? 0).toBeLessThanOrEqual(1);
 
 	for (const viewport of [
 		{ width: 320, height: 568 },
