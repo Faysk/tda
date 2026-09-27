@@ -188,6 +188,7 @@ class SessionWorkspaceTimingRequest(BaseModel):
     session_offset_seconds: float = Field(ge=0)
     trim_start_seconds: float = Field(default=0.0, ge=0)
     trim_end_seconds: float | None = Field(default=None, ge=0)
+    gap_confirmed: bool = False
     overlap_resolution: Literal[
         "prefer_earlier_until",
         "prefer_later_from",
@@ -1720,6 +1721,7 @@ def create_app(
                         "session_offset_seconds": body.session_offset_seconds,
                         "trim_start_seconds": body.trim_start_seconds,
                         "trim_end_seconds": body.trim_end_seconds,
+                        "gap_confirmed": body.gap_confirmed,
                         "overlap_resolution": body.overlap_resolution,
                         "overlap_boundary_seconds": body.overlap_boundary_seconds,
                     }
@@ -1752,6 +1754,7 @@ def create_app(
                 session_offset_seconds=body.session_offset_seconds,
                 trim_start_seconds=body.trim_start_seconds,
                 trim_end_seconds=body.trim_end_seconds,
+                gap_confirmed=body.gap_confirmed,
                 overlap_resolution=body.overlap_resolution,
                 overlap_boundary_seconds=body.overlap_boundary_seconds,
             )
