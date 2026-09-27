@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { LocalReview, LocalRunSummary } from "./protocol";
 import {
 	compareRunSegments,
+	regionOverlapsTimeRange,
 	runsShareComparisonSource,
 	summarizeRunComparison,
 	type RunComparisonRegion,
@@ -51,20 +52,41 @@ function formatRealtime(rtf: number | null): string {
 	return rtf !== null && rtf > 0 ? `${(1 / rtf).toFixed(2)}×` : "—";
 }
 
+function reviewStatus(run: LocalRunSummary): string {
+	const status = run.review?.status;
+	if (status === "approved_local") return "Aprovado localmente";
+	if (status === "reviewed") return "Revisado";
+	if (status === "draft") return "Draft";
+	if (status === "unknown") return "Desconhecido";
+	return "Sem revisão";
+}
+
 function runFacts(run: LocalRunSummary) {
 	const rtf = effectiveRtf(run);
 	return [
 		["Perfil", run.profileId],
 		["Engine", [run.engine, run.model].filter(Boolean).join(" · ") || "—"],
+		["Model revision", run.modelRevision ?? "—"],
 		["Processamento", formatSeconds(effectiveProcessingSeconds(run))],
+		["Duração da sessão", formatSeconds(run.stats.sessionDurationSeconds)],
+		["Audio work", formatSeconds(run.stats.audioWorkSeconds)],
 		["RTF", rtf === null ? "—" : rtf.toFixed(3)],
 		["× realtime", formatRealtime(rtf)],
 		["Palavras", run.stats.wordCount ?? "—"],
 		["Segmentos", run.stats.segmentCount ?? "—"],
+		["Turnos", run.stats.turnCount ?? "—"],
+		["Tracks", run.stats.trackCount ?? "—"],
 		["Warnings", run.stats.warningCount ?? "—"],
+		["Revisão", reviewStatus(run)],
 		["Runtime", [run.executionLineage?.runtimeFamily, run.executionLineage?.runtimeVersion].filter(Boolean).join(" ") || "—"],
 		["GPU", run.executionLineage?.gpu?.model ?? "—"],
 	] as const;
+}
+
+function parseTimeFilter(value: string): number | null {
+	if (value.trim() === "") return null;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
 }
 
 function speakersFor(region: RunComparisonRegion): string[] {
@@ -123,7 +145,15 @@ export function RunComparisonView({
 	const [differencesOnly, setDifferencesOnly] = useState(true);
 	const [trackFilter, setTrackFilter] = useState("all");
 	const [speakerFilter, setSpeakerFilter] = useState("all");
+	const [timeStartFilter, setTimeStartFilter] = useState("");
+	const [timeEndFilter, setTimeEndFilter] = useState("");
 	const [activeDifference, setActiveDifference] = useState(0);
+	const timeStart = parseTimeFilter(timeStartFilter);
+	const timeEnd = parseTimeFilter(timeEndFilter);
+	const timeRangeInvalid =
+		Number.isNaN(timeStart) ||
+		Number.isNaN(timeEnd) ||
+		(timeStart !== null && timeEnd !== null && timeStart > timeEnd);
 
 	const visible = useMemo(
 		() =>
@@ -144,9 +174,18 @@ export function RunComparisonView({
 					!speakersFor(region).includes(speakerFilter)
 				)
 					return false;
-				return true;
+				if (timeRangeInvalid) return false;
+				return regionOverlapsTimeRange(region, timeStart, timeEnd);
 			}),
-		[regions, differencesOnly, speakerFilter, trackFilter],
+		[
+			regions,
+			differencesOnly,
+			speakerFilter,
+			trackFilter,
+			timeEnd,
+			timeRangeInvalid,
+			timeStart,
+		],
 	);
 	const differences = useMemo(
 		() =>
@@ -268,6 +307,31 @@ export function RunComparisonView({
 						))}
 					</select>
 				</label>
+				<fieldset className={styles.timeRange}>
+					<legend>Faixa na track (s)</legend>
+					<label>
+						<span>De</span>
+						<input
+							type="number"
+							min="0"
+							step="0.1"
+							inputMode="decimal"
+							value={timeStartFilter}
+							onChange={(event) => setTimeStartFilter(event.target.value)}
+						/>
+					</label>
+					<label>
+						<span>Até</span>
+						<input
+							type="number"
+							min="0"
+							step="0.1"
+							inputMode="decimal"
+							value={timeEndFilter}
+							onChange={(event) => setTimeEndFilter(event.target.value)}
+						/>
+					</label>
+				</fieldset>
 				<div className={styles.navigation}>
 					<Button
 						size="sm"
@@ -300,6 +364,11 @@ export function RunComparisonView({
 					</Button>
 				</div>
 			</div>
+			{timeRangeInvalid ? (
+				<p className={styles.filterError} role="status">
+					A faixa temporal precisa usar segundos positivos e o início não pode ser maior que o fim.
+				</p>
+			) : null}
 
 			<div className={styles.regions}>
 				{visible.map((region, index) => (
