@@ -62,11 +62,22 @@ Testar a URL usada pelo consumidor, inclusive redirects e proxies existentes. Pr
 
 CORS é configurado conforme o consumidor: upload no browser e leitura de pixels em canvas exigem avaliação específica. Não usar configuração CORS ampla como solução para objeto ausente. Credenciais permanentes nunca chegam ao browser; upload futuro pelo Edit usa autorização server-side e acesso temporário restrito quando necessário.
 
-## UX de upload no Edit — planejada
+## UX de upload no Edit
 
-O usuário seleciona a imagem, vê prévia e acompanha recebimento, preparação e verificação. O sistema preenche o endereço e só apresenta “pronta para usar” após os gates correspondentes. Falha deve explicar o próximo passo e permitir repetir sem perder a imagem anterior.
+O usuário seleciona a imagem, vê prévia e acompanha recebimento, preparação e verificação. O sistema preenche a identidade do asset e só apresenta “pronta para usar” após os gates correspondentes. Falha explica o próximo passo e permite repetir sem perder a referência anterior.
 
-Essa tela ainda precisa ser implementada/validada. Enquanto isso, a operação manual segue os mesmos gates e produz o mesmo tipo de evidência; não declarar automação pronta porque a documentação existe.
+O primeiro consumidor editorial governado é a **capa privada de sessão** (#792):
+
+- PNG/WebP até o budget compartilhado de 8 MiB;
+- chunks same-origin autenticados;
+- staging em Preview fora de Production e no bucket privado em Production;
+- finalize server-side com magic/decode, MIME real, SHA-256, dimensões, budget de pixels e read-back;
+- key canônica imutável scoped por campaign/session;
+- preview autenticado e `private, no-store`;
+- troca/remoção altera somente a working copy do draft até um save explícito;
+- upload/finalize/save de draft não promovem mídia nem alteram a sessão pública.
+
+A promoção para o bucket/domínio público continua uma etapa separada e pertence ao commit de publicação da sessão (#793). O asset público anterior permanece válido até que a nova publicação tenha promoção/read-back e commit concluídos.
 
 ## Responsabilidades e entrega entre frentes
 
