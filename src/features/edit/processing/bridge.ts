@@ -29,6 +29,7 @@ import {
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
+	parseSessionWorkspace,
 	parseSystemSnapshot,
 	runIdentifier,
 } from "./protocol";
@@ -300,6 +301,85 @@ export class LocalBridge {
 	}
 	async capabilities(signal: AbortSignal) {
 		return parseCapabilities(await this.json("/capabilities", signal));
+	}
+	async sessionWorkspace(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}`,
+				signal,
+			),
+		);
+	}
+	async ensureSessionWorkspace(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}`,
+				signal,
+				{},
+			),
+		);
+	}
+	async attachSessionSource(
+		campaignId: string,
+		sessionId: string,
+		sourceId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts`,
+				signal,
+				{
+					source_id: identifier(sourceId),
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async detachSessionPart(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/detach`,
+				signal,
+				{
+					part_id: identifier(partId),
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async reorderSessionParts(
+		campaignId: string,
+		sessionId: string,
+		partIds: readonly string[],
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/reorder`,
+				signal,
+				{
+					part_ids: partIds.map(identifier),
+					expected_revision: expectedRevision,
+				},
+			),
+		);
 	}
 	async preparation(signal: AbortSignal) {
 		return parsePreparationStatus(await this.json("/preparation", signal));

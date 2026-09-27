@@ -63,6 +63,24 @@ export type CraigSource = {
 	minimumTrackDurationSeconds: number | null;
 	reused: boolean;
 };
+export type SessionWorkspacePart = {
+	partId: string;
+	sourceId: string;
+	ordinal: number;
+	selectedRunId: string | null;
+	sourceState: "ready" | "invalid";
+	createdAt: string;
+	updatedAt: string;
+};
+export type SessionWorkspace = {
+	schemaVersion: "tda_session_workspace_v1";
+	campaignId: string;
+	sessionId: string;
+	revision: number;
+	createdAt: string;
+	updatedAt: string;
+	parts: SessionWorkspacePart[];
+};
 export type CraigBenchmarkInput = {
 	campaignId: string;
 	sessionId: string;
@@ -702,6 +720,48 @@ export function parseCraigSource(value: unknown): CraigSource {
 		reused: boolean(row.reused),
 	};
 }
+export function parseSessionWorkspace(value: unknown): SessionWorkspace {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	const parts = row.parts.map((raw, index) => {
+		const part = record(raw);
+		const partId = text(part.part_id, 32);
+		const sourceId = identifier(part.source_id);
+		const ordinal = nonNegativeInteger(part.ordinal);
+		const sourceState = text(part.source_state, 16);
+		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
+		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
+		if (ordinal !== index) return invalid();
+		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
+		return {
+			partId,
+			sourceId,
+			ordinal,
+			selectedRunId:
+				part.selected_run_id === null || part.selected_run_id === undefined
+					? null
+					: runIdentifier(part.selected_run_id),
+			sourceState,
+			createdAt: isoDate(part.created_at),
+			updatedAt: isoDate(part.updated_at),
+		} satisfies SessionWorkspacePart;
+	});
+	if (new Set(parts.map((part) => part.partId)).size !== parts.length)
+		return invalid();
+	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
+		return invalid();
+	return {
+		schemaVersion: "tda_session_workspace_v1",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		revision: nonNegativeInteger(row.revision),
+		createdAt: isoDate(row.created_at),
+		updatedAt: isoDate(row.updated_at),
+		parts,
+	};
+}
+
 export function parseJob(value: unknown): LocalJob {
 	const row = record(value);
 	if (

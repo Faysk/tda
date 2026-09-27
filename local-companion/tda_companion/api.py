@@ -66,6 +66,10 @@ TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
 )
+_BROWSER_SESSION_WORKSPACE_PATH = re.compile(
+    r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
+    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+)
 
 
 def _browser_route_allowed(method: str, path: str) -> bool:
@@ -89,6 +93,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
                 "/api/v1/jobs",
             })
         )
+    if _BROWSER_SESSION_WORKSPACE_PATH.fullmatch(path) is not None:
+        return method in {"GET", "POST"}
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
@@ -144,6 +150,28 @@ JobRequest = Annotated[
 
 class BrowserSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class SessionWorkspaceCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class SessionWorkspaceAttachRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    source_id: str = Field(pattern=r"^craig-[0-9a-f]{64}$")
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceDetachRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceReorderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_ids: list[str] = Field(max_length=64)
+    expected_revision: int = Field(ge=0)
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1382,6 +1410,7 @@ def create_app(
             "transcription.review",
             "transcription.review.base",
             "transcription.target.repair",
+            "transcription.session-workspace",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1521,6 +1550,86 @@ def create_app(
         if body.action == "resume":
             worker_wake.set()
         return health_value()
+
+    def session_workspace_response(value):
+        parts = []
+        for part in value["parts"]:
+            try:
+                staged_package_under_source_gate(part["source_id"])
+                source_state = "ready"
+            except (CraigPackageError, ValueError):
+                source_state = "invalid"
+            parts.append({**part, "source_state": source_state})
+        return {**value, "parts": parts}
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
+    def session_workspace(campaign_id: str, session_id: str):
+        try:
+            value = store.session_workspace(campaign_id, session_id)
+        except Conflict as exc:
+            if str(exc) == "SESSION_WORKSPACE_NOT_FOUND":
+                return error("SESSION_WORKSPACE_NOT_FOUND", 404)
+            raise
+        return session_workspace_response(value)
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}")
+    def create_session_workspace(
+        campaign_id: str,
+        session_id: str,
+        _: SessionWorkspaceCreateRequest,
+    ):
+        return session_workspace_response(
+            store.ensure_session_workspace(campaign_id, session_id)
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts")
+    def attach_session_workspace_part(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceAttachRequest,
+    ):
+        try:
+            staged_package_under_source_gate(body.source_id)
+        except (CraigPackageError, ValueError) as exc:
+            raise Conflict("SESSION_WORKSPACE_SOURCE_UNAVAILABLE") from exc
+        return session_workspace_response(
+            store.attach_session_source(
+                campaign_id,
+                session_id,
+                body.source_id,
+                body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/detach")
+    def detach_session_workspace_part(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceDetachRequest,
+    ):
+        return session_workspace_response(
+            store.detach_session_part(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/reorder")
+    def reorder_session_workspace_parts(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceReorderRequest,
+    ):
+        return session_workspace_response(
+            store.reorder_session_parts(
+                campaign_id,
+                session_id,
+                body.part_ids,
+                body.expected_revision,
+            )
+        )
 
     @app.get("/api/v1/jobs")
     def jobs(
