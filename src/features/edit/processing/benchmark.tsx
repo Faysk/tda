@@ -631,7 +631,9 @@ export function ProcessingBenchmark({
 						>
 							{preparingProfiles
 								? "Preparando perfis…"
-								: `Preparar ${pendingProfiles.length} perfil${pendingProfiles.length === 1 ? "" : "s"} pendente${pendingProfiles.length === 1 ? "" : "s"}`}
+								: pendingProfiles.length === 1
+									? "Preparar 1 perfil pendente"
+									: `Preparar ${pendingProfiles.length} perfis pendentes`}}
 						</Button>
 					) : null}
 
