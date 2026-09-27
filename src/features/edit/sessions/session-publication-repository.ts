@@ -273,6 +273,88 @@ export async function prepareSessionCoverForPublication(input: {
 	return asset ? verifiedPublicCoverUrl(asset, input.sessionId) : null;
 }
 
+export async function readCommittedSessionPublication(input: {
+	actorProfileId: string;
+	request: SessionPublicationRequest;
+}): Promise<
+	| Readonly<{
+			ok: true;
+			publicationId: string;
+			version: number;
+			previousPublicationId: string | null;
+			payloadSha256: string;
+	  }>
+	| Readonly<{ ok: false; reason: "operation_conflict" | "dependency_unavailable" }>
+	| null
+> {
+	const client = editDataClient();
+	if (!client)
+		return { ok: false, reason: "dependency_unavailable" };
+
+	const { data: raw, error } = await client
+		.from("session_publication_operations")
+		.select(
+			"campaign_id,session_id,draft_id,publication_id,expected_previous_publication_id,payload_sha256,actor_profile_id",
+		)
+		.eq("operation_id", input.request.operationId)
+		.maybeSingle();
+	if (error) return { ok: false, reason: "dependency_unavailable" };
+	if (!raw) return null;
+
+	const operation = raw as Record<string, unknown>;
+	const publicationId = requiredId(operation.publication_id);
+	const previousPublicationId =
+		operation.expected_previous_publication_id === null
+			? null
+			: requiredId(operation.expected_previous_publication_id);
+	const payloadSha256 =
+		typeof operation.payload_sha256 === "string" &&
+		/^[a-f0-9]{64}$/u.test(operation.payload_sha256)
+			? operation.payload_sha256
+			: null;
+
+	if (
+		operation.actor_profile_id !== input.actorProfileId ||
+		operation.session_id !== input.request.sessionId ||
+		operation.draft_id !== input.request.draftId ||
+		operation.expected_previous_publication_id !==
+			input.request.expectedCurrentPublicationId ||
+		!publicationId ||
+		(operation.expected_previous_publication_id !== null &&
+			!previousPublicationId) ||
+		!payloadSha256
+	) {
+		return { ok: false, reason: "operation_conflict" };
+	}
+
+	const { data: publicationRaw, error: publicationError } = await client
+		.from("session_publications")
+		.select("id,version,payload_sha256")
+		.eq("id", publicationId)
+		.eq("session_id", input.request.sessionId)
+		.maybeSingle();
+	if (publicationError || !publicationRaw)
+		return { ok: false, reason: "dependency_unavailable" };
+
+	const publication = publicationRaw as Record<string, unknown>;
+	const version = positiveSafeInteger(publication.version);
+	if (
+		publication.id !== publicationId ||
+		publication.payload_sha256 !== payloadSha256 ||
+		version === null
+	) {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
+
+	return {
+		ok: true,
+		publicationId,
+		version,
+		previousPublicationId,
+		payloadSha256,
+	};
+}
+
 export async function persistSessionPublication(input: {
 	actorProfileId: string;
 	request: SessionPublicationRequest;
