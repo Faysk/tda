@@ -559,12 +559,22 @@ export class LocalBridge {
 				signal,
 			),
 		);
+		const timelineInvalid = review.segments.some(
+			(segment) =>
+				typeof segment.timelineStart !== "number" ||
+				!Number.isFinite(segment.timelineStart) ||
+				typeof segment.timelineEnd !== "number" ||
+				!Number.isFinite(segment.timelineEnd) ||
+				segment.timelineStart < 0 ||
+				segment.timelineEnd < segment.timelineStart,
+		);
 		if (
 			review.sourceId !== sourceId ||
 			review.runId !== runId ||
 			review.persistence !== "ephemeral_base" ||
 			review.draftRevision !== null ||
-			review.draftSha256 !== null
+			review.draftSha256 !== null ||
+			timelineInvalid
 		)
 			throw new BridgeError("invalid_response");
 		return review;
