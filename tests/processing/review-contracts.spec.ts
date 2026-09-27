@@ -86,6 +86,7 @@ test("target repair preserves edits and restores only the original destination",
     await expect(repair).toBeDisabled();
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(repair).toBeEnabled();
+    await page.getByRole("button", { name: /^Concluir / }).first().click();
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
