@@ -295,7 +295,10 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
             json={"action": "resume"},
         )
         assert wake.status_code == 200
-        assert emitted.wait(10.0)
+        # Windows CI can take longer to drain the synthetic 250-event burst.
+        # This is only a fixture completion bound; runtime throttling is still
+        # asserted below from the final metric/event projection.
+        assert emitted.wait(30.0)
         deadline = time.monotonic() + 5.0
         state = None
         while time.monotonic() < deadline:
