@@ -263,7 +263,6 @@ export function SessionEditorialDraftEditor({
 							<input
 								className={styles.control}
 								disabled={!editable}
-								maxLength={SESSION_DRAFT_LIMITS.coverAssetId}
 								onChange={(event) =>
 									setFields((current) => ({
 										...current,
@@ -327,7 +326,8 @@ export function SessionEditorialDraftEditor({
 							value={fields.shortDescription}
 						/>
 						<small>
-							{fieldCount(fields.shortDescription)} /{" "}\n\t\t\t\t\t\t\t{SESSION_DRAFT_LIMITS.shortDescription}
+							{fieldCount(fields.shortDescription)} /{" "}
+							{SESSION_DRAFT_LIMITS.shortDescription}
 						</small>
 					</label>
 
@@ -345,7 +345,7 @@ export function SessionEditorialDraftEditor({
 							value={fields.fullSummary}
 						/>
 						<small>
-							{fields.fullSummary.length.toLocaleString("pt-BR")} /{" "}
+							{fieldCount(fields.fullSummary).toLocaleString("pt-BR")} /{" "}
 							{SESSION_DRAFT_LIMITS.fullSummary.toLocaleString("pt-BR")}
 						</small>
 					</label>
