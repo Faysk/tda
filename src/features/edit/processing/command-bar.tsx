@@ -19,6 +19,7 @@ type Props = Readonly<{
 	queuedCount: number;
 	attentionCount: number;
 	refreshing: boolean;
+	expectedSampleMs: number;
 	pendingLifecycle: "pause" | "resume" | null;
 	onRefresh: () => void;
 	onToggleLifecycle: () => void;
@@ -70,6 +71,7 @@ export function ProcessingCommandBar({
 	queuedCount,
 	attentionCount,
 	refreshing,
+	expectedSampleMs,
 	pendingLifecycle,
 	onRefresh,
 	onToggleLifecycle,
@@ -147,6 +149,7 @@ export function ProcessingCommandBar({
 									max={100}
 									format={formatPercent}
 									ariaLabel="Uso da GPU"
+									expectedSampleMs={expectedSampleMs}
 									minWidthCh={4}
 								/>
 							</>
@@ -161,6 +164,7 @@ export function ProcessingCommandBar({
 									format={compactMemoryValue}
 									ariaValueText={(value) => `${compactMemoryValue(value)} GB usados`}
 									ariaLabel="VRAM usada"
+									expectedSampleMs={expectedSampleMs}
 									minWidthCh={3.2}
 								/>
 								/{compactMemoryValue(gpuMemory.total)} GB
@@ -181,6 +185,7 @@ export function ProcessingCommandBar({
 								max={100}
 								format={formatPercent}
 								ariaLabel="Uso da CPU"
+								expectedSampleMs={expectedSampleMs}
 								minWidthCh={4}
 							/>
 						)}
@@ -195,6 +200,7 @@ export function ProcessingCommandBar({
 								max={100}
 								format={formatPercent}
 								ariaLabel="Uso da RAM"
+								expectedSampleMs={expectedSampleMs}
 								minWidthCh={4}
 							/>
 						)}
