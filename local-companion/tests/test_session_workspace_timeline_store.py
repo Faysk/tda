@@ -215,3 +215,129 @@ def test_store_rejects_incoherent_timing_contract(tmp_path, kwargs, code):
             workspace["revision"],
             **kwargs,
         )
+
+
+def _workspace_with_three_parts(store: Store):
+    workspace = store.ensure_session_workspace("campaign-three", "session-three")
+    for seed in (1, 2, 3):
+        workspace = store.attach_session_source(
+            "campaign-three",
+            "session-three",
+            source_id(seed),
+            workspace["revision"],
+        )
+    return workspace
+
+
+def test_same_order_can_be_explicitly_confirmed_as_manual_authority(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_two_parts(store)
+    current_ids = [part["part_id"] for part in workspace["parts"]]
+
+    confirmed = store.reorder_session_parts(
+        "campaign-a",
+        "session-a",
+        current_ids,
+        workspace["revision"],
+    )
+
+    assert confirmed["revision"] == workspace["revision"] + 1
+    assert confirmed["ordering_mode"] == "manual"
+    recovered = Store(tmp_path).session_workspace("campaign-a", "session-a")
+    assert recovered["ordering_mode"] == "manual"
+
+
+def test_reorder_clears_adjacency_specific_relation_decisions(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_three_parts(store)
+    first, second, third = workspace["parts"]
+
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", first["part_id"], workspace["revision"],
+        session_offset_seconds=0.0,
+    )
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", second["part_id"], workspace["revision"],
+        session_offset_seconds=70.0, gap_confirmed=True,
+    )
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", third["part_id"], workspace["revision"],
+        session_offset_seconds=110.0,
+        overlap_resolution="prefer_later_from",
+        overlap_boundary_seconds=115.0,
+    )
+
+    reordered = store.reorder_session_parts(
+        "campaign-three",
+        "session-three",
+        [third["part_id"], first["part_id"], second["part_id"]],
+        workspace["revision"],
+    )
+
+    assert [part["gap_confirmed"] for part in reordered["parts"]] == [False, False, False]
+    assert [part["overlap_resolution"] for part in reordered["parts"]] == [None, None, None]
+    assert [part["overlap_boundary_seconds"] for part in reordered["parts"]] == [
+        None, None, None,
+    ]
+
+
+def test_detach_clears_relation_decisions_before_new_adjacency(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_three_parts(store)
+    first, second, third = workspace["parts"]
+
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", second["part_id"], workspace["revision"],
+        session_offset_seconds=70.0, gap_confirmed=True,
+    )
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", third["part_id"], workspace["revision"],
+        session_offset_seconds=110.0,
+        overlap_resolution="prefer_earlier_until",
+        overlap_boundary_seconds=115.0,
+    )
+
+    detached = store.detach_session_part(
+        "campaign-three", "session-three", second["part_id"], workspace["revision"]
+    )
+
+    assert [part["part_id"] for part in detached["parts"]] == [
+        first["part_id"], third["part_id"],
+    ]
+    assert all(part["gap_confirmed"] is False for part in detached["parts"])
+    assert all(part["overlap_resolution"] is None for part in detached["parts"])
+    assert all(part["overlap_boundary_seconds"] is None for part in detached["parts"])
+
+
+def test_geometry_change_invalidates_stale_current_and_following_relations(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_three_parts(store)
+    first, second, third = workspace["parts"]
+
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", first["part_id"], workspace["revision"],
+        session_offset_seconds=0.0, trim_end_seconds=60.0,
+    )
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", second["part_id"], workspace["revision"],
+        session_offset_seconds=70.0, gap_confirmed=True,
+    )
+    workspace = store.update_session_part_timing(
+        "campaign-three", "session-three", third["part_id"], workspace["revision"],
+        session_offset_seconds=110.0,
+        overlap_resolution="prefer_later_from",
+        overlap_boundary_seconds=115.0,
+    )
+
+    changed_first = store.update_session_part_timing(
+        "campaign-three", "session-three", first["part_id"], workspace["revision"],
+        session_offset_seconds=0.0, trim_end_seconds=50.0,
+    )
+    assert changed_first["parts"][1]["gap_confirmed"] is False
+
+    changed_second = store.update_session_part_timing(
+        "campaign-three", "session-three", second["part_id"], changed_first["revision"],
+        session_offset_seconds=80.0, gap_confirmed=False,
+    )
+    assert changed_second["parts"][2]["overlap_resolution"] is None
+    assert changed_second["parts"][2]["overlap_boundary_seconds"] is None
