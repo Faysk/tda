@@ -85,6 +85,10 @@ export type LocalJob = {
 	error: null | { code: string; recoverable: boolean };
 	result_available: boolean;
 	updated_at: string;
+	jobStartedAt: string | null;
+	attemptStartedAt: string | null;
+	stageStartedAt: string | null;
+	currentTrack: Readonly<{ track: number; speaker: string; startedAt: string }> | null;
 	attempt: number;
 	context: JobContext | null;
 };
@@ -653,6 +657,31 @@ export function parseJob(value: unknown): LocalJob {
 			: null,
 		result_available: boolean(row.result_available),
 		updated_at: isoDate(row.updated_at),
+		jobStartedAt:
+			row.job_started_at === undefined || row.job_started_at === null
+				? null
+				: isoDate(row.job_started_at),
+		attemptStartedAt:
+			row.attempt_started_at === undefined || row.attempt_started_at === null
+				? null
+				: isoDate(row.attempt_started_at),
+		stageStartedAt:
+			row.stage_started_at === undefined || row.stage_started_at === null
+				? null
+				: isoDate(row.stage_started_at),
+		currentTrack:
+			row.current_track === undefined || row.current_track === null
+				? null
+				: (() => {
+					const current = record(row.current_track);
+					const track = nonNegativeInteger(current.track);
+					if (track < 1) return invalid();
+					return {
+						track,
+						speaker: text(current.speaker, 160),
+						startedAt: isoDate(current.started_at),
+					};
+				})(),
 		attempt:
 			row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
 		context,
