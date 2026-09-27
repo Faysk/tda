@@ -570,7 +570,7 @@ export function ProcessingBenchmark({
 				</div>
 
 				{file ? (
-					<div className={styles.sourceFacts} role="group" aria-label="Fonte selecionada">
+					<section className={styles.sourceFacts} aria-label="Fonte selecionada">
 						<span title={file.name}><strong>{file.name}</strong></span>
 						<span>{formatSubmissionBytes(file.size)}</span>
 						{source ? (
@@ -584,10 +584,10 @@ export function ProcessingBenchmark({
 								) : null}
 							</>
 						) : null}
-					</div>
+					</section>
 				) : null}
 
-				<div className={styles.profileReadiness} role="group" aria-label="Prontidão dos perfis">
+				<section className={styles.profileReadiness} aria-label="Prontidão dos perfis">
 					<div className={styles.readinessHeader}>
 						<strong>Prontidão</strong>
 						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
@@ -595,7 +595,7 @@ export function ProcessingBenchmark({
 					{PROFILES.map((id, index) => (
 						<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
 					))}
-				</div>
+				</section>
 
 				<div className={styles.primaryActions}>
 					{!source ? (
