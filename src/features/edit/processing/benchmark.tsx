@@ -869,10 +869,9 @@ export function ProcessingBenchmark({
 						</div>
 					</div>
 
-					<div
+					<ol
 						className={styles.profileStepper}
 						data-benchmark-stepper="true"
-						role="list"
 						aria-label="Progresso dos quatro perfis"
 					>
 						{PROFILES.map((id, index) => {
@@ -886,18 +885,17 @@ export function ProcessingBenchmark({
 											? "current"
 											: "pending";
 							return (
-								<span
+								<li
 									key={id}
-									role="listitem"
 									data-state={stepState}
 									aria-current={stepState === "current" ? "step" : undefined}
 								>
 									<strong>{index + 1}</strong>
 									<small>{LABELS[id]}</small>
-								</span>
+								</li>
 							);
 						})}
-					</div>
+					</ol>
 
 					<div className={styles.activeMeta}>
 						{latestActivity && latestEvent ? (
