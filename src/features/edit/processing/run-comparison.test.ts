@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LocalReviewSegment } from "./protocol";
 import {
 	compareRunSegments,
+	regionOverlapsTimeRange,
 	runsShareComparisonSource,
 	summarizeRunComparison,
 } from "./run-comparison";
@@ -188,6 +189,20 @@ describe("run comparison", () => {
 			[120, 121],
 		]);
 		expect(regions.every((region) => region.kind === "equal")).toBe(true);
+	});
+
+	it("filters by global session timeline instead of track-local time", () => {
+		const left = {
+			...segment(1, "left", 0, 1, "fala"),
+			timelineStart: 90,
+			timelineEnd: 91,
+		};
+		const right = { ...left, segmentId: "right" };
+		const region = compareRunSegments([left], [right])[0];
+		expect(region).toBeDefined();
+		expect(regionOverlapsTimeRange(region!, 89, 92)).toBe(true);
+		expect(regionOverlapsTimeRange(region!, 0, 2)).toBe(false);
+		expect(regionOverlapsTimeRange(region!, 100, null)).toBe(false);
 	});
 
 	it("requires two distinct runs from the same source", () => {
