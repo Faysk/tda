@@ -634,7 +634,7 @@ export function ProcessingBenchmark({
 								<span className={styles.eyebrow}>Readiness</span>
 								<h3 id="benchmark-readiness-title">Perfis locais</h3>
 							</div>
-							<strong>{readyCount} / {PROFILES.length}</strong>
+							<strong>{readyCount} / {PROFILES.length} perfis prontos</strong>
 						</div>
 						<div className={styles.profileReadiness}>
 							{PROFILES.map((id, index) => (
