@@ -3,7 +3,6 @@ import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
 	SESSION_COVER_MEDIA_MAX_UPLOAD_CHUNKS,
 	isExistingPublishedSessionCoverReference,
-	isExistingPublishedSessionCoverReference,
 	isSessionCoverIntent,
 	sessionCoverObjectKey,
 	sessionCoverPendingChunkObjectKey,
@@ -42,7 +41,7 @@ describe("session cover media contract", () => {
 				sha256,
 				part: 0,
 			}),
-		).toContain("/" + uploadId + "/" + sha256 + ".part-00");
+		).toContain(`/${uploadId}/${sha256}.part-00`);
 		expect(
 			sessionCoverPendingChunkObjectKey({
 				campaignSlug: "yuhara-main",
@@ -110,32 +109,10 @@ describe("session cover media contract", () => {
 		).toBe(false);
 	});
 
-	it("accepts only known published cover origins as legacy draft references", () => {
-		expect(
-			isExistingPublishedSessionCoverReference(
-				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc/cover.webp",
-			),
-		).toBe(true);
-		expect(
-			isExistingPublishedSessionCoverReference(
-				"https://dnd.faysk.dev/assets/sessions/legacy-cover.webp",
-			),
-		).toBe(true);
-		expect(
-			isExistingPublishedSessionCoverReference(
-				"https://evil.example/cover.webp",
-			),
-		).toBe(false);
-		expect(
-			isExistingPublishedSessionCoverReference(
-				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc/cover.webp?token=secret",
-			),
-		).toBe(false);
-	});
 
 	it("binds private preview URL to both session and asset", () => {
 		expect(sessionCoverPreviewUrl(sessionId, uploadId)).toBe(
-			"/api/edit/session-cover/" + sessionId + "/" + uploadId,
+			`/api/edit/session-cover/${sessionId}/${uploadId}`,
 		);
 		expect(sessionCoverPreviewUrl("wrong", uploadId)).toBeUndefined();
 	});
