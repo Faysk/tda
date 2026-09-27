@@ -110,6 +110,8 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         assert workspace["timeline"]["gap_count"] == 1
         assert workspace["timeline"]["overlap_count"] == 1
         assert workspace["timeline"]["unresolved_overlap_count"] == 1
+        assert workspace["timeline"]["unconfirmed_gap_count"] == 1
+        assert workspace["timeline"]["segment_boundary_policy"] == "segment_start_owner_v1"
         assert workspace["timeline"]["state"] == "overlap_unresolved"
         before_resolution = workspace["timeline"]["fingerprint_sha256"]
 
@@ -129,11 +131,32 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         )
         assert resolved.status_code == 200
         workspace = resolved.json()
-        assert workspace["timeline"]["state"] == "ready"
+        assert workspace["timeline"]["state"] == "gap_unconfirmed"
         assert workspace["parts"][2]["overlap_resolution_valid"] is True
         assert workspace["timeline"]["fingerprint_sha256"] != before_resolution
 
-        stale_revision = workspace["revision"] - 1
+        gap_part = workspace["parts"][1]
+        confirmed_gap = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timing",
+            headers=HEADERS,
+            json={
+                "part_id": gap_part["part_id"],
+                "expected_revision": workspace["revision"],
+                "session_offset_seconds": 3900.0,
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": True,
+                "overlap_resolution": None,
+                "overlap_boundary_seconds": None,
+            },
+        )
+        assert confirmed_gap.status_code == 200
+        workspace = confirmed_gap.json()
+        assert workspace["timeline"]["state"] == "ready"
+        assert workspace["timeline"]["unconfirmed_gap_count"] == 0
+        assert workspace["parts"][1]["gap_confirmed"] is True
+
+        stale_revision = workspace["revision"] - 2
         stale = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a/parts/timing",
             headers=HEADERS,
@@ -176,6 +199,7 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         )
         assert recovered.status_code == 200
         assert recovered.json()["timeline"]["fingerprint_sha256"] == final_fingerprint
+        assert recovered.json()["parts"][1]["gap_confirmed"] is True
         assert recovered.json()["parts"][2]["trim_start_seconds"] == 300.0
 
 
