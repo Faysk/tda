@@ -131,10 +131,11 @@ test("known-buggy Qwen runtime stays blocked when compatible Stable is not publi
 		"atualize o runtime/Companion",
 	);
 	await selectCraig(page);
+	await analyzeCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Analisar ZIP localmente" }),
+		page.getByRole("button", { name: "Adicionar à fila local" }),
 	).toBeDisabled();
-	expect(state.uploadCount).toBe(0);
+	expect(state.uploadCount).toBe(1);
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
@@ -167,10 +168,11 @@ test("known-buggy Qwen runtime offers update only when compatible Stable is publ
 		"O canal Stable já oferece 1.0.12",
 	);
 	await selectCraig(page);
+	await analyzeCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Analisar ZIP localmente" }),
+		page.getByRole("button", { name: "Adicionar à fila local" }),
 	).toBeDisabled();
-	expect(state.uploadCount).toBe(0);
+	expect(state.uploadCount).toBe(1);
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
@@ -204,10 +206,11 @@ test("Qwen runtime availability lookup failure stays blocked without inventing a
 		"atualize o runtime/Companion",
 	);
 	await selectCraig(page);
+	await analyzeCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Analisar ZIP localmente" }),
+		page.getByRole("button", { name: "Adicionar à fila local" }),
 	).toBeDisabled();
-	expect(state.uploadCount).toBe(0);
+	expect(state.uploadCount).toBe(1);
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
