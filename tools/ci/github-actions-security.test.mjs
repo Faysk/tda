@@ -87,6 +87,13 @@ test("Production automatic release eligibility is push-only on main", () => {
     assert.equal(releaseIf.includes(term), true, `missing Production release guard: ${term}`);
   }
 
+  // The new trigger fence must not weaken the existing source/provenance gates.
+  assert.match(active, /SOURCE_SHA="\$\{REQUESTED_SHA:-\$CURRENT_SHA\}"/);
+  assert.match(active, /if \[\[ "\$SOURCE_SHA" != "\$CURRENT_SHA" \]\]/);
+  assert.match(active, /Refusing stale\/arbitrary Production release/);
+  assert.match(active, /pr\.base\?\.ref === "main"/);
+  assert.match(active, /pr\.merge_commit_sha === sha/);
+
   const eligible = ({ eventName, workflowEvent, headBranch, conclusion }) =>
     eventName === "workflow_dispatch" ||
     (eventName === "workflow_run" &&
