@@ -165,11 +165,11 @@ export function SessionEditorialDraftEditor({
 		);
 	}
 
-	const coverPreviewUrl = isSessionCoverUuid(fields.coverAssetId)
-		? sessionCoverPreviewUrl(sessionId, fields.coverAssetId)
-		: /^https:\/\//iu.test(fields.coverAssetId.trim())
+	const coverPreviewUrl =
+		sessionCoverPreviewUrl(sessionId, fields.coverAssetId) ??
+		(/^https:\/\//iu.test(fields.coverAssetId.trim())
 			? fields.coverAssetId
-			: undefined;
+			: undefined);
 
 	return (
 		<section className={styles.editorialPanel} aria-label="Publicação da sessão">
