@@ -530,7 +530,7 @@ export function ProcessingBenchmark({
 				<section
 					className={styles.sourcePanel}
 					data-benchmark-region="source"
-					aria-labelledby="benchmark-source-title"
+					aria-label="Fonte do benchmark"
 				>
 					<div className={styles.sectionHeader}>
 						<div>
