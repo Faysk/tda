@@ -68,6 +68,15 @@ ausência de runs antigos pendentes. Production volta a ser automática somente
 depois de CI verde do SHA atual de `main`; qualquer lifecycle remoto pendente
 desde o baseline canônico continua acumulativo e fail-closed.
 
+O gatilho automático de Production aceita exclusivamente o `workflow_run` de
+`CI` cujo evento de origem seja `push`, `head_branch=main` e
+`conclusion=success`. Um CI verde de `pull_request` não autoriza publicação,
+inclusive quando uma PR reversa usa `main` como branch de origem. O filtro de
+`branches: [main]` sozinho não é suficiente para distinguir esses casos; por isso
+o job `staged-release` mantém esse fence explícito antes de acessar o Environment
+de Production. `workflow_dispatch` permanece disponível para redeploy manual,
+ainda sujeito aos gates de SHA atual e proveniência já existentes.
+
 ```text
 branch temporária
       |
