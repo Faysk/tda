@@ -81,6 +81,18 @@ Nunca preencher `profile_id` apenas porque `character_name` bate com um PC se o 
 
 É permitido resolver `character_entity_id` quando a identidade narrativa é inequívoca e preservar profile nulo.
 
+### Reconciliação entre recording parts
+
+No fluxo local multi-recording, participant mapping reconcilia observações de tracks dentro de uma session sem transformar identidade operacional em identity global.
+
+- `source_id + track_number` identifica a observação local, não a pessoa;
+- Discord ID preservado pelo Craig pode sustentar match forte dentro da session;
+- label/username é evidência auxiliar;
+- ambiguity permanece explícita e pode exigir confirmação manual;
+- guest continua representável com `profile_id = null`;
+- nenhum match textual cria profile;
+- decisões manuais e o hash do mapping pertencem à composition/review e não reescrevem runs brutos.
+
 ## Participantes históricos atuais
 
 O alinhamento de 2026-09-06 conectou 12 aparições de Astel/Dandelion/Screacky às suas entities. Apenas os vínculos humanos já conhecidos foram preservados; nenhuma pessoa foi inferida artificialmente.
