@@ -6,6 +6,11 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
+import { publishSessionEditorialDraftAction } from "./session-publication-actions";
+import {
+	type SessionPublicationState,
+	shortPublicationId,
+} from "./session-publication-model";
 import { SessionCoverEditor } from "./session-cover-editor";
 import {
 	isExistingPublishedSessionCoverReference,
@@ -22,7 +27,9 @@ import {
 type Props = Readonly<{
 	sessionId: string;
 	initial: SessionEditorialDraft;
+	initialPublication: SessionPublicationState;
 	editable: boolean;
+	publishable: boolean;
 }>;
 
 type Fields = Readonly<{
@@ -65,11 +72,25 @@ function fieldCount(value: string): number {
 export function SessionEditorialDraftEditor({
 	sessionId,
 	initial,
+	initialPublication,
 	editable,
+	publishable,
 }: Props) {
 	const [fields, setFields] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [baseline, setBaseline] = useState<Fields>(() => fieldsFromDraft(initial));
+	const [draftId, setDraftId] = useState(initial.draftId);
 	const [revision, setRevision] = useState(initial.revision);
+	const [publication, setPublication] =
+		useState<SessionPublicationState>(initialPublication);
+	const [publishPhase, setPublishPhase] = useState<
+		"idle" | "publishing" | "published" | "error"
+	>("idle");
+	const [publishMessage, setPublishMessage] = useState<string | null>(null);
+	const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+	const [publishConfirmation, setPublishConfirmation] = useState<{
+		expectedCurrentPublicationId: string | null;
+		expectedVersion: number | null;
+	} | null>(null);
 	const [baseTranscriptRevisionId, setBaseTranscriptRevisionId] = useState(
 		initial.baseTranscriptRevisionId,
 	);
@@ -142,6 +163,7 @@ export function SessionEditorialDraftEditor({
 			);
 			return;
 		}
+		setDraftId(result.draft.draftId);
 		setRevision(result.draft.revision);
 		setBaseTranscriptRevisionId(result.draft.baseTranscriptRevisionId);
 		setCurrentTranscriptRevisionId(result.draft.currentTranscriptRevisionId);
@@ -168,6 +190,7 @@ export function SessionEditorialDraftEditor({
 
 	function reconcileRemote(reconcileMode: "remote" | "local") {
 		if (!remote) return;
+		setDraftId(remote.draftId);
 		setRevision(remote.revision);
 		setBaseTranscriptRevisionId(remote.baseTranscriptRevisionId);
 		setCurrentTranscriptRevisionId(remote.currentTranscriptRevisionId);
@@ -183,6 +206,78 @@ export function SessionEditorialDraftEditor({
 						". Revise e salve novamente."
 				: "Versão remota r" + remote.revision + " carregada.",
 		);
+	}
+
+	const publicationBlocked =
+		!publishable ||
+		!draftId ||
+		dirty ||
+		missing.length > 0 ||
+		transcriptChanged ||
+		phase === "saving" ||
+		phase === "conflict" ||
+		publication.sourceDraftId === draftId;
+
+	function openPublishConfirmation() {
+		if (publicationBlocked) return;
+		setPublishMessage(null);
+		setPublishPhase("idle");
+		setPendingOperationId(null);
+		setPublishConfirmation({
+			expectedCurrentPublicationId: publication.currentPublicationId,
+			expectedVersion: publication.version,
+		});
+	}
+
+	async function publish() {
+		if (!draftId || !publishConfirmation || publishPhase === "publishing") return;
+		const operationId = pendingOperationId ?? crypto.randomUUID();
+		setPendingOperationId(operationId);
+		setPublishPhase("publishing");
+		setPublishMessage(null);
+		const result = await publishSessionEditorialDraftAction({
+			sessionId,
+			draftId,
+			expectedCurrentPublicationId:
+				publishConfirmation.expectedCurrentPublicationId,
+			operationId,
+		});
+		if (!result.ok) {
+			if (result.state) setPublication(result.state);
+			setPublishPhase("error");
+			const messages: Record<string, string> = {
+				conflict:
+					"A versão pública mudou depois da confirmação. Reabra a confirmação com o estado atual.",
+				draft_stale:
+					"O draft salvo mudou. Recarregue ou salve novamente antes de publicar.",
+				transcript_stale:
+					"A transcrição mudou desde a base deste draft. Revise antes de publicar.",
+				draft_incomplete: "O draft salvo ainda está incompleto.",
+				cover_not_verified:
+					"A capa não pôde ser promovida e verificada. A versão pública anterior foi preservada.",
+				forbidden: "Sua conta não possui permissão editorial para publicar.",
+				not_production: "Publicação real só é permitida no ambiente Production.",
+				operation_conflict:
+					"A identidade desta operação já foi usada com outro payload. Gere uma nova confirmação.",
+				dependency_unavailable:
+					"A resposta ficou inconclusiva. Tente novamente: a mesma operação será reconciliada sem duplicar publicação.",
+			};
+			setPublishMessage(
+				messages[result.reason] ??
+					"Não foi possível publicar. A versão pública anterior foi preservada.",
+			);
+			if (result.reason !== "dependency_unavailable") setPendingOperationId(null);
+			return;
+		}
+		setPublication(result.state);
+		setPublishPhase("published");
+		setPublishMessage(
+			"Versão pública v" +
+				result.version +
+				(result.replayed ? " reconciliada por receipt." : " publicada."),
+		);
+		setPendingOperationId(null);
+		setPublishConfirmation(null);
 	}
 
 	const privateCoverPreviewUrl = sessionCoverPreviewUrl(
@@ -377,6 +472,57 @@ export function SessionEditorialDraftEditor({
 				</span>
 			</div>
 
+			{publishConfirmation ? (
+				<div className={draftStyles.publishConfirm} role="alertdialog" aria-label="Confirmar publicação">
+					<div>
+						<span className={styles.muted}>PUBLICAÇÃO PÚBLICA</span>
+						<h3>Publicar esta sessão no site?</h3>
+					</div>
+					<dl className={draftStyles.publishFacts}>
+						<div><dt>Capa</dt><dd>pronta</dd></div>
+						<div><dt>Arco</dt><dd>{fields.arc.trim() || "—"}</dd></div>
+						<div><dt>Título</dt><dd>{fields.title.trim()}</dd></div>
+						<div><dt>Descrição</dt><dd>{fieldCount(fields.shortDescription).toLocaleString("pt-BR")} caracteres</dd></div>
+						<div><dt>Resumo completo</dt><dd>{fieldCount(fields.fullSummary).toLocaleString("pt-BR")} caracteres · Markdown</dd></div>
+						<div><dt>Versão pública atual</dt><dd>{publishConfirmation.expectedVersion === null ? "nenhuma" : "v" + publishConfirmation.expectedVersion}</dd></div>
+						<div><dt>Draft salvo</dt><dd>r{revision} · {shortPublicationId(draftId)}</dd></div>
+						<div><dt>Transcript base</dt><dd>{shortPublicationId(baseTranscriptRevisionId)}</dd></div>
+					</dl>
+					<p className={draftStyles.editorialWarning}>
+						A transcrição completa continuará privada no Edit.
+					</p>
+					{publishMessage ? (
+						<p className={draftStyles.editorialWarning} role="status">{publishMessage}</p>
+					) : null}
+					<div className={draftStyles.editorialActions}>
+						<button
+							className={draftStyles.controlButton}
+							disabled={publishPhase === "publishing"}
+							onClick={() => {
+								setPublishConfirmation(null);
+								setPendingOperationId(null);
+								setPublishMessage(null);
+							}}
+							type="button"
+						>
+							Cancelar
+						</button>
+						<button
+							className={draftStyles.primaryButton}
+							disabled={publishPhase === "publishing"}
+							onClick={() => void publish()}
+							type="button"
+						>
+							{publishPhase === "publishing"
+								? "Publicando…"
+								: publication.currentPublicationId
+									? "Publicar nova versão"
+									: "Publicar no site"}
+						</button>
+					</div>
+				</div>
+			) : null}
+
 			{phase === "conflict" && remote ? (
 				<div className={styles.conflictPanel} role="alert">
 					<strong>Conflito de edição</strong>
@@ -441,11 +587,20 @@ export function SessionEditorialDraftEditor({
 					</button>
 					<button
 						className={draftStyles.controlButton}
-						disabled
-						title="A publicação pública é uma etapa separada do fluxo."
+						disabled={publicationBlocked}
+						title={
+							!publishable
+								? "Publicação exige Production e capability editorial."
+								: dirty
+									? "Salve o draft antes de publicar."
+									: publication.sourceDraftId === draftId
+										? "Este draft já é a versão pública atual."
+										: "Abrir confirmação da publicação pública."
+						}
+						onClick={openPublishConfirmation}
 						type="button"
 					>
-						{initial.sessionStatus === "published"
+						{publication.currentPublicationId
 							? "Publicar nova versão"
 							: "Publicar no site"}
 					</button>
