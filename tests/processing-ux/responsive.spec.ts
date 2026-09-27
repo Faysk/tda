@@ -409,6 +409,71 @@ test("desktop diagnostics gives the log its own scroll owner", async ({ page }) 
 	expect(ownership.logWidth).toBeGreaterThan(ownership.panelWidth * 0.5);
 });
 
+
+test("desktop diagnostics aligns the summary rail with the event explorer", async ({ page }) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const core = page.locator("[data-diagnostics-core='true']");
+	const summary = page.locator("[data-diagnostics-summary='true']");
+	const events = page.locator("[data-diagnostics-events='true']");
+	await expect(core).toBeVisible();
+	await expect(summary).toBeVisible();
+	await expect(events).toBeVisible();
+
+	const geometry = await core.evaluate((element) => {
+		const summaryRail = element.querySelector("[data-diagnostics-summary='true']");
+		const eventPane = element.querySelector("[data-diagnostics-events='true']");
+		const log = eventPane?.querySelector("[role='log']");
+		if (!(summaryRail instanceof HTMLElement) || !(eventPane instanceof HTMLElement) || !(log instanceof HTMLElement)) {
+			throw new Error("Diagnostics geometry targets are missing");
+		}
+		const coreBox = element.getBoundingClientRect();
+		const summaryBox = summaryRail.getBoundingClientRect();
+		const eventBox = eventPane.getBoundingClientRect();
+		const logBox = log.getBoundingClientRect();
+		return {
+			display: getComputedStyle(element).display,
+			topDelta: Math.abs(summaryBox.top - eventBox.top),
+			summaryRight: summaryBox.right,
+			eventLeft: eventBox.left,
+			coreWidth: coreBox.width,
+			logWidth: logBox.width,
+		};
+	});
+
+	expect(geometry.display).toBe("grid");
+	expect(geometry.topDelta).toBeLessThanOrEqual(1);
+	expect(geometry.eventLeft).toBeGreaterThan(geometry.summaryRight);
+	expect(geometry.logWidth).toBeGreaterThan(geometry.coreWidth * 0.55);
+});
+
+test("mobile diagnostics stacks summary and events without horizontal overflow", async ({ page }) => {
+	await openRunningWorkspace(page, 390, 844);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const core = page.locator("[data-diagnostics-core='true']");
+	const geometry = await core.evaluate((element) => {
+		const summaryRail = element.querySelector("[data-diagnostics-summary='true']");
+		const eventPane = element.querySelector("[data-diagnostics-events='true']");
+		if (!(summaryRail instanceof HTMLElement) || !(eventPane instanceof HTMLElement)) {
+			throw new Error("Diagnostics geometry targets are missing");
+		}
+		const summaryBox = summaryRail.getBoundingClientRect();
+		const eventBox = eventPane.getBoundingClientRect();
+		return {
+			summaryTop: summaryBox.top,
+			summaryBottom: summaryBox.bottom,
+			eventTop: eventBox.top,
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		};
+	});
+
+	expect(geometry.eventTop).toBeGreaterThanOrEqual(geometry.summaryBottom);
+	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+});
+
 test("short desktop falls back to document flow instead of clipping nested owners", async ({
 	page,
 }) => {
