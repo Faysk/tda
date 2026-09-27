@@ -100,8 +100,14 @@ function localOperationMessage(code: string | null): string {
 			"O Companion não conseguiu gravar o ZIP no armazenamento local.",
 		CRAIG_UPLOAD_SIZE_LIMIT:
 			"O ZIP ultrapassa o limite aceito pelo Companion.",
+		CRAIG_UPLOAD_EMPTY:
+			"O ZIP selecionado está vazio.",
 		CRAIG_ZIP_REQUIRED:
 			"Escolha um arquivo ZIP exportado pelo Craig.",
+		CRAIG_ARCHIVE_INVALID:
+			"O arquivo não é um ZIP Craig válido.",
+		CRAIG_ARCHIVE_NO_TRACKS:
+			"O ZIP não contém faixas de áudio reconhecidas pelo fluxo Craig.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
 			"O Qwen precisa ser preparado e validado novamente nesta GPU antes de entrar na fila.",
 		WHISPER_MODEL_PREPARATION_REQUIRED:
@@ -819,7 +825,10 @@ export function ProcessingSubmission({
 					) : null}
 
 					{readiness ? (
-						<div className={profileBlocked ? styles.blocked : styles.readiness}>
+						<div
+							className={profileBlocked ? styles.blocked : styles.readiness}
+							role={profileBlocked ? "alert" : "status"}
+						>
 							<div>
 								<strong>{readiness}</strong>
 								{readinessReason && readinessReason !== readiness ? <span>{readinessReason}</span> : null}
