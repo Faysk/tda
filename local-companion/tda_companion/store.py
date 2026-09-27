@@ -452,6 +452,29 @@ class Store:
         if body["kind"] == "transcription.craig":
             context["profile_id"] = body["profile_id"]
             context["cpu"] = bool(body.get("cpu", False))
+            audio_work = body.get("audio_work_seconds")
+            if (
+                isinstance(audio_work, (int, float))
+                and not isinstance(audio_work, bool)
+                and math.isfinite(float(audio_work))
+                and audio_work >= 0
+            ):
+                context["audio_work_seconds"] = float(audio_work)
+            durations = body.get("track_durations_seconds")
+            if (
+                isinstance(durations, list)
+                and len(durations) <= 256
+                and all(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and math.isfinite(float(value))
+                    and value >= 0
+                    for value in durations
+                )
+            ):
+                context["track_durations_seconds"] = [
+                    float(value) for value in durations
+                ]
         elif body["kind"] == "benchmark.craig":
             context["sample_identity_sha256"] = body.get("sample_identity_sha256")
             context["sample_seconds"] = body.get("sample_seconds")

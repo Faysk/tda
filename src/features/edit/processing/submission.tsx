@@ -12,10 +12,16 @@ import {
 	BridgeError,
 	type Capabilities,
 	type CraigSource,
+	type LocalRunSummary,
 	type PreparationStatus,
+	type SystemSnapshot,
 	type TranscriptionProfileId,
 } from "./protocol";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
+import {
+	estimateProfileProcessing,
+	formatEstimateRange,
+} from "./processing-estimator";
 import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
@@ -132,10 +138,19 @@ function sourceMustBeRestaged(code: string | null): boolean {
 	);
 }
 
+const EMPTY_RUNS: readonly LocalRunSummary[] = [];
+
 export function ProcessingSubmission({
 	className,
 	compact = false,
-}: Readonly<{ className?: string; compact?: boolean }> = {}) {
+	runs = EMPTY_RUNS,
+	system = null,
+}: Readonly<{
+	className?: string;
+	compact?: boolean;
+	runs?: readonly LocalRunSummary[];
+	system?: SystemSnapshot | null;
+}> = {}) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -275,6 +290,21 @@ export function ProcessingSubmission({
 		() => availableProfiles.find((item) => item.id === profile) ?? null,
 		[availableProfiles, profile],
 	);
+	const profileEstimates = useMemo(
+		() =>
+			new Map(
+				availableProfiles.map((item) => [
+					item.id,
+					estimateProfileProcessing({
+						audioWorkSeconds: source?.audioWorkSeconds ?? null,
+						profile: item,
+						runs,
+						system,
+					}),
+				]),
+			),
+		[availableProfiles, runs, source?.audioWorkSeconds, system],
+	);
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
 
@@ -304,9 +334,45 @@ export function ProcessingSubmission({
 
 	if (!paired) return null;
 
+	async function analyzeSource() {
+		if (busy || !file || !canSubmit) return;
+		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
+			setError("Escolha um ZIP válido exportado pelo Craig.");
+			return;
+		}
+		const controller = new AbortController();
+		request.current?.abort();
+		request.current = controller;
+		setBusy(true);
+		setError(null);
+		setStatus("Analisando o ZIP diretamente no Companion local…");
+		try {
+			const staged = await bridge.craigSource(file, controller.signal);
+			setSource(staged);
+			setStatus(
+				`ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
+					staged.audioWorkSeconds ?? 0,
+				)} s de trabalho de áudio.`,
+			);
+		} catch (cause) {
+			setSource(null);
+			if (cause instanceof BridgeError) {
+				setError(
+					cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+			} else {
+				setError(messageFor("service_error"));
+			}
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canSubmit) return;
+		if (busy || !file || !source || !profile || !canSubmit) return;
 		if (qwenRuntimeUpgradeRequired) {
 			setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
 			return;
@@ -337,13 +403,8 @@ export function ProcessingSubmission({
 				: "Enviando o ZIP diretamente para o Companion local…",
 		);
 		try {
-			const staged = source ?? (await bridge.craigSource(file, controller.signal));
-			if (!source) setSource(staged);
-			setStatus(
-				staged.reused || source
-					? `Fonte local já verificada · ${staged.trackCount} tracks.`
-					: `ZIP verificado · ${staged.trackCount} tracks.`,
-			);
+			const staged = source;
+			setStatus(`Fonte local verificada · ${staged.trackCount} tracks.`);
 
 			// Uploads grandes can take long enough for runtime/model readiness to
 			// change. Decide preparation from a fresh Agent snapshot, not from the
@@ -605,20 +666,70 @@ export function ProcessingSubmission({
 							}}
 						/>
 					</label>
+					{source ? (
+						<div className={styles.estimatePanel} aria-label="Estimativas locais por perfil">
+							<div>
+								<strong>Estimativa nesta máquina</strong>
+								<small>
+									Baseada somente em runs locais compatíveis · trabalho de áudio{" "}
+									{Math.round(source.audioWorkSeconds ?? 0)} s
+								</small>
+							</div>
+							<div className={styles.estimateGrid}>
+								{availableProfiles.map((item) => {
+									const estimate = profileEstimates.get(item.id);
+									return (
+										<div key={item.id} data-selected={item.id === profile ? "true" : "false"}>
+											<span>{profileLabels[item.id]}</span>
+											<strong>
+												{estimate?.available
+													? formatEstimateRange(
+															estimate.lowerSeconds,
+															estimate.upperSeconds,
+														)
+													: "Sem estimativa calibrada"}
+											</strong>
+											<small>
+												{estimate?.available
+													? `Confiança ${{
+															high: "alta",
+															medium: "média",
+															low: "baixa",
+														}[estimate.confidence]} · ${estimate.sampleCount} runs`
+													: "Histórico compatível insuficiente"}
+												{item.preparationRequired ? " · + preparação necessária" : ""}
+											</small>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					) : null}
 					<div className={styles.actions}>
-						<Button
-							type="submit"
-							variant="primary"
-							disabled={
-								busy ||
-								!file ||
-								!profile ||
-								requestTooLarge ||
-								qwenRuntimeUpgradeRequired
-							}
-						>
-							{busy ? "Preparando localmente…" : "Adicionar à fila local"}
-						</Button>
+						{source ? (
+							<Button
+								type="submit"
+								variant="primary"
+								disabled={
+									busy ||
+									!file ||
+									!profile ||
+									requestTooLarge ||
+									qwenRuntimeUpgradeRequired
+								}
+							>
+								{busy ? "Preparando localmente…" : "Adicionar à fila local"}
+							</Button>
+						) : (
+							<Button
+								type="button"
+								variant="primary"
+								disabled={busy || !file}
+								onClick={() => void analyzeSource()}
+							>
+								{busy ? "Analisando localmente…" : "Analisar ZIP localmente"}
+							</Button>
+						)}
 						<span>O áudio não é enviado para o cloud.</span>
 					</div>
 					<details className={styles.advanced}>
