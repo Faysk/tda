@@ -124,6 +124,21 @@ export type SessionTimeline = {
 	parts: SessionTimelinePart[];
 	boundaries: SessionTimelineBoundary[];
 };
+export type SessionTimelineUpdateInput = {
+	expectedRevision: number;
+	parts: readonly {
+		partId: string;
+		sessionOffsetMs: number | null;
+		trimStartMs: number;
+		trimEndMs: number | null;
+	}[];
+	boundaries: readonly {
+		leftPartId: string;
+		rightPartId: string;
+		mode: "accept_gap" | "prefer_earlier_until" | "prefer_later_from";
+		boundaryMs: number | null;
+	}[];
+};
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
 	campaignId: string;
