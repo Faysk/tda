@@ -38,6 +38,41 @@ export function isSessionCoverMime(value: unknown): value is SessionCoverMediaMi
 	return value === "image/png" || value === "image/webp";
 }
 
+export function isExistingPublishedSessionCoverReference(value: unknown): boolean {
+	if (typeof value !== "string") return false;
+	const raw = value.trim();
+	if (!raw) return false;
+	if (raw.startsWith("/assets/sessions/") && !raw.includes("?") && !raw.includes("#"))
+		return true;
+	try {
+		const url = new URL(raw);
+		if (
+			url.protocol !== "https:" ||
+			url.port ||
+			url.username ||
+			url.password ||
+			url.hash
+		)
+			return false;
+		if (
+			url.hostname === "media.dnd.faysk.dev" &&
+			url.pathname.startsWith("/campaigns/yuhara-main/sessions/")
+		)
+			return !url.search;
+		if (
+			url.hostname === "dnd.faysk.dev" &&
+			url.pathname.startsWith("/assets/sessions/")
+		)
+			return !url.search;
+		return (
+			url.hostname === "dmrqnbdvbkfqzctcerbx.supabase.co" &&
+			url.pathname.startsWith("/storage/v1/object/public/session-images/")
+		);
+	} catch {
+		return false;
+	}
+}
+
 export function isSessionCoverIntent(
 	value: unknown,
 ): value is SessionCoverUploadIntent {
