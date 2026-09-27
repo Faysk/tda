@@ -166,7 +166,7 @@ A tela segue a regra de que uma superfície operacional deve mostrar primeiro o 
 4. indicação compacta de fila/atenção; listas completas ficam nas tabs Fila e Resultados;
 5. detalhes e log do job observado ficam em Diagnóstico.
 
-Sem job ativo, a área de processamento permanece compacta e informa se há trabalho aguardando. Métricas persistidas de um run nunca são atribuídas ao job ativo; valores não disponíveis permanecem desconhecidos. A UI não calcula ETA nem duração de execução até existir fonte temporal autoritativa.
+Sem job ativo, a área de processamento usa uma composição **one-viewport first**: ZIP, sessão, profile e CTA compartilham a linha operacional em desktop amplo; privacidade continua visível; explicações, causa detalhada de bloqueio, opções avançadas e métricas secundárias ficam sob disclosures acessíveis. O último resultado mantém cinco sinais humanos na primeira camada e preserva os demais fatos em **Ver detalhes**. Em telas estreitas/zoom, o layout volta ao fluxo vertical sem clipping. Métricas persistidas de um run nunca são atribuídas ao job ativo; valores não disponíveis permanecem desconhecidos. A UI não calcula ETA nem duração de execução até existir fonte temporal autoritativa.
 
 Quando a biblioteca de runs entrar na UI, **fila operacional** e **resultados editoriais concluídos** devem continuar conceitos visualmente distintos. Um run antigo não pode parecer trabalho ainda em execução.
 
