@@ -542,6 +542,44 @@
 	box-shadow: 0 0 0 3px var(--ds-accent-muted);
 }
 
+.trackTimings {
+	border-top: 1px solid var(--ds-border-subtle);
+	padding-top: 6px;
+}
+
+.trackTimings summary {
+	cursor: pointer;
+	color: var(--ds-foreground-soft);
+	font-size: 0.72rem;
+	font-weight: 650;
+}
+
+.trackTimings ol {
+	display: grid;
+	gap: 3px;
+	margin: 7px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.trackTimings li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.trackTimings li[data-active="true"] {
+	color: var(--ds-foreground);
+}
+
+.trackTimings strong {
+	font-variant-numeric: tabular-nums;
+	font-weight: 650;
+}
+
 .activeActions {
 	justify-content: flex-end;
 	margin-top: -2px;
