@@ -782,6 +782,8 @@ export function ProcessingPanel({
 							<ProcessingSubmission
 								className={styles.submissionCard}
 								compact
+								runs={state.localRuns}
+								system={state.system}
 							/>
 						</div>
 						{latestCompletedRun ? (
