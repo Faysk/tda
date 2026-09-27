@@ -155,7 +155,7 @@ def test_v4_event_rows_migrate_to_nullable_attempt_without_inference(tmp_path: P
             row[1] for row in db.execute("PRAGMA table_info(events)").fetchall()
         }
 
-    assert version == 8
+    assert version == 9
     assert "attempt" in columns
     event = _event_by_code(migrated.events(job_id), "QUEUED")[0]
     assert event["attempt"] is None
@@ -169,3 +169,73 @@ def test_direct_event_attempt_rejects_zero_bool_and_negative(tmp_path: Path):
         with pytest.raises(Conflict, match="JOB_EVENT_ATTEMPT_INVALID"):
             with store.tx() as db:
                 store.event(db, job_id, "INVALID_ATTEMPT_TEST", attempt=attempt)
+
+
+def test_authoritative_processing_clocks_survive_reload_and_retry(tmp_path: Path):
+    store = Store(tmp_path)
+    job_id = store.submit("timing-key", _body())["id"]
+    queued = store.get(job_id)
+    assert queued["job_started_at"] is None
+    assert queued["attempt_started_at"] is None
+    assert queued["stage_started_at"] is None
+    assert queued["current_track"] is None
+
+    assert store.claim() == (job_id, 1)
+    first = store.get(job_id)
+    assert first["job_started_at"] is not None
+    assert first["attempt_started_at"] is not None
+    assert first["stage_started_at"] is not None
+
+    reloaded = Store(tmp_path).get(job_id)
+    assert reloaded["job_started_at"] == first["job_started_at"]
+    assert reloaded["attempt_started_at"] == first["attempt_started_at"]
+
+    store.fail(job_id, 1, "SYNTHETIC_FAILURE")
+    store.action(job_id, "retry")
+    queued_retry = store.get(job_id)
+    assert queued_retry["job_started_at"] == first["job_started_at"]
+    assert queued_retry["attempt_started_at"] is None
+    assert queued_retry["stage_started_at"] is None
+    assert queued_retry["current_track"] is None
+
+    assert store.claim() == (job_id, 2)
+    second = store.get(job_id)
+    assert second["job_started_at"] == first["job_started_at"]
+    assert second["attempt_started_at"] is not None
+    assert second["attempt_started_at"] >= first["attempt_started_at"]
+
+
+def test_stage_and_track_clocks_follow_authoritative_boundaries(tmp_path: Path):
+    store = Store(tmp_path)
+    job_id = store.submit("timing-key", _body())["id"]
+    assert store.claim() == (job_id, 1)
+    initial = store.get(job_id)
+
+    assert store.set_stage(job_id, 1, "transcription")
+    staged = store.get(job_id)
+    assert staged["stage"] == "transcription"
+    assert staged["stage_started_at"] is not None
+    assert staged["stage_started_at"] >= initial["stage_started_at"]
+
+    # Repeating the same stage must not manufacture a fresh boundary.
+    assert store.set_stage(job_id, 1, "transcription") is False
+    assert store.get(job_id)["stage_started_at"] == staged["stage_started_at"]
+
+    assert store.record_worker_event(
+        job_id,
+        1,
+        "TRACK_STARTED",
+        {
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 3,
+            "speaker": "Alice",
+        },
+    )
+    tracked = store.get(job_id)
+    assert tracked["current_track"] == {
+        "track": 2,
+        "speaker": "Alice",
+        "started_at": tracked["current_track"]["started_at"],
+    }
+    assert tracked["current_track"]["started_at"] is not None
