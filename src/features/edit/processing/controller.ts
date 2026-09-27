@@ -733,12 +733,16 @@ export class ProcessingController {
 				this.update({ localReview, localReviewError: null });
 		} catch (error) {
 			if (epoch === this.#epoch && !signal.aborted) {
-				this.update({
-					localReviewError:
-						error instanceof BridgeError
-							? (error.serverCode ?? error.code)
-							: "service_error",
-				});
+				const localReviewError =
+					error instanceof BridgeError
+						? (error.serverCode ?? error.code)
+						: "service_error";
+				if (localReviewError === "LOCAL_REVIEW_RUN_NOT_VISIBLE") {
+					this.#recoveryBaseline = null;
+					this.update({ localReview: null, localReviewError });
+				} else {
+					this.update({ localReviewError });
+				}
 			}
 		} finally {
 			if (epoch === this.#epoch)
@@ -811,11 +815,26 @@ export class ProcessingController {
 	assertLocalReviewPublishable = async (review: LocalReview) => {
 		if (this.#state.connection !== "connected")
 			throw new BridgeError("unreachable");
-		const latest = await this.bridge.localReview(
-			review.sourceId,
-			review.runId,
-			this.#request.signal,
-		);
+		let latest: LocalReview;
+		try {
+			latest = await this.bridge.localReview(
+				review.sourceId,
+				review.runId,
+				this.#request.signal,
+			);
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.serverCode === "LOCAL_REVIEW_RUN_NOT_VISIBLE"
+			) {
+				this.#recoveryBaseline = null;
+				this.update({
+					localReview: null,
+					localReviewError: "LOCAL_REVIEW_RUN_NOT_VISIBLE",
+				});
+			}
+			throw error;
+		}
 		if (
 			latest.baseTranscriptSha256 !== review.baseTranscriptSha256 ||
 			latest.draftRevision !== review.draftRevision ||
@@ -863,6 +882,12 @@ export class ProcessingController {
 				}
 				await this.read(signal, { deep: false, includeLibrary: true });
 			},
+		);
+		return !this.#state.localRuns.some(
+			(run) =>
+				run.sourceId === sourceId &&
+				run.runId === runId &&
+				run.transcriptSha256 === transcriptSha256,
 		);
 	};
 
