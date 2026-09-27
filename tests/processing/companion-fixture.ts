@@ -616,6 +616,88 @@ export async function installCompanionFixture(
 					: additionalJobs,
 			});
 		}
+		if (path === "/jobs/benchmark-job-1/events") {
+			return json(route, {
+				events:
+					options.jobEvents ??
+					(state.job?.status === "running"
+						? [
+								{
+									seq: 2,
+									attempt: 1,
+									code: "TRACK_STARTED",
+									at: "2026-09-20T18:00:01Z",
+									level: "info",
+									data: {
+										track: 1,
+										total_tracks: 4,
+										speaker: "Whisper Detailed",
+									},
+								},
+							]
+						: []),
+			});
+		}
+		if (path === "/jobs/benchmark-job-1/result") {
+			const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+				kind: "benchmark.profile",
+				schema_version: "tda_benchmark_profile_v1",
+				profile_id: profileId,
+				engine,
+				model: "fixture-model",
+				model_revision: "fixture-revision",
+				device: "cuda",
+				compute_type: "float16",
+				alignment: "native",
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				audio_work_seconds: 600,
+				session_duration_seconds: 300,
+				processing_timing_version: "engine_processing_v1",
+				processing_seconds: 30,
+				rtf: 0.05,
+				word_count: 100,
+				segment_count: 10,
+				track_count: 2,
+				warning_count: 0,
+				execution_lineage: {
+					schema_version: "tda_execution_lineage_v1",
+					companion_version: "0.3.14",
+					runtime_family: engine === "whisper" ? "whisper" : "qwen",
+					runtime_version: "1.0.12",
+					device: "cuda",
+					compute_type: "float16",
+					gpu: null,
+				},
+			});
+			return json(route, {
+				schema_version: "tda_processing_benchmark_v1",
+				kind: "benchmark.craig",
+				job_id: "benchmark-job-1",
+				source_id: CRAIG_SOURCE_ID,
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: "b".repeat(64),
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 2,
+				audio_work_seconds: 600,
+				prepared: true,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-fast", "qwen3"),
+					profile("qwen-quality", "qwen3"),
+				],
+			});
+		}
+		if (
+			path === "/jobs/benchmark-job-1/cancel" &&
+			request.method() === "POST"
+		) {
+			state.job = fixtureBenchmarkJob("cancelled");
+			return json(route, state.job);
+		}
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
 				events:
