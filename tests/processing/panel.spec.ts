@@ -847,3 +847,61 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
 });
+
+
+test("Full HD idle Overview keeps the compact latest result in the first viewport", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		system: {
+			gpus: [
+				{
+					index: 0,
+					name: "Synthetic GPU",
+					utilizationPercent: 25,
+					memoryUsedBytes: 4 * 1024 ** 3,
+					memoryTotalBytes: 8 * 1024 ** 3,
+				},
+			],
+		},
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const composer = page.locator("[data-craig-composer='true']");
+	const result = page.locator("[data-processing-last-result='true']");
+	await expect(composer).toBeVisible();
+	await expect(result).toBeVisible();
+	await expect(result).toContainText("Processamento");
+	await expect(result).toContainText("RTF");
+	await expect(result).toContainText("Palavras");
+	await expect(result).toContainText("Warnings");
+
+	const details = page.locator("[data-processing-result-details='true']");
+	await expect(details).not.toHaveAttribute("open", "");
+	await expect(page.getByText("Duração da sessão", { exact: true })).not.toBeVisible();
+
+	const geometry = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		clientHeight: document.documentElement.clientHeight,
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
+	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+
+	const resultBox = await result.boundingBox();
+	expect(resultBox).not.toBeNull();
+	expect((resultBox?.y ?? 0) + (resultBox?.height ?? 0)).toBeLessThanOrEqual(1081);
+
+	const disclosure = details.getByText("Ver detalhes", { exact: true });
+	await disclosure.focus();
+	await page.keyboard.press("Enter");
+	await expect(page.getByText("Duração da sessão", { exact: true })).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(page.getByText("Duração da sessão", { exact: true })).not.toBeVisible();
+});
