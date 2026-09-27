@@ -261,6 +261,11 @@ export function RunComparisonView({
 					</article>
 				))}
 			</div>
+			<p className={styles.comparabilityNote}>
+				Métricas são fatos independentes de cada run. Diferenças de runtime,
+				hardware, checkpoints ou semântica de timing podem impedir comparação
+				direta de performance; esta tela não escolhe um vencedor.
+			</p>
 
 			<fieldset className={styles.summary} aria-label="Resumo das diferenças">
 				<span>{summary.totalRegions} regiões alinhadas</span>
@@ -308,7 +313,7 @@ export function RunComparisonView({
 					</select>
 				</label>
 				<fieldset className={styles.timeRange}>
-					<legend>Faixa na track (s)</legend>
+					<legend>Faixa da sessão (s)</legend>
 					<label>
 						<span>De</span>
 						<input
@@ -381,8 +386,9 @@ export function RunComparisonView({
 					>
 						<header>
 							<strong>
-								Track {region.trackNumber} · {region.start.toFixed(2)}–
-								{region.end.toFixed(2)}s
+								Sessão {region.timelineStart.toFixed(2)}–{region.timelineEnd.toFixed(2)}s
+								{" · "}Track {region.trackNumber} ({region.start.toFixed(2)}–
+								{region.end.toFixed(2)}s)
 							</strong>
 							<span>
 								{region.kind === "equal"
