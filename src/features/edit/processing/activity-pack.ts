@@ -39,8 +39,10 @@ export class ActivityPackError extends Error {
 function object(value: unknown): Record<string, unknown> {
 	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw new ActivityPackError("PACK_OBJECT_REQUIRED");
-	if ("__proto__" in value || "constructor" in value || "prototype" in value)
-		throw new ActivityPackError("PACK_UNSAFE_KEY");
+	for (const key of ["__proto__", "constructor", "prototype"]) {
+		if (Object.prototype.hasOwnProperty.call(value, key))
+			throw new ActivityPackError("PACK_UNSAFE_KEY");
+	}
 	return value as Record<string, unknown>;
 }
 
