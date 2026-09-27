@@ -31,8 +31,8 @@ export default async function ActivityPackPage() {
 		redirect("/conta?acesso=negado");
 
 	return (
-		<div className={styles.page}>
-			<Link className={styles.back} href="/edit/processamento">
+		<div>
+			<p><Link href="/edit/processamento">
 				← Processamento
 			</Link>
 			<ActivityPackAdmin
