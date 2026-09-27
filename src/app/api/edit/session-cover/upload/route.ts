@@ -59,12 +59,15 @@ export async function PUT(request: Request) {
 		SESSION_COVER_MEDIA_UPLOAD_CHUNK_BYTES,
 		totalBytes - part * SESSION_COVER_MEDIA_UPLOAD_CHUNK_BYTES,
 	);
-	const declaredLength = Number(request.headers.get("content-length"));
-	if (
-		Number.isFinite(declaredLength) &&
-		declaredLength !== expectedChunkBytes
-	) {
-		return new Response("Invalid chunk length", { status: 400 });
+	const declaredLengthHeader = request.headers.get("content-length");
+	if (declaredLengthHeader !== null) {
+		const declaredLength = Number(declaredLengthHeader);
+		if (
+			!Number.isSafeInteger(declaredLength) ||
+			declaredLength !== expectedChunkBytes
+		) {
+			return new Response("Invalid chunk length", { status: 400 });
+		}
 	}
 
 	const access = await authorizeSessionCoverTarget(sessionId);
