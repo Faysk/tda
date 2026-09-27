@@ -368,6 +368,41 @@ test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", a
 	);
 });
 
+test("Overview não reaproveita atividade rotineira de tentativa anterior", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running", { attempt: 2 })],
+		jobEvents: [
+			{
+				seq: 40,
+				code: "QWEN_WINDOW_TRANSCRIBED",
+				at: "2026-09-27T17:00:00Z",
+				level: "info",
+				attempt: 1,
+				data: { track: 1, speaker: "Faysk", window: 205 },
+			},
+			{
+				seq: 41,
+				code: "RUNNING",
+				at: "2026-09-27T17:00:01Z",
+				level: "info",
+				attempt: 2,
+				data: { attempt: 2 },
+			},
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByText("Tentativa 2", { exact: false })).toBeVisible();
+	await expect(
+		page.getByText("Qwen concluiu uma janela de áudio da faixa 1 · janela 205.", {
+			exact: true,
+		}),
+	).toHaveCount(0);
+});
+
 test("falha recuperável cria nova tentativa somente após confirmação", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
