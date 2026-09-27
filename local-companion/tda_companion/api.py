@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import json
 import os
 import re
 import threading
@@ -102,6 +103,16 @@ class SyntheticJobRequest(BaseModel):
     units: int = Field(ge=1, le=100)
 
 
+class CraigBenchmarkJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["benchmark.craig"]
+    campaign_id: str = Field(pattern=_ID_PATTERN)
+    session_id: str = Field(pattern=_ID_PATTERN)
+    source_id: str = Field(pattern=_ID_PATTERN)
+    glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+    context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+
+
 class CraigTranscriptionJobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["transcription.craig"]
@@ -120,7 +131,7 @@ class CraigTranscriptionJobRequest(BaseModel):
 
 
 JobRequest = Annotated[
-    SyntheticJobRequest | CraigTranscriptionJobRequest,
+    SyntheticJobRequest | CraigTranscriptionJobRequest | CraigBenchmarkJobRequest,
     Field(discriminator="kind"),
 ]
 
@@ -208,6 +219,31 @@ _NON_RECOVERABLE_PREPARATION_ERRORS = frozenset(
 
 def preparation_recoverable(code: str) -> bool:
     return code not in _NON_RECOVERABLE_PREPARATION_ERRORS
+
+
+_BENCHMARK_PROFILES = (
+    "whisper-turbo",
+    "whisper-detailed",
+    "qwen-fast",
+    "qwen-quality",
+)
+_BENCHMARK_SAMPLE_SECONDS = 300.0
+
+
+def _benchmark_sample_identity(package) -> str:
+    payload = {
+        "schema": "tda_benchmark_sample_v1",
+        "source_sha256": package.source_sha256,
+        "start_seconds": 0.0,
+        "end_seconds": _BENCHMARK_SAMPLE_SECONDS,
+        "tracks": [
+            {"number": track.number, "sha256": track.sha256}
+            for track in package.tracks
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def create_app(
@@ -365,7 +401,7 @@ def create_app(
             except KeyError:
                 active_body = {}
             if (
-                active_body.get("kind") == "transcription.craig"
+                active_body.get("kind") in {"transcription.craig", "benchmark.craig"}
                 and active_body.get("source_id") == source_id
             ):
                 return True
@@ -701,7 +737,7 @@ def create_app(
                         "Job claimed",
                         {"job_id": job_id, "attempt": attempt, "kind": body["kind"]},
                     )
-                    if body["kind"] == "transcription.craig":
+                    if body["kind"] in {"transcription.craig", "benchmark.craig"}:
                         # Persist a truthful stage before supervisor-side runtime
                         # validation so the UI never looks frozen before the first
                         # worker message arrives.
@@ -710,14 +746,32 @@ def create_app(
                             job_id,
                             attempt,
                             "WORKER_DISPATCH_PREPARING",
-                            {"profile_id": body["profile_id"]},
+                            {
+                                **(
+                                    {"profile_id": body["profile_id"]}
+                                    if body["kind"] == "transcription.craig"
+                                    else {}
+                                ),
+                                **(
+                                    {"benchmark": True}
+                                    if body["kind"] == "benchmark.craig"
+                                    else {}
+                                ),
+                            },
                         )
                         log(
                             "info",
                             "worker",
                             "WORKER_DISPATCH_PREPARING",
                             "Validating sealed runtime receipt before worker launch",
-                            {"job_id": job_id, "profile_id": body["profile_id"]},
+                            {
+                                "job_id": job_id,
+                                **(
+                                    {"profile_id": body["profile_id"]}
+                                    if body["kind"] == "transcription.craig"
+                                    else {"benchmark": True}
+                                ),
+                            },
                         )
 
                     if job_cancel is None:
@@ -901,10 +955,56 @@ def create_app(
                                 on_event=observe_event,
                                 is_cancelled=is_cancelled,
                             )
+                        elif body["kind"] == "benchmark.craig":
+                            outcome = await asyncio.to_thread(
+                                worker_supervisor.run_benchmark,
+                                job_id=job_id,
+                                attempt=attempt,
+                                source_id=body["source_id"],
+                                glossary=body.get("glossary", ""),
+                                context=body.get("context", ""),
+                                sample_identity_sha256=body["sample_identity_sha256"],
+                                sample_seconds=float(body["sample_seconds"]),
+                                on_progress=commit_progress,
+                                on_event=observe_event,
+                                is_cancelled=is_cancelled,
+                            )
                         else:
                             raise WorkerProcessError("WORKER_KIND_UNSUPPORTED")
 
                         final_state = store.get(job_id)
+                        if outcome.terminal == "result" and body["kind"] == "benchmark.craig":
+                            payload = outcome.payload
+                            if (
+                                payload.get("schema_version") != "tda_processing_benchmark_v1"
+                                or payload.get("kind") != "benchmark.craig"
+                                or payload.get("source_id") != body["source_id"]
+                                or payload.get("sample_identity_sha256")
+                                != body["sample_identity_sha256"]
+                                or payload.get("sample_seconds") != body["sample_seconds"]
+                                or payload.get("execution_mode")
+                                != "prepared_artifacts_fresh_worker_per_profile_v1"
+                                or not isinstance(payload.get("profiles"), list)
+                                or len(payload["profiles"]) != len(_BENCHMARK_PROFILES)
+                                or [item.get("profile_id") for item in payload["profiles"]]
+                                != list(_BENCHMARK_PROFILES)
+                            ):
+                                raise WorkerProcessError(
+                                    "BENCHMARK_RESULT_INVALID",
+                                    recoverable=False,
+                                )
+                            result = {
+                                **payload,
+                                "job_id": job_id,
+                                "campaign_id": body["campaign_id"],
+                                "session_id": body["session_id"],
+                                "track_count": body["track_count"],
+                                "audio_work_seconds": body["audio_work_seconds"],
+                                "prepared": body["prepared"],
+                            }
+                            if not store.complete(job_id, attempt, result):
+                                raise WorkerProcessError("WORKER_STALE_ATTEMPT")
+                            final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
                             if final_state["status"] == "cancelled":
                                 log(
@@ -971,7 +1071,11 @@ def create_app(
                             {"job_id": job_id, "terminal": outcome.terminal},
                         )
                     except WorkerProcessError as exc:
-                        code = exc.code if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
+                        code = (
+                            exc.code
+                            if body["kind"] in {"transcription.craig", "benchmark.craig"}
+                            else "FIXTURE_EXECUTION_FAILED"
+                        )
                         store.fail(
                             job_id,
                             attempt,
@@ -1003,7 +1107,11 @@ def create_app(
                         )
                         await reconcile_durable_run_after_failure(body)
                     except Exception:
-                        code = "WORKER_EXECUTION_FAILED" if body["kind"] == "transcription.craig" else "FIXTURE_EXECUTION_FAILED"
+                        code = (
+                            "WORKER_EXECUTION_FAILED"
+                            if body["kind"] in {"transcription.craig", "benchmark.craig"}
+                            else "FIXTURE_EXECUTION_FAILED"
+                        )
                         store.fail(job_id, attempt, code)
                         log(
                             "error",
@@ -1250,6 +1358,7 @@ def create_app(
             "job.events.cursor",
             "job.list.cursor",
             "transcription.runs.catalog",
+            "processing.benchmark",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -1469,6 +1578,49 @@ def create_app(
                     if not whisper_model_ready(model):
                         raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
                 payload["units"] = len(package.tracks)
+                value = store.submit(idempotency_key, payload)
+        elif body.kind == "benchmark.craig":
+            async with dispatch_gate:
+                if await asyncio.to_thread(store.has_active_transcription_jobs):
+                    raise Conflict("BENCHMARK_RESOURCE_BUSY")
+                try:
+                    _, package = await asyncio.to_thread(
+                        staged_package_under_source_gate,
+                        body.source_id,
+                    )
+                except CraigPackageError as exc:
+                    raise Conflict(str(exc)) from None
+                if not package.tracks or any(
+                    track.duration_seconds is None
+                    or float(track.duration_seconds) < _BENCHMARK_SAMPLE_SECONDS
+                    for track in package.tracks
+                ):
+                    raise Conflict("BENCHMARK_SAMPLE_TOO_SHORT")
+                catalog = await asyncio.to_thread(
+                    profile_catalog,
+                    resolved_state_root,
+                    resolved_runtime_root,
+                    resolved_models_root,
+                )
+                ready = {
+                    str(item.get("id"))
+                    for item in catalog
+                    if item.get("ready") is True
+                }
+                if any(profile not in ready for profile in _BENCHMARK_PROFILES):
+                    raise Conflict("BENCHMARK_PROFILES_NOT_READY")
+                payload.update(
+                    units=len(_BENCHMARK_PROFILES),
+                    sample_seconds=_BENCHMARK_SAMPLE_SECONDS,
+                    sample_identity_sha256=_benchmark_sample_identity(package),
+                    track_count=len(package.tracks),
+                    audio_work_seconds=round(
+                        _BENCHMARK_SAMPLE_SECONDS * len(package.tracks),
+                        3,
+                    ),
+                    profiles=list(_BENCHMARK_PROFILES),
+                    prepared=True,
+                )
                 value = store.submit(idempotency_key, payload)
         else:
             value = store.submit(idempotency_key, payload)

@@ -10,6 +10,7 @@ import {
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
+import { ProcessingBenchmark } from "./benchmark";
 import { ProcessingCommandBar } from "./command-bar";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
@@ -917,12 +918,13 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-benchmark"
 						hidden={view !== "benchmark"}
 					>
-						<div className={styles.emptyState}>
-							<strong>Benchmark comparativo ainda não disponível.</strong>
-							<span>
-								Os runs concluídos e suas métricas ficam em Resultados.
-							</span>
-						</div>
+						<ProcessingBenchmark
+							jobs={state.jobs}
+							capabilities={state.capabilities}
+							connected={connected}
+							onRefresh={() => void controller.refresh("manual")}
+							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+						/>
 					</section>
 
 					<section

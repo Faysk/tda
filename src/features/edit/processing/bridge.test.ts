@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LocalBridge } from "./bridge";
 import {
 	LOCAL_API,
+	parseBenchmarkResult,
 	parseCapabilities,
 	parseJob,
 	parseJobActivity,
@@ -27,6 +28,96 @@ const job = {
 	result_available: false,
 	updated_at: "2026-09-07T12:00:00Z",
 };
+describe("processing benchmark contract", () => {
+	it("parses a sanitized four-profile receipt without transcript content", () => {
+		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+			kind: "benchmark.profile",
+			schema_version: "tda_benchmark_profile_v1",
+			profile_id: profileId,
+			engine,
+			model: "model",
+			model_revision: "revision",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "native",
+			sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+			audio_work_seconds: 600,
+			session_duration_seconds: 300,
+			processing_timing_version: "engine_processing_v1",
+			processing_seconds: 30,
+			rtf: 0.05,
+			word_count: 100,
+			segment_count: 10,
+			track_count: 2,
+			warning_count: 0,
+			execution_lineage: {
+				schema_version: "tda_execution_lineage_v1",
+				companion_version: "0.3.16",
+				runtime_family: engine === "whisper" ? "whisper" : "qwen",
+				runtime_version: "1.0.0",
+				device: "cuda",
+				compute_type: "float16",
+				gpu: null,
+			},
+		});
+		const result = parseBenchmarkResult(
+			{
+				schema_version: "tda_processing_benchmark_v1",
+				kind: "benchmark.craig",
+				job_id: "benchmark-job",
+				source_id: "craig-" + "a".repeat(64),
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: "b".repeat(64),
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 2,
+				audio_work_seconds: 600,
+				prepared: true,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-fast", "qwen3"),
+					profile("qwen-quality", "qwen3"),
+				],
+			},
+			"benchmark-job",
+		);
+		expect(result.profiles.map((item) => item.profileId)).toEqual([
+			"whisper-turbo",
+			"whisper-detailed",
+			"qwen-fast",
+			"qwen-quality",
+		]);
+		expect(result.sampleSeconds).toBe(300);
+		expect(result.profiles.every((item) => item.processingTimingVersion === "engine_processing_v1")).toBe(true);
+		expect(JSON.stringify(result)).not.toContain("transcript");
+	});
+
+	it("rejects reordered or incomplete benchmark receipts", () => {
+		expect(() =>
+			parseBenchmarkResult(
+				{
+					schema_version: "tda_processing_benchmark_v1",
+					kind: "benchmark.craig",
+					job_id: "benchmark-job",
+					source_id: "craig-" + "a".repeat(64),
+					campaign_id: "benchmark-local",
+					session_id: "benchmark-local",
+					sample_identity_sha256: "b".repeat(64),
+					sample_seconds: 300,
+					track_count: 1,
+					audio_work_seconds: 300,
+					prepared: true,
+					profiles: [],
+				},
+				"benchmark-job",
+			),
+		).toThrow();
+	});
+});
+
 describe("processing protocol contract", () => {
 	it("accepts the Agent's full 96-character worker event code budget", () => {
 		const code = "A".repeat(96);
