@@ -336,6 +336,14 @@ export type LocalReviewSegment = {
 	speaker: string;
 	reviewed: boolean;
 };
+export type LocalRunComparisonProjection = {
+	schemaVersion: "tda_run_comparison_projection_v1";
+	sourceId: string;
+	runId: string;
+	transcriptSha256: string;
+	segments: readonly LocalReviewSegment[];
+};
+
 export type LocalReview = {
 	sourceId: string;
 	runId: string;
@@ -1289,6 +1297,59 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			review: parseLocalRunReview(item.review),
 		};
 	});
+}
+
+export function parseLocalRunComparisonProjection(
+	value: unknown,
+): LocalRunComparisonProjection {
+	const row = record(value);
+	if (row.schema_version !== "tda_run_comparison_projection_v1") return invalid();
+	const sourceId = identifier(row.source_id);
+	const runId = runIdentifier(row.run_id);
+	const transcriptSha256 = sha256(row.transcript_sha256);
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
+	const identities = new Set<string>();
+	const segments = row.segments.map((raw) => {
+		const segment = record(raw);
+		const start = nonNegativeNumber(segment.start);
+		const end = nonNegativeNumber(segment.end);
+		const timelineStart = nonNegativeNumber(segment.timeline_start);
+		const timelineEnd = nonNegativeNumber(segment.timeline_end);
+		if (end < start || timelineEnd < timelineStart) return invalid();
+		const localDuration = end - start;
+		const timelineDuration = timelineEnd - timelineStart;
+		const timelineOffset = timelineStart - start;
+		if (
+			timelineOffset < 0 ||
+			Math.abs(localDuration - timelineDuration) > 1e-6 ||
+			Math.abs(timelineOffset - (timelineEnd - end)) > 1e-6
+		) return invalid();
+		const trackNumber = nonNegativeInteger(segment.track_number);
+		if (trackNumber < 1) return invalid();
+		const segmentId = contentText(segment.segment_id, 256);
+		const identity = JSON.stringify([trackNumber, segmentId]);
+		if (identities.has(identity)) return invalid();
+		identities.add(identity);
+		if (segment.reviewed !== false) return invalid();
+		return {
+			trackNumber,
+			segmentId,
+			start,
+			end,
+			timelineStart,
+			timelineEnd,
+			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
+			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
+			reviewed: false,
+		};
+	});
+	return {
+		schemaVersion: "tda_run_comparison_projection_v1",
+		sourceId,
+		runId,
+		transcriptSha256,
+		segments,
+	};
 }
 
 export function parseLocalReview(value: unknown): LocalReview {
