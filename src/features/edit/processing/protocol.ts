@@ -197,6 +197,11 @@ export type LocalRunReviewSummary = {
 	updatedAt: string | null;
 };
 
+export type LocalRunCatalogPage = {
+	runs: readonly LocalRunSummary[];
+	hasMore: boolean;
+	nextCursor: string | null;
+};
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -973,6 +978,33 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 		reviewPercent,
 		updatedAt,
 	};
+}
+
+export function parseLocalRunCatalogPage(value: unknown): LocalRunCatalogPage {
+	const row = record(value);
+	if (row.schema_version !== "tda_local_run_catalog_v1") return invalid();
+	if (!Array.isArray(row.runs) || row.runs.length > 200) return invalid();
+	const grouped = new Map<string, unknown[]>();
+	for (const raw of row.runs) {
+		const item = record(raw);
+		const sourceId = identifier(item.source_id);
+		const values = grouped.get(sourceId) ?? [];
+		values.push(raw);
+		grouped.set(sourceId, values);
+	}
+	const runs = [...grouped.entries()].flatMap(([sourceId, values]) =>
+		parseLocalRuns({
+			schema_version: "tda_transcription_runs_v1",
+			source_id: sourceId,
+			runs: values,
+		}),
+	);
+	const identities = runs.map((run) => `${run.sourceId}:${run.runId}`);
+	if (new Set(identities).size !== identities.length) return invalid();
+	const hasMore = boolean(row.has_more);
+	const nextCursor = row.next_cursor === null ? null : text(row.next_cursor, 512);
+	if (hasMore !== (nextCursor !== null)) return invalid();
+	return { runs, hasMore, nextCursor };
 }
 
 export function parseLocalRuns(value: unknown): LocalRunSummary[] {

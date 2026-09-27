@@ -46,6 +46,8 @@ export type ProcessingState = Readonly<{
 	jobs: readonly LocalJob[];
 	localSources: readonly LocalSourceSummary[];
 	localRuns: readonly LocalRunSummary[];
+	localRunsHasMore: boolean;
+	localRunsNextCursor: string | null;
 	localReview: LocalReview | null;
 	localReviewBusy: boolean;
 	localReviewError: string | null;
@@ -75,6 +77,8 @@ const initial: ProcessingState = {
 	jobs: [],
 	localSources: [],
 	localRuns: [],
+	localRunsHasMore: false,
+	localRunsNextCursor: null,
 	localReview: null,
 	localReviewBusy: false,
 	localReviewError: null,
@@ -394,37 +398,45 @@ export class ProcessingController {
 		let localRuns: LocalRunSummary[] = reviewEnabled
 			? [...previous.localRuns]
 			: [];
+		let localRunsHasMore = reviewEnabled ? previous.localRunsHasMore : false;
+		let localRunsNextCursor = reviewEnabled ? previous.localRunsNextCursor : null;
 		if (reloadLibrary) {
 			domainErrors.library = null;
 			try {
 				localSources = await this.bridge.localSources(signal);
-				const loadRunBatch = async (
-					offset: number,
-				): Promise<LocalRunSummary[]> => {
-					if (signal.aborted || offset >= localSources.length) return [];
-					const batch = await Promise.all(
-						localSources.slice(offset, offset + 8).map((source) =>
-							preserveSecondary(
-								this.bridge.localRuns(source.sourceId, signal),
-								previous.localRuns.filter(
-									(run) => run.sourceId === source.sourceId,
+				if (capabilities.capabilities.includes("transcription.runs.catalog")) {
+					const page = await this.bridge.localRunCatalog(signal, { limit: 100 });
+					localRuns = [...page.runs];
+					localRunsHasMore = page.hasMore;
+					localRunsNextCursor = page.nextCursor;
+				} else {
+					const loadRunBatch = async (
+						offset: number,
+					): Promise<LocalRunSummary[]> => {
+						if (signal.aborted || offset >= localSources.length) return [];
+						const batch = await Promise.all(
+							localSources.slice(offset, offset + 8).map((source) =>
+								preserveSecondary(
+									this.bridge.localRuns(source.sourceId, signal),
+									previous.localRuns.filter(
+										(run) => run.sourceId === source.sourceId,
+									),
+									"library",
 								),
-								"library",
 							),
-						),
-					);
-					if (signal.aborted) return [];
-					return [
-						...batch.flat(),
-						...(await loadRunBatch(offset + 8)),
-					];
-				};
-				localRuns = await loadRunBatch(0);
-				localRuns.sort((left, right) => {
-					const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
-					const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
-					return rightTime - leftTime;
-				});
+						);
+						if (signal.aborted) return [];
+						return [...batch.flat(), ...(await loadRunBatch(offset + 8))];
+					};
+					localRuns = await loadRunBatch(0);
+					localRuns.sort((left, right) => {
+						const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+						const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+						return rightTime - leftTime;
+					});
+					localRunsHasMore = false;
+					localRunsNextCursor = null;
+				}
 			} catch (error) {
 				// A library read is secondary to the operational snapshot. Keep the
 				// previous successful catalog until a later refresh succeeds.
@@ -443,6 +455,8 @@ export class ProcessingController {
 			jobs,
 			localSources,
 			localRuns,
+			localRunsHasMore,
+			localRunsNextCursor,
 			system,
 			events: eventState.events,
 			eventsHasOlder: eventState.hasOlder,
@@ -566,6 +580,40 @@ export class ProcessingController {
 		await this.runOperation(null, async (signal) => {
 			await this.read(signal, { deep: false, includeLibrary: false });
 		});
+	};
+
+	loadMoreRuns = async () => {
+		if (
+			this.#state.connection !== "connected" ||
+			!this.#state.localRunsHasMore ||
+			!this.#state.localRunsNextCursor
+		) return;
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		try {
+			const page = await this.bridge.localRunCatalog(signal, {
+				cursor: this.#state.localRunsNextCursor,
+				limit: 100,
+			});
+			if (epoch !== this.#epoch || signal.aborted) return;
+			const byKey = new Map(
+				this.#state.localRuns.map((run) => [`${run.sourceId}:${run.runId}`, run]),
+			);
+			for (const run of page.runs)
+				byKey.set(`${run.sourceId}:${run.runId}`, run);
+			this.update({
+				localRuns: [...byKey.values()],
+				localRunsHasMore: page.hasMore,
+				localRunsNextCursor: page.nextCursor,
+				libraryRefreshError: null,
+			});
+		} catch (error) {
+			if (epoch === this.#epoch && !signal.aborted)
+				this.update({
+					libraryRefreshError:
+						error instanceof BridgeError ? error.code : "service_error",
+				});
+		}
 	};
 
 	loadOlderEvents = async () => {

@@ -1249,6 +1249,7 @@ def create_app(
             "job.events",
             "job.events.cursor",
             "job.list.cursor",
+            "transcription.runs.catalog",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",

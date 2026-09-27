@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hmac
 import json
 import re
@@ -26,6 +27,7 @@ from .transcription_runs import (
 
 CRAIG_INGEST_PATH = "/api/v1/sources/craig"
 CRAIG_SOURCES_PATH = "/api/v1/sources"
+CRAIG_RUN_CATALOG_PATH = "/api/v1/runs"
 CRAIG_RUNS_PATH = re.compile(r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs$")
 CRAIG_REVIEW_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
@@ -151,6 +153,181 @@ class CraigIngestBoundary:
                     }
                 )
         return {"schema_version": "tda_craig_sources_v1", "sources": values}
+
+    @staticmethod
+    def _catalog_cursor(key: tuple[str, str, str]) -> str:
+        payload = json.dumps(
+            {
+                "schema": "tda_local_run_catalog_cursor_v1",
+                "completed": key[0],
+                "source_id": key[1],
+                "run_id": key[2],
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _decode_catalog_cursor(value: str) -> tuple[str, str, str]:
+        if not isinstance(value, str) or not 1 <= len(value) <= 512:
+            raise ValueError("RUN_CATALOG_CURSOR_INVALID")
+        try:
+            padding = "=" * (-len(value) % 4)
+            raw = base64.urlsafe_b64decode((value + padding).encode("ascii"))
+            if len(raw) > 512:
+                raise ValueError
+            item = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeError, json.JSONDecodeError):
+            raise ValueError("RUN_CATALOG_CURSOR_INVALID") from None
+        if (
+            not isinstance(item, dict)
+            or item.get("schema") != "tda_local_run_catalog_cursor_v1"
+            or not isinstance(item.get("completed"), str)
+            or len(item["completed"]) > 64
+            or not isinstance(item.get("source_id"), str)
+            or re.fullmatch(r"craig-[0-9a-f]{64}", item["source_id"]) is None
+            or not isinstance(item.get("run_id"), str)
+            or re.fullmatch(r"[A-Za-z0-9_-]{1,196}", item["run_id"]) is None
+        ):
+            raise ValueError("RUN_CATALOG_CURSOR_INVALID")
+        return item["completed"], item["source_id"], item["run_id"]
+
+    def _run_catalog_listing(
+        self,
+        *,
+        limit: int,
+        cursor: tuple[str, str, str] | None,
+    ) -> dict[str, object]:
+        staging_root = (self.data_root / "staging").resolve()
+        if not staging_root.is_dir():
+            return {
+                "schema_version": "tda_local_run_catalog_v1",
+                "runs": [],
+                "has_more": False,
+                "next_cursor": None,
+            }
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        values: list[dict[str, object]] = []
+        with gate:
+            for package_root in staging_root.iterdir():
+                if (
+                    not package_root.is_dir()
+                    or package_root.is_symlink()
+                    or re.fullmatch(r"craig-[0-9a-f]{64}", package_root.name) is None
+                ):
+                    continue
+                try:
+                    package = load_craig_package(package_root, verify_tracks=False)
+                    listed = ensure_legacy_and_list(
+                        package_root,
+                        source_id=package_root.name,
+                        source_sha256=package.source_sha256,
+                        verify_content=False,
+                    )
+                except (CraigPackageError, TranscriptionRunError):
+                    continue
+                runs = listed.get("runs")
+                if not isinstance(runs, list):
+                    continue
+                for item in runs:
+                    if not isinstance(item, dict):
+                        continue
+                    if self.run_visible is not None and not self.run_visible(package_root, item):
+                        continue
+                    run_id = str(item.get("run_id") or "")
+                    enriched = {
+                        **item,
+                        **publication_target_state(package_root, run_id),
+                        "review": review_summary(
+                            package_root,
+                            run_id,
+                            base_transcript_sha256=str(item.get("transcript_sha256") or ""),
+                        ),
+                    }
+                    values.append(enriched)
+
+        def key(item: dict[str, object]) -> tuple[str, str, str]:
+            return (
+                str(item.get("completed_at") or item.get("created_at") or ""),
+                str(item.get("source_id") or ""),
+                str(item.get("run_id") or ""),
+            )
+
+        values.sort(key=key, reverse=True)
+        if cursor is not None:
+            values = [item for item in values if key(item) < cursor]
+        selected = values[: limit + 1]
+        has_more = len(selected) > limit
+        page = selected[:limit]
+        next_cursor = self._catalog_cursor(key(page[-1])) if has_more and page else None
+        return {
+            "schema_version": "tda_local_run_catalog_v1",
+            "runs": page,
+            "has_more": has_more,
+            "next_cursor": next_cursor,
+        }
+
+    async def _run_catalog(self, request: Request, scope, receive, send) -> None:
+        origin, allowed = await self._common_guard(request, scope, receive, send)
+        if not allowed:
+            return
+        if request.method == "OPTIONS":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            requested_headers = {
+                value.strip().lower()
+                for value in request.headers.get("access-control-request-headers", "").split(",")
+                if value.strip()
+            }
+            if (
+                request.headers.get("access-control-request-method") != "GET"
+                or not requested_headers <= {"authorization"}
+            ):
+                await self._send_response(_error("PREFLIGHT_REJECTED", 403), scope, receive, send, origin)
+                return
+            await self._send_response(
+                JSONResponse(
+                    {},
+                    headers={
+                        "Access-Control-Allow-Methods": "GET",
+                        "Access-Control-Allow-Headers": "Authorization",
+                        "Access-Control-Allow-Private-Network": "true",
+                        "Access-Control-Max-Age": "60",
+                    },
+                ),
+                scope,
+                receive,
+                send,
+                origin,
+            )
+            return
+        if request.method != "GET":
+            await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
+            return
+        if not self._authorized(request, origin):
+            await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
+            return
+        try:
+            raw_limit = request.query_params.get("limit", "100")
+            if not raw_limit.isdigit():
+                raise ValueError("RUN_CATALOG_LIMIT_INVALID")
+            limit = int(raw_limit)
+            if not 1 <= limit <= 200:
+                raise ValueError("RUN_CATALOG_LIMIT_INVALID")
+            raw_cursor = request.query_params.get("cursor")
+            cursor = self._decode_catalog_cursor(raw_cursor) if raw_cursor else None
+            value = await asyncio.to_thread(
+                self._run_catalog_listing,
+                limit=limit,
+                cursor=cursor,
+            )
+            response = JSONResponse(value)
+        except ValueError as exc:
+            response = _error(str(exc), 422)
+        await self._send_response(response, scope, receive, send, origin)
 
     async def _sources(self, request: Request, scope, receive, send) -> None:
         origin, allowed = await self._common_guard(request, scope, receive, send)
@@ -420,6 +597,10 @@ class CraigIngestBoundary:
             await self.app(scope, receive, send)
             return
         path = str(scope.get("path") or "")
+        if path == CRAIG_RUN_CATALOG_PATH:
+            request = Request(scope, receive=receive)
+            await self._run_catalog(request, scope, receive, send)
+            return
         if path == CRAIG_SOURCES_PATH:
             request = Request(scope, receive=receive)
             await self._sources(request, scope, receive, send)
