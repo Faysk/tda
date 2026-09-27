@@ -89,7 +89,7 @@ describe("submission model", () => {
 	});
 
 	test("CTA reflects readiness and only uses local pending stages", () => {
-		expect(submissionCtaLabel(profile(), null)).toBe("Adicionar à fila");
+		expect(submissionCtaLabel(profile(), null)).toBe("Adicionar à fila local");
 		expect(
 			submissionCtaLabel(
 				profile({ ready: false, preparationRequired: true }),
