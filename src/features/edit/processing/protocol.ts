@@ -72,6 +72,58 @@ export type SessionWorkspacePart = {
 	createdAt: string;
 	updatedAt: string;
 };
+export type SessionTimelineStartConfidence =
+	| "trusted_absolute"
+	| "ambiguous"
+	| "opaque"
+	| "missing";
+export type SessionTimelinePlacementOrigin =
+	| "trusted_absolute"
+	| "manual"
+	| "single_source_zero"
+	| "unresolved";
+export type SessionTimelinePart = {
+	partId: string;
+	sourceId: string;
+	ordinal: number;
+	startTime: {
+		raw: string | null;
+		confidence: SessionTimelineStartConfidence;
+		normalizedUtc: string | null;
+	};
+	sourceDurationMs: number | null;
+	placement: {
+		sessionOffsetMs: number | null;
+		origin: SessionTimelinePlacementOrigin;
+		trimStartMs: number;
+		trimEndMs: number | null;
+	};
+	effectiveStartMs: number | null;
+	effectiveEndMs: number | null;
+	suggestedOrdinal: number | null;
+	orderMatchesTrustedSuggestion: boolean | null;
+};
+export type SessionTimelineBoundary = {
+	leftPartId: string;
+	rightPartId: string;
+	kind: "contiguous" | "gap" | "overlap" | "unresolved";
+	durationMs: number | null;
+	resolved: boolean;
+	resolution: null | {
+		mode: "accept_gap" | "prefer_earlier_until" | "prefer_later_from";
+		boundaryMs: number | null;
+	};
+};
+export type SessionTimeline = {
+	schemaVersion: "tda_session_timeline_v1";
+	segmentBoundaryPolicy: "segment_start_v1";
+	configurationSha256: string;
+	timelineIdentitySha256: string;
+	approvalReady: boolean;
+	orderMatchesTrustedSuggestion: boolean | null;
+	parts: SessionTimelinePart[];
+	boundaries: SessionTimelineBoundary[];
+};
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
 	campaignId: string;
@@ -80,6 +132,7 @@ export type SessionWorkspace = {
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+	timeline: SessionTimeline;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
@@ -720,6 +773,127 @@ export function parseCraigSource(value: unknown): CraigSource {
 		reused: boolean(row.reused),
 	};
 }
+export function parseSessionTimeline(value: unknown): SessionTimeline {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_timeline_v1") return invalid();
+	if (row.segment_boundary_policy !== "segment_start_v1") return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	if (!Array.isArray(row.boundaries) || row.boundaries.length > 63) return invalid();
+
+	const parts = row.parts.map((raw, index) => {
+		const part = record(raw);
+		const partId = text(part.part_id, 32);
+		const sourceId = identifier(part.source_id);
+		const ordinal = nonNegativeInteger(part.ordinal);
+		if (!/^[0-9a-f]{32}$/u.test(partId) || !/^craig-[0-9a-f]{64}$/u.test(sourceId))
+			return invalid();
+		if (ordinal !== index) return invalid();
+
+		const start = record(part.start_time);
+		const confidence = text(start.confidence, 32);
+		if (!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(confidence))
+			return invalid();
+		const rawStart =
+			start.raw === null || start.raw === undefined ? null : text(start.raw, 128);
+		const normalizedUtc =
+			start.normalized_utc === null || start.normalized_utc === undefined
+				? null
+				: isoDate(start.normalized_utc);
+
+		const placement = record(part.placement);
+		const origin = text(placement.origin, 32);
+		if (!["trusted_absolute", "manual", "single_source_zero", "unresolved"].includes(origin))
+			return invalid();
+
+		const nullableInteger = (input: unknown) =>
+			input === null || input === undefined ? null : nonNegativeInteger(input);
+		const nullableBoolean = (input: unknown) =>
+			input === null || input === undefined ? null : boolean(input);
+
+		return {
+			partId,
+			sourceId,
+			ordinal,
+			startTime: {
+				raw: rawStart,
+				confidence: confidence as SessionTimelineStartConfidence,
+				normalizedUtc,
+			},
+			sourceDurationMs: nullableInteger(part.source_duration_ms),
+			placement: {
+				sessionOffsetMs: nullableInteger(placement.session_offset_ms),
+				origin: origin as SessionTimelinePlacementOrigin,
+				trimStartMs: nonNegativeInteger(placement.trim_start_ms),
+				trimEndMs: nullableInteger(placement.trim_end_ms),
+			},
+			effectiveStartMs: nullableInteger(part.effective_start_ms),
+			effectiveEndMs: nullableInteger(part.effective_end_ms),
+			suggestedOrdinal: nullableInteger(part.suggested_ordinal),
+			orderMatchesTrustedSuggestion: nullableBoolean(
+				part.order_matches_trusted_suggestion,
+			),
+		} satisfies SessionTimelinePart;
+	});
+
+	const knownParts = new Set(parts.map((part) => part.partId));
+	if (knownParts.size !== parts.length) return invalid();
+	const boundaries = row.boundaries.map((raw, index) => {
+		const boundary = record(raw);
+		const leftPartId = text(boundary.left_part_id, 32);
+		const rightPartId = text(boundary.right_part_id, 32);
+		if (
+			!knownParts.has(leftPartId) ||
+			!knownParts.has(rightPartId) ||
+			parts[index]?.partId !== leftPartId ||
+			parts[index + 1]?.partId !== rightPartId
+		)
+			return invalid();
+		const kind = text(boundary.kind, 16);
+		if (!["contiguous", "gap", "overlap", "unresolved"].includes(kind))
+			return invalid();
+		let resolution: SessionTimelineBoundary["resolution"] = null;
+		if (boundary.resolution !== null && boundary.resolution !== undefined) {
+			const rawResolution = record(boundary.resolution);
+			const mode = text(rawResolution.mode, 32);
+			if (!["accept_gap", "prefer_earlier_until", "prefer_later_from"].includes(mode))
+				return invalid();
+			resolution = {
+				mode: mode as NonNullable<SessionTimelineBoundary["resolution"]>["mode"],
+				boundaryMs:
+					rawResolution.boundary_ms === null || rawResolution.boundary_ms === undefined
+						? null
+						: nonNegativeInteger(rawResolution.boundary_ms),
+			};
+		}
+		return {
+			leftPartId,
+			rightPartId,
+			kind: kind as SessionTimelineBoundary["kind"],
+			durationMs:
+				boundary.duration_ms === null || boundary.duration_ms === undefined
+					? null
+					: nonNegativeInteger(boundary.duration_ms),
+			resolved: boolean(boundary.resolved),
+			resolution,
+		} satisfies SessionTimelineBoundary;
+	});
+
+	return {
+		schemaVersion: "tda_session_timeline_v1",
+		segmentBoundaryPolicy: "segment_start_v1",
+		configurationSha256: sha256(row.configuration_sha256),
+		timelineIdentitySha256: sha256(row.timeline_identity_sha256),
+		approvalReady: boolean(row.approval_ready),
+		orderMatchesTrustedSuggestion:
+			row.order_matches_trusted_suggestion === null ||
+			row.order_matches_trusted_suggestion === undefined
+				? null
+				: boolean(row.order_matches_trusted_suggestion),
+		parts,
+		boundaries,
+	};
+}
+
 export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
@@ -751,6 +925,16 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		return invalid();
 	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
 		return invalid();
+	const timeline = parseSessionTimeline(row.timeline);
+	if (
+		timeline.parts.length !== parts.length ||
+		timeline.parts.some(
+			(part, index) =>
+				part.partId !== parts[index]?.partId ||
+				part.sourceId !== parts[index]?.sourceId,
+		)
+	)
+		return invalid();
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
@@ -759,6 +943,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+		timeline,
 	};
 }
 
