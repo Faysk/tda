@@ -70,3 +70,80 @@ test("Production has exactly one automatic controller after the operational hold
   assert.equal(retired.includes("workflow_run:"), false);
   assert.equal(retired.includes("push:"), false);
 });
+
+test("Production automatic release eligibility is push-only on main", () => {
+  const active = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  const releaseIf = active.match(/^\s+if:\s*(\$\{\{[^\n]+\}\})\s*$/m)?.[1] ?? "";
+
+  const requiredTerms = [
+    "github.event_name == 'workflow_dispatch'",
+    "github.event_name == 'workflow_run'",
+    "github.event.workflow_run.event == 'push'",
+    "github.event.workflow_run.head_branch == 'main'",
+    "github.event.workflow_run.conclusion == 'success'",
+  ];
+
+  for (const term of requiredTerms) {
+    assert.equal(releaseIf.includes(term), true, `missing Production release guard: ${term}`);
+  }
+
+  // The new trigger fence must not weaken the existing source/provenance gates.
+  assert.match(active, /SOURCE_SHA="\$\{REQUESTED_SHA:-\$CURRENT_SHA\}"/);
+  assert.match(active, /if \[\[ "\$SOURCE_SHA" != "\$CURRENT_SHA" \]\]/);
+  assert.match(active, /Refusing stale\/arbitrary Production release/);
+  assert.match(active, /pr\.base\?\.ref === "main"/);
+  assert.match(active, /pr\.merge_commit_sha === sha/);
+
+  const eligible = ({ eventName, workflowEvent, headBranch, conclusion }) =>
+    eventName === "workflow_dispatch" ||
+    (eventName === "workflow_run" &&
+      workflowEvent === "push" &&
+      headBranch === "main" &&
+      conclusion === "success");
+
+  assert.equal(
+    eligible({
+      eventName: "workflow_run",
+      workflowEvent: "push",
+      headBranch: "main",
+      conclusion: "success",
+    }),
+    true,
+  );
+  assert.equal(
+    eligible({
+      eventName: "workflow_run",
+      workflowEvent: "pull_request",
+      headBranch: "main",
+      conclusion: "success",
+    }),
+    false,
+  );
+  assert.equal(
+    eligible({
+      eventName: "workflow_run",
+      workflowEvent: "push",
+      headBranch: "feature/example",
+      conclusion: "success",
+    }),
+    false,
+  );
+  assert.equal(
+    eligible({
+      eventName: "workflow_run",
+      workflowEvent: "push",
+      headBranch: "main",
+      conclusion: "failure",
+    }),
+    false,
+  );
+  assert.equal(
+    eligible({
+      eventName: "workflow_dispatch",
+      workflowEvent: "pull_request",
+      headBranch: "feature/example",
+      conclusion: "failure",
+    }),
+    true,
+  );
+});
