@@ -671,9 +671,7 @@ export function ProcessingPanel({
 													max={activeJob.progress.total}
 													valueText={progressCopy(activeJob)}
 												/>
-												<strong>
-														Progresso por {progressUnitLabel(activeJob)} · {activePercent}%
-													</strong>
+												<strong>Progresso por {progressUnitLabel(activeJob)} · {activePercent}%</strong>
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
