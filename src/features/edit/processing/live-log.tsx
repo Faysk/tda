@@ -5,6 +5,7 @@ import {
 	activityContext,
 	activityEventCanBeHumorous,
 	selectActivityBark,
+	type ActivityBark,
 } from "./activity-barks";
 import { presentJobEvent } from "./presentation";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
@@ -30,10 +31,11 @@ function humanText(
 	event: JobEvent,
 	job: LocalJob,
 	system: SystemSnapshot | null,
+	activityCatalog: readonly ActivityBark[],
 ) {
 	const factual = presentJobEvent(event);
 	const bark = activityEventCanBeHumorous(event)
-		? selectActivityBark(activityContext(event, job, system), { level: "tda" })
+		? selectActivityBark(activityContext(event, job, system), { level: "tda", catalog: activityCatalog })
 		: null;
 	return bark ? { title: bark.text, detail: factual.detail } : factual;
 }
@@ -122,12 +124,14 @@ export function ProcessingLiveLog({
 	system,
 	live,
 	stale,
+	activityCatalog,
 }: Readonly<{
 	events: readonly JobEvent[];
 	job: LocalJob;
 	system: SystemSnapshot | null;
 	live: boolean;
 	stale: boolean;
+	activityCatalog: readonly ActivityBark[];
 }>) {
 	const [mode, setMode] = useState<"humanized" | "technical">("humanized");
 	const [query, setQuery] = useState("");
@@ -172,13 +176,13 @@ export function ProcessingLiveLog({
 			const event = snapshot[index];
 			if (!event || GROUPABLE.has(event.code)) continue;
 			if (event.level === "info" && event.code.endsWith("_STARTED")) continue;
-			const presented = humanText(event, job, system);
+			const presented = humanText(event, job, system, activityCatalog);
 			return presented.detail
 				? `${presented.title}. ${presented.detail}`
 				: presented.title;
 		}
 		return "";
-	}, [snapshot, job, system]);
+	}, [snapshot, job, system, activityCatalog]);
 	const selected =
 		snapshot.find((event) => event.seq === selectedSeq) ?? null;
 	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
@@ -388,7 +392,7 @@ export function ProcessingLiveLog({
 						const factual = presentJobEvent(row.event);
 						const presented =
 							mode === "humanized"
-								? humanText(row.event, job, system)
+								? humanText(row.event, job, system, activityCatalog)
 								: factual;
 						return (
 							<button
