@@ -17,7 +17,16 @@ import {
 	activityContext,
 	activityEventCanBeHumorous,
 	selectActivityBark,
+	type ActivityBark,
 } from "./activity-barks";
+import {
+	ACTIVITY_PACK_STORAGE_EVENT,
+	activityPackCatalog,
+} from "./activity-pack";
+import {
+	activityPackStorageKey,
+	loadActivityPacks,
+} from "./activity-pack-storage";
 import {
 	supportsCompletedRunDelete,
 	supportsTerminalJobDelete,
