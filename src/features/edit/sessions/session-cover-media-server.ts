@@ -15,6 +15,8 @@ import {
 import {
 	WORLD_ENTITY_MEDIA_PRIVATE_BUCKET,
 	WORLD_ENTITY_MEDIA_PREVIEW_BUCKET,
+	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
 } from "@/features/world-explorer/world-entity-media";
 import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
@@ -263,5 +265,101 @@ export async function finalizeSessionCoverPendingUpload(input: {
 		bucket,
 		objectKey,
 		readBackVerified: true,
+	};
+}
+
+
+export async function promoteSessionCoverToPublic(input: {
+	campaignSlug: string;
+	sessionId: string;
+	stagedBucket: string;
+	objectKey: string;
+	sha256: string;
+	mimeType: SessionCoverMediaMime;
+	bytes: number;
+	width: number;
+	height: number;
+}): Promise<{
+	publicBucket: string;
+	publicObjectKey: string;
+	publicUrl: string;
+	verifiedAt: string;
+}> {
+	if (
+		input.stagedBucket !== WORLD_ENTITY_MEDIA_PREVIEW_BUCKET &&
+		input.stagedBucket !== WORLD_ENTITY_MEDIA_PRIVATE_BUCKET
+	) {
+		failure("STAGING_BUCKET_NOT_ALLOWED");
+	}
+
+	const extension = input.mimeType === "image/png" ? "png" : "webp";
+	const expectedKey = sessionCoverObjectKey({
+		campaignSlug: input.campaignSlug,
+		sessionId: input.sessionId,
+		sha256: input.sha256,
+		extension,
+	});
+	if (!expectedKey || expectedKey !== input.objectKey)
+		failure("OBJECT_SCOPE_MISMATCH");
+
+	const stagedClient =
+		input.stagedBucket === WORLD_ENTITY_MEDIA_PRIVATE_BUCKET
+			? privateMediaClient()
+			: mediaClient();
+	const bytes = await exactObjectBytes(
+		stagedClient,
+		input.stagedBucket,
+		input.objectKey,
+		input.bytes,
+	);
+	const inspected = inspectWorldEntityImage(bytes);
+	if (
+		inspected.sha256 !== input.sha256 ||
+		inspected.mimeType !== input.mimeType ||
+		inspected.bytes !== input.bytes ||
+		inspected.width !== input.width ||
+		inspected.height !== input.height ||
+		inspected.width * inspected.height > SESSION_COVER_MEDIA_MAX_PIXELS
+	) {
+		failure("STAGED_INTEGRITY_FAILED");
+	}
+
+	if (process.env.R2_PUBLIC_BUCKET !== WORLD_ENTITY_MEDIA_PUBLIC_BUCKET)
+		failure("PUBLIC_BUCKET_MISMATCH");
+
+	await putImmutableCover(
+		mediaClient(),
+		WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+		input.objectKey,
+		bytes,
+		inspected,
+	);
+
+	const publicUrl =
+		WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN + "/" + input.objectKey;
+	const response = await fetch(publicUrl, {
+		cache: "no-store",
+		redirect: "error",
+		signal: AbortSignal.timeout(15_000),
+	});
+	if (!response.ok) failure("PUBLIC_DELIVERY_FAILED");
+	const delivered = new Uint8Array(await response.arrayBuffer());
+	const deliveredMime = response.headers
+		.get("content-type")
+		?.split(";", 1)[0]
+		?.trim();
+	if (
+		deliveredMime !== input.mimeType ||
+		delivered.length !== input.bytes ||
+		worldEntityMediaSha256(delivered) !== input.sha256
+	) {
+		failure("PUBLIC_DELIVERY_MISMATCH");
+	}
+
+	return {
+		publicBucket: WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+		publicObjectKey: input.objectKey,
+		publicUrl,
+		verifiedAt: new Date().toISOString(),
 	};
 }
