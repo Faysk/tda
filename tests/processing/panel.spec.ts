@@ -664,7 +664,7 @@ test("Overview keeps queued-only state compact and identifies waiting work", asy
 	});
 });
 
-test("Overview shows the vacant idle state when the queue is empty", async ({
+test("Overview gives truly idle space to the Craig composer when the queue is empty", async ({
 	page,
 }, testInfo) => {
 	await installCompanionFixture(page, {
@@ -673,10 +673,14 @@ test("Overview shows the vacant idle state when the queue is empty", async ({
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Nada processando agora.")).toBeVisible();
-	await expect(page.getByText("A fila local está livre.")).toBeVisible();
+	await expect(page.getByText("Nada processando agora.")).not.toBeVisible();
+	await expect(page.getByText("A fila local está livre.")).not.toBeVisible();
+	await expect(page.locator("[data-craig-composer='true']")).toHaveAttribute(
+		"data-layout",
+		"default",
+	);
 	await page.screenshot({
-		path: testInfo.outputPath("overview-idle.png"),
+		path: testInfo.outputPath("overview-idle-composer.png"),
 		fullPage: true,
 	});
 });
