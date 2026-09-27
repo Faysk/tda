@@ -164,6 +164,36 @@ describe("session workspace protocol", () => {
 		});
 	});
 
+	it("rejects chronology relations that are not the exact adjacent pair", () => {
+		const raw = workspace([
+			{
+				...workspace().parts[0],
+				part_id: partA,
+				source_id: sourceA,
+				ordinal: 0,
+			},
+			{
+				...workspace().parts[0],
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+			},
+		]);
+		const invalidChronology = {
+			...chronology(),
+			relations: [
+				{
+					...chronology().relations[0],
+					earlier_part_id: partB,
+					later_part_id: partA,
+				},
+			],
+		};
+		expect(() =>
+			parseSessionWorkspace({ ...raw, chronology: invalidChronology }),
+		).toThrow();
+	});
+
 	it("rejects duplicate sources, non-contiguous order and oversized collections", () => {
 		const duplicate = workspace([
 			{
