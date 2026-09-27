@@ -60,6 +60,7 @@ export type CraigSource = {
 	trackCount: number;
 	audioWorkSeconds: number | null;
 	sessionDurationSeconds: number | null;
+	minimumTrackDurationSeconds: number | null;
 	reused: boolean;
 };
 export type CraigBenchmarkInput = {
@@ -695,6 +696,9 @@ export function parseCraigSource(value: unknown): CraigSource {
 		trackCount,
 		audioWorkSeconds: nullableNonNegativeNumber(row.audio_work_seconds),
 		sessionDurationSeconds: nullableNonNegativeNumber(row.session_duration_seconds),
+		minimumTrackDurationSeconds: nullableNonNegativeNumber(
+			row.minimum_track_duration_seconds,
+		),
 		reused: boolean(row.reused),
 	};
 }
