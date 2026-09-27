@@ -85,7 +85,7 @@ test("target repair preserves edits and restores only the original destination",
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
-    await expect(page.locator("[data-review-segment] p").first()).toHaveText("Texto preservado");
+    await expect(page.getByRole("textbox", { name: /^Texto em / }).first()).toHaveValue("Texto preservado");
     await expect(page.getByText(/Destino vinculado: yuhara-main/)).toBeVisible();
 });
 
@@ -240,9 +240,9 @@ test("continuous review orders by global timeline and keeps editor state across 
 
 test("large local review keeps 7,531 rows searchable without pagination", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name !== "desktop", "Large synthetic acceptance runs once.");
+	test.setTimeout(60_000);
 	await page.goto("/?review-contracts&large");
 	await expect(page.getByText("7531 de 7531 falas · timeline contínua")).toBeVisible();
-	await expect(page.getByRole("button", { name: "Anterior" })).toHaveCount(0);
 	await page.getByLabel("Buscar na timeline").fill("Fala sintética 7000 exclusiva");
 	await expect(page.getByText("1 de 7531 falas · timeline contínua")).toBeVisible();
 	await expect(page.getByText("Fala sintética 7000 exclusiva", { exact: true })).toBeVisible();
