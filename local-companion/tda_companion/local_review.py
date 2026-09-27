@@ -662,6 +662,34 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
         return _open_from_snapshot(path, source_id, run_id, manifest, transcript)
 
 
+def open_base_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str, Any]:
+    """Return the immutable run projection even when an editorial draft exists."""
+    path = _review_path(package_root, run_id)
+    with _lock_for(path):
+        manifest, transcript = _load_base(package_root, source_id, run_id)
+        base_segments = _base_segments(transcript)
+        warnings = _warnings(transcript)
+        draft = {
+            "schema_version": REVIEW_SCHEMA_VERSION,
+            "source_id": source_id,
+            "run_id": run_id,
+            "base_transcript_sha256": manifest["transcript_sha256"],
+            "draft_revision": None,
+            "status": "draft",
+            "created_at": None,
+            "updated_at": None,
+            "segments": base_segments,
+        }
+        return _response(
+            draft,
+            None,
+            draft_path=path,
+            manifest=manifest,
+            base_segments=base_segments,
+            warnings=warnings,
+        )
+
+
 def _open_from_snapshot(
     path: Path, source_id: str, run_id: str,
     manifest: dict[str, Any], transcript: dict[str, Any],
