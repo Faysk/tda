@@ -601,7 +601,7 @@ export function ProcessingBenchmark({
 
 						<input
 							ref={fileInput}
-							className={styles.fileInput}
+							hidden
 							aria-label="ZIP Craig"
 							type="file"
 							accept=".zip,application/zip"
