@@ -1,47 +1,40 @@
 .workspace {
 	display: grid;
 	gap: 14px;
+	min-width: 0;
 }
 
-.launchCard,
-.activeCard,
-.problemCard,
-.resultCard,
-.history {
-	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-lg);
-	background: var(--ds-surface);
-}
-
-.launchCard,
-.activeCard,
-.problemCard,
-.history {
-	padding: 14px;
-}
-
-.launchCard {
+.workspaceHeader {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 20px;
+	grid-template-columns: minmax(0, 0.8fr) minmax(280px, 1.2fr);
+	gap: 18px;
 	align-items: end;
+	padding: 2px 0 10px;
 }
 
-.launchCard h2,
-.launchCard p,
+.workspaceHeader h2,
+.workspaceHeader p,
+.sectionHeader h3,
 .activeCard h3,
 .activeCard p,
+.problemCard h3,
+.problemCard p,
 .history h2,
 .resultCard h3 {
 	margin: 0;
 }
 
-.launchCard p,
+.workspaceHeader h2 {
+	font-size: 1.15rem;
+}
+
+.workspaceHeader p,
 .activeCard p,
 .qualityNotice span,
 .notice,
 .empty,
-.loading {
+.loading,
+.status {
 	color: var(--ds-foreground-muted);
 	font-size: 0.76rem;
 	line-height: 1.5;
@@ -51,43 +44,35 @@
 	display: block;
 	margin-bottom: 3px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.67rem;
+	font-size: 0.7rem;
 	font-weight: 700;
-	letter-spacing: 0.06em;
+	letter-spacing: 0.055em;
 	text-transform: uppercase;
 }
 
-.launchControls {
-	display: flex;
-	align-items: end;
-	gap: 8px;
-}
-
-.launchControls label {
+.setupGrid {
 	display: grid;
-	gap: 4px;
-	font-size: 0.7rem;
-	font-weight: 650;
+	grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+	gap: 22px;
+	min-width: 0;
 }
 
-.launchControls input {
-	max-width: 250px;
-	font-size: 0.7rem;
+.sourcePanel,
+.readinessPanel {
+	display: grid;
+	min-width: 0;
+	gap: 10px;
+	padding-block: 12px;
+	border-block: 1px solid var(--ds-border-subtle);
 }
 
-.notice,
-.error {
-	grid-column: 1 / -1;
-	margin: 0;
+.readinessPanel {
+	padding-left: 22px;
+	border-left: 1px solid var(--ds-border-subtle);
 }
 
-.error {
-	color: var(--ds-danger-foreground);
-	font-size: 0.74rem;
-}
-
-.activeCard,
-.problemCard,
+.sectionHeader,
+.readinessHeader,
 .resultHeader,
 .historyHeader {
 	display: flex;
@@ -96,14 +81,349 @@
 	gap: 12px;
 }
 
+.sectionHeader h3,
+.readinessHeader h3 {
+	font-size: 0.9rem;
+}
+
+.readinessHeader > span,
+.historyHeader > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.fileInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.sourcePicker,
+.selectedSource {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	align-items: center;
+	gap: 10px;
+	padding: 10px;
+	border: 1px dashed var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+}
+
+.sourcePicker {
+	min-height: 72px;
+	cursor: pointer;
+	font: inherit;
+	text-align: left;
+}
+
+.sourcePicker:hover:not(:disabled) {
+	border-color: color-mix(in srgb, var(--ds-accent) 48%, var(--ds-control-border));
+	background: color-mix(in srgb, var(--ds-accent) 4%, var(--ds-canvas-subtle));
+}
+
+.sourcePicker:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+
+.sourcePicker:disabled {
+	cursor: not-allowed;
+	opacity: 0.65;
+}
+
+.selectedSource {
+	border-style: solid;
+}
+
+.sourceGlyph {
+	display: grid;
+	width: 38px;
+	height: 38px;
+	flex: 0 0 38px;
+	place-items: center;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+	color: var(--ds-accent-strong);
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+}
+
+.sourcePickerCopy,
+.selectedSourceMain {
+	display: grid;
+	min-width: 0;
+	gap: 3px;
+	flex: 1 1 auto;
+}
+
+.sourcePickerCopy strong,
+.sourcePickerCopy span,
+.selectedSourceMain strong,
+.selectedSourceMain span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sourcePickerCopy strong,
+.selectedSourceMain strong {
+	font-size: 0.84rem;
+}
+
+.sourcePickerCopy span,
+.selectedSourceMain span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.selectedSourceActions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 6px;
+}
+
+.sourceFacts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+	margin: 0;
+}
+
+.sourceFacts > div {
+	min-width: 0;
+	padding-top: 7px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.sourceFacts dt {
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.sourceFacts dd {
+	margin: 3px 0 0;
+	overflow: hidden;
+	font-size: 0.74rem;
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.profileReadiness {
+	display: grid;
+	gap: 0;
+}
+
+.profileRow {
+	display: grid;
+	grid-template-columns: minmax(140px, 0.75fr) minmax(180px, 1.25fr);
+	gap: 6px 10px;
+	align-items: center;
+	padding: 8px 2px;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-size: 0.74rem;
+}
+
+.profileRow:first-child {
+	border-top: 0;
+}
+
+.profileRow > span {
+	color: var(--ds-foreground-muted);
+}
+
+.profileRow[data-state="ready"] > span {
+	color: var(--ds-success-foreground);
+}
+
+.profileRow[data-state="blocked"] > span {
+	color: var(--ds-danger-foreground);
+}
+
+.profileRow small {
+	grid-column: 2;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ds-foreground-muted);
+	font-family: var(--font-mono), monospace;
+	font-size: 0.66rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nextAction {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 4px 0 12px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.nextAction > div:first-child {
+	display: grid;
+	gap: 2px;
+}
+
+.nextAction strong {
+	font-size: 0.84rem;
+}
+
+.nextActionControls {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 8px;
+}
+
+.preparationStatus {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 9px 10px;
+	border-left: 2px solid var(--ds-accent);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 72%, transparent);
+}
+
+.preparationStatus > div,
+.activeCopy {
+	display: grid;
+	gap: 3px;
+}
+
+.preparationStatus span,
+.activeCopy small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.notice,
+.error,
+.status {
+	margin: 0;
+}
+
+.error {
+	color: var(--ds-danger-foreground);
+	font-size: 0.76rem;
+	line-height: 1.45;
+}
+
+.activeCard,
+.problemCard,
+.resultCard {
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface);
+}
+
+.activeCard,
+.problemCard {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px 18px;
+	align-items: center;
+	padding: 12px 14px;
+}
+
+.activeActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.runProgress {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 6px;
+	margin: 2px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.runProgress li {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	border-top: 2px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.runProgress li > span {
+	display: grid;
+	width: 20px;
+	height: 20px;
+	flex: 0 0 20px;
+	place-items: center;
+	border: 1px solid var(--ds-border);
+	border-radius: 50%;
+	font-size: 0.64rem;
+}
+
+.runProgress li strong {
+	overflow: hidden;
+	font-weight: 650;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.runProgress li[data-state="complete"] {
+	border-top-color: var(--ds-success);
+	color: var(--ds-success-foreground);
+}
+
+.runProgress li[data-state="current"] {
+	border-top-color: var(--ds-accent);
+	color: var(--ds-foreground);
+}
+
+.problemCard {
+	display: flex;
+	justify-content: space-between;
+}
+
+.problemCard p {
+	color: var(--ds-foreground-muted);
+	font-size: 0.74rem;
+}
+
 .history {
 	display: grid;
 	gap: 10px;
+	padding-top: 4px;
 }
 
-.historyHeader > span {
-	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
+.historyHeader {
+	padding-bottom: 2px;
+}
+
+.empty {
+	margin: 0;
+	padding: 9px 0;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.loading {
+	margin: 0;
 }
 
 .resultCard {
@@ -162,180 +482,85 @@
 	font-size: 0.72rem;
 }
 
-@media (max-width: 800px) {
-	.launchCard {
+@media (max-width: 900px) {
+	.workspaceHeader,
+	.setupGrid {
 		grid-template-columns: 1fr;
 	}
 
-	.launchControls,
+	.readinessPanel {
+		padding-left: 0;
+		border-left: 0;
+	}
+
+	.workspaceHeader {
+		gap: 6px;
+	}
+}
+
+@media (max-width: 720px) {
+	.selectedSource,
+	.nextAction,
+	.preparationStatus,
 	.activeCard,
+	.problemCard,
 	.qualityNotice {
 		align-items: stretch;
 		flex-direction: column;
 	}
 
-	.launchControls input {
-		max-width: 100%;
+	.activeCard {
+		display: flex;
 	}
-}
 
+	.selectedSourceActions,
+	.nextActionControls,
+	.activeActions {
+		width: 100%;
+		justify-content: flex-start;
+	}
 
-.sourceFacts,
-.profileReadiness,
-.primaryActions,
-.preparationStatus,
-.status {
-	grid-column: 1 / -1;
-}
+	.selectedSourceActions {
+		flex-wrap: wrap;
+	}
 
-.sourceFacts {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px 12px;
-	padding: 8px 10px;
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-subtle);
-	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
-}
+	.sourceFacts,
+	.runProgress {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 
-.sourceFacts span:first-child {
-	max-width: min(520px, 100%);
-	overflow: hidden;
-	color: var(--ds-foreground);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.profileReadiness {
-	display: grid;
-	gap: 6px;
-	padding-top: 2px;
-}
-
-.readinessHeader {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
-}
-
-.readinessHeader strong {
-	color: var(--ds-foreground);
-}
-
-.profileRow {
-	display: grid;
-	grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1.3fr) minmax(0, 1fr);
-	gap: 8px;
-	align-items: center;
-	padding: 7px 9px;
-	border-top: 1px solid var(--ds-border-subtle);
-	font-size: 0.72rem;
-}
-
-.profileRow > span {
-	color: var(--ds-foreground-muted);
-}
-
-.profileRow[data-state="ready"] > span {
-	color: var(--ds-success-foreground);
-}
-
-.profileRow[data-state="blocked"] > span {
-	color: var(--ds-danger-foreground);
-}
-
-.profileRow small {
-	min-width: 0;
-	overflow: hidden;
-	color: var(--ds-foreground-muted);
-	font-family: var(--font-mono), monospace;
-	font-size: 0.64rem;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.primaryActions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	align-items: center;
-}
-
-.preparationStatus {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 9px 10px;
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-subtle);
-}
-
-.preparationStatus > div,
-.activeCopy {
-	display: grid;
-	gap: 3px;
-}
-
-.preparationStatus span,
-.activeCopy small {
-	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
-}
-
-.status {
-	margin: 0;
-	color: var(--ds-foreground-muted);
-	font-size: 0.74rem;
-}
-
-.activeActions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	justify-content: flex-end;
-}
-
-.problemCard {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.problemCard h3,
-.problemCard p {
-	margin: 0;
-}
-
-.problemCard p {
-	color: var(--ds-foreground-muted);
-	font-size: 0.74rem;
-}
-
-@media (max-width: 800px) {
 	.profileRow {
 		grid-template-columns: 1fr;
 		gap: 3px;
 	}
 
 	.profileRow small {
+		grid-column: 1;
 		white-space: normal;
 	}
 
-	.primaryActions,
-	.preparationStatus,
-	.activeActions,
-	.problemCard {
-		align-items: stretch;
-		flex-direction: column;
+	.nextActionControls :global(.ds-action) {
+		width: 100%;
 	}
 
-	.sourceFacts span:first-child {
-		width: 100%;
+	.sourcePickerCopy strong,
+	.sourcePickerCopy span,
+	.selectedSourceMain strong,
+	.selectedSourceMain span {
+		white-space: normal;
+		word-break: break-word;
+	}
+}
+
+@media (max-width: 400px) {
+	.sourceFacts,
+	.runProgress {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sourcePicker {
+		scroll-behavior: auto;
 	}
 }
