@@ -6,6 +6,8 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
+import { SessionCoverEditor } from "./session-cover-editor";
+import { sessionCoverPreviewUrl } from "./session-cover-media";
 import {
 	SESSION_DRAFT_LIMITS,
 	type SessionEditorialDraft,
@@ -191,7 +193,12 @@ export function SessionEditorialDraftEditor({
 		);
 	}
 
-	const coverPreviewUrl = previewableCoverUrl(fields.coverAssetId);
+	const privateCoverPreviewUrl = sessionCoverPreviewUrl(
+		sessionId,
+		fields.coverAssetId,
+	);
+	const coverPreviewUrl =
+		privateCoverPreviewUrl ?? previewableCoverUrl(fields.coverAssetId);
 
 	return (
 		<section className={draftStyles.editorialPanel} aria-label="Publicação da sessão">
@@ -247,32 +254,14 @@ export function SessionEditorialDraftEditor({
 				<div className={draftStyles.editorialFields}>
 					<div className={draftStyles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
-						<div className={draftStyles.coverPreview}>
-							{coverPreviewUrl ? (
-								<Image src={coverPreviewUrl} alt="" fill sizes="(max-width: 1180px) 100vw, 40vw" />
-							) : (
-								<span>
-									{fields.coverAssetId
-										? "Referência de capa salva"
-										: "Sem capa"}
-								</span>
-							)}
-						</div>
-						<label className={styles.fieldLabel}>
-							Referência/intent da capa
-							<input
-								className={styles.control}
-								disabled={!editable}
-								onChange={(event) =>
-									setFields((current) => ({
-										...current,
-										coverAssetId: event.target.value,
-									}))
-								}
-								placeholder="A finalização física entra na etapa de upload"
-								value={fields.coverAssetId}
-							/>
-						</label>
+						<SessionCoverEditor
+							disabled={!editable}
+							onChange={(coverAssetId) =>
+								setFields((current) => ({ ...current, coverAssetId }))
+							}
+							sessionId={sessionId}
+							value={fields.coverAssetId}
+						/>
 					</div>
 
 					<label className={styles.fieldLabel}>
@@ -363,7 +352,13 @@ export function SessionEditorialDraftEditor({
 					<article className={draftStyles.previewStory}>
 						<div className={draftStyles.coverPreview}>
 							{coverPreviewUrl ? (
-								<Image src={coverPreviewUrl} alt="" fill sizes="(max-width: 1180px) 100vw, 40vw" />
+								<Image
+									src={coverPreviewUrl}
+									alt=""
+									fill
+									sizes="(max-width: 1180px) 100vw, 40vw"
+									unoptimized={Boolean(privateCoverPreviewUrl)}
+								/>
 							) : (
 								<span>Preview sem capa finalizada</span>
 							)}
