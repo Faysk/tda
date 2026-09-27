@@ -335,7 +335,6 @@ export function RunComparisonView({
 					<label>
 						<span>De</span>
 						<input
-							aria-label="Fim da faixa (s)"
 							aria-label="Início da faixa da sessão (s)"
 							type="number"
 							min="0"
