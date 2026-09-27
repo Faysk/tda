@@ -137,8 +137,8 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 		composer.locator("[data-craig-dropzone='true']"),
 		composer.getByLabel("ID da sessão"),
 		composer.getByLabel("Perfil"),
-		composer.getByText("Sem calibração compatível nesta máquina.", { exact: true }),
 		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
+		composer.getByText("Sem calibração compatível nesta máquina.", { exact: true }),
 		composer.getByText("Opções avançadas", { exact: true }),
 	];
 	const boxes = await Promise.all(locators.map((locator) => locator.boundingBox()));
