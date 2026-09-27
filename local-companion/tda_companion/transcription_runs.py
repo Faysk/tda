@@ -129,6 +129,203 @@ def run_root(package_root: Path, run_id: str) -> Path:
     return result
 
 
+_DELETE_RECEIPT_SCHEMA = "tda_local_run_delete_receipt_v1"
+_DELETE_OPERATION = re.compile(r"^[0-9a-f-]{36}$")
+
+
+def _deleted_runs_root(package_root: Path) -> Path:
+    package = package_root.resolve()
+    raw = package / ".deleted-runs"
+    if raw.exists() and (raw.is_symlink() or getattr(raw, "is_junction", lambda: False)()):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_ROOT_INVALID")
+    root = raw.resolve()
+    if root.parent != package:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_ROOT_INVALID")
+    return root
+
+
+def _delete_receipt_path(package_root: Path, run_id: str) -> Path:
+    if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_ID_INVALID")
+    return _deleted_runs_root(package_root) / f"{run_id}.json"
+
+
+def _read_delete_receipt(package_root: Path, run_id: str) -> dict[str, Any] | None:
+    path = _delete_receipt_path(package_root, run_id)
+    if not path.exists():
+        return None
+    value = _bounded_json(path)
+    if (
+        value.get("schema_version") != _DELETE_RECEIPT_SCHEMA
+        or value.get("source_id") != package_root.resolve().name
+        or value.get("run_id") != run_id
+        or not isinstance(value.get("transcript_sha256"), str)
+        or not _SHA256.fullmatch(value["transcript_sha256"])
+        or not isinstance(value.get("operation_id"), str)
+        or not _DELETE_OPERATION.fullmatch(value["operation_id"])
+        or value.get("deleted") is not True
+        or value.get("cloud_changed") is not False
+    ):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_RECEIPT_INVALID")
+    return value
+
+
+def run_is_deleted(package_root: Path, run_id: str) -> bool:
+    return _read_delete_receipt(package_root, run_id) is not None
+
+
+def _safe_owned_directory(path: Path, parent: Path, *, code: str) -> bool:
+    if not path.exists():
+        return False
+    if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+        raise TranscriptionRunError(code)
+    resolved = path.resolve()
+    if resolved.parent != parent.resolve() or not resolved.is_dir():
+        raise TranscriptionRunError(code)
+    return True
+
+
+def _delete_quarantine_root(package_root: Path, operation_id: str) -> Path:
+    if not isinstance(operation_id, str) or not _DELETE_OPERATION.fullmatch(operation_id):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_OPERATION_INVALID")
+    package = package_root.resolve()
+    trash = package / ".delete-trash"
+    if trash.exists() and (trash.is_symlink() or getattr(trash, "is_junction", lambda: False)()):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_TRASH_INVALID")
+    root = (trash / operation_id).resolve()
+    if root.parent != trash.resolve():
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_TRASH_INVALID")
+    return root
+
+
+def _cleanup_deleted_run(package_root: Path, receipt: dict[str, Any]) -> bool:
+    run_id = str(receipt["run_id"])
+    operation_id = str(receipt["operation_id"])
+    package = package_root.resolve()
+    runs = _runs_root(package)
+    revisions = (package / "revisions").resolve()
+    if revisions.parent != package:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_REVISION_ROOT_INVALID")
+    run = runs / run_id
+    revision = revisions / run_id
+    quarantine = _delete_quarantine_root(package, operation_id)
+    quarantine.parent.mkdir(parents=True, exist_ok=True)
+    quarantine.mkdir(parents=False, exist_ok=True)
+
+    for source, name, code in (
+        (run, "run", "TRANSCRIPTION_RUN_DELETE_PATH_INVALID"),
+        (revision, "revision", "TRANSCRIPTION_RUN_DELETE_REVISION_INVALID"),
+    ):
+        if not _safe_owned_directory(source, source.parent, code=code):
+            continue
+        target = quarantine / name
+        if target.exists():
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_TRASH_CONFLICT")
+        os.replace(source, target)
+
+    try:
+        shutil.rmtree(quarantine)
+    except OSError:
+        return False
+    try:
+        if quarantine.parent.is_dir() and not any(quarantine.parent.iterdir()):
+            quarantine.parent.rmdir()
+    except OSError:
+        pass
+    return True
+
+
+def delete_completed_run(
+    package_root: Path,
+    *,
+    source_id: str,
+    run_id: str,
+    expected_transcript_sha256: str,
+    operation_id: str,
+) -> dict[str, Any]:
+    package = package_root.resolve()
+    if package.name != source_id or not _SOURCE_ID.fullmatch(source_id):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_SOURCE_INVALID")
+    if not isinstance(expected_transcript_sha256, str) or not _SHA256.fullmatch(expected_transcript_sha256):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_SHA_INVALID")
+    if not isinstance(operation_id, str) or not _DELETE_OPERATION.fullmatch(operation_id):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_OPERATION_INVALID")
+
+    existing = _read_delete_receipt(package, run_id)
+    if existing is not None:
+        if existing["transcript_sha256"] != expected_transcript_sha256:
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_STALE")
+        _cleanup_deleted_run(package, existing)
+        return existing
+
+    manifest = load_run(package, run_id, verify_content=False)
+    if manifest["transcript_sha256"] != expected_transcript_sha256:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_STALE")
+
+    raw_run = _runs_root(package) / run_id
+    _safe_owned_directory(raw_run, _runs_root(package), code="TRANSCRIPTION_RUN_DELETE_PATH_INVALID")
+    raw_revisions = package / "revisions"
+    raw_revision = raw_revisions / run_id
+    if raw_revisions.exists() and (
+        raw_revisions.is_symlink() or getattr(raw_revisions, "is_junction", lambda: False)()
+    ):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_REVISION_ROOT_INVALID")
+    review_deleted = _safe_owned_directory(
+        raw_revision,
+        raw_revisions,
+        code="TRANSCRIPTION_RUN_DELETE_REVISION_INVALID",
+    ) if raw_revisions.exists() else False
+
+    remove_root_mirror = False
+    root_state_path = package / "root-transcript-state.json"
+    root_target = package / "transcript.json"
+    root_fingerprint_before = _root_fingerprint(package)
+    try:
+        state = _bounded_json(root_state_path)
+        remove_root_mirror = (
+            state.get("schema_version") == _ROOT_STATE_SCHEMA
+            and state.get("kind") == "compatibility_mirror"
+            and state.get("run_id") == run_id
+            and state.get("transcript_sha256") == expected_transcript_sha256
+            and state.get("fingerprint") == root_fingerprint_before
+        )
+    except TranscriptionRunError:
+        remove_root_mirror = False
+
+    deleted_at = utc_now()
+    receipt = {
+        "schema_version": _DELETE_RECEIPT_SCHEMA,
+        "source_id": source_id,
+        "run_id": run_id,
+        "transcript_sha256": expected_transcript_sha256,
+        "job_id": manifest.get("job_id"),
+        "attempt": manifest.get("attempt"),
+        "operation_id": operation_id,
+        "deleted_at": deleted_at,
+        "deleted": True,
+        "review_deleted": review_deleted,
+        "cloud_changed": False,
+    }
+    tombstone = _delete_receipt_path(package, run_id)
+    tombstone.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_json(tombstone, receipt)
+
+    if remove_root_mirror:
+        with _root_transcript_lock(package):
+            if _root_fingerprint(package) == root_fingerprint_before:
+                try:
+                    root_target.unlink()
+                except FileNotFoundError:
+                    pass
+                try:
+                    root_state_path.unlink()
+                except FileNotFoundError:
+                    pass
+
+    _cleanup_deleted_run(package, receipt)
+    return receipt
+
+
 def _source_id(package_root: Path, explicit: str | None = None) -> str:
     value = explicit if explicit is not None else package_root.resolve().name
     if not isinstance(value, str) or not _SOURCE_ID.fullmatch(value):
@@ -510,6 +707,8 @@ def _validate_manifest(
 
 
 def load_run(package_root: Path, run_id: str, *, verify_content: bool = True) -> dict[str, Any]:
+    if run_is_deleted(package_root, run_id):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETED")
     root = run_root(package_root, run_id)
     value = _bounded_json(root / "run.json")
     if value.get("run_id") != run_id:

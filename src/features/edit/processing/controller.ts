@@ -5,7 +5,6 @@ import {
 	BridgeError,
 	type BridgeErrorCode,
 	type BridgeErrorDetails,
-	type BenchmarkResult,
 	type Capabilities,
 	type Health,
 	type JobEvent,
@@ -25,6 +24,7 @@ export type ProcessingMutationKind =
 	| "cancel"
 	| "retry"
 	| "delete"
+	| "delete-run"
 	| "synthetic"
 	| "result";
 
@@ -47,7 +47,6 @@ export type ProcessingState = Readonly<{
 	jobs: readonly LocalJob[];
 	localSources: readonly LocalSourceSummary[];
 	localRuns: readonly LocalRunSummary[];
-	benchmarkResults: readonly BenchmarkResult[];
 	localRunsHasMore: boolean;
 	localRunsNextCursor: string | null;
 	localReview: LocalReview | null;
@@ -79,7 +78,6 @@ const initial: ProcessingState = {
 	jobs: [],
 	localSources: [],
 	localRuns: [],
-	benchmarkResults: [],
 	localRunsHasMore: false,
 	localRunsNextCursor: null,
 	localReview: null,
@@ -392,35 +390,6 @@ export class ProcessingController {
 			const before = previous.jobs.find((job) => job.id === next.id);
 			return !before || !terminalStatuses.has(before.status);
 		});
-		let benchmarkResults = [...previous.benchmarkResults];
-		if (deep || terminalTransition) {
-			const previousByJob = new Map(
-				previous.benchmarkResults.map((result) => [result.jobId, result]),
-			);
-			const completedBenchmarks = jobs
-				.filter(
-					(job) =>
-						job.kind === "benchmark.craig" &&
-						job.status === "succeeded" &&
-						job.result_available,
-				)
-				.sort(
-					(left, right) =>
-						Date.parse(right.updated_at) - Date.parse(left.updated_at),
-				)
-				.slice(0, 10);
-			benchmarkResults = (
-				await Promise.all(
-					completedBenchmarks.map(async (job) => {
-						try {
-							return await this.bridge.benchmarkResult(job.id, signal);
-						} catch {
-							return previousByJob.get(job.id) ?? null;
-						}
-					}),
-				)
-			).filter((result): result is BenchmarkResult => result !== null);
-		}
 		const reloadLibrary =
 			reviewEnabled && ((options.includeLibrary ?? true) || terminalTransition);
 
@@ -487,7 +456,6 @@ export class ProcessingController {
 			jobs,
 			localSources,
 			localRuns,
-			benchmarkResults,
 			localRunsHasMore,
 			localRunsNextCursor,
 			system,
@@ -613,6 +581,49 @@ export class ProcessingController {
 		await this.runOperation(null, async (signal) => {
 			await this.read(signal, { deep: false, includeLibrary: false });
 		});
+	};
+
+	deleteLocalRun = async (
+		sourceId: string,
+		runId: string,
+		transcriptSha256: string,
+	) => {
+		if (
+			this.#state.connection !== "connected" ||
+			this.#state.localReviewBusy ||
+			this.#state.localReview?.runId === runId
+		) return false;
+		const target = this.#state.localRuns.find(
+			(run) => run.sourceId === sourceId && run.runId === runId,
+		);
+		if (!target || target.transcriptSha256 !== transcriptSha256) return false;
+		let deleted = false;
+		await this.runOperation(
+			{ kind: "delete-run", targetId: `${sourceId}:${runId}` },
+			async (signal) => {
+				const receipt = await this.bridge.deleteLocalRun(
+					sourceId,
+					runId,
+					transcriptSha256,
+					crypto.randomUUID(),
+					signal,
+				);
+				if (signal.aborted || !receipt.deleted) return;
+				this.update({
+					localRuns: this.#state.localRuns.filter(
+						(run) => !(run.sourceId === sourceId && run.runId === runId),
+					),
+					localReview:
+						this.#state.localReview?.sourceId === sourceId &&
+						this.#state.localReview?.runId === runId
+							? null
+							: this.#state.localReview,
+					libraryRefreshError: null,
+				});
+				deleted = true;
+			},
+		);
+		return deleted;
 	};
 
 	loadMoreRuns = async () => {
