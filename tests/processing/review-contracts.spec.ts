@@ -12,19 +12,20 @@ test("completed runs compare locally with source and time filters before an expl
 	await page.getByRole("button", { name: "Comparar" }).click();
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toBeVisible();
 	await expect(page.getByText("Audio work", { exact: true })).toHaveCount(2);
-	await expect(page.getByText("Duração", { exact: true })).toHaveCount(2);
+	await expect(page.getByText("Duração da sessão", { exact: true })).toHaveCount(2);
 	await expect(page.getByText("Tracks", { exact: true })).toHaveCount(2);
 	await expect(page.getByText("Turnos", { exact: true })).toHaveCount(2);
 	await expect(page.getByText("Revisão", { exact: true })).toHaveCount(2);
 
 	const regions = page.locator("[data-run-comparison-region='true']");
 	await expect(regions).toHaveCount(2);
-	await page.getByLabel("Início da faixa (s)").fill("9");
-	await page.getByLabel("Fim da faixa (s)").fill("12");
+	await page.getByLabel("Início da faixa da sessão (s)").fill("29");
+	await page.getByLabel("Fim da faixa da sessão (s)").fill("32");
 	await expect(regions).toHaveCount(1);
 	await expect(regions.first()).toContainText("Versão A");
 	await expect(regions.first()).toContainText("Versão B");
 	await expect(regions.first()).toContainText("texto diferente");
+	await expect(regions.first()).toContainText("30.00–31.10s da sessão");
 	await expect(page.getByText("Somente A", { exact: true })).toHaveCount(0);
 
 	await page.screenshot({ path: testInfo.outputPath("run-comparison.png"), fullPage: true });

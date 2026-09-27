@@ -308,10 +308,11 @@ export function RunComparisonView({
 					</select>
 				</label>
 				<fieldset className={styles.timeRange}>
-					<legend>Faixa na track (s)</legend>
+					<legend>Faixa na sessão (s)</legend>
 					<label>
 						<span>De</span>
 						<input
+							aria-label="Início da faixa da sessão (s)"
 							type="number"
 							min="0"
 							step="0.1"
@@ -323,6 +324,7 @@ export function RunComparisonView({
 					<label>
 						<span>Até</span>
 						<input
+							aria-label="Fim da faixa da sessão (s)"
 							type="number"
 							min="0"
 							step="0.1"
@@ -382,8 +384,12 @@ export function RunComparisonView({
 					>
 						<header>
 							<strong>
-								Track {region.trackNumber} · {region.start.toFixed(2)}–
-								{region.end.toFixed(2)}s
+								Track {region.trackNumber} · {region.sessionStart.toFixed(2)}–
+								{region.sessionEnd.toFixed(2)}s da sessão
+								{Math.abs(region.sessionStart - region.start) > 0.001 ||
+								Math.abs(region.sessionEnd - region.end) > 0.001
+									? ` · ${region.start.toFixed(2)}–${region.end.toFixed(2)}s na track`
+									: ""}
 							</strong>
 							<span>
 								{region.kind === "equal"

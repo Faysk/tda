@@ -103,9 +103,9 @@ export function ReviewFixture() {
 	const comparisonLeftReview: LocalReview = {
 		...review,
 		segments: [
-			{ trackNumber: 1, segmentId: "cmp-a-1", start: 0, end: 1, text: "Mesmo começo", speaker: "Alex", reviewed: true },
-			{ trackNumber: 1, segmentId: "cmp-a-2", start: 10, end: 11, text: "Versão A", speaker: "Alex", reviewed: true },
-			{ trackNumber: 1, segmentId: "cmp-a-3", start: 20, end: 21, text: "Somente A", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-a-1", start: 0, end: 1, timelineStart: 5, timelineEnd: 6, text: "Mesmo começo", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-a-2", start: 10, end: 11, timelineStart: 30, timelineEnd: 31, text: "Versão A", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-a-3", start: 20, end: 21, timelineStart: 50, timelineEnd: 51, text: "Somente A", speaker: "Alex", reviewed: true },
 		],
 	};
 	const comparisonRightReview: LocalReview = {
@@ -121,8 +121,8 @@ export function ReviewFixture() {
 			completedAt: "2026-09-26T12:05:00Z",
 		},
 		segments: [
-			{ trackNumber: 1, segmentId: "cmp-b-1", start: 0, end: 1, text: "Mesmo começo", speaker: "Alex", reviewed: true },
-			{ trackNumber: 1, segmentId: "cmp-b-2", start: 10.1, end: 11.1, text: "Versão B", speaker: "Bia", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-b-1", start: 0, end: 1, timelineStart: 5.02, timelineEnd: 6.02, text: "Mesmo começo", speaker: "Alex", reviewed: true },
+			{ trackNumber: 1, segmentId: "cmp-b-2", start: 10.1, end: 11.1, timelineStart: 30.1, timelineEnd: 31.1, text: "Versão B", speaker: "Bia", reviewed: true },
 		],
 	};
 	const comparisonRunB: LocalRunSummary = {

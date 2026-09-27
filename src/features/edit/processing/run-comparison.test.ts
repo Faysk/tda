@@ -165,15 +165,53 @@ describe("run comparison", () => {
 		});
 	});
 
-	it("filters aligned regions by an inclusive local time range", () => {
-		const [region] = compareRunSegments(
-			[segment(1, "left", 10, 12, "janela")],
-			[segment(1, "right", 10.1, 12.1, "janela")],
+	it("orders regions and filters by absolute session time across tracks", () => {
+		const earlyLeft = {
+			...segment(2, "early-left", 40, 41, "cedo"),
+			timelineStart: 10,
+			timelineEnd: 11,
+		};
+		const earlyRight = {
+			...segment(2, "early-right", 40.02, 41.02, "cedo"),
+			timelineStart: 10.02,
+			timelineEnd: 11.02,
+		};
+		const lateLeft = {
+			...segment(1, "late-left", 0, 1, "tarde"),
+			timelineStart: 120,
+			timelineEnd: 121,
+		};
+		const lateRight = {
+			...segment(1, "late-right", 0.02, 1.02, "tarde"),
+			timelineStart: 120.02,
+			timelineEnd: 121.02,
+		};
+		const regions = compareRunSegments(
+			[lateLeft, earlyLeft],
+			[lateRight, earlyRight],
 		);
+		expect(regions.map((region) => region.trackNumber)).toEqual([2, 1]);
+		expect(regions.map((region) => region.sessionStart)).toEqual([10, 120]);
+		expect(regionOverlapsTimeRange(regions[0]!, 9, 12)).toBe(true);
+		expect(regionOverlapsTimeRange(regions[1]!, 9, 12)).toBe(false);
+	});
+
+	it("filters aligned regions by an inclusive session time range", () => {
+		const left = {
+			...segment(1, "left", 10, 12, "janela"),
+			timelineStart: 30,
+			timelineEnd: 32,
+		};
+		const right = {
+			...segment(1, "right", 10.1, 12.1, "janela"),
+			timelineStart: 30.1,
+			timelineEnd: 32.1,
+		};
+		const [region] = compareRunSegments([left], [right]);
 		expect(region).toBeDefined();
-		expect(regionOverlapsTimeRange(region!, 11, 20)).toBe(true);
-		expect(regionOverlapsTimeRange(region!, 0, 9.9)).toBe(false);
-		expect(regionOverlapsTimeRange(region!, 12.1, 12.1)).toBe(true);
+		expect(regionOverlapsTimeRange(region!, 31, 40)).toBe(true);
+		expect(regionOverlapsTimeRange(region!, 0, 29.9)).toBe(false);
+		expect(regionOverlapsTimeRange(region!, 32.1, 32.1)).toBe(true);
 	});
 
 	it("fails closed for invalid time-range values", () => {

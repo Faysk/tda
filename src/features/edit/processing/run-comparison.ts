@@ -8,6 +8,8 @@ export type RunComparisonRegion = Readonly<{
 	trackNumber: number;
 	start: number;
 	end: number;
+	sessionStart: number;
+	sessionEnd: number;
 	kind: RunComparisonKind;
 	left: readonly LocalReviewSegment[];
 	right: readonly LocalReviewSegment[];
@@ -85,6 +87,14 @@ function regionId(
 	]);
 }
 
+function segmentTimelineStart(segment: LocalReviewSegment): number {
+	return segment.timelineStart ?? segment.start;
+}
+
+function segmentTimelineEnd(segment: LocalReviewSegment): number {
+	return segment.timelineEnd ?? segment.end;
+}
+
 function buildRegion(
 	trackNumber: number,
 	leftInput: readonly LocalReviewSegment[],
@@ -95,6 +105,8 @@ function buildRegion(
 	const all = [...left, ...right];
 	const start = Math.min(...all.map((item) => item.start));
 	const end = Math.max(...all.map((item) => item.end));
+	const sessionStart = Math.min(...all.map(segmentTimelineStart));
+	const sessionEnd = Math.max(...all.map(segmentTimelineEnd));
 	const leftText = left.map((item) => item.text).join(" ").trim();
 	const rightText = right.map((item) => item.text).join(" ").trim();
 	const kind: RunComparisonKind =
@@ -110,6 +122,8 @@ function buildRegion(
 		trackNumber,
 		start,
 		end,
+		sessionStart,
+		sessionEnd,
 		kind,
 		left,
 		right,
@@ -228,14 +242,22 @@ export function compareRunSegments(
 		]),
 	].sort((a, b) => a - b);
 
-	return tracks.flatMap((trackNumber) =>
-		compareTrack(
-			trackNumber,
-			left.filter((item) => item.trackNumber === trackNumber),
-			right.filter((item) => item.trackNumber === trackNumber),
-			tolerance,
-		),
-	);
+	return tracks
+		.flatMap((trackNumber) =>
+			compareTrack(
+				trackNumber,
+				left.filter((item) => item.trackNumber === trackNumber),
+				right.filter((item) => item.trackNumber === trackNumber),
+				tolerance,
+			),
+		)
+		.sort(
+			(leftRegion, rightRegion) =>
+				leftRegion.sessionStart - rightRegion.sessionStart ||
+				leftRegion.sessionEnd - rightRegion.sessionEnd ||
+				leftRegion.trackNumber - rightRegion.trackNumber ||
+				compareCanonicalText(leftRegion.id, rightRegion.id),
+		);
 }
 
 export function regionOverlapsTimeRange(
@@ -253,8 +275,8 @@ export function regionOverlapsTimeRange(
 		startSeconds > endSeconds
 	)
 		return false;
-	if (startSeconds !== null && region.end < startSeconds) return false;
-	if (endSeconds !== null && region.start > endSeconds) return false;
+	if (startSeconds !== null && region.sessionEnd < startSeconds) return false;
+	if (endSeconds !== null && region.sessionStart > endSeconds) return false;
 	return true;
 }
 
