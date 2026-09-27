@@ -106,3 +106,41 @@ test("advanced diagnostics stay collapsed until explicitly opened", async ({
 	}));
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
+
+for (const viewport of [
+	{ width: 320, height: 568 },
+	{ width: 960, height: 540 },
+]) {
+	test(`advanced diagnostics stay width-safe at ${viewport.width}x${viewport.height}`, async ({
+		page,
+	}) => {
+		await page.setViewportSize(viewport);
+		await installCompanionFixture(page, {
+			profileReady: true,
+			advanceJobs: false,
+			initialJobs: [fixtureJob("running")],
+		});
+		await installSyntheticCapability(page);
+
+		await page.goto("/");
+		await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+		await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+		const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
+		const advanced = diagnostics
+			.locator("summary")
+			.filter({ hasText: "Ferramentas avançadas" });
+		await advanced.click();
+		await expect(
+			diagnostics.getByRole("button", { name: "Executar ensaio sintético" }),
+		).toBeVisible();
+		await expect(diagnostics.getByRole("log")).toBeVisible();
+
+		const dimensions = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+	});
+}
+
