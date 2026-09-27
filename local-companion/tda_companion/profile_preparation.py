@@ -154,14 +154,10 @@ def profile_catalog(
         compute_type: str | None = None
         gpu_model: str | None = None
         gpu_compute_capability: str | None = None
-        runtime_worker_sha256: str | None = None
         if profile.engine == "whisper":
             runtime_value = whisper_state.get("version")
             if isinstance(runtime_value, str):
                 runtime_version = runtime_value
-            worker_sha = whisper_state.get("worker_sha256")
-            if isinstance(worker_sha, str) and re.fullmatch(r"[0-9a-f]{64}", worker_sha):
-                runtime_worker_sha256 = worker_sha
             if not _runtime_ready(whisper_state, "whisper"):
                 reason = "WHISPER_RUNTIME_REQUIRED"
             else:
@@ -173,9 +169,6 @@ def profile_catalog(
             runtime_value = qwen_state.get("version")
             if isinstance(runtime_value, str):
                 runtime_version = runtime_value
-            worker_sha = qwen_state.get("worker_sha256")
-            if isinstance(worker_sha, str) and re.fullmatch(r"[0-9a-f]{64}", worker_sha):
-                runtime_worker_sha256 = worker_sha
             if not _runtime_ready(qwen_state, "qwen"):
                 reason = "QWEN_RUNTIME_REQUIRED"
             else:
@@ -215,7 +208,6 @@ def profile_catalog(
                 "model": profile.model_id,
                 "model_revision": profile.revision,
                 "runtime_version": runtime_version,
-                "runtime_worker_sha256": runtime_worker_sha256,
                 "compute_type": compute_type,
                 "gpu_model": gpu_model,
                 "gpu_compute_capability": gpu_compute_capability,
