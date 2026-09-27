@@ -170,6 +170,48 @@ test("workspace tabs implement roving keyboard navigation", async ({ page }) => 
 	await expect(overview).toHaveAttribute("aria-selected", "true");
 });
 
+
+test("processing UX v2 keeps the five first-class workspaces integrated", async ({ page }) => {
+	await openRunningWorkspace(page, 1920, 1080);
+
+	const tablist = page.getByRole("tablist", { name: "Áreas do processamento" });
+	const tabs = tablist.getByRole("tab");
+	await expect(tabs).toHaveCount(5);
+	expect(await tabs.allTextContents()).toEqual([
+		"Visão geral",
+		"Fila",
+		"Resultados",
+		"Benchmark",
+		"Diagnóstico",
+	]);
+
+	const expectedViews = [
+		"Visão geral",
+		"Fila",
+		"Resultados",
+		"Benchmark",
+		"Diagnóstico",
+	] as const;
+
+	for (const label of expectedViews) {
+		const tab = tablist.getByRole("tab", { name: label, exact: true });
+		await tab.click();
+		await expect(tab).toHaveAttribute("aria-selected", "true");
+		await expect(page.getByRole("tabpanel", { name: label, exact: true })).toBeVisible();
+	}
+
+	// The epic explicitly retired the old Edit rail for Processing. Keep the
+	// shell free of a direct navigation aside while the global TDA header stays
+	// outside this component boundary.
+	await expect(page.locator("[data-edit-shell='true'] > aside")).toHaveCount(0);
+
+	const dimensions = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+});
+
 for (const theme of ["dark", "light"] as const) {
 	test(`${theme} theme keeps WCAG operational contrast and layout intact`, async ({
 		page,
