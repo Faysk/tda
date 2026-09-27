@@ -418,9 +418,17 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
         number = track.get("number")
         speaker = track.get("speaker")
         raw_segments = track.get("segments")
+        timeline_offset = track.get("timeline_offset_seconds", 0.0)
         if isinstance(number, bool) or not isinstance(number, int) or number < 1:
             raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
         if not valid_review_string_v1(speaker, "speaker"):
+            raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
+        if (
+            isinstance(timeline_offset, bool)
+            or not isinstance(timeline_offset, (int, float))
+            or not math.isfinite(float(timeline_offset))
+            or float(timeline_offset) < 0
+        ):
             raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
         if not isinstance(raw_segments, list):
             raise LocalReviewError("LOCAL_REVIEW_BASE_SEGMENTS_INVALID")
@@ -453,6 +461,8 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                     "segment_id": segment_id,
                     "start": float(start),
                     "end": float(end),
+                    "timeline_start": float(start) + float(timeline_offset),
+                    "timeline_end": float(end) + float(timeline_offset),
                     "text": text,
                     "speaker": speaker,
                     "reviewed": False,
@@ -571,6 +581,10 @@ def _response(
         draft_sha256=draft_sha256,
     )
     stored_status = draft["status"]
+    base_by_identity = {
+        (item["track_number"], item["segment_id"]): item
+        for item in base_segments
+    }
     effective_status = (
         "approved_local"
         if approval is not None
@@ -625,7 +639,18 @@ def _response(
             "truncated": len(warnings) > 1000,
         },
         "review": _summary(segments, base_segments, warnings),
-        "segments": segments,
+        "segments": [
+            {
+                **segment,
+                "timeline_start": base_by_identity[
+                    (segment["track_number"], segment["segment_id"])
+                ]["timeline_start"],
+                "timeline_end": base_by_identity[
+                    (segment["track_number"], segment["segment_id"])
+                ]["timeline_end"],
+            }
+            for segment in segments
+        ],
         "sync": {"status": "not_configured"},
     }
 
