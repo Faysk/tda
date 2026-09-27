@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
 	SESSION_COVER_MEDIA_MAX_UPLOAD_CHUNKS,
+	isExistingPublishedSessionCoverReference,
 	isSessionCoverIntent,
 	sessionCoverObjectKey,
 	sessionCoverPendingChunkObjectKey,
@@ -76,6 +77,35 @@ describe("session cover media contract", () => {
 				mimeType: "image/jpeg",
 				bytes: 1024,
 			}),
+		).toBe(false);
+	});
+
+	it("accepts only governed existing public cover references", () => {
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc/cover.webp",
+			),
+		).toBe(true);
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp",
+			),
+		).toBe(true);
+		expect(
+			isExistingPublishedSessionCoverReference("/assets/sessions/legacy.webp"),
+		).toBe(true);
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://media.dnd.faysk.dev/campaigns/other/sessions/abc.webp",
+			),
+		).toBe(false);
+		expect(
+			isExistingPublishedSessionCoverReference("https://evil.example/cover.webp"),
+		).toBe(false);
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc.webp?token=secret",
+			),
 		).toBe(false);
 	});
 
