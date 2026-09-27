@@ -242,9 +242,10 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	).first();
 	const progress = progressVisual.getByRole("progressbar");
 	const fill = progressVisual.locator("span[aria-hidden='true']");
+	await expect(progressVisual).toHaveAttribute("data-progress-sample-ms", "1500");
 	expect(
 		await fill.evaluate((element) => getComputedStyle(element).transitionDuration),
-	).toBe("0.48s");
+	).toBe("1.5s");
 
 	state.setJob(
 		fixtureJob("running", {
