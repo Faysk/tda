@@ -127,12 +127,14 @@ export function ProcessingLiveLog({
 	system,
 	live,
 	stale,
+	activityBarkCatalog,
 }: Readonly<{
 	events: readonly JobEvent[];
 	job: LocalJob;
 	system: SystemSnapshot | null;
 	live: boolean;
 	stale: boolean;
+	activityBarkCatalog: readonly ActivityBark[];
 }>) {
 	const [mode, setMode] = useState<"humanized" | "technical">("humanized");
 	const [query, setQuery] = useState("");
@@ -177,13 +179,13 @@ export function ProcessingLiveLog({
 			const event = snapshot[index];
 			if (!event || GROUPABLE.has(event.code)) continue;
 			if (event.level === "info" && event.code.endsWith("_STARTED")) continue;
-			const presented = humanText(event, job, system);
+			const presented = humanText(event, job, system, activityBarkCatalog);
 			return presented.detail
 				? `${presented.title}. ${presented.detail}`
 				: presented.title;
 		}
 		return "";
-	}, [snapshot, job, system]);
+	}, [snapshot, job, system, activityBarkCatalog]);
 	const selected =
 		snapshot.find((event) => event.seq === selectedSeq) ?? null;
 	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
@@ -393,7 +395,7 @@ export function ProcessingLiveLog({
 						const factual = presentJobEvent(row.event);
 						const presented =
 							mode === "humanized"
-								? humanText(row.event, job, system)
+								? humanText(row.event, job, system, activityBarkCatalog)
 								: factual;
 						return (
 							<button
