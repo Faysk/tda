@@ -11,7 +11,9 @@ export function ReviewFixture() {
 	const oldAgent = new URLSearchParams(location.search).has("old-agent");
 	const bulk = new URLSearchParams(location.search).has("bulk");
 	const metricsMode = new URLSearchParams(location.search).has("metrics");
+	const comparisonMode = new URLSearchParams(location.search).has("comparison");
     const [saveCount, setSaveCount] = useState(0);
+	const [comparisonOpenedReview, setComparisonOpenedReview] = useState<LocalReview | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
 		sourceId: `craig-${"a".repeat(64)}`,
@@ -98,6 +100,87 @@ export function ReviewFixture() {
 				totalProcessingSeconds: 35, totalTracks: 4, freshAsrTracks: 1, textCheckpointReusedTracks: 1,
 				completedCheckpointReusedTracks: 2, freshAudioWorkSeconds: 100, reusedAudioWorkSeconds: 300, freshCalibrationEligible: false } },
 	};
+	const comparisonReviewA: LocalReview = {
+		...review,
+		persistence: "ephemeral_base",
+		draftRevision: null,
+		draftSha256: null,
+		status: "draft",
+		approvalCurrent: false,
+		approvedAt: null,
+		createdAt: null,
+		updatedAt: null,
+		segments: [
+			{
+				trackNumber: 1,
+				segmentId: "a-1",
+				start: 0,
+				end: 1,
+				timelineStart: 20,
+				timelineEnd: 21,
+				text: "A porta está aberta",
+				speaker: "Alice",
+				reviewed: false,
+			},
+		],
+	};
+	const comparisonReviewB: LocalReview = {
+		...comparisonReviewA,
+		runId: "run-synthetic-b1",
+		baseTranscriptSha256: "d".repeat(64),
+		lineage: {
+			...comparisonReviewA.lineage,
+			profileId: "qwen-quality",
+			engine: "qwen3",
+			model: "Qwen3-ASR",
+			modelRevision: "synthetic-b",
+			device: "cuda",
+			computeType: "bf16",
+			executionLineage: {
+				schemaVersion: "tda_execution_lineage_v1",
+				companionVersion: "synthetic",
+				runtimeFamily: "qwen3-transformers",
+				runtimeVersion: "1.0.12",
+				device: "cuda",
+				computeType: "bf16",
+				gpu: { model: "Synthetic GPU", vramTotalBytes: 8 * 1024 ** 3 },
+			},
+		},
+		segments: [
+			{
+				trackNumber: 1,
+				segmentId: "b-1",
+				start: 0.02,
+				end: 1.02,
+				timelineStart: 20.02,
+				timelineEnd: 21.02,
+				text: "A porta ficou aberta",
+				speaker: "Alice",
+				reviewed: false,
+			},
+		],
+	};
+	const comparisonRunA: LocalRunSummary = {
+		...run,
+		runId: comparisonReviewA.runId,
+		transcriptSha256: comparisonReviewA.baseTranscriptSha256,
+		profileId: comparisonReviewA.lineage.profileId,
+		completedAt: "2026-09-26T12:00:00Z",
+	};
+	const comparisonRunB: LocalRunSummary = {
+		...run,
+		runId: comparisonReviewB.runId,
+		transcriptSha256: comparisonReviewB.baseTranscriptSha256,
+		profileId: comparisonReviewB.lineage.profileId,
+		engine: comparisonReviewB.lineage.engine,
+		model: comparisonReviewB.lineage.model,
+		modelRevision: comparisonReviewB.lineage.modelRevision,
+		device: comparisonReviewB.lineage.device,
+		computeType: comparisonReviewB.lineage.computeType,
+		executionLineage: comparisonReviewB.lineage.executionLineage,
+		completedAt: "2026-09-26T12:05:00Z",
+	};
+
 	return (
 		<>
         <span data-testid="save-count">{saveCount}</span>
@@ -108,8 +191,19 @@ export function ReviewFixture() {
 			error={saveError}
 			publicationEnabled={publication}
 			comparisonEnabled={true}
-			onOpen={() => {}}
-			onLoadSnapshot={async () => review}
+			onOpen={(_sourceId, runId) => {
+				if (!comparisonMode) return;
+				setComparisonOpenedReview(
+					runId === comparisonReviewB.runId
+						? comparisonReviewB
+						: comparisonReviewA,
+				);
+			}}
+			onLoadSnapshot={async (_sourceId, runId) =>
+				runId === comparisonReviewB.runId
+					? comparisonReviewB
+					: comparisonReviewA
+			}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
@@ -129,7 +223,9 @@ export function ReviewFixture() {
                     attempt: 1,
                 },
             }) : undefined}
-            onClose={() => {}}
+            onClose={() => {
+				if (comparisonMode) setComparisonOpenedReview(null);
+			}}
 			onPublish={(review, id, expected, profile) => publishApprovedLocalReview(review, id, expected, fetch, profile)}
 		/>
         </>
