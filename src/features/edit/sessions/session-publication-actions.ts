@@ -4,9 +4,7 @@ import { revalidatePath } from "next/cache";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import {
-	readSessionEditorialDraft,
-} from "./editorial-draft-repository";
+import { readSessionEditorialDraft } from "./editorial-draft-repository";
 import { sessionDraftReadiness } from "./editorial-draft-model";
 import {
 	type SessionPublicationRequest,
@@ -15,8 +13,34 @@ import {
 import {
 	persistSessionPublication,
 	prepareSessionCoverForPublication,
+	readCommittedSessionPublication,
 	readSessionPublicationContext,
 } from "./session-publication-repository";
+
+function invalidateSessionPublicationPaths(
+	sessionId: string,
+	sourceSessionId: string | null,
+): boolean {
+	let cachePending = false;
+	const paths = [
+		"/",
+		"/sessoes",
+		sourceSessionId
+			? "/sessoes/" + encodeURIComponent(sourceSessionId)
+			: null,
+		"/edit/sessoes",
+		"/edit/sessoes/" + encodeURIComponent(sessionId),
+	].filter((path): path is string => Boolean(path));
+
+	for (const path of paths) {
+		try {
+			revalidatePath(path);
+		} catch {
+			cachePending = true;
+		}
+	}
+	return cachePending;
+}
 
 export async function publishSessionEditorialDraftAction(
 	request: SessionPublicationRequest,
@@ -36,6 +60,38 @@ export async function publishSessionEditorialDraftAction(
 	if (!access.ok) return { ok: false as const, reason: access.reason };
 
 	try {
+		// Recover a durable COMMIT before consulting mutable draft/current pointers.
+		// This is what makes a lost-response retry idempotent even if another editor
+		// saved or published something newer in the meantime.
+		const recovered = await readCommittedSessionPublication({
+			actorProfileId: access.profileId,
+			request,
+		});
+		if (recovered?.ok === false)
+			return { ok: false as const, reason: recovered.reason };
+		if (recovered?.ok) {
+			const current = await readSessionPublicationContext(request.sessionId);
+			if (!current)
+				return { ok: false as const, reason: "readback_unavailable" as const };
+			const currentlyActive =
+				current.currentPublicationId === recovered.publicationId;
+			return {
+				ok: true as const,
+				receipt: {
+					publicationId: recovered.publicationId,
+					version: recovered.version,
+					previousPublicationId: recovered.previousPublicationId,
+					payloadSha256: recovered.payloadSha256,
+					replayed: true,
+					currentlyActive,
+					cachePending: invalidateSessionPublicationPaths(
+						request.sessionId,
+						current.sourceSessionId,
+					),
+				},
+			};
+		}
+
 		const draft = await readSessionEditorialDraft(request.sessionId);
 		if (
 			!draft ||
@@ -77,11 +133,7 @@ export async function publishSessionEditorialDraftAction(
 			return { ok: false as const, reason: committed.reason };
 
 		const current = await readSessionPublicationContext(request.sessionId);
-		if (
-			!current ||
-			current.currentPublicationId !== committed.publicationId ||
-			current.currentVersion !== committed.version
-		) {
+		if (!current) {
 			return {
 				ok: false as const,
 				reason: "readback_unavailable" as const,
@@ -89,22 +141,14 @@ export async function publishSessionEditorialDraftAction(
 			};
 		}
 
-		let cachePending = false;
-		const paths = [
-			"/",
-			"/sessoes",
-			current.sourceSessionId
-				? "/sessoes/" + encodeURIComponent(current.sourceSessionId)
-				: null,
-			"/edit/sessoes",
-			"/edit/sessoes/" + encodeURIComponent(request.sessionId),
-		].filter((path): path is string => Boolean(path));
-		for (const path of paths) {
-			try {
-				revalidatePath(path);
-			} catch {
-				cachePending = true;
-			}
+		const currentlyActive =
+			current.currentPublicationId === committed.publicationId;
+		if (!committed.replayed && !currentlyActive) {
+			return {
+				ok: false as const,
+				reason: "readback_unavailable" as const,
+				receipt: committed,
+			};
 		}
 
 		return {
@@ -115,7 +159,11 @@ export async function publishSessionEditorialDraftAction(
 				previousPublicationId: committed.previousPublicationId,
 				payloadSha256: committed.payloadSha256,
 				replayed: committed.replayed,
-				cachePending,
+				currentlyActive,
+				cachePending: invalidateSessionPublicationPaths(
+					request.sessionId,
+					current.sourceSessionId,
+				),
 			},
 		};
 	} catch (error) {
