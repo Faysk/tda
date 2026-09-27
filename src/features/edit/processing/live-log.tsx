@@ -125,26 +125,35 @@ function PacedHumanText({
 	animate,
 	durationMs,
 }: Readonly<{ text: string; animate: boolean; durationMs: number }>) {
-	if (!animate) return <>{text}</>;
-	const words = text.split(/\s+/u).filter(Boolean);
-	if (words.length <= 1) return <>{text}</>;
-	const wordDelayMs = Math.max(18, durationMs / words.length);
+	const words = useMemo(() => text.split(/\s+/u).filter(Boolean), [text]);
+	const [visibleWords, setVisibleWords] = useState(() =>
+		animate ? Math.min(1, words.length) : words.length,
+	);
 
+	useEffect(() => {
+		if (!animate || words.length <= 1) {
+			setVisibleWords(words.length);
+			return;
+		}
+		setVisibleWords(1);
+		const stepMs = Math.max(24, Math.round(durationMs / words.length));
+		const timer = window.setInterval(() => {
+			setVisibleWords((current) => {
+				if (current >= words.length) {
+					window.clearInterval(timer);
+					return current;
+				}
+				return current + 1;
+			});
+		}, stepMs);
+		return () => window.clearInterval(timer);
+	}, [animate, durationMs, words.length]);
+
+	if (!animate) return <>{text}</>;
 	return (
 		<>
 			<span className={styles.visuallyHidden}>{text}</span>
-			<span className={styles.logWordReveal} aria-hidden="true">
-				{words.map((word, index) => (
-					<span
-						className={styles.logWord}
-						key={`${word}-${index}`}
-						style={{ animationDelay: `${Math.round(index * wordDelayMs)}ms` }}
-					>
-						{index ? " " : ""}
-						{word}
-					</span>
-				))}
-			</span>
+			<span aria-hidden="true">{words.slice(0, visibleWords).join(" ")}</span>
 		</>
 	);
 }
@@ -533,7 +542,7 @@ export function ProcessingLiveLog({
 								<button
 									type="button"
 									key={`group-${first.seq}-${last.seq}`}
-									className={`${styles.logEntry} ${animate ? styles.logEntryPaced : ""}`}
+									className={styles.logEntry}
 									data-level="info"
 									data-event-seq={last.seq}
 									onClick={() => setSelectedSeq(last.seq)}
@@ -576,7 +585,7 @@ export function ProcessingLiveLog({
 						return (
 							<button
 								type="button"
-								className={`${styles.logEntry} ${animate ? styles.logEntryPaced : ""}`}
+								className={styles.logEntry}
 								key={row.event.seq}
 								data-level={row.event.level}
 								data-event-seq={row.event.seq}

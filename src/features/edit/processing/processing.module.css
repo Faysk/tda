@@ -1000,44 +1000,6 @@
 	line-height: 1.35;
 }
 
-.logEntryPaced {
-	animation: log-row-reveal 120ms ease-out both;
-}
-
-.logWordReveal {
-	display: inline;
-}
-
-.logWord {
-	display: inline;
-	opacity: 0;
-	animation: log-word-reveal 120ms ease-out forwards;
-}
-
-@keyframes log-row-reveal {
-	from {
-		opacity: 0;
-		transform: translateY(3px);
-	}
-
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes log-word-reveal {
-	from {
-		opacity: 0;
-		transform: translateY(1px);
-	}
-
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
 .integrationTool {
 	justify-content: space-between;
 	gap: 10px;
@@ -1343,13 +1305,6 @@
 	.processingTabs button::after {
 		transition: none;
 	}
-
-	.logEntryPaced,
-	.logWord {
-		animation: none !important;
-		opacity: 1 !important;
-		transform: none !important;
-	}
 }
 
 
@@ -1367,64 +1322,59 @@
 }
 
 .inspectorFull {
+	position: static;
+	min-height: 0;
+	max-height: none;
+	overflow: visible;
+}
+
+.diagnosticsCore {
+	display: grid;
+	gap: 12px;
+	min-width: 0;
 	min-height: 0;
 }
 
-/* Full-HD and larger desktops keep technical history inside its owning view
-   instead of growing the whole page. Short viewports intentionally keep normal
-   page flow via the existing smaller-height/mobile rules. */
+.diagnosticsSummaryRail,
+.diagnosticsEventPane {
+	min-width: 0;
+	min-height: 0;
+}
+
+.diagnosticsSummaryRail {
+	display: grid;
+	align-content: start;
+	gap: 10px;
+}
+
+.diagnosticsSummaryRail > .systemDetails,
+.diagnosticsSummaryRail > .jobDetails,
+.diagnosticsSummaryRail > .inspectorEmpty {
+	margin: 0;
+}
+
+.diagnosticsEventPane > .liveLogExplorer {
+	min-height: 0;
+}
+
+/* Full-HD and larger desktops use an explicit diagnostics core: summary rail on
+   the left, event explorer on the right. The Live Log remains encapsulated in
+   its own component instead of relying on selectors that cross that boundary. */
 @media (min-width: 1440px) and (min-height: 820px) {
-	.inspectorFull {
-		display: grid;
+	.diagnosticsCore {
 		grid-template-columns: minmax(260px, .38fr) minmax(0, 1.62fr);
-		grid-template-rows: auto auto minmax(230px, 1fr) auto;
+		align-items: start;
 		column-gap: 12px;
-		max-height: calc(100dvh - 168px);
-		overflow: hidden;
 	}
 
-	.inspectorFull > .inspectorHeader {
-		grid-column: 1 / -1;
-	}
-
-	.inspectorFull > .systemDetails {
-		grid-row: 2;
-		grid-column: 1;
+	.diagnosticsEventPane .liveLogExplorer {
 		min-height: 0;
-		max-height: 32dvh;
-		overflow: auto;
 	}
 
-	.inspectorFull > .jobDetails {
-		grid-row: 3;
-		grid-column: 1;
-		align-self: start;
-		min-height: 0;
-		max-height: 34dvh;
-		overflow: auto;
-	}
-
-	.inspectorFull > .logHeader {
-		grid-row: 2;
-		grid-column: 2;
-		align-self: end;
-	}
-
-	.inspectorFull > .log {
-		grid-row: 3;
-		grid-column: 2;
-		min-height: 0;
-		max-height: none;
-		height: 100%;
+	.diagnosticsEventPane .log {
+		min-height: 230px;
+		max-height: min(58dvh, 640px);
 		overscroll-behavior: contain;
-	}
-
-	.inspectorFull > [role="status"] {
-		grid-column: 2;
-	}
-
-	.inspectorFull > .integrationTool {
-		grid-column: 1 / -1;
 	}
 }
 
@@ -1484,13 +1434,11 @@
 		scrollbar-gutter: auto;
 	}
 
-	.inspectorFull {
-		display: grid;
-		max-height: none;
-		overflow: visible;
+	.diagnosticsCore {
+		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.inspectorFull .log {
+	.diagnosticsEventPane .log {
 		max-height: 320px;
 	}
 
