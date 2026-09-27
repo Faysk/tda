@@ -9,6 +9,7 @@ import {
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	type SessionPartTimingInput,
 	identifier,
 	LOCAL_API,
 	parseBenchmarkResult,
@@ -29,6 +30,7 @@ import {
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
+	parseSessionTimeline,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
 	runIdentifier,
@@ -377,6 +379,54 @@ export class LocalBridge {
 				{
 					part_ids: partIds.map(identifier),
 					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async sessionTimeline(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionTimeline(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/timeline`,
+				signal,
+			),
+		);
+	}
+	async updateSessionPartTiming(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		expectedRevision: number,
+		timing: SessionPartTimingInput,
+		signal: AbortSignal,
+	) {
+		for (const value of [
+			timing.manualOffsetSeconds,
+			timing.trimStartSeconds,
+			timing.trimEndSeconds,
+			timing.overlapBoundarySeconds,
+		]) {
+			if (
+				value !== null &&
+				(!Number.isFinite(value) || value < 0)
+			)
+				throw new BridgeError("invalid_response");
+		}
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/timing`,
+				signal,
+				{
+					part_id: identifier(partId),
+					expected_revision: expectedRevision,
+					manual_offset_seconds: timing.manualOffsetSeconds,
+					trim_start_seconds: timing.trimStartSeconds,
+					trim_end_seconds: timing.trimEndSeconds,
+					gap_confirmed: timing.gapConfirmed,
+					overlap_boundary_seconds: timing.overlapBoundarySeconds,
 				},
 			),
 		);
