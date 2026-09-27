@@ -146,6 +146,7 @@ declare
   v_payload_material text;
   v_payload_sha256 text;
   v_cover_is_asset boolean;
+  v_expected_legacy_cover_url text;
   v_now timestamptz := clock_timestamp();
 begin
   if p_actor_profile_id is null
@@ -293,7 +294,13 @@ begin
       return;
     end if;
   else
-    if p_public_cover_url <> v_draft.cover_asset_id
+    v_expected_legacy_cover_url := case
+      when v_draft.cover_asset_id like '/assets/sessions/%'
+        then 'https://dnd.faysk.dev' || v_draft.cover_asset_id
+      else v_draft.cover_asset_id
+    end;
+
+    if p_public_cover_url <> v_expected_legacy_cover_url
        or position('?' in p_public_cover_url) > 0
        or position('#' in p_public_cover_url) > 0
        or not (
