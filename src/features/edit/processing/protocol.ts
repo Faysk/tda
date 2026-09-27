@@ -69,8 +69,53 @@ export type SessionWorkspacePart = {
 	ordinal: number;
 	selectedRunId: string | null;
 	sourceState: "ready" | "invalid";
+	sessionOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapResolution: "prefer_earlier_until" | "prefer_later_from" | null;
+	overlapBoundarySeconds: number | null;
+	chronologyVersion: "tda_recording_chronology_v1";
 	createdAt: string;
 	updatedAt: string;
+};
+export type SessionChronologyPart = {
+	partId: string;
+	sourceId: string;
+	ordinal: number;
+	startTimeConfidence: "trusted_absolute" | "ambiguous" | "opaque" | "missing";
+	normalizedStartTime: string | null;
+	placementAuthority:
+		| "manual"
+		| "trusted_absolute"
+		| "single_source_origin"
+		| "unresolved";
+	localDurationSeconds: number | null;
+	sessionOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	effectiveStartSeconds: number | null;
+	effectiveEndSeconds: number | null;
+};
+export type SessionChronologyRelation = {
+	earlierPartId: string;
+	laterPartId: string;
+	kind: "contiguous" | "gap" | "overlap" | "unknown";
+	seconds: number | null;
+	confirmed: boolean;
+	overlapResolution: Readonly<{
+		version: "boundary_v1";
+		mode: "prefer_earlier_until" | "prefer_later_from";
+		boundarySeconds: number;
+	}> | null;
+};
+export type SessionChronology = {
+	schemaVersion: "tda_recording_chronology_v1";
+	sha256: string;
+	readyForAssembly: boolean;
+	blockingReasons: string[];
+	parts: SessionChronologyPart[];
+	relations: SessionChronologyRelation[];
 };
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
@@ -80,6 +125,7 @@ export type SessionWorkspace = {
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+	chronology: SessionChronology | null;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
@@ -734,6 +780,21 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
 		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
+		const overlapResolution =
+			part.overlap_resolution === null || part.overlap_resolution === undefined
+				? null
+				: text(part.overlap_resolution, 32);
+		if (
+			overlapResolution !== null &&
+			overlapResolution !== "prefer_earlier_until" &&
+			overlapResolution !== "prefer_later_from"
+		)
+			return invalid();
+		const chronologyVersion =
+			part.chronology_version === undefined
+				? "tda_recording_chronology_v1"
+				: text(part.chronology_version, 64);
+		if (chronologyVersion !== "tda_recording_chronology_v1") return invalid();
 		return {
 			partId,
 			sourceId,
@@ -743,6 +804,19 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					? null
 					: runIdentifier(part.selected_run_id),
 			sourceState,
+			sessionOffsetSeconds: nullableNonNegativeNumber(part.session_offset_seconds),
+			trimStartSeconds:
+				part.trim_start_seconds === undefined
+					? 0
+					: nonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			gapConfirmed:
+				part.gap_confirmed === undefined ? false : boolean(part.gap_confirmed),
+			overlapResolution,
+			overlapBoundarySeconds: nullableNonNegativeNumber(
+				part.overlap_boundary_seconds,
+			),
+			chronologyVersion,
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -751,6 +825,116 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		return invalid();
 	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
 		return invalid();
+
+	let chronology: SessionChronology | null = null;
+	if (row.chronology !== undefined && row.chronology !== null) {
+		const rawChronology = record(row.chronology);
+		if (rawChronology.schema_version !== "tda_recording_chronology_v1")
+			return invalid();
+		if (
+			!Array.isArray(rawChronology.blocking_reasons) ||
+			rawChronology.blocking_reasons.length > 256 ||
+			!Array.isArray(rawChronology.parts) ||
+			rawChronology.parts.length > 64 ||
+			!Array.isArray(rawChronology.relations) ||
+			rawChronology.relations.length > 63
+		)
+			return invalid();
+		const chronologyParts = rawChronology.parts.map((raw, index) => {
+			const item = record(raw);
+			const confidence = text(item.start_time_confidence, 32);
+			if (
+				confidence !== "trusted_absolute" &&
+				confidence !== "ambiguous" &&
+				confidence !== "opaque" &&
+				confidence !== "missing"
+			)
+				return invalid();
+			const authority = text(item.placement_authority, 32);
+			if (
+				authority !== "manual" &&
+				authority !== "trusted_absolute" &&
+				authority !== "single_source_origin" &&
+				authority !== "unresolved"
+			)
+				return invalid();
+			const normalizedStartTime =
+				item.normalized_start_time === null || item.normalized_start_time === undefined
+					? null
+					: isoDate(item.normalized_start_time);
+			const parsed = {
+				partId: text(item.part_id, 32),
+				sourceId: identifier(item.source_id),
+				ordinal: nonNegativeInteger(item.ordinal),
+				startTimeConfidence: confidence,
+				normalizedStartTime,
+				placementAuthority: authority,
+				localDurationSeconds: nullableNonNegativeNumber(item.local_duration_seconds),
+				sessionOffsetSeconds: nullableNonNegativeNumber(item.session_offset_seconds),
+				trimStartSeconds: nonNegativeNumber(item.trim_start_seconds),
+				trimEndSeconds: nullableNonNegativeNumber(item.trim_end_seconds),
+				effectiveStartSeconds: nullableNonNegativeNumber(item.effective_start_seconds),
+				effectiveEndSeconds: nullableNonNegativeNumber(item.effective_end_seconds),
+			} satisfies SessionChronologyPart;
+			const sourcePart = parts[index];
+			if (
+				!sourcePart ||
+				parsed.partId !== sourcePart.partId ||
+				parsed.sourceId !== sourcePart.sourceId ||
+				parsed.ordinal !== sourcePart.ordinal
+			)
+				return invalid();
+			return parsed;
+		});
+		if (chronologyParts.length !== parts.length) return invalid();
+		const partIds = new Set(parts.map((part) => part.partId));
+		const relations = rawChronology.relations.map((raw) => {
+			const relation = record(raw);
+			const kind = text(relation.kind, 16);
+			if (
+				kind !== "contiguous" &&
+				kind !== "gap" &&
+				kind !== "overlap" &&
+				kind !== "unknown"
+			)
+				return invalid();
+			const earlierPartId = text(relation.earlier_part_id, 32);
+			const laterPartId = text(relation.later_part_id, 32);
+			if (!partIds.has(earlierPartId) || !partIds.has(laterPartId))
+				return invalid();
+			let overlapResolution: SessionChronologyRelation["overlapResolution"] = null;
+			if (relation.overlap_resolution !== null && relation.overlap_resolution !== undefined) {
+				const resolution = record(relation.overlap_resolution);
+				const mode = text(resolution.mode, 32);
+				if (
+					resolution.version !== "boundary_v1" ||
+					(mode !== "prefer_earlier_until" && mode !== "prefer_later_from")
+				)
+					return invalid();
+				overlapResolution = {
+					version: "boundary_v1",
+					mode,
+					boundarySeconds: nonNegativeNumber(resolution.boundary_seconds),
+				};
+			}
+			return {
+				earlierPartId,
+				laterPartId,
+				kind,
+				seconds: nullableNonNegativeNumber(relation.seconds),
+				confirmed: boolean(relation.confirmed),
+				overlapResolution,
+			} satisfies SessionChronologyRelation;
+		});
+		chronology = {
+			schemaVersion: "tda_recording_chronology_v1",
+			sha256: sha256(rawChronology.sha256),
+			readyForAssembly: boolean(rawChronology.ready_for_assembly),
+			blockingReasons: rawChronology.blocking_reasons.map((reason) => text(reason, 128)),
+			parts: chronologyParts,
+			relations,
+		};
+	}
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
@@ -759,6 +943,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+		chronology,
 	};
 }
 
