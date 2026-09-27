@@ -17,6 +17,12 @@ import {
 } from "./protocol";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
+	fetchQwenRuntimeReleaseAvailability,
+	qwenRuntimeAvailabilityMessage,
+	qwenRuntimeAvailabilitySuffix,
+	type QwenRuntimeReleaseAvailability,
+} from "./qwen-runtime-availability";
+import {
 	craigTranscriptionRequestByteLength,
 	LOCAL_JSON_BODY_MAX_BYTES,
 	TRANSCRIPTION_TEXT_MAX_CHARS,
@@ -31,8 +37,6 @@ const profileLabels: Record<TranscriptionProfileId, string> = {
 	"qwen-quality": "Qwen Quality",
 };
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
-const QWEN_RUNTIME_UPGRADE_MESSAGE =
-	"O Qwen local precisa do runtime 1.0.12 ou mais recente para recuperar com segurança extrapolações de alinhamento. Atualize o runtime/Companion antes de iniciar esta transcrição.";
 
 function messageFor(code: string): string {
 	return {
@@ -155,6 +159,8 @@ export function ProcessingSubmission({
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
 	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
 	const [preparationCancelling, setPreparationCancelling] = useState(false);
+	const [qwenRuntimeAvailability, setQwenRuntimeAvailability] =
+		useState<QwenRuntimeReleaseAvailability | null>(null);
 	const request = useRef<AbortController | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const pending = useRef<PendingSubmission | null>(null);
@@ -277,6 +283,27 @@ export function ProcessingSubmission({
 	);
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
+	const qwenRuntimeMessage = qwenRuntimeAvailabilityMessage(
+		qwenRuntimeAvailability,
+	);
+	const qwenRuntimeSuffix = qwenRuntimeAvailabilitySuffix(
+		qwenRuntimeAvailability,
+	);
+
+	useEffect(() => {
+		if (!qwenRuntimeUpgradeRequired) {
+			setQwenRuntimeAvailability(null);
+			return;
+		}
+		const controller = new AbortController();
+		setQwenRuntimeAvailability(null);
+		void fetchQwenRuntimeReleaseAvailability(fetch, controller.signal).then(
+			(availability) => {
+				if (!controller.signal.aborted) setQwenRuntimeAvailability(availability);
+			},
+		);
+		return () => controller.abort();
+	}, [qwenRuntimeUpgradeRequired]);
 
 	const canSubmit = useMemo(
 		() =>
@@ -308,7 +335,7 @@ export function ProcessingSubmission({
 		event.preventDefault();
 		if (busy || !file || !profile || !canSubmit) return;
 		if (qwenRuntimeUpgradeRequired) {
-			setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+			setError(qwenRuntimeMessage);
 			return;
 		}
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
@@ -367,7 +394,7 @@ export function ProcessingSubmission({
 				return;
 			}
 			if (selectedProfile.reason === QWEN_RUNTIME_UPGRADE_REASON) {
-				setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+				setError(qwenRuntimeMessage);
 				return;
 			}
 			if (!selectedProfile.ready) {
@@ -423,7 +450,7 @@ export function ProcessingSubmission({
 					(item) => item.id === profile,
 				);
 				if (refreshedProfile?.reason === QWEN_RUNTIME_UPGRADE_REASON) {
-					setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
+					setError(qwenRuntimeMessage);
 					return;
 				}
 				if (!refreshed.transcription.profiles.includes(profile)) {
@@ -583,7 +610,7 @@ export function ProcessingSubmission({
 									{profileLabels[item.id]}{item.ready
 										? ""
 										: item.reason === QWEN_RUNTIME_UPGRADE_REASON
-											? " · atualizar runtime"
+											? qwenRuntimeSuffix
 											: " · preparar no primeiro uso"}
 								</option>
 							))}
@@ -668,7 +695,7 @@ export function ProcessingSubmission({
 					) : null}
 					{qwenRuntimeUpgradeRequired ? (
 						<p className={styles.error} role="alert">
-							{QWEN_RUNTIME_UPGRADE_MESSAGE}
+							{qwenRuntimeMessage}
 						</p>
 					) : profile && !selectedProfileState?.ready ? (
 						<p className={styles.notice} role="status">
