@@ -439,7 +439,7 @@ test("desktop diagnostics aligns the summary rail with the event explorer", asyn
 			eventLeft: eventBox.left,
 			coreWidth: coreBox.width,
 			logWidth: logBox.width,
-			pageScrollHeight: document.documentElement.scrollHeight,
+			logBottom: logBox.bottom,
 			viewportHeight: document.documentElement.clientHeight,
 		};
 	});
@@ -448,7 +448,7 @@ test("desktop diagnostics aligns the summary rail with the event explorer", asyn
 	expect(geometry.topDelta).toBeLessThanOrEqual(1);
 	expect(geometry.eventLeft).toBeGreaterThan(geometry.summaryRight);
 	expect(geometry.logWidth).toBeGreaterThan(geometry.coreWidth * 0.55);
-	expect(geometry.pageScrollHeight).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+	expect(geometry.logBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
 });
 
 test("mobile diagnostics stacks summary and events without horizontal overflow", async ({ page }) => {
@@ -477,23 +477,40 @@ test("mobile diagnostics stacks summary and events without horizontal overflow",
 	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
 });
 
-test("short desktop falls back to document flow instead of clipping nested owners", async ({
-	page,
-}) => {
-	await openRunningWorkspace(page, 1280, 720);
-	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+for (const viewport of [
+	{ width: 1280, height: 720 },
+	{ width: 1366, height: 768 },
+]) {
+	test(`${viewport.width}x${viewport.height} diagnostics falls back to document flow instead of clipping nested owners`, async ({
+		page,
+	}) => {
+		await openRunningWorkspace(page, viewport.width, viewport.height);
+		await page.getByRole("tab", { name: "Diagnóstico" }).click();
 
-	const log = page.getByRole("log");
-	await expect(log).toBeVisible();
-	const state = await log.evaluate((element) => ({
-		maxHeight: getComputedStyle(element).maxHeight,
-		documentOverflow: getComputedStyle(document.documentElement).overflowY,
-		bodyOverflow: getComputedStyle(document.body).overflowY,
-	}));
-	expect(state.maxHeight).not.toBe("0px");
-	expect(state.documentOverflow).not.toBe("hidden");
-	expect(state.bodyOverflow).not.toBe("hidden");
-});
+		const core = page.locator("[data-diagnostics-core='true']");
+		const log = page.getByRole("log");
+		await expect(log).toBeVisible();
+		const state = await core.evaluate((element) => {
+			const summary = element.querySelector("[data-diagnostics-summary='true']");
+			const events = element.querySelector("[data-diagnostics-events='true']");
+			if (!(summary instanceof HTMLElement) || !(events instanceof HTMLElement)) {
+				throw new Error("Diagnostics regions are missing");
+			}
+			return {
+				summaryBottom: summary.getBoundingClientRect().bottom,
+				eventsTop: events.getBoundingClientRect().top,
+				documentOverflow: getComputedStyle(document.documentElement).overflowY,
+				bodyOverflow: getComputedStyle(document.body).overflowY,
+				scrollWidth: document.documentElement.scrollWidth,
+				clientWidth: document.documentElement.clientWidth,
+			};
+		});
+		expect(state.eventsTop).toBeGreaterThanOrEqual(state.summaryBottom);
+		expect(state.documentOverflow).not.toBe("hidden");
+		expect(state.bodyOverflow).not.toBe("hidden");
+		expect(state.scrollWidth).toBeLessThanOrEqual(state.clientWidth);
+	});
+}
 
 test("QHD uses additional overview width without breaking the design-system max", async ({
 	page,
