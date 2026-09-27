@@ -1000,6 +1000,44 @@
 	line-height: 1.35;
 }
 
+.logEntryPaced {
+	animation: log-row-reveal 120ms ease-out both;
+}
+
+.logWordReveal {
+	display: inline;
+}
+
+.logWord {
+	display: inline;
+	opacity: 0;
+	animation: log-word-reveal 120ms ease-out forwards;
+}
+
+@keyframes log-row-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(3px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes log-word-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(1px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 .integrationTool {
 	justify-content: space-between;
 	gap: 10px;
@@ -1304,6 +1342,13 @@
 
 	.processingTabs button::after {
 		transition: none;
+	}
+
+	.logEntryPaced,
+	.logWord {
+		animation: none !important;
+		opacity: 1 !important;
+		transform: none !important;
 	}
 }
 
