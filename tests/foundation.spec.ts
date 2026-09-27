@@ -5,6 +5,7 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		/A próxima memória começa aqui\.|Não conseguimos abrir a última memória agora\./,
 	);
+	await page.getByRole("button", { name: "Abrir navegação" }).click();
 	await page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true })
@@ -86,22 +87,26 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/");
 
+	const launcher = page.getByRole("button", { name: "Abrir navegação" });
+	await expect(launcher).toBeVisible();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
+
+	await page.keyboard.press("Tab");
+	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
+
+	await launcher.click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
 	await expect(navigation).toBeVisible();
 	await expect(
 		navigation.getByRole("link", { name: "Sessões", exact: true }),
 	).toBeVisible();
 	await expect(navigation.getByRole("link", { name: "Início" })).toHaveCount(0);
-	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
-	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= innerWidth,
 		),
 	).toBeTruthy();
-
-	await page.keyboard.press("Tab");
-	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
 
 	await page.goto("/sessoes");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
@@ -282,6 +287,7 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 test("reduced motion removes decorative transitions", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");
+	await page.getByRole("button", { name: "Abrir navegação" }).click();
 	const action = page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true });
