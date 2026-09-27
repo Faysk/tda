@@ -3,7 +3,7 @@ import { PublicLink as Link } from "@/components/public-link";
 import { StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { listUnsafeEditSessions } from "@/features/edit/sessions/repository";
+import { listEditSessionLibrary } from "@/features/edit/sessions/library-repository";
 import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -30,9 +30,9 @@ export default async function EditSessionsPage() {
 	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
 	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
 
-	let sessions: Awaited<ReturnType<typeof listUnsafeEditSessions>>;
+	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
-		sessions = await listUnsafeEditSessions();
+		sessions = await listEditSessionLibrary();
 	} catch {
 		return (
 			<section className={styles.locked}>
