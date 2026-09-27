@@ -662,39 +662,6 @@ def open_review(package_root: Path, *, source_id: str, run_id: str) -> dict[str,
         return _open_from_snapshot(path, source_id, run_id, manifest, transcript)
 
 
-def open_immutable_run_snapshot(
-    package_root: Path,
-    *,
-    source_id: str,
-    run_id: str,
-) -> dict[str, Any]:
-    """Project one verified immutable run without consulting editable review state."""
-    path = _review_path(package_root, run_id)
-    with _lock_for(path):
-        manifest, transcript = _load_base(package_root, source_id, run_id)
-        base_segments = _base_segments(transcript)
-        warnings = _warnings(transcript)
-        snapshot = {
-            "schema_version": REVIEW_SCHEMA_VERSION,
-            "source_id": source_id,
-            "run_id": run_id,
-            "base_transcript_sha256": manifest["transcript_sha256"],
-            "draft_revision": None,
-            "status": "draft",
-            "created_at": None,
-            "updated_at": None,
-            "segments": base_segments,
-        }
-        return _response(
-            snapshot,
-            None,
-            draft_path=path,
-            manifest=manifest,
-            base_segments=base_segments,
-            warnings=warnings,
-        )
-
-
 def open_run_snapshot(package_root: Path, *, source_id: str, run_id: str) -> dict[str, Any]:
     """Return the verified immutable run projection without consulting draft.json."""
     path = _review_path(package_root, run_id)
