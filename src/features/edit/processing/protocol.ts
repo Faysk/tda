@@ -63,12 +63,64 @@ export type CraigSource = {
 	minimumTrackDurationSeconds: number | null;
 	reused: boolean;
 };
+export type SessionOverlapResolution = {
+	schemaVersion: "tda_session_overlap_resolution_v1";
+	policy: "prefer_earlier_until" | "prefer_later_from";
+	boundarySeconds: number;
+};
+export type SessionPartTiming = {
+	schemaVersion: "tda_session_part_timing_v1";
+	mode: "automatic" | "manual";
+	sessionOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
+	overlapResolution: SessionOverlapResolution | null;
+};
+export type SessionChronologyRelation = {
+	kind: "contiguous" | "gap" | "overlap";
+	seconds: number;
+	previousPartIds: string[];
+	resolved: boolean;
+	resolution: SessionOverlapResolution | null;
+	boundaryOwnership:
+		| "earlier_owns_segment_start_at_boundary"
+		| "later_owns_segment_start_at_boundary"
+		| null;
+};
+export type SessionChronologyPart = {
+	partId: string;
+	sourceId: string;
+	ordinal: number;
+	startTimeConfidence: "trusted_absolute" | "ambiguous" | "opaque" | "missing";
+	startTimeUtc: string | null;
+	localDurationSeconds: number | null;
+	sessionOffsetSeconds: number | null;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	effectiveStartSeconds: number | null;
+	effectiveEndSeconds: number | null;
+	timelineOrdinal: number | null;
+	relationToPrevious: SessionChronologyRelation | null;
+};
+export type SessionChronology = {
+	schemaVersion: "tda_session_chronology_v1";
+	canonicalizationVersion: "session_timing_v1";
+	orderProvenance: "attached" | "manual";
+	configSha256: string;
+	readyForAssembly: boolean;
+	blockingReasons: string[];
+	suggestedPartOrder: string[] | null;
+	resolvedPartOrder: string[] | null;
+	parts: SessionChronologyPart[];
+};
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
 	ordinal: number;
 	selectedRunId: string | null;
 	sourceState: "ready" | "invalid";
+	timing: SessionPartTiming;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -77,9 +129,11 @@ export type SessionWorkspace = {
 	campaignId: string;
 	sessionId: string;
 	revision: number;
+	orderProvenance: "attached" | "manual";
 	createdAt: string;
 	updatedAt: string;
 	parts: SessionWorkspacePart[];
+	chronology: SessionChronology | null;
 };
 export type CraigBenchmarkInput = {
 	campaignId: string;
@@ -720,17 +774,185 @@ export function parseCraigSource(value: unknown): CraigSource {
 		reused: boolean(row.reused),
 	};
 }
+function sessionPartId(value: unknown): string {
+	const id = text(value, 32);
+	if (!/^[0-9a-f]{32}$/u.test(id)) return invalid();
+	return id;
+}
+
+function sessionOrderProvenance(value: unknown): "attached" | "manual" {
+	const parsed = text(value, 16);
+	if (parsed !== "attached" && parsed !== "manual") return invalid();
+	return parsed;
+}
+
+function parseSessionOverlapResolution(value: unknown): SessionOverlapResolution {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_overlap_resolution_v1") return invalid();
+	const policy = text(row.policy, 32);
+	if (policy !== "prefer_earlier_until" && policy !== "prefer_later_from")
+		return invalid();
+	return {
+		schemaVersion: "tda_session_overlap_resolution_v1",
+		policy,
+		boundarySeconds: nonNegativeNumber(row.boundary_seconds),
+	};
+}
+
+function defaultSessionPartTiming(): SessionPartTiming {
+	return {
+		schemaVersion: "tda_session_part_timing_v1",
+		mode: "automatic",
+		sessionOffsetSeconds: null,
+		trimStartSeconds: 0,
+		trimEndSeconds: null,
+		gapConfirmed: false,
+		overlapResolution: null,
+	};
+}
+
+function parseSessionPartTiming(value: unknown): SessionPartTiming {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_part_timing_v1") return invalid();
+	const mode = text(row.mode, 16);
+	if (mode !== "automatic" && mode !== "manual") return invalid();
+	const sessionOffsetSeconds = nullableNonNegativeNumber(row.session_offset_seconds);
+	const trimStartSeconds = nonNegativeNumber(row.trim_start_seconds);
+	const trimEndSeconds = nullableNonNegativeNumber(row.trim_end_seconds);
+	if (mode === "automatic" && sessionOffsetSeconds !== null) return invalid();
+	if (mode === "manual" && sessionOffsetSeconds === null) return invalid();
+	if (trimEndSeconds !== null && trimEndSeconds <= trimStartSeconds) return invalid();
+	return {
+		schemaVersion: "tda_session_part_timing_v1",
+		mode,
+		sessionOffsetSeconds,
+		trimStartSeconds,
+		trimEndSeconds,
+		gapConfirmed: boolean(row.gap_confirmed),
+		overlapResolution:
+			row.overlap_resolution === null || row.overlap_resolution === undefined
+				? null
+				: parseSessionOverlapResolution(row.overlap_resolution),
+	};
+}
+
+function parseSessionPartIds(value: unknown): string[] | null {
+	if (value === null || value === undefined) return null;
+	if (!Array.isArray(value) || value.length > 64) return invalid();
+	const ids = value.map(sessionPartId);
+	if (new Set(ids).size !== ids.length) return invalid();
+	return ids;
+}
+
+function parseSessionChronologyRelation(value: unknown): SessionChronologyRelation {
+	const row = record(value);
+	const kind = text(row.kind, 16);
+	if (kind !== "contiguous" && kind !== "gap" && kind !== "overlap")
+		return invalid();
+	if (!Array.isArray(row.previous_part_ids) || row.previous_part_ids.length < 1 || row.previous_part_ids.length > 64)
+		return invalid();
+	const previousPartIds = row.previous_part_ids.map(sessionPartId);
+	if (new Set(previousPartIds).size !== previousPartIds.length) return invalid();
+	const boundaryOwnership =
+		row.boundary_ownership === null || row.boundary_ownership === undefined
+			? null
+			: text(row.boundary_ownership, 64);
+	if (
+		boundaryOwnership !== null &&
+		boundaryOwnership !== "earlier_owns_segment_start_at_boundary" &&
+		boundaryOwnership !== "later_owns_segment_start_at_boundary"
+	)
+		return invalid();
+	return {
+		kind,
+		seconds: nonNegativeNumber(row.seconds),
+		previousPartIds,
+		resolved: boolean(row.resolved),
+		resolution:
+			row.resolution === null || row.resolution === undefined
+				? null
+				: parseSessionOverlapResolution(row.resolution),
+		boundaryOwnership,
+	};
+}
+
+function parseSessionChronology(value: unknown): SessionChronology {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_chronology_v1") return invalid();
+	if (row.canonicalization_version !== "session_timing_v1") return invalid();
+	if (!Array.isArray(row.blocking_reasons) || row.blocking_reasons.length > 32)
+		return invalid();
+	const blockingReasons = row.blocking_reasons.map((raw) => {
+		const reason = text(raw, 64);
+		if (!/^[a-z0-9_]+$/u.test(reason)) return invalid();
+		return reason;
+	});
+	if (new Set(blockingReasons).size !== blockingReasons.length) return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
+	const parts = row.parts.map((raw) => {
+		const part = record(raw);
+		const confidence = text(part.start_time_confidence, 24);
+		if (
+			confidence !== "trusted_absolute" &&
+			confidence !== "ambiguous" &&
+			confidence !== "opaque" &&
+			confidence !== "missing"
+		)
+			return invalid();
+		const timelineOrdinal =
+			part.timeline_ordinal === null || part.timeline_ordinal === undefined
+				? null
+				: nonNegativeInteger(part.timeline_ordinal);
+		return {
+			partId: sessionPartId(part.part_id),
+			sourceId: identifier(part.source_id),
+			ordinal: nonNegativeInteger(part.ordinal),
+			startTimeConfidence: confidence,
+			startTimeUtc: nullableIsoDate(part.start_time_utc),
+			localDurationSeconds: nullableNonNegativeNumber(part.local_duration_seconds),
+			sessionOffsetSeconds: nullableNonNegativeNumber(part.session_offset_seconds),
+			trimStartSeconds: nonNegativeNumber(part.trim_start_seconds),
+			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			effectiveStartSeconds: nullableNonNegativeNumber(part.effective_start_seconds),
+			effectiveEndSeconds: nullableNonNegativeNumber(part.effective_end_seconds),
+			timelineOrdinal,
+			relationToPrevious:
+				part.relation_to_previous === null || part.relation_to_previous === undefined
+					? null
+					: parseSessionChronologyRelation(part.relation_to_previous),
+		} satisfies SessionChronologyPart;
+	});
+	if (new Set(parts.map((part) => part.partId)).size !== parts.length) return invalid();
+	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length) return invalid();
+	const suggestedPartOrder = parseSessionPartIds(row.suggested_part_order);
+	const resolvedPartOrder = parseSessionPartIds(row.resolved_part_order);
+	for (const order of [suggestedPartOrder, resolvedPartOrder]) {
+		if (order !== null && (order.length !== parts.length || order.some((id) => !parts.some((part) => part.partId === id))))
+			return invalid();
+	}
+	return {
+		schemaVersion: "tda_session_chronology_v1",
+		canonicalizationVersion: "session_timing_v1",
+		orderProvenance: sessionOrderProvenance(row.order_provenance),
+		configSha256: sha256(row.config_sha256),
+		readyForAssembly: boolean(row.ready_for_assembly),
+		blockingReasons,
+		suggestedPartOrder,
+		resolvedPartOrder,
+		parts,
+	};
+}
+
 export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
 	const parts = row.parts.map((raw, index) => {
 		const part = record(raw);
-		const partId = text(part.part_id, 32);
+		const partId = sessionPartId(part.part_id);
 		const sourceId = identifier(part.source_id);
 		const ordinal = nonNegativeInteger(part.ordinal);
 		const sourceState = text(part.source_state, 16);
-		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
 		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
@@ -743,6 +965,10 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					? null
 					: runIdentifier(part.selected_run_id),
 			sourceState,
+			timing:
+				part.timing === undefined
+					? defaultSessionPartTiming()
+					: parseSessionPartTiming(part.timing),
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -751,14 +977,35 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		return invalid();
 	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length)
 		return invalid();
+	const chronology =
+		row.chronology === undefined || row.chronology === null
+			? null
+			: parseSessionChronology(row.chronology);
+	if (
+		chronology !== null &&
+		(chronology.parts.length !== parts.length ||
+			chronology.parts.some((item) => {
+				const workspacePart = parts.find((part) => part.partId === item.partId);
+				return !workspacePart || workspacePart.sourceId !== item.sourceId;
+			}))
+	)
+		return invalid();
+	const orderProvenance =
+		row.order_provenance === undefined
+			? "attached"
+			: sessionOrderProvenance(row.order_provenance);
+	if (chronology !== null && chronology.orderProvenance !== orderProvenance)
+		return invalid();
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		revision: nonNegativeInteger(row.revision),
+		orderProvenance,
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 		parts,
+		chronology,
 	};
 }
 
