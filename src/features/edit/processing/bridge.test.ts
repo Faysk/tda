@@ -5,6 +5,7 @@ import {
 	parseCapabilities,
 	parseJob,
 	parseJobActivity,
+	parseJobTiming,
 	parseJobEventPage,
 	parseJobEvents,
 	parseJobs,
@@ -28,6 +29,32 @@ const job = {
 	updated_at: "2026-09-07T12:00:00Z",
 };
 describe("processing protocol contract", () => {
+	it("parses authoritative job timing without inferring unknown clocks", () => {
+		expect(
+			parseJobTiming({
+				schema_version: "tda_job_timing_v1",
+				attempt: 2,
+				submitted_at: "2026-09-27T00:00:00Z",
+				job_started_at: "2026-09-27T00:01:00Z",
+				attempt_started_at: "2026-09-27T00:05:00Z",
+				stage: "transcription",
+				stage_started_at: "2026-09-27T00:06:00Z",
+				tracks: [
+					{ track: 1, speaker: "Alice", started_at: "2026-09-27T00:06:10Z", completed_at: "2026-09-27T00:08:10Z", reused: false },
+					{ track: 2, speaker: "Bob", started_at: null, completed_at: null, reused: true },
+				],
+			}),
+		).toMatchObject({
+			schemaVersion: "tda_job_timing_v1",
+			attempt: 2,
+			stage: "transcription",
+			tracks: [
+				{ track: 1, speaker: "Alice", reused: false },
+				{ track: 2, speaker: "Bob", reused: true },
+			],
+		});
+	});
+
 	it("accepts the Agent's full 96-character worker event code budget", () => {
 		const code = "A".repeat(96);
 		expect(
