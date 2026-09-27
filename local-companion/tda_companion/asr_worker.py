@@ -18,6 +18,7 @@ from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
 from .execution_device import reset_execution_device
 from .execution_lineage import capture_execution_lineage
+from .engine_metrics import fresh_calibration_sample
 from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
@@ -156,6 +157,12 @@ def _run_craig(
         data_root = _worker_root("TDA_WORKER_DATA_ROOT")
         models_root = _worker_root("TDA_WORKER_MODELS_ROOT")
         source_id = str(command.payload["source_id"])
+        benchmark_mode = command.payload.get("benchmark_mode") is True
+        benchmark_sample_seconds = (
+            float(command.payload["benchmark_sample_seconds"])
+            if benchmark_mode
+            else None
+        )
         staging_root = (data_root / "staging").resolve()
         package_root = (staging_root / source_id).resolve()
         if package_root.parent != staging_root:
@@ -173,7 +180,7 @@ def _run_craig(
             },
         )
         package = load_craig_package(package_root, verify_tracks=False)
-        removed_runs = remove_incomplete_runs(package_root)
+        removed_runs = 0 if benchmark_mode else remove_incomplete_runs(package_root)
         if removed_runs:
             emitter.emit(
                 "event",
@@ -195,11 +202,12 @@ def _run_craig(
 
         # Preserve a valid pre-runs transcript before any compatibility mirror can
         # replace it. Migration is idempotent and never removes the legacy file.
-        migrate_legacy_transcript(
-            package_root,
-            source_id=source_id,
-            source_sha256=package.source_sha256,
-        )
+        if not benchmark_mode:
+            migrate_legacy_transcript(
+                package_root,
+                source_id=source_id,
+                source_sha256=package.source_sha256,
+            )
 
         def report(value: dict) -> None:
             event_type = value.get("type")
@@ -222,6 +230,8 @@ def _run_craig(
                 cpu=bool(command.payload.get("cpu", False)),
                 report=report,
                 is_cancelled=cancelled.is_set,
+                checkpoints=not benchmark_mode,
+                sample_seconds=benchmark_sample_seconds,
             )
         elif profile.engine == "qwen3":
             if bool(command.payload.get("cpu", False)):
@@ -241,6 +251,8 @@ def _run_craig(
                 context=str(command.payload.get("context") or ""),
                 report=report,
                 is_cancelled=cancelled.is_set,
+                checkpoints=not benchmark_mode,
+                sample_seconds=benchmark_sample_seconds,
             )
         else:
             raise WhisperRuntimeError("ASR_ENGINE_NOT_IMPLEMENTED")
@@ -251,6 +263,42 @@ def _run_craig(
 
         if document.source_sha256.lower() != package.source_sha256.lower():
             raise TranscriptionRunError("TRANSCRIPTION_SOURCE_HASH_MISMATCH")
+
+        if benchmark_mode:
+            stats = document.stats
+            benchmark_rtf = fresh_calibration_sample(stats.processing_metrics)
+            if benchmark_rtf is None or stats.processing_metrics is None:
+                raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
+            benchmark_metrics = stats.processing_metrics
+            lineage = capture_execution_lineage(document)
+            heartbeat_stop.set()
+            heartbeat_thread.join(timeout=1.0)
+            emitter.emit(
+                "result",
+                {
+                    "kind": "benchmark.profile",
+                    "schema_version": "tda_benchmark_profile_v1",
+                    "profile_id": profile.id,
+                    "engine": document.engine.engine,
+                    "model": document.engine.model,
+                    "model_revision": document.engine.model_revision,
+                    "device": document.engine.device,
+                    "compute_type": document.engine.compute_type,
+                    "alignment": document.engine.alignment,
+                    "sample_seconds": benchmark_sample_seconds,
+                    "audio_work_seconds": benchmark_metrics["fresh_audio_work_seconds"],
+                    "session_duration_seconds": stats.session_duration_seconds,
+                    "processing_timing_version": benchmark_metrics["version"],
+                    "processing_seconds": benchmark_metrics["total_processing_seconds"],
+                    "rtf": benchmark_rtf,
+                    "word_count": stats.word_count,
+                    "segment_count": stats.segment_count,
+                    "track_count": stats.track_count,
+                    "warning_count": len(document.warnings),
+                    "execution_lineage": lineage,
+                },
+            )
+            return 0
 
         def reserve_run_commit() -> None:
             winner = claim_attempt_outcome(
