@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
 	activityEventCanBeHumorous,
 	selectActivityBark,
+	type ActivityBark,
 	type ActivityContext,
 } from "./activity-barks";
 
@@ -57,6 +58,58 @@ describe("activity bark engine", () => {
 		const result = selectActivityBark(withoutSpeaker, { level: "light" });
 		expect(result?.text).not.toContain("undefined");
 		expect(result?.text).not.toContain("{");
+	});
+
+	test("inserted factual values are terminal text and never reparsed as placeholders", () => {
+		const catalog: readonly ActivityBark[] = [
+			{
+				id: "literal-speaker",
+				family: "speaker",
+				tone: "tda",
+				eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+				requires: ["speaker", "gpu"],
+				text: "{speaker} terminou na {gpu}.",
+			},
+		];
+		const result = selectActivityBark(
+			{ ...context, speaker: "{gpu}", gpuName: "RTX 4070" },
+			{ catalog },
+		);
+		expect(result?.text).toBe("{gpu} terminou na RTX 4070.");
+	});
+
+	test("script-looking factual values stay literal text", () => {
+		const catalog: readonly ActivityBark[] = [
+			{
+				id: "literal-angle-brackets",
+				family: "speaker",
+				tone: "tda",
+				eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+				requires: ["speaker"],
+				text: "{speaker} avançou.",
+			},
+		];
+		const speaker = "<script>alert('nope')</script>";
+		const result = selectActivityBark({ ...context, speaker }, { catalog });
+		expect(result?.text).toBe("<script>alert('nope')</script> avançou.");
+	});
+
+	test("supported placeholders preserve their ordinary rendering semantics", () => {
+		const catalog: readonly ActivityBark[] = [
+			{
+				id: "all-placeholders",
+				family: "meta",
+				tone: "tda",
+				eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+				requires: ["speaker", "window", "segment", "gpu"],
+				text: "{speaker} · janela {window} · segmento {segment} · {gpu}",
+			},
+		];
+		const result = selectActivityBark(
+			{ ...context, segment: 9 },
+			{ catalog },
+		);
+		expect(result?.text).toBe("Faysk · janela 205 · segmento 9 · RTX 4070");
 	});
 
 	test("off disables the personality renderer", () => {
