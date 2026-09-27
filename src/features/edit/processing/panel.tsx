@@ -864,23 +864,15 @@ export function ProcessingPanel({
 											: "data indisponível"}
 									</span>
 								</div>
-								<div className={styles.metricsStrip}>
+								<div
+									className={styles.metricsStrip}
+									data-processing-last-result="true"
+								>
 									<OverviewMetric
 										label="Processamento"
 										value={formatDuration(
 											latestCompletedRun.stats.processingSeconds,
 										)}
-									/>
-									<OverviewMetric
-										label="Duração da sessão"
-										value={
-											latestCompletedRun.stats.durationSemantics ===
-											"session_extent_v1"
-												? formatDuration(
-														latestCompletedRun.stats.sessionDurationSeconds,
-													)
-												: "—"
-										}
 									/>
 									<OverviewMetric
 										label="RTF"
@@ -899,37 +891,55 @@ export function ProcessingPanel({
 										value={latestCompletedRun.stats.wordCount ?? "—"}
 									/>
 									<OverviewMetric
-										label="Segmentos"
-										value={latestCompletedRun.stats.segmentCount ?? "—"}
-									/>
-									<OverviewMetric
-										label="Turnos"
-										value={latestCompletedRun.stats.turnCount ?? "—"}
-									/>
-									<OverviewMetric
-										label="Tracks"
-										value={latestCompletedRun.stats.trackCount ?? "—"}
-									/>
-									<OverviewMetric
 										label="Warnings"
 										value={latestCompletedRun.stats.warningCount ?? "—"}
 									/>
-									<OverviewMetric
-										label="Engine · hardware"
-										value={
-											[
-												latestCompletedRun.engine,
-												latestCompletedRun.model,
-												latestCompletedRun.executionLineage?.gpu?.model ??
-													latestCompletedRun.executionLineage?.device ??
-													latestCompletedRun.device,
-											]
-												.filter(Boolean)
-												.join(" · ") || "—"
-										}
-									/>
 								</div>
-							</section>
+								<details
+									className={styles.resultDetails}
+									data-processing-result-details="true"
+								>
+									<summary>Ver detalhes</summary>
+									<div className={styles.metricsStrip}>
+										<OverviewMetric
+											label="Duração da sessão"
+											value={
+												latestCompletedRun.stats.durationSemantics ===
+												"session_extent_v1"
+													? formatDuration(
+															latestCompletedRun.stats.sessionDurationSeconds,
+														)
+													: "—"
+											}
+										/>
+										<OverviewMetric
+											label="Segmentos"
+											value={latestCompletedRun.stats.segmentCount ?? "—"}
+										/>
+										<OverviewMetric
+											label="Turnos"
+											value={latestCompletedRun.stats.turnCount ?? "—"}
+										/>
+										<OverviewMetric
+											label="Tracks"
+											value={latestCompletedRun.stats.trackCount ?? "—"}
+										/>
+										<OverviewMetric
+											label="Engine · hardware"
+											value={
+												[
+													latestCompletedRun.engine,
+													latestCompletedRun.model,
+													latestCompletedRun.executionLineage?.gpu?.model ??
+														latestCompletedRun.executionLineage?.device ??
+														latestCompletedRun.device,
+												]
+													.filter(Boolean)
+													.join(" · ") || "—"
+											}
+										/>
+									</div>
+								</details>
 						) : null}
 					</section>
 
