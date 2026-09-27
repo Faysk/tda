@@ -205,6 +205,7 @@ export function ProcessingSubmission({
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
+	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
@@ -868,45 +869,88 @@ export function ProcessingSubmission({
 								{availableProfiles.map((item) => (
 									<option key={item.id} value={item.id}>
 										{submissionProfileLabel(item.id)}
-										{item.ready
-											? ""
-											: item.reason === QWEN_RUNTIME_UPGRADE_REASON
-												? ` · ${qwenRuntimeBlockLabel}`
-												: item.preparationRequired ? " · preparar" : " · indisponível"}
 									</option>
 								))}
 							</select>
 						</label>
+						<div className={styles.submitRow}>
+							{source ? (
+								<Button
+									type="submit"
+									variant="primary"
+									disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
+								>
+									{submissionCtaLabel(selectedProfileState, pendingStage)}
+								</Button>
+							) : (
+								<Button
+									type="button"
+									variant="primary"
+									disabled={
+										busy ||
+										!file ||
+										!profile ||
+										!canSubmit ||
+										requestTooLarge ||
+										profileBlocked ||
+										qwenRuntimeUpgradeRequired
+									}
+									onClick={() => void analyzeSource()}
+								>
+									{busy && pendingStage === "validating"
+										? "Analisando localmente…"
+										: "Analisar ZIP localmente"}
+								</Button>
+							)}
+							{requestTooLarge ? (
+								<span className={styles.budgetWarning}>
+									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
+								</span>
+							) : null}
+						</div>
 					</div>
 
 					{selectedProfileState ? (
-						<div className={styles.profileSummary} data-ready={selectedProfileState.ready ? "true" : "false"}>
+						<div
+							className={styles.profileSummary}
+							data-ready={selectedProfileState.ready ? "true" : "false"}
+							role={profileBlocked ? "alert" : "status"}
+						>
 							<div>
 								<strong>{submissionProfileLabel(selectedProfileState.id)}</strong>
 								<span>
-									{submissionEngineLabel(selectedProfileState)}
-									{selectedProfileState.ready
-										? " · pronto neste Companion"
-										: selectedProfileState.preparationRequired
-											? " · preparação necessária"
-											: " · indisponível"}
+									{submissionEngineLabel(selectedProfileState)} ·{" "}
+									{qwenRuntimeUpgradeRequired
+										? qwenRuntimeBlockLabel
+										: selectedProfileState.ready
+											? "pronto neste Companion"
+											: selectedProfileState.preparationRequired
+												? "preparação necessária"
+												: "indisponível"}
 								</span>
+								{readinessReason ? <small>{readinessReason}</small> : null}
 							</div>
-							<small>
-								{selectedEstimate?.available
-									? `${formatEstimateRange(
-											selectedEstimate.lowerSeconds,
-											selectedEstimate.upperSeconds,
-										)} · confiança ${{
-											high: "alta",
-											medium: "média",
-											low: "baixa",
-										}[selectedEstimate.confidence]}`
-									: "Sem calibração compatível nesta máquina."}
-							</small>
+							<div className={styles.profileMeta}>
+								<small>
+									{selectedEstimate?.available
+										? `${formatEstimateRange(
+												selectedEstimate.lowerSeconds,
+												selectedEstimate.upperSeconds,
+											)} · confiança ${{
+												high: "alta",
+												medium: "média",
+												low: "baixa",
+											}[selectedEstimate.confidence]}`
+										: "Sem calibração compatível nesta máquina."}
+								</small>
+								{profileBlocked && onOpenDiagnostics ? (
+									<Button type="button" size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+										Diagnóstico
+									</Button>
+								) : null}
+							</div>
 						</div>
 					) : null}
-
 					{source ? (
 						<section className={styles.estimatePanel} aria-label="Estimativas locais por perfil">
 							<div>
@@ -943,96 +987,50 @@ export function ProcessingSubmission({
 						</section>
 					) : null}
 
-					{readiness ? (
-						<div
-							className={profileBlocked ? styles.blocked : styles.readiness}
-							role={profileBlocked ? "alert" : "status"}
-						>
-							<div>
-								<strong>{readiness}</strong>
-								{readinessReason && readinessReason !== readiness ? <span>{readinessReason}</span> : null}
-							</div>
-							{profileBlocked && onOpenDiagnostics ? (
-								<Button type="button" size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
-									Abrir Diagnóstico
-								</Button>
-							) : null}
+
+					<div className={styles.metaRow}>
+						<div className={styles.privacy}>
+							<strong><span aria-hidden="true">🔒</span> Áudio permanece nesta máquina.</strong>
+							<details>
+								<summary>Como funciona</summary>
+								<p>
+									O ZIP é enviado somente por loopback ao TDA Companion local. Resultados ficam locais até uma ação editorial explícita de publicação.
+								</p>
+							</details>
 						</div>
-					) : null}
 
-					<div className={styles.submitRow}>
-						{source ? (
-							<Button
-								type="submit"
-								variant="primary"
-								disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
-							>
-								{submissionCtaLabel(selectedProfileState, pendingStage)}
-							</Button>
-						) : (
-							<Button
-								type="button"
-								variant="primary"
-								disabled={
-									busy ||
-									!file ||
-									!profile ||
-									!canSubmit ||
-									requestTooLarge ||
-									profileBlocked ||
-									qwenRuntimeUpgradeRequired
-								}
-								onClick={() => void analyzeSource()}
-							>
-								{busy && pendingStage === "validating"
-									? "Analisando localmente…"
-									: "Analisar ZIP localmente"}
-							</Button>
-						)}
-						{requestTooLarge ? (
-							<span className={styles.budgetWarning}>
-								{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
-							</span>
-						) : null}
-					</div>
-
-					<div className={styles.privacy}>
-						<strong><span aria-hidden="true">🔒</span> Áudio permanece nesta máquina.</strong>
-						<details>
-							<summary>Como funciona</summary>
-							<p>
-								O ZIP é enviado somente por loopback ao TDA Companion local. Resultados ficam locais até uma ação editorial explícita de publicação.
-							</p>
+						<details
+							className={styles.advanced}
+							open={advancedOpen}
+							onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+						>
+							<summary><span>Opções avançadas</span><small>Contexto e glossário · opcional</small></summary>
+							<div className={styles.advancedGrid}>
+								<label>
+									<span>Contexto opcional</span>
+									<textarea
+										value={context}
+										onChange={(event) =>
+												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
+										}
+										disabled={busy}
+										placeholder="Contexto curto da sessão/campanha para reconhecimento."
+									/>
+								</label>
+								<label>
+									<span>Glossário opcional</span>
+									<textarea
+										value={glossary}
+										onChange={(event) =>
+												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
+										}
+										disabled={busy}
+										placeholder="Personagens, NPCs, lugares e termos difíceis."
+									/>
+								</label>
+							</div>
 						</details>
 					</div>
-
-					<details className={styles.advanced}>
-						<summary><span>Opções avançadas</span><small>Contexto e glossário · opcional</small></summary>
-						<div className={styles.advancedGrid}>
-							<label>
-								<span>Contexto opcional</span>
-								<textarea
-									value={context}
-									onChange={(event) =>
-										setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
-									}
-									disabled={busy}
-									placeholder="Contexto curto da sessão/campanha para reconhecimento."
-								/>
-							</label>
-							<label>
-								<span>Glossário opcional</span>
-								<textarea
-									value={glossary}
-									onChange={(event) =>
-										setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
-									}
-									disabled={busy}
-									placeholder="Personagens, NPCs, lugares e termos difíceis."
-								/>
-							</label>
-						</div>
-					</details>
 
 					{requestTooLarge ? (
 						<p className={styles.inlineError} role="alert">

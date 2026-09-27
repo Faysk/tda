@@ -120,9 +120,8 @@ test("known-buggy Qwen runtime stays blocked when compatible Stable is not publi
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByLabel("Perfil")).toContainText(
-		"temporariamente indisponível",
-	);
+	await expect(page.getByLabel("Perfil")).not.toContainText("temporariamente indisponível");
+	await expect(page.getByRole("alert")).toContainText("temporariamente indisponível");
 	await expect(page.getByRole("alert")).toContainText(
 		"canal Stable ainda publica 1.0.11",
 	);
@@ -162,7 +161,8 @@ test("known-buggy Qwen runtime offers update only when compatible Stable is publ
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByLabel("Perfil")).toContainText("atualizar runtime");
+	await expect(page.getByLabel("Perfil")).not.toContainText("atualizar runtime");
+	await expect(page.getByRole("alert")).toContainText("atualizar runtime");
 	await expect(page.getByRole("alert")).toContainText(
 		"O canal Stable já oferece 1.0.12",
 	);
@@ -195,9 +195,8 @@ test("Qwen runtime availability lookup failure stays blocked without inventing a
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByLabel("Perfil")).toContainText(
-		"disponibilidade não confirmada",
-	);
+	await expect(page.getByLabel("Perfil")).not.toContainText("disponibilidade não confirmada");
+	await expect(page.getByRole("alert")).toContainText("disponibilidade não confirmada");
 	await expect(page.getByRole("alert")).toContainText(
 		"não foi possível confirmar se uma atualização compatível já está publicada",
 	);
