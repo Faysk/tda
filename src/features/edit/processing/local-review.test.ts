@@ -27,6 +27,8 @@ function rawReview(
 		text: string;
 		speaker: string;
 		reviewed: boolean;
+		timeline_start?: number;
+		timeline_end?: number;
 	}> = [
 		{
 			track_number: 1,
@@ -130,6 +132,22 @@ describe("local result/review contracts", () => {
 			else expect(() => parseLocalReview(raw), item.name).toThrow();
 		}
 	});
+	it("parses global timeline coordinates and rejects duplicate editable identities", () => {
+		const raw = rawReview([
+			{ track_number: 2, segment_id: "same", start: 0, end: 2, timeline_start: 120, timeline_end: 122, text: "B", speaker: "B", reviewed: false },
+			{ track_number: 1, segment_id: "same", start: 10, end: 12, timeline_start: 10, timeline_end: 12, text: "A", speaker: "A", reviewed: false },
+		]);
+		const parsed = parseLocalReview(raw);
+		expect(parsed.segments.map((segment) => [segment.timelineStart, segment.timelineEnd])).toEqual([[120, 122], [10, 12]]);
+		expect(() => parseLocalReview(rawReview([
+			{ track_number: 1, segment_id: "dup", start: 0, end: 1, text: "A", speaker: "A", reviewed: false },
+			{ track_number: 1, segment_id: "dup", start: 1, end: 2, text: "B", speaker: "A", reviewed: false },
+		]))).toThrow();
+		expect(() => parseLocalReview(rawReview([
+			{ track_number: 1, segment_id: "bad-time", start: 0, end: 1, timeline_start: 2, timeline_end: 1, text: "A", speaker: "A", reviewed: false },
+		]))).toThrow();
+	});
+
 	it("requires an exact approval proof marker for approved review responses", () => {
 		const approved = {
 			...rawReview(),
@@ -165,10 +183,13 @@ describe("local result/review contracts", () => {
 		bridge.pair(token);
 		const baseline = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "persisted" });
 		await bridge.saveLocalReview(sourceId, runId, baseline, "reviewed", baseline.segments, signal());
-		expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
+		const persistedBody = JSON.parse(String(transport.mock.calls[0][1]?.body));
+		expect(persistedBody).toMatchObject({
 			snapshot_contract: "tda_local_review_cas_v1",
 			expected: { persistence: "persisted", draft_revision: 0, draft_sha256: draftSha },
 		});
+		expect(persistedBody.segments[0]).not.toHaveProperty("timeline_start");
+		expect(persistedBody.segments[0]).not.toHaveProperty("timeline_end");
 		const ephemeral = parseLocalReview({ ...rawReview(), snapshot_contract: "tda_local_review_cas_v1", persistence: "ephemeral_base",
 			draft_revision: null, draft_sha256: null, created_at: null, updated_at: null });
 		await bridge.saveLocalReview(sourceId, runId, ephemeral, "draft", ephemeral.segments, signal());
