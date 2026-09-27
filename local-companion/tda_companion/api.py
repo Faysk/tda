@@ -1571,7 +1571,7 @@ def create_app(
         source_facts = {}
         for part in value["parts"]:
             try:
-                package = staged_package_under_source_gate(part["source_id"])
+                _package_root, package = staged_package_under_source_gate(part["source_id"])
                 source_state = "ready"
                 metrics = duration_metrics(
                     (track.timeline_offset_seconds, track.duration_seconds)
