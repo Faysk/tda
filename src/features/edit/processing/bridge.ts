@@ -25,6 +25,7 @@ import {
 	parseJobs,
 	parseLocalReview,
 	parseLocalRunCatalogPage,
+	parseLocalRunDeleteReceipt,
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
@@ -512,6 +513,21 @@ export class LocalBridge {
 	async localRuns(sourceId: string, signal: AbortSignal) {
 		return parseLocalRuns(
 			await this.json(`/sources/${identifier(sourceId)}/runs`, signal),
+		);
+	}
+
+	async deleteLocalRun(
+		sourceId: string,
+		runId: string,
+		transcriptSha256: string,
+		signal: AbortSignal,
+	) {
+		return parseLocalRunDeleteReceipt(
+			await this.json(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/delete`,
+				signal,
+				{ transcript_sha256: transcriptSha256 },
+			),
 		);
 	}
 
