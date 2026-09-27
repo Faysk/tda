@@ -34,7 +34,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -91,6 +91,21 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS session_recording_parts_workspace_idx
                     ON session_recording_parts(campaign_id, session_id, ordinal);
+                CREATE TABLE IF NOT EXISTS session_participant_assignments (
+                    campaign_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    observation_id TEXT NOT NULL,
+                    participant_id TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    track_number INTEGER NOT NULL,
+                    created TEXT NOT NULL,
+                    updated TEXT NOT NULL,
+                    PRIMARY KEY(campaign_id, session_id, observation_id)
+                );
+                CREATE INDEX IF NOT EXISTS session_participant_assignments_workspace_idx
+                    ON session_participant_assignments(campaign_id, session_id);
+                CREATE INDEX IF NOT EXISTS session_participant_assignments_source_idx
+                    ON session_participant_assignments(campaign_id, session_id, source_id);
             """)
             event_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(events)").fetchall()
@@ -174,7 +189,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=11")
+            db.execute("PRAGMA user_version=12")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -398,6 +413,15 @@ class Store:
             row = self._session_workspace_for_update(
                 db, campaign_id, session_id, expected_revision
             )
+            target = db.execute(
+                """
+                SELECT source_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).fetchone()
+            if target is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
             deleted = db.execute(
                 """
                 DELETE FROM session_recording_parts
@@ -407,6 +431,13 @@ class Store:
             ).rowcount
             if deleted != 1:
                 raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            db.execute(
+                """
+                DELETE FROM session_participant_assignments
+                WHERE campaign_id=? AND session_id=? AND source_id=?
+                """,
+                (row["campaign_id"], row["session_id"], target["source_id"]),
+            )
             parts = db.execute(
                 """
                 SELECT part_id FROM session_recording_parts
@@ -671,6 +702,140 @@ class Store:
                 "WHERE campaign_id=? AND session_id=?",
                 (row["campaign_id"], row["session_id"]),
             )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    @staticmethod
+    def _workspace_observation_id(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
+            raise Conflict("SESSION_PARTICIPANT_OBSERVATION_INVALID")
+        return value
+
+    @staticmethod
+    def _workspace_participant_id(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
+            raise Conflict("SESSION_PARTICIPANT_ID_INVALID")
+        return value
+
+    def session_participant_assignments(self, campaign_id, session_id):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        with self.read() as db:
+            workspace = db.execute(
+                "SELECT 1 FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+                (campaign_id, session_id),
+            ).fetchone()
+            if workspace is None:
+                raise Conflict("SESSION_WORKSPACE_NOT_FOUND")
+            rows = db.execute(
+                """
+                SELECT observation_id,participant_id,source_id,track_number
+                FROM session_participant_assignments
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY observation_id ASC
+                """,
+                (campaign_id, session_id),
+            ).fetchall()
+            return [
+                {
+                    "observation_id": row["observation_id"],
+                    "participant_id": row["participant_id"],
+                    "source_id": row["source_id"],
+                    "track_number": row["track_number"],
+                }
+                for row in rows
+            ]
+
+    def replace_session_participant_assignments(
+        self,
+        campaign_id,
+        session_id,
+        assignments,
+        expected_revision,
+    ):
+        if not isinstance(assignments, (list, tuple)) or len(assignments) > 16384:
+            raise Conflict("SESSION_PARTICIPANT_MAPPING_INVALID")
+        normalized = []
+        for raw in assignments:
+            if not isinstance(raw, dict):
+                raise Conflict("SESSION_PARTICIPANT_MAPPING_INVALID")
+            observation_id = self._workspace_observation_id(raw.get("observation_id"))
+            participant_id = self._workspace_participant_id(raw.get("participant_id"))
+            source_id = self._workspace_source_id(raw.get("source_id"))
+            track_number = raw.get("track_number")
+            if (
+                isinstance(track_number, bool)
+                or not isinstance(track_number, int)
+                or track_number < 1
+                or track_number > 1_000_000
+            ):
+                raise Conflict("SESSION_PARTICIPANT_TRACK_INVALID")
+            normalized.append(
+                {
+                    "observation_id": observation_id,
+                    "participant_id": participant_id,
+                    "source_id": source_id,
+                    "track_number": track_number,
+                }
+            )
+        if len({row["observation_id"] for row in normalized}) != len(normalized):
+            raise Conflict("SESSION_PARTICIPANT_MAPPING_INVALID")
+        normalized.sort(key=lambda row: row["observation_id"])
+
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            current = db.execute(
+                """
+                SELECT observation_id,participant_id,source_id,track_number
+                FROM session_participant_assignments
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY observation_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            current_values = [
+                {
+                    "observation_id": item["observation_id"],
+                    "participant_id": item["participant_id"],
+                    "source_id": item["source_id"],
+                    "track_number": item["track_number"],
+                }
+                for item in current
+            ]
+            if current_values == normalized:
+                return self._session_workspace_dto(db, row)
+
+            db.execute(
+                """
+                DELETE FROM session_participant_assignments
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            now = utc_now()
+            for item in normalized:
+                db.execute(
+                    """
+                    INSERT INTO session_participant_assignments(
+                        campaign_id,session_id,observation_id,participant_id,
+                        source_id,track_number,created,updated
+                    ) VALUES (?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        row["campaign_id"],
+                        row["session_id"],
+                        item["observation_id"],
+                        item["participant_id"],
+                        item["source_id"],
+                        item["track_number"],
+                        now,
+                        now,
+                    ),
+                )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
