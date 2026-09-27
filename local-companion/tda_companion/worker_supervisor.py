@@ -436,6 +436,7 @@ class WorkerSupervisor:
         glossary: str,
         context: str,
         cpu: bool,
+        benchmark_sample_seconds: float | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -453,6 +454,14 @@ class WorkerSupervisor:
                 "glossary": glossary,
                 "context": context,
                 "cpu": cpu,
+                **(
+                    {
+                        "benchmark_mode": True,
+                        "benchmark_sample_seconds": benchmark_sample_seconds,
+                    }
+                    if benchmark_sample_seconds is not None
+                    else {}
+                ),
             },
         )
         # Validate all user-derived identifiers before consulting runtime state.
@@ -531,3 +540,79 @@ class WorkerSupervisor:
             process_command=runtime_command,
             environment_overrides=runtime_environment,
         )
+
+    def run_benchmark(
+        self,
+        *,
+        job_id: str,
+        attempt: int,
+        source_id: str,
+        glossary: str,
+        context: str,
+        sample_identity_sha256: str,
+        sample_seconds: float,
+        on_progress: Callable[[WorkerMessage], object],
+        on_event: Callable[[WorkerMessage], object] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
+    ) -> WorkerOutcome:
+        profiles = (
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        )
+        receipts: list[dict] = []
+        for index, profile_id in enumerate(profiles, start=1):
+            if is_cancelled is not None and is_cancelled():
+                return WorkerOutcome(
+                    terminal="cancelled",
+                    payload={"stage": "benchmark", "forced": False},
+                    returncode=0,
+                )
+            outcome = self.run_craig(
+                job_id=job_id,
+                attempt=attempt,
+                source_id=source_id,
+                profile_id=profile_id,
+                glossary=glossary,
+                context=context,
+                cpu=False,
+                benchmark_sample_seconds=sample_seconds,
+                on_progress=lambda _message: None,
+                on_event=on_event,
+                is_cancelled=is_cancelled,
+            )
+            if outcome.terminal != "result":
+                return outcome
+            receipt = dict(outcome.payload)
+            if receipt.get("schema_version") != "tda_benchmark_profile_v1":
+                raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
+            receipts.append(receipt)
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload={
+                        "completed": index,
+                        "total": len(profiles),
+                        "unit": "profiles",
+                        "stage": "benchmark",
+                    },
+                )
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload={
+                "schema_version": "tda_processing_benchmark_v1",
+                "kind": "benchmark.craig",
+                "source_id": source_id,
+                "sample_identity_sha256": sample_identity_sha256,
+                "sample_seconds": sample_seconds,
+                "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "profiles": receipts,
+            },
+            returncode=0,
+        )
+

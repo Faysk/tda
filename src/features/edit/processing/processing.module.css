@@ -808,6 +808,35 @@
 	gap: 8px;
 }
 
+.logModeSwitch {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.logModeSwitch button {
+	padding: 3px 7px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-muted);
+	font: inherit;
+	font-size: 0.6875rem;
+	cursor: pointer;
+}
+
+.logModeSwitch button:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.logModeSwitch button[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+	background: color-mix(in srgb, var(--ds-accent) 8%, transparent);
+	color: var(--ds-foreground);
+}
+
 .logHeader h3 {
 	font-size: 0.88rem;
 }

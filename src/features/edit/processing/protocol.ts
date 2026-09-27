@@ -1,5 +1,5 @@
 import { supportsQwenAlignmentRuntime } from "./compatibility";
-import { parseEngineMetrics, type EngineProcessingMetrics } from "./engine-metrics";
+import { PROCESSING_TIMING_VERSION, parseEngineMetrics, type EngineProcessingMetrics } from "./engine-metrics";
 import { isReviewStringV1 } from "../../transcript-review/text-contract";
 
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
@@ -53,6 +53,14 @@ export type CraigSource = {
 	trackCount: number;
 	reused: boolean;
 };
+export type CraigBenchmarkInput = {
+	campaignId: string;
+	sessionId: string;
+	sourceId: string;
+	glossary: string;
+	context: string;
+};
+
 export type CraigTranscriptionInput = {
 	campaignId: string;
 	sessionId: string;
@@ -73,6 +81,10 @@ export type JobContext = {
 	sessionId: string;
 	sourceId: string;
 	profileId?: TranscriptionProfileId;
+	sampleIdentitySha256?: string | null;
+	sampleSeconds?: number | null;
+	profiles?: readonly TranscriptionProfileId[];
+	prepared?: boolean;
 };
 export type ExecutionDevice = Readonly<{ kind: "cpu" | "cuda"; logicalIndex: number | null; physicalUuid: string | null; pciBusId: string | null }>;
 export type JobTrackTiming = {
@@ -167,6 +179,42 @@ export type SystemSnapshot = {
 	};
 	gpus: readonly SystemGpu[];
 };
+export type BenchmarkProfileResult = {
+	profileId: TranscriptionProfileId;
+	engine: "whisper" | "qwen3";
+	model: string;
+	modelRevision: string | null;
+	device: string;
+	computeType: string | null;
+	alignment: string;
+	sampleSeconds: number;
+	audioWorkSeconds: number;
+	sessionDurationSeconds: number;
+	processingTimingVersion: typeof PROCESSING_TIMING_VERSION;
+	processingSeconds: number;
+	rtf: number | null;
+	wordCount: number;
+	segmentCount: number;
+	trackCount: number;
+	warningCount: number;
+	executionLineage: LocalExecutionLineage | null;
+};
+
+export type BenchmarkResult = {
+	schemaVersion: "tda_processing_benchmark_v1";
+	jobId: string;
+	sourceId: string;
+	campaignId: string;
+	sessionId: string;
+	sampleIdentitySha256: string;
+	sampleSeconds: number;
+	executionMode: "prepared_artifacts_fresh_worker_per_profile_v1";
+	trackCount: number;
+	audioWorkSeconds: number;
+	prepared: boolean;
+	profiles: readonly BenchmarkProfileResult[];
+};
+
 export type ResultSummary = {
 	jobId: string;
 	campaignId: string;
@@ -658,10 +706,33 @@ export function parseJob(value: unknown): LocalJob {
 			sessionId: identifier(rawContext.session_id),
 			sourceId: identifier(rawContext.source_id),
 		};
-		context =
-			rawContext.profile_id === undefined || rawContext.profile_id === null
-				? base
-				: { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
+		if (rawContext.profile_id !== undefined && rawContext.profile_id !== null) {
+			context = { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
+		} else if (
+			rawContext.sample_identity_sha256 !== undefined ||
+			rawContext.sample_seconds !== undefined ||
+			rawContext.profiles !== undefined
+		) {
+			const profiles = rawContext.profiles;
+			if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
+			context = {
+				...base,
+				sampleIdentitySha256:
+					rawContext.sample_identity_sha256 === null ||
+					rawContext.sample_identity_sha256 === undefined
+						? null
+						: sha256(rawContext.sample_identity_sha256),
+				sampleSeconds:
+					rawContext.sample_seconds === null ||
+					rawContext.sample_seconds === undefined
+						? null
+						: nonNegativeNumber(rawContext.sample_seconds),
+				profiles: profiles.map(transcriptionProfile),
+				prepared: boolean(rawContext.prepared),
+			};
+		} else {
+			context = base;
+		}
 	}
 	const rawTiming =
 		row.timing === undefined || row.timing === null ? null : record(row.timing);
@@ -1296,6 +1367,79 @@ export function parseLocalReview(value: unknown): LocalReview {
 		},
 		segments,
 		sync: { status: "not_configured" },
+	};
+}
+
+export function parseBenchmarkResult(
+	value: unknown,
+	jobId: string,
+): BenchmarkResult {
+	const row = record(value);
+	if (row.schema_version !== "tda_processing_benchmark_v1")
+		throw new BridgeError("incompatible");
+	if (identifier(row.job_id) !== jobId) return invalid();
+	if (row.kind !== "benchmark.craig") return invalid();
+	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
+	if (sampleSeconds !== 300) return invalid();
+	const profiles = row.profiles;
+	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
+	const parsed = profiles.map((raw): BenchmarkProfileResult => {
+		const item = record(raw);
+		if (item.schema_version !== "tda_benchmark_profile_v1") return invalid();
+		const engine = text(item.engine, 64);
+		if (engine !== "whisper" && engine !== "qwen3") return invalid();
+		const rtf =
+			item.rtf === null || item.rtf === undefined
+				? null
+				: nonNegativeNumber(item.rtf);
+		return {
+			profileId: transcriptionProfile(item.profile_id),
+			engine,
+			model: text(item.model, 256),
+			modelRevision: nullableText(item.model_revision, 256),
+			device: text(item.device, 64),
+			computeType: nullableText(item.compute_type, 64),
+			alignment: text(item.alignment, 128),
+			sampleSeconds: nonNegativeNumber(item.sample_seconds),
+			audioWorkSeconds: nonNegativeNumber(item.audio_work_seconds),
+			sessionDurationSeconds: nonNegativeNumber(item.session_duration_seconds),
+			processingTimingVersion:
+				item.processing_timing_version === PROCESSING_TIMING_VERSION
+					? PROCESSING_TIMING_VERSION
+					: invalid(),
+			processingSeconds: nonNegativeNumber(item.processing_seconds),
+			rtf,
+			wordCount: nonNegativeInteger(item.word_count),
+			segmentCount: nonNegativeInteger(item.segment_count),
+			trackCount: nonNegativeInteger(item.track_count),
+			warningCount: nonNegativeInteger(item.warning_count),
+			executionLineage: parseExecutionLineage(item.execution_lineage),
+		};
+	});
+	const expected: readonly TranscriptionProfileId[] = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	];
+	if (parsed.some((item, index) => item.profileId !== expected[index]))
+		return invalid();
+	return {
+		schemaVersion: "tda_processing_benchmark_v1",
+		jobId,
+		sourceId: identifier(row.source_id),
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		sampleIdentitySha256: sha256(row.sample_identity_sha256),
+		sampleSeconds,
+		executionMode:
+			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
+				? row.execution_mode
+				: invalid(),
+		trackCount: nonNegativeInteger(row.track_count),
+		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
+		prepared: boolean(row.prepared),
+		profiles: parsed,
 	};
 }
 

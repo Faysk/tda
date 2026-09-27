@@ -5,11 +5,13 @@ import {
 import {
 	BridgeError,
 	type LocalReview,
+	type CraigBenchmarkInput,
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
 	identifier,
 	LOCAL_API,
+	parseBenchmarkResult,
 	parseCapabilities,
 	parseCraigSource,
 	parseHealth,
@@ -430,6 +432,23 @@ export class LocalBridge {
 			throw new BridgeError(timedOut ? "timeout" : "unreachable");
 		}
 	}
+	async benchmark(input: CraigBenchmarkInput, key: string, signal: AbortSignal) {
+		return parseJob(
+			await this.json(
+				"/jobs",
+				signal,
+				{
+					kind: "benchmark.craig",
+					campaign_id: identifier(input.campaignId),
+					session_id: identifier(input.sessionId),
+					source_id: identifier(input.sourceId),
+					glossary: input.glossary,
+					context: input.context,
+				},
+				key,
+			),
+		);
+	}
 	async transcription(input: CraigTranscriptionInput, key: string, signal: AbortSignal) {
 		const payload = buildCraigTranscriptionRequest({
 			...input,
@@ -460,6 +479,12 @@ export class LocalBridge {
 				},
 				key,
 			),
+		);
+	}
+	async benchmarkResult(id: string, signal: AbortSignal) {
+		return parseBenchmarkResult(
+			await this.json(`/jobs/${identifier(id)}/result`, signal),
+			id,
 		);
 	}
 	async result(id: string, signal: AbortSignal) {
