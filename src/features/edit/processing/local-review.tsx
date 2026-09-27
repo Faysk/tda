@@ -26,6 +26,8 @@ import { processingStageLabels } from "./engine-metrics";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
+	hasMore?: boolean;
+	onLoadMore?: () => void | Promise<void>;
 	review: LocalReview | null;
 	busy: boolean;
 	error: string | null;
@@ -739,6 +741,8 @@ function ReviewEditor({
 
 export function LocalReviewWorkspace({
 	runs,
+	hasMore = false,
+	onLoadMore,
 	review,
 	busy,
 	error,
@@ -794,6 +798,18 @@ export function LocalReviewWorkspace({
 							/>
 						))}
 					</div>
+					{hasMore && onLoadMore ? (
+						<div className={styles.libraryMore}>
+							<Button
+								size="sm"
+								variant="tertiary"
+								disabled={busy}
+								onClick={() => void onLoadMore()}
+							>
+								Carregar mais resultados
+							</Button>
+						</div>
+					) : null}
 				</>
 			) : (
 				<p className={styles.emptyCompact}>

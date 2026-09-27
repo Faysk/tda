@@ -590,6 +590,8 @@ export function ProcessingPanel({
 						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
 						<LocalReviewWorkspace
 							runs={state.localRuns}
+							hasMore={state.localRunsHasMore}
+							onLoadMore={controller.loadMoreRuns}
 							review={state.localReview}
 							busy={state.localReviewBusy}
 							error={state.localReviewError}
