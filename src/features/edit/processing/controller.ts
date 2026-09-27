@@ -853,7 +853,7 @@ export class ProcessingController {
 				run.runId === runId &&
 				run.transcriptSha256 === transcriptSha256,
 		);
-		if (this.#state.connection !== "connected" || !current) return;
+		if (this.#state.connection !== "connected" || !current) return false;
 		await this.runOperation(
 			{ kind: "deleteRun", targetId: `${sourceId}:${runId}` },
 			async (signal) => {
