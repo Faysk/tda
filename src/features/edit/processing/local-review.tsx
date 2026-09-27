@@ -595,7 +595,7 @@ function ReviewEditor({
 							disabled={publishing}
 							onClick={() => void confirmPublication()}
 						>
-							{publishing ? "Preparando…" : "Preparar sessão"}
+							{publishing ? "Preparando…" : "Confirmar preparação"}
 						</Button>
 					</div>
 				</section>
