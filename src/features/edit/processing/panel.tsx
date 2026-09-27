@@ -1170,46 +1170,19 @@ export function ProcessingPanel({
 								<div className={styles.diagnosticsEventPane} data-diagnostics-events="true">
 									{observedJob ? (
 										<ProcessingLiveLog
+											key={`${observedJob.id}:${observedJob.attempt}`}
 											events={state.events}
 											job={observedJob}
 											system={state.system}
 											live={observedJobLive}
 											stale={Boolean(state.eventsRefreshError)}
 											activityCatalog={activityCatalog}
+											expectedPollMs={processingPollMs(observedJobLive)}
 										/>
 									) : null}
 
 								</div>
 							</div>
-
-							{activityBarksManage && activityPackScope ? (
-								<ActivityPackAdmin scope={activityPackScope} />
-							) : null}
-
-							{state.capabilities?.capabilities.includes(
-								"synthetic.fixture",
-							) ? (
-								<div className={styles.integrationTool}>
-									<div>
-										<strong>Ensaio sintético</strong>
-										<span>
-											Diagnóstico pequeno, sem áudio e sem publicação.
-										</span>
-									</div>
-									<Button
-										size="sm"
-										disabled={
-											state.mutation?.kind === "synthetic" ||
-											state.health?.lifecycle !== "ready"
-										}
-										onClick={() => void controller.synthetic()}
-									>
-										{state.mutation?.kind === "synthetic"
-											? "Executando…"
-											: "Executar ensaio sintético"}
-									</Button>
-								</div>
-							) : null}
 
 							{state.uncertainSubmission ? (
 								<p className={styles.connectionError} role="alert">
@@ -1217,6 +1190,48 @@ export function ProcessingPanel({
 									consulte a fila antes de iniciar outra tentativa; a chave
 									desta aba será reutilizada.
 								</p>
+							) : null}
+
+							{(activityBarksManage && activityPackScope) ||
+							state.capabilities?.capabilities.includes("synthetic.fixture") ? (
+								<details className={styles.advancedTools}>
+									<summary>
+										<span>
+											<strong>Ferramentas avançadas</strong>
+											<small>Customização do log e ensaios de manutenção</small>
+										</span>
+									</summary>
+									<div className={styles.advancedToolsBody}>
+										{activityBarksManage && activityPackScope ? (
+											<ActivityPackAdmin scope={activityPackScope} />
+										) : null}
+
+										{state.capabilities?.capabilities.includes(
+											"synthetic.fixture",
+										) ? (
+											<div className={styles.integrationTool}>
+												<div>
+													<strong>Ensaio sintético</strong>
+													<span>
+														Diagnóstico pequeno, sem áudio e sem publicação.
+													</span>
+												</div>
+												<Button
+													size="sm"
+													disabled={
+														state.mutation?.kind === "synthetic" ||
+														state.health?.lifecycle !== "ready"
+													}
+													onClick={() => void controller.synthetic()}
+												>
+													{state.mutation?.kind === "synthetic"
+														? "Executando…"
+														: "Executar ensaio sintético"}
+												</Button>
+											</div>
+										) : null}
+									</div>
+								</details>
 							) : null}
 						</aside>
 					</section>

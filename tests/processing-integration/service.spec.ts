@@ -114,6 +114,11 @@ test("real scratch Companion: automatic session, persistent job, restart and ses
 	expect(posts.some((url) => url === `${service}/session`)).toBe(true);
 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+	const advancedTools = page
+		.getByRole("tabpanel", { name: "Diagnóstico" })
+		.locator("summary")
+		.filter({ hasText: "Ferramentas avançadas" });
+	await advancedTools.click();
 	await page.getByRole("button", { name: "Executar ensaio sintético" }).click();
 
 	await page.getByRole("tab", { name: "Fila" }).click();

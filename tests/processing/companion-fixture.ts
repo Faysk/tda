@@ -63,6 +63,7 @@ export type CompanionFixtureState = {
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
 	setJob(job: Record<string, unknown> | null): void;
+	setJobEvents(events: Record<string, unknown>[]): void;
 	setLifecycle(value: "preparing" | "ready" | "paused"): void;
 	setSystem(value: FixtureSystemSnapshot | undefined): void;
 };
@@ -138,6 +139,7 @@ export async function installCompanionFixture(
 	let lifecycle = options.lifecycle ?? "ready";
 	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
+	let jobEvents = options.jobEvents ?? null;
 	let prepared = options.profileReady ?? false;
 	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
 	let preparationReads = 0;
@@ -159,6 +161,9 @@ export async function installCompanionFixture(
 		setJob(value) {
 			state.job = value;
 			jobsReads = 0;
+		},
+		setJobEvents(value) {
+			jobEvents = value;
 		},
 		setLifecycle(value) {
 			lifecycle = value;
@@ -452,7 +457,7 @@ export async function installCompanionFixture(
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
 				events:
-					options.jobEvents ??
+					jobEvents ??
 					(state.job?.status === "running"
 						? [
 								{
