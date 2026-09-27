@@ -261,6 +261,41 @@ test("publication freezes current and requires a fresh confirmation after stale_
  expect(sent).toHaveLength(2); expect(sent[1].expectedCurrentRevisionId).toBe(second); expect(sent[1].operationId).not.toBe(sent[0].operationId);
 });
 
+test("abandonment warning keeps private handoff semantics and preserves pending state on cancel", async ({ page }) => {
+ let posts = 0;
+ await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: null } } }));
+ await page.route(/\\/api\\/transcript-publications$/, async route => { posts++; await route.abort(); });
+ await page.route("**/api/transcript-publications/receipt", route => route.fulfill({ status: 503, json: { ok: false, reason: "dependency_unavailable" } }));
+
+ await page.goto("/?review-contracts&publication");
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
+ await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
+
+ const pendingCount = () => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")).length);
+ await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
+ expect(await pendingCount()).toBe(1);
+
+ page.once("dialog", async dialog => {
+  expect(dialog.message()).toContain("Um handoff privado anterior pode já ter sido concluído.");
+  expect(dialog.message()).toContain("outra revisão privada da transcrição");
+  expect(dialog.message()).toContain("Isso não publica a sessão, capa, resumo ou transcript no site público.");
+  expect(dialog.message()).not.toContain("A publicação anterior pode ter sido concluída");
+  await dialog.dismiss();
+ });
+ await page.getByRole("button", { name: "Abandonar handoff anterior" }).click();
+ expect(await pendingCount()).toBe(1);
+ expect(posts).toBe(1);
+
+ page.once("dialog", async dialog => {
+  await dialog.accept();
+ });
+ await page.getByRole("button", { name: "Abandonar handoff anterior" }).click();
+ await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toHaveCount(0);
+ expect(await pendingCount()).toBe(0);
+ expect(posts).toBe(1);
+});
+
 test("lost publication recovers after reload without a second write or transcript storage", async ({ page }, testInfo) => {
  let posts = 0; let readable = false; let committed: Record<string, unknown> | null = null;
  await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: committed ? "44444444-4444-4444-8444-444444444444" : null } } }));
