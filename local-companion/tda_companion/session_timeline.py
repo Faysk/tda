@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any, Iterable
 
 TIMING_POLICY_VERSION = "tda_session_timeline_v1"
@@ -37,8 +37,16 @@ def classify_start_time(value: object) -> dict[str, object | None]:
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
+        try:
+            time.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return {
+                "confidence": "opaque",
+                "instant_utc": None,
+                "epoch_seconds": None,
+            }
         return {
-            "confidence": "opaque",
+            "confidence": "ambiguous",
             "instant_utc": None,
             "epoch_seconds": None,
         }
@@ -99,6 +107,8 @@ def automatic_placements(
         ):
             raise ValueError("SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED")
         sortable.append((float(epoch), str(part["part_id"]), str(part["source_id"])))
+    if len({epoch for epoch, _, _ in sortable}) != len(sortable):
+        raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS")
     sortable.sort()
     anchor = sortable[0][0]
     return [
