@@ -8,6 +8,8 @@ export type RunComparisonRegion = Readonly<{
 	trackNumber: number;
 	start: number;
 	end: number;
+	timelineStart: number;
+	timelineEnd: number;
 	kind: RunComparisonKind;
 	left: readonly LocalReviewSegment[];
 	right: readonly LocalReviewSegment[];
@@ -36,6 +38,29 @@ function compareCanonicalText(left: string, right: string): number {
 
 function normalizedText(value: string): string {
 	return value.normalize("NFC").replace(/\s+/gu, " ").trim();
+}
+
+function timelineStart(segment: LocalReviewSegment): number {
+	return typeof segment.timelineStart === "number" &&
+		Number.isFinite(segment.timelineStart)
+		? segment.timelineStart
+		: segment.start;
+}
+
+function timelineEnd(segment: LocalReviewSegment): number {
+	return typeof segment.timelineEnd === "number" &&
+		Number.isFinite(segment.timelineEnd)
+		? segment.timelineEnd
+		: segment.end;
+}
+
+function hasGlobalTimeline(segment: LocalReviewSegment): boolean {
+	return (
+		typeof segment.timelineStart === "number" &&
+		Number.isFinite(segment.timelineStart) &&
+		typeof segment.timelineEnd === "number" &&
+		Number.isFinite(segment.timelineEnd)
+	);
 }
 
 function speakerSequence(values: readonly LocalReviewSegment[]): string {
@@ -95,6 +120,8 @@ function buildRegion(
 	const all = [...left, ...right];
 	const start = Math.min(...all.map((item) => item.start));
 	const end = Math.max(...all.map((item) => item.end));
+	const globalStart = Math.min(...all.map(timelineStart));
+	const globalEnd = Math.max(...all.map(timelineEnd));
 	const leftText = left.map((item) => item.text).join(" ").trim();
 	const rightText = right.map((item) => item.text).join(" ").trim();
 	const kind: RunComparisonKind =
@@ -110,6 +137,8 @@ function buildRegion(
 		trackNumber,
 		start,
 		end,
+		timelineStart: globalStart,
+		timelineEnd: globalEnd,
 		kind,
 		left,
 		right,
@@ -228,13 +257,22 @@ export function compareRunSegments(
 		]),
 	].sort((a, b) => a - b);
 
-	return tracks.flatMap((trackNumber) =>
+	const regions = tracks.flatMap((trackNumber) =>
 		compareTrack(
 			trackNumber,
 			left.filter((item) => item.trackNumber === trackNumber),
 			right.filter((item) => item.trackNumber === trackNumber),
 			tolerance,
 		),
+	);
+	const globallyAnchored = [...left, ...right].every(hasGlobalTimeline);
+	if (!globallyAnchored) return regions;
+	return regions.sort(
+		(leftRegion, rightRegion) =>
+			leftRegion.timelineStart - rightRegion.timelineStart ||
+			leftRegion.timelineEnd - rightRegion.timelineEnd ||
+			leftRegion.trackNumber - rightRegion.trackNumber ||
+			compareCanonicalText(leftRegion.id, rightRegion.id),
 	);
 }
 
