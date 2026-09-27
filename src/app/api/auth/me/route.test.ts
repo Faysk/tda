@@ -43,9 +43,9 @@ describe("GET /api/auth/me", () => {
 		expect(body).toEqual({
 			state: "anonymous",
 			scope: { type: "campaign", id: "yuhara-main" },
-			capabilities: [],
 		});
 		expect(body).not.toHaveProperty("identity");
+		expect(body).not.toHaveProperty("capabilities");
 		expect(response.headers.get("cache-control")).toBe("private, no-store");
 		expect(response.headers.get("vary")).toBe("Cookie");
 	});
@@ -91,6 +91,26 @@ describe("GET /api/auth/me", () => {
 		expect(serialized).not.toContain("scopeType");
 	});
 
+	it("keeps authenticated unlinked accounts distinct with no grants", async () => {
+		mocks.currentAccess.mockResolvedValueOnce({
+			state: "authenticated_unlinked",
+			identity: { displayName: "Corujinha", avatarUrl: null },
+			context: {
+				authUserId: "private",
+				profileId: null,
+				grants: [],
+			},
+		});
+
+		const response = await GET();
+		await expect(response.json()).resolves.toEqual({
+			state: "authenticated_unlinked",
+			scope: { type: "campaign", id: "yuhara-main" },
+			capabilities: [],
+			identity: { displayName: "Corujinha", avatarUrl: null },
+		});
+	});
+
 	it("keeps authenticated users without grants distinct from anonymous", async () => {
 		mocks.currentAccess.mockResolvedValueOnce({
 			state: "authenticated_linked_no_grants",
@@ -111,19 +131,23 @@ describe("GET /api/auth/me", () => {
 		});
 	});
 
-	it("returns 503 for unavailable access without pretending logout", async () => {
+	it("returns 503 for unavailable access without exposing a stale private projection", async () => {
 		mocks.currentAccess.mockResolvedValueOnce({
 			state: "unavailable",
 			context: null,
-			identity: null,
+			identity: { displayName: "Verified upstream", avatarUrl: null },
 		});
 
 		const response = await GET();
 		const body = await response.json();
 
 		expect(response.status).toBe(503);
-		expect(body.state).toBe("unavailable");
+		expect(body).toEqual({
+			state: "unavailable",
+			scope: { type: "campaign", id: "yuhara-main" },
+		});
 		expect(body).not.toHaveProperty("identity");
+		expect(body).not.toHaveProperty("capabilities");
 		expect(response.headers.get("cache-control")).toBe("private, no-store");
 	});
 });
