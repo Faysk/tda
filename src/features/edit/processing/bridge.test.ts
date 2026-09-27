@@ -954,3 +954,38 @@ describe("wire validation", () => {
 		).toThrow();
 	});
 });
+
+
+describe("authoritative processing timing contract", () => {
+	it("parses persisted job/attempt/stage/track boundaries without inferring missing legacy values", () => {
+		const timed = parseJob({
+			...job,
+			attempt: 2,
+			job_started_at: "2026-09-27T12:00:00Z",
+			attempt_started_at: "2026-09-27T12:05:00Z",
+			stage_started_at: "2026-09-27T12:06:00Z",
+			current_track: {
+				track: 3,
+				speaker: "Alice",
+				started_at: "2026-09-27T12:07:00Z",
+			},
+		});
+		expect(timed).toMatchObject({
+			jobStartedAt: "2026-09-27T12:00:00.000Z",
+			attemptStartedAt: "2026-09-27T12:05:00.000Z",
+			stageStartedAt: "2026-09-27T12:06:00.000Z",
+			currentTrack: {
+				track: 3,
+				speaker: "Alice",
+				startedAt: "2026-09-27T12:07:00.000Z",
+			},
+		});
+		const legacy = parseJob({ ...job, attempt: 1 });
+		expect(legacy).toMatchObject({
+			jobStartedAt: null,
+			attemptStartedAt: null,
+			stageStartedAt: null,
+			currentTrack: null,
+		});
+	});
+});
