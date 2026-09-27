@@ -88,6 +88,7 @@ export type SessionWorkspacePart = {
 	sessionOffsetSeconds: number | null;
 	trimStartSeconds: number;
 	trimEndSeconds: number | null;
+	gapConfirmed: boolean;
 	overlapResolution: SessionOverlapResolution | null;
 	overlapBoundarySeconds: number | null;
 	sourceStartTime: string | null;
@@ -104,13 +105,20 @@ export type SessionWorkspacePart = {
 };
 export type SessionWorkspaceTimeline = {
 	policyVersion: "tda_session_timeline_v1";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
 	fingerprintSha256: string;
-	state: "ready" | "needs_timing" | "overlap_unresolved" | "source_invalid";
+	state:
+		| "ready"
+		| "needs_timing"
+		| "gap_unconfirmed"
+		| "overlap_unresolved"
+		| "source_invalid";
 	allSourcesTrusted: boolean;
 	automaticOrderAvailable: boolean;
 	gapCount: number;
 	overlapCount: number;
 	unresolvedOverlapCount: number;
+	unconfirmedGapCount: number;
 };
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
@@ -816,6 +824,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			),
 			trimStartSeconds: nonNegativeNumber(part.trim_start_seconds),
 			trimEndSeconds: nullableNonNegativeNumber(part.trim_end_seconds),
+			gapConfirmed: boolean(part.gap_confirmed),
 			overlapResolution: overlapResolution as SessionOverlapResolution | null,
 			overlapBoundarySeconds: nullableNonNegativeNumber(
 				part.overlap_boundary_seconds,
@@ -847,12 +856,18 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 
 	const timeline = record(row.timeline);
 	const policyVersion = text(timeline.policy_version, 40);
+	const segmentBoundaryPolicy = text(timeline.segment_boundary_policy, 40);
 	const state = text(timeline.state, 32);
 	if (policyVersion !== "tda_session_timeline_v1") return invalid();
+	if (segmentBoundaryPolicy !== "segment_start_owner_v1") return invalid();
 	if (
-		!["ready", "needs_timing", "overlap_unresolved", "source_invalid"].includes(
-			state,
-		)
+		![
+			"ready",
+			"needs_timing",
+			"gap_unconfirmed",
+			"overlap_unresolved",
+			"source_invalid",
+		].includes(state)
 	)
 		return invalid();
 
@@ -867,6 +882,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		parts,
 		timeline: {
 			policyVersion: "tda_session_timeline_v1",
+			segmentBoundaryPolicy: "segment_start_owner_v1",
 			fingerprintSha256: sha256(timeline.fingerprint_sha256),
 			state: state as SessionWorkspaceTimeline["state"],
 			allSourcesTrusted: boolean(timeline.all_sources_trusted),
@@ -876,6 +892,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			unresolvedOverlapCount: nonNegativeInteger(
 				timeline.unresolved_overlap_count,
 			),
+			unconfirmedGapCount: nonNegativeInteger(timeline.unconfirmed_gap_count),
 		},
 	};
 }
