@@ -107,6 +107,7 @@ export type SessionChronologyRelation = {
 		version: "boundary_v1";
 		mode: "prefer_earlier_until" | "prefer_later_from";
 		boundarySeconds: number;
+		segmentPolicy: "segment_start_owner_v1";
 	}> | null;
 };
 export type SessionChronology = {
@@ -911,10 +912,13 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 					(mode !== "prefer_earlier_until" && mode !== "prefer_later_from")
 				)
 					return invalid();
+				if (resolution.segment_policy !== "segment_start_owner_v1")
+					return invalid();
 				overlapResolution = {
 					version: "boundary_v1",
 					mode,
 					boundarySeconds: nonNegativeNumber(resolution.boundary_seconds),
+					segmentPolicy: "segment_start_owner_v1",
 				};
 			}
 			return {
