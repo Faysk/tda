@@ -313,7 +313,14 @@ function eventTrackContext(
 
 export function ProcessingPanel({
 	publicationEnabled = false,
-}: Readonly<{ publicationEnabled?: boolean }>) {
+	activityPackScope = null,
+}: Readonly<{
+	publicationEnabled?: boolean;
+	activityPackScope?: Readonly<{
+		profileId: string;
+		campaignSlug: string;
+	}> | null;
+}>) {
 	const [controller] = useState(() => new ProcessingController());
 	const state = useSyncExternalStore(
 		controller.subscribe,
@@ -325,7 +332,12 @@ export function ProcessingPanel({
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const [clockNow, setClockNow] = useState(() => Date.now());
+	const [activityPacks, setActivityPacks] = useState<
+		readonly import("./activity-pack").ActivityPack[]
+	>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
+	const activityPackProfileId = activityPackScope?.profileId ?? null;
+	const activityPackCampaignSlug = activityPackScope?.campaignSlug ?? null;
 
 	useEffect(() => {
 		void controller.connect();
