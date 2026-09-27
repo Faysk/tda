@@ -23,7 +23,6 @@ export type TranscriptionProfileState = {
 	model?: string | null;
 	modelRevision?: string | null;
 	runtimeVersion?: string | null;
-	runtimeWorkerSha256?: string | null;
 	computeType?: string | null;
 	gpuModel?: string | null;
 	gpuComputeCapability?: string | null;
@@ -318,10 +317,6 @@ export type LocalReviewSegment = {
 	segmentId: string;
 	start: number;
 	end: number;
-	/** Absolute session timeline coordinate when supplied by the Agent. */
-	timelineStart?: number;
-	/** Absolute session timeline coordinate when supplied by the Agent. */
-	timelineEnd?: number;
 	text: string;
 	speaker: string;
 	reviewed: boolean;
@@ -574,10 +569,6 @@ export function parseCapabilities(value: unknown): Capabilities {
 					model: nullableText(item.model, 256),
 					modelRevision: nullableText(item.model_revision, 128),
 					runtimeVersion: nullableText(item.runtime_version, 64),
-					runtimeWorkerSha256:
-						item.runtime_worker_sha256 === null || item.runtime_worker_sha256 === undefined
-							? null
-							: sha256(item.runtime_worker_sha256),
 					computeType: nullableText(item.compute_type, 64),
 					gpuModel: nullableText(item.gpu_model, 160),
 					gpuComputeCapability: nullableText(item.gpu_compute_capability, 32),
@@ -1297,15 +1288,6 @@ export function parseLocalReview(value: unknown): LocalReview {
 		const start = nonNegativeNumber(segment.start);
 		const end = nonNegativeNumber(segment.end);
 		if (end < start) return invalid();
-		const timelineStart =
-			segment.timeline_start === undefined
-				? start
-				: nonNegativeNumber(segment.timeline_start);
-		const timelineEnd =
-			segment.timeline_end === undefined
-				? end
-				: nonNegativeNumber(segment.timeline_end);
-		if (timelineEnd < timelineStart) return invalid();
 		const trackNumber = nonNegativeInteger(segment.track_number);
 		if (trackNumber < 1) return invalid();
 		return {
@@ -1313,8 +1295,6 @@ export function parseLocalReview(value: unknown): LocalReview {
 			segmentId: contentText(segment.segment_id, 256),
 			start,
 			end,
-			timelineStart,
-			timelineEnd,
 			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
 			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
