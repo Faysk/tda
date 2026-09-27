@@ -18,8 +18,8 @@ from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
 from .local_review import (
     LocalReviewError,
-    open_immutable_run_snapshot,
     open_review,
+    open_run_snapshot,
     review_summary,
     save_review,
 )
@@ -478,7 +478,7 @@ class CraigIngestBoundary:
                 raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE") from exc
             if self.run_visible is not None and not self.run_visible(package_root, manifest):
                 raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE")
-            snapshot = open_immutable_run_snapshot(
+            snapshot = open_run_snapshot(
                 package_root,
                 source_id=source_id,
                 run_id=run_id,
@@ -868,18 +868,6 @@ class CraigIngestBoundary:
                 request,
                 delete_match.group("source_id"),
                 delete_match.group("run_id"),
-                scope,
-                receive,
-                send,
-            )
-            return
-        comparison_snapshot_match = CRAIG_COMPARISON_SNAPSHOT_PATH.fullmatch(path)
-        if comparison_snapshot_match is not None:
-            request = Request(scope, receive=receive)
-            await self._comparison_snapshot(
-                request,
-                comparison_snapshot_match.group("source_id"),
-                comparison_snapshot_match.group("run_id"),
                 scope,
                 receive,
                 send,
