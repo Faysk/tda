@@ -259,6 +259,21 @@ O Companion persiste fatos, não piadas. A interface nunca deve fingir que execu
 
 A interpolação de placeholders da camada Humanizada acontece em **uma única passagem sobre o template original**. Valores factuais inseridos são texto terminal: se um speaker contiver `{gpu}`, `<script>` ou qualquer outra sequência parecida com template/markup, esse valor não é reinterpretado como outro placeholder, HTML ou uma segunda linguagem de apresentação.
 
+
+### Linguiça no Log — packs locais v1
+
+A biblioteca custom da #606 usa `tda_activity_pack_v1` e, neste MVP, segue o modelo **browser-local untrusted data**. A capability `campaign.processing.barks.manage` decide server-side se a superfície administrativa aparece; ela não transforma `localStorage` em uma fronteira de segurança contra alguém que controla o próprio navegador/DevTools.
+
+O namespace local é `profileId + campaign`. Cada leitura revalida o JSON pelo parser fechado antes de um pack participar da camada Humanizada. Não existe endpoint Web→Companion para mutar packs nesta versão.
+
+Import é fail-all: limite de bytes → JSON → rejeição recursiva de `__proto__`/`constructor`/`prototype` → schema/campos fechados → semântica/event allowlist → preview → commit local. O campo `enabled` vindo do arquivo não autoativa conteúdo: todo import entra desativado e exige ativação explícita depois do preview. Conflito de `pack_id` nunca sobrescreve silenciosamente.
+
+A identidade determinística de template é `(pack_id, template_id)`; dois packs podem ter o mesmo `template_id`, mas IDs duplicados dentro do mesmo pack são inválidos. O catálogo elegível é ordenado por essa identidade antes do seed, então a ordem de importação não altera a seleção.
+
+Eventos aceitos em v1: `QWEN_WINDOW_TRANSCRIBED` e `WHISPER_SEGMENT_TRANSCRIBED`. Eventos críticos continuam fora da allowlist. Variáveis aceitas: `speaker`, `profile`, `attempt`, `track`, `total_tracks`, `window`, `segment`, `gpu` e `gpu_utilization`. Conditions declarativas aceitas: `speaker`, `profile`, `window_min`, `window_max`, `gpu_utilization_min` e `attempt_min`. Não existe linguagem de expressão, regex do pack, HTML, Markdown executável, handler, import, URL executável ou segunda passagem de interpolação.
+
+O log Técnico continua lendo somente os eventos factuais do Companion. Packs custom só entram na apresentação Humanizada. Export contém configuração/templates do pack, nunca contexto runtime de speaker/evento/telemetria.
+
 ## Telemetria
 
 Quando `system.telemetry` é anunciado, a UI consulta `GET /api/v1/system` e recebe uma projeção limitada de SO, CPU, RAM e GPUs. CPU/RAM usam `psutil`; NVIDIA GPU/VRAM usam NVML através de `nvidia-ml-py`.
