@@ -233,10 +233,7 @@ function RunCard({
 				<div><dt>Tracks</dt><dd>{run.stats.trackCount ?? "—"}</dd></div>
 				<div><dt>Deduplicados</dt><dd>{run.stats.deduplicatedSegmentCount ?? "—"}</dd></div>
 				<div><dt>Warnings</dt><dd>{run.stats.warningCount ?? "—"}</dd></div>
-				<div><dt>GPU</dt><dd>{run.executionLineage?.gpu?.model ?? "—"}</dd></div>
-				<div><dt>VRAM</dt><dd>{formatVram(run.executionLineage?.gpu?.vramTotalBytes)}</dd></div>
-				<div><dt>Runtime</dt><dd>{formatRuntime(run)}</dd></div>
-				<div><dt>Compute capability</dt><dd>{run.executionLineage?.gpu?.computeCapability ?? "—"}</dd></div>
+				<div><dt>Execução</dt><dd>{formatRunExecution(run)}</dd></div>
 			</dl>
 			{measured ? (
 				<details>
@@ -247,19 +244,28 @@ function RunCard({
 					<dl>{Object.entries(measured.stageSeconds).map(([stage, seconds]) => <div key={stage}><dt>{processingStageLabels[stage]}</dt><dd>{formatSeconds(seconds)}</dd></div>)}</dl>
 					<small>Registro original: {formatSeconds(run.stats.processingSeconds)} · medição {measured.version}</small>
 				</details>
-			) : <p>Tempo histórico sem medição comparável entre engines.</p>}
-			<div className={styles.runIdentity}>
-				<span title={run.sourceId}>Fonte {run.sourceId.slice(0, 22)}…</span>
-				<span title={run.transcriptSha256}>SHA {run.transcriptSha256.slice(0, 12)}…</span>
-				{run.publicationTarget ? (
-					<span>
-						Destino {run.publicationTarget.campaignSlug} · sessão{" "}
-						{run.publicationTarget.sourceSessionId}
-					</span>
-				) : (
-					<span>Sem destino cloud vinculado</span>
-				)}
-			</div>
+			) : (
+				<details className={styles.runDisclosure}>
+					<summary>Medição</summary>
+					<p>Tempo histórico sem medição comparável entre engines.</p>
+				</details>
+			)}
+			<details className={styles.runDisclosure}>
+				<summary>Integridade e IDs</summary>
+				<div className={styles.runIdentity}>
+					<span title={run.sourceId}>Fonte {run.sourceId}</span>
+					<span title={run.runId}>Run {run.runId}</span>
+					<span title={run.transcriptSha256}>SHA {run.transcriptSha256}</span>
+					{run.publicationTarget ? (
+						<span>
+							Destino {run.publicationTarget.campaignSlug} · sessão{" "}
+							{run.publicationTarget.sourceSessionId}
+						</span>
+					) : (
+						<span>Sem destino cloud vinculado</span>
+					)}
+				</div>
+			</details>
 			<div className={styles.runCardActions}>
 				<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
 					Revisar resultado
