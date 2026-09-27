@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-27
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -19,6 +19,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
 
+[Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — proposta para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
+
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
 
 Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
@@ -30,6 +32,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
+| Edit / múltiplas gravações por sessão | em desenho; backlog #843 | [Multi-recording sessions](multi-recording-sessions.md) |
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
