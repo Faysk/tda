@@ -275,6 +275,8 @@ global_time = part.session_offset + local_time
 
 A presença de uma string não é suficiente. Timestamp sem timezone ou valor opaco não autoriza auto-order silenciosa.
 
+Horário parseável sem referência absoluta suficiente (por exemplo `21:00:00`) é `ambiguous`, não `opaque`. Duas recording parts com o mesmo instante absoluto também não estabelecem ordem relativa; nesse caso a ordem/offset precisam de confirmação manual em vez de um tie-break autoritativo por ID.
+
 ### Manual override
 
 Quando a evidência é insuficiente, o usuário define ordem/offset.
@@ -318,6 +320,8 @@ Primeiro corte:
 A UI pode sugerir boundary, mas unresolved overlap bloqueia `approved_local`/publish.
 
 A política de ownership no boundary precisa ser determinística e versionada, inclusive quando um segmento cruza o corte.
+
+Confirmações de gap e resoluções de overlap pertencem à relação entre adjacências, não à part isolada. Reorder/detach invalidam decisões relacionais persistidas; mudanças de offset/trim invalidam decisões antigas da geometria afetada para que uma confirmação não “teleporte” silenciosamente para outro par ou outro overlap.
 
 ## Participantes entre parts
 
