@@ -47,6 +47,8 @@ export type CompanionFixtureOptions = {
 	profileReady?: boolean;
 	reviewEnabled?: boolean;
 	qwenRuntimeVersion?: string;
+	qwenStableRuntimeVersion?: string;
+	qwenStableManifestFailure?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -59,6 +61,7 @@ export type CompanionFixtureState = {
 	uploadCount: number;
 	jobPostCount: number;
 	preparationPostCount: number;
+	qwenManifestLookupCount: number;
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -153,6 +156,7 @@ export async function installCompanionFixture(
 		uploadCount: 0,
 		jobPostCount: 0,
 		preparationPostCount: 0,
+		qwenManifestLookupCount: 0,
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
@@ -167,6 +171,38 @@ export async function installCompanionFixture(
 			systemState = value;
 		},
 	};
+
+	await page.route(
+		"**/api/downloads/companion/windows/qwen-runtime/manifest",
+		async (route) => {
+			state.qwenManifestLookupCount += 1;
+			if (options.qwenStableManifestFailure) {
+				return route.fulfill({
+					status: 503,
+					headers: {
+						"Content-Type": "application/json",
+						"Cache-Control": "no-store",
+					},
+					body: JSON.stringify({
+						error: "QWEN_RUNTIME_RELEASE_LOOKUP_FAILED",
+					}),
+				});
+			}
+			return route.fulfill({
+				status: 200,
+				headers: {
+					"Content-Type": "application/json",
+					"Cache-Control": "no-store",
+				},
+				body: JSON.stringify({
+					channel: "stable",
+					runtime_id: "qwen3-transformers",
+					version: options.qwenStableRuntimeVersion ?? "1.0.12",
+					tag: `companion-qwen-runtime-v${options.qwenStableRuntimeVersion ?? "1.0.12"}`,
+				}),
+			});
+		},
+	);
 
 	await page.route(`${LOCAL_API}/**`, async (route) => {
 		const request = route.request();
