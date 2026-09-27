@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test("completed-run delete stays hidden on Stable 0.3.15 and appears on 0.3.16", async ({ page }) => {
 	await page.goto("/?review-contracts&metrics&service-version=0.3.15");
-	await expect(page.getByText("whisper-detailed", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "whisper-detailed", exact: true }),
+	).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: "Excluir resultado local…" }),
 	).toHaveCount(0);
