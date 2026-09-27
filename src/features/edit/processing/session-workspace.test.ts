@@ -52,8 +52,82 @@ describe("session workspace protocol", () => {
 				},
 			],
 		});
+		expect(parsed.orderProvenance).toBe("attached");
+		expect(parsed.chronology).toBeNull();
+		expect(parsed.parts[0].timing).toEqual({
+			schemaVersion: "tda_session_part_timing_v1",
+			mode: "automatic",
+			sessionOffsetSeconds: null,
+			trimStartSeconds: 0,
+			trimEndSeconds: null,
+			gapConfirmed: false,
+			overlapResolution: null,
+		});
 		expect(JSON.stringify(parsed)).not.toContain("path");
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
+	});
+
+	it("parses additive trusted chronology without exposing source internals", () => {
+		const base = workspace();
+		const value = {
+			...base,
+			order_provenance: "attached",
+			parts: [
+				{
+					...base.parts[0],
+					timing: {
+						schema_version: "tda_session_part_timing_v1",
+						mode: "automatic",
+						session_offset_seconds: null,
+						trim_start_seconds: 0,
+						trim_end_seconds: null,
+						gap_confirmed: false,
+						overlap_resolution: null,
+					},
+				},
+			],
+			chronology: {
+				schema_version: "tda_session_chronology_v1",
+				canonicalization_version: "session_timing_v1",
+				order_provenance: "attached",
+				config_sha256: "a".repeat(64),
+				ready_for_assembly: true,
+				blocking_reasons: [],
+				suggested_part_order: [partA],
+				resolved_part_order: [partA],
+				parts: [
+					{
+						part_id: partA,
+						source_id: sourceA,
+						ordinal: 0,
+						start_time_confidence: "trusted_absolute",
+						start_time_utc: "2026-09-27T21:00:00Z",
+						local_duration_seconds: 60,
+						session_offset_seconds: 0,
+						trim_start_seconds: 0,
+						trim_end_seconds: null,
+						effective_start_seconds: 0,
+						effective_end_seconds: 60,
+						timeline_ordinal: 0,
+						relation_to_previous: null,
+					},
+				],
+			},
+		};
+		const parsed = parseSessionWorkspace(value);
+		expect(parsed.chronology).toMatchObject({
+			schemaVersion: "tda_session_chronology_v1",
+			readyForAssembly: true,
+			resolvedPartOrder: [partA],
+			parts: [
+				{
+					partId: partA,
+					startTimeConfidence: "trusted_absolute",
+					sessionOffsetSeconds: 0,
+					effectiveEndSeconds: 60,
+				},
+			],
+		});
 	});
 
 	it("rejects duplicate sources, non-contiguous order and oversized collections", () => {
@@ -145,11 +219,31 @@ describe("session workspace bridge", () => {
 			1,
 			signal(),
 		);
+		await bridge.setSessionPartTiming(
+			"yuhara-main",
+			"session-42",
+			partB,
+			{
+				schemaVersion: "tda_session_part_timing_v1",
+				mode: "manual",
+				sessionOffsetSeconds: 42,
+				trimStartSeconds: 1,
+				trimEndSeconds: null,
+				gapConfirmed: true,
+				overlapResolution: {
+					schemaVersion: "tda_session_overlap_resolution_v1",
+					policy: "prefer_later_from",
+					boundarySeconds: 50,
+				},
+			},
+			2,
+			signal(),
+		);
 		await bridge.detachSessionPart(
 			"yuhara-main",
 			"session-42",
 			partA,
-			2,
+			3,
 			signal(),
 		);
 
@@ -157,6 +251,7 @@ describe("session workspace bridge", () => {
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timing`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
 		expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toEqual({
@@ -168,8 +263,25 @@ describe("session workspace bridge", () => {
 			expected_revision: 1,
 		});
 		expect(JSON.parse(String(request.mock.calls[3][1]?.body))).toEqual({
-			part_id: partA,
+			part_id: partB,
 			expected_revision: 2,
+			timing: {
+				schema_version: "tda_session_part_timing_v1",
+				mode: "manual",
+				session_offset_seconds: 42,
+				trim_start_seconds: 1,
+				trim_end_seconds: null,
+				gap_confirmed: true,
+				overlap_resolution: {
+					schema_version: "tda_session_overlap_resolution_v1",
+					policy: "prefer_later_from",
+					boundary_seconds: 50,
+				},
+			},
+		});
+		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
+			part_id: partA,
+			expected_revision: 3,
 		});
 		for (const [, init] of request.mock.calls) {
 			expect(init?.headers).toMatchObject({
