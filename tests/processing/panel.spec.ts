@@ -627,6 +627,10 @@ test("Overview labels track-count progress with its factual denominator", async 
 	});
 	await expect(progress).toHaveAttribute("value", "1");
 	await expect(progress).toHaveAttribute("max", "2");
+	await expect(progress.locator("xpath=..")).toHaveAttribute(
+		"data-progress-sample-ms",
+		"1500",
+	);
 	await expect(progress).toHaveAttribute("aria-valuetext", "1 de 2 tracks");
 	await expect(
 		page.getByText("Progresso por tracks · 50%", { exact: true }),
