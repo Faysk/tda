@@ -6,6 +6,7 @@ export type SessionPublicationConfirmation = Readonly<{
 	draftId: string;
 	draftRevision: number;
 	transcriptRevisionId: string;
+	transcriptRevisionNumber: number;
 	coverAssetId: string;
 	coverState: "staged" | "verified_public";
 	coverSha256: string;
