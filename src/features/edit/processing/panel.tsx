@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
 import { ProcessingCommandBar } from "./command-bar";
+import { ActivityPackAdmin } from "./activity-pack-admin";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
@@ -279,7 +280,8 @@ function eventTrackContext(events: readonly JobEvent[]) {
 
 export function ProcessingPanel({
 	publicationEnabled = false,
-}: Readonly<{ publicationEnabled?: boolean }>) {
+	activityBarksManage = false,
+}: Readonly<{ publicationEnabled?: boolean; activityBarksManage?: boolean }>) {
 	const [controller] = useState(() => new ProcessingController());
 	const state = useSyncExternalStore(
 		controller.subscribe,
@@ -1134,6 +1136,8 @@ export function ProcessingPanel({
 									</p>
 								)}
 							</div>
+
+							{activityBarksManage ? <ActivityPackAdmin /> : null}
 
 							{state.capabilities?.capabilities.includes(
 								"synthetic.fixture",
