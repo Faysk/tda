@@ -7,20 +7,22 @@ import {
 	selectActivityBark,
 	type ActivityBark,
 } from "./activity-barks";
+import {
+	buildLiveLogRevealPlan,
+	scheduleLiveLogRevealPlan,
+} from "./live-log-pacing";
 import { presentJobEvent } from "./presentation";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
-import {
-	GROUPABLE_LIVE_LOG_CODES,
-	liveLogEventIsUrgent,
-	planLiveLogReveal,
-	scheduleLiveLogReveal,
-} from "./live-log-pacing";
 import styles from "./processing.module.css";
 
 type Row =
 	| Readonly<{ kind: "event"; event: JobEvent }>
 	| Readonly<{ kind: "group"; events: readonly JobEvent[]; code: string }>;
 
+const GROUPABLE = new Set([
+	"QWEN_WINDOW_TRANSCRIBED",
+	"WHISPER_SEGMENT_TRANSCRIBED",
+]);
 const MAX_VISIBLE_EVENTS = 500;
 
 function boundedEvents(events: readonly JobEvent[]): readonly JobEvent[] {
@@ -50,7 +52,7 @@ function groupRows(events: readonly JobEvent[], enabled: boolean): Row[] {
 		const previous = rows.at(-1);
 		const joinsPrevious =
 			previous &&
-			GROUPABLE_LIVE_LOG_CODES.has(event.code) &&
+			GROUPABLE.has(event.code) &&
 			event.level === "info" &&
 			((previous.kind === "event" &&
 				previous.event.code === event.code &&
@@ -122,39 +124,29 @@ function historyCount(value: number): string {
 
 function PacedHumanText({
 	text,
-	animate,
 	durationMs,
-}: Readonly<{ text: string; animate: boolean; durationMs: number }>) {
-	const words = useMemo(() => text.split(/\s+/u).filter(Boolean), [text]);
-	const [visibleWords, setVisibleWords] = useState(() =>
-		animate ? Math.min(1, words.length) : words.length,
-	);
-
-	useEffect(() => {
-		if (!animate || words.length <= 1) {
-			setVisibleWords(words.length);
-			return;
-		}
-		setVisibleWords(1);
-		const stepMs = Math.max(24, Math.round(durationMs / words.length));
-		const timer = window.setInterval(() => {
-			setVisibleWords((current) => {
-				if (current >= words.length) {
-					window.clearInterval(timer);
-					return current;
-				}
-				return current + 1;
-			});
-		}, stepMs);
-		return () => window.clearInterval(timer);
-	}, [animate, durationMs, words.length]);
-
-	if (!animate) return <>{text}</>;
+}: Readonly<{ text: string; durationMs: number }>) {
+	if (durationMs <= 0) return <span>{text}</span>;
+	const words = [...text.trim().matchAll(/\S+/gu)].map((match) => ({
+		value: match[0],
+		offset: match.index,
+	}));
+	const delayMs = durationMs / Math.max(words.length, 1);
 	return (
-		<>
+		<span>
 			<span className={styles.visuallyHidden}>{text}</span>
-			<span aria-hidden="true">{words.slice(0, visibleWords).join(" ")}</span>
-		</>
+			<span className={styles.pacedWords} aria-hidden="true">
+				{words.map((word, index) => (
+					<span
+						key={`${word.offset}-${word.value}`}
+						className={styles.pacedWord}
+						style={{ animationDelay: `${Math.round(index * delayMs)}ms` }}
+					>
+						{word.value}{index < words.length - 1 ? " " : ""}
+					</span>
+				))}
+			</span>
+		</span>
 	);
 }
 
@@ -164,16 +156,16 @@ export function ProcessingLiveLog({
 	system,
 	live,
 	stale,
-	activityCatalog,
 	expectedPollMs,
+	activityCatalog,
 }: Readonly<{
 	events: readonly JobEvent[];
 	job: LocalJob;
 	system: SystemSnapshot | null;
 	live: boolean;
 	stale: boolean;
-	activityCatalog: readonly ActivityBark[];
 	expectedPollMs: number;
+	activityCatalog: readonly ActivityBark[];
 }>) {
 	const [mode, setMode] = useState<"humanized" | "technical">("humanized");
 	const [query, setQuery] = useState("");
@@ -183,134 +175,159 @@ export function ProcessingLiveLog({
 	const [track, setTrack] = useState("all");
 	const [grouped, setGrouped] = useState(true);
 	const [paused, setPaused] = useState(false);
-	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() => boundedEvents(events));
-	const initialSeq = snapshot.at(-1)?.seq ?? null;
-	const [revealedSeq, setRevealedSeq] = useState<number | null>(initialSeq);
-	const [typeDurationMs, setTypeDurationMs] = useState(0);
+	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() =>
+		boundedEvents(events),
+	);
+	const [typeDurationBySeq, setTypeDurationBySeq] = useState<
+		ReadonlyMap<number, number>
+	>(() => new Map());
 	const [reducedMotion, setReducedMotion] = useState(false);
 	const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
 	const scroller = useRef<HTMLDivElement>(null);
 	const nearBottom = useRef(true);
-	const revealedSeqRef = useRef<number | null>(initialSeq);
-	const pacingCancel = useRef<null | (() => void)>(null);
-	const animationCutoffSeq = useRef<number | null>(initialSeq);
-	const latestEventsRef = useRef(events);
-	latestEventsRef.current = events;
+	const snapshotRef = useRef<readonly JobEvent[]>(snapshot);
+	const revealCancelRef = useRef<() => void>(() => undefined);
+	const lastEventsRef = useRef(events);
+	const previousEventBatchAtRef = useRef<number | null>(performance.now());
+	const skipAnimationThroughSeq = useRef(snapshot.at(-1)?.seq ?? 0);
 	const latestSnapshotSeq = snapshot.at(-1)?.seq ?? null;
 
 	useEffect(() => {
 		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-		const update = () => setReducedMotion(media.matches);
-		update();
-		media.addEventListener("change", update);
-		return () => media.removeEventListener("change", update);
+		const sync = () => setReducedMotion(media.matches);
+		sync();
+		media.addEventListener("change", sync);
+		return () => media.removeEventListener("change", sync);
 	}, []);
 
 	useEffect(() => {
+		let observedPollGapMs: number | undefined;
+		if (lastEventsRef.current !== events) {
+			const now = performance.now();
+			const previous = previousEventBatchAtRef.current;
+			observedPollGapMs =
+				previous === null ? undefined : Math.max(0, now - previous);
+			previousEventBatchAtRef.current = now;
+			lastEventsRef.current = events;
+		}
+
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
 		if (paused) return;
+
 		const next = boundedEvents(events);
-		setSnapshot(next);
-		const latest = next.at(-1)?.seq ?? null;
+		const current = snapshotRef.current;
+		const currentLastSeq = current.at(-1)?.seq ?? null;
+		const sequenceReset =
+			currentLastSeq !== null &&
+			next.length > 0 &&
+			!next.some((event) => event.seq === currentLastSeq);
 
-		pacingCancel.current?.();
-		pacingCancel.current = null;
-
-		if (!live || reducedMotion || document.visibilityState === "hidden") {
-			revealedSeqRef.current = latest;
-			setRevealedSeq(latest);
-			animationCutoffSeq.current = latest;
+		if (
+			!live ||
+			reducedMotion ||
+			document.hidden ||
+			currentLastSeq === null ||
+			sequenceReset
+		) {
+			skipAnimationThroughSeq.current =
+				next.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+			snapshotRef.current = next;
+			setSnapshot(next);
+			setTypeDurationBySeq(new Map());
 			return;
 		}
 
-		const plan = planLiveLogReveal(next, revealedSeqRef.current, expectedPollMs);
-		if (!plan.steps.length) return;
-		setTypeDurationMs(plan.typeDurationMs);
-
-		if (plan.flushAll) {
-			revealedSeqRef.current = latest;
-			setRevealedSeq(latest);
-			animationCutoffSeq.current = latest;
+		const pending = next.filter((event) => event.seq > currentLastSeq);
+		if (!pending.length) {
+			if (next.length !== current.length) {
+				snapshotRef.current = next;
+				setSnapshot(next);
+			}
 			return;
 		}
 
-		pacingCancel.current = scheduleLiveLogReveal(plan, (throughSeq) => {
-			const current = revealedSeqRef.current;
-			const nextSeq = current === null ? throughSeq : Math.max(current, throughSeq);
-			revealedSeqRef.current = nextSeq;
-			setRevealedSeq(nextSeq);
+		const plan = buildLiveLogRevealPlan(
+			pending,
+			expectedPollMs,
+			observedPollGapMs,
+			grouped,
+		);
+		revealCancelRef.current = scheduleLiveLogRevealPlan(plan, (step) => {
+			if (step.typeDurationMs > 0) {
+				setTypeDurationBySeq((currentDurations) => {
+					const updated = new Map(currentDurations);
+					if (updated.size > MAX_VISIBLE_EVENTS * 2) updated.clear();
+					for (const event of step.events) {
+						updated.set(event.seq, step.typeDurationMs);
+					}
+					return updated;
+				});
+			}
+			setSnapshot((currentSnapshot) => {
+				const lastSeq = currentSnapshot.at(-1)?.seq ?? null;
+				const additions = step.events.filter(
+					(event) => lastSeq === null || event.seq > lastSeq,
+				);
+				if (!additions.length) return currentSnapshot;
+				const updated = boundedEvents([...currentSnapshot, ...additions]);
+				snapshotRef.current = updated;
+				return updated;
+			});
 		});
 
 		return () => {
-			pacingCancel.current?.();
-			pacingCancel.current = null;
+			revealCancelRef.current();
+			revealCancelRef.current = () => undefined;
 		};
-	}, [events, expectedPollMs, live, paused, reducedMotion]);
+	}, [events, expectedPollMs, grouped, live, paused, reducedMotion]);
 
 	useEffect(() => {
-		const onVisibilityChange = () => {
-			if (document.visibilityState !== "hidden") return;
-			pacingCancel.current?.();
-			pacingCancel.current = null;
-			const next = boundedEvents(latestEventsRef.current);
+		const handleVisibility = () => {
+			if (!document.hidden) return;
+			revealCancelRef.current();
+			revealCancelRef.current = () => undefined;
+			const next = boundedEvents(events);
+			skipAnimationThroughSeq.current =
+				next.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+			snapshotRef.current = next;
 			setSnapshot(next);
-			const latest = next.at(-1)?.seq ?? null;
-			revealedSeqRef.current = latest;
-			setRevealedSeq(latest);
-			animationCutoffSeq.current = latest;
+			setTypeDurationBySeq(new Map());
 		};
-		document.addEventListener("visibilitychange", onVisibilityChange);
-		return () => {
-			document.removeEventListener("visibilitychange", onVisibilityChange);
-			pacingCancel.current?.();
-		};
-	}, []);
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () =>
+			document.removeEventListener("visibilitychange", handleVisibility);
+	}, [events]);
 
 	useEffect(() => {
-		if (!paused && nearBottom.current && revealedSeq !== null) {
+		if (!paused && nearBottom.current && latestSnapshotSeq !== null) {
 			requestAnimationFrame(() => {
 				const node = scroller.current;
 				if (node) node.scrollTop = node.scrollHeight;
 			});
 		}
-	}, [revealedSeq, paused]);
+	}, [latestSnapshotSeq, paused]);
 
-	const visibleSnapshot = useMemo(
-		() =>
-			revealedSeq === null
-				? []
-				: snapshot.filter((event) => event.seq <= revealedSeq),
-		[snapshot, revealedSeq],
-	);
-	const filtersActive =
+	const inspectionActive =
 		Boolean(query.trim()) ||
 		level !== "all" ||
 		code !== "all" ||
 		speaker !== "all" ||
 		track !== "all";
+	const displaySnapshot = inspectionActive ? boundedCurrentEvents : snapshot;
 	const filtered = useMemo(
 		() =>
-			(filtersActive ? snapshot : visibleSnapshot).filter((event) =>
+			displaySnapshot.filter((event) =>
 				matches(event, query.trim(), level, code, speaker, track),
 			),
-		[
-			filtersActive,
-			snapshot,
-			visibleSnapshot,
-			query,
-			level,
-			code,
-			speaker,
-			track,
-		],
+		[displaySnapshot, query, level, code, speaker, track],
 	);
-	const rows = useMemo(
-		() => groupRows(filtered, grouped),
-		[filtered, grouped],
-	);
+	const rows = useMemo(() => groupRows(filtered, grouped), [filtered, grouped]);
 	const assistiveAnnouncement = useMemo(() => {
-		for (let index = snapshot.length - 1; index >= 0; index -= 1) {
-			const event = snapshot[index];
-			if (!event || GROUPABLE_LIVE_LOG_CODES.has(event.code)) continue;
+		for (let index = boundedCurrentEvents.length - 1; index >= 0; index -= 1) {
+			const event = boundedCurrentEvents[index];
+			if (!event || GROUPABLE.has(event.code)) continue;
 			if (event.level === "info" && event.code.endsWith("_STARTED")) continue;
 			const presented = humanText(event, job, system, activityCatalog);
 			return presented.detail
@@ -318,74 +335,83 @@ export function ProcessingLiveLog({
 				: presented.title;
 		}
 		return "";
-	}, [snapshot, job, system, activityCatalog]);
+	}, [boundedCurrentEvents, job, system, activityCatalog]);
 	const selected =
-		snapshot.find((event) => event.seq === selectedSeq) ?? null;
-	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+		boundedCurrentEvents.find((event) => event.seq === selectedSeq) ?? null;
 	const newEventCount = paused
 		? boundedCurrentEvents.filter(
 				(event) => latestSnapshotSeq === null || event.seq > latestSnapshotSeq,
 			).length
 		: 0;
 	const codeOptions = useMemo(
-		() => [...new Set(snapshot.map((event) => event.code))].sort(),
-		[snapshot],
+		() => [...new Set(boundedCurrentEvents.map((event) => event.code))].sort(),
+		[boundedCurrentEvents],
 	);
 	const speakerOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.speaker)
-						.filter((value): value is string => typeof value === "string" && Boolean(value)),
+						.filter(
+							(value): value is string =>
+								typeof value === "string" && Boolean(value),
+						),
 				),
 			].sort(),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 	const trackOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.track)
-						.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+						.filter(
+							(value): value is number =>
+								typeof value === "number" && Number.isFinite(value),
+						)
 						.map(String),
 				),
 			].sort((left, right) => Number(left) - Number(right)),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 
-	function flushVisualTail(nextEvents: readonly JobEvent[]) {
-		pacingCancel.current?.();
-		pacingCancel.current = null;
-		const latest = nextEvents.at(-1)?.seq ?? null;
-		revealedSeqRef.current = latest;
-		setRevealedSeq(latest);
-		animationCutoffSeq.current = latest;
+	function flushVisualSnapshot() {
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
+		skipAnimationThroughSeq.current =
+			boundedCurrentEvents.at(-1)?.seq ?? skipAnimationThroughSeq.current;
+		snapshotRef.current = boundedCurrentEvents;
+		setSnapshot(boundedCurrentEvents);
+		setTypeDurationBySeq(new Map());
 	}
 
-	function pauseVisualization() {
-		if (paused) return;
-		flushVisualTail(snapshot);
-		setPaused(true);
+	function inspectFactualBuffer() {
+		flushVisualSnapshot();
+	}
+
+	function switchMode(nextMode: "humanized" | "technical") {
+		inspectFactualBuffer();
+		setMode(nextMode);
 	}
 
 	function togglePause() {
-		if (paused) catchUp();
-		else pauseVisualization();
+		if (paused) {
+			flushVisualSnapshot();
+			nearBottom.current = true;
+			setPaused(false);
+			return;
+		}
+		revealCancelRef.current();
+		revealCancelRef.current = () => undefined;
+		setPaused(true);
 	}
 
 	function catchUp() {
-		const next = boundedEvents(events);
-		setSnapshot(next);
-		flushVisualTail(next);
+		flushVisualSnapshot();
 		setPaused(false);
 		nearBottom.current = true;
-	}
-
-	function changeMode(nextMode: "humanized" | "technical") {
-		flushVisualTail(snapshot);
-		setMode(nextMode);
 	}
 
 	return (
@@ -409,14 +435,14 @@ export function ProcessingLiveLog({
 					<button
 						type="button"
 						aria-pressed={mode === "humanized"}
-						onClick={() => changeMode("humanized")}
+						onClick={() => switchMode("humanized")}
 					>
 						Humanizada
 					</button>
 					<button
 						type="button"
 						aria-pressed={mode === "technical"}
-						onClick={() => changeMode("technical")}
+						onClick={() => switchMode("technical")}
 					>
 						Técnica
 					</button>
@@ -435,15 +461,19 @@ export function ProcessingLiveLog({
 					<input
 						className={styles.logSearch}
 						value={query}
-						onChange={(event) => setQuery(event.target.value)}
+						onChange={(event) => {
+						inspectFactualBuffer();
+						setQuery(event.target.value);
+					}}
 						placeholder="Buscar code, speaker, stage…"
 					/>
 				</label>
 				<select
 					value={level}
-					onChange={(event) =>
-						setLevel(event.target.value as typeof level)
-					}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setLevel(event.target.value as typeof level);
+					}}
 					aria-label="Filtrar por nível"
 				>
 					<option value="all">Todos os níveis</option>
@@ -453,7 +483,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={code}
-					onChange={(event) => setCode(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setCode(event.target.value);
+					}}
 					aria-label="Filtrar por code"
 				>
 					<option value="all">Todos os codes</option>
@@ -463,7 +496,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={speaker}
-					onChange={(event) => setSpeaker(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setSpeaker(event.target.value);
+					}}
 					aria-label="Filtrar por speaker"
 				>
 					<option value="all">Todos os speakers</option>
@@ -473,7 +509,10 @@ export function ProcessingLiveLog({
 				</select>
 				<select
 					value={track}
-					onChange={(event) => setTrack(event.target.value)}
+					onChange={(event) => {
+						inspectFactualBuffer();
+						setTrack(event.target.value);
+					}}
 					aria-label="Filtrar por track"
 				>
 					<option value="all">Todas as tracks</option>
@@ -485,7 +524,10 @@ export function ProcessingLiveLog({
 					<input
 						type="checkbox"
 						checked={grouped}
-						onChange={(event) => setGrouped(event.target.checked)}
+						onChange={(event) => {
+						inspectFactualBuffer();
+						setGrouped(event.target.checked);
+					}}
 					/>
 					Agrupar repetitivos
 				</label>
@@ -509,7 +551,11 @@ export function ProcessingLiveLog({
 					const node = event.currentTarget;
 					nearBottom.current =
 						node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-					if (!nearBottom.current && live && !paused) pauseVisualization();
+					if (!nearBottom.current && live && !paused) {
+						revealCancelRef.current();
+						revealCancelRef.current = () => undefined;
+						setPaused(true);
+					}
 				}}
 			>
 				{rows.length ? (
@@ -522,43 +568,19 @@ export function ProcessingLiveLog({
 								typeof last.data.speaker === "string"
 									? last.data.speaker
 									: null;
-							const animate =
-								live &&
-								!paused &&
-								!reducedMotion &&
-								(animationCutoffSeq.current === null ||
-									last.seq > animationCutoffSeq.current);
-							const humanizedGroup = humanText(
-								last,
-								job,
-								system,
-								activityCatalog,
-							);
-							const groupTitle =
-								mode === "humanized"
-									? `${humanizedGroup.title} · × ${row.events.length}`
-									: `${row.code} × ${row.events.length}${speaker ? ` · ${speaker}` : ""}`;
 							return (
 								<button
 									type="button"
 									key={`group-${first.seq}-${last.seq}`}
-									className={styles.logEntry}
+									className={`${styles.logEntry} ${live && !paused && !reducedMotion && last.seq > skipAnimationThroughSeq.current && (typeDurationBySeq.get(last.seq) ?? 0) > 0 ? styles.logEntryReveal : ""}`}
 									data-level="info"
-									data-event-seq={last.seq}
 									onClick={() => setSelectedSeq(last.seq)}
 								>
 									<time dateTime={last.at}>{formatTime(last.at)}</time>
 									<div>
 										<span>
-											{mode === "humanized" ? (
-												<PacedHumanText
-													text={groupTitle}
-													animate={animate}
-													durationMs={typeDurationMs}
-												/>
-											) : (
-												groupTitle
-											)}
+											{row.code} × {row.events.length}
+											{speaker ? ` · ${speaker}` : ""}
 										</span>
 										<small>
 											seq {first.seq}–{last.seq} · evento mais recente no
@@ -574,38 +596,30 @@ export function ProcessingLiveLog({
 							mode === "humanized"
 								? humanText(row.event, job, system, activityCatalog)
 								: factual;
-						const urgent = liveLogEventIsUrgent(row.event);
-						const animate =
-							live &&
-							!paused &&
-							!reducedMotion &&
-							!urgent &&
-							(animationCutoffSeq.current === null ||
-								row.event.seq > animationCutoffSeq.current);
 						return (
 							<button
 								type="button"
-								className={styles.logEntry}
+								className={`${styles.logEntry} ${live && !paused && !reducedMotion && row.event.seq > skipAnimationThroughSeq.current && (typeDurationBySeq.get(row.event.seq) ?? 0) > 0 ? styles.logEntryReveal : ""}`}
 								key={row.event.seq}
 								data-level={row.event.level}
-								data-event-seq={row.event.seq}
 								onClick={() => setSelectedSeq(row.event.seq)}
 							>
 								<time dateTime={row.event.at}>
 									{formatTime(row.event.at)}
 								</time>
 								<div>
-									<span>
-										{mode === "humanized" ? (
-											<PacedHumanText
-												text={presented.title}
-												animate={animate}
-												durationMs={typeDurationMs}
-											/>
-										) : (
-											presented.title
-										)}
-									</span>
+									<PacedHumanText
+									text={presented.title}
+									durationMs={
+										mode === "humanized" &&
+										live &&
+										!paused &&
+										!reducedMotion &&
+										row.event.seq > skipAnimationThroughSeq.current
+											? (typeDurationBySeq.get(row.event.seq) ?? 0)
+											: 0
+									}
+								/>
 									{presented.detail ? (
 										<small>{presented.detail}</small>
 									) : null}
