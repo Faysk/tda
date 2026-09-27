@@ -13,6 +13,7 @@ import {
 	type LocalReview,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	type LocalRunComparisonProjection,
 	type LocalRunSummary,
 	type LocalSourceSummary,
 	type ResultSummary,
@@ -821,6 +822,28 @@ export class ProcessingController {
 				this.update({ localReviewBusy: false });
 		}
 	}
+
+	loadLocalRunComparison = async (
+		sourceId: string,
+		runId: string,
+	): Promise<LocalRunComparisonProjection> => {
+		if (this.#state.connection !== "connected") throw new BridgeError("unreachable");
+		const expected = this.#state.localRuns.find(
+			(run) => run.sourceId === sourceId && run.runId === runId,
+		);
+		if (!expected) throw new BridgeError("invalid_response");
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		const projection = await this.bridge.localRunComparison(sourceId, runId, signal);
+		if (
+			epoch !== this.#epoch ||
+			signal.aborted ||
+			projection.sourceId !== expected.sourceId ||
+			projection.runId !== expected.runId ||
+			projection.transcriptSha256 !== expected.transcriptSha256
+		) throw new BridgeError("invalid_response");
+		return projection;
+	};
 
 	openLocalReview = async (sourceId: string, runId: string) => {
 		if (
