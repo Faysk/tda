@@ -101,6 +101,13 @@
 	white-space: nowrap;
 }
 
+.comparabilityNote {
+	margin: -2px 0 0;
+	color: var(--ds-foreground-muted);
+	font-size: .6875rem;
+	line-height: 1.45;
+}
+
 .summary {
 	display: flex;
 	gap: 7px;
