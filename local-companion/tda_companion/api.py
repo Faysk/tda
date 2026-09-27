@@ -1380,6 +1380,7 @@ def create_app(
             "transcription.prepare",
             "transcription.prepare.cancel",
             "transcription.review",
+            "transcription.run.comparison-snapshot",
             "transcription.target.repair",
         ]
         catalog = profile_catalog(
