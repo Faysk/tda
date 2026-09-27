@@ -108,11 +108,12 @@ export type SessionChronologyRelation = {
 		mode: "prefer_earlier_until" | "prefer_later_from";
 		boundarySeconds: number;
 		segmentPolicy: "segment_start_owner_v1";
+		segmentPolicy: "segment_start_owner_v1";
 	}> | null;
 };
 export type SessionChronology = {
 	schemaVersion: "tda_recording_chronology_v1";
-	segmentBoundaryPolicy: "segment_start_v1";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
 	sha256: string;
 	readyForAssembly: boolean;
 	blockingReasons: string[];
@@ -833,7 +834,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		const rawChronology = record(row.chronology);
 		if (rawChronology.schema_version !== "tda_recording_chronology_v1")
 			return invalid();
-		if (rawChronology.segment_boundary_policy !== "segment_start_v1")
+		if (rawChronology.segment_boundary_policy !== "segment_start_owner_v1")
 			return invalid();
 		if (
 			!Array.isArray(rawChronology.blocking_reasons) ||
@@ -935,7 +936,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		});
 		chronology = {
 			schemaVersion: "tda_recording_chronology_v1",
-			segmentBoundaryPolicy: "segment_start_v1",
+			segmentBoundaryPolicy: "segment_start_owner_v1",
 			sha256: sha256(rawChronology.sha256),
 			readyForAssembly: boolean(rawChronology.ready_for_assembly),
 			blockingReasons: rawChronology.blocking_reasons.map((reason) => text(reason, 128)),
