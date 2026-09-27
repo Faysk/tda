@@ -19,6 +19,7 @@ REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
 REVIEW_SUMMARY_SCHEMA_VERSION = "tda_local_review_summary_v1"
 REVIEW_APPROVAL_SCHEMA_VERSION = "tda_local_review_approval_v1"
+COMPARISON_PROJECTION_SCHEMA_VERSION = "tda_run_comparison_projection_v1"
 SNAPSHOT_CONTRACT = "tda_local_review_cas_v1"
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
@@ -652,6 +653,18 @@ def _response(
             for segment in segments
         ],
         "sync": {"status": "not_configured"},
+    }
+
+
+def comparison_projection(package_root: Path, *, source_id: str, run_id: str) -> dict[str, Any]:
+    """Return a verified immutable-run projection without reading or creating review state."""
+    manifest, transcript = _load_base(package_root, source_id, run_id)
+    return {
+        "schema_version": COMPARISON_PROJECTION_SCHEMA_VERSION,
+        "source_id": source_id,
+        "run_id": run_id,
+        "transcript_sha256": manifest["transcript_sha256"],
+        "segments": _base_segments(transcript),
     }
 
 
