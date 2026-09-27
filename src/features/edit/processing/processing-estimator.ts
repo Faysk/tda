@@ -1,7 +1,5 @@
-import { freshCalibrationRtf, PROCESSING_TIMING_VERSION } from "./engine-metrics";
+import { freshCalibrationRtf } from "./engine-metrics";
 import type {
-	BenchmarkResult,
-	LocalExecutionLineage,
 	LocalRunSummary,
 	SystemSnapshot,
 	TranscriptionProfileState,
@@ -36,9 +34,7 @@ export type ProcessingEstimate =
 			computeType: string;
 			computeTypeVerified: boolean;
 			gpuModel: string;
-			source: "local_runs" | "benchmark" | "local_runs+benchmark";
-			runSampleCount: number;
-			benchmarkSampleCount: number;
+			source: "local_runs";
 	  }>;
 
 function quantile(sorted: readonly number[], q: number): number {
@@ -82,40 +78,13 @@ function runRtf(run: LocalRunSummary): number | null {
 	return freshCalibrationRtf(run.stats.processingMetrics);
 }
 
-type CurrentGpuIdentity = Readonly<{
-	model: string;
-	physicalUuid: string | null;
-	pciBusId: string | null;
-}>;
-
-function currentGpuIdentity(
+function currentGpuModel(
 	profile: TranscriptionProfileState,
 	system: SystemSnapshot | null,
-): CurrentGpuIdentity | null {
-	if (!system) return null;
-	const candidates = profile.gpuModel
-		? system.gpus.filter((gpu) => gpu.name === profile.gpuModel)
-		: system.gpus;
-	if (candidates.length !== 1) return null;
-	const gpu = candidates[0];
-	if (!gpu) return null;
-	const physicalUuid = gpu.uuid ?? null;
-	const pciBusId = gpu.pciBusId ?? null;
-	if (!physicalUuid && !pciBusId) return null;
-	return { model: profile.gpuModel ?? gpu.name, physicalUuid, pciBusId };
-}
-
-function matchesPhysicalGpu(
-	lineage: LocalExecutionLineage | null | undefined,
-	current: CurrentGpuIdentity,
-): boolean {
-	const execution = lineage?.executionDevice;
-	if (execution?.kind !== "cuda") return false;
-	if (current.physicalUuid && execution.physicalUuid)
-		return execution.physicalUuid === current.physicalUuid;
-	if (current.pciBusId && execution.pciBusId)
-		return execution.pciBusId === current.pciBusId;
-	return false;
+): string | null {
+	if (profile.gpuModel) return profile.gpuModel;
+	if (system?.gpus.length === 1) return system.gpus[0]?.name ?? null;
+	return null;
 }
 
 function completedAtValue(run: LocalRunSummary): number {
@@ -127,10 +96,9 @@ export function estimateProfileProcessing(input: Readonly<{
 	audioWorkSeconds: number | null;
 	profile: TranscriptionProfileState | null;
 	runs: readonly LocalRunSummary[];
-	benchmarks?: readonly BenchmarkResult[];
 	system: SystemSnapshot | null;
 }>): ProcessingEstimate {
-	const { audioWorkSeconds, profile, runs, benchmarks = [], system } = input;
+	const { audioWorkSeconds, profile, runs, system } = input;
 	if (
 		audioWorkSeconds === null ||
 		!Number.isFinite(audioWorkSeconds) ||
@@ -145,8 +113,7 @@ export function estimateProfileProcessing(input: Readonly<{
 		!profile ||
 		!profile.model ||
 		!profile.modelRevision ||
-		!profile.runtimeVersion ||
-		!profile.runtimeWorkerSha256
+		!profile.runtimeVersion
 	)
 		return {
 			available: false,
@@ -154,16 +121,15 @@ export function estimateProfileProcessing(input: Readonly<{
 			reason: "profile_identity_unavailable",
 		};
 
-	const gpuIdentity = currentGpuIdentity(profile, system);
-	if (!gpuIdentity)
+	const gpuModel = currentGpuModel(profile, system);
+	if (!gpuModel)
 		return {
 			available: false,
 			version: PROCESSING_ESTIMATOR_VERSION,
 			reason: "gpu_identity_unavailable",
 		};
-	const gpuModel = gpuIdentity.model;
 
-	const baseRuns = [...runs]
+	const base = [...runs]
 		.sort((left, right) => completedAtValue(right) - completedAtValue(left))
 		.filter((run) => {
 			const lineage = run.executionLineage;
@@ -173,9 +139,7 @@ export function estimateProfileProcessing(input: Readonly<{
 				run.model === profile.model &&
 				run.modelRevision === profile.modelRevision &&
 				lineage?.runtimeVersion === profile.runtimeVersion &&
-				lineage?.runtimeArtifact?.workerSha256 === profile.runtimeWorkerSha256 &&
 				lineage?.gpu?.model === gpuModel &&
-				matchesPhysicalGpu(lineage, gpuIdentity) &&
 				(!profile.gpuComputeCapability ||
 					lineage?.gpu?.computeCapability === profile.gpuComputeCapability) &&
 				runRtf(run) !== null
@@ -183,42 +147,13 @@ export function estimateProfileProcessing(input: Readonly<{
 		})
 		.slice(0, 20);
 
-	const benchmarkSamples = benchmarks
-		.filter(
-			(result) =>
-				result.prepared &&
-				result.executionMode === "prepared_artifacts_fresh_worker_per_profile_v1",
-		)
-		.flatMap((result) => result.profiles)
-		.filter((sample) => {
-			const lineage = sample.executionLineage;
-			return (
-				sample.profileId === profile.id &&
-				sample.engine === profile.engine &&
-				sample.model === profile.model &&
-				sample.modelRevision === profile.modelRevision &&
-				sample.processingTimingVersion === PROCESSING_TIMING_VERSION &&
-				sample.rtf !== null &&
-				Number.isFinite(sample.rtf) &&
-				sample.rtf > 0 &&
-				lineage?.runtimeVersion === profile.runtimeVersion &&
-				lineage?.runtimeArtifact?.workerSha256 === profile.runtimeWorkerSha256 &&
-				lineage?.gpu?.model === gpuModel &&
-				matchesPhysicalGpu(lineage, gpuIdentity) &&
-				(!profile.gpuComputeCapability ||
-					lineage?.gpu?.computeCapability === profile.gpuComputeCapability)
-			);
-		})
-		.slice(0, 10);
-
 	let computeType = profile.computeType ?? null;
-	const computeTypeVerified = computeType !== null;
+	let computeTypeVerified = computeType !== null;
 	if (!computeType) {
 		const observed = new Set(
-			[
-				...baseRuns.map((run) => run.computeType),
-				...benchmarkSamples.map((sample) => sample.computeType),
-			].filter((value): value is string => Boolean(value)),
+			base
+				.map((run) => run.computeType)
+				.filter((value): value is string => Boolean(value)),
 		);
 		if (observed.size !== 1)
 			return {
@@ -235,26 +170,13 @@ export function estimateProfileProcessing(input: Readonly<{
 			reason: "compute_identity_ambiguous",
 		};
 
-	const runRtfs = robustRtfs(
-		baseRuns
-			.filter((run) => run.computeType === computeType)
+	const compatible = base.filter((run) => run.computeType === computeType);
+	const rtfs = robustRtfs(
+		compatible
 			.map(runRtf)
 			.filter((value): value is number => value !== null),
 	);
-	const benchmarkRtfs = robustRtfs(
-		benchmarkSamples
-			.filter((sample) => sample.computeType === computeType)
-			.map((sample) => sample.rtf)
-			.filter((value): value is number => value !== null),
-	);
-
-	const selectedRunRtfs = runRtfs;
-	const selectedBenchmarkRtfs = runRtfs.length >= 2 ? [] : benchmarkRtfs;
-	const rtfs = robustRtfs([...selectedRunRtfs, ...selectedBenchmarkRtfs]);
-	if (
-		rtfs.length === 0 ||
-		(selectedRunRtfs.length === 1 && selectedBenchmarkRtfs.length === 0)
-	)
+	if (rtfs.length < 2)
 		return {
 			available: false,
 			version: PROCESSING_ESTIMATOR_VERSION,
@@ -263,28 +185,20 @@ export function estimateProfileProcessing(input: Readonly<{
 
 	const sorted = [...rtfs].sort((a, b) => a - b);
 	const lowerRtf =
-		sorted.length <= 2 ? (sorted[0] ?? Number.NaN) : quantile(sorted, 0.25);
+		sorted.length === 2 ? (sorted[0] ?? Number.NaN) : quantile(sorted, 0.25);
 	const medianRtf = quantile(sorted, 0.5);
 	const upperRtf =
-		sorted.length <= 2
+		sorted.length === 2
 			? (sorted[sorted.length - 1] ?? Number.NaN)
 			: quantile(sorted, 0.75);
 	const relativeSpread =
 		medianRtf > 0 ? (upperRtf - lowerRtf) / medianRtf : Number.POSITIVE_INFINITY;
-	const source: Extract<ProcessingEstimate, { available: true }>["source"] =
-		selectedBenchmarkRtfs.length === 0
-			? "local_runs"
-			: selectedRunRtfs.length === 0
-				? "benchmark"
-				: "local_runs+benchmark";
 	const confidence: EstimateConfidence =
-		source !== "local_runs"
-			? "low"
-			: sorted.length >= 5 && relativeSpread <= 0.15 && computeTypeVerified
-				? "high"
-				: sorted.length >= 3
-					? "medium"
-					: "low";
+		sorted.length >= 5 && relativeSpread <= 0.15 && computeTypeVerified
+			? "high"
+			: sorted.length >= 3
+				? "medium"
+				: "low";
 
 	return {
 		available: true,
@@ -300,9 +214,7 @@ export function estimateProfileProcessing(input: Readonly<{
 		computeType,
 		computeTypeVerified,
 		gpuModel,
-		source,
-		runSampleCount: selectedRunRtfs.length,
-		benchmarkSampleCount: selectedBenchmarkRtfs.length,
+		source: "local_runs",
 	};
 }
 
@@ -322,26 +234,14 @@ export function estimateRemainingProcessing(
 		completedTracks >= trackDurationsSeconds.length
 	)
 		return null;
-	const durations = trackDurationsSeconds.filter(
-		(value) => Number.isFinite(value) && value >= 0,
-	);
-	if (durations.length !== trackDurationsSeconds.length) return null;
-	const remainingCount = durations.length - completedTracks;
-	if (remainingCount <= 0) return null;
-	const sortedDurations = [...durations].sort((left, right) => left - right);
-	const lowerAudio = sortedDurations
-		.slice(0, remainingCount)
-		.reduce((sum, value) => sum + value, 0);
-	const upperAudio = sortedDurations
-		.slice(sortedDurations.length - remainingCount)
-		.reduce((sum, value) => sum + value, 0);
-	const totalAudio = durations.reduce((sum, value) => sum + value, 0);
-	const medianAudio = (totalAudio * remainingCount) / durations.length;
-	if (upperAudio <= 0) return null;
+	const remainingAudio = trackDurationsSeconds
+		.slice(completedTracks)
+		.reduce((sum, value) => sum + (Number.isFinite(value) && value >= 0 ? value : 0), 0);
+	if (remainingAudio <= 0) return null;
 	return {
-		lowerSeconds: lowerAudio * estimate.lowerRtf,
-		medianSeconds: medianAudio * estimate.medianRtf,
-		upperSeconds: upperAudio * estimate.upperRtf,
+		lowerSeconds: remainingAudio * estimate.lowerRtf,
+		medianSeconds: remainingAudio * estimate.medianRtf,
+		upperSeconds: remainingAudio * estimate.upperRtf,
 	};
 }
 
@@ -370,8 +270,6 @@ export function formatEstimateRange(
 		const rest = minutes % 60;
 		return rest ? `${hours}h ${rest}m` : `${hours}h`;
 	};
-	const lower = format(lowerSeconds);
-	const upper = format(upperSeconds);
-	return lower === upper ? `≈ ${lower}` : `${lower}–${upper}`;
+	return `${format(lowerSeconds)}–${format(upperSeconds)}`;
 }
 
