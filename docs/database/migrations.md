@@ -1316,3 +1316,45 @@ Rollback lógico:
 - retirar primeiro a superfície administrativa da aplicação;
 - revogar a associação role→permission apenas por migration corretiva posterior, se necessário;
 - não apagar assignments existentes de `platform_owner`, pois eles preexistem à #606 e são autoridade compartilhada por outras capabilities.
+
+## 2026-09-27 — drafts editoriais versionados de sessão
+
+### `20260927203500_session_editorial_drafts`
+
+**Estado:** migration candidata da #791; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- criar `session_editorial_drafts` como snapshots privados e imutáveis da preparação editorial de uma sessão;
+- adicionar `sessions.current_editorial_draft_id` como ponteiro para o draft privado atual;
+- vincular cada draft à `base_transcript_revision_id` exata para detectar drift da transcrição;
+- salvar capa/intenção, arco, título, descrição curta e resumo Markdown sem alterar os campos públicos da sessão.
+
+Concorrência e integridade:
+
+- `save_session_editorial_draft_atomic` bloqueia a row da sessão e exige `expectedRevision`;
+- conflito retorna `conflict` sem sobrescrever o draft concorrente;
+- cada save cria uma nova row imutável e só depois move `current_editorial_draft_id`;
+- a revisão-base precisa pertencer à mesma sessão/campanha;
+- o audit registra ids, revisão, provenance e contagens, nunca o corpo privado do resumo.
+
+Segurança:
+
+- RLS habilitado em `session_editorial_drafts`;
+- `public`, `anon` e `authenticated` não recebem acesso à tabela nem EXECUTE da função;
+- `service_role` recebe apenas `SELECT/INSERT` na tabela e EXECUTE da RPC;
+- a função é `SECURITY INVOKER` com `search_path` fixado; autorização de `campaign.content.edit` permanece no boundary server-side.
+
+Validação e rollout:
+
+- migration safety/governance e PostgreSQL scratch devem passar no CI;
+- testes de contrato cobrem limite exato/+1 em Unicode scalar values, NUL/lone surrogate e readiness;
+- após Production CD, confirmar por read-back a tabela, FK/pointer, grants/RLS e assinatura da função antes de considerar persistência física aceita;
+- salvar draft não publica sessão, capa, resumo ou transcrição no site público.
+
+Rollback:
+
+- retirar primeiro o consumidor Web;
+- não apagar drafts já criados nem reescrever campos públicos;
+- qualquer correção de schema/grants deve ser uma migration forward-only posterior.
+
