@@ -192,8 +192,20 @@ export function ReviewFixture() {
 		<>
         <span data-testid="save-count">{saveCount}</span>
         <LocalReviewWorkspace
-			runs={metricsMode ? [run] : []}
-			review={metricsMode ? null : review}
+			runs={
+				comparisonMode
+					? [comparisonRunA, comparisonRunB]
+					: metricsMode
+						? [run]
+						: []
+			}
+			review={
+				comparisonMode
+					? comparisonOpenedReview
+					: metricsMode
+						? null
+						: review
+			}
 			busy={false}
 			error={saveError}
 			publicationEnabled={publication}
