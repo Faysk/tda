@@ -77,7 +77,8 @@ export type SessionPartRelation =
 	| "unknown"
 	| "contiguous"
 	| "gap"
-	| "overlap";
+	| "overlap"
+	| "order_conflict";
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
@@ -112,6 +113,7 @@ export type SessionWorkspaceTimeline = {
 		| "needs_timing"
 		| "gap_unconfirmed"
 		| "overlap_unresolved"
+		| "order_conflict"
 		| "source_invalid";
 	allSourcesTrusted: boolean;
 	automaticOrderAvailable: boolean;
@@ -802,7 +804,11 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			)
 		)
 			return invalid();
-		if (!["first", "unknown", "contiguous", "gap", "overlap"].includes(relation))
+		if (
+			!["first", "unknown", "contiguous", "gap", "overlap", "order_conflict"].includes(
+				relation,
+			)
+		)
 			return invalid();
 		if (
 			overlapResolution !== null &&
@@ -867,6 +873,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			"needs_timing",
 			"gap_unconfirmed",
 			"overlap_unresolved",
+			"order_conflict",
 			"source_invalid",
 		].includes(state)
 	)
