@@ -654,7 +654,7 @@ export function ProcessingPanel({
 											) : null
 										)}
 						{activeTrackTiming || completedTrackTimings.length ? (
-							<div className={styles.trackTimingSummary} role="group" aria-label="Tempos por track">
+							<div className={styles.trackTimingSummary}>
 								{activeTrackTiming ? (
 									<span>
 										Track {activeTrackTiming.track}
