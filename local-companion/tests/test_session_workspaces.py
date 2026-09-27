@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from tda_companion.session_timeline import CONFIG_SCHEMA
 from tda_companion.store import Conflict, Store
 
 
@@ -168,3 +169,120 @@ def test_reorder_requires_exact_part_set_and_current_revision(tmp_path):
         store.detach_session_part(
             "campaign-a", "session-a", reordered["parts"][0]["part_id"], workspace["revision"]
         )
+
+
+def test_session_timeline_config_is_cas_guarded_and_survives_restart(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-time", "session-time")
+    for seed in range(1, 3):
+        workspace = store.attach_session_source(
+            "campaign-time",
+            "session-time",
+            source_id(seed),
+            workspace["revision"],
+        )
+    parts = workspace["parts"]
+    config = {
+        "schema_version": CONFIG_SCHEMA,
+        "parts": [
+            {
+                "part_id": parts[0]["part_id"],
+                "session_offset_ms": 0,
+                "trim_start_ms": 0,
+                "trim_end_ms": None,
+            },
+            {
+                "part_id": parts[1]["part_id"],
+                "session_offset_ms": 90_000,
+                "trim_start_ms": 5_000,
+                "trim_end_ms": 85_000,
+            },
+        ],
+        "boundaries": [
+            {
+                "left_part_id": parts[0]["part_id"],
+                "right_part_id": parts[1]["part_id"],
+                "mode": "accept_gap",
+                "boundary_ms": None,
+            }
+        ],
+    }
+
+    updated = store.replace_session_timeline(
+        "campaign-time",
+        "session-time",
+        workspace["revision"],
+        config,
+    )
+    assert updated["revision"] == workspace["revision"] + 1
+    assert updated["timeline_config"] == config
+
+    replay = store.replace_session_timeline(
+        "campaign-time",
+        "session-time",
+        updated["revision"],
+        config,
+    )
+    assert replay["revision"] == updated["revision"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        store.replace_session_timeline(
+            "campaign-time",
+            "session-time",
+            workspace["revision"],
+            config,
+        )
+
+    recovered = Store(tmp_path).session_workspace("campaign-time", "session-time")
+    assert recovered["revision"] == updated["revision"]
+    assert recovered["timeline_config"] == config
+
+
+def test_timeline_config_prunes_detached_parts_and_stale_boundaries(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-prune", "session-prune")
+    for seed in range(1, 4):
+        workspace = store.attach_session_source(
+            "campaign-prune",
+            "session-prune",
+            source_id(seed),
+            workspace["revision"],
+        )
+    parts = workspace["parts"]
+    config = {
+        "schema_version": CONFIG_SCHEMA,
+        "parts": [
+            {
+                "part_id": part["part_id"],
+                "session_offset_ms": index * 60_000,
+                "trim_start_ms": 0,
+                "trim_end_ms": None,
+            }
+            for index, part in enumerate(parts)
+        ],
+        "boundaries": [
+            {
+                "left_part_id": parts[0]["part_id"],
+                "right_part_id": parts[1]["part_id"],
+                "mode": "accept_gap",
+                "boundary_ms": None,
+            }
+        ],
+    }
+    workspace = store.replace_session_timeline(
+        "campaign-prune",
+        "session-prune",
+        workspace["revision"],
+        config,
+    )
+    detached = store.detach_session_part(
+        "campaign-prune",
+        "session-prune",
+        parts[1]["part_id"],
+        workspace["revision"],
+    )
+    assert [row["part_id"] for row in detached["timeline_config"]["parts"]] == [
+        parts[0]["part_id"],
+        parts[2]["part_id"],
+    ]
+    assert detached["timeline_config"]["boundaries"] == []
