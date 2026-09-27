@@ -901,6 +901,61 @@ test("Overview gives truly idle space to the Craig composer when the queue is em
 	});
 });
 
+test("idle Full HD keeps the essential composer and recent result in one viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const composer = page.locator("[data-craig-composer='true']");
+	const metrics = page.getByLabel("Métricas do último resultado concluído");
+	await expect(composer).toBeVisible();
+	await expect(metrics).toBeVisible();
+
+	const dropBox = await composer.locator("[data-craig-drop-target='true']").boundingBox();
+	expect(dropBox).not.toBeNull();
+	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
+
+	await expect(metrics.getByText("Processamento", { exact: true })).toBeVisible();
+	await expect(metrics.getByText("Warnings", { exact: true })).toBeVisible();
+	await expect(metrics.getByText("Segmentos", { exact: true })).not.toBeVisible();
+
+	const initialViewport = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		clientHeight: document.documentElement.clientHeight,
+	}));
+	expect(initialViewport.scrollHeight).toBeLessThanOrEqual(initialViewport.clientHeight + 1);
+
+	const resultDetails = metrics.getByText("Ver detalhes do resultado", { exact: true });
+	await resultDetails.focus();
+	await page.keyboard.press("Enter");
+	await expect(metrics.getByText("Segmentos", { exact: true })).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(metrics.getByText("Segmentos", { exact: true })).not.toBeVisible();
+
+	const advanced = composer.locator("summary").filter({ hasText: "Opções avançadas" });
+	await advanced.focus();
+	await expect(advanced).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(composer.getByLabel("Contexto opcional")).toBeVisible();
+	await advanced.focus();
+	await page.keyboard.press("Enter");
+	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
+
+	const restoredViewport = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		clientHeight: document.documentElement.clientHeight,
+	}));
+	expect(restoredViewport.scrollHeight).toBeLessThanOrEqual(restoredViewport.clientHeight + 1);
+});
+
+
+
 
 test("Stable 0.3.15 hides completed-run deletion while Results remains usable", async ({ page }) => {
 	await installCompanionFixture(page, {
