@@ -512,6 +512,81 @@ for (const viewport of [
 	});
 }
 
+test("advanced diagnostics stay collapsed until explicitly requested", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		extraCapabilities: ["synthetic.fixture"],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const advanced = page.locator("[data-diagnostics-advanced='true']");
+	const summary = advanced.getByText("Ferramentas avançadas", { exact: true });
+	const synthetic = advanced.getByRole("button", {
+		name: "Executar ensaio sintético",
+	});
+	await expect(advanced).toBeVisible();
+	await expect(advanced).not.toHaveAttribute("open", "");
+	await expect(synthetic).toBeHidden();
+	await expect(page.getByRole("log")).toBeVisible();
+
+	await summary.focus();
+	await expect(summary).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(advanced).toHaveAttribute("open", "");
+	await expect(synthetic).toBeVisible();
+	await expect(advanced.getByText("Linguiça no Log", { exact: true })).toHaveCount(0);
+
+	await page.keyboard.press("Space");
+	await expect(advanced).not.toHaveAttribute("open", "");
+	await expect(synthetic).toBeHidden();
+	await expect(page.getByText("sessao-42", { exact: true })).toBeVisible();
+	await expect(page.getByRole("log")).toBeVisible();
+});
+
+test("diagnostics omits empty advanced-tools chrome when no advanced capability is available", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	await expect(page.locator("[data-diagnostics-advanced='true']")).toHaveCount(0);
+	await expect(page.getByRole("log")).toBeVisible();
+});
+
+test("expanded advanced diagnostics do not create mobile horizontal overflow", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		extraCapabilities: ["synthetic.fixture"],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const advanced = page.locator("[data-diagnostics-advanced='true']");
+	await advanced.getByText("Ferramentas avançadas", { exact: true }).click();
+	await expect(
+		advanced.getByRole("button", { name: "Executar ensaio sintético" }),
+	).toBeVisible();
+
+	const geometry = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
+});
+
 test("QHD uses additional overview width without breaking the design-system max", async ({
 	page,
 }) => {
