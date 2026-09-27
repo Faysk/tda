@@ -5,6 +5,7 @@ import {
 import {
 	BridgeError,
 	type LocalReview,
+	type LocalRunComparisonProjection,
 	type CraigBenchmarkInput,
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
@@ -24,6 +25,7 @@ import {
 	parseJobListPage,
 	parseJobs,
 	parseLocalReview,
+	parseLocalRunComparisonProjection,
 	parseLocalRunCatalogPage,
 	parseLocalRunDeleteReceipt,
 	parseLocalRuns,
@@ -541,6 +543,19 @@ export class LocalBridge {
 		)
 			throw new BridgeError("invalid_response");
 		return receipt;
+	}
+
+	async localRunComparison(
+		sourceId: string,
+		runId: string,
+		signal: AbortSignal,
+	): Promise<LocalRunComparisonProjection> {
+		return parseLocalRunComparisonProjection(
+			await this.reviewJson(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/comparison`,
+				signal,
+			),
+		);
 	}
 
 	async localReview(sourceId: string, runId: string, signal: AbortSignal) {
