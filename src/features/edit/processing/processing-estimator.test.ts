@@ -296,7 +296,7 @@ describe("calibrated processing estimator", () => {
 		).toMatchObject({ available: false, reason: "insufficient_history" });
 	});
 
-	it("computes remaining time from remaining audio tracks, not percentage elapsed", () => {
+	it("bounds remaining time without assuming completed tracks form a prefix", () => {
 		const estimate = estimateProfileProcessing({
 			audioWorkSeconds: 600,
 			profile,
@@ -305,7 +305,9 @@ describe("calibrated processing estimator", () => {
 		});
 		const remaining = estimateRemainingProcessing(estimate, [100, 200, 300], 1);
 		expect(remaining).not.toBeNull();
-		expect(remaining!.medianSeconds).toBeCloseTo(275);
+		expect(remaining!.lowerSeconds).toBeCloseTo(150);
+		expect(remaining!.medianSeconds).toBeCloseTo(220);
+		expect(remaining!.upperSeconds).toBeCloseTo(300);
 	});
 
 	it("can evaluate the signed prediction error after completion", () => {
