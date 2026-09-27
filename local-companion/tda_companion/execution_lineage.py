@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from . import VERSION
+from .runtime_artifact import artifact_from_environment
 from .execution_device import committed_execution_device, matching_gpu
 from .telemetry import SystemTelemetry
 from .transcript import TranscriptDocument
@@ -94,6 +95,7 @@ def capture_execution_lineage(
         "companion_version": VERSION,
         "runtime_family": runtime_family,
         "runtime_version": runtime_version,
+        "runtime_artifact": artifact_from_environment(environment),
         "device": device,
         "execution_device": identity,
         "compute_type": _bounded_text(engine.compute_type, 64),

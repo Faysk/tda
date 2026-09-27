@@ -447,7 +447,11 @@ def inspect_whisper_runtime(runtime_root: Path, *, verify_worker: bool = False) 
             pass
     if not whisper_runtime_version_compatible(version):
         return {"status": "incompatible", "version": version, "worker": None}
-    return {"status": "ready", "version": version, "worker": str(worker.resolve())}
+    return {
+        "status": "ready", "version": version, "worker": str(worker.resolve()),
+        "runtime_id": marker["runtime_id"], "worker_sha256": marker["worker_sha256"],
+        "archive_sha256": marker.get("archive_sha256"),
+    }
 
 
 def current_whisper_worker(runtime_root: Path) -> Path | None:

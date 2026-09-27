@@ -159,6 +159,11 @@ def test_commit_fence_produces_immutable_run_for_whisper_and_qwen(
     source_id, source_sha, package_root = _stage(data_root)
     monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
     monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+    family = "qwen" if profile_id.startswith("qwen-") else "whisper"
+    artifact = {"runtime_id": "qwen3-transformers" if family == "qwen" else "whisper-ctranslate2", "version": "1.2.3", "worker_sha256": "a" * 64, "archive_sha256": "b" * 64}
+    monkeypatch.setenv("TDA_ASR_RUNTIME_FAMILY", family)
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", artifact["version"])
+    monkeypatch.setenv("TDA_ASR_RUNTIME_ARTIFACT", json.dumps(artifact))
     job_id = f"job-commit-{profile_id}"
     if invalid_legacy:
         (package_root / "transcript.json").write_bytes(b"invalid historical transcript")
@@ -184,6 +189,11 @@ def test_commit_fence_produces_immutable_run_for_whisper_and_qwen(
     run_id = result["payload"]["run_id"]
     assert read_attempt_outcome(package_root, job_id, 1) == "commit"
     assert (package_root / "runs" / run_id / "run.json").is_file()
+    committed_bytes = (package_root / "runs" / run_id / "run.json").read_bytes()
+    assert json.loads(committed_bytes)["execution_lineage"]["runtime_artifact"] == artifact
+    monkeypatch.setenv("TDA_ASR_RUNTIME_ARTIFACT", json.dumps({**artifact, "worker_sha256": "c" * 64}))
+    assert (package_root / "runs" / run_id / "run.json").read_bytes() == committed_bytes
+
     assert len(list_runs(package_root, verify_content=True)) == 1
     fence_event = next(
         message

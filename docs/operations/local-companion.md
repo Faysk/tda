@@ -414,6 +414,24 @@ SQLite local passa de user_version 7 para 8 por migração aditiva `jobs.executi
 
 Referências: [CUDA device management](https://docs.nvidia.com/cuda/cuda-driver-api/cuda_driver_api/group__CUDA__DEVICE.html) e [CUDA_VISIBLE_DEVICES](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html). O driver resolve o namespace efetivamente visível ao processo; não interpretamos ordinais da variável como ordinais NVML.
 
+## Identidade exata do runtime no run (#646, candidata)
+
+O supervisor usa o mesmo snapshot do inspector para escolher worker, versão e SHA do selo de instalação. Whisper conserva a verificação leve de metadata existente. Qwen exige que essa identidade coincida com o binding aprovado do gate físico; divergência gera `ASR_RUNTIME_IDENTITY_INVALID` antes do processo. O inspector do gate também usa a identidade do mesmo snapshot, sem reler um marker possivelmente diferente.
+
+Somente runtime id, versão, worker SHA-256 e archive SHA-256 opcional vão em `TDA_ASR_RUNTIME_ARTIFACT` ao processo escolhido. Em worker frozen, antes do bootstrap pesado, o child exige que esse envelope coincida exatamente com o `.tda-runtime.json` adjacente; ausência, marker inválido ou divergência falham fechado como `ASR_RUNTIME_IDENTITY_INVALID`. Qwen volta a comparar o marker com a mesma launch identity ao formar o fingerprint de checkpoint, evitando que drift posterior produza checkpoint/runtime diferente do lineage.
+
+Whisper usa o worker SHA-256 já selado também no fingerprint de checkpoint oficial (`whisper-track-v3`); builds com a mesma versão semântica mas executáveis diferentes não compartilham completed checkpoints. Source/development sem artifact oficial mantém o fingerprint de desenvolvimento legado, sem fabricar SHA oficial.
+
+O worker copia o envelope sanitizado para `execution_lineage.runtime_artifact` no commit imutável, sem ler runtime atual nem fazer hash de binário/arquivo no commit. Runs antigos permanecem válidos com identidade ausente. O Web só mostra hashes em detalhes técnicos, e a allowlist de publicação cloud continua excluindo lineage local.
+
+Este slice é pré-requisito de #646, não seu fechamento final: #641 e #646 ainda devem coordenar `tda_execution_lineage_v2`, separando runtime artifact identity da identidade física da GPU realmente usada. O v1 opcional deste candidato não reinterpreta `gpu.index` histórico.
+
+Entrega requer novo Companion e workers que incluam este código; executáveis instalados anteriores continuam compatíveis, porém não passam a registrar o campo retroativamente. Não altera gate físico, não registra novo aceite e não publica release por push. Rollback: consumidores anteriores ignoram o campo opcional; preservar runs e artefatos selados para diagnóstico.
+
+Evidência anterior #646 (2026-09-26): 1008 testes Python aprovados, 12 condicionais omitidos; check completo com 670 testes Web + 40 Node; build aprovado. O head atual acrescenta regressões de marker/self-check e checkpoint SHA; seus workflows terminais são a autoridade antes de merge. Execução e persistência usam fixtures sintéticas, sem declarar release instalada atualizada.
+
+Os smokes de empacotamento usam a mesma identidade obrigatória de launch: antes do archive, um seal temporário vinculado ao hash do worker é removido no finally; após instalação, o marker real incluindo SHA do archive é preservado. O helper de build participa dos filtros de CI e dos fences de ancestralidade RC/promoção, para não aceitar evidência de packaging anterior a uma alteração desse contrato.
+
 ## Recuperação da preparação após reinício (#656)
 
 O Agent mantém somente `State/preparation/latest.json`, um receipt sanitizado de até 4 KiB com identidade, etapa, sequência, timestamps, código seguro e predecessor opcional. O arquivo usa escrita temporária, fsync e substituição atômica; symlinks/junctions no diretório/arquivo são rejeitados. Não contém caminhos, tokens, URLs, áudio, transcrição ou contexto. A primeira gravação deve passar antes de iniciar a thread; falhas posteriores preservam o último snapshot válido e registram um código seguro no SystemLog.
@@ -452,3 +470,5 @@ Critério para reabrir a investigação: candidato que prove redução de infer�
 
 `QWEN_WINDOW_TRANSCRIBED` inclui speaker normalizado, total de tracks e `start_seconds`/`end_seconds` copiados da janela efetivamente processada. Os tempos são locais à faixa, antes do offset de sessão; não são estimados por índice nem representam alinhamento concluído. A apresentação identifica esse sistema de coordenadas. Campos adicionais são opcionais para consumidores de eventos históricos. A allowlist valida números finitos/bounded e continua descartando texto reconhecido, prompt, contexto, glossário e paths. Não há I/O extra, evento adicional ou transmissão cloud. Whisper mantém o contrato de segmento atual; timing por unidade pertence à instrumentação específica. Rollback pode omitir os novos campos sem reescrever histórico.
 O contrato de identidade física (`execution_device.py`) integra os filtros de build e as cercas de ancestralidade dos dois runtimes. Alterações isoladas nesse módulo exigem reconstrução antes de promoção; um pacote anterior não pode representar o contrato novo.
+
+A identidade de artefato (`runtime_artifact.py`) integra os filtros de build e as cercas de ancestralidade dos dois runtimes. Alterar somente esse contrato também exige reconstruir o pacote; uma promoção não pode reutilizar um binário anterior ao contrato validado.

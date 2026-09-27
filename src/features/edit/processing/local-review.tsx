@@ -577,6 +577,13 @@ function ReviewEditor({
 				</div>
 			</div>
 
+            {review.lineage.executionLineage?.runtimeArtifact ? <details className={styles.warnings}>
+                <summary>Integridade do runtime usado</summary>
+                <p>{review.lineage.executionLineage.runtimeArtifact.runtimeId} · {review.lineage.executionLineage.runtimeArtifact.version}</p>
+                <p>Worker SHA-256: <code className={styles.artifactHash}>{review.lineage.executionLineage.runtimeArtifact.workerSha256}</code></p>
+                {review.lineage.executionLineage.runtimeArtifact.archiveSha256 ? <p>Arquivo SHA-256: <code className={styles.artifactHash}>{review.lineage.executionLineage.runtimeArtifact.archiveSha256}</code></p> : null}
+            </details> : null}
+
 			{review.warnings.length ? (
 				<details className={styles.warnings}>
 					<summary>{review.review.warningCount} avisos do pipeline · mostrando {Math.min(new Set(review.warnings).size, 50)} tipos{review.warningSummary?.truncated ? ` dos primeiros ${review.warningSummary.displayedCount} avisos` : ""}</summary>

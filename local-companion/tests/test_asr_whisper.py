@@ -53,6 +53,29 @@ def test_whisper_checkpoint_pipeline_revision_is_explicit():
     assert "checkpoint=whisper-track-v2" in _whisper_runtime_fingerprint()
 
 
+def test_whisper_checkpoint_fingerprint_binds_exact_sealed_worker(monkeypatch):
+    identity = {
+        "runtime_id": "whisper-ctranslate2",
+        "version": "1.2.3",
+        "worker_sha256": "a" * 64,
+        "archive_sha256": "b" * 64,
+    }
+    monkeypatch.setenv("TDA_ASR_RUNTIME_FAMILY", "whisper")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_VERSION", "1.2.3")
+    monkeypatch.setenv("TDA_ASR_RUNTIME_ARTIFACT", __import__("json").dumps(identity))
+    first = _whisper_runtime_fingerprint()
+    assert "checkpoint=whisper-track-v3" in first
+    assert f"worker_sha256={'a' * 64}" in first
+
+    monkeypatch.setenv(
+        "TDA_ASR_RUNTIME_ARTIFACT",
+        __import__("json").dumps({**identity, "worker_sha256": "c" * 64}),
+    )
+    second = _whisper_runtime_fingerprint()
+    assert first != second
+    assert f"worker_sha256={'c' * 64}" in second
+
+
 def test_whisper_plan_prefers_float16_and_only_uses_cpu_when_requested():
     status = {"available": True, "supported_compute_types": ["float16", "int8_float16"]}
     plan = resolve_whisper_plan("whisper-turbo", cuda_status=status)

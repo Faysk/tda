@@ -273,22 +273,23 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
 
     monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
-    job = app.state.store.submit(
-        "activity-throttle",
-        {
-            "kind": "transcription.craig",
-            "campaign_id": "campaign",
-            "session_id": "session",
-            "source_id": "activity-source",
-            "profile_id": "qwen-fast",
-            "glossary": "",
-            "context": "",
-            "cpu": False,
-            "units": 1,
-        },
-    )
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        job = app.state.store.submit(
+            "activity-throttle",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign",
+                "session_id": "session",
+                "source_id": "activity-source",
+                "profile_id": "qwen-fast",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "units": 1,
+            },
+        )
+        app.state.worker_wake.set()
         assert emitted.wait(10.0)
         deadline = time.monotonic() + 5.0
         state = None

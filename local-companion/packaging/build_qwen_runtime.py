@@ -10,6 +10,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from runtime_bootstrap_smoke import launch as launch_sealed_smoke
+
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "local-companion" / "runtime" / "qwen-windows-x64.json"
 ENTRY = ROOT / "local-companion" / "packaging" / "qwen_runtime_entry.py"
@@ -80,7 +82,7 @@ def _probe(worker: Path) -> dict:
     return value
 
 
-def _smoke_worker_bootstrap(worker: Path) -> dict:
+def _smoke_worker_bootstrap(worker: Path, version: str) -> dict:
     command = json.dumps(
         {
             "protocol": "tda_worker_v1",
@@ -94,14 +96,7 @@ def _smoke_worker_bootstrap(worker: Path) -> dict:
         separators=(",", ":"),
     ) + "\n"
     try:
-        result = subprocess.run(
-            [str(worker)],
-            input=command,
-            text=True,
-            capture_output=True,
-            timeout=90,
-            check=False,
-        )
+        result = launch_sealed_smoke(worker, version, "qwen", command, 90)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("QWEN_RUNTIME_WORKER_BOOTSTRAP_TIMEOUT") from exc
     if result.returncode != 0:
@@ -209,7 +204,7 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
         worker = Path(str(state["worker"]))
         return {
             "probe": _probe(worker),
-            "bootstrap": _smoke_worker_bootstrap(worker),
+            "bootstrap": _smoke_worker_bootstrap(worker, version),
         }
 
 
@@ -286,7 +281,7 @@ def main() -> int:
             raise RuntimeError("QWEN_RUNTIME_WORKER_NOT_CREATED")
 
         probe = _probe(worker)
-        bootstrap = _smoke_worker_bootstrap(worker)
+        bootstrap = _smoke_worker_bootstrap(worker, version)
         if not str(probe.get("python_packages", {}).get("torch", "")).startswith(
             str(config["torch"]["version"])
         ):

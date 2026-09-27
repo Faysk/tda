@@ -22,7 +22,7 @@ from .qwen_acceptance import (
     QWEN_FORCED_ALIGNER_MODEL_ID,
     QWEN_FORCED_ALIGNER_REVISION,
 )
-from .qwen_runtime import QWEN_RUNTIME_ID, inspect_qwen_runtime, qwen_version_root
+from .qwen_runtime import QWEN_RUNTIME_ID, inspect_qwen_runtime
 
 LEGACY_GATE_SCHEMA = "tda_qwen_physical_gate_v1"
 GATE_SCHEMA = "tda_qwen_physical_gate_v2"
@@ -108,9 +108,7 @@ def _runtime_identity(runtime_root: Path, *, verify_worker: bool) -> dict[str, s
         or not isinstance(worker_value, str)
     ):
         raise QwenPhysicalGateError("QWEN_GATE_RUNTIME_NOT_READY")
-    marker = _read_json(qwen_version_root(runtime_root, version) / ".tda-runtime.json")
-    if marker is None:
-        raise QwenPhysicalGateError("QWEN_GATE_RUNTIME_MARKER_INVALID")
+    marker = state  # Same inspected marker selected the worker and its version.
     worker_sha = marker.get("worker_sha256")
     archive_sha = marker.get("archive_sha256")
     if (
@@ -610,6 +608,7 @@ def inspect_qwen_physical_gate(
         "profile_id": profile_id,
         "accepted_at": value.get("accepted_at"),
         "runtime_version": runtime["version"],
+        "runtime_artifact": {key: runtime[key] for key in ("runtime_id", "version", "worker_sha256", "archive_sha256")},
         "gpu": gpu,
         "metrics": metrics,
     }

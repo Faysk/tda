@@ -230,18 +230,20 @@ def main() -> int:
     if args.prepare_model:
         return _prepare_model(args)
 
-    # The frozen runtime probe is known-good only when CTranslate2 is
-    # initialized before faster-whisper resolves WhisperModel. Use the exact same
-    # bootstrap in normal worker mode, before any heartbeat/cancel thread exists.
-    # A bootstrap stall is therefore bounded by the supervisor startup timeout.
-    _av, _ctranslate2, _faster_whisper, WhisperModel = _bootstrap_whisper_runtime()
-    from tda_companion.asr_whisper import bind_preloaded_whisper_model_class
-
-    bind_preloaded_whisper_model_class(WhisperModel)
-
+    # Normal worker mode uses the same single-threaded bootstrap ordering as the
+    # frozen probe, but first confirms that the adjacent runtime marker matches
+    # the exact sealed artifact selected and injected by the supervisor.
     from tda_companion.asr_worker import run_worker_stdio
+    from tda_companion.runtime_artifact import verify_frozen_runtime_artifact
 
-    return run_worker_stdio()
+    def bootstrap_worker_runtime():
+        verify_frozen_runtime_artifact()
+        _av, _ctranslate2, _faster_whisper, WhisperModel = _bootstrap_whisper_runtime()
+        from tda_companion.asr_whisper import bind_preloaded_whisper_model_class
+
+        bind_preloaded_whisper_model_class(WhisperModel)
+
+    return run_worker_stdio(pre_worker_bootstrap=bootstrap_worker_runtime)
 
 
 if __name__ == "__main__":
