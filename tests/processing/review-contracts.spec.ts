@@ -280,6 +280,22 @@ test("lost publication recovers after reload without a second write or transcrip
  await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
+ await page.reload();
+ // The recovery effect is opportunistic; exercise the explicit operator path so
+ // the test does not depend on focus/visibility timing in headless Chromium.
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
+ let abandonmentMessage = "";
+ page.once("dialog", async dialog => {
+  abandonmentMessage = dialog.message();
+  await dialog.dismiss();
+ });
+ await page.getByRole("button", { name: "Abandonar handoff anterior" }).click();
+ expect(abandonmentMessage).toContain("O handoff privado anterior pode já ter sido concluído.");
+ expect(abandonmentMessage).toContain("outra revisão privada");
+ expect(abandonmentMessage).toContain("Nada é publicado no site por esta ação.");
+ expect(abandonmentMessage).not.toContain("A publicação anterior pode ter sido concluída");
+ expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(1);
  readable = true;
  await page.reload();
  await expect(page.getByText(/Sessão preparada no Edit · revisão cloud 1/)).toBeVisible();
