@@ -307,6 +307,7 @@ export function ProcessingSubmission({
 	);
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
+	const sessionIdValid = /^[A-Za-z0-9_-]{1,128}$/u.test(sessionId);
 
 	const canSubmit = useMemo(
 		() =>
@@ -319,7 +320,7 @@ export function ProcessingSubmission({
 		[availableProfiles, capabilities],
 	);
 	const requestBytes = useMemo(() => {
-		if (!profile || !/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) return null;
+		if (!profile || !sessionIdValid) return null;
 		return craigTranscriptionRequestByteLength({
 			campaignId: CAMPAIGN_SLUG,
 			sessionId,
@@ -328,14 +329,22 @@ export function ProcessingSubmission({
 			glossary,
 			context,
 		});
-	}, [context, glossary, profile, sessionId, source]);
+	}, [context, glossary, profile, sessionId, sessionIdValid, source]);
 	const requestTooLarge =
 		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
 
 	if (!paired) return null;
 
 	async function analyzeSource() {
-		if (busy || !file || !canSubmit) return;
+		if (
+			busy ||
+			!file ||
+			!canSubmit ||
+			!sessionIdValid ||
+			requestTooLarge ||
+			qwenRuntimeUpgradeRequired
+		)
+			return;
 		if (!file.name.toLowerCase().endsWith(".zip") || file.size <= 0) {
 			setError("Escolha um ZIP válido exportado pelo Craig.");
 			return;
@@ -377,7 +386,7 @@ export function ProcessingSubmission({
 			setError(QWEN_RUNTIME_UPGRADE_MESSAGE);
 			return;
 		}
-		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
+		if (!sessionIdValid) {
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
 		}
@@ -667,7 +676,11 @@ export function ProcessingSubmission({
 						/>
 					</label>
 					{source ? (
-						<div className={styles.estimatePanel} aria-label="Estimativas locais por perfil">
+						<div
+							className={styles.estimatePanel}
+							role="group"
+							aria-label="Estimativas locais por perfil"
+						>
 							<div>
 								<strong>Estimativa nesta máquina</strong>
 								<small>
@@ -724,7 +737,13 @@ export function ProcessingSubmission({
 							<Button
 								type="button"
 								variant="primary"
-								disabled={busy || !file}
+								disabled={
+									busy ||
+									!file ||
+									!sessionIdValid ||
+									requestTooLarge ||
+									qwenRuntimeUpgradeRequired
+								}
 								onClick={() => void analyzeSource()}
 							>
 								{busy ? "Analisando localmente…" : "Analisar ZIP localmente"}
