@@ -593,3 +593,75 @@ def test_queue_cleanup_preserves_verified_origin_and_blocks_last_proof_loss(tmp_
             headers=headers, json={})
         assert repaired.status_code == 200
         assert repaired.json()["publication_target"]["source_session_id"] == body["session_id"]
+
+def test_review_base_endpoint_ignores_persisted_edits_and_is_side_effect_free(tmp_path: Path):
+    with _client(tmp_path) as client:
+        source_id, package_root, run = _stage_and_run(client, tmp_path)
+        headers = _browser_headers(client)
+        review_url = f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review"
+        base_url = f"{review_url}/base"
+
+        opened = client.get(review_url, headers=headers).json()
+        edited = [dict(item) for item in opened["segments"]]
+        edited[0]["text"] = "TEXTO EDITORIAL QUE NAO E O RUN BRUTO"
+        edited[0]["speaker"] = "Editor"
+        edited[0]["reviewed"] = True
+        saved = client.post(
+            review_url,
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                **_expected(opened),
+                "status": "reviewed",
+                "segments": edited,
+            },
+        )
+        assert saved.status_code == 200
+        assert saved.json()["segments"][0]["text"] == "TEXTO EDITORIAL QUE NAO E O RUN BRUTO"
+
+        draft_path = package_root / "revisions" / run["run_id"] / "draft.json"
+        draft_before = draft_path.read_bytes()
+
+        raw = client.get(base_url, headers=headers)
+        assert raw.status_code == 200
+        value = raw.json()
+        assert value["source_id"] == source_id
+        assert value["run_id"] == run["run_id"]
+        assert value["base_transcript_sha256"] == run["transcript_sha256"]
+        assert value["persistence"] == "ephemeral_base"
+        assert value["draft_revision"] is None
+        assert value["draft_sha256"] is None
+        assert value["segments"][0]["text"] == "SEGREDO EDITORIAL LOCAL"
+        assert value["segments"][0]["speaker"] == "Alice"
+        assert value["segments"][0]["reviewed"] is False
+        assert str(tmp_path) not in raw.text
+        assert draft_path.read_bytes() == draft_before
+
+        reopened = client.get(review_url, headers=headers)
+        assert reopened.status_code == 200
+        assert reopened.json()["segments"][0]["text"] == "TEXTO EDITORIAL QUE NAO E O RUN BRUTO"
+
+
+def test_review_base_endpoint_is_get_only(tmp_path: Path):
+    with _client(tmp_path) as client:
+        source_id, _package_root, run = _stage_and_run(client, tmp_path)
+        headers = _browser_headers(client)
+        base_url = f"/api/v1/sources/{source_id}/runs/{run['run_id']}/review/base"
+
+        preflight = client.options(
+            base_url,
+            headers={
+                "Origin": ORIGIN,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-methods"] == "GET"
+
+        rejected = client.post(
+            base_url,
+            headers={**headers, "Content-Type": "application/json"},
+            json={},
+        )
+        assert rejected.status_code == 405
+
