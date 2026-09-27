@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+	CRAIG_SOURCE_ID,
 	failedJob,
 	fixtureJob,
 	installCompanionFixture,
@@ -24,7 +25,7 @@ function fulfillJson(
 
 test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
-}) => {
+}, testInfo) => {
 	const requests: { url: string; authorization?: string }[] = [];
 	await page.route(`${LOCAL_API}/**`, async (route) => {
 		requests.push({
@@ -40,6 +41,10 @@ test("API incompatível, versão antiga, offline e Origin negada são diagnósti
 	await page.goto("/");
 	await expect(page.getByText("API incompatível", { exact: true })).toBeVisible();
 	await expect(page.getByRole("alert")).toContainText("API v2");
+	await page.screenshot({
+		path: testInfo.outputPath("overview-error.png"),
+		fullPage: true,
+	});
 	expect(requests).toHaveLength(1);
 	expect(requests[0]?.authorization).toBeUndefined();
 
@@ -376,4 +381,206 @@ test("fila pausada continua distinta de falha e pode ser retomada", async ({ pag
 				request.path === "/lifecycle" && request.method === "POST",
 		),
 	).toBe(true);
+});
+
+test("Overview keeps factual zero progress and does not infer worker liveness", async ({
+	page,
+}, testInfo) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("running", {
+				progress: { completed: 0, total: 4, unit: "tracks" },
+			}),
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const progress = page.getByRole("progressbar");
+	await expect(progress).toHaveAttribute("value", "0");
+	await expect(progress).toHaveAttribute("max", "4");
+	await expect(page.getByText("0 de 4 tracks", { exact: true })).toBeVisible();
+	await expect(page.getByText("Perfil qwen-quality", { exact: true })).toBeVisible();
+	await expect(page.getByText(/Trabalho atualizado às/)).toBeVisible();
+	await expect(page.getByText(/Worker ativo/)).toHaveCount(0);
+	await expect(
+		page.getByLabel("Métricas do último resultado concluído"),
+	).toHaveCount(0);
+	await page.screenshot({
+		path: testInfo.outputPath("overview-running.png"),
+		fullPage: true,
+	});
+});
+
+test("Overview hides prior run facts during execution and shows them after completion", async ({
+	page,
+}, testInfo) => {
+	const fixture = await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+	await page.route(`${LOCAL_API}/sources`, (route) =>
+		route.fulfill({
+			json: {
+				schema_version: "tda_craig_sources_v1",
+				sources: [
+					{
+						source_id: CRAIG_SOURCE_ID,
+						source_sha256: "a".repeat(64),
+						recording_id: null,
+						track_count: 2,
+					},
+				],
+			},
+		}),
+	);
+	await page.route(`${LOCAL_API}/sources/${CRAIG_SOURCE_ID}/runs`, (route) =>
+		route.fulfill({
+			json: {
+				schema_version: "tda_transcription_runs_v1",
+				source_id: CRAIG_SOURCE_ID,
+				runs: [
+					{
+						run_id: "run-completed-1",
+						status: "completed",
+						source_id: CRAIG_SOURCE_ID,
+						profile_id: "whisper-detailed",
+						engine: "faster-whisper",
+						model: "large-v3",
+						model_revision: "rev",
+						device: "cuda",
+						completed_at: "2026-09-21T00:00:00.000Z",
+						transcript_sha256: "b".repeat(64),
+						transcript_size_bytes: 900,
+						stats: {
+							processing_seconds: 12,
+							session_duration_seconds: 60,
+							duration_semantics: "session_extent_v1",
+							rtf: 0.2,
+							word_count: 2,
+							segment_count: 1,
+							track_count: 1,
+							turn_count: 1,
+							warning_count: 0,
+						},
+						execution_lineage: {
+							schema_version: "tda_execution_lineage_v1",
+							device: "cuda",
+							gpu: {
+								model: "Synthetic GPU",
+								vram_total_bytes: 8589934592,
+							},
+						},
+					},
+				],
+			},
+		}),
+	);
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const metrics = page.getByLabel("Métricas do último resultado concluído");
+	await expect(metrics).toHaveCount(0);
+	fixture.setJob(fixtureJob("succeeded"));
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+	await expect(metrics).toBeVisible();
+	await expect(metrics).toContainText("whisper-detailed");
+	await expect(metrics).toContainText("12s");
+	await expect(metrics).toContainText("1m 00s");
+	await expect(metrics).toContainText("0.200");
+	await expect(metrics).toContainText("5.00×");
+	await expect(metrics).toContainText("Synthetic GPU");
+	await expect(metrics).toContainText("2");
+	const dimensions = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+	await page.screenshot({
+		path: testInfo.outputPath("overview-completed-run.png"),
+		fullPage: true,
+	});
+});
+
+test("Overview omits percent when the progress denominator is absent", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running", { progress: null })],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await expect(page.getByRole("progressbar")).toHaveCount(0);
+	await expect(
+		page.getByText("Progresso percentual ainda não disponível.", { exact: true }),
+	).toHaveCount(0);
+	await expect(
+		page.getByRole("tabpanel", { name: "Visão geral" }).getByText("Transcrição", {
+			exact: true,
+		}),
+	).toBeVisible();
+});
+
+test("Overview keeps queued-only state compact and identifies waiting work", async ({
+	page,
+}, testInfo) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("queued")],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByText("Nada processando agora.")).toBeVisible();
+	await expect(
+		page.getByText("Há trabalhos aguardando a próxima execução."),
+	).toBeVisible();
+	await page.screenshot({
+		path: testInfo.outputPath("overview-queued-only.png"),
+		fullPage: true,
+	});
+});
+
+test("Overview shows the vacant idle state when the queue is empty", async ({
+	page,
+}, testInfo) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByText("Nada processando agora.")).toBeVisible();
+	await expect(page.getByText("A fila local está livre.")).toBeVisible();
+	await page.screenshot({
+		path: testInfo.outputPath("overview-idle.png"),
+		fullPage: true,
+	});
+});
+
+test("Benchmark tab explains that repeatable profile comparisons are not available yet", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Benchmark" }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark" });
+	await expect(benchmark).toBeVisible();
+	await expect(benchmark).toContainText(
+		"Benchmark comparativo ainda não disponível.",
+	);
+	await expect(benchmark).toContainText(
+		"Os runs concluídos e suas métricas ficam em Resultados.",
+	);
 });
