@@ -168,3 +168,227 @@ def test_reorder_requires_exact_part_set_and_current_revision(tmp_path):
         store.detach_session_part(
             "campaign-a", "session-a", reordered["parts"][0]["part_id"], workspace["revision"]
         )
+
+
+
+def test_session_timing_decisions_are_cas_guarded_and_survive_restart(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-time", "session-time")
+    for seed in range(1, 3):
+        workspace = store.attach_session_source(
+            "campaign-time",
+            "session-time",
+            source_id(seed),
+            workspace["revision"],
+        )
+
+    first_part, second_part = workspace["parts"]
+    timed = store.update_session_part_timing(
+        "campaign-time",
+        "session-time",
+        first_part["part_id"],
+        workspace["revision"],
+        manual_offset_seconds=12.5,
+        trim_start_seconds=1.25,
+        trim_end_seconds=55.0,
+        gap_confirmed=True,
+        overlap_boundary_seconds=20.0,
+    )
+    assert timed["revision"] == workspace["revision"] + 1
+    assert timed["chronology_mode"] == "manual"
+    assert timed["parts"][0]["manual_offset_seconds"] == 12.5
+    assert timed["parts"][0]["trim_start_seconds"] == 1.25
+    assert timed["parts"][0]["trim_end_seconds"] == 55.0
+    assert timed["parts"][0]["gap_confirmed"] is True
+    assert timed["parts"][0]["overlap_boundary_seconds"] == 20.0
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        store.update_session_part_timing(
+            "campaign-time",
+            "session-time",
+            second_part["part_id"],
+            workspace["revision"],
+            manual_offset_seconds=70.0,
+        )
+
+    reopened = Store(tmp_path)
+    recovered = reopened.session_workspace("campaign-time", "session-time")
+    assert recovered["revision"] == timed["revision"]
+    assert recovered["chronology_mode"] == "manual"
+    assert recovered["parts"][0]["manual_offset_seconds"] == 12.5
+    assert recovered["parts"][0]["trim_start_seconds"] == 1.25
+    assert recovered["parts"][0]["trim_end_seconds"] == 55.0
+    assert recovered["parts"][0]["gap_confirmed"] is True
+    assert recovered["parts"][0]["overlap_boundary_seconds"] == 20.0
+
+
+def test_manual_reorder_claims_chronology_authority_even_when_order_is_unchanged(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-order", "session-order")
+    workspace = store.attach_session_source(
+        "campaign-order",
+        "session-order",
+        source_id(1),
+        workspace["revision"],
+    )
+    ids = [part["part_id"] for part in workspace["parts"]]
+    assert workspace["chronology_mode"] == "automatic"
+
+    manual = store.reorder_session_parts(
+        "campaign-order",
+        "session-order",
+        ids,
+        workspace["revision"],
+    )
+    assert manual["chronology_mode"] == "manual"
+    assert manual["revision"] == workspace["revision"] + 1
+
+    repeated = store.reorder_session_parts(
+        "campaign-order",
+        "session-order",
+        ids,
+        manual["revision"],
+    )
+    assert repeated["revision"] == manual["revision"]
+
+
+def test_session_timing_rejects_invalid_trim_ranges_without_mutating_workspace(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-invalid", "session-invalid")
+    workspace = store.attach_session_source(
+        "campaign-invalid",
+        "session-invalid",
+        source_id(1),
+        workspace["revision"],
+    )
+    part_id = workspace["parts"][0]["part_id"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_TIMING_INVALID"):
+        store.update_session_part_timing(
+            "campaign-invalid",
+            "session-invalid",
+            part_id,
+            workspace["revision"],
+            trim_start_seconds=20.0,
+            trim_end_seconds=10.0,
+        )
+
+    unchanged = store.session_workspace("campaign-invalid", "session-invalid")
+    assert unchanged["revision"] == workspace["revision"]
+    assert unchanged["chronology_mode"] == "automatic"
+    assert unchanged["parts"][0]["trim_start_seconds"] is None
+    assert unchanged["parts"][0]["trim_end_seconds"] is None
+
+
+def test_v10_session_workspace_schema_migrates_timing_columns_without_losing_parts(tmp_path):
+    database = tmp_path / "jobs.sqlite3"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            """
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY, idem TEXT UNIQUE NOT NULL, signature TEXT NOT NULL,
+                body TEXT NOT NULL, status TEXT NOT NULL, stage TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0, attempt INTEGER NOT NULL DEFAULT 0,
+                error TEXT, result TEXT, updated TEXT NOT NULL,
+                attempt_started_at TEXT, attempt_finished_at TEXT,
+                stage_started_at TEXT, timing_state TEXT
+            );
+            CREATE TABLE events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                code TEXT NOT NULL,
+                at TEXT NOT NULL,
+                attempt INTEGER,
+                level TEXT NOT NULL DEFAULT 'info',
+                data TEXT
+            );
+            CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE idempotency_keys (
+                key TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                signature TEXT NOT NULL
+            );
+            CREATE TABLE terminal_job_receipts (
+                job_id TEXT PRIMARY KEY,
+                attempt INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                result_available INTEGER NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE job_activity (
+                job_id TEXT NOT NULL,
+                attempt INTEGER NOT NULL,
+                track INTEGER NOT NULL,
+                metric TEXT NOT NULL,
+                value INTEGER NOT NULL,
+                updated TEXT NOT NULL,
+                PRIMARY KEY(job_id, attempt, track, metric)
+            );
+            CREATE TABLE session_workspaces (
+                campaign_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                revision INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                PRIMARY KEY(campaign_id, session_id)
+            );
+            CREATE TABLE session_recording_parts (
+                part_id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                ordinal INTEGER NOT NULL,
+                selected_run_id TEXT,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL,
+                UNIQUE(campaign_id, session_id, source_id),
+                UNIQUE(campaign_id, session_id, ordinal)
+            );
+            INSERT INTO settings VALUES ('device', 'legacy-device');
+            INSERT INTO settings VALUES ('paused', 'false');
+            INSERT INTO session_workspaces VALUES (
+                'campaign-migrate',
+                'session-migrate',
+                1,
+                '2026-09-27T20:00:00Z',
+                '2026-09-27T20:00:00Z'
+            );
+            INSERT INTO session_recording_parts VALUES (
+                '11111111111111111111111111111111',
+                'campaign-migrate',
+                'session-migrate',
+                'craig-0000000000000000000000000000000000000000000000000000000000000001',
+                0,
+                NULL,
+                '2026-09-27T20:00:00Z',
+                '2026-09-27T20:00:00Z'
+            );
+            PRAGMA user_version=10;
+            """
+        )
+
+    migrated = Store(tmp_path)
+    workspace = migrated.session_workspace("campaign-migrate", "session-migrate")
+    assert workspace["chronology_mode"] == "automatic"
+    assert workspace["parts"][0]["manual_offset_seconds"] is None
+    assert workspace["parts"][0]["trim_start_seconds"] is None
+    assert workspace["parts"][0]["trim_end_seconds"] is None
+    assert workspace["parts"][0]["gap_confirmed"] is False
+    assert workspace["parts"][0]["overlap_boundary_seconds"] is None
+
+    with sqlite3.connect(database) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 11
+        workspace_columns = {
+            row[1] for row in db.execute("PRAGMA table_info(session_workspaces)").fetchall()
+        }
+        part_columns = {
+            row[1] for row in db.execute("PRAGMA table_info(session_recording_parts)").fetchall()
+        }
+    assert "chronology_mode" in workspace_columns
+    assert {
+        "manual_offset_seconds",
+        "trim_start_seconds",
+        "trim_end_seconds",
+        "gap_confirmed",
+        "overlap_boundary_seconds",
+    } <= part_columns
