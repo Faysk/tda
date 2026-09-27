@@ -386,8 +386,9 @@ class Store:
                 """
                 INSERT INTO session_recording_parts(
                     part_id,campaign_id,session_id,source_id,ordinal,
-                    selected_run_id,created,updated
-                ) VALUES (?,?,?,?,?,NULL,?,?)
+                    selected_run_id,manual_offset_seconds,trim_start_seconds,
+                    trim_end_seconds,created,updated
+                ) VALUES (?,?,?,?,?,NULL,NULL,0,NULL,?,?)
                 """,
                 (
                     uuid4().hex,
@@ -398,6 +399,14 @@ class Store:
                     now,
                     now,
                 ),
+            )
+            db.execute(
+                """
+                UPDATE session_workspaces
+                SET order_authority='unconfirmed'
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
             )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
