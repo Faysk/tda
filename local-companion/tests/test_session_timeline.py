@@ -255,3 +255,10 @@ def test_relation_decision_rejects_wrong_kind_and_out_of_overlap_boundary():
             decision="prefer_later_from",
             boundary_seconds=1.0,
         )
+
+
+def test_empty_workspace_is_not_ready_for_assembly():
+    timeline = build_session_timeline(_workspace([]), {})
+    assert timeline["ready"] is False
+    assert timeline["parts"] == []
+    assert timeline["relations"] == []
