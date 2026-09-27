@@ -956,6 +956,7 @@ export function ProcessingPanel({
 							busy={state.localReviewBusy}
 							error={state.localReviewError}
 							publicationEnabled={publicationEnabled}
+							comparisonEnabled={state.capabilities?.capabilities.includes("transcription.review.base") === true}
 							onOpen={(sourceId, runId) =>
 								controller.openLocalReview(sourceId, runId)
 							}
