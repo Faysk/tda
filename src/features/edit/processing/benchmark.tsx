@@ -872,6 +872,7 @@ export function ProcessingBenchmark({
 					<div
 						className={styles.profileStepper}
 						data-benchmark-stepper="true"
+						role="list"
 						aria-label="Progresso dos quatro perfis"
 					>
 						{PROFILES.map((id, index) => {
@@ -887,6 +888,7 @@ export function ProcessingBenchmark({
 							return (
 								<span
 									key={id}
+									role="listitem"
 									data-state={stepState}
 									aria-current={stepState === "current" ? "step" : undefined}
 								>
