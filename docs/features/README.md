@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-28
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -21,6 +21,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — proposta para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
 
+[Navegação global do TDA](global-navigation.md) — contrato canônico para marca = início, launcher = produto e avatar = conta/aparência; projeção sanitizada de Auth integrada e rollout visual rastreado por #879.
+
 Candidato em revisão: [Estatísticas privadas de transcrições](transcript-statistics.md) — palavras e duração registrada por sessão, totais completos autorizados; implementação de branch, sem publicação.
 
 Candidato em revisão: [Pipipi — lore cinematográfica pioneira](pipipi-lore.md) — experiência editorial longa com cenas dirigidas por scroll, enhancement visual e fallback de leitura; implementação de branch, sem publicação.
@@ -29,6 +31,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
+| Navegação global / conta | arquitetura aprovada; projeção de Auth integrada; launcher/avatar/hubs em rollout | [Navegação global](global-navigation.md) |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
