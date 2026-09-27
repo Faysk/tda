@@ -307,6 +307,11 @@
 }
 
 .published {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin: 0;
 	padding: 10px;
 	border: 1px solid var(--ds-border-subtle);
