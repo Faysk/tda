@@ -552,6 +552,22 @@ export class LocalBridge {
 		);
 	}
 
+	async localRunSnapshot(sourceId: string, runId: string, signal: AbortSignal) {
+		const snapshot = parseLocalReview(
+			await this.reviewJson(
+				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/review/base`,
+				signal,
+			),
+		);
+		if (
+			snapshot.persistence !== "ephemeral_base" ||
+			snapshot.draftRevision !== null ||
+			snapshot.draftSha256 !== null
+		)
+			throw new BridgeError("invalid_response");
+		return snapshot;
+	}
+
 	async repairPublicationTarget(sourceId: string, runId: string, signal: AbortSignal) {
         await this.json(`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/publication-target/repair`, signal, {});
         return this.localReview(sourceId, runId, signal);
