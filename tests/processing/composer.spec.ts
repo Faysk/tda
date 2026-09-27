@@ -161,7 +161,8 @@ test("idle Full HD composer stays compact and profile details remain accessible"
 	const dropTarget = composer.locator("[data-craig-drop-target='true']");
 	const dropBox = await dropTarget.boundingBox();
 	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
-	await expect(composer.getByText("indisponível agora", { exact: false })).toHaveCount(1);
+	await expect(composer.getByText("preparação necessária", { exact: false })).toHaveCount(1);
+	await expect(composer.getByLabel("Perfil")).toContainText("preparar");
 	await expect(composer.getByText("Por quê?", { exact: true })).toBeVisible();
 	await composer.getByText("Por quê?", { exact: true }).click();
 	await expect(composer.getByRole("button", { name: "Abrir Diagnóstico" })).toBeVisible();
