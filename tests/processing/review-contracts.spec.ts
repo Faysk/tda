@@ -16,6 +16,12 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByText("Tracks", { exact: true })).toHaveCount(2);
 	await expect(page.getByText("Turnos", { exact: true })).toHaveCount(2);
 	await expect(page.getByText("Revisão", { exact: true })).toHaveCount(2);
+	await expect(
+		page.getByText("Comparabilidade de performance: limitada", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByRole("status")).toContainText(
+		"identidade exata do runtime não foi registrada",
+	);
 
 	const regions = page.locator("[data-run-comparison-region='true']");
 	await expect(regions).toHaveCount(2);
