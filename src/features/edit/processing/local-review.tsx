@@ -579,13 +579,6 @@ function ReviewEditor({
 				</div>
 			</div>
 
-            {review.lineage.executionLineage?.runtimeArtifact ? <details className={styles.warnings}>
-                <summary>Integridade do runtime usado</summary>
-                <p>{review.lineage.executionLineage.runtimeArtifact.runtimeId} · {review.lineage.executionLineage.runtimeArtifact.version}</p>
-                <p>Worker SHA-256: <code className={styles.artifactHash}>{review.lineage.executionLineage.runtimeArtifact.workerSha256}</code></p>
-                {review.lineage.executionLineage.runtimeArtifact.archiveSha256 ? <p>Arquivo SHA-256: <code className={styles.artifactHash}>{review.lineage.executionLineage.runtimeArtifact.archiveSha256}</code></p> : null}
-            </details> : null}
-
 			{review.warnings.length ? (
 				<details className={styles.warnings}>
 					<summary>{review.review.warningCount} avisos do pipeline · mostrando {Math.min(new Set(review.warnings).size, 50)} tipos{review.warningSummary?.truncated ? ` dos primeiros ${review.warningSummary.displayedCount} avisos` : ""}</summary>
@@ -754,6 +747,69 @@ export function LocalReviewWorkspace({
 	onRepairTarget,
 	onLoadLatest,
 }: Props) {
+	const [libraryQuery, setLibraryQuery] = useState("");
+	const [profileFilter, setProfileFilter] = useState("all");
+	const [reviewFilter, setReviewFilter] = useState("all");
+	const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "fastest">("newest");
+	const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null);
+	const filteredRuns = useMemo(() => {
+		const query = libraryQuery.trim().toLocaleLowerCase("pt-BR");
+		const values = runs.filter((run) => {
+			if (profileFilter !== "all" && run.profileId !== profileFilter) return false;
+			const reviewStatus = run.review?.status ?? "unknown";
+			if (reviewFilter !== "all" && reviewStatus !== reviewFilter) return false;
+			if (!query) return true;
+			return [
+				run.profileId,
+				run.engine,
+				run.model,
+				run.sourceId,
+				run.runId,
+				run.executionLineage?.gpu?.model,
+				run.executionLineage?.runtimeVersion,
+			]
+				.filter(Boolean)
+				.join(" ")
+				.toLocaleLowerCase("pt-BR")
+				.includes(query);
+		});
+		return [...values].sort((left, right) => {
+			if (sortOrder === "fastest") {
+				const leftTime =
+					left.stats.processingMetrics?.totalProcessingSeconds ??
+					left.stats.processingSeconds ??
+					Number.POSITIVE_INFINITY;
+				const rightTime =
+					right.stats.processingMetrics?.totalProcessingSeconds ??
+					right.stats.processingSeconds ??
+					Number.POSITIVE_INFINITY;
+				return leftTime - rightTime;
+			}
+			const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+			const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+			return sortOrder === "oldest" ? leftTime - rightTime : rightTime - leftTime;
+		});
+	}, [libraryQuery, profileFilter, reviewFilter, runs, sortOrder]);
+	const profiles = useMemo(
+		() => [...new Set(runs.map((run) => run.profileId))].sort(),
+		[runs],
+	);
+	const selectedRun =
+		filteredRuns.find(
+			(run) => serializeLocalRunKey(localRunKey(run)) === selectedRunKey,
+		) ??
+		filteredRuns[0] ??
+		null;
+
+	useEffect(() => {
+		if (!selectedRun) {
+			if (selectedRunKey !== null) setSelectedRunKey(null);
+			return;
+		}
+		const key = serializeLocalRunKey(localRunKey(selectedRun));
+		if (selectedRunKey !== key) setSelectedRunKey(key);
+	}, [selectedRun, selectedRunKey]);
+
 	if (review) {
 		return (
 			<ReviewEditor
@@ -781,35 +837,117 @@ export function LocalReviewWorkspace({
 					<span className={styles.eyebrow}>Biblioteca local</span>
 					<h2 id="local-results-title">Resultados locais</h2>
 				</div>
-				<span>{runs.length} {runs.length === 1 ? "resultado" : "resultados"}</span>
+				<span>
+					{filteredRuns.length}
+					{filteredRuns.length !== runs.length ? ` de ${runs.length}` : ""}{" "}
+					{runs.length === 1 ? "resultado" : "resultados"}
+				</span>
 			</div>
 			{runs.length ? (
 				<>
 					<p className={styles.libraryIntro}>
-						Runs concluídos ficam separados da fila operacional. O transcript só é carregado quando você abre uma revisão.
+						Navegue pelos metadados primeiro. O transcript só é carregado quando você abre uma revisão.
 					</p>
-					<div className={styles.runGrid}>
-						{runs.map((run) => (
-							<RunCard
-								key={serializeLocalRunKey(localRunKey(run))}
-								run={run}
-								busy={busy}
-								onOpen={() => void onOpen(run.sourceId, run.runId)}
+					<div className={styles.libraryToolbar}>
+						<label className={styles.librarySearch}>
+							<span>Buscar</span>
+							<input
+								value={libraryQuery}
+								onChange={(event) => setLibraryQuery(event.target.value)}
+								placeholder="Perfil, modelo, GPU, runtime ou ID…"
 							/>
-						))}
+						</label>
+						<label>
+							<span>Perfil</span>
+							<select value={profileFilter} onChange={(event) => setProfileFilter(event.target.value)}>
+								<option value="all">Todos</option>
+								{profiles.map((profile) => (
+									<option key={profile} value={profile}>{profile}</option>
+								))}
+							</select>
+						</label>
+						<label>
+							<span>Revisão</span>
+							<select value={reviewFilter} onChange={(event) => setReviewFilter(event.target.value)}>
+								<option value="all">Todas</option>
+								<option value="unknown">Sem revisão</option>
+								<option value="draft">Draft</option>
+								<option value="reviewed">Revisado</option>
+								<option value="approved_local">Aprovado localmente</option>
+							</select>
+						</label>
+						<label>
+							<span>Ordenar</span>
+							<select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "newest" | "oldest" | "fastest")}>
+								<option value="newest">Mais recentes</option>
+								<option value="oldest">Mais antigos</option>
+								<option value="fastest">Processamento mais rápido</option>
+							</select>
+						</label>
 					</div>
-					{hasMore && onLoadMore ? (
-						<div className={styles.libraryMore}>
-							<Button
-								size="sm"
-								variant="tertiary"
-								disabled={busy}
-								onClick={() => void onLoadMore()}
-							>
-								Carregar mais resultados
-							</Button>
+					<div className={styles.libraryWorkspace}>
+						<nav className={styles.runList} aria-label="Runs locais">
+							{filteredRuns.map((run) => {
+								const key = serializeLocalRunKey(localRunKey(run));
+								const active = selectedRun
+									? serializeLocalRunKey(localRunKey(selectedRun)) === key
+									: false;
+								return (
+									<button
+										key={key}
+										type="button"
+										className={styles.runListItem}
+										data-active={active ? "true" : "false"}
+										aria-current={active ? "true" : undefined}
+										onClick={() => setSelectedRunKey(key)}
+									>
+										<span className={styles.runListTitle}>
+											<strong>{run.profileId}</strong>
+											<small>{formatDate(run.completedAt)}</small>
+										</span>
+										<span>{[run.engine, run.model].filter(Boolean).join(" · ") || "modelo desconhecido"}</span>
+										<span>
+											{formatSeconds(run.stats.processingMetrics?.totalProcessingSeconds ?? run.stats.processingSeconds)}
+											{" · "}
+											{run.review?.status === "approved_local"
+												? "Aprovado"
+												: run.review?.status === "reviewed"
+													? "Revisado"
+													: run.review?.status === "draft"
+														? "Draft"
+														: "Sem revisão"}
+										</span>
+									</button>
+								);
+							})}
+							{filteredRuns.length === 0 ? (
+								<p className={styles.emptyCompact}>Nenhum run corresponde aos filtros.</p>
+							) : null}
+							{hasMore && onLoadMore ? (
+								<div className={styles.libraryMore}>
+									<Button
+										size="sm"
+										variant="tertiary"
+										disabled={busy}
+										onClick={() => void onLoadMore()}
+									>
+										Carregar mais resultados
+									</Button>
+								</div>
+							) : null}
+						</nav>
+						<div className={styles.runDetail}>
+							{selectedRun ? (
+								<RunCard
+									run={selectedRun}
+									busy={busy}
+									onOpen={() => void onOpen(selectedRun.sourceId, selectedRun.runId)}
+								/>
+							) : (
+								<p className={styles.emptyCompact}>Selecione um resultado para ver os detalhes.</p>
+							)}
 						</div>
-					) : null}
+					</div>
 				</>
 			) : (
 				<p className={styles.emptyCompact}>
