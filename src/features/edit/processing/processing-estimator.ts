@@ -1,6 +1,7 @@
 import { freshCalibrationRtf, PROCESSING_TIMING_VERSION } from "./engine-metrics";
 import type {
 	BenchmarkResult,
+	LocalExecutionLineage,
 	LocalRunSummary,
 	SystemSnapshot,
 	TranscriptionProfileState,
@@ -81,13 +82,40 @@ function runRtf(run: LocalRunSummary): number | null {
 	return freshCalibrationRtf(run.stats.processingMetrics);
 }
 
-function currentGpuModel(
+type CurrentGpuIdentity = Readonly<{
+	model: string;
+	physicalUuid: string | null;
+	pciBusId: string | null;
+}>;
+
+function currentGpuIdentity(
 	profile: TranscriptionProfileState,
 	system: SystemSnapshot | null,
-): string | null {
-	if (profile.gpuModel) return profile.gpuModel;
-	if (system?.gpus.length === 1) return system.gpus[0]?.name ?? null;
-	return null;
+): CurrentGpuIdentity | null {
+	if (!system) return null;
+	const candidates = profile.gpuModel
+		? system.gpus.filter((gpu) => gpu.name === profile.gpuModel)
+		: system.gpus;
+	if (candidates.length !== 1) return null;
+	const gpu = candidates[0];
+	if (!gpu) return null;
+	const physicalUuid = gpu.uuid ?? null;
+	const pciBusId = gpu.pciBusId ?? null;
+	if (!physicalUuid && !pciBusId) return null;
+	return { model: profile.gpuModel ?? gpu.name, physicalUuid, pciBusId };
+}
+
+function matchesPhysicalGpu(
+	lineage: LocalExecutionLineage | null | undefined,
+	current: CurrentGpuIdentity,
+): boolean {
+	const execution = lineage?.executionDevice;
+	if (execution?.kind !== "cuda") return false;
+	if (current.physicalUuid && execution.physicalUuid)
+		return execution.physicalUuid === current.physicalUuid;
+	if (current.pciBusId && execution.pciBusId)
+		return execution.pciBusId === current.pciBusId;
+	return false;
 }
 
 function completedAtValue(run: LocalRunSummary): number {
