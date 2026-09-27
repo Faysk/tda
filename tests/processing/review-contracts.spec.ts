@@ -25,6 +25,29 @@ test("completed runs compare locally with source and time filters before an expl
 
 	const regions = page.locator("[data-run-comparison-region='true']");
 	await expect(regions).toHaveCount(2);
+
+	const activeRegion = page.locator("[data-run-comparison-region='true'][data-active='true']");
+	await expect(activeRegion).toContainText("Versão A");
+	await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Próxima" }).click();
+	await expect(activeRegion).toContainText("Somente A");
+	await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Anterior" }).click();
+	await expect(activeRegion).toContainText("Versão A");
+
+	const participant = page.getByLabel("Participante");
+	await participant.selectOption({ label: "Bia" });
+	await expect(regions).toHaveCount(1);
+	await expect(regions.first()).toContainText("Versão B");
+	await participant.selectOption("all");
+	await expect(regions).toHaveCount(2);
+
+	await page.getByLabel("Somente divergências").uncheck();
+	await expect(regions).toHaveCount(3);
+	await expect(page.getByText("Mesmo começo", { exact: true })).toHaveCount(2);
+	await page.getByLabel("Somente divergências").check();
+	await expect(regions).toHaveCount(2);
+
 	await page.getByLabel("Início da faixa da sessão (s)").fill("29");
 	await page.getByLabel("Fim da faixa da sessão (s)").fill("32");
 	await expect(regions).toHaveCount(1);
