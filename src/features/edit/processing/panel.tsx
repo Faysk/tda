@@ -1077,109 +1077,106 @@ export function ProcessingPanel({
 							</div>
 							<div className={styles.diagnosticsCore} data-diagnostics-core="true">
 								<div className={styles.diagnosticsSummaryRail} data-diagnostics-summary="true">
-									
+									{observedJob ? (
+																	<dl className={styles.jobDetails}>
+																		<div>
+																			<dt>Trabalho</dt>
+																			<dd>{presentJobTitle(observedJob)}</dd>
+																		</div>
+																		<div>
+																			<dt>Estado</dt>
+																			<dd>{jobLabels[observedJob.status]}</dd>
+																		</div>
+																		<div>
+																			<dt>Etapa</dt>
+																			<dd>
+																				{stageLabels[observedJob.stage] ?? observedJob.stage}
+																			</dd>
+																		</div>
+																		{observedJob.context?.sessionId ? (
+																			<div>
+																				<dt>Sessão</dt>
+																				<dd>{observedJob.context.sessionId}</dd>
+																			</div>
+																		) : null}
+																		<div>
+																			<dt>Tentativa</dt>
+																			<dd>{observedJob.attempt}</dd>
+																		</div>
+																		<div>
+																			<dt>ID local</dt>
+																			<dd className={styles.mono}>{observedJob.id}</dd>
+																		</div>
+																	</dl>
+																) : (
+																	<p className={styles.inspectorEmpty}>
+																		Nenhum trabalho observado.
+																	</p>
+																)}
 
-							{observedJob ? (
-								<dl className={styles.jobDetails}>
-									<div>
-										<dt>Trabalho</dt>
-										<dd>{presentJobTitle(observedJob)}</dd>
-									</div>
-									<div>
-										<dt>Estado</dt>
-										<dd>{jobLabels[observedJob.status]}</dd>
-									</div>
-									<div>
-										<dt>Etapa</dt>
-										<dd>
-											{stageLabels[observedJob.stage] ?? observedJob.stage}
-										</dd>
-									</div>
-									{observedJob.context?.sessionId ? (
-										<div>
-											<dt>Sessão</dt>
-											<dd>{observedJob.context.sessionId}</dd>
-										</div>
-									) : null}
-									<div>
-										<dt>Tentativa</dt>
-										<dd>{observedJob.attempt}</dd>
-									</div>
-									<div>
-										<dt>ID local</dt>
-										<dd className={styles.mono}>{observedJob.id}</dd>
-									</div>
-								</dl>
-							) : (
-								<p className={styles.inspectorEmpty}>
-									Nenhum trabalho observado.
-								</p>
-							)}
-
-																	<details className={styles.systemDetails}>
-									<summary>Companion e máquina</summary>
-									<dl className={styles.jobDetails}>
-									<div>
-									<dt>API</dt>
-									<dd>{state.health?.api_version ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>Serviço</dt>
-									<dd>{state.health?.service_version ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>Lifecycle</dt>
-									<dd>{state.health?.lifecycle ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>Dispositivo</dt>
-									<dd>{state.capabilities?.device.label ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>Sistema</dt>
-									<dd>{state.system?.host.os ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>CPU</dt>
-									<dd>{state.system?.host.cpu ?? "—"}</dd>
-									</div>
-									<div>
-									<dt>RAM</dt>
-									<dd>
-									{state.system
-									? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)} · ${state.system.memory.percent === null ? "—" : `${Math.round(state.system.memory.percent)}%`}`
-									: "—"}
-									</dd>
-									</div>
-									{state.system?.gpus.map((item) => (
-									<div key={item.index}>
-									<dt>GPU {item.index}</dt>
-									<dd>
-									{item.name} · {item.utilizationPercent === null ? "—" : `${Math.round(item.utilizationPercent)}%`} · {formatBytes(item.memoryUsedBytes)} / {formatBytes(item.memoryTotalBytes)} VRAM
-									</dd>
-									</div>
-									))}
-									<div className={styles.detailWide}>
-									<dt>Capabilities</dt>
-									<dd className={styles.mono}>
-									{state.capabilities?.capabilities.join(", ") || "—"}
-									</dd>
-									</div>
-									</dl>
-									</details>
-
+									<details className={styles.systemDetails}>
+																	<summary>Companion e máquina</summary>
+																	<dl className={styles.jobDetails}>
+																		<div>
+																			<dt>API</dt>
+																			<dd>{state.health?.api_version ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>Serviço</dt>
+																			<dd>{state.health?.service_version ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>Lifecycle</dt>
+																			<dd>{state.health?.lifecycle ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>Dispositivo</dt>
+																			<dd>{state.capabilities?.device.label ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>Sistema</dt>
+																			<dd>{state.system?.host.os ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>CPU</dt>
+																			<dd>{state.system?.host.cpu ?? "—"}</dd>
+																		</div>
+																		<div>
+																			<dt>RAM</dt>
+																			<dd>
+																				{state.system
+																					? `${formatBytes(state.system.memory.usedBytes)} / ${formatBytes(state.system.memory.totalBytes)} · ${state.system.memory.percent === null ? "—" : `${Math.round(state.system.memory.percent)}%`}`
+																					: "—"}
+																			</dd>
+																		</div>
+																		{state.system?.gpus.map((item) => (
+																			<div key={item.index}>
+																				<dt>GPU {item.index}</dt>
+																				<dd>
+																					{item.name} · {item.utilizationPercent === null ? "—" : `${Math.round(item.utilizationPercent)}%`} · {formatBytes(item.memoryUsedBytes)} / {formatBytes(item.memoryTotalBytes)} VRAM
+																				</dd>
+																			</div>
+																		))}
+																		<div className={styles.detailWide}>
+																			<dt>Capabilities</dt>
+																			<dd className={styles.mono}>
+																				{state.capabilities?.capabilities.join(", ") || "—"}
+																			</dd>
+																		</div>
+																	</dl>
+																</details>
 								</div>
 								<div className={styles.diagnosticsEventPane} data-diagnostics-events="true">
 									{observedJob ? (
-										<ProcessingLiveLog
-									events={state.events}
-									job={observedJob}
-									system={state.system}
-									live={observedJobLive}
-									stale={Boolean(state.eventsRefreshError)}
-										activityCatalog={activityCatalog}
-										/>
-									) : null}
+																	<ProcessingLiveLog
+																		events={state.events}
+																		job={observedJob}
+																		system={state.system}
+																		live={observedJobLive}
+																		stale={Boolean(state.eventsRefreshError)}
+																		activityCatalog={activityCatalog}
+																	/>
+																) : null}
 								</div>
 							</div>
 
