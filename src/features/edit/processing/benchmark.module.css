@@ -387,7 +387,7 @@
 }
 
 .runProgress li[data-state="complete"] {
-	border-top-color: var(--ds-success);
+	border-top-color: var(--ds-success-foreground);
 	color: var(--ds-success-foreground);
 }
 
