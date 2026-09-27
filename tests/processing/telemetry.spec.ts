@@ -237,10 +237,10 @@ test("telemetry atualiza o target factual antes do tween visual e rebaseia no sa
 	await expect(gpuMetric).toHaveAttribute("data-animated-running", "false");
 
 	const progressVisual = page.locator(
-		"[data-animated-progress='true'][data-progress-label='Progresso do trabalho craig-job-1']",
+		"[data-animated-progress='true'][data-progress-label^='Progresso por tracks:']",
 	).first();
 	const progress = progressVisual.getByRole("progressbar", {
-		name: "Progresso do trabalho craig-job-1",
+		name: /Progresso por tracks:/u,
 	});
 	const fill = progressVisual.locator("span[aria-hidden='true']");
 	expect(
@@ -384,10 +384,10 @@ test("reduced motion salta telemetry ao target factual e desliga transição de 
 	const gpu = gpuMetric.getByRole("meter", { name: "Uso da GPU" });
 	const visual = gpuMetric.locator("[data-animated-metric-visual='true']");
 	const progressVisual = page.locator(
-		"[data-animated-progress='true'][data-progress-label='Progresso do trabalho craig-job-1']",
+		"[data-animated-progress='true'][data-progress-label^='Progresso por tracks:']",
 	).first();
 	const progress = progressVisual.getByRole("progressbar", {
-		name: "Progresso do trabalho craig-job-1",
+		name: /Progresso por tracks:/u,
 	});
 	const fill = progressVisual.locator("span[aria-hidden='true']");
 
