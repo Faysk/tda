@@ -8,6 +8,8 @@ export type RunComparisonRegion = Readonly<{
 	trackNumber: number;
 	start: number;
 	end: number;
+	timelineStart: number;
+	timelineEnd: number;
 	kind: RunComparisonKind;
 	left: readonly LocalReviewSegment[];
 	right: readonly LocalReviewSegment[];
@@ -57,6 +59,14 @@ function ordered(values: readonly LocalReviewSegment[]): LocalReviewSegment[] {
 	);
 }
 
+function segmentTimelineStart(segment: LocalReviewSegment): number {
+	return segment.timelineStart ?? segment.start;
+}
+
+function segmentTimelineEnd(segment: LocalReviewSegment): number {
+	return segment.timelineEnd ?? segment.end;
+}
+
 function comparableInTime(
 	left: LocalReviewSegment,
 	right: LocalReviewSegment,
@@ -95,6 +105,8 @@ function buildRegion(
 	const all = [...left, ...right];
 	const start = Math.min(...all.map((item) => item.start));
 	const end = Math.max(...all.map((item) => item.end));
+	const timelineStart = Math.min(...all.map(segmentTimelineStart));
+	const timelineEnd = Math.max(...all.map(segmentTimelineEnd));
 	const leftText = left.map((item) => item.text).join(" ").trim();
 	const rightText = right.map((item) => item.text).join(" ").trim();
 	const kind: RunComparisonKind =
@@ -110,6 +122,8 @@ function buildRegion(
 		trackNumber,
 		start,
 		end,
+		timelineStart,
+		timelineEnd,
 		kind,
 		left,
 		right,
@@ -228,14 +242,35 @@ export function compareRunSegments(
 		]),
 	].sort((a, b) => a - b);
 
-	return tracks.flatMap((trackNumber) =>
-		compareTrack(
-			trackNumber,
-			left.filter((item) => item.trackNumber === trackNumber),
-			right.filter((item) => item.trackNumber === trackNumber),
-			tolerance,
-		),
-	);
+	const leftByTrack = new Map<number, LocalReviewSegment[]>();
+	const rightByTrack = new Map<number, LocalReviewSegment[]>();
+	for (const segment of left) {
+		const bucket = leftByTrack.get(segment.trackNumber) ?? [];
+		bucket.push(segment);
+		leftByTrack.set(segment.trackNumber, bucket);
+	}
+	for (const segment of right) {
+		const bucket = rightByTrack.get(segment.trackNumber) ?? [];
+		bucket.push(segment);
+		rightByTrack.set(segment.trackNumber, bucket);
+	}
+
+	return tracks
+		.flatMap((trackNumber) =>
+			compareTrack(
+				trackNumber,
+				leftByTrack.get(trackNumber) ?? [],
+				rightByTrack.get(trackNumber) ?? [],
+				tolerance,
+			),
+		)
+		.sort(
+			(leftRegion, rightRegion) =>
+				leftRegion.timelineStart - rightRegion.timelineStart ||
+				leftRegion.timelineEnd - rightRegion.timelineEnd ||
+				leftRegion.trackNumber - rightRegion.trackNumber ||
+				compareCanonicalText(leftRegion.id, rightRegion.id),
+		);
 }
 
 export function regionOverlapsTimeRange(
@@ -253,8 +288,8 @@ export function regionOverlapsTimeRange(
 		startSeconds > endSeconds
 	)
 		return false;
-	if (startSeconds !== null && region.end < startSeconds) return false;
-	if (endSeconds !== null && region.start > endSeconds) return false;
+	if (startSeconds !== null && region.timelineEnd < startSeconds) return false;
+	if (endSeconds !== null && region.timelineStart > endSeconds) return false;
 	return true;
 }
 
