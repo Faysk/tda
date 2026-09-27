@@ -381,6 +381,42 @@ export class LocalBridge {
 			),
 		);
 	}
+	async updateSessionPartTimeline(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		expectedRevision: number,
+		config: Readonly<{
+			sessionOffsetSeconds: number | null;
+			trimStartSeconds: number;
+			trimEndSeconds: number | null;
+			gapConfirmed: boolean;
+			overlapResolution:
+				| "prefer_earlier_until"
+				| "prefer_later_from"
+				| null;
+			overlapBoundarySeconds: number | null;
+		}>,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/timeline`,
+				signal,
+				{
+					part_id: identifier(partId),
+					expected_revision: expectedRevision,
+					session_offset_seconds: config.sessionOffsetSeconds,
+					trim_start_seconds: config.trimStartSeconds,
+					trim_end_seconds: config.trimEndSeconds,
+					gap_confirmed: config.gapConfirmed,
+					overlap_resolution: config.overlapResolution,
+					overlap_boundary_seconds: config.overlapBoundarySeconds,
+				},
+			),
+		);
+	}
+
 	async preparation(signal: AbortSignal) {
 		return parsePreparationStatus(await this.json("/preparation", signal));
 	}
