@@ -341,6 +341,23 @@ Ordem de confiança:
 
 O mapping participa da identity da assembly.
 
+### Implementação inicial de reconciliação
+
+O Companion expõe o contrato local versionado `tda_session_participant_mapping_v1`.
+
+Regras implementadas:
+- cada observação mantém `source_id + track_number + raw_speaker` e identity Craig disponível;
+- `track_number` nunca é authority cross-source;
+- Discord ID exato pode agrupar observações dentro da mesma session;
+- username/label só produz evidência auxiliar e conflitos; não faz merge automático quando a identidade forte falta;
+- mesmo label com Discord IDs distintos permanece em participants distintos;
+- label igual com identidade ausente/parcial bloqueia aprovação até decisão manual;
+- decisões manuais são full-replacement, CAS-guarded pelo `workspace.revision`, persistidas localmente e sobrevivem a restart;
+- o mapping recebe SHA-256 determinístico para entrar na provenance da futura Session Assembly;
+- nenhuma resolução cria ou preenche `profile_id` global.
+
+O detach de uma recording part remove somente as decisões manuais pertencentes àquela source; não altera source/run bruto.
+
 ## Seleção de runs e reprocessamento
 
 Cada part escolhe um run terminal íntegro.
