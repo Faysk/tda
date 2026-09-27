@@ -421,6 +421,43 @@
 	overflow-wrap: anywhere;
 }
 
+.overviewMetricDetails {
+	margin-top: 4px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.overviewMetricDetails summary {
+	width: fit-content;
+	min-height: 28px;
+	padding: 6px 2px 0;
+	color: var(--ds-foreground-muted);
+	cursor: pointer;
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.overviewMetricDetails summary:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+
+.detailMetrics {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	margin-top: 4px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	overflow: hidden;
+}
+
+.detailMetrics .metric {
+	min-height: 46px;
+}
+
+.detailMetrics .metric:first-child {
+	border-inline-start: 0;
+}
+
 .workspace {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(310px, 370px);
