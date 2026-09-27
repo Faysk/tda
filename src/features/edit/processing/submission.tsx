@@ -176,6 +176,7 @@ const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 export function ProcessingSubmission({
 	className,
 	compact = false,
+	idleDensity = false,
 	onOpenDiagnostics,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
@@ -183,6 +184,7 @@ export function ProcessingSubmission({
 }: Readonly<{
 	className?: string;
 	compact?: boolean;
+	idleDensity?: boolean;
 	onOpenDiagnostics?: () => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
@@ -736,7 +738,7 @@ export function ProcessingSubmission({
 		<section
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
-			data-layout={compact ? "compact" : "default"}
+			data-layout={compact ? "compact" : idleDensity ? "idle" : "default"}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
@@ -868,7 +870,7 @@ export function ProcessingSubmission({
 								{availableProfiles.map((item) => (
 									<option key={item.id} value={item.id}>
 										{submissionProfileLabel(item.id)}
-										{item.ready
+										{item.ready || idleDensity
 											? ""
 											: item.reason === QWEN_RUNTIME_UPGRADE_REASON
 												? ` · ${qwenRuntimeBlockLabel}`
@@ -889,7 +891,7 @@ export function ProcessingSubmission({
 										? " · pronto neste Companion"
 										: selectedProfileState.preparationRequired
 											? " · preparação necessária"
-											: " · indisponível"}
+											: " · indisponível agora"}
 								</span>
 							</div>
 							<small>
@@ -904,6 +906,17 @@ export function ProcessingSubmission({
 										}[selectedEstimate.confidence]}`
 									: "Sem calibração compatível nesta máquina."}
 							</small>
+							{idleDensity && profileBlocked ? (
+								<details className={styles.profileDetails}>
+									<summary>Por quê?</summary>
+									<p>{readinessReason ?? readiness}</p>
+									{onOpenDiagnostics ? (
+										<Button type="button" size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+											Abrir Diagnóstico
+										</Button>
+									) : null}
+								</details>
+							) : null}
 						</div>
 					) : null}
 
@@ -943,7 +956,7 @@ export function ProcessingSubmission({
 						</section>
 					) : null}
 
-					{readiness ? (
+					{readiness && !idleDensity ? (
 						<div
 							className={profileBlocked ? styles.blocked : styles.readiness}
 							role={profileBlocked ? "alert" : "status"}
