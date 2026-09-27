@@ -410,7 +410,76 @@ def test_reverse_disjoint_manual_parts_are_order_conflict_not_overlap():
     assert current["relation_seconds"] is None
     assert current["overlap_resolution_valid"] is False
     assert enriched["timeline"]["state"] == "order_conflict"
+    assert enriched["timeline"]["order_conflict_count"] == 1
     assert enriched["timeline"]["overlap_count"] == 0
     assert enriched["timeline"]["unresolved_overlap_count"] == 0
     with pytest.raises(ValueError, match="SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID"):
         validate_overlap_boundary(enriched, current["part_id"])
+
+
+
+def test_exact_touch_and_one_millisecond_gap_overlap_remain_distinct():
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:01:00Z", duration=30.0),
+        ]
+    )
+    base = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-boundary",
+        "session_id": "session-boundary",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+    }
+
+    touching = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(2, 1, offset=60.0),
+            ],
+        },
+        source_facts,
+    )
+    assert touching["parts"][1]["relation_to_previous"] == "contiguous"
+    assert touching["parts"][1]["relation_seconds"] == 0.0
+    assert touching["timeline"]["state"] == "ready"
+
+    gap = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(2, 1, offset=60.001, gap_confirmed=True),
+            ],
+        },
+        source_facts,
+    )
+    assert gap["parts"][1]["relation_to_previous"] == "gap"
+    assert gap["parts"][1]["relation_seconds"] == pytest.approx(0.001)
+    assert gap["timeline"]["state"] == "ready"
+
+    overlap = enrich_workspace_timeline(
+        {
+            **base,
+            "parts": [
+                part(1, 0, offset=0.0),
+                part(
+                    2,
+                    1,
+                    offset=59.999,
+                    resolution="prefer_later_from",
+                    boundary=59.9995,
+                ),
+            ],
+        },
+        source_facts,
+    )
+    assert overlap["parts"][1]["relation_to_previous"] == "overlap"
+    assert overlap["parts"][1]["relation_seconds"] == pytest.approx(0.001)
+    assert overlap["parts"][1]["overlap_resolution_valid"] is True
+    assert overlap["timeline"]["state"] == "ready"
