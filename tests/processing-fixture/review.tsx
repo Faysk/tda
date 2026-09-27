@@ -143,7 +143,14 @@ export function ReviewFixture() {
 				runtimeVersion: "1.0.12",
 				device: "cuda",
 				computeType: "bf16",
-				gpu: { model: "Synthetic GPU", vramTotalBytes: 8 * 1024 ** 3 },
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "Synthetic GPU",
+					vramTotalBytes: 8 * 1024 ** 3,
+					computeCapability: "8.9",
+					driverVersion: "synthetic",
+				},
 			},
 		},
 		segments: [
