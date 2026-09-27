@@ -475,7 +475,7 @@ def transcribe_craig_package_qwen_strict(
             yield from window_reader(source)
             return
         limit = float(sample_seconds)
-        for window in benchmark_window_reader(source):
+        for window in window_reader(source):
             if window.start >= limit:
                 break
             if window.end <= limit:
