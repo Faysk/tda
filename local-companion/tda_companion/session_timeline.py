@@ -156,8 +156,12 @@ def normalize_timeline_config(
         if not isinstance(item, dict):
             raise SessionTimelineError("SESSION_TIMELINE_CONFIG_INVALID")
         part_id = _part_id(item.get("part_id"))
-        if part_id in by_part or part_id not in current:
+        if part_id in by_part:
             raise SessionTimelineError("SESSION_TIMELINE_PART_SET_INVALID")
+        if part_id not in current:
+            if require_exact:
+                raise SessionTimelineError("SESSION_TIMELINE_PART_SET_INVALID")
+            continue
         session_offset_ms = _milliseconds(item.get("session_offset_ms"), nullable=True)
         trim_start_ms = _milliseconds(item.get("trim_start_ms", 0))
         trim_end_ms = _milliseconds(item.get("trim_end_ms"), nullable=True)
