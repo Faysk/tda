@@ -1291,7 +1291,10 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 	});
 }
 
-export function parseLocalReview(value: unknown): LocalReview {
+export function parseLocalReview(
+	value: unknown,
+	options: Readonly<{ requireAbsoluteTimeline?: boolean }> = {},
+): LocalReview {
 	const row = record(value);
 	if (row.schema_version !== "tda_local_review_v1") return invalid();
 	const status = text(row.status, 32);
@@ -1326,14 +1329,19 @@ export function parseLocalReview(value: unknown): LocalReview {
 		const start = nonNegativeNumber(segment.start);
 		const end = nonNegativeNumber(segment.end);
 		if (end < start) return invalid();
-		const timelineStart =
-			segment.timeline_start === undefined
-				? start
-				: nonNegativeNumber(segment.timeline_start);
-		const timelineEnd =
-			segment.timeline_end === undefined
-				? end
-				: nonNegativeNumber(segment.timeline_end);
+		const hasTimelineStart = segment.timeline_start !== undefined;
+		const hasTimelineEnd = segment.timeline_end !== undefined;
+		if (
+			options.requireAbsoluteTimeline &&
+			(!hasTimelineStart || !hasTimelineEnd)
+		)
+			return invalid();
+		const timelineStart = hasTimelineStart
+			? nonNegativeNumber(segment.timeline_start)
+			: start;
+		const timelineEnd = hasTimelineEnd
+			? nonNegativeNumber(segment.timeline_end)
+			: end;
 		if (timelineEnd < timelineStart) return invalid();
 		const trackNumber = nonNegativeInteger(segment.track_number);
 		if (trackNumber < 1) return invalid();
