@@ -38,7 +38,7 @@ import {
 	estimateRemainingProcessing,
 	formatEstimateRange,
 } from "./processing-estimator";
-import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
+import type { BenchmarkResult, JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -297,6 +297,7 @@ export function ProcessingPanel({
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const [logMode, setLogMode] = useState<"humanized" | "technical">("humanized");
 	const [clockNow, setClockNow] = useState(() => Date.now());
+	const [benchmarkResults, setBenchmarkResults] = useState<readonly BenchmarkResult[]>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -364,7 +365,7 @@ export function ProcessingPanel({
 		audioWorkSeconds: activeJob?.context?.audioWorkSeconds ?? null,
 		profile: activeProfile,
 		runs: state.localRuns,
-		benchmarks: state.benchmarkResults,
+		benchmarks: benchmarkResults,
 		system: state.system,
 	});
 	const activeRemaining =
@@ -809,7 +810,7 @@ export function ProcessingPanel({
 								className={styles.submissionCard}
 								compact
 								runs={state.localRuns}
-								benchmarks={state.benchmarkResults}
+								benchmarks={benchmarkResults}
 								system={state.system}
 							/>
 						</div>
@@ -1002,6 +1003,7 @@ export function ProcessingPanel({
 							connected={connected}
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onResultsChange={setBenchmarkResults}
 						/>
 					</section>
 
