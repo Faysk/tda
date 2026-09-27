@@ -931,6 +931,12 @@ describe("preparation wire validation", () => {
 						ready: false,
 						preparation_required: true,
 						reason: "QWEN_RUNTIME_REQUIRED",
+						model: "Qwen/Qwen3-ASR-1.7B-hf",
+						model_revision: "revision",
+						runtime_version: "1.0.12",
+						compute_type: "bfloat16",
+						gpu_model: "NVIDIA GeForce RTX 4070 Laptop GPU",
+						gpu_compute_capability: "8.9",
 					},
 				],
 			},
@@ -939,6 +945,12 @@ describe("preparation wire validation", () => {
 			id: "qwen-quality",
 			ready: false,
 			preparationRequired: true,
+			model: "Qwen/Qwen3-ASR-1.7B-hf",
+			modelRevision: "revision",
+			runtimeVersion: "1.0.12",
+			computeType: "bfloat16",
+			gpuModel: "NVIDIA GeForce RTX 4070 Laptop GPU",
+			gpuComputeCapability: "8.9",
 		});
 
 		expect(
