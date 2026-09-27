@@ -996,6 +996,19 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	expect(detail).not.toBeNull();
 	expect(["auto", "scroll"]).not.toContain(detail?.overflowY);
 	expect(detail?.scrollHeight).toBe(detail?.clientHeight);
+
+	const comparisonDisclosure = page.getByText("Comparar runs", { exact: true }).first();
+	const comparisonReason = page.getByText(
+		"Somente resultados da mesma fonte podem ser comparados.",
+		{ exact: true },
+	);
+	await expect(comparisonDisclosure).toBeVisible();
+	await expect(comparisonReason).toBeHidden();
+	await comparisonDisclosure.focus();
+	await page.keyboard.press("Enter");
+	await expect(comparisonReason).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(comparisonReason).toBeHidden();
 });
 
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
