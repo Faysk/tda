@@ -208,7 +208,7 @@ test("benchmark workspace keeps source, readiness, and next action usable across
 	await expect(sourceRegion).toBeVisible();
 	await expect(readinessRegion).toBeVisible();
 	await expect(nextAction).toContainText("Selecione a fonte que será comparada.");
-	await expect(panel.getByRole("button", { name: "Selecionar ZIP Craig" })).toBeVisible();
+	await expect(sourceRegion.getByRole("button", { name: /Selecionar ZIP Craig Escolha/u })).toBeVisible();
 	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
 
 	for (const viewport of [
