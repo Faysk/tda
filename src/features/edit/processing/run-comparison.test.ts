@@ -164,6 +164,32 @@ describe("run comparison", () => {
 		});
 	});
 
+	it("orders globally anchored regions by session timeline without cross-track matching", () => {
+		const lateTrackOne = {
+			...segment(1, "track-1", 0, 1, "track one"),
+			timelineStart: 120,
+			timelineEnd: 121,
+		};
+		const earlyTrackTwo = {
+			...segment(2, "track-2", 10, 11, "track two", "Bob"),
+			timelineStart: 10,
+			timelineEnd: 11,
+		};
+		const regions = compareRunSegments(
+			[lateTrackOne, earlyTrackTwo],
+			[
+				{ ...lateTrackOne, segmentId: "track-1-right" },
+				{ ...earlyTrackTwo, segmentId: "track-2-right" },
+			],
+		);
+		expect(regions.map((region) => region.trackNumber)).toEqual([2, 1]);
+		expect(regions.map((region) => [region.timelineStart, region.timelineEnd])).toEqual([
+			[10, 11],
+			[120, 121],
+		]);
+		expect(regions.every((region) => region.kind === "equal")).toBe(true);
+	});
+
 	it("requires two distinct runs from the same source", () => {
 		expect(
 			runsShareComparisonSource(
