@@ -715,6 +715,9 @@
 	.card[data-layout="idle"] .identityGrid {
 		grid-template-columns: 1fr;
 	}
+	.card[data-layout="idle"] .fileFacts {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 	.card[data-layout="idle"] .submitRow {
 		justify-content: stretch;
 	}
