@@ -475,7 +475,7 @@ function ReviewEditor({
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
     async function abandonPublication() {
-        if (!publicationRecovery?.pending || !window.confirm("A publicação anterior pode ter sido concluída. Abandonar a recuperação permite criar outra revisão. Continuar?")) return;
+        if (!publicationRecovery?.pending || !window.confirm("O handoff privado anterior pode já ter sido concluído e criado uma revisão privada da transcrição no Edit. Abandonar a recuperação permite iniciar uma nova intenção editorial e pode criar outra revisão privada. Isso não publica sessão, capa, resumo ou transcrição no site. Continuar?")) return;
         setPublishing(true); setPublishConfirmation(false);
         try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationError(null); }
         catch (cause) { setPublicationRecovery(null); setPublicationError(recoveryError(cause)); }
