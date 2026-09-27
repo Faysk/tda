@@ -6,8 +6,25 @@ export type NavigationIdentity = Readonly<{
 const DISPLAY_NAME_LIMIT = 80;
 const DISCORD_AVATAR_HOST = "cdn.discordapp.com";
 const DISCORD_AVATAR_PATHS = ["/avatars/", "/embed/avatars/"] as const;
-const UNSAFE_DISPLAY_CONTROLS =
-	/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/gu;
+function isUnsafeDisplayCodePoint(codePoint: number): boolean {
+	return (
+		codePoint <= 0x1f ||
+		(codePoint >= 0x7f && codePoint <= 0x9f) ||
+		(codePoint >= 0x200b && codePoint <= 0x200f) ||
+		(codePoint >= 0x202a && codePoint <= 0x202e) ||
+		(codePoint >= 0x2060 && codePoint <= 0x206f) ||
+		codePoint === 0xfeff
+	);
+}
+
+function stripUnsafeDisplayControls(value: string): string {
+	return Array.from(value, (character) => {
+		const codePoint = character.codePointAt(0);
+		return codePoint !== undefined && isUnsafeDisplayCodePoint(codePoint)
+			? " "
+			: character;
+	}).join("");
+}
 
 function record(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
@@ -17,8 +34,7 @@ function record(value: unknown): Record<string, unknown> | null {
 
 export function sanitizeNavigationDisplayName(value: unknown): string | null {
 	if (typeof value !== "string") return null;
-	const cleaned = value
-		.replace(UNSAFE_DISPLAY_CONTROLS, " ")
+	const cleaned = stripUnsafeDisplayControls(value)
 		.replace(/\s+/gu, " ")
 		.trim();
 	if (!cleaned) return null;
