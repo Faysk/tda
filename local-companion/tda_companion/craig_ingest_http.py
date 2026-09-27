@@ -16,7 +16,13 @@ from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
 from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
-from .local_review import LocalReviewError, open_review, review_summary, save_review
+from .local_review import (
+    LocalReviewError,
+    open_immutable_run_snapshot,
+    open_review,
+    review_summary,
+    save_review,
+)
 from .publication_target import publication_target_state
 from .system_log import SystemLog
 from .transcription_runs import (
@@ -33,6 +39,10 @@ CRAIG_RUNS_PATH = re.compile(r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,12
 CRAIG_REVIEW_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
     r"(?P<run_id>[A-Za-z0-9_-]{1,196})/review$"
+)
+CRAIG_COMPARISON_SNAPSHOT_PATH = re.compile(
+    r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
+    r"(?P<run_id>[A-Za-z0-9_-]{1,196})/comparison-snapshot$"
 )
 CRAIG_RUN_DELETE_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
@@ -450,6 +460,126 @@ class CraigIngestBoundary:
                 )
             return {**review, **publication_target_state(package_root, run_id)}
 
+    def _comparison_snapshot_value(
+        self,
+        source_id: str,
+        run_id: str,
+    ) -> dict[str, object]:
+        staging_root = (self.data_root / "staging").resolve()
+        package_root = (staging_root / source_id).resolve()
+        if package_root.parent != staging_root:
+            raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        with gate:
+            load_craig_package(package_root, verify_tracks=False)
+            try:
+                manifest = load_run(package_root, run_id, verify_content=False)
+            except TranscriptionRunError as exc:
+                raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE") from exc
+            if self.run_visible is not None and not self.run_visible(package_root, manifest):
+                raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE")
+            snapshot = open_immutable_run_snapshot(
+                package_root,
+                source_id=source_id,
+                run_id=run_id,
+            )
+            return {
+                **snapshot,
+                **publication_target_state(package_root, run_id),
+            }
+
+    async def _comparison_snapshot(
+        self,
+        request: Request,
+        source_id: str,
+        run_id: str,
+        scope,
+        receive,
+        send,
+    ) -> None:
+        origin, allowed = await self._common_guard(request, scope, receive, send)
+        if not allowed:
+            return
+        if request.method == "OPTIONS":
+            if not origin:
+                await self._send_response(
+                    _error("ORIGIN_REQUIRED", 403),
+                    scope,
+                    receive,
+                    send,
+                    None,
+                )
+                return
+            requested_headers = {
+                value.strip().lower()
+                for value in request.headers.get(
+                    "access-control-request-headers", ""
+                ).split(",")
+                if value.strip()
+            }
+            if (
+                request.headers.get("access-control-request-method") != "GET"
+                or not requested_headers <= frozenset({"authorization"})
+            ):
+                await self._send_response(
+                    _error("PREFLIGHT_REJECTED", 403),
+                    scope,
+                    receive,
+                    send,
+                    origin,
+                )
+                return
+            response = JSONResponse(
+                {},
+                headers={
+                    "Access-Control-Allow-Methods": "GET",
+                    "Access-Control-Allow-Headers": "Authorization",
+                    "Access-Control-Allow-Private-Network": "true",
+                    "Access-Control-Max-Age": "60",
+                },
+            )
+            await self._send_response(response, scope, receive, send, origin)
+            return
+        if request.method != "GET":
+            await self._send_response(
+                _error("METHOD_NOT_ALLOWED", 405),
+                scope,
+                receive,
+                send,
+                origin,
+            )
+            return
+        if not self._authorized(request, origin):
+            await self._send_response(
+                _error("UNAUTHORIZED", 401),
+                scope,
+                receive,
+                send,
+                origin,
+            )
+            return
+        try:
+            value = await asyncio.to_thread(
+                self._comparison_snapshot_value,
+                source_id,
+                run_id,
+            )
+            response = JSONResponse(value)
+        except LocalReviewError as exc:
+            code = str(exc)
+            response = _error(
+                code,
+                404 if code == "LOCAL_REVIEW_RUN_NOT_VISIBLE" else 409,
+                False,
+            )
+        except CraigPackageError as exc:
+            response = _error(
+                str(exc),
+                404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409,
+                True,
+            )
+        await self._send_response(response, scope, receive, send, origin)
+
     async def _read_review_body(self, request: Request) -> dict[str, object]:
         body = bytearray()
         async for chunk in request.stream():
@@ -738,6 +868,18 @@ class CraigIngestBoundary:
                 request,
                 delete_match.group("source_id"),
                 delete_match.group("run_id"),
+                scope,
+                receive,
+                send,
+            )
+            return
+        comparison_snapshot_match = CRAIG_COMPARISON_SNAPSHOT_PATH.fullmatch(path)
+        if comparison_snapshot_match is not None:
+            request = Request(scope, receive=receive)
+            await self._comparison_snapshot(
+                request,
+                comparison_snapshot_match.group("source_id"),
+                comparison_snapshot_match.group("run_id"),
                 scope,
                 receive,
                 send,
