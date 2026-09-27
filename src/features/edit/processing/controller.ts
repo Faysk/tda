@@ -8,6 +8,7 @@ import {
 	type Capabilities,
 	type Health,
 	type JobEvent,
+	type JobTiming,
 	type LocalJob,
 	type LocalReview,
 	type LocalReviewSegment,
@@ -38,6 +39,7 @@ export type ProcessingState = Readonly<{
 	refreshError: BridgeErrorCode | null;
 	telemetryRefreshError: BridgeErrorCode | null;
 	eventsRefreshError: BridgeErrorCode | null;
+	timingRefreshError: BridgeErrorCode | null;
 	libraryRefreshError: BridgeErrorCode | null;
 	telemetryCheckedAt: string | null;
 	mutation: ProcessingMutation | null;
@@ -52,6 +54,7 @@ export type ProcessingState = Readonly<{
 	system: SystemSnapshot | null;
 	events: readonly JobEvent[];
 	eventsHasOlder: boolean;
+	timing: JobTiming | null;
 	observedJobId: string | null;
 	error: BridgeErrorCode | null;
 	errorDetails: BridgeErrorDetails | null;
@@ -67,6 +70,7 @@ const initial: ProcessingState = {
 	refreshError: null,
 	telemetryRefreshError: null,
 	eventsRefreshError: null,
+	timingRefreshError: null,
 	libraryRefreshError: null,
 	telemetryCheckedAt: null,
 	mutation: null,
@@ -81,6 +85,7 @@ const initial: ProcessingState = {
 	system: null,
 	events: [],
 	eventsHasOlder: false,
+	timing: null,
 	observedJobId: null,
 	error: null,
 	errorDetails: null,
@@ -336,8 +341,11 @@ export class ProcessingController {
 
 		const reviewEnabled =
 			capabilities.capabilities.includes("transcription.review");
-		const domainErrors: Record<"telemetry" | "events" | "library", BridgeErrorCode | null> = {
-			telemetry: null, events: null, library: reviewEnabled ? previous.libraryRefreshError : null,
+		const domainErrors: Record<"telemetry" | "events" | "timing" | "library", BridgeErrorCode | null> = {
+			telemetry: null,
+			events: null,
+			timing: null,
+			library: reviewEnabled ? previous.libraryRefreshError : null,
 		};
 		const preserveSecondary = async <T,>(
 			work: Promise<T>,
@@ -356,7 +364,9 @@ export class ProcessingController {
 			previous.observedJobId === observedJob?.id
 				? { events: [...previous.events], hasOlder: previous.eventsHasOlder }
 				: { events: [] as JobEvent[], hasOlder: false };
-		const [system, eventState] = await Promise.all([
+		const timingFallback =
+			previous.observedJobId === observedJob?.id ? previous.timing : null;
+		const [system, eventState, timing] = await Promise.all([
 			capabilities.capabilities.includes("system.telemetry")
 				? preserveSecondary(this.bridge.system(signal), previous.system, "telemetry")
 				: Promise.resolve(null),
@@ -372,6 +382,17 @@ export class ProcessingController {
 						"events",
 					)
 				: Promise.resolve(eventFallback),
+			observedJob && capabilities.capabilities.includes("job.timings")
+				? preserveSecondary(
+						this.bridge.timings(
+							observedJob.id,
+							signal,
+							observedJob.attempt > 0 ? observedJob.attempt : undefined,
+						),
+						timingFallback,
+						"timing",
+					)
+				: Promise.resolve(timingFallback),
 		]);
 
 		const terminalStatuses = new Set([
@@ -446,11 +467,13 @@ export class ProcessingController {
 			system,
 			events: eventState.events,
 			eventsHasOlder: eventState.hasOlder,
+			timing,
 			observedJobId: observedJob?.id ?? null,
 			checkedAt: new Date().toISOString(),
 			refreshError: null,
 			telemetryRefreshError: domainErrors.telemetry,
 			eventsRefreshError: domainErrors.events,
+			timingRefreshError: domainErrors.timing,
 			libraryRefreshError: domainErrors.library,
 			telemetryCheckedAt: domainErrors.telemetry ? previous.telemetryCheckedAt
 				: system ? new Date().toISOString() : null,
@@ -561,7 +584,7 @@ export class ProcessingController {
 		if (id !== null) {
 			// Do not briefly show another job's events while the requested
 			// diagnostic history is being loaded.
-			this.update({ observedJobId: id, events: [], eventsHasOlder: false });
+			this.update({ observedJobId: id, events: [], eventsHasOlder: false, timing: null });
 		}
 		await this.runOperation(null, async (signal) => {
 			await this.read(signal, { deep: false, includeLibrary: false });
