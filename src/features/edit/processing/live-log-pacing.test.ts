@@ -42,6 +42,15 @@ describe("live log pacing", () => {
 		});
 	}
 
+	it("shortens the visual budget when the next poll arrives early", () => {
+		const events = [event(1), event(2), event(3), event(4)];
+		const plan = planLiveLogReveal(events, 0, 1_500, 500);
+
+		expect(Math.max(...plan.steps.map((step) => step.delayMs))).toBeLessThanOrEqual(
+			450,
+		);
+	});
+
 	it("aggregates a large success burst before pacing", () => {
 		vi.useFakeTimers();
 		const events = Array.from({ length: 100 }, (_, index) =>
