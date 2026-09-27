@@ -66,7 +66,8 @@ export function isExistingPublishedSessionCoverReference(value: unknown): boolea
 			return !url.search;
 		return (
 			url.hostname === "dmrqnbdvbkfqzctcerbx.supabase.co" &&
-			url.pathname.startsWith("/storage/v1/object/public/session-images/")
+			url.pathname.startsWith("/storage/v1/object/public/session-images/") &&
+			!url.search
 		);
 	} catch {
 		return false;
