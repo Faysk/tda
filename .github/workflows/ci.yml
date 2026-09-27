@@ -225,6 +225,18 @@ jobs:
         env:
           TDA_COMPANION_PYTHON: .venv/bin/python
           TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
+      - name: Upload Live Log visual receipt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: processing-live-log-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/live-log-paced-window.png
+            test-results/**/live-log-urgent-bypass.png
+            test-results/**/live-log-caught-up.png
+            test-results/**/live-log-reduced-motion.png
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload sanitized Processing failure artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
