@@ -220,6 +220,18 @@ jobs:
         run: pnpm test:processing
       - name: Responsive UX matrix
         run: pnpm test:processing:ux
+      - name: Upload Live Log visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: processing-live-log-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/live-log-paced-window.png
+            test-results/**/live-log-urgent-bypass.png
+            test-results/**/live-log-caught-up.png
+            test-results/**/live-log-reduced-motion.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Scratch Companion integration
         run: pnpm test:processing:integration
         env:
