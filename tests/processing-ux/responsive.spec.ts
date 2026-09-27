@@ -529,3 +529,17 @@ test("queue overflow actions do not create horizontal overflow at 320px", async 
 	expect(box?.x ?? -1).toBeGreaterThanOrEqual(8);
 	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(312);
 });
+
+test("running Craig exposes track-count progress semantics", async ({ page }) => {
+	await openRunningWorkspace(page, 1366, 768);
+
+	const progress = page.getByRole("progressbar", {
+		name: "Progresso por tracks: 1 de 2 tracks",
+	});
+	await expect(progress).toBeVisible();
+	await expect(progress).toHaveAttribute("aria-valuetext", "1 de 2 tracks");
+	await expect(page.getByText("50% por tracks", { exact: true })).toBeVisible();
+	await expect(page.getByText("1 de 2 tracks", { exact: true })).toBeVisible();
+	await expect(page.getByText(/50% do (processamento|trabalho)/i)).toHaveCount(0);
+});
+

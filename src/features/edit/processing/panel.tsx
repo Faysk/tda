@@ -112,10 +112,19 @@ function formatRealtime(rtf: number | null): string {
 	return `${(1 / rtf).toFixed(2)}×`;
 }
 
+function progressUnit(job: LocalJob): string {
+	if (!job.progress) return "unidades";
+	return job.progress.unit === "items" ? "itens" : job.progress.unit;
+}
+
 function progressCopy(job: LocalJob): string {
 	if (!job.progress) return "Sem medida de progresso nesta etapa.";
-	const unit = job.progress.unit === "items" ? "itens" : job.progress.unit;
-	return `${job.progress.completed} de ${job.progress.total} ${unit}`;
+	return `${job.progress.completed} de ${job.progress.total} ${progressUnit(job)}`;
+}
+
+function progressAriaLabel(job: LocalJob): string {
+	if (!job.progress) return "Progresso sem medida factual";
+	return `Progresso por ${progressUnit(job)}: ${progressCopy(job)}`;
 }
 
 function OverviewMetric({
@@ -584,11 +593,7 @@ export function ProcessingPanel({
 						aria-labelledby="processing-tab-overview"
 						hidden={view !== "overview"}
 					>
-						<div
-							className={styles.overviewTop}
-							data-processing-overview-top="true"
-							data-mode={activeJob ? "running" : queued.length ? "queued" : "idle"}
-						>
+						<div className={styles.overviewTop}>
 							<section aria-labelledby="processing-now">
 								<div className={styles.sectionHeading}>
 									<h2 id="processing-now">Processando agora</h2>
@@ -662,12 +667,14 @@ export function ProcessingPanel({
 											<div className={styles.activeProgress}>
 												<AnimatedProgress
 													key={`${activeJob.id}:${activeJob.attempt}:${activeJob.stage}`}
-													ariaLabel={`Progresso do trabalho ${activeJob.id}`}
+													ariaLabel={progressAriaLabel(activeJob)}
 													value={activeJob.progress.completed}
 													max={activeJob.progress.total}
 													valueText={progressCopy(activeJob)}
 												/>
-												<strong>{activePercent}%</strong>
+												<strong>
+													{activePercent}% por {progressUnit(activeJob)}
+												</strong>
 												<span>{progressCopy(activeJob)}</span>
 											</div>
 										) : (
@@ -756,8 +763,7 @@ export function ProcessingPanel({
 							</section>
 							<ProcessingSubmission
 								className={styles.submissionCard}
-								compact={Boolean(activeJob || queued.length)}
-								onOpenDiagnostics={() => activateView("diagnostics")}
+								compact
 							/>
 						</div>
 						{latestCompletedRun ? (
