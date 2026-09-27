@@ -280,6 +280,7 @@ def test_strict_qwen_exposes_fingerprint_and_checkpoint_scan_before_model_load(
         "track_count": 1,
         "aligned_reused": 0,
         "text_reused": 0,
+        "text_prefix_windows_reused": 0,
         "pending_asr": 1,
         "duration_ms": checkpoint["duration_ms"],
     }
