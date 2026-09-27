@@ -33,6 +33,12 @@ import {
 	presentJobTitle,
 	stageLabels,
 } from "./presentation";
+import {
+	estimateProfileProcessing,
+	estimateRemainingProcessing,
+	formatEstimateProvenance,
+	formatEstimateRange,
+} from "./processing-estimator";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import styles from "./processing.module.css";
 
@@ -349,6 +355,27 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	const activeProfile =
+		activeJob?.context?.profileId
+			? (state.capabilities?.transcription.catalog.find(
+					(item) => item.id === activeJob.context?.profileId,
+				) ?? null)
+			: null;
+	const activeEstimate = estimateProfileProcessing({
+		audioWorkSeconds: activeJob?.context?.audioWorkSeconds ?? null,
+		profile: activeProfile,
+		runs: state.localRuns,
+		benchmarks: state.benchmarkResults,
+		system: state.system,
+	});
+	const activeRemaining =
+		activeJob?.progress && activeJob.context?.trackDurationsSeconds
+			? estimateRemainingProcessing(
+					activeEstimate,
+					activeJob.context.trackDurationsSeconds,
+					activeJob.progress.completed,
+				)
+			: null;
 	const activeTrackTiming =
 		activeJob?.timing.tracks.find((item) => item.finishedAt === null) ?? null;
 	const completedTrackTimings =
@@ -658,6 +685,30 @@ export function ProcessingPanel({
 												</time>
 											</span>
 										</div>
+										{activeEstimate.available ? (
+											<div className={styles.estimateHint}>
+												<strong>
+													{activeRemaining
+														? `Restante calibrado · ${formatEstimateRange(
+																activeRemaining.lowerSeconds,
+																activeRemaining.upperSeconds,
+															)}`
+														: `Processamento calibrado · ${formatEstimateRange(
+																activeEstimate.lowerSeconds,
+																activeEstimate.upperSeconds,
+															)}`}
+												</strong>
+												<span>
+													Confiança{" "}
+													{{
+														high: "alta",
+														medium: "média",
+														low: "baixa",
+													}[activeEstimate.confidence]}{" "}
+													· {formatEstimateProvenance(activeEstimate)}
+												</span>
+											</div>
+										) : null}
 										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
 												<AnimatedProgress
@@ -758,6 +809,9 @@ export function ProcessingPanel({
 								className={styles.submissionCard}
 								compact={Boolean(activeJob || queued.length)}
 								onOpenDiagnostics={() => activateView("diagnostics")}
+								runs={state.localRuns}
+								benchmarks={state.benchmarkResults}
+								system={state.system}
 							/>
 						</div>
 						{latestCompletedRun ? (
