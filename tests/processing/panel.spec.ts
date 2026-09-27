@@ -805,7 +805,7 @@ test("Overview gives truly idle space to the Craig composer when the queue is em
 	await expect(page.getByText("A fila local está livre.")).not.toBeVisible();
 	await expect(page.locator("[data-craig-composer='true']")).toHaveAttribute(
 		"data-layout",
-		"default",
+		"idle",
 	);
 	await page.screenshot({
 		path: testInfo.outputPath("overview-idle-composer.png"),
@@ -869,7 +869,7 @@ test("idle Full HD keeps the work surface in one viewport and preserves result d
 	await expect(details).toBeVisible();
 	await details.focus();
 	await page.keyboard.press("Enter");
-	await expect(page.getByText("Synthetic GPU", { exact: false })).toBeVisible();
+	await expect(page.locator("details").filter({ hasText: "Ver detalhes" }).getByText("Synthetic GPU", { exact: false })).toBeVisible();
 });
 
 test("idle Overview reflows at 390px without horizontal overflow", async ({ page }) => {
