@@ -126,7 +126,14 @@ function localOperationMessage(code: string | null): string {
 			"A preparação do modelo Whisper excedeu o limite de tempo.",
 		BODY_TOO_LARGE:
 			"Contexto e glossário excedem o orçamento UTF-8 aceito pelo Companion. Reduza o texto antes de enviar.",
-	}[code] ?? `Operação local não concluída · ${code}`;
+	}[code] ??
+		(code.startsWith("CRAIG_ARCHIVE_")
+			? "O ZIP foi recusado pela validação segura do Craig. Verifique o export original antes de repetir."
+			: code.startsWith("CRAIG_TRACK_")
+				? "Uma faixa do ZIP Craig é inválida ou excede os limites aceitos."
+				: code.startsWith("CRAIG_MANIFEST_")
+					? "A cópia local da fonte não corresponde mais ao manifesto verificado. Reenvie o ZIP original."
+					: `Operação local não concluída · ${code}`);
 }
 
 type PendingSubmission = {
@@ -534,6 +541,7 @@ export function ProcessingSubmission({
 			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`);
 			setFile(null);
 			setSource(null);
+			setSessionId("");
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -629,7 +637,7 @@ export function ProcessingSubmission({
 			<div className={styles.heading}>
 				<div>
 					<span>Processamento local</span>
-					<h2 id="new-local-transcription">Nova transcrição</h2>
+					<h2 id="new-local-transcription">Nova transcrição Craig</h2>
 				</div>
 				<small>Craig ZIP → Companion → GPU local</small>
 			</div>
@@ -728,7 +736,7 @@ export function ProcessingSubmission({
 
 					<div className={styles.identityGrid}>
 						<label>
-							<span>Sessão</span>
+							<span>ID da sessão</span>
 							<input
 								value={sessionId}
 								data-craig-session-id="true"
@@ -745,7 +753,7 @@ export function ProcessingSubmission({
 							</small>
 						</label>
 						<label>
-							<span>Profile</span>
+							<span>Perfil</span>
 							<select
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
@@ -823,7 +831,7 @@ export function ProcessingSubmission({
 					</div>
 
 					<details className={styles.advanced}>
-						<summary><span>Contexto e glossário</span><small>opcional</small></summary>
+						<summary><span>Opções avançadas</span><small>Contexto e glossário · opcional</small></summary>
 						<div className={styles.advancedGrid}>
 							<label>
 								<span>Contexto opcional</span>
