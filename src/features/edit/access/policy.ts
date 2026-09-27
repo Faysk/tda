@@ -6,6 +6,7 @@ export const EDIT_CAPABILITIES = {
 	permissionsManage: "campaign.permissions.manage",
 	transcriptImport: "campaign.transcript.import",
 	transcriptPublish: "campaign.transcript.publish",
+	sessionPublish: "campaign.sessions.publish",
 	worldLayoutEdit: "campaign.world.layout.edit",
 	reviewRead: "narrative.review.read",
 	reviewManage: "narrative.review.manage",

@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
+import { publishSessionEditorialDraftAction } from "./session-publication-actions";
+import type { SessionPublicationState } from "./session-publication-model";
 import { SessionCoverEditor } from "./session-cover-editor";
 import {
 	isExistingPublishedSessionCoverReference,
@@ -22,7 +25,10 @@ import {
 type Props = Readonly<{
 	sessionId: string;
 	initial: SessionEditorialDraft;
+	initialPublication: SessionPublicationState;
 	editable: boolean;
+	publishable: boolean;
+	publicationAvailable: boolean;
 }>;
 
 type Fields = Readonly<{
@@ -31,6 +37,15 @@ type Fields = Readonly<{
 	title: string;
 	shortDescription: string;
 	fullSummary: string;
+}>;
+
+type PublishIntent = Readonly<{
+	operationId: string;
+	draftId: string;
+	draftRevision: number;
+	baseTranscriptRevisionId: string;
+	expectedCurrentPublicationId: string | null;
+	fields: Fields;
 }>;
 
 function fieldsFromDraft(draft: SessionEditorialDraft): Fields {
@@ -65,11 +80,16 @@ function fieldCount(value: string): number {
 export function SessionEditorialDraftEditor({
 	sessionId,
 	initial,
+	initialPublication,
 	editable,
+	publishable,
+	publicationAvailable,
 }: Props) {
+	const router = useRouter();
 	const [fields, setFields] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [baseline, setBaseline] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [revision, setRevision] = useState(initial.revision);
+	const [draftId, setDraftId] = useState<string | null>(initial.draftId);
 	const [baseTranscriptRevisionId, setBaseTranscriptRevisionId] = useState(
 		initial.baseTranscriptRevisionId,
 	);
@@ -82,6 +102,17 @@ export function SessionEditorialDraftEditor({
 	>("idle");
 	const [message, setMessage] = useState<string | null>(null);
 	const [remote, setRemote] = useState<SessionEditorialDraft | null>(null);
+	const [currentPublicationId, setCurrentPublicationId] = useState<string | null>(
+		initialPublication.currentPublicationId,
+	);
+	const [currentPublicationVersion, setCurrentPublicationVersion] = useState(
+		initialPublication.currentVersion,
+	);
+	const [publishIntent, setPublishIntent] = useState<PublishIntent | null>(null);
+	const [publishPhase, setPublishPhase] = useState<
+		"idle" | "publishing" | "published" | "error"
+	>("idle");
+	const [publishMessage, setPublishMessage] = useState<string | null>(null);
 	const dirty = !sameFields(fields, baseline);
 	const missing = useMemo(
 		() =>
@@ -95,6 +126,25 @@ export function SessionEditorialDraftEditor({
 	);
 	const transcriptChanged =
 		baseTranscriptRevisionId !== currentTranscriptRevisionId;
+	const publishReady =
+		publicationAvailable &&
+		publishable &&
+		Boolean(draftId) &&
+		revision > 0 &&
+		!dirty &&
+		!missing.length &&
+		!transcriptChanged &&
+		phase !== "saving" &&
+		phase !== "conflict" &&
+		publishPhase !== "publishing";
+
+	useEffect(() => {
+		setCurrentPublicationId(initialPublication.currentPublicationId);
+		setCurrentPublicationVersion(initialPublication.currentVersion);
+	}, [
+		initialPublication.currentPublicationId,
+		initialPublication.currentVersion,
+	]);
 
 	useEffect(() => {
 		if (!dirty) return;
@@ -143,6 +193,7 @@ export function SessionEditorialDraftEditor({
 			return;
 		}
 		setRevision(result.draft.revision);
+		setDraftId(result.draft.draftId);
 		setBaseTranscriptRevisionId(result.draft.baseTranscriptRevisionId);
 		setCurrentTranscriptRevisionId(result.draft.currentTranscriptRevisionId);
 		const savedFields = fieldsFromDraft(result.draft);
@@ -169,6 +220,7 @@ export function SessionEditorialDraftEditor({
 	function reconcileRemote(reconcileMode: "remote" | "local") {
 		if (!remote) return;
 		setRevision(remote.revision);
+		setDraftId(remote.draftId);
 		setBaseTranscriptRevisionId(remote.baseTranscriptRevisionId);
 		setCurrentTranscriptRevisionId(remote.currentTranscriptRevisionId);
 		const remoteFields = fieldsFromDraft(remote);
@@ -183,6 +235,124 @@ export function SessionEditorialDraftEditor({
 						". Revise e salve novamente."
 				: "Versão remota r" + remote.revision + " carregada.",
 		);
+	}
+
+	function openPublicationConfirmation() {
+		if (!publishReady || !draftId) {
+			setPublishPhase("error");
+			setPublishMessage(
+				!publicationAvailable
+					? "A autoridade de publicação está indisponível agora."
+					: !publishable
+						? "Sua conta não tem a capability de publicação desta campanha."
+						: dirty
+							? "Salve o draft antes de publicar."
+							: transcriptChanged
+								? "A transcrição mudou. Revise e salve um novo draft antes de publicar."
+								: missing.length
+									? "Complete os campos editoriais obrigatórios antes de publicar."
+									: "O draft ainda não está pronto para publicação.",
+			);
+			return;
+		}
+		setPublishMessage(null);
+		setPublishPhase("idle");
+		setPublishIntent({
+			operationId: crypto.randomUUID(),
+			draftId,
+			draftRevision: revision,
+			baseTranscriptRevisionId,
+			expectedCurrentPublicationId: currentPublicationId,
+			fields: { ...fields },
+		});
+	}
+
+	function cancelPublication() {
+		if (publishPhase === "publishing") return;
+		setPublishIntent(null);
+		setPublishMessage(null);
+		setPublishPhase("idle");
+	}
+
+	async function publish() {
+		const intent = publishIntent;
+		if (!intent || publishPhase === "publishing") return;
+		if (
+			dirty ||
+			draftId !== intent.draftId ||
+			revision !== intent.draftRevision ||
+			baseTranscriptRevisionId !== intent.baseTranscriptRevisionId
+		) {
+			setPublishIntent(null);
+			setPublishPhase("error");
+			setPublishMessage(
+				"O draft mudou depois da confirmação. Abra a confirmação novamente.",
+			);
+			return;
+		}
+
+		setPublishPhase("publishing");
+		setPublishMessage("Publicando versão confirmada…");
+		const result = await publishSessionEditorialDraftAction({
+			sessionId,
+			draftId: intent.draftId,
+			expectedCurrentPublicationId: intent.expectedCurrentPublicationId,
+			operationId: intent.operationId,
+		});
+		if (!result.ok) {
+			setPublishPhase("error");
+			if (
+				result.reason === "stale_current" ||
+				result.reason === "draft_changed" ||
+				result.reason === "transcript_changed" ||
+				result.reason === "operation_conflict"
+			) {
+				setPublishIntent(null);
+			}
+			setPublishMessage(
+				result.reason === "stale_current"
+					? "A versão pública mudou desde a confirmação. Atualize a página e confirme novamente."
+					: result.reason === "draft_changed"
+						? "O draft autoritativo mudou. Revise a versão atual antes de publicar."
+						: result.reason === "transcript_changed"
+							? "A transcrição mudou desde a base do draft. Revise e salve antes de publicar."
+							: result.reason === "not_ready"
+								? "O draft não passou pela validação autoritativa de publicação."
+								: result.reason === "cover_unverified"
+									? "A capa não pôde ser promovida e verificada publicamente. A versão anterior continua ativa."
+									: result.reason === "operation_conflict"
+										? "Esta operação de publicação já existe com outro payload. Nada foi alterado."
+										: result.reason === "forbidden"
+											? "Sua conta não tem autorização para publicar esta sessão."
+											: result.reason === "readback_unavailable"
+												? "O commit pode ter ocorrido, mas o read-back não confirmou. Tente novamente: a mesma operação será reutilizada sem duplicar versão."
+												: "Não foi possível confirmar a publicação. Tente novamente; a mesma operação será reutilizada.",
+			);
+			if (result.reason === "stale_current") router.refresh();
+			return;
+		}
+
+		if (result.receipt.currentlyActive) {
+			setCurrentPublicationId(result.receipt.publicationId);
+			setCurrentPublicationVersion(result.receipt.version);
+		}
+		setPublishIntent(null);
+		setPublishPhase("published");
+		setPublishMessage(
+			result.receipt.replayed && !result.receipt.currentlyActive
+				? "Publicação v" +
+						result.receipt.version +
+						" recuperada pelo receipt; uma versão pública mais nova já está ativa."
+				: (result.receipt.replayed
+						? "Publicação recuperada"
+						: "Publicação concluída") +
+						" · versão pública v" +
+						result.receipt.version +
+						(result.receipt.cachePending
+							? " · propagação de cache pendente."
+							: "."),
+		);
+		router.refresh();
 	}
 
 	const privateCoverPreviewUrl = sessionCoverPreviewUrl(
@@ -404,6 +574,84 @@ export function SessionEditorialDraftEditor({
 				</div>
 			) : null}
 
+			{publishIntent ? (
+				<div
+					className={draftStyles.publicationConfirm}
+					role="dialog"
+					aria-label="Confirmar publicação da sessão"
+				>
+					<strong>Publicar esta sessão no site?</strong>
+					<dl className={draftStyles.publicationSummary}>
+						<div>
+							<dt>Capa</dt>
+							<dd>pronta para verificação pública</dd>
+						</div>
+						<div>
+							<dt>Arco</dt>
+							<dd>{publishIntent.fields.arc.trim() || "sem arco"}</dd>
+						</div>
+						<div>
+							<dt>Título</dt>
+							<dd>{publishIntent.fields.title.trim()}</dd>
+						</div>
+						<div>
+							<dt>Descrição</dt>
+							<dd>{fieldCount(publishIntent.fields.shortDescription).toLocaleString("pt-BR")} caracteres</dd>
+						</div>
+						<div>
+							<dt>Resumo completo</dt>
+							<dd>{fieldCount(publishIntent.fields.fullSummary).toLocaleString("pt-BR")} caracteres · Markdown</dd>
+						</div>
+						<div>
+							<dt>Versão pública atual</dt>
+							<dd>
+								{currentPublicationId
+									? "v" + currentPublicationVersion
+									: initial.sessionStatus === "published"
+										? "legada · pré-versionamento"
+										: "nenhuma"}
+							</dd>
+						</div>
+						<div>
+							<dt>Base do draft</dt>
+							<dd>r{publishIntent.draftRevision}</dd>
+						</div>
+					</dl>
+					<p className={styles.muted}>
+						A transcrição completa continuará privada. Somente capa, arco, título,
+						descrição curta e resumo completo serão promovidos.
+					</p>
+					{dirty ? (
+						<p role="alert">
+							O draft foi alterado depois desta confirmação. Salve e abra a
+							confirmação novamente.
+						</p>
+					) : null}
+					<div className={draftStyles.editorialActions}>
+						<button
+							className={draftStyles.controlButton}
+							disabled={publishPhase === "publishing"}
+							onClick={cancelPublication}
+							type="button"
+						>
+							Cancelar
+						</button>
+						<button
+							className={draftStyles.primaryButton}
+							disabled={publishPhase === "publishing" || dirty}
+							onClick={() => void publish()}
+							type="button"
+						>
+							{publishPhase === "publishing"
+								? "Publicando…"
+								: currentPublicationId || initial.sessionStatus === "published"
+									? "Publicar nova versão"
+									: "Publicar no site"}
+						</button>
+					</div>
+				</div>
+			) : null}
+
 			<footer className={draftStyles.editorialFooter}>
 				<div>
 					<span
@@ -425,6 +673,15 @@ export function SessionEditorialDraftEditor({
 						· Ctrl/⌘+S salva; nenhum atalho publica.
 					</small>
 				</div>
+				{publishMessage ? (
+					<span
+						className={styles.saveState}
+						data-state={publishPhase === "published" ? "saved" : publishPhase}
+						role={publishPhase === "error" ? "alert" : "status"}
+					>
+						{publishMessage}
+					</span>
+				) : null}
 				<div className={draftStyles.editorialActions}>
 					<button
 						className={draftStyles.primaryButton}
@@ -441,11 +698,24 @@ export function SessionEditorialDraftEditor({
 					</button>
 					<button
 						className={draftStyles.controlButton}
-						disabled
-						title="A publicação pública é uma etapa separada do fluxo."
+						disabled={!publishReady}
+						title={
+							!publicationAvailable
+								? "Autoridade de publicação indisponível."
+								: !publishable
+									? "Sua conta não tem a capability de publicação."
+									: dirty
+										? "Salve o draft antes de publicar."
+										: transcriptChanged
+											? "Revise a transcrição atual antes de publicar."
+											: missing.length
+												? "Complete os campos editoriais obrigatórios."
+												: "Publicação pública explícita."
+						}
+						onClick={openPublicationConfirmation}
 						type="button"
 					>
-						{initial.sessionStatus === "published"
+						{currentPublicationId || initial.sessionStatus === "published"
 							? "Publicar nova versão"
 							: "Publicar no site"}
 					</button>

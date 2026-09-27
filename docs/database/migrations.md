@@ -1393,3 +1393,53 @@ Rollback:
 - retirar primeiro o consumidor Web se necessário;
 - não apagar assets privados já finalizados;
 - corrigir constraints adiante por migration forward-only, preservando rows e referências existentes.
+
+
+## 2026-09-28 — publicação editorial pública versionada de sessão
+
+### `20260928004000_session_publications`
+
+**Estado:** migration candidata da #793; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- registrar a capability narrativa exata `campaign.sessions.publish` e concedê-la à role existente `site_editor`, sem derivar autoridade de publicação a partir de leitura ou edição;
+- criar `session_publications` como snapshots públicos imutáveis e versionados originados de um draft editorial salvo;
+- criar `session_publication_operations` como receipts duráveis de idempotência por `operation_id`;
+- adicionar `sessions.current_session_publication_id` como ponteiro para a versão pública atual;
+- materializar no read model público de `sessions` somente capa, arco, título, descrição curta e resumo completo, mantendo transcript e draft fora da projeção pública.
+
+Concorrência, idempotência e atomicidade:
+
+- `publish_session_editorial_atomic` bloqueia a row da sessão e exige `expected_current_publication_id` explícito, inclusive `null` no primeiro publish;
+- replay da mesma `operation_id` com a mesma autoridade retorna o receipt já confirmado sem criar nova versão, audit ou snapshot;
+- reutilização divergente da operation retorna `operation_conflict`;
+- ponteiro público, campos públicos, snapshot, receipt e audit são atualizados na mesma transação;
+- draft atual, revisão-base da transcrição e expected current são revalidados dentro do lock; drift retorna sem mutação;
+- o payload recebe SHA-256 canônico calculado no banco sobre ids, capa pública e os cinco campos editoriais autoritativos;
+- versões anteriores permanecem imutáveis, permitindo restore/unpublish futuro por troca controlada de ponteiro sem apagar histórico.
+
+Mídia e segurança:
+
+- uma capa privada `session_cover` precisa ser promovida previamente para `tda-media-public`, com cópia imutável, GET anônimo, MIME/length/SHA-256 e read-back verificados;
+- o commit aceita asset privado somente quando `media_assets` já está em `verified_public` e a URL pública corresponde exatamente ao object key content-addressed daquela sessão;
+- referências históricas públicas continuam limitadas aos origins governados já aceitos pelo modelo;
+- RLS fica habilitado em snapshots e receipts; `public`, `anon` e `authenticated` não recebem acesso;
+- `service_role` recebe somente `SELECT/INSERT` nas tabelas e EXECUTE da RPC;
+- a RPC é `SECURITY INVOKER` com `search_path` fixado;
+- audit/receipt persistem ids, hash, versão e contagens; não persistem transcript nem corpo editorial em `audit_log`.
+
+Rollout e validação:
+
+- migration safety/governance, unit/type/lint/build e PostgreSQL scratch precisam passar antes do merge;
+- Production CD aplica migration e Web compatível na mesma promoção;
+- após rollout, confirmar por read-back as duas tabelas, RLS/grants, capability/grant de `site_editor`, FK/pointer e assinatura/EXECUTE da função;
+- smoke público deve verificar Home, `/sessoes`, detalhe e metadata usando somente a projeção aprovada;
+- falha de promoção da capa ou CAS mantém a versão pública anterior como autoridade atual.
+
+Rollback lógico:
+
+- desabilitar primeiro o CTA/Server Action de publicação;
+- não apagar snapshots, receipts nem objetos públicos imutáveis já verificados;
+- corrigir schema, grants ou função por migration forward-only posterior;
+- não restaurar publicação sem CAS/idempotência nem reescrever histórico existente.
