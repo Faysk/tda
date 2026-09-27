@@ -56,6 +56,7 @@ def _facts(part, *, start_time, duration=60.0):
         ("", "missing"),
         ("domingo depois da capoeira", "opaque"),
         ("2026-09-27T20:00:00", "ambiguous"),
+        ("20:00:00", "ambiguous"),
         ("2026-09-27T20:00:00Z", "trusted_absolute"),
         ("2026-09-27T21:00:00+01:00", "trusted_absolute"),
     ],
@@ -68,6 +69,17 @@ def test_equivalent_timezone_offsets_normalize_to_same_absolute_instant():
     utc = classify_start_time("2026-09-27T20:00:00Z")
     lisbon = classify_start_time("2026-09-27T21:00:00+01:00")
     assert utc["instant_utc"] == lisbon["instant_utc"] == "2026-09-27T20:00:00Z"
+
+
+def test_explicit_dst_offsets_preserve_their_absolute_meaning():
+    summer = classify_start_time("2026-10-25T01:30:00+01:00")
+    same_instant = classify_start_time("2026-10-25T00:30:00Z")
+    winter_offset = classify_start_time("2026-10-25T01:30:00+00:00")
+
+    assert summer["confidence"] == "trusted_absolute"
+    assert summer["instant_utc"] == same_instant["instant_utc"]
+    assert winter_offset["confidence"] == "trusted_absolute"
+    assert winter_offset["instant_utc"] != summer["instant_utc"]
 
 
 def test_package_duration_is_derived_without_mutating_tracks():
