@@ -112,6 +112,51 @@ describe("activity bark engine", () => {
 		expect(result?.text).toBe("Faysk · janela 205 · segmento 9 · RTX 4070");
 	});
 
+	test("custom pack identity is stable and import order does not change selection", () => {
+		const a: ActivityBark = {
+			packId: "alpha-pack",
+			id: "gpu-001",
+			family: "gpu",
+			tone: "tda",
+			eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+			text: "A",
+		};
+		const b: ActivityBark = {
+			packId: "beta-pack",
+			id: "gpu-001",
+			family: "gpu",
+			tone: "tda",
+			eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+			text: "B",
+		};
+		const forward = selectActivityBark(context, { catalog: [a, b] });
+		const reverse = selectActivityBark(context, { catalog: [b, a] });
+		expect(forward).toEqual(reverse);
+		expect(forward?.packId).toMatch(/-pack$/);
+	});
+
+	test("closed declarative conditions participate in eligibility", () => {
+		const catalog: readonly ActivityBark[] = [
+			{
+				packId: "conditions-pack",
+				id: "hot-gpu",
+				family: "gpu",
+				tone: "tda",
+				eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+				requires: ["gpu_utilization"],
+				conditions: { gpuUtilizationMin: 90, attemptMin: 2 },
+				text: "GPU em {gpu_utilization}%.",
+			},
+		];
+		expect(selectActivityBark(context, { catalog })?.text).toBe("GPU em 96%.");
+		expect(
+			selectActivityBark(
+				{ ...context, gpuUtilizationPercent: 50 },
+				{ catalog },
+			),
+		).toBeNull();
+	});
+
 	test("off disables the personality renderer", () => {
 		expect(selectActivityBark(context, { level: "off" })).toBeNull();
 	});
