@@ -424,6 +424,18 @@ class Store:
             ).rowcount
             if deleted != 1:
                 raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            # Detaching a part changes adjacency. Any persisted relation decision
+            # belonged to the previous pair and must be explicitly confirmed again.
+            reset_at = utc_now()
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET gap_confirmed=0,overlap_resolution=NULL,
+                    overlap_boundary_seconds=NULL,updated=?
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (reset_at, row["campaign_id"], row["session_id"]),
+            )
             parts = db.execute(
                 """
                 SELECT part_id FROM session_recording_parts
@@ -472,12 +484,17 @@ class Store:
             if current_ids == normalized:
                 return self._session_workspace_dto(db, row)
             now = utc_now()
+            # Relation decisions are adjacency-specific. Reordering invalidates
+            # all gap/overlap confirmations while preserving part-local timing.
             db.execute(
                 """
-                UPDATE session_recording_parts SET ordinal=ordinal+1000
+                UPDATE session_recording_parts
+                SET ordinal=ordinal+1000,gap_confirmed=0,
+                    overlap_resolution=NULL,overlap_boundary_seconds=NULL,
+                    updated=?
                 WHERE campaign_id=? AND session_id=?
                 """,
-                (row["campaign_id"], row["session_id"]),
+                (now, row["campaign_id"], row["session_id"]),
             )
             for ordinal, part_id in enumerate(normalized):
                 db.execute(
@@ -529,7 +546,7 @@ class Store:
             )
             current = db.execute(
                 """
-                SELECT session_offset_seconds,trim_start_seconds,trim_end_seconds,
+                SELECT ordinal,session_offset_seconds,trim_start_seconds,trim_end_seconds,
                        gap_confirmed,overlap_resolution,overlap_boundary_seconds,
                        chronology_version
                 FROM session_recording_parts
@@ -561,6 +578,13 @@ class Store:
             if existing == desired:
                 return self._session_workspace_dto(db, row)
 
+            geometry_changed = existing[:3] != desired[:3]
+            relation_changed = existing[3:6] != desired[3:6]
+            if geometry_changed and not relation_changed:
+                # Do not silently carry a decision across changed geometry.
+                desired = (*desired[:3], 0, None, None, desired[6])
+
+            changed_at = utc_now()
             db.execute(
                 """
                 UPDATE session_recording_parts
@@ -571,12 +595,29 @@ class Store:
                 """,
                 (
                     *desired,
-                    utc_now(),
+                    changed_at,
                     row["campaign_id"],
                     row["session_id"],
                     part_id,
                 ),
             )
+            if geometry_changed:
+                # This part is the earlier side of the next adjacency, so its
+                # geometry change invalidates the next part's relation decision.
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET gap_confirmed=0,overlap_resolution=NULL,
+                        overlap_boundary_seconds=NULL,updated=?
+                    WHERE campaign_id=? AND session_id=? AND ordinal=?
+                    """,
+                    (
+                        changed_at,
+                        row["campaign_id"],
+                        row["session_id"],
+                        current["ordinal"] + 1,
+                    ),
+                )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
