@@ -47,6 +47,7 @@ from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
 from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
+from .local_run_delete import maintain_deleted_runs, run_deleted_local
 from .worker_event_schema import sanitize_worker_event
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
@@ -350,6 +351,17 @@ def create_app(
         package_root: Path,
         summary: dict[str, object],
     ) -> bool:
+        run_id = summary.get("run_id")
+        transcript_sha256 = summary.get("transcript_sha256")
+        if (
+            isinstance(run_id, str)
+            and run_deleted_local(
+                package_root,
+                run_id,
+                transcript_sha256 if isinstance(transcript_sha256, str) else None,
+            )
+        ):
+            return False
         job_id = summary.get("job_id")
         attempt = summary.get("attempt")
         if not isinstance(job_id, str) or isinstance(attempt, bool) or not isinstance(attempt, int):
@@ -1146,6 +1158,13 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_):
+        delete_maintenance = await asyncio.to_thread(
+            maintain_deleted_runs,
+            data_root,
+            mark_result_deleted=store.mark_result_deleted,
+        )
+        if any(delete_maintenance.values()):
+            log("info", "storage", "LOCAL_RUN_DELETE_MAINTENANCE", "Pending local run deletion maintenance completed", delete_maintenance)
         legacy_maintenance = await asyncio.to_thread(maintain_legacy_transcripts, data_root)
         if any(legacy_maintenance.values()):
             log("info", "storage", "LEGACY_TRANSCRIPT_MAINTENANCE", "Local legacy maintenance completed", legacy_maintenance)
