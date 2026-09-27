@@ -44,6 +44,7 @@ def test_schema_v11_adds_timeline_fields_without_rewriting_source_identity(tmp_p
         "session_offset_seconds",
         "trim_start_seconds",
         "trim_end_seconds",
+        "gap_confirmed",
         "overlap_resolution",
         "overlap_boundary_seconds",
     } <= part_columns
@@ -81,10 +82,12 @@ def test_manual_timing_persists_across_restart_and_is_cas_guarded(tmp_path):
         second_id,
         workspace["revision"],
         session_offset_seconds=50.0,
+        gap_confirmed=True,
         overlap_resolution="prefer_earlier_until",
         overlap_boundary_seconds=52.0,
     )
     assert workspace["revision"] == before_second + 1
+    assert workspace["parts"][1]["gap_confirmed"] is True
 
     with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
         store.update_session_part_timing(
@@ -99,6 +102,7 @@ def test_manual_timing_persists_across_restart_and_is_cas_guarded(tmp_path):
     recovered = restarted.session_workspace("campaign-a", "session-a")
     assert recovered["ordering_mode"] == "manual"
     assert recovered["parts"][0]["trim_start_seconds"] == 5.0
+    assert recovered["parts"][1]["gap_confirmed"] is True
     assert recovered["parts"][1]["overlap_resolution"] == "prefer_earlier_until"
     assert recovered["parts"][1]["overlap_boundary_seconds"] == 52.0
 
