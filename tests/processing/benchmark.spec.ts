@@ -30,6 +30,114 @@ async function analyze(panel: import("@playwright/test").Locator) {
 	await expect(panel.getByText(/Fonte validada/u)).toBeVisible();
 }
 
+test("benchmark foregrounds source, readiness, and only the next available action", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	const sourceRegion = panel.getByRole("region", { name: "Amostra Craig" });
+	const readinessRegion = panel.getByRole("region", { name: "Perfis locais" });
+	const picker = panel.locator("[data-benchmark-source-picker='true']");
+	await expect(sourceRegion).toBeVisible();
+	await expect(readinessRegion).toBeVisible();
+	await expect(picker).toHaveAttribute("data-selected", "false");
+	await expect(picker).toContainText("Selecionar ZIP Craig");
+	await expect(panel).toContainText("4 / 4 perfis prontos");
+	await expect(
+		panel.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toHaveCount(0);
+
+	const nativeInput = panel.getByLabel("ZIP Craig");
+	const nativeGeometry = await nativeInput.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		const style = getComputedStyle(element);
+		return {
+			width: rect.width,
+			height: rect.height,
+			position: style.position,
+			clipPath: style.clipPath,
+		};
+	});
+	expect(nativeGeometry.width).toBeLessThanOrEqual(1);
+	expect(nativeGeometry.height).toBeLessThanOrEqual(1);
+	expect(nativeGeometry.position).toBe("absolute");
+	expect(nativeGeometry.clipPath).not.toBe("none");
+
+	await chooseZip(panel);
+	await expect(picker).toHaveAttribute("data-selected", "true");
+	await expect(picker).toContainText("benchmark-craig.zip");
+	await expect(
+		panel.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toBeEnabled();
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
+
+	await analyze(panel);
+	await expect(
+		panel.getByRole("button", { name: "Analisar amostra localmente" }),
+	).toHaveCount(0);
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeEnabled();
+});
+
+test("benchmark preflight reflows from mobile through 4K without horizontal overflow", async ({
+	page,
+}, testInfo) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 960, height: 540 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+		{ width: 3840, height: 2160 },
+	]) {
+		await page.setViewportSize(viewport);
+		const panel = await openBenchmark(page);
+		const sourceRegion = panel.getByRole("region", { name: "Amostra Craig" });
+		const readinessRegion = panel.getByRole("region", { name: "Perfis locais" });
+		await expect(sourceRegion).toBeVisible();
+		await expect(readinessRegion).toBeVisible();
+
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+
+		const sourceBox = await sourceRegion.boundingBox();
+		const readinessBox = await readinessRegion.boundingBox();
+		expect(sourceBox).not.toBeNull();
+		expect(readinessBox).not.toBeNull();
+		if (!sourceBox || !readinessBox) throw new Error("Benchmark preflight bounds unavailable");
+		if (viewport.width > 1000) {
+			expect(readinessBox.x).toBeGreaterThanOrEqual(sourceBox.x + sourceBox.width - 1);
+		} else {
+			expect(readinessBox.y).toBeGreaterThanOrEqual(sourceBox.y + sourceBox.height - 1);
+		}
+
+		if ([320, 1920, 3840].includes(viewport.width)) {
+			await page.screenshot({
+				path: testInfo.outputPath(`benchmark-${viewport.width}x${viewport.height}.png`),
+				fullPage: true,
+			});
+		}
+	}
+});
+
 test("benchmark preflights the source, prepares pending profiles, and opens its live diagnostics", async ({
 	page,
 }) => {
@@ -95,7 +203,10 @@ test("short Craig sample is rejected during preflight before preparation or queu
 	);
 	await expect(
 		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
-	).toBeDisabled();
+	).toHaveCount(0);
+	await expect(
+		panel.getByText("Esta fonte não possui 5:00 válidos em todas as tracks."),
+	).toBeVisible();
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
