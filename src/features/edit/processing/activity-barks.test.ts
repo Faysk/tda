@@ -112,6 +112,64 @@ describe("activity bark engine", () => {
 		expect(result?.text).toBe("Faysk · janela 205 · segmento 9 · RTX 4070");
 	});
 
+	test("does not reparse placeholder syntax inserted by factual values", () => {
+		const result = selectActivityBark(
+			{ ...context, speaker: "{gpu}" },
+			{
+				catalog: [
+					{
+						id: "literal-001",
+						family: "speaker",
+						tone: "tda",
+						eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+						requires: ["speaker", "gpu"],
+						text: "{speaker} terminou na {gpu}.",
+					},
+				],
+			},
+		);
+		expect(result?.text).toBe("{gpu} terminou na RTX 4070.");
+	});
+
+	test("keeps script-looking factual values as literal text", () => {
+		const speaker = '<script>alert("x")</script>';
+		const result = selectActivityBark(
+			{ ...context, speaker },
+			{
+				catalog: [
+					{
+						id: "literal-002",
+						family: "speaker",
+						tone: "tda",
+						eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+						requires: ["speaker"],
+						text: "{speaker} avançou.",
+					},
+				],
+			},
+		);
+		expect(result?.text).toBe(`${speaker} avançou.`);
+	});
+
+	test("preserves all supported placeholder semantics in one pass", () => {
+		const result = selectActivityBark(
+			{ ...context, segment: 7 },
+			{
+				catalog: [
+					{
+						id: "literal-003",
+						family: "meta",
+						tone: "tda",
+						eventCodes: ["QWEN_WINDOW_TRANSCRIBED"],
+						requires: ["speaker", "window", "segment", "gpu"],
+						text: "{speaker}|{window}|{segment}|{gpu}",
+					},
+				],
+			},
+		);
+		expect(result?.text).toBe("Faysk|205|7|RTX 4070");
+	});
+
 	test("off disables the personality renderer", () => {
 		expect(selectActivityBark(context, { level: "off" })).toBeNull();
 	});
