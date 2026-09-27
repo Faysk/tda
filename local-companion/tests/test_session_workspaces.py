@@ -168,3 +168,142 @@ def test_reorder_requires_exact_part_set_and_current_revision(tmp_path):
         store.detach_session_part(
             "campaign-a", "session-a", reordered["parts"][0]["part_id"], workspace["revision"]
         )
+
+
+
+def test_participant_assignments_are_cas_guarded_and_survive_restart(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-map", "session-map")
+    workspace = store.attach_session_source(
+        "campaign-map", "session-map", source_id(1), workspace["revision"]
+    )
+    assignments = [
+        {
+            "observation_id": "a" * 32,
+            "participant_id": "b" * 32,
+            "source_id": source_id(1),
+            "track_number": 1,
+        },
+        {
+            "observation_id": "c" * 32,
+            "participant_id": "d" * 32,
+            "source_id": source_id(1),
+            "track_number": 2,
+        },
+    ]
+
+    updated = store.replace_session_participant_assignments(
+        "campaign-map",
+        "session-map",
+        assignments,
+        workspace["revision"],
+    )
+    assert updated["revision"] == workspace["revision"] + 1
+    assert store.session_participant_assignments("campaign-map", "session-map") == assignments
+
+    repeated = store.replace_session_participant_assignments(
+        "campaign-map",
+        "session-map",
+        assignments,
+        updated["revision"],
+    )
+    assert repeated["revision"] == updated["revision"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        store.replace_session_participant_assignments(
+            "campaign-map",
+            "session-map",
+            [],
+            workspace["revision"],
+        )
+
+    reopened = Store(tmp_path)
+    assert reopened.session_participant_assignments("campaign-map", "session-map") == assignments
+
+
+def test_detach_removes_only_participant_assignments_owned_by_detached_source(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-map", "session-map")
+    for seed in (1, 2):
+        workspace = store.attach_session_source(
+            "campaign-map",
+            "session-map",
+            source_id(seed),
+            workspace["revision"],
+        )
+    first_part = workspace["parts"][0]
+    assignments = [
+        {
+            "observation_id": "a" * 32,
+            "participant_id": "b" * 32,
+            "source_id": source_id(1),
+            "track_number": 1,
+        },
+        {
+            "observation_id": "c" * 32,
+            "participant_id": "d" * 32,
+            "source_id": source_id(2),
+            "track_number": 1,
+        },
+    ]
+    mapped = store.replace_session_participant_assignments(
+        "campaign-map",
+        "session-map",
+        assignments,
+        workspace["revision"],
+    )
+
+    detached = store.detach_session_part(
+        "campaign-map",
+        "session-map",
+        first_part["part_id"],
+        mapped["revision"],
+    )
+    assert detached["revision"] == mapped["revision"] + 1
+    assert store.session_participant_assignments("campaign-map", "session-map") == [
+        assignments[1]
+    ]
+
+
+def test_v11_store_migrates_participant_assignments_additively(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-existing", "session-existing")
+    workspace = store.attach_session_source(
+        "campaign-existing",
+        "session-existing",
+        source_id(1),
+        workspace["revision"],
+    )
+    original_part = workspace["parts"][0]
+
+    with sqlite3.connect(store.path) as db:
+        db.execute("DROP TABLE session_participant_assignments")
+        db.execute("PRAGMA user_version=11")
+
+    migrated = Store(tmp_path)
+    recovered = migrated.session_workspace("campaign-existing", "session-existing")
+    assert recovered["revision"] == workspace["revision"]
+    assert recovered["parts"][0]["part_id"] == original_part["part_id"]
+    assert recovered["parts"][0]["source_id"] == source_id(1)
+    assert migrated.session_participant_assignments(
+        "campaign-existing", "session-existing"
+    ) == []
+
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
+        columns = {
+            row[1]
+            for row in db.execute(
+                "PRAGMA table_info(session_participant_assignments)"
+            ).fetchall()
+        }
+    assert columns == {
+        "campaign_id",
+        "session_id",
+        "observation_id",
+        "participant_id",
+        "source_id",
+        "track_number",
+        "created",
+        "updated",
+    }

@@ -29,6 +29,7 @@ import {
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
+	parseSessionParticipantMapping,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
 	runIdentifier,
@@ -427,6 +428,42 @@ export class LocalBridge {
 					overlap_resolution: input.overlapResolution ?? null,
 					overlap_boundary_seconds:
 						input.overlapBoundarySeconds ?? null,
+				},
+			),
+		);
+	}
+	async sessionParticipants(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionParticipantMapping(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/participants`,
+				signal,
+			),
+		);
+	}
+	async updateSessionParticipants(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		assignments: readonly Readonly<{
+			observationId: string;
+			participantId: string;
+		}>[],
+		signal: AbortSignal,
+	) {
+		return parseSessionParticipantMapping(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/participants`,
+				signal,
+				{
+					expected_revision: expectedRevision,
+					assignments: assignments.map((assignment) => ({
+						observation_id: identifier(assignment.observationId),
+						participant_id: identifier(assignment.participantId),
+					})),
 				},
 			),
 		);

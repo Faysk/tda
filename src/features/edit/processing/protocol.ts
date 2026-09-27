@@ -131,6 +131,55 @@ export type SessionWorkspace = {
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
+export type SessionParticipantObservation = {
+	observationId: string;
+	partId: string;
+	sourceId: string;
+	partOrdinal: number;
+	trackNumber: number;
+	rawSpeaker: string;
+	username: string | null;
+	discriminator: string | null;
+	discordId: string | null;
+};
+export type SessionParticipantResolution =
+	| "manual"
+	| "discord_id"
+	| "local_observation";
+export type SessionParticipant = {
+	participantId: string;
+	resolution: SessionParticipantResolution;
+	profileId: null;
+	displaySpeaker: string;
+	observationIds: string[];
+};
+export type SessionParticipantConflict = {
+	code: string;
+	severity: "info" | "warning" | "error";
+	requiresResolution: boolean;
+	observationIds: string[];
+	discordId: string | null;
+	labelKey: string | null;
+	trackNumber: number | null;
+	sourceId: string | null;
+};
+export type SessionParticipantAssignment = {
+	observationId: string;
+	participantId: string;
+};
+export type SessionParticipantMapping = {
+	schemaVersion: "tda_session_participant_mapping_v1";
+	policy: "strong_discord_or_manual_v1";
+	campaignId: string;
+	sessionId: string;
+	workspaceRevision: number;
+	mappingSha256: string;
+	approvalBlocked: boolean;
+	observations: SessionParticipantObservation[];
+	participants: SessionParticipant[];
+	conflicts: SessionParticipantConflict[];
+	manualAssignments: SessionParticipantAssignment[];
+};
 export type CraigBenchmarkInput = {
 	campaignId: string;
 	sessionId: string;
@@ -895,6 +944,170 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			),
 			unconfirmedGapCount: nonNegativeInteger(timeline.unconfirmed_gap_count),
 		},
+	};
+}
+
+export function parseSessionParticipantMapping(
+	value: unknown,
+): SessionParticipantMapping {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_participant_mapping_v1")
+		return invalid();
+	if (row.policy !== "strong_discord_or_manual_v1") return invalid();
+	if (!Array.isArray(row.observations) || row.observations.length > 16384)
+		return invalid();
+	if (!Array.isArray(row.participants) || row.participants.length > 16384)
+		return invalid();
+	if (!Array.isArray(row.conflicts) || row.conflicts.length > 32768)
+		return invalid();
+	if (
+		!Array.isArray(row.manual_assignments) ||
+		row.manual_assignments.length > 16384
+	)
+		return invalid();
+
+	const observations = row.observations.map((raw) => {
+		const observation = record(raw);
+		const observationId = text(observation.observation_id, 32);
+		const partId = text(observation.part_id, 32);
+		const sourceId = identifier(observation.source_id);
+		if (!/^[0-9a-f]{32}$/u.test(observationId)) return invalid();
+		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
+		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
+		const trackNumber = nonNegativeInteger(observation.track_number);
+		if (trackNumber < 1 || trackNumber > 1_000_000) return invalid();
+		return {
+			observationId,
+			partId,
+			sourceId,
+			partOrdinal: nonNegativeInteger(observation.part_ordinal),
+			trackNumber,
+			rawSpeaker: text(observation.raw_speaker, 256),
+			username: nullableText(observation.username, 256),
+			discriminator: nullableText(observation.discriminator, 64),
+			discordId: nullableText(observation.discord_id, 128),
+		} satisfies SessionParticipantObservation;
+	});
+	if (
+		new Set(observations.map((row) => row.observationId)).size !==
+		observations.length
+	)
+		return invalid();
+	const observationIds = new Set(observations.map((row) => row.observationId));
+
+	const participants = row.participants.map((raw) => {
+		const participant = record(raw);
+		const participantId = text(participant.participant_id, 32);
+		const resolution = text(participant.resolution, 32);
+		if (!/^[0-9a-f]{32}$/u.test(participantId)) return invalid();
+		if (!["manual", "discord_id", "local_observation"].includes(resolution))
+			return invalid();
+		if (participant.profile_id !== null) return invalid();
+		if (
+			!Array.isArray(participant.observation_ids) ||
+			participant.observation_ids.length > 16384
+		)
+			return invalid();
+		const participantObservationIds = participant.observation_ids.map((id) => {
+			const parsed = text(id, 32);
+			if (!/^[0-9a-f]{32}$/u.test(parsed) || !observationIds.has(parsed))
+				return invalid();
+			return parsed;
+		});
+		if (
+			new Set(participantObservationIds).size !==
+			participantObservationIds.length
+		)
+			return invalid();
+		return {
+			participantId,
+			resolution: resolution as SessionParticipantResolution,
+			profileId: null,
+			displaySpeaker: text(participant.display_speaker, 256),
+			observationIds: participantObservationIds,
+		} satisfies SessionParticipant;
+	});
+	if (
+		new Set(participants.map((row) => row.participantId)).size !==
+		participants.length
+	)
+		return invalid();
+	const ownedObservations = participants.flatMap((row) => row.observationIds);
+	if (
+		ownedObservations.length !== observations.length ||
+		new Set(ownedObservations).size !== observations.length
+	)
+		return invalid();
+
+	const conflicts = row.conflicts.map((raw) => {
+		const conflict = record(raw);
+		const code = text(conflict.code, 96);
+		if (!/^[A-Z0-9_]+$/u.test(code)) return invalid();
+		const severity = text(conflict.severity, 16);
+		if (!["info", "warning", "error"].includes(severity)) return invalid();
+		if (
+			!Array.isArray(conflict.observation_ids) ||
+			conflict.observation_ids.length > 16384
+		)
+			return invalid();
+		const conflictObservationIds = conflict.observation_ids.map((id) => {
+			const parsed = text(id, 32);
+			if (!/^[0-9a-f]{32}$/u.test(parsed) || !observationIds.has(parsed))
+				return invalid();
+			return parsed;
+		});
+		let trackNumber: number | null = null;
+		if (conflict.track_number !== null && conflict.track_number !== undefined) {
+			trackNumber = nonNegativeInteger(conflict.track_number);
+			if (trackNumber < 1 || trackNumber > 1_000_000) return invalid();
+		}
+		const sourceId =
+			conflict.source_id === null || conflict.source_id === undefined
+				? null
+				: identifier(conflict.source_id);
+		if (sourceId !== null && !/^craig-[0-9a-f]{64}$/u.test(sourceId))
+			return invalid();
+		return {
+			code,
+			severity: severity as SessionParticipantConflict["severity"],
+			requiresResolution: boolean(conflict.requires_resolution),
+			observationIds: conflictObservationIds,
+			discordId: nullableText(conflict.discord_id, 128),
+			labelKey: nullableText(conflict.label_key, 256),
+			trackNumber,
+			sourceId,
+		} satisfies SessionParticipantConflict;
+	});
+
+	const manualAssignments = row.manual_assignments.map((raw) => {
+		const assignment = record(raw);
+		const observationId = text(assignment.observation_id, 32);
+		const participantId = text(assignment.participant_id, 32);
+		if (
+			!observationIds.has(observationId) ||
+			!/^[0-9a-f]{32}$/u.test(participantId)
+		)
+			return invalid();
+		return { observationId, participantId } satisfies SessionParticipantAssignment;
+	});
+	if (
+		new Set(manualAssignments.map((row) => row.observationId)).size !==
+		manualAssignments.length
+	)
+		return invalid();
+
+	return {
+		schemaVersion: "tda_session_participant_mapping_v1",
+		policy: "strong_discord_or_manual_v1",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		workspaceRevision: nonNegativeInteger(row.workspace_revision),
+		mappingSha256: sha256(row.mapping_sha256),
+		approvalBlocked: boolean(row.approval_blocked),
+		observations,
+		participants,
+		conflicts,
+		manualAssignments,
 	};
 }
 

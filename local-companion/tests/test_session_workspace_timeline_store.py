@@ -23,7 +23,7 @@ def _workspace_with_two_parts(store: Store):
     return workspace
 
 
-def test_schema_v11_adds_timeline_fields_without_rewriting_source_identity(tmp_path):
+def test_schema_v12_preserves_timeline_fields_without_rewriting_source_identity(tmp_path):
     store = Store(tmp_path)
     workspace = _workspace_with_two_parts(store)
 
@@ -37,7 +37,7 @@ def test_schema_v11_adds_timeline_fields_without_rewriting_source_identity(tmp_p
             for row in db.execute("PRAGMA table_info(session_recording_parts)")
         }
 
-    assert version == 11
+    assert version == 12
     assert "ordering_mode" in workspace_columns
     assert {
         "timeline_mode",

@@ -43,6 +43,7 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .session_participants import observed_session_tracks, resolve_session_participants
 from .store import Conflict, Store
 from .session_timeline import (
     automatic_placements,
@@ -75,7 +76,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing))?|timeline/derive))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing))?|timeline/derive|participants))?$"
 )
 
 
@@ -199,6 +200,18 @@ class SessionWorkspaceTimingRequest(BaseModel):
 class SessionWorkspaceDeriveTimelineRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: int = Field(ge=0)
+
+
+class SessionParticipantAssignmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    observation_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    participant_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+
+class SessionParticipantMappingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
+    assignments: list[SessionParticipantAssignmentRequest] = Field(max_length=16384)
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1439,6 +1452,7 @@ def create_app(
             "transcription.target.repair",
             "transcription.session-workspace",
             "transcription.session-timeline",
+            "transcription.session-participants",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1782,6 +1796,75 @@ def create_app(
                 body.expected_revision,
             )
         )
+
+    def session_participant_projection(campaign_id: str, session_id: str):
+        workspace = session_workspace_response(
+            store.session_workspace(campaign_id, session_id)
+        )
+        packages: dict[str, object | None] = {}
+        for part in workspace["parts"]:
+            source_id = part["source_id"]
+            try:
+                _, package = staged_package_under_source_gate(source_id)
+                packages[source_id] = package
+            except (CraigPackageError, ValueError):
+                packages[source_id] = None
+        manual = {
+            row["observation_id"]: row["participant_id"]
+            for row in store.session_participant_assignments(campaign_id, session_id)
+        }
+        return workspace, packages, resolve_session_participants(
+            workspace,
+            packages,
+            manual,
+        )
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/participants")
+    def session_workspace_participants(campaign_id: str, session_id: str):
+        try:
+            _, _, projection = session_participant_projection(campaign_id, session_id)
+        except Conflict as exc:
+            if str(exc) == "SESSION_WORKSPACE_NOT_FOUND":
+                return error("SESSION_WORKSPACE_NOT_FOUND", 404)
+            raise
+        return projection
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/participants")
+    def update_session_workspace_participants(
+        campaign_id: str,
+        session_id: str,
+        body: SessionParticipantMappingRequest,
+    ):
+        workspace, packages, _ = session_participant_projection(campaign_id, session_id)
+        observations = {
+            row["observation_id"]: row
+            for row in observed_session_tracks(workspace, packages)
+        }
+        normalized = []
+        seen = set()
+        for assignment in body.assignments:
+            if assignment.observation_id in seen:
+                raise Conflict("SESSION_PARTICIPANT_MAPPING_INVALID")
+            seen.add(assignment.observation_id)
+            observation = observations.get(assignment.observation_id)
+            if observation is None:
+                raise Conflict("SESSION_PARTICIPANT_OBSERVATION_NOT_FOUND")
+            normalized.append(
+                {
+                    "observation_id": assignment.observation_id,
+                    "participant_id": assignment.participant_id,
+                    "source_id": observation["source_id"],
+                    "track_number": observation["track_number"],
+                }
+            )
+        store.replace_session_participant_assignments(
+            campaign_id,
+            session_id,
+            normalized,
+            body.expected_revision,
+        )
+        _, _, projection = session_participant_projection(campaign_id, session_id)
+        return projection
 
     @app.get("/api/v1/jobs")
     def jobs(

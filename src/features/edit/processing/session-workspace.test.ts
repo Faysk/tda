@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LocalBridge } from "./bridge";
 import {
 	LOCAL_API,
+	parseSessionParticipantMapping,
 	parseSessionWorkspace,
 } from "./protocol";
 
@@ -116,6 +117,69 @@ describe("session workspace protocol", () => {
 			recordingPart({ source_start_confidence: "probably_fine" }),
 		]);
 		expect(() => parseSessionWorkspace(badClock)).toThrow();
+	});
+
+	it("parses participant reconciliation and rejects inferred profiles", () => {
+		const observationId = "3".repeat(32);
+		const participantId = "4".repeat(32);
+		const base = {
+			schema_version: "tda_session_participant_mapping_v1",
+			policy: "strong_discord_or_manual_v1",
+			campaign_id: "yuhara-main",
+			session_id: "session-42",
+			workspace_revision: 3,
+			mapping_sha256: "a".repeat(64),
+			approval_blocked: false,
+			observations: [
+				{
+					observation_id: observationId,
+					part_id: partA,
+					source_id: sourceA,
+					part_ordinal: 0,
+					track_number: 1,
+					raw_speaker: "Renan",
+					username: "Renan",
+					discriminator: null,
+					discord_id: "111",
+				},
+			],
+			participants: [
+				{
+					participant_id: participantId,
+					resolution: "discord_id",
+					profile_id: null,
+					display_speaker: "Renan",
+					observation_ids: [observationId],
+				},
+			],
+			conflicts: [],
+			manual_assignments: [],
+		};
+		const parsed = parseSessionParticipantMapping(base);
+		expect(parsed).toMatchObject({
+			schemaVersion: "tda_session_participant_mapping_v1",
+			policy: "strong_discord_or_manual_v1",
+			mappingSha256: "a".repeat(64),
+			approvalBlocked: false,
+			participants: [
+				{
+					participantId,
+					resolution: "discord_id",
+					profileId: null,
+				},
+			],
+		});
+		expect(() =>
+			parseSessionParticipantMapping({
+				...base,
+				participants: [
+					{
+						...base.participants[0],
+						profile_id: "inferred-by-name",
+					},
+				],
+			}),
+		).toThrow();
 	});
 
 	it("bounds collections and validates deterministic timeline metadata", () => {
@@ -240,6 +304,78 @@ describe("session workspace bridge", () => {
 				Authorization: `Bearer ${token}`,
 			});
 		}
+		bridge.disconnect();
+	});
+
+	it("uses fixed participant routes and full-replacement CAS assignments", async () => {
+		const observationId = "3".repeat(32);
+		const participantId = "4".repeat(32);
+		const mapping = {
+			schema_version: "tda_session_participant_mapping_v1",
+			policy: "strong_discord_or_manual_v1",
+			campaign_id: "yuhara-main",
+			session_id: "session-42",
+			workspace_revision: 2,
+			mapping_sha256: "b".repeat(64),
+			approval_blocked: false,
+			observations: [
+				{
+					observation_id: observationId,
+					part_id: partA,
+					source_id: sourceA,
+					part_ordinal: 0,
+					track_number: 1,
+					raw_speaker: "Guest",
+					username: "Guest",
+					discriminator: null,
+					discord_id: null,
+				},
+			],
+			participants: [
+				{
+					participant_id: participantId,
+					resolution: "manual",
+					profile_id: null,
+					display_speaker: "Guest",
+					observation_ids: [observationId],
+				},
+			],
+			conflicts: [],
+			manual_assignments: [
+				{
+					observation_id: observationId,
+					participant_id: participantId,
+				},
+			],
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(mapping));
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		await bridge.sessionParticipants("yuhara-main", "session-42", signal());
+		const updated = await bridge.updateSessionParticipants(
+			"yuhara-main",
+			"session-42",
+			1,
+			[{ observationId, participantId }],
+			signal(),
+		);
+
+		expect(updated.participants[0]?.profileId).toBeNull();
+		expect(request.mock.calls.map(([url]) => String(url))).toEqual([
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/participants`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/participants`,
+		]);
+		expect(request.mock.calls[0][1]?.method).toBe("GET");
+		expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toEqual({
+			expected_revision: 1,
+			assignments: [
+				{
+					observation_id: observationId,
+					participant_id: participantId,
+				},
+			],
+		});
 		bridge.disconnect();
 	});
 });
