@@ -9,6 +9,7 @@ from tda_companion.session_timeline import (
     classify_start_time,
     enrich_workspace_timeline,
     package_duration_seconds,
+    segment_owner_at_boundary,
     validate_overlap_boundary,
 )
 
@@ -20,6 +21,7 @@ def part(
     offset: float | None,
     trim_start: float = 0.0,
     trim_end: float | None = None,
+    gap_confirmed: bool = False,
     resolution: str | None = None,
     boundary: float | None = None,
 ):
@@ -32,6 +34,7 @@ def part(
         "session_offset_seconds": offset,
         "trim_start_seconds": trim_start,
         "trim_end_seconds": trim_end,
+        "gap_confirmed": gap_confirmed,
         "overlap_resolution": resolution,
         "overlap_boundary_seconds": boundary,
         "created_at": "2026-09-27T22:00:00Z",
@@ -120,7 +123,7 @@ def test_gap_overlap_and_resolution_are_explicit_and_deterministic():
         "updated_at": "2026-09-27T22:00:00Z",
         "parts": [
             part(1, 0, offset=0.0),
-            part(2, 1, offset=70.0),
+            part(2, 1, offset=70.0, gap_confirmed=True),
             part(
                 3,
                 2,
@@ -148,6 +151,8 @@ def test_gap_overlap_and_resolution_are_explicit_and_deterministic():
     assert first["timeline"]["gap_count"] == 1
     assert first["timeline"]["overlap_count"] == 1
     assert first["timeline"]["unresolved_overlap_count"] == 0
+    assert first["timeline"]["unconfirmed_gap_count"] == 0
+    assert first["timeline"]["segment_boundary_policy"] == "segment_start_owner_v1"
     assert first["timeline"]["state"] == "ready"
     assert (
         first["timeline"]["fingerprint_sha256"]
@@ -232,3 +237,57 @@ def test_overlap_boundary_outside_real_overlap_is_rejected():
         ValueError, match="SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID"
     ):
         validate_overlap_boundary(enriched, workspace["parts"][1]["part_id"])
+
+
+def test_gap_requires_explicit_confirmation_before_timeline_is_ready():
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-a",
+        "session_id": "session-a",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=0.0),
+            part(2, 1, offset=61.0),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:01:01Z", duration=30.0),
+        ]
+    )
+
+    unconfirmed = enrich_workspace_timeline(workspace, source_facts)
+    assert unconfirmed["parts"][1]["relation_to_previous"] == "gap"
+    assert unconfirmed["timeline"]["gap_count"] == 1
+    assert unconfirmed["timeline"]["unconfirmed_gap_count"] == 1
+    assert unconfirmed["timeline"]["state"] == "gap_unconfirmed"
+
+    confirmed_workspace = {
+        **workspace,
+        "parts": [
+            workspace["parts"][0],
+            {**workspace["parts"][1], "gap_confirmed": True},
+        ],
+    }
+    confirmed = enrich_workspace_timeline(confirmed_workspace, source_facts)
+    assert confirmed["timeline"]["unconfirmed_gap_count"] == 0
+    assert confirmed["timeline"]["state"] == "ready"
+    assert (
+        confirmed["timeline"]["fingerprint_sha256"]
+        != unconfirmed["timeline"]["fingerprint_sha256"]
+    )
+
+
+def test_segment_boundary_ownership_is_versioned_and_start_based():
+    assert segment_owner_at_boundary(9.999, 10.0) == "earlier"
+    assert segment_owner_at_boundary(10.0, 10.0) == "later"
+    assert segment_owner_at_boundary(10.001, 10.0) == "later"
+
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_SEGMENT_BOUNDARY_INVALID"
+    ):
+        segment_owner_at_boundary(-0.001, 10.0)
