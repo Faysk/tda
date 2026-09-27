@@ -273,7 +273,7 @@ global_time = part.session_offset + local_time
 - `opaque`;
 - `missing`.
 
-A presença de uma string não é suficiente. Timestamp sem timezone ou valor opaco não autoriza auto-order silenciosa.
+A presença de uma string não é suficiente. Timestamp sem timezone ou valor opaco não autoriza auto-order silenciosa. Dois `trusted_absolute` no mesmo instante também não estabelecem ordem entre as parts: empate temporal exige ordem manual, e identificadores técnicos nunca funcionam como evidência cronológica.
 
 ### Manual override
 
@@ -316,6 +316,8 @@ Primeiro corte:
 - trims manuais equivalentes.
 
 A UI pode sugerir boundary, mas unresolved overlap bloqueia `approved_local`/publish.
+
+O intervalo de overlap é sempre a interseção real `[max(starts), min(ends)]`. Um boundary fora dessa interseção é inválido. Se a ordem manual trouxer duas parts disjuntas em ordem temporal inversa, isso é `order_conflict`, não overlap artificial, e permanece fail-closed.
 
 A política de ownership no boundary precisa ser determinística e versionada, inclusive quando um segmento cruza o corte.
 
