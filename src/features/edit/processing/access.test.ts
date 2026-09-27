@@ -46,3 +46,54 @@ describe("local processing capability", () => {
 		);
 	});
 });
+
+
+describe("activity bark management capability", () => {
+	const barkGrant: EditGrant = {
+		...grant,
+		action: EDIT_CAPABILITIES.activityBarksManage,
+	};
+
+	it("requires the dedicated exact capability", () => {
+		expect(
+			authorizeCampaignCapability(
+				{ authUserId: "owner", profileId: "profile", grants: [barkGrant] },
+				EDIT_CAPABILITIES.activityBarksManage,
+				"yuhara-main",
+			).ok,
+		).toBe(true);
+
+		expect(
+			authorizeCampaignCapability(
+				{ authUserId: "operator", profileId: "profile", grants: [grant] },
+				EDIT_CAPABILITIES.activityBarksManage,
+				"yuhara-main",
+			).ok,
+		).toBe(false);
+	});
+
+	it("keeps project/tda inheritance and denies wrong campaign scope", () => {
+		expect(
+			authorizeCampaignCapability(
+				{
+					authUserId: "owner",
+					profileId: "profile",
+					grants: [{ ...barkGrant, scopeType: "project", scopeId: "tda" }],
+				},
+				EDIT_CAPABILITIES.activityBarksManage,
+				"yuhara-main",
+			).ok,
+		).toBe(true);
+		expect(
+			authorizeCampaignCapability(
+				{
+					authUserId: "owner",
+					profileId: "profile",
+					grants: [{ ...barkGrant, scopeId: "other-campaign" }],
+				},
+				EDIT_CAPABILITIES.activityBarksManage,
+				"yuhara-main",
+			).ok,
+		).toBe(false);
+	});
+});
