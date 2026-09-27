@@ -1182,41 +1182,52 @@ export function ProcessingPanel({
 								</div>
 							</div>
 
-							{activityBarksManage && activityPackScope ? (
-								<ActivityPackAdmin scope={activityPackScope} />
-							) : null}
-
-							{state.capabilities?.capabilities.includes(
-								"synthetic.fixture",
-							) ? (
-								<div className={styles.integrationTool}>
-									<div>
-										<strong>Ensaio sintético</strong>
-										<span>
-											Diagnóstico pequeno, sem áudio e sem publicação.
-										</span>
-									</div>
-									<Button
-										size="sm"
-										disabled={
-											state.mutation?.kind === "synthetic" ||
-											state.health?.lifecycle !== "ready"
-										}
-										onClick={() => void controller.synthetic()}
-									>
-										{state.mutation?.kind === "synthetic"
-											? "Executando…"
-											: "Executar ensaio sintético"}
-									</Button>
-								</div>
-							) : null}
-
 							{state.uncertainSubmission ? (
 								<p className={styles.connectionError} role="alert">
 									A resposta desta tentativa não chegou. Reconecte e
 									consulte a fila antes de iniciar outra tentativa; a chave
 									desta aba será reutilizada.
 								</p>
+							) : null}
+
+							{(activityBarksManage && activityPackScope) ||
+							state.capabilities?.capabilities.includes("synthetic.fixture") ? (
+								<details
+									className={styles.diagnosticsAdvanced}
+									data-diagnostics-advanced="true"
+								>
+									<summary>Ferramentas avançadas</summary>
+									<div className={styles.diagnosticsAdvancedBody}>
+										{activityBarksManage && activityPackScope ? (
+											<ActivityPackAdmin scope={activityPackScope} />
+										) : null}
+
+										{state.capabilities?.capabilities.includes(
+											"synthetic.fixture",
+										) ? (
+											<div className={styles.integrationTool}>
+												<div>
+													<strong>Ensaio sintético</strong>
+													<span>
+														Diagnóstico pequeno, sem áudio e sem publicação.
+													</span>
+												</div>
+												<Button
+													size="sm"
+													disabled={
+														state.mutation?.kind === "synthetic" ||
+														state.health?.lifecycle !== "ready"
+													}
+													onClick={() => void controller.synthetic()}
+												>
+													{state.mutation?.kind === "synthetic"
+														? "Executando…"
+														: "Executar ensaio sintético"}
+												</Button>
+											</div>
+										) : null}
+									</div>
+								</details>
 							) : null}
 						</aside>
 					</section>
