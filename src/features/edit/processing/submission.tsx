@@ -777,70 +777,55 @@ export function ProcessingSubmission({
 				</div>
 			) : (
 				<form className={styles.form} onSubmit={submit}>
-					<div
-						className={styles.dropZone}
-						data-craig-dropzone="true"
-						data-active={dragActive ? "true" : "false"}
-						data-selected={file ? "true" : "false"}
-					>
-						<input
-							ref={fileInput}
-							className={styles.fileInput}
-							type="file"
-							accept=".zip,application/zip"
-							aria-label="Export do Craig"
-							disabled={busy}
-							onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
-						/>
-						<button
-							type="button"
-							className={styles.dropAction}
-							data-craig-drop-target="true"
-							disabled={busy}
-							onClick={() => fileInput.current?.click()}
-							onDragEnter={(event) => {
-								event.preventDefault();
-								if (!busy) setDragActive(true);
-							}}
-							onDragOver={(event) => {
-								event.preventDefault();
-								if (!busy) setDragActive(true);
-							}}
-							onDragLeave={(event) => {
-								if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-								setDragActive(false);
-							}}
-							onDrop={handleDrop}
+					<div className={styles.primaryGrid}>
+						<div
+							className={styles.dropZone}
+							data-craig-dropzone="true"
+							data-active={dragActive ? "true" : "false"}
+							data-selected={file ? "true" : "false"}
 						>
-							<span className={styles.dropGlyph} aria-hidden="true">{file ? "✓" : "ZIP"}</span>
-							<span className={styles.dropCopy}>
-								<strong>{file ? file.name : "Arraste o ZIP do Craig aqui"}</strong>
-								<span>
-									{file
-										? `${formatSubmissionBytes(file.size)} · escolher outro arquivo`
-										: "ou escolher arquivo"}
+							<input
+								ref={fileInput}
+								className={styles.fileInput}
+								type="file"
+								accept=".zip,application/zip"
+								aria-label="Export do Craig"
+								disabled={busy}
+								onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+							/>
+							<button
+								type="button"
+								className={styles.dropAction}
+								data-craig-drop-target="true"
+								disabled={busy}
+								onClick={() => fileInput.current?.click()}
+								onDragEnter={(event) => {
+									event.preventDefault();
+									if (!busy) setDragActive(true);
+								}}
+								onDragOver={(event) => {
+									event.preventDefault();
+									if (!busy) setDragActive(true);
+								}}
+								onDragLeave={(event) => {
+									if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+									setDragActive(false);
+								}}
+								onDrop={handleDrop}
+							>
+								<span className={styles.dropGlyph} aria-hidden="true">{file ? "✓" : "ZIP"}</span>
+								<span className={styles.dropCopy}>
+									<strong>{file ? file.name : "Arraste ou escolha o ZIP do Craig"}</strong>
+									<span>
+										{file
+											? `${formatSubmissionBytes(file.size)} · trocar arquivo`
+											: "arquivo local · .zip"}
+									</span>
 								</span>
-							</span>
-						</button>
-					</div>
+							</button>
+						</div>
 
-					{fileError ? <p className={styles.inlineError} role="alert">{fileError}</p> : null}
-
-					{file ? (
-						<dl className={styles.fileFacts}>
-							<div><dt>Arquivo</dt><dd title={file.name}>{file.name}</dd></div>
-							<div><dt>Tamanho</dt><dd>{formatSubmissionBytes(file.size)}</dd></div>
-							{source ? (
-								<>
-									<div><dt>Tracks</dt><dd>{source.trackCount}</dd></div>
-									<div><dt>Fonte</dt><dd>{source.reused ? "Já verificada" : "Verificada agora"}</dd></div>
-								</>
-							) : null}
-						</dl>
-					) : null}
-
-					<div className={styles.identityGrid}>
-						<label>
+						<label className={styles.sessionControl}>
 							<span>ID da sessão</span>
 							<input
 								value={sessionId}
@@ -854,10 +839,11 @@ export function ProcessingSubmission({
 								aria-describedby="session-id-help"
 							/>
 							<small id="session-id-help">
-								Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável.
+								Sugerido pelo nome do ZIP; sempre editável.
 							</small>
 						</label>
-						<label>
+
+						<label className={styles.profileControl}>
 							<span>Perfil</span>
 							<select
 								value={profile}
@@ -877,33 +863,104 @@ export function ProcessingSubmission({
 								))}
 							</select>
 						</label>
+
+						<div className={styles.submitCell}>
+							{source ? (
+								<Button
+									type="submit"
+									variant="primary"
+									disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
+								>
+									{submissionCtaLabel(selectedProfileState, pendingStage)}
+								</Button>
+							) : (
+								<Button
+									type="button"
+									variant="primary"
+									disabled={
+										busy ||
+										!file ||
+										!profile ||
+										!canSubmit ||
+										requestTooLarge ||
+										profileBlocked ||
+										qwenRuntimeUpgradeRequired
+									}
+									onClick={() => void analyzeSource()}
+								>
+									{busy && pendingStage === "validating"
+										? "Analisando localmente…"
+										: "Analisar ZIP localmente"}
+								</Button>
+							)}
+							{requestTooLarge ? (
+								<span className={styles.budgetWarning}>
+									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
+								</span>
+							) : null}
+						</div>
 					</div>
 
+					{fileError ? <p className={styles.inlineError} role="alert">{fileError}</p> : null}
+
+					{file ? (
+						<dl className={styles.fileFacts}>
+							<div><dt>Arquivo</dt><dd title={file.name}>{file.name}</dd></div>
+							<div><dt>Tamanho</dt><dd>{formatSubmissionBytes(file.size)}</dd></div>
+							{source ? (
+								<>
+									<div><dt>Tracks</dt><dd>{source.trackCount}</dd></div>
+									<div><dt>Fonte</dt><dd>{source.reused ? "Já verificada" : "Verificada agora"}</dd></div>
+								</>
+							) : null}
+						</dl>
+					) : null}
+
 					{selectedProfileState ? (
-						<div className={styles.profileSummary} data-ready={selectedProfileState.ready ? "true" : "false"}>
+						<div
+							className={styles.profileSummary}
+							data-ready={selectedProfileState.ready ? "true" : "false"}
+							data-profile-status="true"
+							role={profileBlocked ? "alert" : "status"}
+						>
 							<div>
 								<strong>{submissionProfileLabel(selectedProfileState.id)}</strong>
 								<span>
 									{submissionEngineLabel(selectedProfileState)}
-									{selectedProfileState.ready
-										? " · pronto neste Companion"
-										: selectedProfileState.preparationRequired
-											? " · preparação necessária"
-											: " · indisponível"}
+									{" · "}
+									{readiness ??
+										(selectedProfileState.ready
+											? "pronto neste Companion"
+											: selectedProfileState.preparationRequired
+												? "preparação necessária"
+												: "indisponível")}
 								</span>
 							</div>
-							<small>
-								{selectedEstimate?.available
-									? `${formatEstimateRange(
-											selectedEstimate.lowerSeconds,
-											selectedEstimate.upperSeconds,
-										)} · confiança ${{
-											high: "alta",
-											medium: "média",
-											low: "baixa",
-										}[selectedEstimate.confidence]}`
-									: "Sem calibração compatível nesta máquina."}
-							</small>
+							<div className={styles.profileActions}>
+								<small>
+									{selectedEstimate?.available
+										? `${formatEstimateRange(
+												selectedEstimate.lowerSeconds,
+												selectedEstimate.upperSeconds,
+											)} · confiança ${{
+												high: "alta",
+												medium: "média",
+												low: "baixa",
+											}[selectedEstimate.confidence]}`
+										: "Sem calibração compatível nesta máquina."}
+								</small>
+								{profileBlocked && readinessReason ? (
+									<details className={styles.profileWhy}>
+										<summary>Por quê?</summary>
+										<p>{readinessReason}</p>
+									</details>
+								) : null}
+								{profileBlocked && onOpenDiagnostics ? (
+									<Button type="button" size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
+										Diagnóstico
+									</Button>
+								) : null}
+							</div>
 						</div>
 					) : null}
 
@@ -943,96 +1000,45 @@ export function ProcessingSubmission({
 						</section>
 					) : null}
 
-					{readiness ? (
-						<div
-							className={profileBlocked ? styles.blocked : styles.readiness}
-							role={profileBlocked ? "alert" : "status"}
-						>
-							<div>
-								<strong>{readiness}</strong>
-								{readinessReason && readinessReason !== readiness ? <span>{readinessReason}</span> : null}
-							</div>
-							{profileBlocked && onOpenDiagnostics ? (
-								<Button type="button" size="sm" variant="tertiary" onClick={onOpenDiagnostics}>
-									Abrir Diagnóstico
-								</Button>
-							) : null}
+					<div className={styles.secondaryRow}>
+						<div className={styles.privacy}>
+							<strong><span aria-hidden="true">🔒</span> Áudio fica nesta máquina</strong>
+							<details>
+								<summary>Como funciona</summary>
+								<p>
+									O ZIP é enviado somente por loopback ao TDA Companion local. Resultados ficam locais até uma ação editorial explícita de publicação.
+								</p>
+							</details>
 						</div>
-					) : null}
 
-					<div className={styles.submitRow}>
-						{source ? (
-							<Button
-								type="submit"
-								variant="primary"
-								disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
-							>
-								{submissionCtaLabel(selectedProfileState, pendingStage)}
-							</Button>
-						) : (
-							<Button
-								type="button"
-								variant="primary"
-								disabled={
-									busy ||
-									!file ||
-									!profile ||
-									!canSubmit ||
-									requestTooLarge ||
-									profileBlocked ||
-									qwenRuntimeUpgradeRequired
-								}
-								onClick={() => void analyzeSource()}
-							>
-								{busy && pendingStage === "validating"
-									? "Analisando localmente…"
-									: "Analisar ZIP localmente"}
-							</Button>
-						)}
-						{requestTooLarge ? (
-							<span className={styles.budgetWarning}>
-								{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
-							</span>
-						) : null}
-					</div>
-
-					<div className={styles.privacy}>
-						<strong><span aria-hidden="true">🔒</span> Áudio permanece nesta máquina.</strong>
-						<details>
-							<summary>Como funciona</summary>
-							<p>
-								O ZIP é enviado somente por loopback ao TDA Companion local. Resultados ficam locais até uma ação editorial explícita de publicação.
-							</p>
+						<details className={styles.advanced}>
+							<summary><span>Opções avançadas</span><small>Contexto e glossário · opcional</small></summary>
+							<div className={styles.advancedGrid}>
+								<label>
+									<span>Contexto opcional</span>
+									<textarea
+										value={context}
+										onChange={(event) =>
+											setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
+										}
+										disabled={busy}
+										placeholder="Contexto curto da sessão/campanha para reconhecimento."
+									/>
+								</label>
+								<label>
+									<span>Glossário opcional</span>
+									<textarea
+										value={glossary}
+										onChange={(event) =>
+											setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
+										}
+										disabled={busy}
+										placeholder="Personagens, NPCs, lugares e termos difíceis."
+									/>
+								</label>
+							</div>
 						</details>
 					</div>
-
-					<details className={styles.advanced}>
-						<summary><span>Opções avançadas</span><small>Contexto e glossário · opcional</small></summary>
-						<div className={styles.advancedGrid}>
-							<label>
-								<span>Contexto opcional</span>
-								<textarea
-									value={context}
-									onChange={(event) =>
-										setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
-									}
-									disabled={busy}
-									placeholder="Contexto curto da sessão/campanha para reconhecimento."
-								/>
-							</label>
-							<label>
-								<span>Glossário opcional</span>
-								<textarea
-									value={glossary}
-									onChange={(event) =>
-										setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
-									}
-									disabled={busy}
-									placeholder="Personagens, NPCs, lugares e termos difíceis."
-								/>
-							</label>
-						</div>
-					</details>
 
 					{requestTooLarge ? (
 						<p className={styles.inlineError} role="alert">
