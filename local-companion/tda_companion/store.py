@@ -438,6 +438,20 @@ class Store:
                 """,
                 (row["campaign_id"], row["session_id"], target["source_id"]),
             )
+            relation_reset_at = utc_now()
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET gap_confirmed=0,overlap_resolution=NULL,
+                    overlap_boundary_seconds=NULL,updated=?
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (
+                    relation_reset_at,
+                    row["campaign_id"],
+                    row["session_id"],
+                ),
+            )
             parts = db.execute(
                 """
                 SELECT part_id FROM session_recording_parts
@@ -483,9 +497,19 @@ class Store:
             current_ids = [part["part_id"] for part in current]
             if set(current_ids) != set(normalized) or len(current_ids) != len(normalized):
                 raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
-            if current_ids == normalized:
+            if current_ids == normalized and row["ordering_mode"] == "manual":
                 return self._session_workspace_dto(db, row)
             now = utc_now()
+            if current_ids == normalized:
+                db.execute(
+                    "UPDATE session_workspaces SET ordering_mode='manual' "
+                    "WHERE campaign_id=? AND session_id=?",
+                    (row["campaign_id"], row["session_id"]),
+                )
+                bumped = self._bump_session_workspace(
+                    db, row["campaign_id"], row["session_id"], row["revision"]
+                )
+                return self._session_workspace_dto(db, bumped)
             db.execute(
                 """
                 UPDATE session_recording_parts SET ordinal=ordinal+1000
@@ -498,6 +522,15 @@ class Store:
                     "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
                     (ordinal, now, part_id),
                 )
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET gap_confirmed=0,overlap_resolution=NULL,
+                    overlap_boundary_seconds=NULL,updated=?
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (now, row["campaign_id"], row["session_id"]),
+            )
             db.execute(
                 "UPDATE session_workspaces SET ordering_mode='manual' "
                 "WHERE campaign_id=? AND session_id=?",
@@ -595,6 +628,12 @@ class Store:
             )
             if current_values == next_values:
                 return self._session_workspace_dto(db, row)
+
+            geometry_changed = current_values[1:4] != next_values[1:4]
+            relation_changed = current_values[4:7] != next_values[4:7]
+            if geometry_changed and not relation_changed:
+                next_values = (*next_values[:4], 0, None, None)
+            changed_at = utc_now()
             db.execute(
                 """
                 UPDATE session_recording_parts
@@ -603,8 +642,23 @@ class Store:
                     overlap_resolution=?,overlap_boundary_seconds=?,updated=?
                 WHERE part_id=?
                 """,
-                (*next_values, utc_now(), part_id),
+                (*next_values, changed_at, part_id),
             )
+            if geometry_changed:
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET gap_confirmed=0,overlap_resolution=NULL,
+                        overlap_boundary_seconds=NULL,updated=?
+                    WHERE campaign_id=? AND session_id=? AND ordinal=?
+                    """,
+                    (
+                        changed_at,
+                        row["campaign_id"],
+                        row["session_id"],
+                        part["ordinal"] + 1,
+                    ),
+                )
             db.execute(
                 "UPDATE session_workspaces SET ordering_mode='manual' "
                 "WHERE campaign_id=? AND session_id=?",
