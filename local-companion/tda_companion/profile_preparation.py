@@ -150,7 +150,14 @@ def profile_catalog(
         profile = get_profile(profile_id)
         ready = False
         reason: str | None = None
+        runtime_version: str | None = None
+        compute_type: str | None = None
+        gpu_model: str | None = None
+        gpu_compute_capability: str | None = None
         if profile.engine == "whisper":
+            runtime_value = whisper_state.get("version")
+            if isinstance(runtime_value, str):
+                runtime_version = runtime_value
             if not _runtime_ready(whisper_state, "whisper"):
                 reason = "WHISPER_RUNTIME_REQUIRED"
             else:
@@ -159,6 +166,9 @@ def profile_catalog(
                 if not ready:
                     reason = "WHISPER_MODEL_PREPARATION_REQUIRED"
         else:
+            runtime_value = qwen_state.get("version")
+            if isinstance(runtime_value, str):
+                runtime_version = runtime_value
             if not _runtime_ready(qwen_state, "qwen"):
                 reason = "QWEN_RUNTIME_REQUIRED"
             else:
@@ -170,7 +180,20 @@ def profile_catalog(
                     verify_model_content=False,
                 )
                 ready = gate.get("ready") is True
-                if not ready:
+                if ready:
+                    metrics = gate.get("metrics") if isinstance(gate.get("metrics"), dict) else {}
+                    gpu = gate.get("gpu") if isinstance(gate.get("gpu"), dict) else {}
+                    raw_compute = metrics.get("compute_type")
+                    raw_gpu = gpu.get("name")
+                    raw_capability = gpu.get("compute_capability")
+                    compute_type = raw_compute if isinstance(raw_compute, str) and raw_compute else None
+                    gpu_model = raw_gpu if isinstance(raw_gpu, str) and raw_gpu else None
+                    gpu_compute_capability = (
+                        raw_capability
+                        if isinstance(raw_capability, str) and raw_capability
+                        else None
+                    )
+                else:
                     reason = str(
                         gate.get("reason")
                         or f"QWEN_GATE_{str(gate.get('status') or 'missing').upper()}"
@@ -182,6 +205,12 @@ def profile_catalog(
                 "ready": ready,
                 "preparation_required": not ready,
                 "reason": reason,
+                "model": profile.model_id,
+                "model_revision": profile.revision,
+                "runtime_version": runtime_version,
+                "compute_type": compute_type,
+                "gpu_model": gpu_model,
+                "gpu_compute_capability": gpu_compute_capability,
             }
         )
     return result

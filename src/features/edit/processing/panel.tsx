@@ -12,11 +12,6 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
 import { ProcessingCommandBar } from "./command-bar";
-import {
-	activityContext,
-	activityEventCanBeHumorous,
-	selectActivityBark,
-} from "./activity-barks";
 import { supportsTerminalJobDelete } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
@@ -26,6 +21,11 @@ import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
+	estimateProfileProcessing,
+	estimateRemainingProcessing,
+	formatEstimateRange,
+} from "./processing-estimator";
+import {
 	jobLabels,
 	presentConnectionError,
 	presentJobError,
@@ -33,7 +33,7 @@ import {
 	presentJobTitle,
 	stageLabels,
 } from "./presentation";
-import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
+import type { JobEvent, LocalJob } from "./protocol";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -194,43 +194,29 @@ function pipelineState(
 	return "pending";
 }
 
-function latestActivity(
-	events: readonly JobEvent[],
-	job: LocalJob,
-	system: SystemSnapshot | null,
-) {
+function latestActivity(events: readonly JobEvent[]) {
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
 		if (!event) continue;
-		// Current cockpit activity must never borrow routine work from an older
-		// retry attempt. Legacy/job-level warnings can still surface factually,
-		// but attempt-scoped info requires authoritative provenance.
-		if (
-			event.attempt !== job.attempt &&
-			!(event.attempt === null && (event.level === "warning" || event.level === "error"))
-		)
-			continue;
-		if (event.level === "warning" || event.level === "error") {
-			const factual = presentJobEvent(event);
+		const speaker =
+			typeof event.data.speaker === "string" ? event.data.speaker : null;
+		if (event.code === "QWEN_WINDOW_TRANSCRIBED") {
+			const window =
+				typeof event.data.window === "number" ? event.data.window : null;
 			return {
-				title: factual.title,
-				detail: factual.detail ?? null,
+				title: speaker ? `Qwen processando ${speaker}` : "Qwen processando áudio",
+				detail: window === null ? null : `Janela ${window} concluída`,
 				at: event.at,
 			};
 		}
-		const speaker =
-			typeof event.data.speaker === "string" ? event.data.speaker : null;
-		if (
-			event.code === "QWEN_WINDOW_TRANSCRIBED" ||
-			event.code === "WHISPER_SEGMENT_TRANSCRIBED"
-		) {
-			const factual = presentJobEvent(event);
-			const bark = activityEventCanBeHumorous(event)
-				? selectActivityBark(activityContext(event, job, system), { level: "tda" })
-				: null;
+		if (event.code === "WHISPER_SEGMENT_TRANSCRIBED") {
+			const segment =
+				typeof event.data.segment === "number" ? event.data.segment : null;
 			return {
-				title: bark?.text ?? factual.title,
-				detail: factual.detail ?? null,
+				title: speaker
+					? `Whisper processando ${speaker}`
+					: "Whisper processando áudio",
+				detail: segment === null ? null : `Segmento ${segment} concluído`,
 				at: event.at,
 			};
 		}
@@ -290,7 +276,6 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
-	const [logMode, setLogMode] = useState<"humanized" | "technical">("humanized");
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -349,6 +334,26 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	const activeProfile =
+		activeJob?.context?.profileId
+			? (state.capabilities?.transcription.catalog.find(
+					(item) => item.id === activeJob.context?.profileId,
+				) ?? null)
+			: null;
+	const activeEstimate = estimateProfileProcessing({
+		audioWorkSeconds: activeJob?.context?.audioWorkSeconds ?? null,
+		profile: activeProfile,
+		runs: state.localRuns,
+		system: state.system,
+	});
+	const activeRemaining =
+		activeJob?.progress && activeJob.context?.trackDurationsSeconds
+			? estimateRemainingProcessing(
+					activeEstimate,
+					activeJob.context.trackDurationsSeconds,
+					activeJob.progress.completed,
+				)
+			: null;
 	const activeTrackTiming =
 		activeJob?.timing.tracks.find((item) => item.finishedAt === null) ?? null;
 	const completedTrackTimings =
@@ -389,7 +394,7 @@ export function ProcessingPanel({
 			: null;
 	const activeActivity =
 		activeJob && state.observedJobId === activeJob.id
-			? latestActivity(state.events, activeJob, state.system)
+			? latestActivity(state.events)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
@@ -654,6 +659,30 @@ export function ProcessingPanel({
 												</time>
 											</span>
 										</div>
+										{activeEstimate.available ? (
+											<div className={styles.estimateHint}>
+												<strong>
+													{activeRemaining
+														? `Restante calibrado · ${formatEstimateRange(
+																activeRemaining.lowerSeconds,
+																activeRemaining.upperSeconds,
+															)}`
+														: `Processamento calibrado · ${formatEstimateRange(
+																activeEstimate.lowerSeconds,
+																activeEstimate.upperSeconds,
+															)}`}
+												</strong>
+												<span>
+													Confiança{" "}
+													{{
+														high: "alta",
+														medium: "média",
+														low: "baixa",
+													}[activeEstimate.confidence]}{" "}
+													· {activeEstimate.sampleCount} runs locais compatíveis
+												</span>
+											</div>
+										) : null}
 										{activeJob.progress && activePercent !== null ? (
 											<div className={styles.activeProgress}>
 												<AnimatedProgress
@@ -753,6 +782,8 @@ export function ProcessingPanel({
 							<ProcessingSubmission
 								className={styles.submissionCard}
 								compact
+								runs={state.localRuns}
+								system={state.system}
 							/>
 						</div>
 						{latestCompletedRun ? (
@@ -1059,29 +1090,13 @@ export function ProcessingPanel({
 								<h3>
 									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
 								</h3>
-								<div className={styles.logModeSwitch}>
-									<button
-										type="button"
-										aria-pressed={logMode === "humanized"}
-										onClick={() => setLogMode("humanized")}
-									>
-										Humanizada
-									</button>
-									<button
-										type="button"
-										aria-pressed={logMode === "technical"}
-										onClick={() => setLogMode("technical")}
-									>
-										Técnica
-									</button>
-									<span>
-										{state.events.length
-											? observedJobLive
-												? "● ativo"
-												: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
-											: "sem eventos"}
-									</span>
-								</div>
+								<span>
+									{state.events.length
+										? observedJobLive
+											? "● ativo"
+											: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
+										: "sem eventos"}
+								</span>
 							</div>
 							{state.eventsRefreshError ? <p role="status">Eventos desatualizados. O último histórico disponível foi preservado.</p> : null}
 							<div
@@ -1092,19 +1107,7 @@ export function ProcessingPanel({
 							>
 								{state.events.length ? (
 									state.events.slice(0, 100).map((event) => {
-										const factual = presentJobEvent(event);
-										const bark =
-											logMode === "humanized" &&
-											observedJob &&
-											activityEventCanBeHumorous(event)
-												? selectActivityBark(
-														activityContext(event, observedJob, state.system),
-														{ level: "tda" },
-													)
-												: null;
-										const presented = bark
-											? { title: bark.text, detail: factual.detail }
-											: factual;
+										const presented = presentJobEvent(event);
 										return (
 											<div
 												className={styles.logEntry}

@@ -689,39 +689,3 @@
 		scroll-behavior: auto;
 	}
 }
-
-
-/* #598 — desktop owns queue scrolling; smaller/zoomed layouts fall back to
-   document flow through the existing <=900px rule. */
-@media (min-width: 1440px) and (min-height: 820px) {
-	.tableFrame {
-		max-height: calc(100dvh - 238px);
-		overscroll-behavior: contain;
-	}
-
-	.toolbar {
-		scroll-margin-block-start: 10px;
-	}
-}
-
-@media (min-width: 2048px) {
-	.table {
-		min-width: 0;
-	}
-
-	.actionsHeader {
-		width: 176px;
-	}
-}
-
-@media (max-height: 640px) {
-	.toolbar {
-		position: static;
-	}
-
-	.tableFrame {
-		max-height: none;
-		overflow-x: auto;
-		overflow-y: visible;
-	}
-}

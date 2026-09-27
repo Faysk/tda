@@ -29,11 +29,6 @@ describe("activity bark engine", () => {
 		expect(selectActivityBark(context)).toEqual(selectActivityBark(context));
 	});
 
-	test("legacy event keeps attempt unknown instead of borrowing the current job attempt", () => {
-		const legacy = { ...context, attempt: null };
-		expect(selectActivityBark(legacy)).toEqual(selectActivityBark(legacy));
-	});
-
 	test("recent template and family are avoided when alternatives exist", () => {
 		const first = selectActivityBark(context);
 		expect(first).not.toBeNull();
