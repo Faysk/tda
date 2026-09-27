@@ -105,6 +105,60 @@ insert into public.media_assets(
   '33333333-3333-4333-8333-333333333333'
 );
 
+-- Historical published sessions may still carry a relative local cover path.
+-- The server canonicalizes it to the public site origin before the atomic RPC.
+-- Prove that canonicalization remains publishable without forcing a cover swap.
+begin;
+set local role service_role;
+do $legacy_relative$
+declare
+  v_draft uuid;
+  v_status text;
+  v_version bigint;
+  v_url text := 'https://dnd.faysk.dev/assets/sessions/legacy-relative.webp';
+begin
+  select d.status, d.draft_id, d.revision
+  into v_status, v_draft, v_version
+  from public.save_session_editorial_draft_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    0,
+    '44444444-4444-4444-8444-444444444444',
+    '/assets/sessions/legacy-relative.webp',
+    'Arco legado',
+    'Sessão com capa legada',
+    'Descrição curta legada.',
+    E'# Resumo legado\n\nConteúdo sintético.'
+  ) d;
+
+  if v_status <> 'updated' or v_draft is null or v_version <> 1 then
+    raise exception 'SESSION_PUBLICATION_LEGACY_RELATIVE_DRAFT_INVALID';
+  end if;
+
+  select p.status
+  into v_status
+  from public.publish_session_editorial_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_draft,
+    null,
+    '90000000-0000-4000-8000-000000000098',
+    v_url
+  ) p;
+
+  if v_status <> 'published'
+     or (select metadata->>'coverImageUrl'
+         from public.sessions
+         where id='22222222-2222-4222-8222-222222222222') <> v_url then
+    raise exception 'SESSION_PUBLICATION_LEGACY_RELATIVE_COVER_REJECTED:%', v_status;
+  end if;
+end;
+$legacy_relative$;
+rollback;
+
+
 do $main$
 declare
   v_draft_1 uuid;
