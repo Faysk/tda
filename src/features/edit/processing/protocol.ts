@@ -248,6 +248,16 @@ export type LocalPublicationTarget = {
 	jobId: string;
 	attempt: number;
 };
+export type LocalRunDeleteReceipt = {
+	schemaVersion: "tda_local_run_delete_receipt_v1";
+	sourceId: string;
+	runId: string;
+	transcriptSha256: string;
+	deleted: true;
+	reviewDeleted: boolean;
+	cloudChanged: false;
+	deletedAt: string;
+};
 export type LocalExecutionLineage = {
 	schemaVersion: "tda_execution_lineage_v1";
 	companionVersion: string | null;
@@ -1169,6 +1179,25 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 		draftRevision: nonNegativeInteger(row.draft_revision),
 		reviewPercent,
 		updatedAt,
+	};
+}
+
+export function parseLocalRunDeleteReceipt(value: unknown): LocalRunDeleteReceipt {
+	const row = record(value);
+	if (
+		row.schema_version !== "tda_local_run_delete_receipt_v1" ||
+		row.deleted !== true ||
+		row.cloud_changed !== false
+	) return invalid();
+	return {
+		schemaVersion: "tda_local_run_delete_receipt_v1",
+		sourceId: identifier(row.source_id),
+		runId: runIdentifier(row.run_id),
+		transcriptSha256: sha256(row.transcript_sha256),
+		deleted: true,
+		reviewDeleted: boolean(row.review_deleted),
+		cloudChanged: false,
+		deletedAt: isoDate(row.deleted_at),
 	};
 }
 

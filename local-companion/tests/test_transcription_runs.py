@@ -16,6 +16,7 @@ from tda_companion.transcript import (
 )
 from tda_companion.transcription_runs import (
     TranscriptionRunError,
+    delete_completed_run,
     ensure_legacy_and_list,
     list_runs,
     load_run,
@@ -626,3 +627,116 @@ def test_catalog_of_100_sources_reads_zero_transcript_bytes(monkeypatch, tmp_pat
         result = ensure_legacy_and_list(package, source_id=package.name, source_sha256="a" * 64)
         assert len(result["runs"]) == 1
     assert set(opened) == {"run.json", "root-transcript-state.json"}
+
+
+def test_delete_completed_run_tombstones_exact_run_and_preserves_sibling(tmp_path: Path):
+    source_sha = "d" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    first = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-turbo", "delete-me"),
+        job_id="delete-job",
+        attempt=1,
+    )
+    second = write_completed_run(
+        package_root,
+        _document(source_sha, "qwen-fast", "keep-me"),
+        job_id="keep-job",
+        attempt=1,
+    )
+    second_bytes = (
+        package_root / "runs" / second["run_id"] / "transcript.json"
+    ).read_bytes()
+
+    receipt = delete_completed_run(
+        package_root,
+        source_id=package_root.name,
+        run_id=first["run_id"],
+        expected_transcript_sha256=first["transcript_sha256"],
+        operation_id="11111111-1111-4111-8111-111111111111",
+    )
+
+    assert receipt["schema_version"] == "tda_local_run_delete_receipt_v1"
+    assert receipt["deleted"] is True
+    assert receipt["cloud_changed"] is False
+    assert not (package_root / "runs" / first["run_id"]).exists()
+    assert (
+        package_root / "runs" / second["run_id"] / "transcript.json"
+    ).read_bytes() == second_bytes
+    assert [item["run_id"] for item in list_runs(package_root)] == [second["run_id"]]
+    with pytest.raises(TranscriptionRunError, match="TRANSCRIPTION_RUN_DELETED"):
+        load_run(package_root, first["run_id"], verify_content=False)
+
+    repeated = delete_completed_run(
+        package_root,
+        source_id=package_root.name,
+        run_id=first["run_id"],
+        expected_transcript_sha256=first["transcript_sha256"],
+        operation_id="22222222-2222-4222-8222-222222222222",
+    )
+    assert repeated["operation_id"] == receipt["operation_id"]
+
+
+def test_delete_compatibility_mirror_does_not_resurrect_as_legacy(tmp_path: Path):
+    source_sha = "e" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    manifest = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-detailed", "mirror"),
+        job_id="mirror-job",
+        attempt=1,
+    )
+    write_compatibility_mirror(package_root, manifest["run_id"])
+    assert (package_root / "transcript.json").is_file()
+
+    delete_completed_run(
+        package_root,
+        source_id=package_root.name,
+        run_id=manifest["run_id"],
+        expected_transcript_sha256=manifest["transcript_sha256"],
+        operation_id="33333333-3333-4333-8333-333333333333",
+    )
+
+    assert not (package_root / "transcript.json").exists()
+    assert list_runs(package_root) == []
+    assert migrate_legacy_transcript(
+        package_root,
+        source_id=package_root.name,
+        source_sha256=source_sha,
+    ) is None
+
+
+def test_delete_run_rejects_symlinked_revision_namespace(tmp_path: Path):
+    source_sha = "f" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+    manifest = write_completed_run(
+        package_root,
+        _document(source_sha, "qwen-quality", "protected"),
+        job_id="protected-job",
+        attempt=1,
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    revisions = package_root / "revisions"
+    try:
+        revisions.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+
+    with pytest.raises(
+        TranscriptionRunError,
+        match="TRANSCRIPTION_RUN_REVISION_ROOT_INVALID",
+    ):
+        delete_completed_run(
+            package_root,
+            source_id=package_root.name,
+            run_id=manifest["run_id"],
+            expected_transcript_sha256=manifest["transcript_sha256"],
+            operation_id="44444444-4444-4444-8444-444444444444",
+        )
+
+    assert (outside).is_dir()
+    assert load_run(package_root, manifest["run_id"], verify_content=False)

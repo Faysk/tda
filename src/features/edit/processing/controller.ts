@@ -25,6 +25,7 @@ export type ProcessingMutationKind =
 	| "cancel"
 	| "retry"
 	| "delete"
+	| "delete-run"
 	| "synthetic"
 	| "result";
 
@@ -613,6 +614,49 @@ export class ProcessingController {
 		await this.runOperation(null, async (signal) => {
 			await this.read(signal, { deep: false, includeLibrary: false });
 		});
+	};
+
+	deleteLocalRun = async (
+		sourceId: string,
+		runId: string,
+		transcriptSha256: string,
+	) => {
+		if (
+			this.#state.connection !== "connected" ||
+			this.#state.localReviewBusy ||
+			this.#state.localReview?.runId === runId
+		) return false;
+		const target = this.#state.localRuns.find(
+			(run) => run.sourceId === sourceId && run.runId === runId,
+		);
+		if (!target || target.transcriptSha256 !== transcriptSha256) return false;
+		let deleted = false;
+		await this.runOperation(
+			{ kind: "delete-run", targetId: `${sourceId}:${runId}` },
+			async (signal) => {
+				const receipt = await this.bridge.deleteLocalRun(
+					sourceId,
+					runId,
+					transcriptSha256,
+					crypto.randomUUID(),
+					signal,
+				);
+				if (signal.aborted || !receipt.deleted) return;
+				this.update({
+					localRuns: this.#state.localRuns.filter(
+						(run) => !(run.sourceId === sourceId && run.runId === runId),
+					),
+					localReview:
+						this.#state.localReview?.sourceId === sourceId &&
+						this.#state.localReview?.runId === runId
+							? null
+							: this.#state.localReview,
+					libraryRefreshError: null,
+				});
+				deleted = true;
+			},
+		);
+		return deleted;
 	};
 
 	loadMoreRuns = async () => {

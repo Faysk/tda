@@ -110,6 +110,7 @@ def _client(tmp_path: Path) -> TestClient:
         source_gate=api.state.source_gate,
         source_running=api.state.source_in_use,
         run_visible=api.state.transcription_run_visible,
+        result_deleted=api.state.store.clear_local_result_reference,
     )
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
@@ -594,3 +595,90 @@ def test_run_discovery_preflight_allows_only_get_authorization(tmp_path: Path):
         )
         assert rejected.status_code == 403
         assert rejected.json()["error"]["code"] == "PREFLIGHT_REJECTED"
+
+
+def test_local_run_delete_is_exact_idempotent_and_clears_queue_pointer(tmp_path: Path):
+    payload = _payload()
+    upload_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/zip",
+    }
+    json_headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/json",
+    }
+    with _client(tmp_path) as client:
+        staged = client.post(
+            "/api/v1/sources/craig",
+            headers=upload_headers,
+            content=payload,
+        )
+        assert staged.status_code == 200
+        source_id = staged.json()["source_id"]
+        package_root = tmp_path / "Data" / "staging" / source_id
+        package = load_craig_package(package_root, verify_tracks=False)
+
+        store, job = _running_job_for_source(
+            client,
+            source_id,
+            key="delete-run-job",
+        )
+        manifest = write_completed_run(
+            package_root,
+            _document(package),
+            job_id=job["id"],
+            attempt=1,
+        )
+        assert store.progress(
+            job["id"],
+            1,
+            completed=1,
+            total=1,
+            stage="transcription",
+        )
+        assert store.complete(
+            job["id"],
+            1,
+            {
+                "run_id": manifest["run_id"],
+                "transcript_sha256": manifest["transcript_sha256"],
+            },
+        )
+        assert store.get(job["id"])["result_available"] is True
+
+        body = {
+            "transcript_sha256": manifest["transcript_sha256"],
+            "operation_id": "55555555-5555-4555-8555-555555555555",
+        }
+        deleted = client.post(
+            f"/api/v1/sources/{source_id}/runs/{manifest['run_id']}/delete",
+            headers=json_headers,
+            json=body,
+        )
+        assert deleted.status_code == 200
+        receipt = deleted.json()
+        assert receipt["schema_version"] == "tda_local_run_delete_receipt_v1"
+        assert receipt["run_id"] == manifest["run_id"]
+        assert receipt["cloud_changed"] is False
+        assert store.get(job["id"])["status"] == "succeeded"
+        assert store.get(job["id"])["result_available"] is False
+
+        catalog = client.get(
+            "/api/v1/runs?limit=100",
+            headers={"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN},
+        )
+        assert catalog.status_code == 200
+        assert all(
+            item["run_id"] != manifest["run_id"]
+            for item in catalog.json()["runs"]
+        )
+
+        repeated = client.post(
+            f"/api/v1/sources/{source_id}/runs/{manifest['run_id']}/delete",
+            headers=json_headers,
+            json={**body, "operation_id": "66666666-6666-4666-8666-666666666666"},
+        )
+        assert repeated.status_code == 200
+        assert repeated.json()["operation_id"] == body["operation_id"]
