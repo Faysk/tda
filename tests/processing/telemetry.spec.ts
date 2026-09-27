@@ -86,6 +86,7 @@ test("renders local resource telemetry and factual worker events after automatic
 										code: "TRACK_PROGRESS",
 										at: "2026-09-20T19:20:00Z",
 										level: "info",
+										attempt: 1,
 										data: {
 											track: 1,
 											total_tracks: 4,

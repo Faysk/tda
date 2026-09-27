@@ -263,8 +263,15 @@ function latestActivity(
 	return null;
 }
 
-function eventTrackContext(events: readonly JobEvent[]) {
+function eventTrackContext(
+	events: readonly JobEvent[],
+	activeAttempt: number,
+) {
 	for (const event of events) {
+		// Current cockpit context is attempt-scoped. A retry starts with no
+		// track/window context until that attempt emits its own event; never
+		// borrow stale or legacy routine facts into the active cockpit.
+		if (event.attempt !== activeAttempt) continue;
 		const track = event.data.track;
 		const total = event.data.total_tracks;
 		const speaker = event.data.speaker;
@@ -417,7 +424,7 @@ export function ProcessingPanel({
 		["queued", "running"].includes(observedJob.status);
 	const trackContext =
 		activeJob && state.observedJobId === activeJob.id
-			? eventTrackContext(state.events)
+			? eventTrackContext(state.events, activeJob.attempt)
 			: null;
 	const activeActivity =
 		activeJob && state.observedJobId === activeJob.id
