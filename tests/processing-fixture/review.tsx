@@ -165,7 +165,7 @@ export function ReviewFixture() {
 		runId: comparisonReviewA.runId,
 		transcriptSha256: comparisonReviewA.baseTranscriptSha256,
 		profileId: comparisonReviewA.lineage.profileId,
-		completedAt: "2026-09-26T12:00:00Z",
+		completedAt: "2026-09-26T12:10:00Z",
 	};
 	const comparisonRunB: LocalRunSummary = {
 		...run,
