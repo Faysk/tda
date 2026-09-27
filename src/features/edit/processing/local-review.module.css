@@ -355,6 +355,11 @@
 	margin-bottom: 0;
 }
 
+.artifactHash {
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
 .reviewToolbar {
 	display: grid;
 	grid-template-columns: minmax(150px, .6fr) minmax(220px, 1fr) auto;
