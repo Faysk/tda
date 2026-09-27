@@ -284,6 +284,7 @@ function ReviewEditor({
 }>) {
     const scrollAnchor = useRef<{ key: string; top: number } | null>(null);
     const restoreAnchor = useRef(false);
+    const lastServerReview = useRef(review);
     const [baseline, setBaseline] = useState(review);
     const [comparison, setComparison] = useState<ReviewRebase | null>(null);
     const [comparing, setComparing] = useState(false);
@@ -319,17 +320,14 @@ function ReviewEditor({
 	}, [editingKey]);
 
 	useEffect(() => {
-		const serverAdvanced =
-			review.draftRevision !== baseline.draftRevision ||
-			review.draftSha256 !== baseline.draftSha256 ||
-			review.approvedAt !== baseline.approvedAt;
-		if (!serverAdvanced) return;
+		if (lastServerReview.current === review) return;
+		lastServerReview.current = review;
 		setBaseline(review);
 		setSegments(review.segments.map((segment) => ({ ...segment })));
 		setStatus(review.status);
 		setDirty(false);
 		restoreAnchor.current = scrollAnchor.current !== null;
-	}, [review, baseline.draftRevision, baseline.draftSha256, baseline.approvedAt]);
+	}, [review]);
 	const invalidStrings = segments.some((segment) => !isReviewStringV1(segment.text, "text") || !isReviewStringV1(segment.speaker, "speaker"));
 	const publicationPreflight = useMemo(
 		() =>
