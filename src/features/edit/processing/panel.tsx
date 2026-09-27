@@ -1166,12 +1166,14 @@ export function ProcessingPanel({
 
 							{observedJob ? (
 								<ProcessingLiveLog
+									key={`${observedJob.id}:${observedJob.attempt}`}
 									events={state.events}
 									job={observedJob}
 									system={state.system}
 									live={observedJobLive}
 									stale={Boolean(state.eventsRefreshError)}
 									activityCatalog={activityCatalog}
+									expectedPollMs={processingPollMs(observedJobLive)}
 								/>
 							) : null}
 
