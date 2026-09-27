@@ -614,9 +614,11 @@ describe("local result deletion contract", () => {
 		await expect(
 			bridge.deleteLocalRun(sourceId, runId, transcriptSha, signal()),
 		).resolves.toMatchObject({ deleted: true, cloudChanged: false });
-		expect(String(transport.mock.calls[0]?.[0])).toEndWith(
-			`/sources/${sourceId}/runs/${runId}/delete`,
-		);
+		expect(
+			String(transport.mock.calls[0]?.[0]).endsWith(
+				`/sources/${sourceId}/runs/${runId}/delete`,
+			),
+		).toBe(true);
 		expect(JSON.parse(String(transport.mock.calls[0]?.[1]?.body))).toEqual({
 			transcript_sha256: transcriptSha,
 		});
