@@ -196,6 +196,8 @@ export function ProcessingLiveLog({
 	const animationCutoffSeq = useRef<number | null>(initialSeq);
 	const latestEventsRef = useRef(events);
 	latestEventsRef.current = events;
+	const observedEventBatchRef = useRef(events);
+	const previousEventBatchAtRef = useRef<number | null>(performance.now());
 	const latestSnapshotSeq = snapshot.at(-1)?.seq ?? null;
 
 	useEffect(() => {
@@ -207,6 +209,17 @@ export function ProcessingLiveLog({
 	}, []);
 
 	useEffect(() => {
+		let observedPollGapMs: number | undefined;
+		if (observedEventBatchRef.current !== events) {
+			const observedAt = performance.now();
+			const previousObservedAt = previousEventBatchAtRef.current;
+			observedPollGapMs =
+				previousObservedAt === null
+					? undefined
+					: Math.max(0, observedAt - previousObservedAt);
+			previousEventBatchAtRef.current = observedAt;
+			observedEventBatchRef.current = events;
+		}
 		if (paused) return;
 		const next = boundedEvents(events);
 		setSnapshot(next);
@@ -222,7 +235,12 @@ export function ProcessingLiveLog({
 			return;
 		}
 
-		const plan = planLiveLogReveal(next, revealedSeqRef.current, expectedPollMs);
+		const plan = planLiveLogReveal(
+			next,
+			revealedSeqRef.current,
+			expectedPollMs,
+			observedPollGapMs,
+		);
 		if (!plan.steps.length) return;
 		setTypeDurationMs(plan.typeDurationMs);
 
@@ -274,6 +292,7 @@ export function ProcessingLiveLog({
 		}
 	}, [revealedSeq, paused]);
 
+	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
 	const visibleSnapshot = useMemo(
 		() =>
 			revealedSeq === null
@@ -289,12 +308,12 @@ export function ProcessingLiveLog({
 		track !== "all";
 	const filtered = useMemo(
 		() =>
-			(filtersActive ? snapshot : visibleSnapshot).filter((event) =>
+			(filtersActive ? boundedCurrentEvents : visibleSnapshot).filter((event) =>
 				matches(event, query.trim(), level, code, speaker, track),
 			),
 		[
 			filtersActive,
-			snapshot,
+			boundedCurrentEvents,
 			visibleSnapshot,
 			query,
 			level,
@@ -320,39 +339,38 @@ export function ProcessingLiveLog({
 		return "";
 	}, [snapshot, job, system, activityCatalog]);
 	const selected =
-		snapshot.find((event) => event.seq === selectedSeq) ?? null;
-	const boundedCurrentEvents = useMemo(() => boundedEvents(events), [events]);
+		boundedCurrentEvents.find((event) => event.seq === selectedSeq) ?? null;
 	const newEventCount = paused
 		? boundedCurrentEvents.filter(
 				(event) => latestSnapshotSeq === null || event.seq > latestSnapshotSeq,
 			).length
 		: 0;
 	const codeOptions = useMemo(
-		() => [...new Set(snapshot.map((event) => event.code))].sort(),
-		[snapshot],
+		() => [...new Set(boundedCurrentEvents.map((event) => event.code))].sort(),
+		[boundedCurrentEvents],
 	);
 	const speakerOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.speaker)
 						.filter((value): value is string => typeof value === "string" && Boolean(value)),
 				),
 			].sort(),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 	const trackOptions = useMemo(
 		() =>
 			[
 				...new Set(
-					snapshot
+					boundedCurrentEvents
 						.map((event) => event.data.track)
 						.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
 						.map(String),
 				),
 			].sort((left, right) => Number(left) - Number(right)),
-		[snapshot],
+		[boundedCurrentEvents],
 	);
 
 	function flushVisualTail(nextEvents: readonly JobEvent[]) {
@@ -384,7 +402,9 @@ export function ProcessingLiveLog({
 	}
 
 	function changeMode(nextMode: "humanized" | "technical") {
-		flushVisualTail(snapshot);
+		const next = boundedEvents(events);
+		setSnapshot(next);
+		flushVisualTail(next);
 		setMode(nextMode);
 	}
 
@@ -526,6 +546,7 @@ export function ProcessingLiveLog({
 								live &&
 								!paused &&
 								!reducedMotion &&
+								!filtersActive &&
 								(animationCutoffSeq.current === null ||
 									last.seq > animationCutoffSeq.current);
 							const humanizedGroup = humanText(
@@ -542,7 +563,9 @@ export function ProcessingLiveLog({
 								<button
 									type="button"
 									key={`group-${first.seq}-${last.seq}`}
-									className={styles.logEntry}
+									className={`${styles.logEntry} ${
+										mode === "technical" && animate ? styles.logEntryReveal : ""
+									}`}
 									data-level="info"
 									data-event-seq={last.seq}
 									onClick={() => setSelectedSeq(last.seq)}
@@ -579,13 +602,16 @@ export function ProcessingLiveLog({
 							live &&
 							!paused &&
 							!reducedMotion &&
+							!filtersActive &&
 							!urgent &&
 							(animationCutoffSeq.current === null ||
 								row.event.seq > animationCutoffSeq.current);
 						return (
 							<button
 								type="button"
-								className={styles.logEntry}
+								className={`${styles.logEntry} ${
+									mode === "technical" && animate ? styles.logEntryReveal : ""
+								}`}
 								key={row.event.seq}
 								data-level={row.event.level}
 								data-event-seq={row.event.seq}
