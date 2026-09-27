@@ -271,6 +271,7 @@ test("abandonment warning keeps private handoff semantics and preserves pending 
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
+ await page.reload();
 
  const pendingCount = () => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")).length);
  await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
