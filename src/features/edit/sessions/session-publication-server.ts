@@ -109,6 +109,21 @@ async function loadPublicationState(
 	if (!transcriptRevisionId)
 		return { ok: false, reason: "transcript_not_ready" };
 
+	const { data: transcriptVersionRaw, error: transcriptVersionError } =
+		await client
+			.from("transcript_revisions")
+			.select("revision_number")
+			.eq("id", transcriptRevisionId)
+			.eq("session_id", resolvedSessionId)
+			.maybeSingle();
+	if (transcriptVersionError)
+		return { ok: false, reason: "dependency_unavailable" };
+	const transcriptRevisionNumber = transcriptVersionRaw
+		? positiveInteger((transcriptVersionRaw as VersionRow).revision_number)
+		: null;
+	if (!transcriptRevisionNumber)
+		return { ok: false, reason: "transcript_not_ready" };
+
 	const { data: draftRaw, error: draftError } = await client
 		.from("session_editorial_drafts")
 		.select(
@@ -203,6 +218,7 @@ async function loadPublicationState(
 			draftId,
 			draftRevision,
 			transcriptRevisionId,
+			transcriptRevisionNumber,
 			coverAssetId,
 			coverState: status,
 			coverSha256: sha256,
