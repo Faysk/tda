@@ -45,6 +45,11 @@ export type CompanionFixtureOptions = {
 	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	benchmarkProfiles?: boolean;
+	benchmarkReadyProfiles?: string[];
+	benchmarkMinimumTrackDurationSeconds?: number | null;
+	benchmarkSubmitError?: string | null;
+	benchmarkPreparationFailureProfile?: string | null;
 	reviewEnabled?: boolean;
 	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
@@ -59,6 +64,7 @@ export type CompanionFixtureState = {
 	uploadCount: number;
 	jobPostCount: number;
 	preparationPostCount: number;
+	preparationProfiles: string[];
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -97,6 +103,51 @@ export function fixtureJob(
 			session_id: "sessao-42",
 			source_id: CRAIG_SOURCE_ID,
 			profile_id: "qwen-quality",
+		},
+		...overrides,
+	};
+}
+
+
+export function fixtureBenchmarkJob(
+	status: FixtureJobStatus,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	const terminal = status === "succeeded";
+	return {
+		id: "benchmark-job-1",
+		kind: "benchmark.craig",
+		status,
+		stage:
+			status === "queued"
+				? "queued"
+				: status === "running"
+					? "transcription"
+					: status,
+		progress:
+			status === "queued"
+				? { completed: 0, total: 4, unit: "profiles" }
+				: status === "running"
+					? { completed: 1, total: 4, unit: "profiles" }
+					: { completed: 4, total: 4, unit: "profiles" },
+		error:
+			status === "failed"
+				? { code: "BENCHMARK_PROFILE_FAILED", recoverable: true }
+				: null,
+		result_available: terminal,
+		updated_at: "2026-09-20T18:00:00Z",
+		attempt: 1,
+		context: {
+			campaign_id: "benchmark-local",
+			session_id: "benchmark-local",
+			source_id: CRAIG_SOURCE_ID,
+			profiles: [
+				"whisper-turbo",
+				"whisper-detailed",
+				"qwen-fast",
+				"qwen-quality",
+			],
+			prepared: true,
 		},
 		...overrides,
 	};
