@@ -41,7 +41,7 @@ export function TranscriptReader({
 	downloadHref: string;
 }>) {
 	const [query, setQuery] = useState("");
-	const [matchCursor, setMatchCursor] = useState(0);
+	const [matchCursor, setMatchCursor] = useState(-1);
 	const [jumpValue, setJumpValue] = useState("");
 	const [visibleCount, setVisibleCount] = useState(() =>
 		Math.min(INITIAL_VISIBLE, segments.length),
@@ -131,7 +131,7 @@ export function TranscriptReader({
 						value={query}
 						onChange={(event) => {
 							setQuery(event.currentTarget.value);
-							setMatchCursor(0);
+							setMatchCursor(-1);
 						}}
 						placeholder="Ex.: Alya ou floresta"
 					/>
