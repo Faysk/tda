@@ -377,6 +377,15 @@
 	min-width: 0;
 }
 
+.overviewTop[data-mode="idle"],
+.overviewTop[data-mode="queued"] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.overviewTop[data-mode="idle"] > section:first-child {
+	display: none;
+}
+
 .overviewTop > section:first-child {
 	display: flex;
 	min-width: 0;
