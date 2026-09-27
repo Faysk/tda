@@ -24,7 +24,6 @@ import {
 	parseJobListPage,
 	parseJobs,
 	parseLocalReview,
-	parseLocalRunCatalogPage,
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
@@ -496,17 +495,6 @@ export class LocalBridge {
 
 	async localSources(signal: AbortSignal) {
 		return parseLocalSources(await this.json("/sources", signal));
-	}
-
-	async localRunCatalog(
-		signal: AbortSignal,
-		options: Readonly<{ cursor?: string; limit?: number }> = {},
-	) {
-		const params = new URLSearchParams();
-		if (options.cursor !== undefined) params.set("cursor", options.cursor);
-		if (options.limit !== undefined) params.set("limit", String(options.limit));
-		const query = params.size ? `?${params.toString()}` : "";
-		return parseLocalRunCatalogPage(await this.json(`/runs${query}`, signal));
 	}
 
 	async localRuns(sourceId: string, signal: AbortSignal) {

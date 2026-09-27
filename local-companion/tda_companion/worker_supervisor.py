@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import json
 import queue
 import subprocess
 import sys
@@ -11,10 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .asr_runtime import inspect_whisper_runtime
+from .asr_runtime import current_whisper_worker
 from .qwen_physical_gate import inspect_qwen_physical_gate
-from .qwen_runtime import inspect_qwen_runtime
-from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
+from .qwen_runtime import current_qwen_worker
 from .worker_protocol import (
     MAX_LINE_BYTES,
     WorkerCancelCommand,
@@ -479,19 +477,13 @@ class WorkerSupervisor:
         if profile_id.startswith("whisper-"):
             if self.runtime_root is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNCONFIGURED")
-            state = inspect_whisper_runtime(self.runtime_root, verify_worker=False)
-            worker_value = state.get("worker")
-            if state.get("status") != "ready" or not isinstance(worker_value, str):
+            worker = current_whisper_worker(self.runtime_root)
+            if worker is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
-            worker = Path(worker_value)
-            artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
-            if artifact is None:
-                raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "whisper",
-                "TDA_ASR_RUNTIME_VERSION": artifact["version"],
-                RUNTIME_ARTIFACT_ENV: json.dumps(artifact, sort_keys=True, separators=(",", ":")),
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
             }
         elif profile_id.startswith("qwen-"):
             if self.runtime_root is None or self.state_root is None:
@@ -510,19 +502,13 @@ class WorkerSupervisor:
             )
             if gate.get("ready") is not True:
                 raise WorkerProcessError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")
-            state = inspect_qwen_runtime(self.runtime_root, verify_worker=False)
-            worker_value = state.get("worker")
-            if state.get("status") != "ready" or not isinstance(worker_value, str):
+            worker = current_qwen_worker(self.runtime_root, verify_worker=False)
+            if worker is None:
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
-            worker = Path(worker_value)
-            artifact = runtime_artifact(state, family="qwen", version=worker.parent.name)
-            if artifact is None or artifact != gate.get("runtime_artifact"):
-                raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "qwen",
-                "TDA_ASR_RUNTIME_VERSION": artifact["version"],
-                RUNTIME_ARTIFACT_ENV: json.dumps(artifact, sort_keys=True, separators=(",", ":")),
+                "TDA_ASR_RUNTIME_VERSION": worker.parent.name,
             }
 
         if is_cancelled is not None and is_cancelled():
@@ -540,6 +526,7 @@ class WorkerSupervisor:
             process_command=runtime_command,
             environment_overrides=runtime_environment,
         )
+
 
     def run_benchmark(
         self,
@@ -615,4 +602,3 @@ class WorkerSupervisor:
             },
             returncode=0,
         )
-
