@@ -904,7 +904,7 @@ export function ProcessingSubmission({
 					) : null}
 
 					{source ? (
-						<section className={styles.estimatePanel} aria-label="Estimativas locais por perfil">
+						<section className={styles.estimatePanel} aria-label="Estimativas locais de processamento">
 							<div className={styles.estimateHeader}>
 								<strong>Estimativa nesta máquina</strong>
 								<small>
