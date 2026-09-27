@@ -55,6 +55,80 @@ test("privileged Preview workflow does not execute repository install/build scri
 });
 
 
+test("Production automatic release accepts only successful main push CI", () => {
+  const active = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  const normalized = active.replace(/\s+/g, " ");
+
+  assert.match(
+    normalized,
+    /if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.head_branch == 'main'\) \}\}/,
+  );
+
+  const eligible = ({
+    eventName = "workflow_run",
+    conclusion = "success",
+    triggeringEvent = "push",
+    headBranch = "main",
+  } = {}) =>
+    eventName === "workflow_dispatch" ||
+    (eventName === "workflow_run" &&
+      conclusion === "success" &&
+      triggeringEvent === "push" &&
+      headBranch === "main");
+
+  const cases = [
+    {
+      name: "successful main push CI",
+      input: {
+        eventName: "workflow_run",
+        conclusion: "success",
+        triggeringEvent: "push",
+        headBranch: "main",
+      },
+      expected: true,
+    },
+    {
+      name: "reverse-sync pull request CI with head main",
+      input: {
+        eventName: "workflow_run",
+        conclusion: "success",
+        triggeringEvent: "pull_request",
+        headBranch: "main",
+      },
+      expected: false,
+    },
+    {
+      name: "successful push outside main",
+      input: {
+        eventName: "workflow_run",
+        conclusion: "success",
+        triggeringEvent: "push",
+        headBranch: "feature/reverse-sync",
+      },
+      expected: false,
+    },
+    {
+      name: "failed main push CI",
+      input: {
+        eventName: "workflow_run",
+        conclusion: "failure",
+        triggeringEvent: "push",
+        headBranch: "main",
+      },
+      expected: false,
+    },
+    {
+      name: "manual exact-main redeploy",
+      input: { eventName: "workflow_dispatch" },
+      expected: true,
+    },
+  ];
+
+  for (const entry of cases) {
+    assert.equal(eligible(entry.input), entry.expected, entry.name);
+  }
+});
+
 test("Production has exactly one automatic controller after the operational hold", () => {
   const active = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
   const retired = readFileSync(join(workflowRoot, "production.yml"), "utf8");
