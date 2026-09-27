@@ -433,11 +433,11 @@
 }
 
 .copyFeedback[data-tone="success"] {
-	color: var(--ds-success-foreground);
+	color: var(--ds-success);
 }
 
 .copyFeedback[data-tone="error"] {
-	color: var(--ds-danger-foreground);
+	color: var(--ds-danger);
 }
 
 @media (min-width: 1700px) {
