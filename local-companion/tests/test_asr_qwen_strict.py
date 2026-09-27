@@ -395,7 +395,10 @@ def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path
         energy_reader=lambda *_args: -120.0,
     )
 
-    assert calls == 1
+    # Strict Qwen performs a transcription pass and a bounded replay/energy pass.
+    # The regression is that both terminate through the supplied source iterator
+    # instead of recursively calling the benchmark wrapper.
+    assert calls == 2
     assert document.stats.segment_count == 0
     assert document.stats.word_count == 0
 
