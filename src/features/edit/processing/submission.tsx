@@ -882,7 +882,11 @@ export function ProcessingSubmission({
 					</div>
 
 					{selectedProfileState ? (
-						<div className={styles.profileSummary} data-ready={selectedProfileState.ready ? "true" : "false"}>
+						<div
+							className={styles.profileSummary}
+							data-ready={selectedProfileState.ready ? "true" : "false"}
+							role={profileBlocked ? "alert" : "status"}
+						>
 							<div>
 								<strong>{submissionProfileLabel(selectedProfileState.id)}</strong>
 								<span>
