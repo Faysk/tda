@@ -92,7 +92,7 @@ export type LocalJob = {
 	result_available: boolean;
 	updated_at: string;
 	attempt: number;
-	timing: JobTiming;
+	timing?: JobTiming;
 	context: JobContext | null;
 };
 export type JobListScope = "all" | "active" | "history";
