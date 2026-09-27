@@ -106,7 +106,6 @@ function canonicalPayload(pack: Omit<ActivityPack, "canonicalSha256">) {
 		author: pack.author,
 		language: pack.language,
 		humor_level: pack.humorLevel,
-		enabled: pack.enabled,
 		templates: pack.templates.map((item) => ({
 			id: item.id,
 			family: item.family,
@@ -278,6 +277,7 @@ export function exportActivityPack(pack: ActivityPack) {
 	return JSON.stringify(
 		{
 			...canonicalPayload(pack),
+			enabled: pack.enabled,
 			canonical_sha256: pack.canonicalSha256,
 		},
 		null,
