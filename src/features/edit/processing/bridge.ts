@@ -381,6 +381,62 @@ export class LocalBridge {
 			),
 		);
 	}
+	async updateSessionPartTiming(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		timing: Readonly<{
+			manualOffsetSeconds: number | null;
+			trimStartSeconds: number;
+			trimEndSeconds: number | null;
+		}>,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/timing`,
+				signal,
+				{
+					part_id: identifier(partId),
+					manual_offset_seconds: timing.manualOffsetSeconds,
+					trim_start_seconds: timing.trimStartSeconds,
+					trim_end_seconds: timing.trimEndSeconds,
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+	async resolveSessionTimeline(
+		campaignId: string,
+		sessionId: string,
+		earlierPartId: string,
+		laterPartId: string,
+		resolution: Readonly<{
+			decision:
+				| "gap_acknowledged"
+				| "prefer_earlier_until"
+				| "prefer_later_from"
+				| null;
+			boundarySeconds: number | null;
+		}>,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/timeline/resolve`,
+				signal,
+				{
+					earlier_part_id: identifier(earlierPartId),
+					later_part_id: identifier(laterPartId),
+					decision: resolution.decision,
+					boundary_seconds: resolution.boundarySeconds,
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
 	async preparation(signal: AbortSignal) {
 		return parsePreparationStatus(await this.json("/preparation", signal));
 	}
