@@ -220,11 +220,6 @@ jobs:
         run: pnpm test:processing
       - name: Responsive UX matrix
         run: pnpm test:processing:ux
-      - name: Scratch Companion integration
-        run: pnpm test:processing:integration
-        env:
-          TDA_COMPANION_PYTHON: .venv/bin/python
-          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
       - name: Upload Live Log visual receipt
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -237,6 +232,11 @@ jobs:
             test-results/**/live-log-reduced-motion.png
           if-no-files-found: ignore
           retention-days: 30
+      - name: Scratch Companion integration
+        run: pnpm test:processing:integration
+        env:
+          TDA_COMPANION_PYTHON: .venv/bin/python
+          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
       - name: Upload sanitized Processing failure artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
