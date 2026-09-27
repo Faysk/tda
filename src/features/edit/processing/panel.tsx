@@ -69,17 +69,31 @@ function formatTime(value: string): string {
 	});
 }
 
+function elapsedSeconds(startedAt: string | null, now: number): number | null {
+	if (!startedAt) return null;
+	const started = Date.parse(startedAt);
+	if (!Number.isFinite(started) || started > now + 5_000) return null;
+	return Math.max(0, Math.floor((now - started) / 1000));
+}
+
+function formatElapsed(seconds: number | null): string {
+	if (seconds === null) return "—";
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const rest = seconds % 60;
+	if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(rest).padStart(2, "0")}s`;
+	if (minutes) return `${minutes}m ${String(rest).padStart(2, "0")}s`;
+	return `${rest}s`;
+}
+
 function progressCopy(job: LocalJob): string {
 	if (!job.progress) return "Sem medida de progresso nesta etapa.";
 	const unit = job.progress.unit === "items" ? "itens" : job.progress.unit;
 	return `${job.progress.completed} de ${job.progress.total} ${unit}`;
 }
 
-const preparationStages = new Set([
-	"queued",
-	"preparing",
-	"runtime_validation",
-	"source_validation",
+const sourceStages = new Set(["queued", "preparing", "runtime_validation", "source_validation"]);
+const modelStages = new Set([
 	"checking_model",
 	"downloading_model",
 	"model_prepare",
@@ -95,10 +109,9 @@ const processingStages = new Set([
 	"diarization",
 	"noise_cleanup",
 	"resuming",
-	"alignment",
 ]);
+const alignmentStages = new Set(["alignment", "energy_analysis"]);
 const consolidationStages = new Set([
-	"energy_analysis",
 	"cross_track_dedup",
 	"merge_timeline",
 	"turn_building",
@@ -106,17 +119,24 @@ const consolidationStages = new Set([
 	"consolidating",
 	"complete",
 ]);
+const pipelinePhases = [
+	{ label: "Fonte", stages: sourceStages },
+	{ label: "Modelo", stages: modelStages },
+	{ label: "Transcrição", stages: processingStages },
+	{ label: "Alignment", stages: alignmentStages },
+	{ label: "Consolidação", stages: consolidationStages },
+] as const;
 
-function pipelineState(
-	stage: string,
-	phase: "preparation" | "processing" | "consolidation",
-): "current" | "done" | "pending" {
-	if (phase === "preparation") return preparationStages.has(stage) ? "current" : "done";
-	if (phase === "processing") {
-		if (processingStages.has(stage)) return "current";
-		return consolidationStages.has(stage) ? "done" : "pending";
-	}
-	return consolidationStages.has(stage) ? "current" : "pending";
+function pipelineStageIndex(stage: string): number {
+	const index = pipelinePhases.findIndex((phase) => phase.stages.has(stage));
+	return index >= 0 ? index : 0;
+}
+
+function pipelineState(stage: string, index: number): "current" | "done" | "pending" {
+	const current = pipelineStageIndex(stage);
+	if (index < current) return "done";
+	if (index === current) return "current";
+	return "pending";
 }
 
 function eventTrackContext(events: readonly JobEvent[]) {
@@ -157,6 +177,7 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -214,6 +235,15 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	const attemptElapsed = activeJob
+		? elapsedSeconds(activeJob.timing.attemptStartedAt, clockNow)
+		: null;
+	const stageElapsed = activeJob
+		? elapsedSeconds(activeJob.timing.stageStartedAt, clockNow)
+		: null;
+	const trackElapsed = activeJob
+		? elapsedSeconds(activeJob.timing.trackStartedAt, clockNow)
+		: null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const observedJobLive =
 		observedJob !== null &&
@@ -223,6 +253,14 @@ export function ProcessingPanel({
 			? eventTrackContext(state.events)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
+
+	useEffect(() => {
+		if (!activeJob?.timing.attemptStartedAt) return;
+		const tick = () => setClockNow(Date.now());
+		tick();
+		const timer = window.setInterval(tick, 1000);
+		return () => window.clearInterval(timer);
+	}, [activeJob?.id, activeJob?.attempt, activeJob?.timing.attemptStartedAt]);
 
 	async function confirm() {
 		const choice = confirmation;
@@ -454,10 +492,13 @@ export function ProcessingPanel({
 												<span>Segmento {trackContext.segment}</span>
 											) : null}
 											{activeJob.attempt > 0 ? (
-												<span>Tentativa {activeJob.attempt}</span>
+												<span>Tentativa {activeJob.attempt} · {formatElapsed(attemptElapsed)}</span>
+											) : null}
+											{activeJob.timing.currentTrack !== null ? (
+												<span>Track atual · {formatElapsed(trackElapsed)}</span>
 											) : null}
 											<span>
-												Worker ativo · {formatTime(activeJob.updated_at)}
+												Etapa há {formatElapsed(stageElapsed)} · worker {formatTime(activeJob.updated_at)}
 											</span>
 										</div>
 										{activeJob.progress && activePercent !== null ? (
@@ -484,30 +525,17 @@ export function ProcessingPanel({
 											className={styles.pipeline}
 											aria-label="Etapa atual do processamento"
 										>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"preparation",
-												)}
-											>
-												Preparação
-											</span>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"processing",
-												)}
-											>
-												Processamento
-											</span>
-											<span
-												data-state={pipelineState(
-													activeJob.stage,
-													"consolidation",
-												)}
-											>
-												Consolidação
-											</span>
+											{pipelinePhases.map((phase, index) => {
+												const state = pipelineState(activeJob.stage, index);
+												return (
+													<span key={phase.label} data-state={state}>
+														{phase.label}
+														{state === "current" && stageElapsed !== null
+															? ` · ${formatElapsed(stageElapsed)}`
+															: ""}
+													</span>
+												);
+											})}
 										</section>
 										<div className={styles.activeActions}>
 											<Button
