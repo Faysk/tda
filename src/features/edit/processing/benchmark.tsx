@@ -571,15 +571,6 @@ export function ProcessingBenchmark({
 							className={styles.dropZone}
 							data-active={dragActive ? "true" : "false"}
 							data-selected={file ? "true" : "false"}
-							onDragEnter={(event) => {
-								event.preventDefault();
-								if (!(sourceBusy || busy || preparingProfiles || active)) setDragActive(true);
-							}}
-							onDragOver={(event) => event.preventDefault()}
-							onDragLeave={(event) => {
-								if (event.currentTarget === event.target) setDragActive(false);
-							}}
-							onDrop={handleSourceDrop}
 						>
 							<input
 								ref={fileInput}
@@ -594,6 +585,15 @@ export function ProcessingBenchmark({
 								type="button"
 								className={styles.dropAction}
 								disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+								onDragEnter={(event) => {
+									event.preventDefault();
+									if (!(sourceBusy || busy || preparingProfiles || active)) setDragActive(true);
+								}}
+								onDragOver={(event) => event.preventDefault()}
+								onDragLeave={(event) => {
+									if (event.currentTarget === event.target) setDragActive(false);
+								}}
+								onDrop={handleSourceDrop}
 								onClick={() => fileInput.current?.click()}
 							>
 								<span className={styles.dropGlyph} aria-hidden="true">ZIP</span>
