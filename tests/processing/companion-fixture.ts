@@ -425,6 +425,12 @@ export async function installCompanionFixture(
 				source_sha256: sourceSha,
 				size_bytes: 2048,
 				track_count: 2,
+				audio_work_seconds: 600,
+				session_duration_seconds: 300,
+				minimum_track_duration_seconds:
+					options.benchmarkMinimumTrackDurationSeconds === undefined
+						? 300
+						: options.benchmarkMinimumTrackDurationSeconds,
 				reused: false,
 			});
 		}
