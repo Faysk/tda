@@ -691,7 +691,7 @@ export function ProcessingBenchmark({
 					</section>
 				</div>
 
-				<div className={styles.nextAction} aria-label="Próxima ação">
+				<div className={styles.nextAction}>
 					<div>
 						<span className={styles.eyebrow}>Próxima ação</span>
 						<strong>{nextAction.title}</strong>
