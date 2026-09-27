@@ -4,9 +4,12 @@ test("base remains unsaved until an explicit editorial action", async ({ page })
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	const search = page.getByLabel("Buscar na timeline");
+	await search.fill("persistir-busca");
 	await page.getByLabel("Estado do draft").selectOption("approved_local");
 	await page.getByRole("button", { name: "Salvar revisão" }).click();
 	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
+	await expect(search).toHaveValue("persistir-busca");
 	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 });
@@ -15,6 +18,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await page.goto("/?review-contracts&old-agent");
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
+	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 });
 
