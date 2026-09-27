@@ -168,3 +168,92 @@ def test_reorder_requires_exact_part_set_and_current_revision(tmp_path):
         store.detach_session_part(
             "campaign-a", "session-a", reordered["parts"][0]["part_id"], workspace["revision"]
         )
+
+
+def test_session_part_timing_is_cas_guarded_and_survives_restart(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-a", "session-a")
+    workspace = store.attach_session_source(
+        "campaign-a", "session-a", source_id(1), workspace["revision"]
+    )
+    part_id = workspace["parts"][0]["part_id"]
+    timing = {
+        "schema_version": "tda_session_part_timing_v1",
+        "mode": "manual",
+        "session_offset_seconds": 42.5,
+        "trim_start_seconds": 1.25,
+        "trim_end_seconds": 20.0,
+        "gap_confirmed": True,
+        "overlap_resolution": None,
+    }
+    updated = store.set_session_part_timing(
+        "campaign-a",
+        "session-a",
+        part_id,
+        timing,
+        workspace["revision"],
+    )
+    assert updated["revision"] == workspace["revision"] + 1
+    assert updated["parts"][0]["timing"] == timing
+
+    restarted = Store(tmp_path)
+    recovered = restarted.session_workspace("campaign-a", "session-a")
+    assert recovered["parts"][0]["timing"] == timing
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        restarted.set_session_part_timing(
+            "campaign-a",
+            "session-a",
+            part_id,
+            timing,
+            workspace["revision"],
+        )
+
+
+def test_manual_reorder_provenance_persists_and_detach_removes_timing(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-a", "session-a")
+    for seed in range(1, 3):
+        workspace = store.attach_session_source(
+            "campaign-a", "session-a", source_id(seed), workspace["revision"]
+        )
+    first_id = workspace["parts"][0]["part_id"]
+    timed = store.set_session_part_timing(
+        "campaign-a",
+        "session-a",
+        first_id,
+        {
+            "schema_version": "tda_session_part_timing_v1",
+            "mode": "manual",
+            "session_offset_seconds": 10.0,
+            "trim_start_seconds": 0.0,
+            "trim_end_seconds": None,
+            "gap_confirmed": False,
+            "overlap_resolution": None,
+        },
+        workspace["revision"],
+    )
+    reordered = store.reorder_session_parts(
+        "campaign-a",
+        "session-a",
+        [timed["parts"][1]["part_id"], timed["parts"][0]["part_id"]],
+        timed["revision"],
+    )
+    assert reordered["order_provenance"] == "manual"
+
+    restarted = Store(tmp_path)
+    recovered = restarted.session_workspace("campaign-a", "session-a")
+    assert recovered["order_provenance"] == "manual"
+
+    detached = restarted.detach_session_part(
+        "campaign-a",
+        "session-a",
+        first_id,
+        reordered["revision"],
+    )
+    with sqlite3.connect(restarted.path) as db:
+        assert db.execute(
+            "SELECT 1 FROM session_recording_part_timing WHERE part_id=?",
+            (first_id,),
+        ).fetchone() is None
+    assert len(detached["parts"]) == 1
