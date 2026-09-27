@@ -819,6 +819,10 @@
 
 .logModeSwitch {
 	display: flex;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
 	align-items: center;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -1412,5 +1416,131 @@
 
 	.pipeline {
 		grid-template-columns: 1fr;
+	}
+}
+
+
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.liveLogExplorer {
+	display: grid;
+	gap: 8px;
+	min-height: 0;
+}
+.liveLogExplorer .logHeader {
+	align-items: flex-start;
+}
+.logToolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.logToolbar input,
+.logToolbar select,
+.logToolbar button {
+	min-height: 32px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas);
+	color: var(--ds-foreground);
+	font: inherit;
+	font-size: 0.72rem;
+}
+.logToolbar input {
+	min-width: min(260px, 70vw);
+	padding-inline: 8px;
+}
+.logToolbar select,
+.logToolbar button {
+	padding-inline: 8px;
+}
+.logToggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+.liveLogExplorer .log {
+	max-height: min(52vh, 620px);
+	overflow: auto;
+}
+.liveLogExplorer .logEntry {
+	width: 100%;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+.logBoundedNote {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+	text-align: center;
+}
+
+.logCatchup {
+	justify-self: center;
+	padding: 5px 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: 999px;
+	background: var(--ds-canvas-raised);
+	color: var(--ds-foreground);
+	font: inherit;
+	font-size: 0.72rem;
+	cursor: pointer;
+}
+.logInspector {
+	padding: 8px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+.logInspector summary {
+	cursor: pointer;
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+.logInspector dl {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 6px;
+}
+.logInspector dl > div {
+	min-width: 0;
+}
+.logInspector dt {
+	color: var(--ds-foreground-muted);
+	font-size: 0.65rem;
+}
+.logInspector dd {
+	margin: 2px 0 0;
+	font-size: 0.72rem;
+	overflow-wrap: anywhere;
+}
+.logInspector pre {
+	max-height: 220px;
+	overflow: auto;
+	margin: 8px 0 0;
+	padding: 8px;
+	background: var(--ds-canvas);
+	font-size: 0.68rem;
+	white-space: pre-wrap;
+}
+@media (max-width: 720px) {
+	.logInspector dl {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }

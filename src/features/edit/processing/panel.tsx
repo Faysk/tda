@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
 import { ProcessingCommandBar } from "./command-bar";
+import { ProcessingLiveLog } from "./live-log";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
@@ -294,7 +295,6 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
-	const [logMode, setLogMode] = useState<"humanized" | "technical">("humanized");
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -1065,80 +1065,15 @@ export function ProcessingPanel({
 								</p>
 							)}
 
-							<div className={styles.logHeader}>
-								<h3>
-									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
-								</h3>
-								<div className={styles.logModeSwitch}>
-									<button
-										type="button"
-										aria-pressed={logMode === "humanized"}
-										onClick={() => setLogMode("humanized")}
-									>
-										Humanizada
-									</button>
-									<button
-										type="button"
-										aria-pressed={logMode === "technical"}
-										onClick={() => setLogMode("technical")}
-									>
-										Técnica
-									</button>
-									<span>
-										{state.events.length
-											? observedJobLive
-												? "● ativo"
-												: `${state.events.length} mais recente${state.events.length === 1 ? "" : "s"}`
-											: "sem eventos"}
-									</span>
-								</div>
-							</div>
-							{state.eventsRefreshError ? <p role="status">Eventos desatualizados. O último histórico disponível foi preservado.</p> : null}
-							<div
-								className={`${styles.log} ${state.events.length ? "" : styles.logEmpty}`}
-								role="log"
-								aria-label="Eventos do processamento local"
-								aria-relevant="additions text"
-							>
-								{state.events.length ? (
-									state.events.slice(0, 100).map((event) => {
-										const factual = presentJobEvent(event);
-										const bark =
-											logMode === "humanized" &&
-											observedJob &&
-											activityEventCanBeHumorous(event)
-												? selectActivityBark(
-														activityContext(event, observedJob, state.system),
-														{ level: "tda" },
-													)
-												: null;
-										const presented = bark
-											? { title: bark.text, detail: factual.detail }
-											: factual;
-										return (
-											<div
-												className={styles.logEntry}
-												key={event.seq}
-												data-level={event.level}
-											>
-												<time dateTime={event.at}>
-													{formatTime(event.at)}
-												</time>
-												<div>
-													<span>{presented.title}</span>
-													{presented.detail ? (
-														<small>{presented.detail}</small>
-													) : null}
-												</div>
-											</div>
-										);
-									})
-								) : (
-									<p>
-										Nenhum evento detalhado disponível para este trabalho.
-									</p>
-								)}
-							</div>
+							{observedJob ? (
+								<ProcessingLiveLog
+									events={state.events}
+									job={observedJob}
+									system={state.system}
+									live={observedJobLive}
+									stale={Boolean(state.eventsRefreshError)}
+								/>
+							) : null}
 
 							{state.capabilities?.capabilities.includes(
 								"synthetic.fixture",
