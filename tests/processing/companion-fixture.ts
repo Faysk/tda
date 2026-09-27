@@ -45,6 +45,11 @@ export type CompanionFixtureOptions = {
 	jobEvents?: Record<string, unknown>[];
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
+	benchmarkProfiles?: boolean;
+	benchmarkReadyProfiles?: string[];
+	benchmarkMinimumTrackDurationSeconds?: number | null;
+	benchmarkSubmitError?: string | null;
+	benchmarkPreparationFailureProfile?: string | null;
 	reviewEnabled?: boolean;
 	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
@@ -59,6 +64,7 @@ export type CompanionFixtureState = {
 	uploadCount: number;
 	jobPostCount: number;
 	preparationPostCount: number;
+	preparationProfiles: string[];
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -103,6 +109,51 @@ export function fixtureJob(
 	};
 }
 
+
+export function fixtureBenchmarkJob(
+	status: FixtureJobStatus,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	const terminal = status === "succeeded";
+	return {
+		id: "benchmark-job-1",
+		kind: "benchmark.craig",
+		status,
+		stage:
+			status === "queued"
+				? "queued"
+				: status === "running"
+					? "transcription"
+					: status,
+		progress:
+			status === "queued"
+				? { completed: 0, total: 4, unit: "profiles" }
+				: status === "running"
+					? { completed: 1, total: 4, unit: "profiles" }
+					: { completed: 4, total: 4, unit: "profiles" },
+		error:
+			status === "failed"
+				? { code: "BENCHMARK_PROFILE_FAILED", recoverable: true }
+				: null,
+		result_available: terminal,
+		updated_at: "2026-09-20T18:00:00Z",
+		attempt: 1,
+		context: {
+			campaign_id: "benchmark-local",
+			session_id: "benchmark-local",
+			source_id: CRAIG_SOURCE_ID,
+			profiles: [
+				"whisper-turbo",
+				"whisper-detailed",
+				"qwen-fast",
+				"qwen-quality",
+			],
+			prepared: true,
+		},
+		...overrides,
+	};
+}
+
 function json(route: Route, value: unknown, status = 200) {
 	return route.fulfill({
 		status,
@@ -141,9 +192,20 @@ export async function installCompanionFixture(
 	let systemState = options.system;
 	let jobEvents = options.jobEvents ?? null;
 	let prepared = options.profileReady ?? false;
+	const benchmarkProfileIds = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	] as const;
+	const benchmarkPrepared = new Set<string>(
+		options.benchmarkReadyProfiles ??
+			(options.profileReady ? [...benchmarkProfileIds] : []),
+	);
 	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
 	let preparationReads = 0;
 	let preparationStarted = false;
+	let preparationProfile = "qwen-quality";
 	let jobsReads = 0;
 	let jobsGetCount = 0;
 	let expired = false;
@@ -155,6 +217,7 @@ export async function installCompanionFixture(
 		uploadCount: 0,
 		jobPostCount: 0,
 		preparationPostCount: 0,
+		preparationProfiles: [],
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
@@ -225,6 +288,52 @@ export async function installCompanionFixture(
 		}
 
 		if (path === "/capabilities") {
+			if (options.benchmarkProfiles) {
+				const catalog = benchmarkProfileIds.map((id) => {
+					const ready = benchmarkPrepared.has(id);
+					return {
+						id,
+						engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
+						ready,
+						preparation_required: !ready,
+						reason: ready ? null : "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+					};
+				});
+				return json(route, {
+					capabilities: [
+						...(options.reviewEnabled ? ["transcription.review"] : []),
+						"transcription.craig",
+						"transcription.prepare",
+						"transcription.prepare.cancel",
+						"job.events",
+						"system.telemetry",
+					],
+					sync: false,
+					device: { id: "fixture-pc", label: "PC sintético" },
+					transcription: {
+						profiles: benchmarkProfileIds.filter((id) => benchmarkPrepared.has(id)),
+						catalog,
+						qwen_physical_gate: Object.fromEntries(
+							(["qwen-fast", "qwen-quality"] as const).map((id) => [
+								id,
+								benchmarkPrepared.has(id)
+									? {
+											status: "ready",
+											ready: true,
+											profile_id: id,
+											runtime_version: qwenRuntimeVersion,
+										}
+									: {
+											status: "missing",
+											ready: false,
+											profile_id: id,
+											reason: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+										},
+							]),
+						),
+					},
+				});
+			}
 			return json(route, {
 				capabilities: [
 					...(options.reviewEnabled ? ["transcription.review"] : []),
@@ -321,6 +430,12 @@ export async function installCompanionFixture(
 				source_sha256: sourceSha,
 				size_bytes: 2048,
 				track_count: 2,
+				audio_work_seconds: 600,
+				session_duration_seconds: 300,
+				minimum_track_duration_seconds:
+					options.benchmarkMinimumTrackDurationSeconds === undefined
+						? 300
+						: options.benchmarkMinimumTrackDurationSeconds,
 				reused: false,
 			});
 		}
@@ -331,14 +446,26 @@ export async function installCompanionFixture(
 			} catch {
 				return invalidRequest(route);
 			}
+			const row =
+				payload && typeof payload === "object" && !Array.isArray(payload)
+					? (payload as Record<string, unknown>)
+					: null;
+			const requestedProfile =
+				row && typeof row.profile_id === "string" ? row.profile_id : null;
 			if (
-				!exactObject(payload, {
-					source_id: CRAIG_SOURCE_ID,
-					profile_id: "qwen-quality",
-				})
+				!row ||
+				row.source_id !== CRAIG_SOURCE_ID ||
+				!requestedProfile ||
+				(options.benchmarkProfiles
+					? !benchmarkProfileIds.includes(
+							requestedProfile as (typeof benchmarkProfileIds)[number],
+						)
+					: requestedProfile !== "qwen-quality")
 			)
 				return invalidRequest(route);
+			preparationProfile = requestedProfile;
 			state.preparationPostCount += 1;
+			state.preparationProfiles.push(requestedProfile);
 			preparationReads = 0;
 			preparationStarted = true;
 			return json(route, {
@@ -347,10 +474,10 @@ export async function installCompanionFixture(
 				active: true,
 				operation_id: "c".repeat(32),
 				source_id: CRAIG_SOURCE_ID,
-				profile_id: "qwen-quality",
-				engine: "qwen3",
-				stage: "qwen_probe",
-				title: "Validando Qwen",
+				profile_id: requestedProfile,
+				engine: requestedProfile.startsWith("qwen-") ? "qwen3" : "whisper",
+				stage: requestedProfile.startsWith("qwen-") ? "qwen_probe" : "whisper_model",
+				title: `Preparando ${requestedProfile}`,
 				detail: "Fixture local",
 				sequence: 1,
 				elapsed_seconds: 0.1,
@@ -376,21 +503,27 @@ export async function installCompanionFixture(
 				});
 			}
 			preparationReads += 1;
-			if (preparationReads >= 1) prepared = true;
+			const failed =
+				options.benchmarkProfiles &&
+				options.benchmarkPreparationFailureProfile === preparationProfile;
+			if (preparationReads >= 1 && !failed) {
+				if (options.benchmarkProfiles) benchmarkPrepared.add(preparationProfile);
+				else prepared = true;
+			}
 			return json(route, {
 				schema: "tda_profile_preparation_v1",
-				state: "completed",
+				state: failed ? "failed" : "completed",
 				active: false,
 				operation_id: "c".repeat(32),
 				source_id: CRAIG_SOURCE_ID,
-				profile_id: "qwen-quality",
-				engine: "qwen3",
-				stage: "complete",
-				title: "Qwen pronto",
+				profile_id: preparationProfile,
+				engine: preparationProfile.startsWith("qwen-") ? "qwen3" : "whisper",
+				stage: failed ? "failed" : "complete",
+				title: failed ? "Preparação falhou" : `${preparationProfile} pronto`,
 				detail: "",
 				sequence: 2,
 				elapsed_seconds: 0.2,
-				error_code: null,
+				error_code: failed ? "BENCHMARK_PREPARATION_FAILED" : null,
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
@@ -400,9 +533,36 @@ export async function installCompanionFixture(
 			} catch {
 				return invalidRequest(route);
 			}
+			if (!idempotencyKey || !/^[A-Za-z0-9_-]{1,128}$/u.test(idempotencyKey))
+				return invalidRequest(route);
+			const benchmarkRequest = exactObject(payload, {
+				kind: "benchmark.craig",
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				source_id: CRAIG_SOURCE_ID,
+				glossary: "",
+				context: "",
+			});
+			if (benchmarkRequest && options.benchmarkProfiles) {
+				if (options.benchmarkSubmitError)
+					return json(
+						route,
+						{
+							error: {
+								code: options.benchmarkSubmitError,
+								recoverable: true,
+							},
+						},
+						409,
+					);
+				state.jobPostCount += 1;
+				state.idempotencyKeys.push(idempotencyKey);
+				state.job = fixtureBenchmarkJob("queued");
+				submittedJob = true;
+				jobsReads = 0;
+				return json(route, state.job);
+			}
 			if (
-				!idempotencyKey ||
-				!/^[A-Za-z0-9_-]{1,128}$/u.test(idempotencyKey) ||
 				!exactObject(payload, {
 					kind: "transcription.craig",
 					campaign_id: "yuhara-main",
@@ -438,8 +598,15 @@ export async function installCompanionFixture(
 				(options.advanceJobs ?? true)
 			) {
 				jobsReads += 1;
-				if (jobsReads === 2) state.job = fixtureJob("running");
-				else if (jobsReads >= 3) state.job = fixtureJob("succeeded");
+				const benchmark = state.job.kind === "benchmark.craig";
+				if (jobsReads === 2)
+					state.job = benchmark
+						? fixtureBenchmarkJob("running")
+						: fixtureJob("running");
+				else if (jobsReads >= 3)
+					state.job = benchmark
+						? fixtureBenchmarkJob("succeeded")
+						: fixtureJob("succeeded");
 			}
 			const status = state.job?.status;
 			if (typeof status === "string") state.jobStatusesServed.push(status);
@@ -453,6 +620,88 @@ export async function installCompanionFixture(
 						]
 					: additionalJobs,
 			});
+		}
+		if (path === "/jobs/benchmark-job-1/events") {
+			return json(route, {
+				events:
+					options.jobEvents ??
+					(state.job?.status === "running"
+						? [
+								{
+									seq: 2,
+									attempt: 1,
+									code: "TRACK_STARTED",
+									at: "2026-09-20T18:00:01Z",
+									level: "info",
+									data: {
+										track: 1,
+										total_tracks: 4,
+										speaker: "Whisper Detailed",
+									},
+								},
+							]
+						: []),
+			});
+		}
+		if (path === "/jobs/benchmark-job-1/result") {
+			const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+				kind: "benchmark.profile",
+				schema_version: "tda_benchmark_profile_v1",
+				profile_id: profileId,
+				engine,
+				model: "fixture-model",
+				model_revision: "fixture-revision",
+				device: "cuda",
+				compute_type: "float16",
+				alignment: "native",
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				audio_work_seconds: 600,
+				session_duration_seconds: 300,
+				processing_timing_version: "engine_processing_v1",
+				processing_seconds: 30,
+				rtf: 0.05,
+				word_count: 100,
+				segment_count: 10,
+				track_count: 2,
+				warning_count: 0,
+				execution_lineage: {
+					schema_version: "tda_execution_lineage_v1",
+					companion_version: "0.3.14",
+					runtime_family: engine === "whisper" ? "whisper" : "qwen",
+					runtime_version: "1.0.12",
+					device: "cuda",
+					compute_type: "float16",
+					gpu: null,
+				},
+			});
+			return json(route, {
+				schema_version: "tda_processing_benchmark_v1",
+				kind: "benchmark.craig",
+				job_id: "benchmark-job-1",
+				source_id: CRAIG_SOURCE_ID,
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: "b".repeat(64),
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 2,
+				audio_work_seconds: 600,
+				prepared: true,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-fast", "qwen3"),
+					profile("qwen-quality", "qwen3"),
+				],
+			});
+		}
+		if (
+			path === "/jobs/benchmark-job-1/cancel" &&
+			request.method() === "POST"
+		) {
+			state.job = fixtureBenchmarkJob("cancelled");
+			return json(route, state.job);
 		}
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {

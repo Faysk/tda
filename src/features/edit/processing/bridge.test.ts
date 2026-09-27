@@ -4,6 +4,7 @@ import {
 	LOCAL_API,
 	parseBenchmarkResult,
 	parseCapabilities,
+	parseCraigSource,
 	parseJob,
 	parseJobActivity,
 	parseJobEventPage,
@@ -115,6 +116,37 @@ describe("processing benchmark contract", () => {
 				"benchmark-job",
 			),
 		).toThrow();
+	});
+});
+
+describe("Craig source benchmark preflight", () => {
+	it("parses additive minimum-track duration metadata without changing ingest identity", () => {
+		const value = parseCraigSource({
+			schema_version: "tda_craig_ingest_v1",
+			source_id: "craig-" + "a".repeat(64),
+			source_sha256: "a".repeat(64),
+			size_bytes: 2048,
+			track_count: 2,
+			audio_work_seconds: 900,
+			session_duration_seconds: 600,
+			minimum_track_duration_seconds: 300,
+			reused: false,
+		});
+		expect(value.minimumTrackDurationSeconds).toBe(300);
+	});
+
+	it("keeps older Companion ingest responses compatible when minimum duration is absent", () => {
+		const value = parseCraigSource({
+			schema_version: "tda_craig_ingest_v1",
+			source_id: "craig-" + "a".repeat(64),
+			source_sha256: "a".repeat(64),
+			size_bytes: 2048,
+			track_count: 2,
+			audio_work_seconds: 900,
+			session_duration_seconds: 600,
+			reused: true,
+		});
+		expect(value.minimumTrackDurationSeconds).toBeNull();
 	});
 });
 
