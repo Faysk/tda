@@ -1,5 +1,44 @@
 import { expect, test } from "@playwright/test";
 
+test("completed runs compare on session timeline and open the chosen base without writes", async ({
+	page,
+}, testInfo) => {
+	await page.goto("/?review-contracts&comparison");
+	await expect(page.getByText("Comparar runs", { exact: true })).toBeVisible();
+	await expect(page.getByTestId("save-count")).toHaveText("0");
+
+	await page.getByRole("button", { name: "Comparar", exact: true }).click();
+	await expect(
+		page.getByRole("heading", { name: "Dois runs da mesma fonte" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("group", { name: "Resumo das diferenças" }),
+	).toContainText("1 divergentes");
+	await expect(page.getByText("texto diferente", { exact: true })).toBeVisible();
+	await expect(page.getByText(/Sessão 20\.00–21\.02s · Track 1/)).toBeVisible();
+	await expect(page.getByText(/não escolhe um vencedor/)).toBeVisible();
+	await expect(page.getByTestId("save-count")).toHaveText("0");
+
+	const range = page.getByRole("group", { name: "Faixa da sessão (s)" });
+	await range.getByLabel("De").fill("0");
+	await range.getByLabel("Até").fill("10");
+	await expect(
+		page.getByText("Nenhuma região corresponde aos filtros atuais."),
+	).toBeVisible();
+	await range.getByLabel("De").fill("20");
+	await range.getByLabel("Até").fill("21");
+	await expect(page.getByText("texto diferente", { exact: true })).toBeVisible();
+
+	await page.screenshot({
+		path: testInfo.outputPath("run-comparison.png"),
+		fullPage: true,
+	});
+	await page.getByRole("button", { name: "Usar Run B como base" }).click();
+	await expect(page.getByRole("heading", { name: "qwen-quality" })).toBeVisible();
+	await expect(page.getByText("A porta ficou aberta", { exact: true })).toBeVisible();
+	await expect(page.getByTestId("save-count")).toHaveText("0");
+});
+
 test("base remains unsaved until an explicit editorial action", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
