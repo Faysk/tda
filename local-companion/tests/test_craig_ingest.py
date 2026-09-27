@@ -684,6 +684,7 @@ async def test_ingest_reports_chronological_duration_and_total_audio_work(tmp_pa
     assert result["track_count"] == 2
     assert result["session_duration_seconds"] == 300.0
     assert result["audio_work_seconds"] == 480.0
+    assert result["minimum_track_duration_seconds"] == 180.0
 
     package = load_craig_package(
         data_root / "staging" / result["source_id"],
@@ -695,6 +696,7 @@ async def test_ingest_reports_chronological_duration_and_total_audio_work(tmp_pa
     assert reused["reused"] is True
     assert reused["session_duration_seconds"] == 300.0
     assert reused["audio_work_seconds"] == 480.0
+    assert reused["minimum_track_duration_seconds"] == 180.0
 
 
 @pytest.mark.anyio
@@ -703,6 +705,7 @@ async def test_ingest_keeps_duration_unknown_for_legacy_or_invalid_flac_metadata
 
     assert result["session_duration_seconds"] is None
     assert result["audio_work_seconds"] is None
+    assert result["minimum_track_duration_seconds"] is None
 
 
 @pytest.mark.parametrize("cached", [999, "garbage", -1, float("nan"), float("inf"), True, None])
