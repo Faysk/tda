@@ -98,9 +98,12 @@ test("known-buggy Qwen runtime is blocked before Craig upload", async ({ page })
 	});
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByLabel("Profile", { exact: true })).toContainText(
-		"atualizar runtime",
-	);
+	await expect(
+		page.getByRole("option", {
+			name: "Qwen Quality · atualizar runtime",
+			exact: true,
+		}),
+	).toHaveCount(1);
 	await expect(page.getByRole("alert")).toContainText(
 		"runtime 1.0.12 ou mais recente",
 	);
