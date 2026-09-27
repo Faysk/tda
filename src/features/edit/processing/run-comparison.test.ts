@@ -154,11 +154,13 @@ describe("run comparison", () => {
 				segment(2, "r3", 1.02, 2.02, "Track dois", "Bob"),
 			],
 		);
+		// Without explicit absolute session coordinates, preserve deterministic
+		// track-local order instead of pretending track-local seconds are global.
 		expect(regions.map((item) => item.kind)).toEqual([
 			"changed",
-			"equal",
 			"left_only",
 			"right_only",
+			"equal",
 		]);
 		expect(summarizeRunComparison(regions)).toMatchObject({
 			totalRegions: 4,
