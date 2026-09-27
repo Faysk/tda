@@ -3,6 +3,7 @@ import { LocalBridge } from "./bridge";
 import {
 	BridgeError,
 	parseLocalReview,
+	parseLocalRunDeleteReceipt,
 	parseLocalRuns,
 	parseLocalSources,
 	type LocalReviewSegment,
@@ -560,4 +561,64 @@ it("parses exact runtime artifacts without retroactively inventing legacy identi
  const withArtifact = { ...raw, lineage: { ...raw.lineage, execution_lineage: { ...raw.lineage.execution_lineage, runtime_artifact: artifact } } };
  expect(parseLocalReview(withArtifact).lineage.executionLineage?.runtimeArtifact).toMatchObject({ workerSha256: "a".repeat(64), archiveSha256: "b".repeat(64) });
  expect(() => parseLocalReview({ ...withArtifact, lineage: { ...withArtifact.lineage, execution_lineage: { ...withArtifact.lineage.execution_lineage, runtime_artifact: { ...artifact, worker_sha256: "not-hex" } } } })).toThrow();
+});
+
+
+describe("local result deletion contract", () => {
+	it("parses the bounded delete receipt without inventing cloud deletion", () => {
+		expect(
+			parseLocalRunDeleteReceipt({
+				schema_version: "tda_local_run_delete_receipt_v1",
+				source_id: sourceId,
+				run_id: runId,
+				transcript_sha256: transcriptSha,
+				deleted: true,
+				review_deleted: true,
+				cloud_changed: false,
+			}),
+		).toEqual({
+			sourceId,
+			runId,
+			transcriptSha256: transcriptSha,
+			deleted: true,
+			reviewDeleted: true,
+			cloudChanged: false,
+		});
+		expect(() =>
+			parseLocalRunDeleteReceipt({
+				schema_version: "tda_local_run_delete_receipt_v1",
+				source_id: sourceId,
+				run_id: runId,
+				transcript_sha256: transcriptSha,
+				deleted: true,
+				review_deleted: false,
+				cloud_changed: true,
+			}),
+		).toThrow();
+	});
+
+	it("posts the exact source/run/SHA deletion identity", async () => {
+		const transport = vi.fn<typeof fetch>().mockImplementation(async () =>
+			Response.json({
+				schema_version: "tda_local_run_delete_receipt_v1",
+				source_id: sourceId,
+				run_id: runId,
+				transcript_sha256: transcriptSha,
+				deleted: true,
+				review_deleted: false,
+				cloud_changed: false,
+			}),
+		);
+		const bridge = new LocalBridge(transport);
+		bridge.pair(token);
+		await expect(
+			bridge.deleteLocalRun(sourceId, runId, transcriptSha, signal()),
+		).resolves.toMatchObject({ deleted: true, cloudChanged: false });
+		expect(String(transport.mock.calls[0]?.[0])).toEndWith(
+			`/sources/${sourceId}/runs/${runId}/delete`,
+		);
+		expect(JSON.parse(String(transport.mock.calls[0]?.[1]?.body))).toEqual({
+			transcript_sha256: transcriptSha,
+		});
+	});
 });
