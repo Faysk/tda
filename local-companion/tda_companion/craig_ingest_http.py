@@ -567,6 +567,8 @@ class CraigIngestBoundary:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         gate = self.source_gate if self.source_gate is not None else nullcontext()
         with gate:
+            if self.source_running is not None and self.source_running(source_id):
+                raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_SOURCE_BUSY")
             load_craig_package(package_root, verify_tracks=False)
             receipt = delete_completed_run(
                 package_root,
@@ -666,7 +668,7 @@ class CraigIngestBoundary:
             response = _error(
                 code,
                 404 if code in {"TRANSCRIPTION_RUN_MANIFEST_MISSING", "TRANSCRIPTION_RUN_DELETED"} else 409,
-                False,
+                code == "TRANSCRIPTION_RUN_DELETE_SOURCE_BUSY",
             )
         await self._send_response(response, scope, receive, send, origin)
 
