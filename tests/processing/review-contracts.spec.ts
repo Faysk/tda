@@ -80,7 +80,7 @@ test("historical review does not claim a verified total", async ({ page }) => {
 test("target repair preserves edits and restores only the original destination", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&repair");
     const repair = page.getByRole("button", { name: "Reparar vínculo original" });
-    await expect(page.getByText(/O vínculo de publicação está danificado/)).toBeVisible();
+    await expect(page.getByText(/O vínculo da sessão está danificado/)).toBeVisible();
     await page.getByRole("button", { name: /^Editar / }).first().click();
     await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto preservado");
     await expect(repair).toBeDisabled();
@@ -180,18 +180,19 @@ test("publication freezes current and requires a fresh confirmation after stale_
   await route.fulfill({ status: 409, json: { ok: false, reason: "stale_current" } });
  });
  await page.goto("/?review-contracts&publication");
- await page.getByRole("button", { name: "Publicar no TDA" }).click();
+ await expect(page.getByText(/Nada ficará público no site/)).toBeVisible();
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.getByRole("alertdialog")).toContainText(first);
  expect(sent).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-current-confirmation.png"), fullPage: true });
- await page.getByRole("button", { name: "Confirmar publicação" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão publicada mudou");
+ await page.getByRole("button", { name: "Confirmar preparação" }).click();
+ await expect(page.getByRole("alert")).toContainText("A transcrição privada desta sessão mudou");
  expect(sent).toHaveLength(1); expect(sent[0].expectedCurrentRevisionId).toBe(first); expect(reads).toBeGreaterThanOrEqual(2);
- await page.getByRole("button", { name: "Publicar no TDA" }).click();
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.getByRole("alertdialog")).toContainText(second);
  expect(sent).toHaveLength(1);
- await page.getByRole("button", { name: "Confirmar publicação" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão publicada mudou");
+ await page.getByRole("button", { name: "Confirmar preparação" }).click();
+ await expect(page.getByRole("alert")).toContainText("A transcrição privada desta sessão mudou");
  expect(sent).toHaveLength(2); expect(sent[1].expectedCurrentRevisionId).toBe(second); expect(sent[1].operationId).not.toBe(sent[0].operationId);
 });
 
@@ -209,14 +210,15 @@ test("lost publication recovers after reload without a second write or transcrip
   await route.fulfill({ json: { ok: true, receipt: committed } });
  });
  await page.goto("/?review-contracts&publication");
- await page.getByRole("button", { name: "Publicar no TDA" }).click();
- await page.getByRole("button", { name: "Confirmar publicação" }).click();
+ await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("button", { name: "Confirmar preparação" }).click();
  await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
  readable = true;
  await page.reload();
- await expect(page.getByText(/Publicação confirmada · revisão cloud 1/)).toBeVisible();
+ await expect(page.getByText(/Sessão preparada no Edit · revisão cloud r1/)).toBeVisible();
+ await expect(page.getByRole("link", { name: "Abrir sessão no Edit" })).toHaveAttribute("href", /\/edit\/sessoes\//);
  expect(posts).toBe(1);
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });
