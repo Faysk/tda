@@ -112,7 +112,7 @@ test("idle composer expands and running work switches it to compact mode", async
 	let composer = await openComposer(page);
 	const overview = page.locator("[data-processing-overview-top='true']");
 	await expect(overview).toHaveAttribute("data-mode", "idle");
-	await expect(composer).toHaveAttribute("data-layout", "default");
+	await expect(composer).toHaveAttribute("data-layout", "idle");
 	await expect(page.getByText("Processando agora", { exact: true })).not.toBeVisible();
 	const idleBox = await composer.boundingBox();
 	expect(idleBox?.width ?? 0).toBeGreaterThan(700);
@@ -150,4 +150,24 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBe(true);
+});
+
+
+test("idle Full HD composer stays compact and profile details remain accessible", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, { profileReady: false });
+	const composer = await openComposer(page);
+	await expect(composer).toHaveAttribute("data-layout", "idle");
+	const dropTarget = composer.locator("[data-craig-drop-target='true']");
+	const dropBox = await dropTarget.boundingBox();
+	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
+	await expect(composer.getByText("indisponível agora", { exact: false })).toHaveCount(1);
+	await expect(composer.getByText("Por quê?", { exact: true })).toBeVisible();
+	await composer.getByText("Por quê?", { exact: true }).click();
+	await expect(composer.getByRole("button", { name: "Abrir Diagnóstico" })).toBeVisible();
+	await composer.getByText("Como funciona", { exact: true }).focus();
+	await page.keyboard.press("Enter");
+	await expect(composer).toContainText("Resultados ficam locais até uma ação editorial explícita");
+	await composer.getByText("Como funciona", { exact: true }).focus();
+	await page.keyboard.press("Enter");
 });
