@@ -185,6 +185,7 @@
 	min-width: 0;
 	position: sticky;
 	top: 10px;
+	container-type: inline-size;
 }
 
 .runDetail .runCard {
@@ -205,8 +206,8 @@
 
 .runCard {
 	display: grid;
-	gap: 10px;
-	padding: 14px;
+	gap: 8px;
+	padding: 12px;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
@@ -244,6 +245,25 @@
 	font-variant-numeric: tabular-nums;
 }
 
+
+.runDisclosure {
+	margin: 0;
+}
+.runDisclosure > summary {
+	cursor: pointer;
+	color: var(--ds-foreground-muted);
+	font-size: .75rem;
+	font-weight: 650;
+}
+.runDisclosure > p {
+	margin: 7px 0 0;
+	color: var(--ds-foreground-muted);
+	font-size: .75rem;
+	line-height: 1.4;
+}
+.runDisclosure .runIdentity {
+	margin-top: 7px;
+}
 .runIdentity {
 	display: flex;
 	flex-wrap: wrap;
@@ -823,15 +843,14 @@
 		max-height: calc(100dvh - 250px);
 		overscroll-behavior: contain;
 	}
-
-	.runDetail {
-		max-height: calc(100dvh - 250px);
-		overflow: auto;
-		overscroll-behavior: contain;
-		scrollbar-width: thin;
-	}
 }
 
+
+@container (min-width: 680px) {
+	.runFacts {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
 @media (min-width: 2048px) {
 	.libraryWorkspace {
 		grid-template-columns: minmax(330px, .55fr) minmax(0, 1.75fr);
