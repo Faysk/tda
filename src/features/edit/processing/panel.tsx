@@ -18,7 +18,10 @@ import {
 	activityEventCanBeHumorous,
 	selectActivityBark,
 } from "./activity-barks";
-import { supportsTerminalJobDelete } from "./compatibility";
+import {
+	supportsCompletedRunDelete,
+	supportsTerminalJobDelete,
+} from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
 import { publishApprovedLocalReview } from "./publication-client";
@@ -431,6 +434,7 @@ export function ProcessingPanel({
 			? latestActivity(state.events, activeJob, state.system)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
+	const canDeleteRuns = supportsCompletedRunDelete(state.health?.service_version);
 	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
 
 	useEffect(() => {
@@ -959,7 +963,7 @@ export function ProcessingPanel({
 							onOpen={(sourceId, runId) =>
 								controller.openLocalReview(sourceId, runId)
 							}
-							onDeleteRun={controller.deleteLocalRun}
+							onDeleteRun={canDeleteRuns ? controller.deleteLocalRun : undefined}
 							onLoadLatest={controller.loadLatestLocalReview}
 							onRepairTarget={state.capabilities?.capabilities.includes("transcription.target.repair") ? controller.repairPublicationTarget : undefined}
 							onSave={(revision, status, segments) =>
