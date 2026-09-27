@@ -12,7 +12,7 @@ const sourceB = `craig-${"b".repeat(64)}`;
 const partA = "1".repeat(32);
 const partB = "2".repeat(32);
 
-function workspace(parts = [
+function workspace(parts: Array<Record<string, unknown>> = [
 	{
 		part_id: partA,
 		source_id: sourceA,
