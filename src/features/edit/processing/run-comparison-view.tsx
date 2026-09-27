@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { LocalReview, LocalRunSummary } from "./protocol";
 import {
+	compareRunPerformanceSemantics,
 	compareRunSegments,
 	regionOverlapsTimeRange,
 	runsShareComparisonSource,
@@ -134,6 +135,10 @@ export function RunComparisonView({
 		[leftReview.segments, rightReview.segments],
 	);
 	const summary = useMemo(() => summarizeRunComparison(regions), [regions]);
+	const performanceComparability = useMemo(
+		() => compareRunPerformanceSemantics(leftRun, rightRun),
+		[leftRun, rightRun],
+	);
 	const tracks = useMemo(
 		() => [...new Set(regions.map((region) => region.trackNumber))].sort((a, b) => a - b),
 		[regions],
@@ -269,6 +274,24 @@ export function RunComparisonView({
 				<span>{summary.leftOnlyRegions} somente A</span>
 				<span>{summary.rightOnlyRegions} somente B</span>
 			</fieldset>
+
+			<div
+				className={styles.comparability}
+				data-status={performanceComparability.status}
+				role="status"
+			>
+				<strong>
+					Comparabilidade de performance:{" "}
+					{performanceComparability.status === "comparable"
+						? "comparável"
+						: "limitada"}
+				</strong>
+				<span>
+					{performanceComparability.status === "comparable"
+						? "Mesma identidade física de execução, métricas engine_processing_v1 frescas e semântica de duração equivalente."
+						: performanceComparability.reasons.join(" · ")}
+				</span>
+			</div>
 
 			<div className={styles.toolbar}>
 				<label className={styles.checkbox}>
