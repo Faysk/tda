@@ -136,9 +136,9 @@ def run_deleted_local(
         return True
     if tombstone is None:
         return False
-    if transcript_sha256 is None:
-        return True
-    return tombstone.get("transcript_sha256") == transcript_sha256
+    # The run id is the namespace being retired. Once a valid tombstone exists,
+    # no alternate or corrupt summary digest may make that namespace visible again.
+    return True
 
 
 def _write_tombstone(package_root: Path, manifest: dict[str, Any], *, review_existed: bool) -> dict[str, Any]:
