@@ -186,7 +186,7 @@ O gate completo está em #852.
 ## Referências
 
 - #843 — epic multi-recording;
-- #844–#852 — backlog executável;
+- #844, #845, #846, #848, #849, #851 e #852 — backlog executável;
 - ADR-0003 — processamento pesado local;
 - ADR-0013 — Companion/ASR;
 - ADR-0016 — runs imutáveis, revisão e publicação;
