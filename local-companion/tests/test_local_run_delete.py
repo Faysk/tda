@@ -151,6 +151,18 @@ def test_delete_is_idempotent_and_startup_maintenance_does_not_resurrect_run(tmp
     assert tombstone["transcript_sha256"] == first["transcript_sha256"]
 
 
+def test_tombstoned_run_stays_hidden_even_if_summary_digest_changes(tmp_path: Path):
+    package_root, source_id, first, _second = _package(tmp_path)
+    delete_completed_run(
+        package_root,
+        source_id=source_id,
+        run_id=first["run_id"],
+        transcript_sha256=first["transcript_sha256"],
+    )
+
+    assert run_deleted_local(package_root, first["run_id"], "0" * 64) is True
+
+
 def test_delete_rejects_stale_digest_without_writing_tombstone(tmp_path: Path):
     package_root, source_id, first, _second = _package(tmp_path)
 
