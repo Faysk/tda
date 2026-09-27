@@ -514,6 +514,7 @@ export function LembraExperience({
 	}, [dateRange, deferredQuery, favoriteIds, references, sort, view]);
 
 	useEffect(() => {
+		if (visibleReferences.length === 0) return;
 		const gallery = galleryRef.current;
 		if (!gallery) return;
 
@@ -1191,12 +1192,12 @@ export function LembraExperience({
 						}
 					>
 						{galleryWidth > 0 ? (
-							galleryLayout.rows.map((row, rowIndex) => (
+							galleryLayout.rows.map((row) => (
 								<div
 									className={styles.galleryRow}
 									data-gallery-row
 									data-justified={row.justified ? "true" : "false"}
-									key={`row-${rowIndex}-${row.items[0]?.reference.id ?? "empty"}`}
+									key={`row-${row.items[0]?.reference.id ?? "empty"}-${row.items.at(-1)?.reference.id ?? "empty"}-${row.items.length}`}
 									style={{ gap: `${galleryLayout.gap}px` }}
 								>
 									{row.items.map((geometry) =>
