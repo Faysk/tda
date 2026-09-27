@@ -62,6 +62,8 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect.poll(() => state.jobPostCount).toBe(1);
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
 	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
+	await expect(panel.locator('[data-benchmark-stepper="true"]')).toBeVisible();
+	await expect(panel.locator('[data-benchmark-stepper="true"] > span')).toHaveCount(4);
 
 	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
 	await expect(page.getByRole("tabpanel", { name: "Diagnóstico" })).toBeVisible();
@@ -95,7 +97,10 @@ test("short Craig sample is rejected during preflight before preparation or queu
 	);
 	await expect(
 		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
-	).toBeDisabled();
+	).toHaveCount(0);
+	await expect(
+		panel.locator('[data-benchmark-actions="true"]'),
+	).toContainText("Troque por uma source com pelo menos 5:00 por track");
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
@@ -191,3 +196,52 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
 });
+test("benchmark workspace keeps source, readiness, action and history legible across desktop and mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "qwen-fast"],
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.locator('[data-benchmark-setup="true"]')).toBeVisible();
+	await expect(panel.locator('[data-benchmark-source="true"]')).toContainText(
+		"Nenhum ZIP selecionado",
+	);
+	await expect(panel.locator('[data-benchmark-readiness="true"]')).toContainText(
+		"2 / 4 prontos",
+	);
+	await expect(
+		panel.getByRole("button", { name: /Escolher ZIP Craig/u }),
+	).toBeVisible();
+	await expect(panel.locator('[data-benchmark-history="true"]')).toContainText(
+		"Nenhum benchmark concluído",
+	);
+
+	await chooseZip(panel);
+	await expect(panel.locator('[data-benchmark-source="true"]')).toContainText(
+		"benchmark-craig.zip",
+	);
+	await expect(panel.locator('[data-benchmark-actions="true"]')).toContainText(
+		"Valide a amostra localmente",
+	);
+
+	const desktopOverflow = await page.evaluate(
+		() => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+	);
+	expect(desktopOverflow).toBe(false);
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(panel.locator('[data-benchmark-source="true"]')).toBeVisible();
+	await expect(panel.locator('[data-benchmark-readiness="true"]')).toBeVisible();
+	await expect(panel.locator('[data-benchmark-actions="true"]')).toBeVisible();
+
+	const mobileOverflow = await page.evaluate(
+		() => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+	);
+	expect(mobileOverflow).toBe(false);
+});
+
