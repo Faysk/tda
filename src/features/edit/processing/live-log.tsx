@@ -278,6 +278,7 @@ export function ProcessingLiveLog({
 				<label>
 					<span className={styles.visuallyHidden}>Filtrar eventos</span>
 					<input
+						className={styles.logSearch}
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
 						placeholder="Buscar code, speaker, stage…"
