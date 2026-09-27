@@ -285,9 +285,9 @@ test("low-height notebook keeps essential actions reachable instead of clipping"
 	page,
 }) => {
 	await openRunningWorkspace(page, 1024, 768);
-	const add = page.getByRole("button", { name: "Adicionar à fila local" });
-	await add.scrollIntoViewIfNeeded();
-	await expect(add).toBeVisible();
+	const analyze = page.getByRole("button", { name: "Analisar ZIP localmente" });
+	await analyze.scrollIntoViewIfNeeded();
+	await expect(analyze).toBeVisible();
 	const overflow = await page.evaluate(() => ({
 		html: getComputedStyle(document.documentElement).overflowY,
 		body: getComputedStyle(document.body).overflowY,
