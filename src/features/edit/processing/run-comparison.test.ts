@@ -165,15 +165,38 @@ describe("run comparison", () => {
 		});
 	});
 
-	it("filters aligned regions by an inclusive local time range", () => {
-		const [region] = compareRunSegments(
-			[segment(1, "left", 10, 12, "janela")],
-			[segment(1, "right", 10.1, 12.1, "janela")],
+	it("orders tracks and filters ranges by absolute session timeline", () => {
+		const leftEarly = {
+			...segment(2, "left-early", 10, 12, "cedo"),
+			timelineStart: 2,
+			timelineEnd: 4,
+		};
+		const rightEarly = {
+			...segment(2, "right-early", 10.1, 12.1, "cedo"),
+			timelineStart: 2.1,
+			timelineEnd: 4.1,
+		};
+		const leftLate = {
+			...segment(1, "left-late", 0, 1, "tarde"),
+			timelineStart: 100,
+			timelineEnd: 101,
+		};
+		const rightLate = {
+			...segment(1, "right-late", 0, 1, "tarde"),
+			timelineStart: 100,
+			timelineEnd: 101,
+		};
+		const regions = compareRunSegments(
+			[leftLate, leftEarly],
+			[rightLate, rightEarly],
 		);
-		expect(region).toBeDefined();
-		expect(regionOverlapsTimeRange(region!, 11, 20)).toBe(true);
-		expect(regionOverlapsTimeRange(region!, 0, 9.9)).toBe(false);
-		expect(regionOverlapsTimeRange(region!, 12.1, 12.1)).toBe(true);
+		expect(regions.map((region) => region.trackNumber)).toEqual([2, 1]);
+		expect(regions[0]).toMatchObject({
+			timelineStart: 2,
+			timelineEnd: 4.1,
+		});
+		expect(regionOverlapsTimeRange(regions[1]!, 100.5, 100.5)).toBe(true);
+		expect(regionOverlapsTimeRange(regions[1]!, 0, 0.9)).toBe(false);
 	});
 
 	it("fails closed for invalid time-range values", () => {
