@@ -5,6 +5,7 @@ import {
 	predictionErrorPercent,
 } from "./processing-estimator";
 import type {
+	BenchmarkResult,
 	LocalRunSummary,
 	SystemSnapshot,
 	TranscriptionProfileState,
@@ -119,7 +120,78 @@ function run(
 	};
 }
 
+function benchmark(rtf: number): BenchmarkResult {
+	return {
+		schemaVersion: "tda_processing_benchmark_v1",
+		jobId: "benchmark-job",
+		sourceId: "benchmark-source",
+		campaignId: "benchmark-local",
+		sessionId: "benchmark-local",
+		sampleIdentitySha256: "c".repeat(64),
+		sampleSeconds: 300,
+		executionMode: "prepared_artifacts_fresh_worker_per_profile_v1",
+		trackCount: 1,
+		audioWorkSeconds: 300,
+		prepared: true,
+		profiles: [
+			{
+				profileId: "qwen-quality",
+				engine: "qwen3",
+				model: "Qwen/Qwen3-ASR-1.7B-hf",
+				modelRevision: "revision",
+				device: "cuda",
+				computeType: "bfloat16",
+				alignment: "forced",
+				sampleSeconds: 300,
+				audioWorkSeconds: 300,
+				sessionDurationSeconds: 300,
+				processingTimingVersion: "engine_processing_v1",
+				processingSeconds: 300 * rtf,
+				rtf,
+				wordCount: 1,
+				segmentCount: 1,
+				trackCount: 1,
+				warningCount: 0,
+				executionLineage: run(rtf).executionLineage,
+			},
+		],
+	};
+}
+
 describe("calibrated processing estimator", () => {
+	it("uses a compatible benchmark as a low-confidence prior before run history exists", () => {
+		const estimate = estimateProfileProcessing({
+			audioWorkSeconds: 600,
+			profile,
+			system,
+			runs: [],
+			benchmarks: [benchmark(0.6)],
+		});
+		expect(estimate.available).toBe(true);
+		if (!estimate.available) return;
+		expect(estimate.source).toBe("benchmark");
+		expect(estimate.confidence).toBe("low");
+		expect(estimate.runSampleCount).toBe(0);
+		expect(estimate.benchmarkSampleCount).toBe(1);
+		expect(estimate.medianSeconds).toBeCloseTo(360);
+	});
+
+	it("lets two compatible completed runs replace the benchmark prior", () => {
+		const estimate = estimateProfileProcessing({
+			audioWorkSeconds: 600,
+			profile,
+			system,
+			runs: [run(0.5), run(0.6)],
+			benchmarks: [benchmark(4)],
+		});
+		expect(estimate.available).toBe(true);
+		if (!estimate.available) return;
+		expect(estimate.source).toBe("local_runs");
+		expect(estimate.runSampleCount).toBe(2);
+		expect(estimate.benchmarkSampleCount).toBe(0);
+		expect(estimate.medianRtf).toBeCloseTo(0.55);
+	});
+
 	it("uses compatible local RTF quantiles and rejects a large outlier", () => {
 		const estimate = estimateProfileProcessing({
 			audioWorkSeconds: 600,
