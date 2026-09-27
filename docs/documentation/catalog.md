@@ -8,11 +8,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-20 |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-27 |
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-21 |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-27 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
@@ -39,6 +39,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-09-15 |
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
 | [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-20 |
+| [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | proposed | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -111,7 +112,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-21 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-27 |
 | [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
@@ -132,6 +133,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-09-14 |
 | [Fidelidade dos pacotes de D e Seika](../features/lore-pack-fidelity.md) | lores e mídia | publicado e verificado em 2026-09-12 | 2026-09-12 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
+| [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | em desenho | 2026-09-27 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
 | [Pipipi — lore cinematográfica pioneira](../features/pipipi-lore.md) | narrative-memory / frontend | implementação, QA e publicação em production concluídos | 2026-09-12 |
 | [Feature — Quests e ganchos](../features/quests-hooks.md) | narrative-memory | preparado/em desenho | 2026-09-06 |
@@ -216,4 +218,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-140 páginas inventariadas, além deste catálogo gerado. 11 sem Owner e 21 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+142 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

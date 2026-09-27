@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-27
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -54,6 +54,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Fluxos ponta a ponta](architecture/data-flows.md)
 - [Princípios e invariantes](architecture/invariants.md)
 - [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
+- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md) — proposta em revisão.
 - [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
 
 ### Design System e marca
@@ -92,6 +93,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Especificações de features — índice](features/README.md)
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
+- [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato proposto para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.
 - [TDA Companion v0.3 — Desktop, Agent e ASR](features/companion-desktop-asr-v0.3.md) — Agent/Desktop, worker subprocess, ingest Craig e perfis ASR locais.
 - [Personagens e NPCs](features/characters-and-npcs.md)
 - [Perfis editoriais de entities](features/entity-profiles.md)
@@ -205,6 +207,6 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Runtime/deploy: provider atual Vercel, conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 - Control plane: GitHub `Faysk/tda` + GitHub Actions. Providers externos são substituíveis e a infraestrutura é free-first.
 
-Última revisão estrutural: **2026-09-20**.
+Última revisão estrutural: **2026-09-27**.
 
 - [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.
