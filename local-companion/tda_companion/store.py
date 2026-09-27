@@ -33,14 +33,16 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY, idem TEXT UNIQUE NOT NULL, signature TEXT NOT NULL,
                     body TEXT NOT NULL, status TEXT NOT NULL, stage TEXT NOT NULL,
                     completed INTEGER NOT NULL DEFAULT 0, attempt INTEGER NOT NULL DEFAULT 0,
-                    error TEXT, result TEXT, updated TEXT NOT NULL);
+                    error TEXT, result TEXT, updated TEXT NOT NULL,
+                    attempt_started_at TEXT, stage_started_at TEXT,
+                    current_track INTEGER, track_started_at TEXT);
                 CREATE TABLE IF NOT EXISTS events (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
                     code TEXT NOT NULL, at TEXT NOT NULL, attempt INTEGER);
@@ -81,6 +83,14 @@ class Store:
             }
             if "execution_device" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN execution_device TEXT")
+            if "attempt_started_at" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN attempt_started_at TEXT")
+            if "stage_started_at" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN stage_started_at TEXT")
+            if "current_track" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN current_track INTEGER")
+            if "track_started_at" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN track_started_at TEXT")
             if "error_recoverable" not in job_columns:
                 db.execute(
                     "ALTER TABLE jobs ADD COLUMN error_recoverable INTEGER NOT NULL DEFAULT 1"
@@ -97,7 +107,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=8")
+            db.execute("PRAGMA user_version=9")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -198,10 +208,25 @@ class Store:
                 raise KeyError(job_id)
             if row["status"] != "running" or row["attempt"] != attempt:
                 return False
+            now = utc_now()
             if code == "ASR_EXECUTION_DEVICE":
                 identity = sanitize_execution_device(clean)
                 if identity is not None:
                     db.execute("UPDATE jobs SET execution_device=? WHERE id=?", (json.dumps({"attempt": attempt, **identity}), job_id))
+            track = clean.get("track")
+            if code == "TRACK_STARTED" and isinstance(track, int) and not isinstance(track, bool) and track > 0:
+                if row["current_track"] != track:
+                    db.execute(
+                        "UPDATE jobs SET current_track=?,track_started_at=?,updated=? WHERE id=?",
+                        (track, now, now, job_id),
+                    )
+            elif code == "TRACK_COMPLETED" and isinstance(track, int) and not isinstance(track, bool):
+                if row["current_track"] == track and row["track_started_at"]:
+                    clean = {**clean, "track_started_at": row["track_started_at"]}
+                    db.execute(
+                        "UPDATE jobs SET current_track=NULL,track_started_at=NULL,updated=? WHERE id=?",
+                        (now, job_id),
+                    )
             self.event(db, job_id, code, clean, level=level, attempt=attempt)
             return True
 
@@ -400,6 +425,12 @@ class Store:
             result_available=row["result"] is not None,
             updated_at=row["updated"],
             attempt=row["attempt"],
+            timing={
+                "attempt_started_at": row["attempt_started_at"],
+                "stage_started_at": row["stage_started_at"],
+                "current_track": row["current_track"],
+                "track_started_at": row["track_started_at"],
+            },
             context=context,
         )
 
@@ -822,10 +853,17 @@ class Store:
                 # this attempt can commit its own immutable result.
                 if body["kind"] == "transcription.craig":
                     completed = 0
-            db.execute(
-                "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
-                (status, status, completed, utc_now(), job_id),
-            )
+            now = utc_now()
+            if status == "queued":
+                db.execute(
+                    "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,updated=?,attempt_started_at=NULL,stage_started_at=NULL,current_track=NULL,track_started_at=NULL WHERE id=?",
+                    (status, status, completed, now, job_id),
+                )
+            else:
+                db.execute(
+                    "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,updated=? WHERE id=?",
+                    (status, status, completed, now, job_id),
+                )
             self.event(
                 db,
                 job_id,
@@ -845,9 +883,10 @@ class Store:
             body = json.loads(row["body"])
             next_attempt = row["attempt"] + 1
             stage = "preparing" if body["kind"] == "transcription.craig" else "fixture"
+            now = utc_now()
             db.execute(
-                "UPDATE jobs SET status='running',stage=?,attempt=?,execution_device=NULL,updated=? WHERE id=?",
-                (stage, next_attempt, utc_now(), row["id"]),
+                "UPDATE jobs SET status='running',stage=?,attempt=?,execution_device=NULL,updated=?,attempt_started_at=?,stage_started_at=?,current_track=NULL,track_started_at=NULL WHERE id=?",
+                (stage, next_attempt, now, now, now, row["id"]),
             )
             self.event(
                 db,
@@ -862,9 +901,10 @@ class Store:
         if not isinstance(stage, str) or not re.fullmatch(r"[a-z0-9_.-]{1,64}", stage):
             raise Conflict("JOB_STAGE_INVALID")
         with self.tx() as db:
+            now = utc_now()
             changed = db.execute(
-                "UPDATE jobs SET stage=?,updated=? WHERE id=? AND status='running' AND attempt=?",
-                (stage, utc_now(), job_id, attempt),
+                "UPDATE jobs SET stage_started_at=CASE WHEN stage<>? THEN ? ELSE stage_started_at END,stage=?,updated=? WHERE id=? AND status='running' AND attempt=?",
+                (stage, now, stage, now, job_id, attempt),
             ).rowcount
             if changed:
                 self.event(
@@ -896,9 +936,10 @@ class Store:
                 raise Conflict("WORKER_PROGRESS_MISMATCH")
             if not isinstance(stage, str) or not re.fullmatch(r"[a-z0-9_.-]{1,64}", stage):
                 raise Conflict("JOB_STAGE_INVALID")
+            now = utc_now()
             db.execute(
-                "UPDATE jobs SET completed=?,stage=?,updated=? WHERE id=?",
-                (completed, stage, utc_now(), job_id),
+                "UPDATE jobs SET completed=?,stage_started_at=CASE WHEN stage<>? THEN ? ELSE stage_started_at END,stage=?,updated=? WHERE id=?",
+                (completed, stage, now, stage, now, job_id),
             )
             self.event(
                 db,
