@@ -236,13 +236,13 @@ export function ProcessingPanel({
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
 	const attemptElapsed = activeJob
-		? elapsedSeconds(activeJob.timing.attemptStartedAt, clockNow)
+		? elapsedSeconds(activeJob.timing?.attemptStartedAt ?? null, clockNow)
 		: null;
 	const stageElapsed = activeJob
-		? elapsedSeconds(activeJob.timing.stageStartedAt, clockNow)
+		? elapsedSeconds(activeJob.timing?.stageStartedAt ?? null, clockNow)
 		: null;
 	const trackElapsed = activeJob
-		? elapsedSeconds(activeJob.timing.trackStartedAt, clockNow)
+		? elapsedSeconds(activeJob.timing?.trackStartedAt ?? null, clockNow)
 		: null;
 	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
 	const observedJobLive =
@@ -260,7 +260,7 @@ export function ProcessingPanel({
 		tick();
 		const timer = window.setInterval(tick, 1000);
 		return () => window.clearInterval(timer);
-	}, [activeJob?.id, activeJob?.attempt, activeJob?.timing.attemptStartedAt]);
+	}, [activeJob?.id, activeJob?.attempt, activeJob?.timing?.attemptStartedAt]);
 
 	async function confirm() {
 		const choice = confirmation;
@@ -494,7 +494,7 @@ export function ProcessingPanel({
 											{activeJob.attempt > 0 ? (
 												<span>Tentativa {activeJob.attempt} · {formatElapsed(attemptElapsed)}</span>
 											) : null}
-											{activeJob.timing.currentTrack !== null ? (
+											{activeJob.timing?.currentTrack ?? null !== null ? (
 												<span>Track atual · {formatElapsed(trackElapsed)}</span>
 											) : null}
 											<span>
