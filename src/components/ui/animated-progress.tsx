@@ -8,6 +8,7 @@ type Props = Readonly<{
 	ariaLabel: string;
 	valueText?: string;
 	className?: string;
+	expectedSampleMs?: number;
 }>;
 
 export function AnimatedProgress({
@@ -16,6 +17,7 @@ export function AnimatedProgress({
 	ariaLabel,
 	valueText,
 	className,
+	expectedSampleMs,
 }: Props) {
 	const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
 	const safeValue = Math.min(
@@ -25,6 +27,10 @@ export function AnimatedProgress({
 	const ratio = safeValue / safeMax;
 	const style = {
 		"--animated-progress": String(ratio),
+		"--animated-progress-duration":
+			expectedSampleMs !== undefined && Number.isFinite(expectedSampleMs) && expectedSampleMs > 0
+				? `${Math.round(expectedSampleMs)}ms`
+				: undefined,
 	} as CSSProperties;
 
 	return (
@@ -33,6 +39,7 @@ export function AnimatedProgress({
 			data-animated-progress="true"
 			data-progress-label={ariaLabel}
 			data-progress-target={ratio}
+			data-progress-sample-ms={expectedSampleMs}
 		>
 			<progress
 				className={styles.accessibleProgress}
