@@ -59,6 +59,18 @@ function ordered(values: readonly LocalReviewSegment[]): LocalReviewSegment[] {
 	);
 }
 
+function groupedByTrack(
+	values: readonly LocalReviewSegment[],
+): Map<number, LocalReviewSegment[]> {
+	const grouped = new Map<number, LocalReviewSegment[]>();
+	for (const item of values) {
+		const existing = grouped.get(item.trackNumber);
+		if (existing) existing.push(item);
+		else grouped.set(item.trackNumber, [item]);
+	}
+	return grouped;
+}
+
 function comparableInTime(
 	left: LocalReviewSegment,
 	right: LocalReviewSegment,
@@ -244,18 +256,17 @@ export function compareRunSegments(
 
 	const left = ordered(leftInput);
 	const right = ordered(rightInput);
+	const leftByTrack = groupedByTrack(left);
+	const rightByTrack = groupedByTrack(right);
 	const tracks = [
-		...new Set([
-			...left.map((item) => item.trackNumber),
-			...right.map((item) => item.trackNumber),
-		]),
+		...new Set([...leftByTrack.keys(), ...rightByTrack.keys()]),
 	].sort((a, b) => a - b);
 
 	const regions = tracks.flatMap((trackNumber) =>
 		compareTrack(
 			trackNumber,
-			left.filter((item) => item.trackNumber === trackNumber),
-			right.filter((item) => item.trackNumber === trackNumber),
+			leftByTrack.get(trackNumber) ?? [],
+			rightByTrack.get(trackNumber) ?? [],
 			tolerance,
 		),
 	);
