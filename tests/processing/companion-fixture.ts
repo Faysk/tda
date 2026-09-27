@@ -51,6 +51,7 @@ export type CompanionFixtureOptions = {
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
 	system?: FixtureSystemSnapshot;
+	extraCapabilities?: string[];
 };
 
 export type CompanionFixtureState = {
@@ -228,6 +229,7 @@ export async function installCompanionFixture(
 					"transcription.prepare.cancel",
 					"job.events",
 					"system.telemetry",
+					...(options.extraCapabilities ?? []),
 				],
 				sync: false,
 				device: { id: "fixture-pc", label: "PC sintético" },
