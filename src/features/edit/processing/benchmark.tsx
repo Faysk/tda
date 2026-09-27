@@ -515,118 +515,190 @@ export function ProcessingBenchmark({
 
 	return (
 		<div className={styles.workspace}>
-			<section className={styles.launchCard}>
+			<header className={styles.workspaceHeader}>
 				<div>
-					<span className={styles.eyebrow}>Benchmark exploratório local</span>
-					<h2>Mesmos 5 minutos · quatro perfis</h2>
-					<p>
-						Executa Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen Quality em
-						sequência sobre exatamente a mesma fonte e o mesmo corte temporal.
-					</p>
+					<span className={styles.eyebrow}>Benchmark local</span>
+					<h2>Compare quatro perfis na mesma amostra</h2>
 				</div>
+				<p>
+					Use o mesmo corte de 5 minutos para Whisper Turbo, Whisper Detailed,
+					Qwen Fast e Qwen Quality. Preparação fica fora da medição.
+				</p>
+			</header>
 
-				<div className={styles.launchControls}>
-					<label>
-						<span>ZIP Craig</span>
-						<input
-							ref={fileInput}
-							type="file"
-							accept=".zip,application/zip"
-							disabled={
-								sourceBusy ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active)
-							}
-							onChange={(event) => {
-								const next = event.target.files?.[0] ?? null;
-								setFile(next);
-								setSource(null);
-								setPreparation(null);
-								setError(next ? validateCraigFile(next) : null);
-								setStatus(null);
-								pending.current = null;
-							}}
-						/>
-					</label>
-					{file ? (
-						<Button
-							type="button"
-							variant="tertiary"
-							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
-							onClick={() => {
-								if (fileInput.current) fileInput.current.value = "";
-								setFile(null);
-								setSource(null);
-								setPreparation(null);
-								setError(null);
-								setStatus(null);
-								pending.current = null;
-							}}
-						>
-							Remover arquivo
-						</Button>
-					) : null}
-				</div>
-
-				{file ? (
-					<section className={styles.sourceFacts} aria-label="Fonte selecionada">
-						<span title={file.name}><strong>{file.name}</strong></span>
-						<span>{formatSubmissionBytes(file.size)}</span>
-						{source ? (
-							<>
-								<span>{source.trackCount} tracks</span>
-								<span>{source.reused ? "Fonte já verificada" : "Verificada agora"}</span>
-								{source.minimumTrackDurationSeconds !== null ? (
-									<span>
-										Menor track {formatSeconds(source.minimumTrackDurationSeconds)}
-									</span>
-								) : null}
-							</>
+			<div className={styles.setupGrid}>
+				<section
+					className={styles.sourcePanel}
+					data-benchmark-region="source"
+					aria-labelledby="benchmark-source-title"
+				>
+					<div className={styles.sectionHeader}>
+						<div>
+							<span className={styles.eyebrow}>Source</span>
+							<h3 id="benchmark-source-title">ZIP Craig</h3>
+						</div>
+						{file ? (
+							<StatusPill tone={source && sampleEligible ? "success" : "neutral"}>
+								{source ? (sampleEligible ? "Amostra apta" : "Amostra curta") : "Selecionado"}
+							</StatusPill>
 						) : null}
-					</section>
-				) : null}
-
-				<section className={styles.profileReadiness} aria-label="Prontidão dos perfis">
-					<div className={styles.readinessHeader}>
-						<strong>Prontidão</strong>
-						<span>{readyCount} / {PROFILES.length} perfis prontos</span>
 					</div>
-					{PROFILES.map((id, index) => (
-						<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
-					))}
+
+					<input
+						ref={fileInput}
+						className={styles.fileInput}
+						aria-label="ZIP Craig"
+						type="file"
+						accept=".zip,application/zip"
+						disabled={
+							sourceBusy ||
+							busy ||
+							preparingProfiles ||
+							Boolean(active)
+						}
+						onChange={(event) => {
+							const next = event.target.files?.[0] ?? null;
+							setFile(next);
+							setSource(null);
+							setPreparation(null);
+							setError(next ? validateCraigFile(next) : null);
+							setStatus(null);
+							pending.current = null;
+						}}
+					/>
+
+					{file ? (
+						<div className={styles.selectedSource}>
+							<div className={styles.sourceGlyph} aria-hidden="true">ZIP</div>
+							<div className={styles.selectedSourceMain}>
+								<strong title={file.name}>{file.name}</strong>
+								<span>
+									{formatSubmissionBytes(file.size)}
+									{source ? ` · ${source.trackCount} tracks` : " · aguardando análise"}
+								</span>
+							</div>
+							<div className={styles.selectedSourceActions}>
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+									onClick={() => fileInput.current?.click()}
+								>
+									Trocar ZIP
+								</Button>
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+									onClick={() => {
+										if (fileInput.current) fileInput.current.value = "";
+										setFile(null);
+										setSource(null);
+										setPreparation(null);
+										setError(null);
+										setStatus(null);
+										pending.current = null;
+									}}
+								>
+									Remover
+								</Button>
+							</div>
+						</div>
+					) : (
+						<button
+							type="button"
+							className={styles.sourcePicker}
+							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
+							onClick={() => fileInput.current?.click()}
+						>
+							<span className={styles.sourceGlyph} aria-hidden="true">ZIP</span>
+							<span className={styles.sourcePickerCopy}>
+								<strong>Selecionar ZIP Craig</strong>
+								<span>Escolha a gravação local que servirá de amostra comparável.</span>
+							</span>
+						</button>
+					)}
+
+					{file && source ? (
+						<dl className={styles.sourceFacts}>
+							<div>
+								<dt>Validação</dt>
+								<dd>{source.reused ? "Fonte já verificada" : "Verificada agora"}</dd>
+							</div>
+							<div>
+								<dt>Tracks</dt>
+								<dd>{source.trackCount}</dd>
+							</div>
+							<div>
+								<dt>Menor track</dt>
+								<dd>
+									{source.minimumTrackDurationSeconds === null
+										? "Não informado"
+										: formatSeconds(source.minimumTrackDurationSeconds)}
+								</dd>
+							</div>
+						</dl>
+					) : null}
 				</section>
 
-				<div className={styles.primaryActions}>
-					{!source ? (
+				<section
+					className={styles.readinessPanel}
+					data-benchmark-region="readiness"
+					aria-labelledby="benchmark-readiness-title"
+				>
+					<div className={styles.readinessHeader}>
+						<div>
+							<span className={styles.eyebrow}>Readiness</span>
+							<h3 id="benchmark-readiness-title">Perfis locais</h3>
+						</div>
+						<span>{readyCount} / {PROFILES.length} prontos</span>
+					</div>
+					<div className={styles.profileReadiness}>
+						{PROFILES.map((id, index) => (
+							<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
+						))}
+					</div>
+				</section>
+			</div>
+
+			<section className={styles.nextAction} data-benchmark-region="next-action">
+				<div>
+					<span className={styles.eyebrow}>Próxima ação</span>
+					<strong>
+						{active
+							? "Acompanhe a execução abaixo."
+							: !file
+								? "Selecione a fonte que será comparada."
+								: !source
+									? "Valide a amostra no Companion."
+									: pendingProfiles.length > 0
+										? "Prepare os perfis que ainda faltam."
+										: allProfilesReady
+											? "Tudo pronto para medir os quatro perfis."
+											: "Resolva os perfis indisponíveis antes de executar."}
+					</strong>
+				</div>
+				<div className={styles.nextActionControls}>
+					{!active && !file ? (
+						<Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
+							Selecionar ZIP Craig
+						</Button>
+					) : null}
+					{!active && file && !source ? (
 						<Button
 							type="button"
 							variant="primary"
-							disabled={
-								!connected ||
-								!file ||
-								Boolean(fileError) ||
-								sourceBusy ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active)
-							}
+							disabled={!connected || Boolean(fileError) || sourceBusy || busy || preparingProfiles}
 							onClick={() => void analyzeSource()}
 						>
 							{sourceBusy ? "Analisando amostra…" : "Analisar amostra localmente"}
 						</Button>
 					) : null}
-
-					{source && pendingProfiles.length > 0 ? (
+					{!active && source && pendingProfiles.length > 0 ? (
 						<Button
 							type="button"
-							variant="secondary"
-							disabled={
-								preparingProfiles ||
-								busy ||
-								Boolean(active) ||
-								!sampleEligible
-							}
+							variant="primary"
+							disabled={preparingProfiles || busy || !sampleEligible}
 							onClick={() => void preparePending()}
 						>
 							{preparingProfiles
@@ -636,59 +708,51 @@ export function ProcessingBenchmark({
 									: `Preparar ${pendingProfiles.length} perfis pendentes`}
 						</Button>
 					) : null}
-
-					{source ? (
+					{!active && source && pendingProfiles.length === 0 && allProfilesReady ? (
 						<Button
 							type="button"
 							variant="primary"
-							disabled={
-								!connected ||
-								busy ||
-								preparingProfiles ||
-								Boolean(active) ||
-								!allProfilesReady ||
-								!sampleEligible
-							}
+							disabled={!connected || busy || preparingProfiles || !sampleEligible}
 							onClick={() => void runBenchmark()}
 						>
 							{busy ? "Enviando benchmark…" : "Executar benchmark de 5 minutos"}
 						</Button>
 					) : null}
 				</div>
-
-				{preparation?.active ? (
-					<div className={styles.preparationStatus} role="status">
-						<div>
-							<strong>{preparationLabel ?? preparation.title}</strong>
-							<span>
-								{preparation.detail || preparation.stage} · {Math.round(preparation.elapsedSeconds)} s
-							</span>
-						</div>
-						{preparation.operationId &&
-						capabilities?.capabilities.includes("transcription.prepare.cancel") ? (
-							<Button
-								type="button"
-								variant="tertiary"
-								disabled={preparationCancelling}
-								onClick={() => void cancelActivePreparation()}
-							>
-								{preparationCancelling ? "Cancelando…" : "Cancelar preparação"}
-							</Button>
-						) : null}
-					</div>
-				) : null}
-
-				{source && blockedProfiles.length > 0 && !allProfilesReady ? (
-					<p className={styles.notice}>
-						Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
-						atualize o Companion/runtime quando necessário.
-					</p>
-				) : null}
-				{status ? <p className={styles.status} role="status">{status}</p> : null}
-				{error || fileError ? (
-					<p className={styles.error} role="alert">{error ?? fileError}</p>
-				) : null}
 			</section>
+
+			{preparation?.active ? (
+				<div className={styles.preparationStatus} role="status">
+					<div>
+						<strong>{preparationLabel ?? preparation.title}</strong>
+						<span>
+							{preparation.detail || preparation.stage} · {Math.round(preparation.elapsedSeconds)} s
+						</span>
+					</div>
+					{preparation.operationId &&
+					capabilities?.capabilities.includes("transcription.prepare.cancel") ? (
+						<Button
+							type="button"
+							variant="tertiary"
+							disabled={preparationCancelling}
+							onClick={() => void cancelActivePreparation()}
+						>
+							{preparationCancelling ? "Cancelando…" : "Cancelar preparação"}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+
+			{source && blockedProfiles.length > 0 && !allProfilesReady ? (
+				<p className={styles.notice}>
+					Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
+					atualize o Companion/runtime quando necessário.
+				</p>
+			) : null}
+			{status ? <p className={styles.status} role="status">{status}</p> : null}
+			{error || fileError ? (
+				<p className={styles.error} role="alert">{error ?? fileError}</p>
+			) : null}
 
 			{active ? (
 				<section className={styles.activeCard} aria-live="polite">
@@ -718,6 +782,22 @@ export function ProcessingBenchmark({
 							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
 						)}
 					</div>
+					<ol className={styles.runProgress} aria-label="Progresso dos perfis">
+						{PROFILES.map((id, index) => {
+							const stepState =
+								index < Math.min(completed, PROFILES.length)
+									? "complete"
+									: active.status === "running" && completed < PROFILES.length && index === completed
+										? "current"
+										: "pending";
+							return (
+								<li key={id} data-state={stepState}>
+									<span aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</span>
+									<strong>{LABELS[id]}</strong>
+								</li>
+							);
+						})}
+					</ol>
 					<div className={styles.activeActions}>
 						<Button
 							type="button"
