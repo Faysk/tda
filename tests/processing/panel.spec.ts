@@ -847,3 +847,36 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
 });
+
+
+test("idle Full HD keeps the work surface in one viewport and preserves result details", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true, advanceJobs: false });
+	await installCompletedRunCatalog(page);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.locator("[data-craig-composer='true']")).toHaveAttribute("data-layout", "idle");
+	await expect(page.getByLabel("Métricas do último resultado concluído")).toBeVisible();
+	const viewport = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		innerHeight: window.innerHeight,
+		scrollWidth: document.documentElement.scrollWidth,
+		innerWidth: window.innerWidth,
+	}));
+	expect(viewport.scrollHeight).toBeLessThanOrEqual(viewport.innerHeight);
+	expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.innerWidth);
+	const details = page.getByText("Ver detalhes", { exact: true });
+	await expect(details).toBeVisible();
+	await details.focus();
+	await page.keyboard.press("Enter");
+	await expect(page.getByText("Synthetic GPU", { exact: false })).toBeVisible();
+});
+
+test("idle Overview reflows at 390px without horizontal overflow", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await installCompanionFixture(page, { profileReady: true, advanceJobs: false });
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await expect(page.locator("[data-craig-composer='true']")).toHaveAttribute("data-layout", "idle");
+});
