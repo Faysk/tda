@@ -756,7 +756,7 @@ export function ProcessingPanel({
 							</section>
 							<ProcessingSubmission
 								className={styles.submissionCard}
-								compact={Boolean(activeJob)}
+								compact={Boolean(activeJob || queued.length)}
 								onOpenDiagnostics={() => activateView("diagnostics")}
 							/>
 						</div>
