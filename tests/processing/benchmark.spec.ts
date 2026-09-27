@@ -13,9 +13,12 @@ async function openBenchmark(page: import("@playwright/test").Page) {
 	return panel;
 }
 
-async function chooseZip(panel: import("@playwright/test").Locator) {
+async function chooseZip(
+	panel: import("@playwright/test").Locator,
+	name = "benchmark-craig.zip",
+) {
 	await panel.getByLabel("ZIP Craig").setInputFiles({
-		name: "benchmark-craig.zip",
+		name,
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK synthetic benchmark Craig fixture"),
 	});
@@ -40,14 +43,23 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	});
 	const panel = await openBenchmark(page);
 
+	await expect(panel.getByRole("button", { name: "Selecionar ZIP Craig" })).toBeVisible();
+	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
 	await chooseZip(panel);
 	await expect(panel).toContainText("benchmark-craig.zip");
-	await expect(panel).toContainText("2 / 4 perfis prontos");
+	await expect(panel.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
+	await expect(panel).toContainText("2 / 4 prontos");
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
 	expect(state.uploadCount).toBe(0);
 
 	await analyze(panel);
 	expect(state.uploadCount).toBe(1);
 	await expect(panel.getByRole("button", { name: /Preparar 2 perfis pendentes/u })).toBeEnabled();
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
 	await panel.getByRole("button", { name: /Preparar 2 perfis pendentes/u }).click();
 
 	await expect.poll(() => state.preparationPostCount).toBe(2);
@@ -62,6 +74,9 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect.poll(() => state.jobPostCount).toBe(1);
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
 	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
+	await expect(
+		panel.getByRole("progressbar", { name: "Perfis concluídos no benchmark" }),
+	).toHaveAttribute("aria-valuenow", "0");
 
 	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
 	await expect(page.getByRole("tabpanel", { name: "Diagnóstico" })).toBeVisible();
@@ -190,4 +205,48 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
+});
+
+test("benchmark workspace reflows from mobile to 4K without exposing the native file input", async ({
+	page,
+}, testInfo) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "qwen-fast"],
+		advanceJobs: false,
+	});
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	const panel = await openBenchmark(page);
+	await chooseZip(
+		panel,
+		"craig-session-with-a-deliberately-long-name-for-responsive-layout-validation.zip",
+	);
+
+	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
+	await expect(panel.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
+	await expect(panel.getByText("Prontidão", { exact: false })).toBeVisible();
+	await expect(panel.getByText("Nenhum benchmark concluído neste Companion.")).toBeVisible();
+
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+		{ width: 3840, height: 2160 },
+	]) {
+		await page.setViewportSize(viewport);
+		const dimensions = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.screenshot({
+		path: testInfo.outputPath("benchmark-workspace-mobile.png"),
+		fullPage: true,
+	});
 });
