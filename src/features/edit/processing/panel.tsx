@@ -90,6 +90,17 @@ function formatDuration(seconds: number | null): string {
 			: `${remainder}s`;
 }
 
+function liveElapsed(
+	startedAt: string | null,
+	fallback: number | null,
+	now: number,
+): number | null {
+	if (!startedAt) return fallback;
+	const started = Date.parse(startedAt);
+	if (!Number.isFinite(started) || started > now + 5_000) return fallback;
+	return Math.max(0, (now - started) / 1000);
+}
+
 function formatRealtime(rtf: number | null): string {
 	if (rtf === null || !Number.isFinite(rtf) || rtf <= 0) return "—";
 	return `${(1 / rtf).toFixed(2)}×`;
@@ -259,6 +270,7 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -316,6 +328,33 @@ export function ProcessingPanel({
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
+	const activeTrackTiming =
+		activeJob?.timing.tracks.find((item) => item.finishedAt === null) ?? null;
+	const completedTrackTimings =
+		activeJob?.timing.tracks.filter(
+			(item) => item.finishedAt !== null && item.processingSeconds !== null,
+		) ?? [];
+	const attemptElapsed = activeJob
+		? liveElapsed(
+				activeJob.timing.attemptStartedAt,
+				activeJob.timing.attemptElapsedSeconds,
+				clockNow,
+			)
+		: null;
+	const stageElapsed = activeJob
+		? liveElapsed(
+				activeJob.timing.stageStartedAt,
+				activeJob.timing.stageElapsedSeconds,
+				clockNow,
+			)
+		: null;
+	const trackElapsed = activeTrackTiming
+		? liveElapsed(
+				activeTrackTiming.startedAt,
+				activeTrackTiming.processingSeconds,
+				clockNow,
+			)
+		: null;
 	const latestCompletedRun = activeJob
 		? null
 		: (state.localRuns[0] ?? null);
@@ -332,6 +371,13 @@ export function ProcessingPanel({
 			? latestActivity(state.events)
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
+	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
+
+	useEffect(() => {
+		if (activeJobClockKey === null) return;
+		const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+		return () => window.clearInterval(timer);
+	}, [activeJobClockKey]);
 
 	async function confirm() {
 		const choice = confirmation;
@@ -563,13 +609,25 @@ export function ProcessingPanel({
 												<span>Segmento {trackContext.segment}</span>
 											) : null}
 											{activeJob.attempt > 0 ? (
-												<span>Tentativa {activeJob.attempt}</span>
+												<span>
+													Tentativa {activeJob.attempt} ·{" "}
+													{formatDuration(attemptElapsed)}
+												</span>
+											) : null}
+											{activeTrackTiming ? (
+												<span>
+													Track {activeTrackTiming.track}
+													{activeTrackTiming.totalTracks
+														? `/${activeTrackTiming.totalTracks}`
+														: ""}{" "}
+													· {formatDuration(trackElapsed)}
+												</span>
 											) : null}
 											{activeJob.context?.profileId ? (
 												<span>Perfil {activeJob.context.profileId}</span>
 											) : null}
 											<span>
-												Trabalho atualizado às{" "}
+												Etapa há {formatDuration(stageElapsed)} · atualizado às{" "}
 												<time dateTime={activeJob.updated_at}>
 													{formatTime(activeJob.updated_at)}
 												</time>
@@ -595,6 +653,26 @@ export function ProcessingPanel({
 												</p>
 											) : null
 										)}
+						{activeTrackTiming || completedTrackTimings.length ? (
+							<div className={styles.trackTimingSummary}>
+								{activeTrackTiming ? (
+									<span>
+										Track {activeTrackTiming.track}
+										{activeTrackTiming.speaker
+											? ` · ${activeTrackTiming.speaker}`
+											: ""}{" "}
+										· ativa há {formatDuration(trackElapsed)}
+									</span>
+								) : null}
+								{completedTrackTimings.slice(-3).map((item) => (
+									<span key={item.track}>
+										Track {item.track}
+										{item.speaker ? ` · ${item.speaker}` : ""} ·{" "}
+										{formatDuration(item.processingSeconds)}
+									</span>
+								))}
+							</div>
+						) : null}
 						{activeActivity ? (
 							<div className={styles.activeActivity} aria-live="polite">
 								<strong>{activeActivity.title}</strong>
@@ -611,6 +689,10 @@ export function ProcessingPanel({
 							{pipelineSteps.map((step, index) => (
 								<span key={step.id} data-state={pipelineState(activeJob.stage, index)}>
 									{step.label}
+									{pipelineState(activeJob.stage, index) === "current" &&
+									stageElapsed !== null
+										? ` · ${formatDuration(stageElapsed)}`
+										: ""}
 								</span>
 							))}
 						</section>

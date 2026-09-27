@@ -137,7 +137,7 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
 
 
 def test_production_deploy_explicitly_enables_bounded_statistics_read_model_v2():
-    value = _read("production.yml")
+    value = _read("production-cd.yml")
     assert 'TDA_STATS_READ_MODEL_V2_ENABLED: "true"' in value
     assert "--env TDA_STATS_READ_MODEL_V2_ENABLED=true" in value
     assert value.count("TDA_STATS_READ_MODEL_V2_ENABLED") == 2

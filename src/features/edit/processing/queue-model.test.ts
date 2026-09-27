@@ -16,6 +16,15 @@ function job(
 	updated_at: string,
 ): LocalJob {
 	return {
+		timing: {
+			schemaVersion: "tda_job_timing_v1",
+			attemptStartedAt: null,
+			attemptFinishedAt: null,
+			attemptElapsedSeconds: null,
+			stageStartedAt: null,
+			stageElapsedSeconds: null,
+			tracks: [],
+		},
 		id,
 		kind: "transcription.craig",
 		status,
