@@ -264,7 +264,7 @@ test("publication freezes current and requires a fresh confirmation after stale_
 test("abandonment warning keeps private handoff semantics and preserves pending state on cancel", async ({ page }) => {
  let posts = 0;
  await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: null } } }));
- await page.route(/\\/api\\/transcript-publications$/, async route => { posts++; await route.abort(); });
+ await page.route(/\/api\/transcript-publications$/, async route => { posts++; await route.abort(); });
  await page.route("**/api/transcript-publications/receipt", route => route.fulfill({ status: 503, json: { ok: false, reason: "dependency_unavailable" } }));
 
  await page.goto("/?review-contracts&publication");
