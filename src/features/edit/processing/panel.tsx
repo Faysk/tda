@@ -1175,6 +1175,7 @@ export function ProcessingPanel({
 											system={state.system}
 											live={observedJobLive}
 											stale={Boolean(state.eventsRefreshError)}
+											expectedPollMs={PROCESSING_REFRESH_POLICY.activePollMs}
 											activityCatalog={activityCatalog}
 										/>
 									) : null}
