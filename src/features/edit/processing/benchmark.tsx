@@ -229,6 +229,7 @@ export function ProcessingBenchmark({
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
+	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
 	const pending = useRef<PendingBenchmark | null>(null);
 
@@ -257,9 +258,11 @@ export function ProcessingBenchmark({
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
-	const latestProblem = benchmarkJobs.find((job) =>
-		["failed", "cancelled", "interrupted"].includes(job.status),
-	);
+	const latestJob = benchmarkJobs[0];
+	const latestProblem =
+		latestJob && ["failed", "cancelled", "interrupted"].includes(latestJob.status)
+			? latestJob
+			: undefined;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
@@ -526,6 +529,7 @@ export function ProcessingBenchmark({
 					<label>
 						<span>ZIP Craig</span>
 						<input
+							ref={fileInput}
 							type="file"
 							accept=".zip,application/zip"
 							disabled={
@@ -551,6 +555,7 @@ export function ProcessingBenchmark({
 							variant="tertiary"
 							disabled={sourceBusy || busy || preparingProfiles || Boolean(active)}
 							onClick={() => {
+								if (fileInput.current) fileInput.current.value = "";
 								setFile(null);
 								setSource(null);
 								setPreparation(null);
