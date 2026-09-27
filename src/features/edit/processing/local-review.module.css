@@ -788,6 +788,28 @@
 	flex-wrap: wrap;
 }
 
+.runCompareActions {
+	display: grid;
+	grid-template-columns: minmax(170px, 1fr) minmax(180px, 1.2fr) auto;
+	align-items: end;
+	gap: 8px;
+	margin-top: 8px;
+	padding-top: 9px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+.runCompareActions > div { display: grid; gap: 2px; }
+.runCompareActions strong { font-size: .75rem; }
+.runCompareActions span, .runCompareActions small, .runCompareActions p {
+	margin: 0; color: var(--ds-foreground-muted); font-size: .6875rem; line-height: 1.35;
+}
+.runCompareActions select {
+	width: 100%; min-width: 0; min-height: 34px; padding: 0 8px;
+	border: 1px solid var(--ds-control-border); border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface); color: var(--ds-foreground); font: inherit; font-size: .72rem;
+}
+.runCompareActions p { grid-column: 1 / -1; color: var(--ds-danger); }
+@media (max-width: 760px) { .runCompareActions { grid-template-columns: 1fr; align-items: stretch; } }
+
 
 /* #598 — Results uses the extra desktop height for the master/detail workspace
    while mobile and short viewports keep natural page scrolling. */
