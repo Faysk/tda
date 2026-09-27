@@ -780,7 +780,7 @@
 .runActions {
 	display: flex;
 	align-items: center;
-	gap: var(--space-2);
+	gap: 0.5rem;
 	flex-wrap: wrap;
 }
 
@@ -795,8 +795,8 @@
 	min-width: 2.5rem;
 	min-height: 2.5rem;
 	cursor: pointer;
-	border: 1px solid var(--color-border-subtle);
-	border-radius: var(--radius-md);
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
 	list-style: none;
 }
 
@@ -809,12 +809,12 @@
 	right: 0;
 	z-index: 5;
 	min-width: 13rem;
-	margin-top: var(--space-1);
-	padding: var(--space-2) var(--space-3);
-	border: 1px solid var(--color-border-subtle);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-raised);
-	color: var(--color-danger-text);
+	margin-top: 0.25rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+	color: var(--ds-danger);
 	text-align: left;
 	cursor: pointer;
 }
@@ -826,12 +826,12 @@
 
 .deleteDialog {
 	max-width: min(34rem, calc(100vw - 2rem));
-	border: 1px solid var(--color-border-subtle);
-	border-radius: var(--radius-lg);
-	padding: var(--space-5);
-	background: var(--color-surface-raised);
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	padding: 1.25rem;
+	background: var(--ds-surface-elevated);
 	color: inherit;
-	box-shadow: var(--shadow-lg);
+	box-shadow: 0 1rem 3rem rgb(0 0 0 / 24%);
 }
 
 .deleteDialog::backdrop {
@@ -841,7 +841,7 @@
 .deleteDialogActions {
 	display: flex;
 	justify-content: flex-end;
-	gap: var(--space-2);
+	gap: 0.5rem;
 	flex-wrap: wrap;
-	margin-top: var(--space-4);
+	margin-top: 1rem;
 }
