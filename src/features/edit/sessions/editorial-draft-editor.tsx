@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import styles from "@/features/edit/workbench.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
+import { SessionCoverEditor } from "./session-cover-editor";
+import {
+	isSessionCoverUuid,
+	sessionCoverPreviewUrl,
+} from "./session-cover-media";
 import {
 	SESSION_DRAFT_LIMITS,
 	type SessionEditorialDraft,
@@ -160,7 +165,11 @@ export function SessionEditorialDraftEditor({
 		);
 	}
 
-	const coverLooksPreviewable = /^https:\/\//iu.test(fields.coverAssetId.trim());
+	const coverPreviewUrl = isSessionCoverUuid(fields.coverAssetId)
+		? sessionCoverPreviewUrl(sessionId, fields.coverAssetId)
+		: /^https:\/\//iu.test(fields.coverAssetId.trim())
+			? fields.coverAssetId
+			: undefined;
 
 	return (
 		<section className={styles.editorialPanel} aria-label="Publicação da sessão">
@@ -216,33 +225,14 @@ export function SessionEditorialDraftEditor({
 				<div className={styles.editorialFields}>
 					<div className={styles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
-						<div className={styles.coverPreview}>
-							{coverLooksPreviewable ? (
-								<img src={fields.coverAssetId} alt="" />
-							) : (
-								<span>
-									{fields.coverAssetId
-										? "Referência de capa salva"
-										: "Sem capa"}
-								</span>
-							)}
-						</div>
-						<label className={styles.fieldLabel}>
-							Referência/intent da capa
-							<input
-								className={styles.control}
-								disabled={!editable}
-								maxLength={SESSION_DRAFT_LIMITS.coverAssetId}
-								onChange={(event) =>
-									setFields((current) => ({
-										...current,
-										coverAssetId: event.target.value,
-									}))
-								}
-								placeholder="A finalização física entra na etapa de upload"
-								value={fields.coverAssetId}
-							/>
-						</label>
+						<SessionCoverEditor
+							disabled={!editable}
+							onChange={(coverAssetId) =>
+								setFields((current) => ({ ...current, coverAssetId }))
+							}
+							sessionId={sessionId}
+							value={fields.coverAssetId}
+						/>
 					</div>
 
 					<label className={styles.fieldLabel}>
@@ -336,8 +326,8 @@ export function SessionEditorialDraftEditor({
 					</div>
 					<article className={styles.previewStory}>
 						<div className={styles.coverPreview}>
-							{coverLooksPreviewable ? (
-								<img src={fields.coverAssetId} alt="" />
+							{coverPreviewUrl ? (
+								<img src={coverPreviewUrl} alt="" />
 							) : (
 								<span>Preview sem capa finalizada</span>
 							)}
