@@ -110,7 +110,7 @@ test("short Craig sample is rejected during preflight before preparation or queu
 	);
 	await expect(
 		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
-	).toBeDisabled();
+	).toHaveCount(0);
 	expect(state.preparationPostCount).toBe(0);
 	expect(state.jobPostCount).toBe(0);
 });
@@ -225,7 +225,7 @@ test("benchmark workspace reflows from mobile to 4K without exposing the native 
 
 	await expect(panel.getByLabel("ZIP Craig")).toBeHidden();
 	await expect(panel.getByRole("button", { name: "Trocar ZIP" })).toBeVisible();
-	await expect(panel.getByText("Prontidão", { exact: false })).toBeVisible();
+	await expect(panel.getByRole("heading", { name: "Perfis" })).toBeVisible();
 	await expect(panel.getByText("Nenhum benchmark concluído neste Companion.")).toBeVisible();
 
 	for (const viewport of [
