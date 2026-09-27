@@ -283,6 +283,52 @@ export async function installCompanionFixture(
 		}
 
 		if (path === "/capabilities") {
+			if (options.benchmarkProfiles) {
+				const catalog = benchmarkProfileIds.map((id) => {
+					const ready = benchmarkPrepared.has(id);
+					return {
+						id,
+						engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
+						ready,
+						preparation_required: !ready,
+						reason: ready ? null : "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+					};
+				});
+				return json(route, {
+					capabilities: [
+						...(options.reviewEnabled ? ["transcription.review"] : []),
+						"transcription.craig",
+						"transcription.prepare",
+						"transcription.prepare.cancel",
+						"job.events",
+						"system.telemetry",
+					],
+					sync: false,
+					device: { id: "fixture-pc", label: "PC sintético" },
+					transcription: {
+						profiles: benchmarkProfileIds.filter((id) => benchmarkPrepared.has(id)),
+						catalog,
+						qwen_physical_gate: Object.fromEntries(
+							(["qwen-fast", "qwen-quality"] as const).map((id) => [
+								id,
+								benchmarkPrepared.has(id)
+									? {
+											status: "ready",
+											ready: true,
+											profile_id: id,
+											runtime_version: qwenRuntimeVersion,
+										}
+									: {
+											status: "missing",
+											ready: false,
+											profile_id: id,
+											reason: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+										},
+							]),
+						),
+					},
+				});
+			}
 			return json(route, {
 				capabilities: [
 					...(options.reviewEnabled ? ["transcription.review"] : []),
