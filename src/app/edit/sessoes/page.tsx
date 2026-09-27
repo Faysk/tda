@@ -5,7 +5,6 @@ import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { sessionEditorialLabel, sessionEditorialState } from "@/features/edit/sessions/library-model";
 import { listEditSessionLibrary } from "@/features/edit/sessions/library-repository";
-import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
 
@@ -13,19 +12,6 @@ export const metadata: Metadata = {
 	title: "Sessões · Edit",
 	description: "Biblioteca editorial privada de sessões do TDA.",
 };
-
-function DisabledEdit() {
-	return (
-		<section className={styles.locked}>
-			<div className={styles.muted}>TDA / EDIT / SESSÕES</div>
-			<h1>Edit desativado</h1>
-			<p className={styles.muted}>
-				A consulta administrativa das sessões está desativada neste ambiente.
-			</p>
-			<Link href="/edit">← Voltar ao Edit</Link>
-		</section>
-	);
-}
 
 export default async function EditSessionsPage() {
 	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
