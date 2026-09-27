@@ -5,6 +5,7 @@
 
 .launchCard,
 .activeCard,
+.problemCard,
 .resultCard,
 .history {
 	border: 1px solid var(--ds-border-subtle);
@@ -14,6 +15,7 @@
 
 .launchCard,
 .activeCard,
+.problemCard,
 .history {
 	padding: 14px;
 }
@@ -85,6 +87,7 @@
 }
 
 .activeCard,
+.problemCard,
 .resultHeader,
 .historyHeader {
 	display: flex;
@@ -173,5 +176,166 @@
 
 	.launchControls input {
 		max-width: 100%;
+	}
+}
+
+
+.sourceFacts,
+.profileReadiness,
+.primaryActions,
+.preparationStatus,
+.status {
+	grid-column: 1 / -1;
+}
+
+.sourceFacts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	padding: 8px 10px;
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.sourceFacts span:first-child {
+	max-width: min(520px, 100%);
+	overflow: hidden;
+	color: var(--ds-foreground);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.profileReadiness {
+	display: grid;
+	gap: 6px;
+	padding-top: 2px;
+}
+
+.readinessHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.readinessHeader strong {
+	color: var(--ds-foreground);
+}
+
+.profileRow {
+	display: grid;
+	grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1.3fr) minmax(0, 1fr);
+	gap: 8px;
+	align-items: center;
+	padding: 7px 9px;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-size: 0.72rem;
+}
+
+.profileRow > span {
+	color: var(--ds-foreground-muted);
+}
+
+.profileRow[data-state="ready"] > span {
+	color: var(--ds-success-foreground);
+}
+
+.profileRow[data-state="blocked"] > span {
+	color: var(--ds-danger-foreground);
+}
+
+.profileRow small {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ds-foreground-muted);
+	font-family: var(--font-mono), monospace;
+	font-size: 0.64rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.primaryActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.preparationStatus {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 9px 10px;
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.preparationStatus > div,
+.activeCopy {
+	display: grid;
+	gap: 3px;
+}
+
+.preparationStatus span,
+.activeCopy small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.status {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.74rem;
+}
+
+.activeActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.problemCard {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.problemCard h3,
+.problemCard p {
+	margin: 0;
+}
+
+.problemCard p {
+	color: var(--ds-foreground-muted);
+	font-size: 0.74rem;
+}
+
+@media (max-width: 800px) {
+	.profileRow {
+		grid-template-columns: 1fr;
+		gap: 3px;
+	}
+
+	.profileRow small {
+		white-space: normal;
+	}
+
+	.primaryActions,
+	.preparationStatus,
+	.activeActions,
+	.problemCard {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.sourceFacts span:first-child {
+		width: 100%;
 	}
 }
