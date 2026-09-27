@@ -48,7 +48,7 @@ test("guided composer supports drag/drop, picker keyboard and progressive detail
 	await expect(composer.getByLabel("ID da sessão")).toHaveValue("Sessao-epica-42");
 	await expect(composer).toContainText("Sessão épica #42.zip");
 	await expect(composer).toContainText("Qwen3-ASR · pronto neste Companion");
-	await expect(composer).toContainText("Ainda sem calibração nesta máquina.");
+	await expect(composer).toContainText("Sem calibração compatível nesta máquina.");
 	await expect(composer.getByText(/Áudio permanece nesta máquina\./u)).toBeVisible();
 	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
 
@@ -102,7 +102,7 @@ test("local file validation blocks bad input before Companion upload", async ({ 
 	await expect(composer.getByRole("alert")).toContainText("arquivo .zip exportado pelo Craig");
 	expect(state.uploadCount).toBe(0);
 	await expect(
-		composer.getByRole("button", { name: "Adicionar à fila local", exact: true }),
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 	).toBeDisabled();
 });
 
@@ -137,8 +137,8 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 		composer.locator("[data-craig-dropzone='true']"),
 		composer.getByLabel("ID da sessão"),
 		composer.getByLabel("Perfil"),
-		composer.getByText("Ainda sem calibração nesta máquina.", { exact: true }),
-		composer.getByRole("button", { name: "Adicionar à fila local", exact: true }),
+		composer.getByText("Sem calibração compatível nesta máquina.", { exact: true }),
+		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
 		composer.getByText("Opções avançadas", { exact: true }),
 	];
 	const boxes = await Promise.all(locators.map((locator) => locator.boundingBox()));
