@@ -529,6 +529,51 @@ test("Overview labels track-count progress with its factual denominator", async 
 	).toHaveCount(0);
 });
 
+test("Overview does not borrow track context from a previous retry attempt", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("running", {
+				attempt: 2,
+				progress: { completed: 0, total: 4, unit: "tracks" },
+			}),
+		],
+		jobEvents: [
+			{
+				seq: 8,
+				code: "RUNNING",
+				at: "2026-09-20T18:10:00Z",
+				level: "info",
+				attempt: 2,
+				data: { attempt: 2 },
+			},
+			{
+				seq: 7,
+				code: "QWEN_WINDOW_TRANSCRIBED",
+				at: "2026-09-20T18:09:59Z",
+				level: "info",
+				attempt: 1,
+				data: {
+					track: 3,
+					total_tracks: 4,
+					speaker: "Alice",
+					window: 317,
+				},
+			},
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await expect(page.getByText(/Tentativa 2/)).toBeVisible();
+	await expect(page.getByText("Arquivo 3 de 4", { exact: true })).toHaveCount(0);
+	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
+	await expect(page.getByText("Janela 317", { exact: true })).toHaveCount(0);
+});
+
 test("Overview keeps factual zero progress and does not infer worker liveness", async ({
 	page,
 }, testInfo) => {
