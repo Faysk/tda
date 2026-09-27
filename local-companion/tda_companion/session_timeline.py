@@ -158,7 +158,7 @@ def enrich_workspace_timeline(
             trim_start = 0.0
         trim_end = _number(part.get("trim_end_seconds"))
         duration = _number(facts.get("duration_seconds"))
-        if offset is None:
+        if offset is None or duration is None:
             needs_timing = True
 
         effective_start = (
@@ -221,6 +221,7 @@ def enrich_workspace_timeline(
         "schema_version": TIMING_POLICY_VERSION,
         "campaign_id": workspace.get("campaign_id"),
         "session_id": workspace.get("session_id"),
+        "ordering_mode": workspace.get("ordering_mode", "attachment"),
         "parts": [
             {
                 "part_id": part.get("part_id"),
