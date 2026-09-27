@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LocalReviewSegment } from "./protocol";
 import {
 	compareRunSegments,
+	regionOverlapsTimeRange,
 	runsShareComparisonSource,
 	summarizeRunComparison,
 } from "./run-comparison";
@@ -162,6 +163,29 @@ describe("run comparison", () => {
 			totalRegions: 4,
 			differentRegions: 3,
 		});
+	});
+
+	it("filters aligned regions by an inclusive local time range", () => {
+		const [region] = compareRunSegments(
+			[segment(1, "left", 10, 12, "janela")],
+			[segment(1, "right", 10.1, 12.1, "janela")],
+		);
+		expect(region).toBeDefined();
+		expect(regionOverlapsTimeRange(region!, 11, 20)).toBe(true);
+		expect(regionOverlapsTimeRange(region!, 0, 9.9)).toBe(false);
+		expect(regionOverlapsTimeRange(region!, 12.1, 12.1)).toBe(true);
+	});
+
+	it("fails closed for invalid time-range values", () => {
+		const [region] = compareRunSegments(
+			[segment(1, "left", 0, 1, "janela")],
+			[segment(1, "right", 0, 1, "janela")],
+		);
+		expect(region).toBeDefined();
+		expect(regionOverlapsTimeRange(region!, 2, 1)).toBe(false);
+		expect(() => regionOverlapsTimeRange(region!, -1, null)).toThrow(
+			"RUN_COMPARISON_TIME_RANGE_INVALID",
+		);
 	});
 
 	it("requires two distinct runs from the same source", () => {
