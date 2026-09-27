@@ -42,15 +42,17 @@ test("benchmark preflight exposes source, readiness and one actionable next step
 		benchmarkReadyProfiles: READY_PROFILES,
 	});
 
-	const source = benchmark.getByRole("region", { name: "ZIP Craig" });
+	const source = benchmark.getByRole("region", { name: "Fonte do benchmark" });
 	const readiness = benchmark.getByRole("region", {
 		name: "Prontidão dos perfis",
 	});
-	const input = benchmark.getByLabel("Selecionar ZIP Craig");
+	const input = benchmark.getByLabel("ZIP Craig");
 
 	await expect(source).toBeVisible();
 	await expect(readiness).toBeVisible();
-	await expect(input).toBeHidden();
+	const nativeInputBox = await input.boundingBox();
+	expect(nativeInputBox?.width ?? 99).toBeLessThanOrEqual(1);
+	expect(nativeInputBox?.height ?? 99).toBeLessThanOrEqual(1);
 	await expect(
 		benchmark.getByRole("button", { name: "Selecionar ZIP" }),
 	).toBeVisible();
@@ -70,10 +72,10 @@ test("benchmark preflight exposes source, readiness and one actionable next step
 		),
 	).toBeVisible();
 	await expect(
-		benchmark.getByRole("button", { name: "Analisar amostra" }),
+		benchmark.getByRole("button", { name: "Analisar amostra localmente" }),
 	).toBeVisible();
 
-	await benchmark.getByRole("button", { name: "Analisar amostra" }).click();
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
 	await expect(benchmark.getByText("Verificada agora", { exact: true })).toBeVisible();
 	await expect(
 		benchmark.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
@@ -111,9 +113,9 @@ test("benchmark readiness makes preparation the primary action instead of a dead
 		benchmarkReadyProfiles: ["whisper-turbo"],
 	});
 
-	const input = benchmark.getByLabel("Selecionar ZIP Craig");
+	const input = benchmark.getByLabel("ZIP Craig");
 	await input.setInputFiles(syntheticZip());
-	await benchmark.getByRole("button", { name: "Analisar amostra" }).click();
+	await benchmark.getByRole("button", { name: "Analisar amostra localmente" }).click();
 
 	await expect(
 		benchmark.getByRole("button", { name: "Preparar 3 perfis pendentes" }),
@@ -121,7 +123,7 @@ test("benchmark readiness makes preparation the primary action instead of a dead
 	await expect(
 		benchmark.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
 	).toHaveCount(0);
-	await expect(benchmark.getByText("1 / 4 prontos", { exact: true })).toBeVisible();
+	await expect(benchmark.getByText("1 / 4 perfis prontos", { exact: true })).toBeVisible();
 });
 
 for (const viewport of [
@@ -136,14 +138,14 @@ for (const viewport of [
 		const benchmark = await openBenchmark(page, {
 			benchmarkReadyProfiles: READY_PROFILES,
 		});
-		const input = benchmark.getByLabel("Selecionar ZIP Craig");
+		const input = benchmark.getByLabel("ZIP Craig");
 		await input.setInputFiles(
 			syntheticZip(
 				"this-is-an-extremely-long-craig-export-filename-used-to-prove-that-the-selected-file-state-truncates-safely.zip",
 			),
 		);
 
-		const source = benchmark.getByRole("region", { name: "ZIP Craig" });
+		const source = benchmark.getByRole("region", { name: "Fonte do benchmark" });
 		const readiness = benchmark.getByRole("region", {
 			name: "Prontidão dos perfis",
 		});
