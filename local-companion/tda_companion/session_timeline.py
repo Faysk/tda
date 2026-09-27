@@ -99,6 +99,9 @@ def automatic_placements(
         ):
             raise ValueError("SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED")
         sortable.append((float(epoch), str(part["part_id"]), str(part["source_id"])))
+    epochs = [epoch for epoch, _part_id, _source_id in sortable]
+    if len(set(epochs)) != len(epochs):
+        raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION")
     sortable.sort()
     anchor = sortable[0][0]
     return [
@@ -133,9 +136,11 @@ def enrich_workspace_timeline(
     overlap_count = 0
     unresolved_overlap_count = 0
     unconfirmed_gap_count = 0
+    order_conflict_count = 0
     source_invalid = False
     needs_timing = not bool(workspace.get("parts"))
     all_sources_trusted = bool(workspace.get("parts"))
+    trusted_epochs: list[float] = []
 
     previous: dict[str, Any] | None = None
     for part in workspace.get("parts", []):
@@ -148,6 +153,9 @@ def enrich_workspace_timeline(
         all_sources_trusted = (
             all_sources_trusted and start_confidence == "trusted_absolute"
         )
+        start_epoch = _number(facts.get("start_epoch_seconds"))
+        if start_confidence == "trusted_absolute" and start_epoch is not None:
+            trusted_epochs.append(start_epoch)
         if source_state != "ready":
             source_invalid = True
 
@@ -177,33 +185,46 @@ def enrich_workspace_timeline(
         relation_seconds: float | None = 0.0 if previous is None else None
         overlap_resolution_valid = False
         if previous is not None:
+            previous_start = previous.get("effective_start_seconds")
             previous_end = previous.get("effective_end_seconds")
-            if effective_start is not None and previous_end is not None:
-                delta = effective_start - float(previous_end)
+            if (
+                effective_start is not None
+                and effective_end is not None
+                and previous_start is not None
+                and previous_end is not None
+            ):
+                previous_start_value = float(previous_start)
+                previous_end_value = float(previous_end)
+                delta = effective_start - previous_end_value
                 if delta > _EPSILON:
                     relation = "gap"
                     relation_seconds = delta
                     gap_count += 1
                     if part.get("gap_confirmed") is not True:
                         unconfirmed_gap_count += 1
-                elif delta < -_EPSILON:
-                    relation = "overlap"
-                    relation_seconds = -delta
-                    overlap_count += 1
-                    policy = part.get("overlap_resolution")
-                    boundary = _number(part.get("overlap_boundary_seconds"))
-                    overlap_start = effective_start
-                    overlap_end = float(previous_end)
-                    overlap_resolution_valid = (
-                        policy in _OVERLAP_RESOLUTIONS
-                        and boundary is not None
-                        and overlap_start - _EPSILON <= boundary <= overlap_end + _EPSILON
-                    )
-                    if not overlap_resolution_valid:
-                        unresolved_overlap_count += 1
-                else:
+                elif abs(delta) <= _EPSILON:
                     relation = "contiguous"
                     relation_seconds = 0.0
+                else:
+                    overlap_start = max(previous_start_value, effective_start)
+                    overlap_end = min(previous_end_value, effective_end)
+                    if overlap_end <= overlap_start + _EPSILON:
+                        relation = "order_conflict"
+                        relation_seconds = None
+                        order_conflict_count += 1
+                    else:
+                        relation = "overlap"
+                        relation_seconds = overlap_end - overlap_start
+                        overlap_count += 1
+                        policy = part.get("overlap_resolution")
+                        boundary = _number(part.get("overlap_boundary_seconds"))
+                        overlap_resolution_valid = (
+                            policy in _OVERLAP_RESOLUTIONS
+                            and boundary is not None
+                            and overlap_start - _EPSILON <= boundary <= overlap_end + _EPSILON
+                        )
+                        if not overlap_resolution_valid:
+                            unresolved_overlap_count += 1
 
         enriched = {
             **part,
@@ -253,10 +274,18 @@ def enrich_workspace_timeline(
         ).encode("utf-8")
     ).hexdigest()
 
+    automatic_order_available = (
+        all_sources_trusted
+        and len(trusted_epochs) == len(workspace.get("parts", []))
+        and len(set(trusted_epochs)) == len(trusted_epochs)
+    )
+
     if source_invalid:
         state = "source_invalid"
     elif needs_timing:
         state = "needs_timing"
+    elif order_conflict_count:
+        state = "order_conflict"
     elif unresolved_overlap_count:
         state = "overlap_unresolved"
     elif unconfirmed_gap_count:
@@ -273,7 +302,7 @@ def enrich_workspace_timeline(
             "fingerprint_sha256": fingerprint,
             "state": state,
             "all_sources_trusted": all_sources_trusted,
-            "automatic_order_available": all_sources_trusted,
+            "automatic_order_available": automatic_order_available,
             "gap_count": gap_count,
             "overlap_count": overlap_count,
             "unresolved_overlap_count": unresolved_overlap_count,
