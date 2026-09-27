@@ -1477,3 +1477,56 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+
+## Handoff privado para Sessões do Edit (#788)
+
+A ação disponível após uma revisão local `approved_local` é apresentada ao usuário como
+**Preparar sessão**, não como publicação pública. Ela reutiliza o boundary técnico de
+transcript revisions, receipts, `operationId`, CAS de current e recuperação durável já
+definidos por #430/#636/#638, mas a semântica de produto é um **handoff privado**:
+
+```text
+revisão local aprovada
+  -> Preparar sessão
+  -> transcript revision cloud privada
+  -> /edit/sessoes/<sourceSessionId>
+  -> trabalho editorial
+  -> publicação pública separada
+```
+
+A confirmação informa campanha, `sourceSessionId`, draft revision e contagem de
+segmentos; hashes continuam disponíveis apenas como detalhe técnico. O sucesso mostra
+o receipt confirmado e oferece **Abrir sessão no Edit**. Reload/readback da mesma
+operação preserva esse destino sem gerar uma nova intenção.
+
+### Lifecycle exato
+
+Este handoff **não altera `sessions.status`**. A transação existente cria/substitui a
+revision privada de transcript e muda somente `sessions.current_transcript_revision_id`
+no registro da sessão, além das tabelas de revision/receipt/event/audit correspondentes.
+Ela não escreve `title`, `arc`, `summary_short`, `summary_full`, capa, hero ou qualquer
+outro campo editorial público. Portanto:
+
+- uma sessão em draft/review permanece no mesmo status;
+- uma sessão já `published` continua `published`, com seu conteúdo editorial público intacto;
+- re-handoff de um novo draft troca apenas a base privada de transcript, preservando o
+  histórico revisionado e todo draft editorial existente;
+- tornar a sessão pública continua exigindo uma ação editorial separada.
+
+O target continua fail-closed: sessão/campanha inexistente ou divergente não cria
+destino por inferência. A rota de sucesso usa o `sourceSessionId` já verificado pelo
+binding e leva a `/edit/sessoes/<sourceSessionId>`, que permanece sob capability de
+Edit. Nenhuma transcript revision passa a ser projetada para `/sessoes`, metadata
+social ou APIs públicas por causa deste handoff.
+
+### Linguagem de produto
+
+A UI evita `Publicar no TDA` nesta etapa e explicita perto do CTA:
+
+> A transcrição será enviada para a área privada de Sessões do Edit. Nada ficará
+> público no site até uma publicação editorial final separada.
+
+Mensagens de confirmação, recovery e sucesso usam a mesma distinção. Nomes internos
+como `publication-client`, receipts e RPCs podem permanecer por compatibilidade do
+contrato técnico; renomeá-los não é requisito e não deve quebrar idempotência ou recovery.
