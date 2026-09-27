@@ -1829,3 +1829,39 @@ def test_owned_overflow_on_last_window_never_uses_right_context_recovery(
     codes = [item.get("code") for item in reports]
     assert "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED" not in codes
     assert codes.count("QWEN_ALIGNMENT_WINDOW_FAILED") == 1
+
+
+
+def test_benchmark_window_reader_delegates_to_source_reader(tmp_path: Path):
+    package, root = _package(tmp_path)
+
+    class SourceReaderReached(RuntimeError):
+        pass
+
+    def source_reader(_path: Path):
+        raise SourceReaderReached("source reader reached")
+        yield
+
+    class Asr:
+        def close(self):
+            pass
+
+    class Aligner:
+        def close(self):
+            pass
+
+    with pytest.raises(SourceReaderReached, match="source reader reached"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            sample_seconds=300.0,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=source_reader,
+        )
