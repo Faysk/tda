@@ -842,7 +842,11 @@ export class ProcessingController {
 			)
 		)
 			throw new BridgeError("invalid_response");
-		return this.bridge.localReview(sourceId, runId, this.#request.signal);
+		return this.bridge.localRunComparisonSnapshot(
+			sourceId,
+			runId,
+			this.#request.signal,
+		);
 	};
 
     loadLatestLocalReview = async () => {
