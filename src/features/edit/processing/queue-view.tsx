@@ -158,6 +158,7 @@ export function ProcessingQueueView({
 		Readonly<{ kind: "success" | "error"; jobId: string }> | null
 	>(null);
 	const copyFeedbackTimer = useRef<number | null>(null);
+	const copyAttempt = useRef(0);
 
 	useEffect(() => {
 		if (resetSearchKey > 0) setQuery("");
@@ -165,6 +166,7 @@ export function ProcessingQueueView({
 
 	useEffect(
 		() => () => {
+			copyAttempt.current += 1;
 			if (copyFeedbackTimer.current !== null)
 				window.clearTimeout(copyFeedbackTimer.current);
 		},
@@ -198,10 +200,18 @@ export function ProcessingQueueView({
 	}
 
 	async function copyId(jobId: string) {
+		const attempt = ++copyAttempt.current;
+		if (copyFeedbackTimer.current !== null) {
+			window.clearTimeout(copyFeedbackTimer.current);
+			copyFeedbackTimer.current = null;
+		}
+		setCopyFeedback(null);
 		try {
 			await navigator.clipboard.writeText(jobId);
+			if (copyAttempt.current !== attempt) return;
 			showCopyFeedback({ kind: "success", jobId });
 		} catch {
+			if (copyAttempt.current !== attempt) return;
 			showCopyFeedback({ kind: "error", jobId });
 		}
 	}
