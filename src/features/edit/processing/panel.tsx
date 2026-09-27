@@ -1057,11 +1057,7 @@ export function ProcessingPanel({
 								<h3>
 									{observedJobLive ? "Log em tempo real" : "Histórico de eventos"}
 								</h3>
-								<div
-									className={styles.logModeSwitch}
-									role="group"
-									aria-label="Apresentação do log"
-								>
+								<div className={styles.logModeSwitch}>
 									<button
 										type="button"
 										aria-pressed={logMode === "humanized"}
