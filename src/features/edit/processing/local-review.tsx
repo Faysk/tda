@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ActionLink } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
@@ -15,6 +16,7 @@ import type {
 	LocalRunSummary,
 } from "./protocol";
 import styles from "./local-review.module.css";
+import { editSessionHref, sessionHandoffLabel } from "./session-handoff";
 import { browserHasPendingPublicationForRun, browserPublicationRecovery, PublicationRecoveryError, type PublicationConfirmation } from "./publication-recovery";
 import { ReviewConflicts } from "./review-conflicts";
 import { prepareReviewRebase, resolveReviewRebase, type ReviewRebase } from "./review-rebase";
@@ -52,31 +54,30 @@ type Props = Readonly<{
 
 	function publicationErrorMessage(code: string): string {
 		return {
-			storage_unavailable: "Não foi possível preservar a operação neste navegador. A publicação foi bloqueada antes do envio. Libere o armazenamento e tente novamente.",
-            pending_mismatch: "Existe uma publicação anterior não reconciliada nesta campanha. Reabra a revisão original ou abandone a recuperação explicitamente.",
-            pending_expired: "A recuperação ultrapassou 30 dias. Consulte o recibo ou abandone explicitamente antes de uma nova publicação.",
-            profile_changed: "O perfil autenticado mudou. Consulte novamente a publicação antes de continuar.",
-			unauthenticated: "Sua sessão Web expirou. Entre novamente antes de publicar.",
-			forbidden: "Seu acesso não permite publicar transcrições nesta campanha.",
+			storage_unavailable: "Não foi possível preservar esta preparação no navegador. O envio ao Edit foi bloqueado antes do request. Libere o armazenamento e tente novamente.",
+			pending_mismatch: "Existe uma preparação anterior não reconciliada nesta campanha. Reabra a revisão original ou abandone a recuperação explicitamente.",
+			pending_expired: "A recuperação desta preparação ultrapassou 30 dias. Consulte o recibo ou abandone explicitamente antes de formar uma nova intenção.",
+			profile_changed: "O perfil autenticado mudou. Consulte novamente esta preparação antes de continuar.",
+			unauthenticated: "Sua sessão Web expirou. Entre novamente antes de preparar a sessão no Edit.",
+			forbidden: "Seu acesso não permite preparar a transcrição privada desta sessão.",
 			publish_capability_undefined:
-				"A publicação ainda não está ativada para esta campanha.",
+				"O envio privado da transcrição ainda não está ativado para esta campanha.",
 			approved_review_required:
-				"Salve esta revisão como Aprovado localmente antes de publicar.",
+				"Salve esta revisão como Aprovado localmente antes de preparar a sessão.",
 			invalid_payload:
 				"O servidor recusou o vínculo ou o conteúdo desta revisão.",
-			too_large: "A revisão excede o limite aceito para publicação.",
+			too_large: "A revisão excede o limite aceito para o envio privado ao Edit.",
 			not_found:
 				"A sessão vinculada não foi localizada no escopo autorizado.",
-			stale_current: "A revisão publicada mudou. Consulte novamente e confirme a substituição antes de publicar.",
+			stale_current: "A transcrição privada desta sessão mudou. Consulte novamente e confirme a substituição antes de preparar a sessão.",
 			conflict:
-				"Esta operação conflita com uma publicação já registrada. Recarregue antes de continuar.",
+				"Esta operação conflita com um handoff já registrado. Recarregue antes de continuar.",
 			dependency_unavailable:
-				"O serviço de publicação está indisponível e não confirmou nenhuma alteração.",
+				"O serviço de handoff está indisponível e não confirmou nenhuma alteração.",
 			unconfirmed:
 				"A resposta foi perdida e o readback ainda não confirmou o commit. Repetir reutilizará a mesma operação.",
-		}[code] ?? `Publicação não confirmada · ${code}`;
+		}[code] ?? `Preparação não confirmada · ${code}`;
 	}
-
 
 function formatDate(value: string | null): string {
 	if (!value) return "data desconhecida";
@@ -472,7 +473,7 @@ function ReviewEditor({
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
     async function abandonPublication() {
-        if (!publicationRecovery?.pending || !window.confirm("A publicação anterior pode ter sido concluída. Abandonar a recuperação permite criar outra revisão. Continuar?")) return;
+        if (!publicationRecovery?.pending || !window.confirm("A preparação anterior pode ter sido concluída. Abandonar a recuperação permite formar outra intenção editorial e pode criar outra revisão privada. Continuar?")) return;
         setPublishing(true); setPublishConfirmation(false);
         try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationError(null); }
         catch (cause) { setPublicationRecovery(null); setPublicationError(recoveryError(cause)); }
@@ -518,11 +519,10 @@ function ReviewEditor({
 							}
 							onClick={() => void preparePublicationConfirmation()}
 						>
-							{publicationReceipt
-								? `Publicado · r${publicationReceipt.revisionNumber}`
-								: publishing
-									? "Publicando…"
-									: "Publicar no TDA"}
+							{sessionHandoffLabel(
+								publishing,
+								publicationReceipt?.revisionNumber ?? null,
+							)}
 						</Button>
 					) : null}
 				</div>
@@ -530,29 +530,29 @@ function ReviewEditor({
 
 			{!canSave ? <p role="status">Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</p> : null}
 			<div className={styles.reviewNotice}>
-				<strong>Nada será publicado automaticamente.</strong>
+				<strong>Este passo é privado.</strong>
 				<span>
 					{review.publicationTarget
-						? `Destino vinculado: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. ${publicationEnabled ? "Somente a confirmação explícita abaixo pode publicar este draft salvo." : "A publicação cloud continua desativada neste ambiente."}`
-						: "O destino cloud está indisponível. A revisão continua local e só pode ser publicada com um vínculo verificado."}
+						? `A transcrição será enviada para a área privada de Sessões do Edit em ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. ${publicationEnabled ? "Nada ficará público no site até uma publicação editorial final separada." : "O handoff cloud continua desativado neste ambiente."}`
+						: "O destino cloud está indisponível. A revisão continua local e só pode ser enviada ao Edit com um vínculo verificado."}
 				</span>
 			</div>
 
 			{publicationPreflight && !publicationPreflight.eligible ? (
 				<p className={styles.error} role="status">
 					{publicationPreflight.reason === "too_large"
-						? `Aprovado localmente, mas a publicação está indisponível: payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes / ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.`
-						: "Aprovado localmente, mas este snapshot não passa no contrato atual de publicação. Salve/reabra a revisão antes de tentar publicar."}
+						? `Aprovado localmente, mas o handoff privado está indisponível: payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes / ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.`
+						: "Aprovado localmente, mas este snapshot não passa no contrato atual de handoff. Salve/reabra a revisão antes de preparar a sessão."}
 				</p>
 			) : publicationPreflight?.eligible ? (
 				<p className={styles.saved} role="status">
-					Publicação compatível · payload canônico {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.
+					Handoff privado compatível · payload canônico {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.
 				</p>
 			) : null}
 
             {!review.publicationTarget && onRepairTarget ? (
                 <div className={styles.notice}>
-                    <p>{review.publicationTargetState === "invalid" ? "O vínculo de publicação está danificado." : "O destino de publicação não está disponível."} O reparo usa somente a origem verificada. Sem essa prova, o Companion mantém a publicação bloqueada.</p>
+                    <p>{review.publicationTargetState === "invalid" ? "O vínculo da sessão está danificado." : "O destino privado da sessão não está disponível."} O reparo usa somente a origem verificada. Sem essa prova, o Companion mantém o handoff bloqueado.</p>
                     <Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>Reparar vínculo original</Button>
                     {dirty ? <p>Salve suas alterações antes de reparar o vínculo.</p> : null}
                 </div>
@@ -566,15 +566,15 @@ function ReviewEditor({
 				>
 					<div>
 						<span className={styles.eyebrow}>Confirmação editorial</span>
-						<h3 id="publication-confirmation-title">Publicar esta revisão no TDA?</h3>
+						<h3 id="publication-confirmation-title">Preparar esta sessão no Edit?</h3>
 						<p id="publication-confirmation-detail">
-							Será publicada a revisão salva <strong>r{review.draftRevision}</strong> com{" "}
-							<strong>{review.segments.length} segmentos</strong> em{" "}
+							A revisão salva <strong>r{review.draftRevision}</strong> com{" "}
+							<strong>{review.segments.length} segmentos</strong> será enviada para a área privada de{" "}
 							<strong>{review.publicationTarget.campaignSlug}</strong> · sessão{" "}
-							<strong>{review.publicationTarget.sourceSessionId}</strong>.
-							O run bruto continuará imutável.
+							<strong>{review.publicationTarget.sourceSessionId}</strong>. O run bruto continuará imutável.
 						</p>
-						<p>Revisão atualmente publicada: {publicationCurrent?.revisionId ?? "nenhuma"}. A publicação será recusada se esse estado mudar.</p>
+						<p>Nada ficará público no site. Capa, arco, título, descrição e resumo editorial não são alterados por este handoff.</p>
+						<p>Revisão privada atual no Edit: {publicationCurrent?.revisionId ?? "nenhuma"}. O handoff será recusado se esse estado mudar.</p>
 						<small>
 							Base SHA {review.baseTranscriptSha256.slice(0, 12)}… · draft SHA{" "}
 							{review.draftSha256?.slice(0, 12)}…
@@ -595,24 +595,29 @@ function ReviewEditor({
 							disabled={publishing}
 							onClick={() => void confirmPublication()}
 						>
-							{publishing ? "Publicando…" : "Confirmar publicação"}
+							{publishing ? "Preparando…" : "Preparar sessão"}
 						</Button>
 					</div>
 				</section>
 			) : null}
 
             {publicationRecovery?.pending ? <div className={styles.notice} role="status">
-                <p>{publicationRecovery.blocked === "mismatch" ? "Existe uma publicação anterior de outra revisão ainda não reconciliada nesta campanha. Reabra a revisão original para consultar o recibo." : publicationRecovery.blocked === "expired" ? "Esta publicação não resolvida ultrapassou 30 dias. O recibo ainda pode ser consultado; novos envios estão bloqueados." : "Publicação anterior ainda não confirmada. A consulta e a repetição preservam a mesma operação, inclusive após recarregar."}</p>
+                <p>{publicationRecovery.blocked === "mismatch" ? "Existe uma preparação anterior de outra revisão ainda não reconciliada nesta campanha. Reabra a revisão original para consultar o recibo." : publicationRecovery.blocked === "expired" ? "Esta preparação não resolvida ultrapassou 30 dias. O recibo ainda pode ser consultado; novos envios estão bloqueados." : "Preparação anterior ainda não confirmada. A consulta e a repetição preservam a mesma operação, inclusive após recarregar."}</p>
                 <Button variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>Abandonar recuperação anterior</Button>
             </div> : null}
 			{publicationError ? (
 				<p className={styles.error} role="alert">{publicationError}</p>
 			) : null}
-			{publicationReceipt ? (
-				<p className={styles.published} role="status">
-					Publicação confirmada · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
-					{publicationReceipt.receiptId.slice(0, 12)}…
-				</p>
+			{publicationReceipt && review.publicationTarget ? (
+				<div className={styles.published} role="status">
+					<span>
+						Sessão preparada no Edit · revisão cloud r{publicationReceipt.revisionNumber} · receipt{" "}
+						{publicationReceipt.receiptId.slice(0, 12)}…
+					</span>
+					<ActionLink href={editSessionHref(review.publicationTarget.sourceSessionId)} variant="secondary">
+						Abrir sessão no Edit
+					</ActionLink>
+				</div>
 			) : null}
 
 			<div className={styles.summaryGrid}>
