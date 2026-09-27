@@ -1358,3 +1358,38 @@ Rollback:
 - não apagar drafts já criados nem reescrever campos públicos;
 - qualquer correção de schema/grants deve ser uma migration forward-only posterior.
 
+
+
+## 2026-09-27 — escopo governado de capas privadas de sessão
+
+### `20260927205500_session_cover_media_scope`
+
+**Estado:** migration candidata da #792; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- ampliar o registro existente `media_assets` com o role `session_cover`;
+- permitir keys imutáveis e content-addressed no namespace `campaigns/<campaign>/sessions/<session>/cover/<sha>.(png|webp)`;
+- reutilizar a mesma tabela, RLS e grants do pipeline de mídia existente, sem criar um segundo registro de assets;
+- manter upload/finalização privados separados da promoção pública, que pertence à #793.
+
+Integridade e segurança:
+
+- a migration altera somente constraints de role/key; não abre policy, grant ou acesso de browser;
+- o runtime autoriza campaign/session no servidor antes de chunk/finalize/preview;
+- o finalize valida bytes reais, decode, MIME, SHA-256, dimensões e read-back antes de persistir o asset como `staged`;
+- drafts novos aceitam asset privado somente quando o registro `session_cover` permanece verificável; referências públicas históricas governadas continuam compatíveis;
+- nenhum upload ou save de draft altera `sessions.status` ou a capa pública atual.
+
+Validação e rollout:
+
+- migration safety/governance e testes de contrato devem passar no CI;
+- Production CD aplica a migration somente junto do Web compatível;
+- após rollout, confirmar por read-back a presença de `session_cover` no check de role, o namespace de session cover no check de object key e ausência de grant/policy adicional;
+- upload positivo real não deve ser fabricado com sessão/asset sintético em Production; o primeiro uso editorial autenticado pode gerar o receipt operacional da mídia privada.
+
+Rollback:
+
+- retirar primeiro o consumidor Web se necessário;
+- não apagar assets privados já finalizados;
+- corrigir constraints adiante por migration forward-only, preservando rows e referências existentes.
