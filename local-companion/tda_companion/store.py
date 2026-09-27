@@ -34,7 +34,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -96,6 +96,22 @@ class Store:
                 db.execute("ALTER TABLE jobs ADD COLUMN stage_started_at TEXT")
             if "timing_state" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN timing_state TEXT")
+            if "result_state" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN result_state TEXT")
+                db.execute(
+                    "UPDATE jobs SET result_state='available' "
+                    "WHERE result IS NOT NULL AND result_state IS NULL"
+                )
+            receipt_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(terminal_job_receipts)").fetchall()
+            }
+            if "result_state" not in receipt_columns:
+                db.execute("ALTER TABLE terminal_job_receipts ADD COLUMN result_state TEXT")
+                db.execute(
+                    "UPDATE terminal_job_receipts SET result_state="
+                    "CASE WHEN result_available=1 THEN 'available' ELSE NULL END"
+                )
             db.execute(
                 "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
                 "SELECT idem,id,signature FROM jobs"
@@ -108,7 +124,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=9")
+            db.execute("PRAGMA user_version=10")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -501,7 +517,7 @@ class Store:
                 if row["error"]
                 else None
             ),
-            result_available=row["result"] is not None,
+            result_available=row["result"] is not None and row["result_state"] != "deleted_local",
             updated_at=row["updated"],
             attempt=row["attempt"],
             context=context,
@@ -615,7 +631,7 @@ class Store:
     def terminal_receipt(self, job_id):
         with self.read() as db:
             row = db.execute(
-                "SELECT job_id,attempt,status,result_available,updated "
+                "SELECT job_id,attempt,status,result_available,result_state,updated "
                 "FROM terminal_job_receipts WHERE job_id=?",
                 (job_id,),
             ).fetchone()
@@ -625,7 +641,8 @@ class Store:
                 "job_id": row["job_id"],
                 "attempt": row["attempt"],
                 "status": row["status"],
-                "result_available": bool(row["result_available"]),
+                "result_available": bool(row["result_available"]) and row["result_state"] != "deleted_local",
+                "result_state": row["result_state"],
                 "updated_at": row["updated"],
             }
 
@@ -843,7 +860,7 @@ class Store:
     def remove(self, job_id):
         with self.tx() as db:
             row = db.execute(
-                "SELECT status,attempt,result,updated FROM jobs WHERE id=?",
+                "SELECT status,attempt,result,result_state,updated FROM jobs WHERE id=?",
                 (job_id,),
             ).fetchone()
             if not row:
@@ -858,19 +875,21 @@ class Store:
             db.execute(
                 """
                 INSERT INTO terminal_job_receipts(
-                    job_id,attempt,status,result_available,updated
-                ) VALUES (?,?,?,?,?)
+                    job_id,attempt,status,result_available,result_state,updated
+                ) VALUES (?,?,?,?,?,?)
                 ON CONFLICT(job_id) DO UPDATE SET
                     attempt=excluded.attempt,
                     status=excluded.status,
                     result_available=excluded.result_available,
+                    result_state=excluded.result_state,
                     updated=excluded.updated
                 """,
                 (
                     job_id,
                     row["attempt"],
                     row["status"],
-                    int(row["result"] is not None),
+                    int(row["result"] is not None and row["result_state"] != "deleted_local"),
+                    row["result_state"],
                     row["updated"],
                 ),
             )
@@ -1048,7 +1067,7 @@ class Store:
                 raise Conflict("WORKER_RESULT_INCOMPLETE")
             now = utc_now()
             db.execute(
-                "UPDATE jobs SET status='succeeded',stage='complete',result=?,error=NULL,"
+                "UPDATE jobs SET status='succeeded',stage='complete',result=?,result_state='available',error=NULL,"
                 "attempt_finished_at=?,stage_started_at=?,updated=? WHERE id=?",
                 (encoded, now, now, now, job_id),
             )
@@ -1077,7 +1096,7 @@ class Store:
                 raise Conflict("RECOVERED_RESULT_KIND_INVALID")
             now = utc_now()
             db.execute(
-                "UPDATE jobs SET completed=?,status='succeeded',stage='complete',result=?,error=NULL,error_recoverable=1,"
+                "UPDATE jobs SET completed=?,status='succeeded',stage='complete',result=?,result_state='available',error=NULL,error_recoverable=1,"
                 "attempt_finished_at=?,stage_started_at=?,updated=? WHERE id=?",
                 (body["units"], encoded, now, now, now, job_id),
             )
@@ -1136,7 +1155,7 @@ class Store:
                 )
             now = utc_now()
             db.execute(
-                "UPDATE jobs SET completed=?,status=?,stage=?,result=?,"
+                "UPDATE jobs SET completed=?,status=?,stage=?,result=?,result_state=?,"
                 "attempt_finished_at=CASE WHEN ? THEN ? ELSE attempt_finished_at END,"
                 "stage_started_at=CASE WHEN ? THEN ? ELSE stage_started_at END,updated=? WHERE id=?",
                 (
@@ -1144,6 +1163,7 @@ class Store:
                     "succeeded" if done else "running",
                     "complete" if done else "fixture",
                     result,
+                    "available" if done else None,
                     int(done),
                     now,
                     int(done),
@@ -1161,11 +1181,76 @@ class Store:
             )
             return not done
 
+    def mark_result_deleted(self, job_id, run_id, transcript_sha256):
+        if (
+            not isinstance(job_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", job_id)
+            or not isinstance(run_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,196}", run_id)
+            or not isinstance(transcript_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", transcript_sha256)
+        ):
+            raise Conflict("RESULT_DELETE_IDENTITY_INVALID")
+        with self.tx() as db:
+            row = db.execute(
+                "SELECT result,result_state FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
+            if row:
+                if row["result"] is None:
+                    raise Conflict("RESULT_NOT_READY")
+                try:
+                    value = json.loads(row["result"])
+                except json.JSONDecodeError as exc:
+                    raise Conflict("RESULT_ARTIFACT_MISMATCH") from exc
+                transcription = value.get("transcription") if isinstance(value, dict) else None
+                if (
+                    not isinstance(transcription, dict)
+                    or transcription.get("run_id") != run_id
+                    or transcription.get("sha256") != transcript_sha256
+                ):
+                    raise Conflict("RESULT_ARTIFACT_MISMATCH")
+                if row["result_state"] == "deleted_local":
+                    return {"updated": False, "state": "deleted_local"}
+                db.execute(
+                    "UPDATE jobs SET result_state='deleted_local' WHERE id=?",
+                    (job_id,),
+                )
+                self.event(
+                    db,
+                    job_id,
+                    "RESULT_DELETED_LOCAL",
+                    {"run_id": run_id},
+                    level="warning",
+                )
+                return {"updated": True, "state": "deleted_local"}
+
+            receipt = db.execute(
+                "SELECT result_available,result_state FROM terminal_job_receipts WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if receipt:
+                db.execute(
+                    "UPDATE terminal_job_receipts "
+                    "SET result_available=0,result_state='deleted_local' WHERE job_id=?",
+                    (job_id,),
+                )
+                return {
+                    "updated": receipt["result_state"] != "deleted_local",
+                    "state": "deleted_local",
+                }
+            return {"updated": False, "state": "detached"}
+
     def result(self, job_id):
         with self.read() as db:
-            row = db.execute("SELECT result FROM jobs WHERE id=?", (job_id,)).fetchone()
+            row = db.execute(
+                "SELECT result,result_state FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
             if not row:
                 raise KeyError(job_id)
+            if row["result_state"] == "deleted_local":
+                raise Conflict("RESULT_DELETED_LOCAL")
             value = row["result"]
             if value is None:
                 raise Conflict("RESULT_NOT_READY")
