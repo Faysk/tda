@@ -3,6 +3,7 @@ from __future__ import annotations
 from .execution_device import device_event
 
 import gc
+import math
 import os
 import shutil
 import threading
@@ -499,6 +500,7 @@ def transcribe_craig_package(
     report: ProgressCallback | None = None,
     is_cancelled: CancelCallback | None = None,
     checkpoints: bool = True,
+    sample_seconds: float | None = None,
 ) -> TranscriptDocument:
     profile = get_profile(profile_id)
     if profile.engine != "whisper":
@@ -520,6 +522,15 @@ def transcribe_craig_package(
     plan = resolve_whisper_plan(profile_id, cpu=cpu, cuda_status=cuda_status)
 
     options = whisper_transcribe_options(glossary=glossary, context=context)
+    if sample_seconds is not None:
+        if (
+            isinstance(sample_seconds, bool)
+            or not isinstance(sample_seconds, (int, float))
+            or not math.isfinite(float(sample_seconds))
+            or float(sample_seconds) != 300.0
+        ):
+            raise WhisperRuntimeError("WHISPER_SAMPLE_SECONDS_INVALID")
+        options["clip_timestamps"] = f"0,{float(sample_seconds):g}"
     runtime_fingerprint = _whisper_runtime_fingerprint()
 
     def checkpoint_signature_for(compute_type: str):
@@ -656,7 +667,13 @@ def transcribe_craig_package(
                         )
 
             identity = asdict(track.identity) if track.identity is not None else None
-            duration = round(float(getattr(info, "duration", 0.0) or 0.0), 3)
+            measured_duration = float(getattr(info, "duration", 0.0) or 0.0)
+            duration = round(
+                min(measured_duration, float(sample_seconds))
+                if sample_seconds is not None
+                else measured_duration,
+                3,
+            )
             transcript_track = TranscriptTrack(
                 number=track.number,
                 speaker=track.speaker,
