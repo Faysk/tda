@@ -27,6 +27,23 @@ def _stage(data_root: Path, source_id: str) -> Path:
     return root
 
 
+def _package(source_id: str):
+    start_time = (
+        "2026-09-27T21:00:00Z"
+        if source_id == SOURCE_A
+        else "2026-09-27T21:01:30Z"
+    )
+    return SimpleNamespace(
+        start_time=start_time,
+        tracks=(
+            SimpleNamespace(
+                timeline_offset_seconds=0.0,
+                duration_seconds=60.0,
+            ),
+        ),
+    )
+
+
 def test_session_workspace_api_is_additive_durable_and_cas_guarded(
     tmp_path: Path,
     monkeypatch,
@@ -35,7 +52,7 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
     monkeypatch.setattr(
         api_module,
         "load_craig_package",
-        lambda _root, verify_tracks=False: SimpleNamespace(),
+        lambda root, verify_tracks=False: _package(root.name),
     )
 
     app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
@@ -45,6 +62,7 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         capabilities = client.get("/api/v1/capabilities", headers=HEADERS)
         assert capabilities.status_code == 200
         assert "transcription.session-workspace" in capabilities.json()["capabilities"]
+        assert "transcription.session-chronology" in capabilities.json()["capabilities"]
 
         created = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a",
@@ -86,11 +104,35 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         workspace = second.json()
         assert workspace["revision"] == 2
         ids = [part["part_id"] for part in workspace["parts"]]
+        assert workspace["chronology"]["ready_for_assembly"] is False
+        assert workspace["chronology"]["parts"][1]["relation_to_previous"]["kind"] == "gap"
+
+        timed = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/parts/timing",
+            headers=HEADERS,
+            json={
+                "part_id": ids[1],
+                "expected_revision": 2,
+                "timing": {
+                    "schema_version": "tda_session_part_timing_v1",
+                    "mode": "automatic",
+                    "session_offset_seconds": None,
+                    "trim_start_seconds": 0.0,
+                    "trim_end_seconds": None,
+                    "gap_confirmed": True,
+                    "overlap_resolution": None,
+                },
+            },
+        )
+        assert timed.status_code == 200
+        workspace = timed.json()
+        assert workspace["revision"] == 3
+        assert workspace["chronology"]["ready_for_assembly"] is True
 
         stale = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a/parts",
             headers=HEADERS,
-            json={"source_id": SOURCE_C, "expected_revision": 1},
+            json={"source_id": SOURCE_C, "expected_revision": 2},
         )
         assert stale.status_code == 409
         assert stale.json()["error"]["code"] == "SESSION_WORKSPACE_REVISION_CONFLICT"
@@ -98,21 +140,22 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         reordered = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a/parts/reorder",
             headers=HEADERS,
-            json={"part_ids": list(reversed(ids)), "expected_revision": 2},
+            json={"part_ids": list(reversed(ids)), "expected_revision": 3},
         )
         assert reordered.status_code == 200
         workspace = reordered.json()
-        assert workspace["revision"] == 3
+        assert workspace["revision"] == 4
+        assert workspace["order_provenance"] == "manual"
         assert [part["part_id"] for part in workspace["parts"]] == list(reversed(ids))
 
         detached = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a/parts/detach",
             headers=HEADERS,
-            json={"part_id": ids[0], "expected_revision": 3},
+            json={"part_id": ids[0], "expected_revision": 4},
         )
         assert detached.status_code == 200
         workspace = detached.json()
-        assert workspace["revision"] == 4
+        assert workspace["revision"] == 5
         assert [part["source_id"] for part in workspace["parts"]] == [SOURCE_B]
 
         shutil.rmtree(data_root / "staging" / SOURCE_B)
@@ -136,7 +179,7 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
             headers=HEADERS,
         )
         assert recovered.status_code == 200
-        assert recovered.json()["revision"] == 4
+        assert recovered.json()["revision"] == 5
         assert recovered.json()["parts"][0]["source_id"] == SOURCE_B
 
 
@@ -145,7 +188,7 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
     monkeypatch.setattr(
         api_module,
         "load_craig_package",
-        lambda _root, verify_tracks=False: SimpleNamespace(),
+        lambda root, verify_tracks=False: _package(root.name),
     )
     app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
     _stage(data_root, SOURCE_A)
