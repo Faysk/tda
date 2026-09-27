@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { LocalReviewSegment } from "./protocol";
+import type { LocalReviewSegment, LocalRunSummary } from "./protocol";
 import {
+	compareRunPerformanceSemantics,
 	compareRunSegments,
 	regionOverlapsTimeRange,
 	runsShareComparisonSource,
@@ -240,13 +241,121 @@ describe("run comparison", () => {
 		const regions = compareRunSegments([leftTrackOne, leftTrackTwo], []);
 
 		expect(regions.map((region) => region.trackNumber)).toEqual([2, 1]);
-		expect(regions.map((region) => [region.timelineStart, region.timelineEnd])).toEqual([
+		expect(regions.map((region) => [region.sessionStart, region.sessionEnd])).toEqual([
 			[5, 6],
 			[20, 21],
 		]);
 		expect(regionOverlapsTimeRange(regions[0]!, 4.5, 6)).toBe(true);
 		expect(regionOverlapsTimeRange(regions[0]!, 10, 19)).toBe(false);
 		expect(regionOverlapsTimeRange(regions[1]!, 20.5, 22)).toBe(true);
+	});
+
+	it("labels performance comparison as limited when runtime/device proof is absent", () => {
+		const base = {
+			stats: {
+				audioWorkSeconds: 60,
+				processingSeconds: 30,
+				processingMetrics: null,
+				sessionDurationSeconds: 60,
+				durationSemantics: "session_extent_v1",
+				rtf: 0.5,
+				wordCount: 2,
+				segmentCount: 1,
+				trackCount: 1,
+				turnCount: 1,
+				deduplicatedSegmentCount: 0,
+				warningCount: 0,
+			},
+			executionLineage: null,
+		} as LocalRunSummary;
+		const result = compareRunPerformanceSemantics(base, base);
+		expect(result.status).toBe("limited");
+		expect(result.reasons).toContain("medição engine_processing_v1 ausente");
+		expect(result.reasons).toContain("identidade exata do runtime não foi registrada");
+		expect(result.reasons).toContain("identidade física do dispositivo não foi comprovada");
+	});
+
+	it("allows factual performance comparability only for fresh work on the same proven device", () => {
+		const run = {
+			stats: {
+				audioWorkSeconds: 60,
+				processingSeconds: 30,
+				processingMetrics: {
+					version: "engine_processing_v1",
+					stageSeconds: {
+						runtime_validation: 1,
+						checkpoint_scan: 1,
+						model_prepare: 2,
+						model_load: 2,
+						transcription: 20,
+						alignment_and_energy: 3,
+						consolidation: 1,
+					},
+					totalProcessingSeconds: 30,
+					totalTracks: 1,
+					freshAsrTracks: 1,
+					textCheckpointReusedTracks: 0,
+					completedCheckpointReusedTracks: 0,
+					freshAudioWorkSeconds: 60,
+					reusedAudioWorkSeconds: 0,
+					freshCalibrationEligible: true,
+				},
+				sessionDurationSeconds: 60,
+				durationSemantics: "session_extent_v1",
+				rtf: 0.5,
+				wordCount: 2,
+				segmentCount: 1,
+				trackCount: 1,
+				turnCount: 1,
+				deduplicatedSegmentCount: 0,
+				warningCount: 0,
+			},
+			executionLineage: {
+				schemaVersion: "tda_execution_lineage_v1",
+				companionVersion: "0.3.14",
+				runtimeFamily: "whisper",
+				runtimeVersion: "1.1.5",
+				device: "cuda",
+				computeType: "float16",
+				runtimeArtifact: {
+					runtimeId: "whisper-ctranslate2",
+					version: "1.1.5",
+					workerSha256: "a".repeat(64),
+					archiveSha256: "b".repeat(64),
+				},
+				executionDevice: {
+					kind: "cuda",
+					logicalIndex: 0,
+					physicalUuid: "GPU-SYNTHETIC",
+					pciBusId: "0000:01:00.0",
+				},
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "Synthetic GPU",
+					vramTotalBytes: 8 * 1024 ** 3,
+					computeCapability: "8.9",
+					driverVersion: "synthetic",
+				},
+			},
+		} as LocalRunSummary;
+		expect(compareRunPerformanceSemantics(run, run)).toEqual({
+			status: "comparable",
+			reasons: [],
+		});
+		const otherDevice = {
+			...run,
+			executionLineage: {
+				...run.executionLineage!,
+				executionDevice: {
+					...run.executionLineage!.executionDevice!,
+					physicalUuid: "GPU-OTHER",
+				},
+			},
+		} as LocalRunSummary;
+		expect(compareRunPerformanceSemantics(run, otherDevice)).toMatchObject({
+			status: "limited",
+		});
 	});
 
 	it("requires two distinct runs from the same source", () => {
