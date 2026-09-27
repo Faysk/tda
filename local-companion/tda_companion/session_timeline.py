@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any
 
 TIMELINE_SCHEMA_VERSION = "tda_session_timeline_v1"
@@ -57,8 +57,16 @@ def classify_start_time(value: object) -> dict[str, object]:
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
+        try:
+            time.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return {
+                "confidence": "opaque",
+                "raw": raw,
+                "instant_utc": None,
+            }
         return {
-            "confidence": "opaque",
+            "confidence": "ambiguous",
             "raw": raw,
             "instant_utc": None,
         }
