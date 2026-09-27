@@ -11,8 +11,10 @@ export function ReviewFixture() {
 	const oldAgent = new URLSearchParams(location.search).has("old-agent");
 	const bulk = new URLSearchParams(location.search).has("bulk");
 	const metricsMode = new URLSearchParams(location.search).has("metrics");
+	const compareMode = new URLSearchParams(location.search).has("compare");
     const [saveCount, setSaveCount] = useState(0);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [openedRunId, setOpenedRunId] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
 		sourceId: `craig-${"a".repeat(64)}`,
 		runId: "run-synthetic-a1",
@@ -98,16 +100,73 @@ export function ReviewFixture() {
 				totalProcessingSeconds: 35, totalTracks: 4, freshAsrTracks: 1, textCheckpointReusedTracks: 1,
 				completedCheckpointReusedTracks: 2, freshAudioWorkSeconds: 100, reusedAudioWorkSeconds: 300, freshCalibrationEligible: false } },
 	};
+	const rawA: LocalReview = {
+		...review,
+		runId: "run-synthetic-a1",
+		baseTranscriptSha256: "1".repeat(64),
+		persistence: "ephemeral_base",
+		draftRevision: null,
+		draftSha256: null,
+		status: "draft",
+		approvalCurrent: false,
+		approvedAt: null,
+		createdAt: null,
+		updatedAt: null,
+		segments: [
+			{ trackNumber: 1, segmentId: "a-1", start: 0, end: 1, timelineStart: 5, timelineEnd: 6, text: "Base bruta Alpha", speaker: "Alice", reviewed: false },
+			{ trackNumber: 2, segmentId: "a-2", start: 0, end: 1, timelineStart: 70, timelineEnd: 71, text: "Mesmo texto", speaker: "Bob", reviewed: false },
+		],
+	};
+	const rawB: LocalReview = {
+		...rawA,
+		runId: "run-synthetic-b1",
+		baseTranscriptSha256: "2".repeat(64),
+		lineage: { ...rawA.lineage, profileId: "qwen-quality", engine: "qwen3", model: "Qwen/Qwen3-ASR-1.7B-hf" },
+		segments: [
+			{ trackNumber: 1, segmentId: "b-1", start: 0, end: 1, timelineStart: 5, timelineEnd: 6, text: "Base bruta Alfa", speaker: "Alice", reviewed: false },
+			{ trackNumber: 2, segmentId: "b-2", start: 0, end: 1, timelineStart: 70, timelineEnd: 71, text: "Mesmo texto", speaker: "Carol", reviewed: false },
+			{ trackNumber: 1, segmentId: "b-3", start: 2, end: 3, timelineStart: 110, timelineEnd: 111, text: "Só B", speaker: "Alice", reviewed: false },
+		],
+	};
+	const runA: LocalRunSummary = {
+		...run,
+		runId: rawA.runId,
+		transcriptSha256: rawA.baseTranscriptSha256,
+		completedAt: "2026-09-26T13:00:00Z",
+		review: { status: "reviewed", draftRevision: 2, reviewPercent: 100, updatedAt: "2026-09-26T13:10:00Z" },
+	};
+	const runB: LocalRunSummary = {
+		...run,
+		runId: rawB.runId,
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "Qwen/Qwen3-ASR-1.7B-hf",
+		transcriptSha256: rawB.baseTranscriptSha256,
+		completedAt: "2026-09-26T12:30:00Z",
+	};
+	const foreignRun: LocalRunSummary = {
+		...runB,
+		sourceId: `craig-${"f".repeat(64)}`,
+		runId: "run-foreign",
+		transcriptSha256: "3".repeat(64),
+		completedAt: "2026-09-25T12:00:00Z",
+	};
 	return (
 		<>
         <span data-testid="save-count">{saveCount}</span>
+        <span data-testid="opened-run">{openedRunId ?? ""}</span>
         <LocalReviewWorkspace
-			runs={metricsMode ? [run] : []}
-			review={metricsMode ? null : review}
+			runs={compareMode ? [runA, runB, foreignRun] : metricsMode ? [run] : []}
+			review={compareMode || metricsMode ? null : review}
 			busy={false}
 			error={saveError}
 			publicationEnabled={publication}
-			onOpen={() => {}}
+			onOpen={(_sourceId, runId) => setOpenedRunId(runId)}
+			onLoadSnapshot={async (_sourceId, runId) => {
+			if (runId === rawA.runId) return rawA;
+			if (runId === rawB.runId) return rawB;
+			throw new Error("RUN_NOT_AVAILABLE");
+		}}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
