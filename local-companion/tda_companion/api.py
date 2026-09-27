@@ -43,6 +43,12 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .session_timeline import (
+    CONFIG_SCHEMA as SESSION_TIMELINE_CONFIG_SCHEMA,
+    SessionTimelineError,
+    build_session_timeline,
+    source_facts_from_package,
+)
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -61,6 +67,7 @@ _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _WORKER_SHUTDOWN_FAST_SECONDS = 20.0
 LOCAL_JSON_BODY_MAX_BYTES = 4096
+SESSION_TIMELINE_JSON_BODY_MAX_BYTES = 32768
 TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 
 _BROWSER_JOB_PATH = re.compile(
@@ -68,7 +75,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/parts(?:/(?:detach|reorder))?)?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder))?|timeline))?$"
 )
 
 
@@ -172,6 +179,36 @@ class SessionWorkspaceReorderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     part_ids: list[str] = Field(max_length=64)
     expected_revision: int = Field(ge=0)
+
+
+class SessionTimelinePartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    session_offset_ms: int | None = Field(default=None, ge=0)
+    trim_start_ms: int = Field(default=0, ge=0)
+    trim_end_ms: int | None = Field(default=None, ge=0)
+
+
+class SessionTimelineBoundaryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    left_part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    right_part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    mode: Literal[
+        "accept_gap",
+        "prefer_earlier_until",
+        "prefer_later_from",
+    ]
+    boundary_ms: int | None = Field(default=None, ge=0)
+
+
+class SessionTimelineUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
+    parts: list[SessionTimelinePartRequest] = Field(max_length=64)
+    boundaries: list[SessionTimelineBoundaryRequest] = Field(
+        default_factory=list,
+        max_length=63,
+    )
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1333,7 +1370,12 @@ def create_app(
                 body_bytes = bytearray()
                 async for chunk in request.stream():
                     body_bytes.extend(chunk)
-                    if len(body_bytes) > LOCAL_JSON_BODY_MAX_BYTES:
+                    body_limit = (
+                        SESSION_TIMELINE_JSON_BODY_MAX_BYTES
+                        if request.url.path.endswith("/timeline")
+                        else LOCAL_JSON_BODY_MAX_BYTES
+                    )
+                    if len(body_bytes) > body_limit:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
@@ -1411,6 +1453,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-timeline",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1551,16 +1594,44 @@ def create_app(
             worker_wake.set()
         return health_value()
 
-    def session_workspace_response(value):
-        parts = []
+    def session_workspace_source_facts(value):
+        facts = {}
+        states = {}
         for part in value["parts"]:
             try:
-                staged_package_under_source_gate(part["source_id"])
-                source_state = "ready"
+                _root, package = staged_package_under_source_gate(part["source_id"])
+                states[part["source_id"]] = "ready"
+                facts[part["source_id"]] = source_facts_from_package(package)
             except (CraigPackageError, ValueError):
-                source_state = "invalid"
-            parts.append({**part, "source_state": source_state})
-        return {**value, "parts": parts}
+                states[part["source_id"]] = "invalid"
+                facts[part["source_id"]] = {
+                    "start_time": None,
+                    "duration_ms": None,
+                }
+        return facts, states
+
+    def session_workspace_response(value):
+        facts, states = session_workspace_source_facts(value)
+        timeline_config = value.get("timeline_config")
+        public_value = {
+            key: item for key, item in value.items() if key != "timeline_config"
+        }
+        parts = [
+            {
+                **part,
+                "source_state": states.get(part["source_id"], "invalid"),
+            }
+            for part in value["parts"]
+        ]
+        try:
+            timeline = build_session_timeline(
+                {**public_value, "parts": parts},
+                facts,
+                timeline_config,
+            )
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from exc
+        return {**public_value, "parts": parts, "timeline": timeline}
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}")
     def session_workspace(campaign_id: str, session_id: str):
@@ -1630,6 +1701,31 @@ def create_app(
                 body.expected_revision,
             )
         )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline")
+    def update_session_workspace_timeline(
+        campaign_id: str,
+        session_id: str,
+        body: SessionTimelineUpdateRequest,
+    ):
+        proposed = {
+            "schema_version": SESSION_TIMELINE_CONFIG_SCHEMA,
+            "parts": [item.model_dump() for item in body.parts],
+            "boundaries": [item.model_dump() for item in body.boundaries],
+        }
+        current = store.session_workspace(campaign_id, session_id)
+        facts, _states = session_workspace_source_facts(current)
+        try:
+            build_session_timeline(current, facts, proposed)
+        except SessionTimelineError as exc:
+            raise Conflict(str(exc)) from exc
+        updated = store.replace_session_timeline(
+            campaign_id,
+            session_id,
+            body.expected_revision,
+            proposed,
+        )
+        return session_workspace_response(updated)
 
     @app.get("/api/v1/jobs")
     def jobs(
