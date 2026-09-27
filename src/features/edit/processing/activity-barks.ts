@@ -1,6 +1,7 @@
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 
 export const ACTIVITY_BARK_LIBRARY_VERSION = "tda_activity_barks_v1" as const;
+export const CORE_ACTIVITY_PACK_ID = "tda-core";
 export type ActivityHumorLevel = "off" | "light" | "tda";
 export type BarkFamily = "speaker" | "devops" | "rpg" | "gpu" | "meta";
 
@@ -24,6 +25,7 @@ export type ActivityContext = Readonly<{
 }>;
 
 export type ActivityBark = Readonly<{
+	packId?: string;
 	id: string;
 	family: BarkFamily;
 	tone: Exclude<ActivityHumorLevel, "off">;
@@ -122,14 +124,17 @@ export function selectActivityBark(
 		recentFamilies?: readonly BarkFamily[];
 		catalog?: readonly ActivityBark[];
 	}> = {},
-): Readonly<{ templateId: string; family: BarkFamily; text: string }> | null {
+): Readonly<{ packId: string; templateId: string; family: BarkFamily; text: string }> | null {
 	const level = options.level ?? "tda";
 	const catalog = options.catalog ?? CORE_ACTIVITY_BARKS;
 	const recentIds = new Set(options.recentTemplateIds ?? []);
 	const recentFamily = options.recentFamilies?.at(-1) ?? null;
 	let candidates = catalog.filter((item) => eligible(item, context, level));
 	if (!candidates.length) return null;
-	const withoutRecent = candidates.filter((item) => !recentIds.has(item.id));
+	const withoutRecent = candidates.filter((item) => {
+		const packId = item.packId ?? CORE_ACTIVITY_PACK_ID;
+		return !recentIds.has(item.id) && !recentIds.has(`${packId}:${item.id}`);
+	});
 	if (withoutRecent.length) candidates = withoutRecent;
 	const withoutFamily = candidates.filter((item) => item.family !== recentFamily);
 	if (withoutFamily.length) candidates = withoutFamily;
@@ -139,6 +144,7 @@ export function selectActivityBark(
 	const selected = candidates[seed % candidates.length];
 	if (!selected) return null;
 	return {
+		packId: selected.packId ?? CORE_ACTIVITY_PACK_ID,
 		templateId: selected.id,
 		family: selected.family,
 		text: render(selected.text, context),
