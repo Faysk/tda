@@ -398,7 +398,7 @@ export function ProcessingSubmission({
 	}
 
 	async function analyzeSource() {
-		if (busy || !file || !canSubmit) return;
+		if (busy || !file || !canSubmit || profileBlocked || requestTooLarge) return;
 		const fileValidation = validateCraigFile(file);
 		if (fileValidation) {
 			setFileError(fileValidation);
@@ -950,7 +950,7 @@ export function ProcessingSubmission({
 							<Button
 								type="button"
 								variant="primary"
-								disabled={busy || !file}
+								disabled={busy || !file || profileBlocked || requestTooLarge}
 								onClick={() => void analyzeSource()}
 							>
 								{busy && pendingStage === "validating" ? "Analisando localmente…" : "Analisar ZIP localmente"}
