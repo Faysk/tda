@@ -558,6 +558,7 @@ export class LocalBridge {
 				`/sources/${identifier(sourceId)}/runs/${runIdentifier(runId)}/review/base`,
 				signal,
 			),
+			{ requireAbsoluteTimeline: true },
 		);
 		const timelineInvalid = review.segments.some(
 			(segment) =>
