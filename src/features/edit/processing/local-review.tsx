@@ -312,6 +312,19 @@ function ReviewEditor({
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
 	const ephemeral = review.persistence === "ephemeral_base";
+
+	useEffect(() => {
+		const serverAdvanced =
+			review.draftRevision !== baseline.draftRevision ||
+			review.draftSha256 !== baseline.draftSha256 ||
+			review.approvedAt !== baseline.approvedAt;
+		if (!serverAdvanced) return;
+		setBaseline(review);
+		setSegments(review.segments.map((segment) => ({ ...segment })));
+		setStatus(review.status);
+		setDirty(false);
+		restoreAnchor.current = scrollAnchor.current !== null;
+	}, [review, baseline.draftRevision, baseline.draftSha256, baseline.approvedAt]);
 	const invalidStrings = segments.some((segment) => !isReviewStringV1(segment.text, "text") || !isReviewStringV1(segment.speaker, "speaker"));
 	const publicationPreflight = useMemo(
 		() =>
@@ -381,6 +394,21 @@ function ReviewEditor({
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
+
+	function rememberVisibleAnchor() {
+		const anchor = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-review-segment]"),
+		).find((node) => {
+			const rect = node.getBoundingClientRect();
+			return rect.bottom > 0 && rect.top < window.innerHeight;
+		});
+		scrollAnchor.current = anchor
+			? {
+					key: anchor.dataset.reviewSegment ?? "",
+					top: anchor.getBoundingClientRect().top,
+				}
+			: null;
+	}
 
 	function patch(index: number, value: Partial<LocalReviewSegment>) {
 		if (status === "approved_local") setStatus("reviewed");
@@ -452,7 +480,10 @@ function ReviewEditor({
 						size="sm"
 						variant="primary"
 						disabled={editingBlocked || !dirty || !canSave || invalidStrings}
-						onClick={() => void onSave(baseline, status, segments)}
+						onClick={() => {
+							rememberVisibleAnchor();
+							void onSave(baseline, status, segments);
+						}}
 					>
 						{busy ? "Salvando…" : "Salvar revisão"}
 					</Button>
@@ -662,8 +693,7 @@ function ReviewEditor({
 			</div>
 
             {error === "LOCAL_REVIEW_DRAFT_CONFLICT" && onLoadLatest ? <Button type="button" disabled={editingBlocked || publishing} onClick={async () => {
-                const anchor = Array.from(document.querySelectorAll<HTMLElement>("[data-review-segment]")).find((node) => { const rect = node.getBoundingClientRect(); return rect.bottom > 0 && rect.top < window.innerHeight; });
-                scrollAnchor.current = anchor ? { key: anchor.dataset.reviewSegment ?? "", top: anchor.getBoundingClientRect().top } : null;
+                rememberVisibleAnchor();
                 setComparing(true); setComparisonError(null);
                 try {
                     const latest = await onLoadLatest();
@@ -743,6 +773,7 @@ function ReviewEditor({
 									<input
 										type="checkbox"
 										checked={segment.reviewed}
+										aria-label={`${segment.reviewed ? "Marcar como não revisado" : "Marcar como revisado"} · ${segment.speaker} · ${formatTimestamp(timelineStart(segment))}`}
 										disabled={editingBlocked || !canSave}
 										onChange={(event) => patch(index, { reviewed: event.target.checked })}
 									/>
@@ -850,7 +881,7 @@ export function LocalReviewWorkspace({
 	if (review) {
 		return (
 			<ReviewEditor
-				key={`${review.sourceId}:${review.runId}:${review.draftSha256 ?? review.baseTranscriptSha256}:${review.approvedAt ?? "unapproved"}`}
+				key={`${review.sourceId}:${review.runId}:${review.baseTranscriptSha256}`}
 				review={review}
 				busy={busy}
 				error={error}
