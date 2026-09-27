@@ -68,10 +68,28 @@ function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.min(maximum, Math.max(minimum, value));
 }
 
+function visualPollWindowMs(
+	expectedPollMs: number,
+	observedPollGapMs?: number,
+): number {
+	const expected = Math.max(0, expectedPollMs);
+	if (
+		observedPollGapMs === undefined ||
+		!Number.isFinite(observedPollGapMs) ||
+		observedPollGapMs <= 0
+	) {
+		return expected;
+	}
+	// An early poll shortens the cosmetic budget. A late poll never grants extra
+	// theatrical delay beyond the configured cadence.
+	return Math.min(expected, observedPollGapMs);
+}
+
 export function planLiveLogReveal(
 	events: readonly JobEvent[],
 	afterSeq: number | null,
 	expectedPollMs: number,
+	observedPollGapMs?: number,
 ): LiveLogRevealPlan {
 	const tail = events.filter(
 		(event) => afterSeq === null || event.seq > afterSeq,
@@ -91,7 +109,10 @@ export function planLiveLogReveal(
 
 	const boundaries = boundedStepBoundaries(routineRowBoundaries(tail));
 	const visualBudgetMs = clamp(
-		Math.round(expectedPollMs * VISUAL_BUDGET_RATIO),
+		Math.round(
+			visualPollWindowMs(expectedPollMs, observedPollGapMs) *
+				VISUAL_BUDGET_RATIO,
+		),
 		MIN_VISUAL_BUDGET_MS,
 		MAX_VISUAL_BUDGET_MS,
 	);

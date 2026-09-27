@@ -1605,6 +1605,26 @@
 	text-align: start;
 	cursor: pointer;
 }
+.logEntryReveal {
+	animation: liveLogRowReveal 120ms ease-out both;
+}
+@keyframes liveLogRowReveal {
+	from {
+		opacity: 0;
+		transform: translateY(2px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.logEntryReveal {
+		animation: none;
+		opacity: 1;
+		transform: none;
+	}
+}
 .logBoundedNote {
 	margin: 0;
 	color: var(--ds-foreground-muted);
