@@ -5,6 +5,7 @@ import {
 	BridgeError,
 	type BridgeErrorCode,
 	type BridgeErrorDetails,
+	type BenchmarkResult,
 	type Capabilities,
 	type Health,
 	type JobEvent,
@@ -46,6 +47,7 @@ export type ProcessingState = Readonly<{
 	jobs: readonly LocalJob[];
 	localSources: readonly LocalSourceSummary[];
 	localRuns: readonly LocalRunSummary[];
+	benchmarkResults: readonly BenchmarkResult[];
 	localRunsHasMore: boolean;
 	localRunsNextCursor: string | null;
 	localReview: LocalReview | null;
@@ -77,6 +79,7 @@ const initial: ProcessingState = {
 	jobs: [],
 	localSources: [],
 	localRuns: [],
+	benchmarkResults: [],
 	localRunsHasMore: false,
 	localRunsNextCursor: null,
 	localReview: null,
@@ -389,6 +392,34 @@ export class ProcessingController {
 			const before = previous.jobs.find((job) => job.id === next.id);
 			return !before || !terminalStatuses.has(before.status);
 		});
+		let benchmarkResults = [...previous.benchmarkResults];
+		if (deep || terminalTransition) {
+			const previousByJob = new Map(
+				previous.benchmarkResults.map((result) => [result.jobId, result]),
+			);
+			const completedBenchmarks = jobs
+				.filter(
+					(job) =>
+						job.kind === "benchmark.craig" &&
+						job.status === "succeeded" &&
+						job.result_available,
+				)
+				.sort(
+					(left, right) =>
+						Date.parse(right.updated_at) - Date.parse(left.updated_at),
+				)
+				.slice(0, 10);
+			benchmarkResults = (
+				await Promise.all(
+					completedBenchmarks.map(async (job) => {
+						try {
+							return await this.bridge.benchmarkResult(job.id, signal);
+						} catch {
+							return previousByJob.get(job.id) ?? null;
+						}
+					}),
+			).filter((result): result is BenchmarkResult => result !== null);
+		}
 		const reloadLibrary =
 			reviewEnabled && ((options.includeLibrary ?? true) || terminalTransition);
 
@@ -455,6 +486,7 @@ export class ProcessingController {
 			jobs,
 			localSources,
 			localRuns,
+			benchmarkResults,
 			localRunsHasMore,
 			localRunsNextCursor,
 			system,
