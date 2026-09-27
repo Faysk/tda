@@ -94,6 +94,167 @@ describe("session workspace protocol", () => {
 	});
 });
 
+	it("parses bounded chronology and keeps older workspace responses compatible", () => {
+		const raw = workspace([
+			{
+				...workspace().parts[0],
+				manual_offset_seconds: 0,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+			},
+			{
+				...workspace().parts[0],
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				manual_offset_seconds: 60,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+			},
+		]);
+		Object.assign(raw, {
+			order_authority: "manual",
+			timeline: {
+				schema_version: "tda_session_timeline_v1",
+				config_sha256: "a".repeat(64),
+				ready: true,
+				order: {
+					state: "manual",
+					workspace_authority: "manual",
+					suggested_part_ids: null,
+					matches_suggestion: null,
+				},
+				parts: [
+					{
+						part_id: partA,
+						source_id: sourceA,
+						ordinal: 0,
+						source_start: {
+							confidence: "missing",
+							raw: null,
+							instant_utc: null,
+						},
+						duration_seconds: 60,
+						manual_offset_seconds: 0,
+						session_offset_seconds: 0,
+						placement_authority: "manual",
+						trim_start_seconds: 0,
+						trim_end_seconds: null,
+						effective_start_seconds: 0,
+						effective_end_seconds: 60,
+						state: "ready",
+					},
+					{
+						part_id: partB,
+						source_id: sourceB,
+						ordinal: 1,
+						source_start: {
+							confidence: "missing",
+							raw: null,
+							instant_utc: null,
+						},
+						duration_seconds: 30,
+						manual_offset_seconds: 60,
+						session_offset_seconds: 60,
+						placement_authority: "manual",
+						trim_start_seconds: 0,
+						trim_end_seconds: null,
+						effective_start_seconds: 60,
+						effective_end_seconds: 90,
+						state: "ready",
+					},
+				],
+				relations: [
+					{
+						earlier_part_id: partA,
+						later_part_id: partB,
+						kind: "contiguous",
+						duration_seconds: 0,
+						decision: null,
+						boundary_seconds: null,
+						resolved: true,
+					},
+				],
+			},
+		});
+
+		const parsed = parseSessionWorkspace(raw);
+		expect(parsed.orderAuthority).toBe("manual");
+		expect(parsed.parts[1]).toMatchObject({
+			manualOffsetSeconds: 60,
+			trimStartSeconds: 0,
+			trimEndSeconds: null,
+		});
+		expect(parsed.timeline).toMatchObject({
+			schemaVersion: "tda_session_timeline_v1",
+			configSha256: "a".repeat(64),
+			ready: true,
+			order: { state: "manual", workspaceAuthority: "manual" },
+			relations: [{ kind: "contiguous", resolved: true }],
+		});
+
+		const legacy = parseSessionWorkspace(workspace());
+		expect(legacy.orderAuthority).toBe("unconfirmed");
+		expect(legacy.timeline).toBeNull();
+		expect(legacy.parts[0]).toMatchObject({
+			manualOffsetSeconds: null,
+			trimStartSeconds: 0,
+			trimEndSeconds: null,
+		});
+	});
+
+	it("rejects chronology that points relations at non-adjacent parts", () => {
+		const raw = workspace([
+			workspace().parts[0],
+			{
+				...workspace().parts[0],
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+			},
+		]);
+		Object.assign(raw, {
+			timeline: {
+				schema_version: "tda_session_timeline_v1",
+				config_sha256: "b".repeat(64),
+				ready: false,
+				order: {
+					state: "manual_required",
+					workspace_authority: "unconfirmed",
+					suggested_part_ids: null,
+					matches_suggestion: null,
+				},
+				parts: [partA, partB].map((partId, ordinal) => ({
+					part_id: partId,
+					source_id: ordinal === 0 ? sourceA : sourceB,
+					ordinal,
+					source_start: { confidence: "missing", raw: null, instant_utc: null },
+					duration_seconds: null,
+					manual_offset_seconds: null,
+					session_offset_seconds: null,
+					placement_authority: "unresolved",
+					trim_start_seconds: 0,
+					trim_end_seconds: null,
+					effective_start_seconds: null,
+					effective_end_seconds: null,
+					state: "unresolved",
+				})),
+				relations: [
+					{
+						earlier_part_id: partB,
+						later_part_id: partA,
+						kind: "unknown",
+						duration_seconds: null,
+						decision: null,
+						boundary_seconds: null,
+						resolved: false,
+					},
+				],
+			},
+		});
+		expect(() => parseSessionWorkspace(raw)).toThrow();
+	});
+
 describe("session workspace bridge", () => {
 	it("uses fixed loopback routes and CAS payloads", async () => {
 		let current = workspace([]);
@@ -145,11 +306,32 @@ describe("session workspace bridge", () => {
 			1,
 			signal(),
 		);
+		await bridge.updateSessionPartTiming(
+			"yuhara-main",
+			"session-42",
+			partB,
+			{
+				manualOffsetSeconds: 30,
+				trimStartSeconds: 2,
+				trimEndSeconds: 45,
+			},
+			2,
+			signal(),
+		);
+		await bridge.resolveSessionTimeline(
+			"yuhara-main",
+			"session-42",
+			partB,
+			partA,
+			{ decision: "prefer_later_from", boundarySeconds: 35 },
+			3,
+			signal(),
+		);
 		await bridge.detachSessionPart(
 			"yuhara-main",
 			"session-42",
 			partA,
-			2,
+			4,
 			signal(),
 		);
 
@@ -157,6 +339,8 @@ describe("session workspace bridge", () => {
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timing`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline/resolve`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
 		expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toEqual({
@@ -168,8 +352,22 @@ describe("session workspace bridge", () => {
 			expected_revision: 1,
 		});
 		expect(JSON.parse(String(request.mock.calls[3][1]?.body))).toEqual({
-			part_id: partA,
+			part_id: partB,
+			manual_offset_seconds: 30,
+			trim_start_seconds: 2,
+			trim_end_seconds: 45,
 			expected_revision: 2,
+		});
+		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
+			earlier_part_id: partB,
+			later_part_id: partA,
+			decision: "prefer_later_from",
+			boundary_seconds: 35,
+			expected_revision: 3,
+		});
+		expect(JSON.parse(String(request.mock.calls[5][1]?.body))).toEqual({
+			part_id: partA,
+			expected_revision: 4,
 		});
 		for (const [, init] of request.mock.calls) {
 			expect(init?.headers).toMatchObject({
