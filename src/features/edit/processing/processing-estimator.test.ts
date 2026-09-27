@@ -33,6 +33,8 @@ const system: SystemSnapshot = {
 	memory: { usedBytes: 1, totalBytes: 2, percent: 50 },
 	gpus: [
 		{
+			uuid: "GPU-11111111-1111-1111-1111-111111111111",
+			pciBusId: "00000000:01:00.0",
 			index: 0,
 			name: "NVIDIA GeForce RTX 4070 Laptop GPU",
 			utilizationPercent: 0,
@@ -66,6 +68,12 @@ function run(
 				version: "1.0.12",
 				workerSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				archiveSha256: null,
+			},
+			executionDevice: {
+				kind: "cuda",
+				logicalIndex: 0,
+				physicalUuid: "GPU-11111111-1111-1111-1111-111111111111",
+				pciBusId: "00000000:01:00.0",
 			},
 			device: "cuda",
 			computeType: "bfloat16",
