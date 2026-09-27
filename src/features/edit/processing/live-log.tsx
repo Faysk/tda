@@ -5,6 +5,7 @@ import {
 	activityContext,
 	activityEventCanBeHumorous,
 	selectActivityBark,
+	type ActivityBark,
 } from "./activity-barks";
 import { presentJobEvent } from "./presentation";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
@@ -30,10 +31,14 @@ function humanText(
 	event: JobEvent,
 	job: LocalJob,
 	system: SystemSnapshot | null,
+	catalog: readonly ActivityBark[],
 ) {
 	const factual = presentJobEvent(event);
 	const bark = activityEventCanBeHumorous(event)
-		? selectActivityBark(activityContext(event, job, system), { level: "tda" })
+		? selectActivityBark(activityContext(event, job, system), {
+			level: "tda",
+			catalog,
+		})
 		: null;
 	return bark ? { title: bark.text, detail: factual.detail } : factual;
 }
