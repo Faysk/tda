@@ -34,6 +34,55 @@ function workspace(parts = [
 	};
 }
 
+function chronology() {
+	return {
+		schema_version: "tda_recording_chronology_v1",
+		sha256: "c".repeat(64),
+		ready_for_assembly: false,
+		blocking_reasons: [`OVERLAP_UNRESOLVED:${partB}`],
+		parts: [
+			{
+				part_id: partA,
+				source_id: sourceA,
+				ordinal: 0,
+				start_time_confidence: "trusted_absolute",
+				normalized_start_time: "2026-09-27T20:00:00Z",
+				placement_authority: "trusted_absolute",
+				local_duration_seconds: 90,
+				session_offset_seconds: 0,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+				effective_start_seconds: 0,
+				effective_end_seconds: 90,
+			},
+			{
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				start_time_confidence: "trusted_absolute",
+				normalized_start_time: "2026-09-27T20:01:00Z",
+				placement_authority: "trusted_absolute",
+				local_duration_seconds: 90,
+				session_offset_seconds: 60,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+				effective_start_seconds: 60,
+				effective_end_seconds: 150,
+			},
+		],
+		relations: [
+			{
+				earlier_part_id: partA,
+				later_part_id: partB,
+				kind: "overlap",
+				seconds: 30,
+				confirmed: false,
+				overlap_resolution: null,
+			},
+		],
+	};
+}
+
 describe("session workspace protocol", () => {
 	it("parses only sanitized ordered recording-part metadata", () => {
 		const parsed = parseSessionWorkspace(workspace());
@@ -54,6 +103,63 @@ describe("session workspace protocol", () => {
 		});
 		expect(JSON.stringify(parsed)).not.toContain("path");
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
+	});
+
+	it("parses additive chronology while preserving older workspace responses", () => {
+		const legacy = parseSessionWorkspace(workspace());
+		expect(legacy.chronology).toBeNull();
+		expect(legacy.parts[0]).toMatchObject({
+			sessionOffsetSeconds: null,
+			trimStartSeconds: 0,
+			trimEndSeconds: null,
+			gapConfirmed: false,
+			overlapResolution: null,
+			overlapBoundarySeconds: null,
+			chronologyVersion: "tda_recording_chronology_v1",
+		});
+
+		const raw = workspace([
+			{
+				...workspace().parts[0],
+				part_id: partA,
+				source_id: sourceA,
+				ordinal: 0,
+				session_offset_seconds: 0,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+				gap_confirmed: false,
+				overlap_resolution: null,
+				overlap_boundary_seconds: null,
+				chronology_version: "tda_recording_chronology_v1",
+			},
+			{
+				...workspace().parts[0],
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: null,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+				gap_confirmed: false,
+				overlap_resolution: null,
+				overlap_boundary_seconds: null,
+				chronology_version: "tda_recording_chronology_v1",
+			},
+		]);
+		const parsed = parseSessionWorkspace({ ...raw, chronology: chronology() });
+		expect(parsed.chronology).toMatchObject({
+			schemaVersion: "tda_recording_chronology_v1",
+			sha256: "c".repeat(64),
+			readyForAssembly: false,
+			blockingReasons: [`OVERLAP_UNRESOLVED:${partB}`],
+			relations: [
+				{
+					kind: "overlap",
+					seconds: 30,
+					confirmed: false,
+				},
+			],
+		});
 	});
 
 	it("rejects duplicate sources, non-contiguous order and oversized collections", () => {
@@ -145,11 +251,26 @@ describe("session workspace bridge", () => {
 			1,
 			signal(),
 		);
+		await bridge.updateSessionPartTimeline(
+			"yuhara-main",
+			"session-42",
+			partB,
+			2,
+			{
+				sessionOffsetSeconds: 75,
+				trimStartSeconds: 5,
+				trimEndSeconds: 65,
+				gapConfirmed: true,
+				overlapResolution: null,
+				overlapBoundarySeconds: null,
+			},
+			signal(),
+		);
 		await bridge.detachSessionPart(
 			"yuhara-main",
 			"session-42",
 			partA,
-			2,
+			3,
 			signal(),
 		);
 
@@ -157,6 +278,7 @@ describe("session workspace bridge", () => {
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timeline`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
 		expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toEqual({
@@ -168,8 +290,18 @@ describe("session workspace bridge", () => {
 			expected_revision: 1,
 		});
 		expect(JSON.parse(String(request.mock.calls[3][1]?.body))).toEqual({
-			part_id: partA,
+			part_id: partB,
 			expected_revision: 2,
+			session_offset_seconds: 75,
+			trim_start_seconds: 5,
+			trim_end_seconds: 65,
+			gap_confirmed: true,
+			overlap_resolution: null,
+			overlap_boundary_seconds: null,
+		});
+		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
+			part_id: partA,
+			expected_revision: 3,
 		});
 		for (const [, init] of request.mock.calls) {
 			expect(init?.headers).toMatchObject({
