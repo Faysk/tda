@@ -1,7 +1,7 @@
 import { publishApprovedLocalReview } from "../../src/features/edit/processing/publication-client";
 import { LocalReviewWorkspace } from "../../src/features/edit/processing/local-review";
 import type { LocalReview, LocalRunSummary } from "../../src/features/edit/processing/protocol";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 // Synthetic browser data; the product never imports this isolated harness.
 export function ReviewFixture() {
@@ -11,6 +11,55 @@ export function ReviewFixture() {
 	const oldAgent = new URLSearchParams(location.search).has("old-agent");
 	const bulk = new URLSearchParams(location.search).has("bulk");
 	const metricsMode = new URLSearchParams(location.search).has("metrics");
+	const timeline = new URLSearchParams(location.search).has("timeline");
+	const large = new URLSearchParams(location.search).has("large");
+	const initialSegments = useMemo<LocalReview["segments"]>(() => {
+		if (large) {
+			return Array.from({ length: 7_531 }, (_, index) => {
+				const trackNumber = (index % 4) + 1;
+				const start = index * 2;
+				const offset = (trackNumber - 1) * 30;
+				return {
+					trackNumber,
+					segmentId: `large-${index}`,
+					start,
+					end: start + 1,
+					timelineStart: start + offset,
+					timelineEnd: start + offset + 1,
+					text: `Fala sintética ${index}${index === 7000 ? " exclusiva" : ""}`,
+					speaker: `Participante ${trackNumber}`,
+					reviewed: false,
+				};
+			});
+		}
+		if (timeline) {
+			return [
+				{ trackNumber: 2, segmentId: "b", start: 0, end: 2, timelineStart: 120, timelineEnd: 122, text: "Global 120", speaker: "B", reviewed: false },
+				{ trackNumber: 1, segmentId: "a", start: 10, end: 12, timelineStart: 10, timelineEnd: 12, text: "Global 10", speaker: "A", reviewed: false },
+				{ trackNumber: 3, segmentId: "c", start: 6, end: 8, timelineStart: 11, timelineEnd: 13, text: "Global 11", speaker: "C", reviewed: false },
+			];
+		}
+		if (bulk) {
+			return Array.from({ length: 5 }, (_, index) => ({
+				trackNumber: index === 4 ? 2 : 1,
+				segmentId: `s-${index}`,
+				start: index,
+				end: index + 1,
+				text: `Fala ${index}`,
+				speaker: index === 3 ? "Convidado" : "Alex",
+				reviewed: true,
+			}));
+		}
+		return [{
+			trackNumber: 1,
+			segmentId: "1-0",
+			start: 0,
+			end: 1,
+			text: "Olá\u0085mundo",
+			speaker: "Participante sintético",
+			reviewed: false,
+		}];
+	}, [bulk, large, timeline]);
     const [saveCount, setSaveCount] = useState(0);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
@@ -41,13 +90,13 @@ export function ReviewFixture() {
 			completedAt: "2026-09-26T12:00:00Z",
 		},
 		stats: {
-			audioWorkSeconds: 60,
+			audioWorkSeconds: large ? 21_600 : 60,
 			processingSeconds: 30,
-			sessionDurationSeconds: 60,
+			sessionDurationSeconds: large ? 21_600 : timeline ? 122 : 60,
 			rtf: 0.5,
-			wordCount: 2,
-			segmentCount: 1,
-			trackCount: 1,
+			wordCount: initialSegments.length,
+			segmentCount: initialSegments.length,
+			trackCount: large ? 4 : timeline ? 3 : bulk ? 2 : 1,
 		},
 		warnings: Array.from(
 			{ length: 1000 },
@@ -65,27 +114,16 @@ export function ReviewFixture() {
 		publicationTarget: publication ? { campaignSlug: "yuhara-main", sourceSessionId: "sessao-synthetic", jobId: "synthetic", attempt: 1 } : null,
 		publicationTargetState: "invalid",
 		review: {
-			reviewedSegments: 0,
-			totalSegments: 1,
-			reviewPercent: 0,
+			reviewedSegments: initialSegments.filter((segment) => segment.reviewed).length,
+			totalSegments: initialSegments.length,
+			reviewPercent: initialSegments.length
+				? (initialSegments.filter((segment) => segment.reviewed).length / initialSegments.length) * 100
+				: 100,
 			editedSegments: 0,
-			wordCount: 2,
+			wordCount: initialSegments.length,
 			warningCount: legacy ? 1000 : 5000,
 		},
-		segments: bulk ? Array.from({ length: 5 }, (_, index) => ({
-            trackNumber: index === 4 ? 2 : 1, segmentId: `s-${index}`, start: index, end: index + 1,
-            text: `Fala ${index}`, speaker: index === 3 ? "Convidado" : "Alex", reviewed: true,
-        })) : [
-			{
-				trackNumber: 1,
-				segmentId: "1-0",
-				start: 0,
-				end: 1,
-				text: "Olá\u0085mundo",
-				speaker: "Participante sintético",
-				reviewed: false,
-			},
-		],
+		segments: initialSegments,
 		sync: { status: "not_configured" },
 	});
 	const run: LocalRunSummary = {
