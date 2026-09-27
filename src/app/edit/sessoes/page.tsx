@@ -111,7 +111,7 @@ export default async function EditSessionsPage({
 				</div>
 			</header>
 
-			<form className={styles.libraryFilters} method="get" role="search">
+			<form className={styles.libraryFilters} method="get">
 				<label className={styles.librarySearch}>
 					<span>Buscar sessão</span>
 					<input
