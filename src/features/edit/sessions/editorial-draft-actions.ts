@@ -37,7 +37,7 @@ export async function saveSessionEditorialDraftAction(
 			issues: ["identity"] as const,
 		};
 	}
-	const issues = validateSessionEditorialDraftInput(input);
+	const issues = [...validateSessionEditorialDraftInput(input)];
 	const coverReference = input.coverAssetId.trim();
 	if (
 		coverReference &&
