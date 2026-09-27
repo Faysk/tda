@@ -441,14 +441,26 @@ export async function installCompanionFixture(
 			} catch {
 				return invalidRequest(route);
 			}
+			const row =
+				payload && typeof payload === "object" && !Array.isArray(payload)
+					? (payload as Record<string, unknown>)
+					: null;
+			const requestedProfile =
+				row && typeof row.profile_id === "string" ? row.profile_id : null;
 			if (
-				!exactObject(payload, {
-					source_id: CRAIG_SOURCE_ID,
-					profile_id: "qwen-quality",
-				})
+				!row ||
+				row.source_id !== CRAIG_SOURCE_ID ||
+				!requestedProfile ||
+				(options.benchmarkProfiles
+					? !benchmarkProfileIds.includes(
+							requestedProfile as (typeof benchmarkProfileIds)[number],
+						)
+					: requestedProfile !== "qwen-quality")
 			)
 				return invalidRequest(route);
+			preparationProfile = requestedProfile;
 			state.preparationPostCount += 1;
+			state.preparationProfiles.push(requestedProfile);
 			preparationReads = 0;
 			preparationStarted = true;
 			return json(route, {
@@ -457,10 +469,10 @@ export async function installCompanionFixture(
 				active: true,
 				operation_id: "c".repeat(32),
 				source_id: CRAIG_SOURCE_ID,
-				profile_id: "qwen-quality",
-				engine: "qwen3",
-				stage: "qwen_probe",
-				title: "Validando Qwen",
+				profile_id: requestedProfile,
+				engine: requestedProfile.startsWith("qwen-") ? "qwen3" : "whisper",
+				stage: requestedProfile.startsWith("qwen-") ? "qwen_probe" : "whisper_model",
+				title: `Preparando ${requestedProfile}`,
 				detail: "Fixture local",
 				sequence: 1,
 				elapsed_seconds: 0.1,
@@ -486,21 +498,27 @@ export async function installCompanionFixture(
 				});
 			}
 			preparationReads += 1;
-			if (preparationReads >= 1) prepared = true;
+			const failed =
+				options.benchmarkProfiles &&
+				options.benchmarkPreparationFailureProfile === preparationProfile;
+			if (preparationReads >= 1 && !failed) {
+				if (options.benchmarkProfiles) benchmarkPrepared.add(preparationProfile);
+				else prepared = true;
+			}
 			return json(route, {
 				schema: "tda_profile_preparation_v1",
-				state: "completed",
+				state: failed ? "failed" : "completed",
 				active: false,
 				operation_id: "c".repeat(32),
 				source_id: CRAIG_SOURCE_ID,
-				profile_id: "qwen-quality",
-				engine: "qwen3",
-				stage: "complete",
-				title: "Qwen pronto",
+				profile_id: preparationProfile,
+				engine: preparationProfile.startsWith("qwen-") ? "qwen3" : "whisper",
+				stage: failed ? "failed" : "complete",
+				title: failed ? "Preparação falhou" : `${preparationProfile} pronto`,
 				detail: "",
 				sequence: 2,
 				elapsed_seconds: 0.2,
-				error_code: null,
+				error_code: failed ? "BENCHMARK_PREPARATION_FAILED" : null,
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
