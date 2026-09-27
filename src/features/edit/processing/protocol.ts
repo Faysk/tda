@@ -891,8 +891,9 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			return parsed;
 		});
 		if (chronologyParts.length !== parts.length) return invalid();
-		const partIds = new Set(parts.map((part) => part.partId));
-		const relations = rawChronology.relations.map((raw) => {
+		if (rawChronology.relations.length !== Math.max(parts.length - 1, 0))
+			return invalid();
+		const relations = rawChronology.relations.map((raw, index) => {
 			const relation = record(raw);
 			const kind = text(relation.kind, 16);
 			if (
@@ -904,7 +905,10 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 				return invalid();
 			const earlierPartId = text(relation.earlier_part_id, 32);
 			const laterPartId = text(relation.later_part_id, 32);
-			if (!partIds.has(earlierPartId) || !partIds.has(laterPartId))
+			if (
+				parts[index]?.partId !== earlierPartId ||
+				parts[index + 1]?.partId !== laterPartId
+			)
 				return invalid();
 			let overlapResolution: SessionChronologyRelation["overlapResolution"] = null;
 			if (relation.overlap_resolution !== null && relation.overlap_resolution !== undefined) {
