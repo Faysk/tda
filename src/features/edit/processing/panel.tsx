@@ -61,6 +61,34 @@ function formatBytes(value: number | null): string {
 	return `${gib >= 10 ? gib.toFixed(0) : gib.toFixed(1)} GB`;
 }
 
+function formatElapsed(start: string | null, endMs = Date.now()): string {
+	if (!start) return "—";
+	const started = Date.parse(start);
+	if (!Number.isFinite(started)) return "—";
+	const seconds = Math.max(0, Math.floor((endMs - started) / 1000));
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const rest = seconds % 60;
+	return hours
+		? `${hours}h ${String(minutes).padStart(2, "0")}m`
+		: minutes
+			? `${minutes}m ${String(rest).padStart(2, "0")}s`
+			: `${rest}s`;
+}
+
+function formatTrackDuration(
+	start: string | null,
+	completed: string | null,
+	nowMs: number,
+): string {
+	if (!start) return "tempo não medido";
+	const end = completed ? Date.parse(completed) : nowMs;
+	const started = Date.parse(start);
+	if (!Number.isFinite(started) || !Number.isFinite(end))
+		return "tempo não medido";
+	return formatElapsed(start, end);
+}
+
 function formatTime(value: string): string {
 	return new Date(value).toLocaleTimeString("pt-BR", {
 		hour: "2-digit",
@@ -157,6 +185,7 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [clockNow, setClockNow] = useState(() => Date.now());
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -183,6 +212,12 @@ export function ProcessingPanel({
 			document.removeEventListener("visibilitychange", visible);
 		};
 	}, [controller, state.connection, state.jobs, state.mutation]);
+	useEffect(() => {
+		if (!state.jobs.some((job) => job.status === "running")) return;
+		setClockNow(Date.now());
+		const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+		return () => window.clearInterval(timer);
+	}, [state.jobs]);
 	useEffect(() => {
 		if (confirmation) dialog.current?.showModal();
 		else dialog.current?.close();
@@ -221,6 +256,12 @@ export function ProcessingPanel({
 	const trackContext =
 		activeJob && state.observedJobId === activeJob.id
 			? eventTrackContext(state.events)
+			: null;
+	const activeTiming =
+		activeJob &&
+		state.observedJobId === activeJob.id &&
+		state.timing?.attempt === activeJob.attempt
+			? state.timing
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 
@@ -453,8 +494,23 @@ export function ProcessingPanel({
 											{trackContext?.segment != null ? (
 												<span>Segmento {trackContext.segment}</span>
 											) : null}
+											{activeTiming?.jobStartedAt ? (
+												<span>
+													Executando há {formatElapsed(activeTiming.jobStartedAt, clockNow)}
+												</span>
+											) : null}
 											{activeJob.attempt > 0 ? (
-												<span>Tentativa {activeJob.attempt}</span>
+												<span>
+													Tentativa {activeJob.attempt}
+													{activeTiming?.attemptStartedAt
+														? ` · ${formatElapsed(activeTiming.attemptStartedAt, clockNow)}`
+														: ""}
+												</span>
+											) : null}
+											{activeTiming?.stageStartedAt ? (
+												<span>
+													Etapa há {formatElapsed(activeTiming.stageStartedAt, clockNow)}
+												</span>
 											) : null}
 											<span>
 												Worker ativo · {formatTime(activeJob.updated_at)}
@@ -509,6 +565,32 @@ export function ProcessingPanel({
 												Consolidação
 											</span>
 										</section>
+										{activeTiming?.tracks.length ? (
+											<details className={styles.trackTimings}>
+												<summary>Tempos por arquivo</summary>
+												<ol>
+													{activeTiming.tracks.map((track) => (
+														<li
+															key={track.track}
+															data-active={track.completedAt ? "false" : "true"}
+														>
+															<span>
+																{track.track}. {track.speaker ?? "voz não identificada"}
+															</span>
+															<strong>
+																{track.reused && !track.startedAt
+																	? "Reutilizada"
+																	: formatTrackDuration(
+																			track.startedAt,
+																			track.completedAt,
+																			clockNow,
+																		)}
+															</strong>
+														</li>
+													))}
+												</ol>
+											</details>
+										) : null}
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
