@@ -10,6 +10,7 @@ import {
 } from "./bridge";
 import {
 	BridgeError,
+	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
 	type LocalRunSummary,
@@ -143,16 +144,19 @@ function sourceMustBeRestaged(code: string | null): boolean {
 }
 
 const EMPTY_RUNS: readonly LocalRunSummary[] = [];
+const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 
 export function ProcessingSubmission({
 	className,
 	compact = false,
 	runs = EMPTY_RUNS,
+	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
 }: Readonly<{
 	className?: string;
 	compact?: boolean;
 	runs?: readonly LocalRunSummary[];
+	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
 }> = {}) {
 	const paired = useSyncExternalStore(
@@ -306,11 +310,12 @@ export function ProcessingSubmission({
 						audioWorkSeconds: source?.audioWorkSeconds ?? null,
 						profile: item,
 						runs,
+						benchmarks,
 						system,
 					}),
 				]),
 			),
-		[availableProfiles, runs, source?.audioWorkSeconds, system],
+		[availableProfiles, benchmarks, runs, source?.audioWorkSeconds, system],
 	);
 	const qwenRuntimeUpgradeRequired =
 		selectedProfileState?.reason === QWEN_RUNTIME_UPGRADE_REASON;
@@ -705,7 +710,7 @@ export function ProcessingSubmission({
 							<div>
 								<strong>Estimativa nesta máquina</strong>
 								<small>
-									Baseada somente em runs locais compatíveis · trabalho de áudio{" "}
+									Runs locais compatíveis e benchmark local quando necessário · trabalho de áudio{" "}
 									{Math.round(source.audioWorkSeconds ?? 0)} s
 								</small>
 							</div>
@@ -729,8 +734,12 @@ export function ProcessingSubmission({
 															high: "alta",
 															medium: "média",
 															low: "baixa",
-														}[estimate.confidence]} · ${estimate.sampleCount} runs`
-													: "Histórico compatível insuficiente"}
+														}[estimate.confidence]} · ${estimate.source === "benchmark"
+															? `${estimate.benchmarkSampleCount} benchmark local`
+															: estimate.source === "local_runs+benchmark"
+																? `${estimate.runSampleCount} run local + ${estimate.benchmarkSampleCount} benchmark`
+																: `${estimate.runSampleCount} runs locais`}`
+													: "Histórico e benchmark compatíveis insuficientes"}
 												{item.preparationRequired ? " · + preparação necessária" : ""}
 											</small>
 										</div>
