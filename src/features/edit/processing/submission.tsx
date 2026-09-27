@@ -870,7 +870,7 @@ export function ProcessingSubmission({
 								{availableProfiles.map((item) => (
 									<option key={item.id} value={item.id}>
 										{submissionProfileLabel(item.id)}
-										{item.ready || idleDensity
+										{item.ready
 											? ""
 											: item.reason === QWEN_RUNTIME_UPGRADE_REASON
 												? ` · ${qwenRuntimeBlockLabel}`
