@@ -21,6 +21,7 @@ from tda_companion.transcription_runs import (
     list_runs,
     load_run,
     migrate_legacy_transcript,
+    recover_deleted_run_cleanup,
     run_id_for,
     write_compatibility_mirror,
     write_completed_run,
@@ -740,3 +741,52 @@ def test_delete_run_rejects_symlinked_revision_namespace(tmp_path: Path):
 
     assert (outside).is_dir()
     assert load_run(package_root, manifest["run_id"], verify_content=False)
+
+
+def test_startup_recovery_finishes_tombstoned_delete_cleanup(
+    monkeypatch,
+    tmp_path: Path,
+):
+    from tda_companion import transcription_runs as runs_module
+
+    source_sha = "9" * 64
+    data_root = tmp_path / "Data"
+    package_root = data_root / "staging" / f"craig-{source_sha}"
+    package_root.mkdir(parents=True)
+    manifest = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-turbo", "recover-delete"),
+        job_id="recover-delete-job",
+        attempt=1,
+    )
+    operation_id = "77777777-7777-4777-8777-777777777777"
+    original_rmtree = runs_module.shutil.rmtree
+    failed_once = False
+
+    def fail_first_physical_cleanup(path, *args, **kwargs):
+        nonlocal failed_once
+        if Path(path).name == operation_id and not failed_once:
+            failed_once = True
+            raise PermissionError("synthetic cleanup denial")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(runs_module.shutil, "rmtree", fail_first_physical_cleanup)
+    receipt = delete_completed_run(
+        package_root,
+        source_id=package_root.name,
+        run_id=manifest["run_id"],
+        expected_transcript_sha256=manifest["transcript_sha256"],
+        operation_id=operation_id,
+    )
+
+    assert receipt["deleted"] is True
+    assert not (package_root / "runs" / manifest["run_id"]).exists()
+    assert (package_root / ".delete-trash" / operation_id).is_dir()
+    assert list_runs(package_root) == []
+
+    monkeypatch.setattr(runs_module.shutil, "rmtree", original_rmtree)
+    recovered = recover_deleted_run_cleanup(data_root)
+
+    assert recovered == {"recovered": 1, "pending": 0, "failed": 0}
+    assert not (package_root / ".delete-trash" / operation_id).exists()
+    assert list_runs(package_root) == []

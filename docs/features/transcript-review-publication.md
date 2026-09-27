@@ -599,7 +599,41 @@ Ações por run concluído:
 - Duplicar configuração;
 - Publicar;
 - Arquivar;
-- Excluir.
+- Excluir resultado local.
+
+### Exclusão de resultado local
+
+A exclusão de um run concluído é uma ação destrutiva **somente no armazenamento local**.
+A UI confirma explicitamente o run selecionado e informa que a source Craig
+compartilhada, outros runs e qualquer revision já publicada na cloud não são
+removidos.
+
+O Agent exige a identidade exata `(source_id, run_id, transcript_sha256)` e grava
+primeiro o receipt/tombstone metadata-only `tda_local_run_delete_receipt_v1`. A
+partir desse commit, o run deixa de ser legível/listável mesmo se a limpeza física
+ainda não terminou. Run e revisão derivada são movidos por rename para quarantine
+no mesmo package e removidos best-effort.
+
+No startup, antes da manutenção de transcript legado, o Agent percorre apenas
+tombstones válidos dentro das sources Craig confinadas e retoma cleanup pendente.
+Symlink/junction/reparse point em source, namespace de receipts, revisão ou trash
+falha fechado. Receipt inválido nunca autoriza remoção. Assim uma queda depois do
+tombstone não faz o resultado reaparecer nem virar candidato a migração legada.
+
+Delete também falha com conflito recuperável enquanto a mesma source está em uso
+por processamento/preparação. A row operacional pode continuar `succeeded`; o
+pointer local de resultado é destacado para que `result_available=false`, enquanto
+idempotency, attempt fences, terminal receipts e o tombstone de delete permanecem.
+Repetir a operação é idempotente e retorna a decisão já gravada.
+
+A Web mantém delete separado de Queue cleanup e de unpublish. Operação de
+publicação ainda não reconciliada bloqueia a ação no browser, e um review aberto
+do mesmo run impede o controller de disparar delete. A Biblioteca só remove a row
+depois de receipt válido do Companion.
+
+Rollback deve preservar leitores dos tombstones: uma versão que ignore
+`.deleted-runs` pode reapresentar um artefato deliberadamente removido. Nunca
+apagar receipts de delete para simular rollback.
 
 Ações por run incompleto:
 

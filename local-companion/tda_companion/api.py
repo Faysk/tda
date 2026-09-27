@@ -46,7 +46,13 @@ from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .store import Conflict, Store
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
-from .transcription_runs import TranscriptionRunError, load_run, run_id_for, maintain_legacy_transcripts
+from .transcription_runs import (
+    TranscriptionRunError,
+    load_run,
+    maintain_legacy_transcripts,
+    recover_deleted_run_cleanup,
+    run_id_for,
+)
 from .worker_event_schema import sanitize_worker_event
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
 
@@ -1146,6 +1152,16 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_):
+        delete_cleanup = await asyncio.to_thread(recover_deleted_run_cleanup, data_root)
+        if any(delete_cleanup.values()):
+            level = "warning" if delete_cleanup["pending"] or delete_cleanup["failed"] else "info"
+            log(
+                level,
+                "storage",
+                "LOCAL_RUN_DELETE_RECOVERY",
+                "Recovered tombstoned local-run cleanup after Agent interruption",
+                delete_cleanup,
+            )
         legacy_maintenance = await asyncio.to_thread(maintain_legacy_transcripts, data_root)
         if any(legacy_maintenance.values()):
             log("info", "storage", "LEGACY_TRANSCRIPT_MAINTENANCE", "Local legacy maintenance completed", legacy_maintenance)
