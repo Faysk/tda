@@ -29,8 +29,6 @@ function DisabledEdit() {
 
 export default async function EditSessionsPage() {
 	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
-	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
-
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
 		sessions = await listEditSessionLibrary();
