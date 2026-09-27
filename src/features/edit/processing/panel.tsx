@@ -268,10 +268,15 @@ function eventTrackContext(
 	activeAttempt: number,
 ) {
 	for (const event of events) {
-		// Current cockpit context is attempt-scoped. A retry starts with no
-		// track/window context until that attempt emits its own event; never
-		// borrow stale routine facts from a previous attempt.
-		if (event.attempt !== activeAttempt) continue;
+		// Current cockpit context is attempt-scoped. Legacy events without
+		// structural attempt identity are safe only on the first attempt, where
+		// no prior attempt exists to leak into the current cockpit. Retries must
+		// wait for explicitly current-attempt context.
+		if (
+			event.attempt !== activeAttempt &&
+			!(activeAttempt === 1 && event.attempt === null)
+		)
+			continue;
 		const track = event.data.track;
 		const total = event.data.total_tracks;
 		const speaker = event.data.speaker;
