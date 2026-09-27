@@ -1,6 +1,12 @@
 import "server-only";
 import { editDataClient } from "@/integrations/supabase/server";
 import {
+	normalizeRevisionSegments,
+	sortLegacySegments,
+	type TranscriptReaderSnapshot,
+	type TranscriptReaderSegment,
+} from "./reader-contract";
+import {
 	normalizeTranscriptReviewStatus,
 	type TranscriptReviewStatus,
 } from "./model";
@@ -163,4 +169,104 @@ export async function readTranscriptSegment(
 
 	if (error) throw new Error("Transcript segment unavailable");
 	return data ? toSegment(data as Record<string, unknown>) : null;
+}
+
+
+const READER_BATCH_SIZE = 1000;
+
+function legacyTrackNumber(value: unknown): number {
+	if (typeof value !== "string") return 1;
+	const parsed = Number.parseInt(value, 10);
+	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function toReaderLegacySegment(row: Record<string, unknown>): TranscriptReaderSegment {
+	if (
+		typeof row.id !== "string" ||
+		typeof row.start_ms !== "number" ||
+		typeof row.end_ms !== "number" ||
+		typeof row.text !== "string"
+	)
+		throw new Error("Legacy transcript segment is invalid");
+	const speaker =
+		(typeof row.character_name === "string" && row.character_name.trim()) ||
+		(typeof row.speaker_name === "string" && row.speaker_name.trim()) ||
+		(typeof row.track_key === "string" && row.track_key.trim()) ||
+		"Mesa";
+	return {
+		id: `l-${row.id}`,
+		trackNumber: legacyTrackNumber(row.track_key),
+		startMs: row.start_ms,
+		endMs: row.end_ms,
+		speaker,
+		text: row.text,
+	};
+}
+
+export async function readTranscriptSnapshot(input: {
+	campaignSlug: string;
+	sessionId: string;
+}): Promise<TranscriptReaderSnapshot | null> {
+	const client = editDataClient();
+	if (!client) return null;
+	const { data: session, error: sessionError } = await client
+		.from("sessions")
+		.select("id,campaign_id,current_transcript_revision_id,campaigns!inner(slug)")
+		.eq("id", input.sessionId)
+		.eq("campaigns.slug", input.campaignSlug)
+		.maybeSingle();
+	if (sessionError) throw new Error("Edit session lookup unavailable");
+	if (!session) return null;
+
+	const currentRevisionId =
+		typeof session.current_transcript_revision_id === "string"
+			? session.current_transcript_revision_id
+			: null;
+	if (currentRevisionId) {
+		const { data: revision, error } = await client
+			.from("transcript_revisions")
+			.select("id,revision_number,segments")
+			.eq("id", currentRevisionId)
+			.eq("session_id", input.sessionId)
+			.eq("campaign_id", session.campaign_id)
+			.maybeSingle();
+		if (error) throw new Error("Current transcript revision unavailable");
+		if (!revision)
+			throw new Error("Current transcript revision pointer is invalid");
+		if (
+			typeof revision.id !== "string" ||
+			typeof revision.revision_number !== "number" ||
+			!Number.isSafeInteger(revision.revision_number) ||
+			revision.revision_number < 1
+		)
+			throw new Error("Current transcript revision metadata is invalid");
+		return {
+			source: "current_revision",
+			revisionId: revision.id,
+			revisionNumber: revision.revision_number,
+			segments: normalizeRevisionSegments(revision.segments),
+		};
+	}
+
+	const segments: TranscriptReaderSegment[] = [];
+	for (let from = 0; ; from += READER_BATCH_SIZE) {
+		const { data, error } = await client
+			.from("transcript_segments")
+			.select("id,start_ms,end_ms,text,speaker_name,character_name,track_key")
+			.eq("session_id", input.sessionId)
+			.order("start_ms", { ascending: true })
+			.order("end_ms", { ascending: true })
+			.order("id", { ascending: true })
+			.range(from, from + READER_BATCH_SIZE - 1);
+		if (error) throw new Error("Legacy transcript unavailable");
+		const rows = (data ?? []) as Record<string, unknown>[];
+		segments.push(...rows.map(toReaderLegacySegment));
+		if (rows.length < READER_BATCH_SIZE) break;
+	}
+	return {
+		source: "legacy_segments",
+		revisionId: null,
+		revisionNumber: null,
+		segments: sortLegacySegments(segments),
+	};
 }
