@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 	}
 
 	const { id } = await params;
-	let snapshot;
+	let snapshot: Awaited<ReturnType<typeof readPreparedSessionTranscript>>;
 	try {
 		snapshot = await readPreparedSessionTranscript(String(id || ""));
 	} catch {
