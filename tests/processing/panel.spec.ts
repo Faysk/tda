@@ -403,7 +403,7 @@ test("Overview keeps factual zero progress and does not infer worker liveness", 
 	await expect(progress).toHaveAttribute("max", "4");
 	await expect(page.getByText("0 de 4 tracks", { exact: true })).toBeVisible();
 	await expect(page.getByText("Perfil qwen-quality", { exact: true })).toBeVisible();
-	await expect(page.getByText(/Trabalho atualizado às/)).toBeVisible();
+	await expect(page.getByText(/Etapa há .* · atualizado às/)).toBeVisible();
 	await expect(page.getByText(/Worker ativo/)).toHaveCount(0);
 	await expect(
 		page.getByLabel("Métricas do último resultado concluído"),

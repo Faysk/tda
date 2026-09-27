@@ -75,7 +75,25 @@ export type JobContext = {
 	profileId?: TranscriptionProfileId;
 };
 export type ExecutionDevice = Readonly<{ kind: "cpu" | "cuda"; logicalIndex: number | null; physicalUuid: string | null; pciBusId: string | null }>;
+export type JobTrackTiming = {
+	track: number;
+	totalTracks: number | null;
+	speaker: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+	processingSeconds: number | null;
+};
+export type JobTiming = {
+	schemaVersion: "tda_job_timing_v1";
+	attemptStartedAt: string | null;
+	attemptFinishedAt: string | null;
+	attemptElapsedSeconds: number | null;
+	stageStartedAt: string | null;
+	stageElapsedSeconds: number | null;
+	tracks: readonly JobTrackTiming[];
+};
 export type LocalJob = {
+	timing: JobTiming;
 	executionDevice?: ExecutionDevice | null;
 	id: string;
 	kind: string;
@@ -641,7 +659,62 @@ export function parseJob(value: unknown): LocalJob {
 				? base
 				: { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
 	}
+	const rawTiming =
+		row.timing === undefined || row.timing === null ? null : record(row.timing);
+	const nullableIso = (raw: unknown) =>
+		raw === null || raw === undefined ? null : isoDate(raw);
+	const nullableSeconds = (raw: unknown) => {
+		if (raw === null || raw === undefined) return null;
+		if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return invalid();
+		return raw;
+	};
+	let timing: JobTiming = {
+		schemaVersion: "tda_job_timing_v1",
+		attemptStartedAt: null,
+		attemptFinishedAt: null,
+		attemptElapsedSeconds: null,
+		stageStartedAt: null,
+		stageElapsedSeconds: null,
+		tracks: [],
+	};
+	if (rawTiming) {
+		if (rawTiming.schema_version !== "tda_job_timing_v1") return invalid();
+		if (!Array.isArray(rawTiming.tracks) || rawTiming.tracks.length > 256) return invalid();
+		const tracks: JobTrackTiming[] = rawTiming.tracks.map((value) => {
+			const item = record(value);
+			const track = nonNegativeInteger(item.track);
+			if (track < 1 || track > 256) return invalid();
+			const totalTracks =
+				item.total_tracks === null || item.total_tracks === undefined
+					? null
+					: nonNegativeInteger(item.total_tracks);
+			if (totalTracks !== null && (totalTracks < track || totalTracks > 256)) return invalid();
+			const speaker =
+				item.speaker === null || item.speaker === undefined
+					? null
+					: text(item.speaker, 160);
+			return {
+				track,
+				totalTracks,
+				speaker,
+				startedAt: isoDate(item.started_at),
+				finishedAt: nullableIso(item.finished_at),
+				processingSeconds: nullableSeconds(item.processing_seconds),
+			};
+		});
+		if (new Set(tracks.map((item) => item.track)).size !== tracks.length) return invalid();
+		timing = {
+			schemaVersion: "tda_job_timing_v1",
+			attemptStartedAt: nullableIso(rawTiming.attempt_started_at),
+			attemptFinishedAt: nullableIso(rawTiming.attempt_finished_at),
+			attemptElapsedSeconds: nullableSeconds(rawTiming.attempt_elapsed_seconds),
+			stageStartedAt: nullableIso(rawTiming.stage_started_at),
+			stageElapsedSeconds: nullableSeconds(rawTiming.stage_elapsed_seconds),
+			tracks,
+		};
+	}
 	return {
+		timing,
 		executionDevice: parseExecutionDevice(row.execution_device),
 		id: identifier(row.id),
 		kind: text(row.kind),
