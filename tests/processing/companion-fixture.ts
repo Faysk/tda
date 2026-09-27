@@ -190,9 +190,20 @@ export async function installCompanionFixture(
 	const additionalJobs = (options.initialJobs ?? []).slice(1);
 	let systemState = options.system;
 	let prepared = options.profileReady ?? false;
+	const benchmarkProfileIds = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	] as const;
+	const benchmarkPrepared = new Set<string>(
+		options.benchmarkReadyProfiles ??
+			(options.profileReady ? [...benchmarkProfileIds] : []),
+	);
 	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
 	let preparationReads = 0;
 	let preparationStarted = false;
+	let preparationProfile = "qwen-quality";
 	let jobsReads = 0;
 	let jobsGetCount = 0;
 	let expired = false;
@@ -204,6 +215,7 @@ export async function installCompanionFixture(
 		uploadCount: 0,
 		jobPostCount: 0,
 		preparationPostCount: 0,
+		preparationProfiles: [],
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
