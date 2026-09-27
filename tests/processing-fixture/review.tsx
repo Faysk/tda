@@ -108,6 +108,18 @@ export function ReviewFixture() {
 			error={saveError}
 			publicationEnabled={publication}
 			onOpen={() => {}}
+			onLoadComparison={async (sourceId, runId) => ({
+				schemaVersion: "tda_run_comparison_projection_v1",
+				sourceId,
+				runId,
+				transcriptSha256: review.baseTranscriptSha256,
+				segments: review.segments.map((segment) => ({
+					...segment,
+					timelineStart: segment.timelineStart ?? segment.start,
+					timelineEnd: segment.timelineEnd ?? segment.end,
+					reviewed: false,
+				})),
+			})}
 			onSave={(baseline, status, segments) => {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
