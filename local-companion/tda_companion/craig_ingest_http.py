@@ -16,7 +16,7 @@ from .craig import CraigPackageError
 from .craig_ingest import CRAIG_UPLOAD_MEDIA_TYPES, CraigUploadError, ingest_craig_request
 from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
-from .local_review import LocalReviewError, open_review, review_summary, save_review
+from .local_review import LocalReviewError, open_base_review, open_review, review_summary, save_review
 from .publication_target import publication_target_state
 from .system_log import SystemLog
 from .transcription_runs import (
@@ -33,6 +33,10 @@ CRAIG_RUNS_PATH = re.compile(r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,12
 CRAIG_REVIEW_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
     r"(?P<run_id>[A-Za-z0-9_-]{1,196})/review$"
+)
+CRAIG_REVIEW_BASE_PATH = re.compile(
+    r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
+    r"(?P<run_id>[A-Za-z0-9_-]{1,196})/review/base$"
 )
 CRAIG_RUN_DELETE_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
@@ -421,6 +425,8 @@ class CraigIngestBoundary:
         source_id: str,
         run_id: str,
         payload: dict[str, object] | None = None,
+        *,
+        base_only: bool = False,
     ) -> dict[str, object]:
         staging_root = (self.data_root / "staging").resolve()
         package_root = (staging_root / source_id).resolve()
@@ -436,10 +442,18 @@ class CraigIngestBoundary:
             if self.run_visible is not None and not self.run_visible(package_root, manifest):
                 raise LocalReviewError("LOCAL_REVIEW_RUN_NOT_VISIBLE")
             if payload is None:
-                review = open_review(
-                    package_root,
-                    source_id=source_id,
-                    run_id=run_id,
+                review = (
+                    open_base_review(
+                        package_root,
+                        source_id=source_id,
+                        run_id=run_id,
+                    )
+                    if base_only
+                    else open_review(
+                        package_root,
+                        source_id=source_id,
+                        run_id=run_id,
+                    )
                 )
             else:
                 review = save_review(
@@ -472,6 +486,8 @@ class CraigIngestBoundary:
         scope,
         receive,
         send,
+        *,
+        base_only: bool = False,
     ) -> None:
         origin, allowed = await self._common_guard(request, scope, receive, send)
         if not allowed:
@@ -486,8 +502,9 @@ class CraigIngestBoundary:
                 if value.strip()
             }
             requested_method = request.headers.get("access-control-request-method")
+            allowed_methods = {"GET"} if base_only else {"GET", "POST"}
             if (
-                requested_method not in {"GET", "POST"}
+                requested_method not in allowed_methods
                 or not requested_headers <= _ALLOWED_PREFLIGHT_HEADERS
             ):
                 await self._send_response(_error("PREFLIGHT_REJECTED", 403), scope, receive, send, origin)
@@ -495,7 +512,7 @@ class CraigIngestBoundary:
             response = JSONResponse(
                 {},
                 headers={
-                    "Access-Control-Allow-Methods": "GET, POST",
+                    "Access-Control-Allow-Methods": "GET" if base_only else "GET, POST",
                     "Access-Control-Allow-Headers": "Authorization, Content-Type",
                     "Access-Control-Allow-Private-Network": "true",
                     "Access-Control-Max-Age": "60",
@@ -503,7 +520,8 @@ class CraigIngestBoundary:
             )
             await self._send_response(response, scope, receive, send, origin)
             return
-        if request.method not in {"GET", "POST"}:
+        allowed_methods = {"GET"} if base_only else {"GET", "POST"}
+        if request.method not in allowed_methods:
             await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
             return
         if not self._authorized(request, origin):
@@ -524,6 +542,7 @@ class CraigIngestBoundary:
                 source_id,
                 run_id,
                 payload,
+                base_only=base_only,
             )
             response = JSONResponse(value)
         except LocalReviewError as exc:
@@ -741,6 +760,19 @@ class CraigIngestBoundary:
                 scope,
                 receive,
                 send,
+            )
+            return
+        review_base_match = CRAIG_REVIEW_BASE_PATH.fullmatch(path)
+        if review_base_match is not None:
+            request = Request(scope, receive=receive)
+            await self._review(
+                request,
+                review_base_match.group("source_id"),
+                review_base_match.group("run_id"),
+                scope,
+                receive,
+                send,
+                base_only=True,
             )
             return
         review_match = CRAIG_REVIEW_PATH.fullmatch(path)
