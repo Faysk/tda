@@ -678,7 +678,7 @@ export function ProcessingBenchmark({
 							<span className={styles.eyebrow}>Readiness</span>
 							<strong>Perfis locais</strong>
 						</div>
-						<span className={styles.readinessCount}>{readyCount} / {PROFILES.length} prontos</span>
+						<span className={styles.readinessCount}>{readyCount} / {PROFILES.length} perfis prontos</span>
 					</div>
 					<div className={styles.readinessList}>
 						{PROFILES.map((id, index) => (
