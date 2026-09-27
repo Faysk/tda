@@ -530,6 +530,60 @@ test("Overview keeps factual zero progress and does not infer worker liveness", 
 	});
 });
 
+test("Overview labels track-count percentage with its real denominator", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("running", {
+				progress: { completed: 1, total: 2, unit: "tracks" },
+			}),
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const progress = page.getByRole("progressbar", {
+		name: "Progresso por tracks: 1 de 2 tracks",
+	});
+	await expect(progress).toHaveAttribute("value", "1");
+	await expect(progress).toHaveAttribute("max", "2");
+	await expect(progress).toHaveAttribute("aria-valuetext", "1 de 2 tracks");
+	await expect(
+		page.getByText("Progresso por tracks · 50%", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByText("1 de 2 tracks", { exact: true })).toBeVisible();
+	await expect(page.getByText(/Progresso do trabalho/u)).toHaveCount(0);
+});
+
+test("Overview names future progress units instead of silently calling them tracks", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("running", {
+				progress: { completed: 1, total: 2, unit: "windows" },
+			}),
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await expect(
+		page.getByRole("progressbar", {
+			name: "Progresso por windows: 1 de 2 windows",
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByText("Progresso por windows · 50%", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByText(/Progresso por tracks/u)).toHaveCount(0);
+});
+
 test("Overview hides prior run facts during execution and shows them after completion", async ({
 	page,
 }, testInfo) => {
