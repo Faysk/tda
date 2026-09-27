@@ -553,10 +553,12 @@ export function ProcessingBenchmark({
 			? `${LABELS[preparation.profileId]} · ${preparation.title}`
 			: null;
 
-	const actionTitle = !file
-		? "Selecionar o ZIP Craig"
-		: fileError
-			? "Escolher outro ZIP válido"
+	const actionTitle = active
+		? "Acompanhar a execução atual"
+		: !file
+			? "Selecionar o ZIP Craig"
+			: fileError
+				? "Escolher outro ZIP válido"
 			: !source
 				? "Analisar a amostra localmente"
 				: !sampleEligible
@@ -566,8 +568,10 @@ export function ProcessingBenchmark({
 						: allProfilesReady
 							? "Executar benchmark"
 							: "Resolver os perfis bloqueados";
-	const actionDetail = !file
-		? "O ZIP fica neste computador e é validado pelo Companion antes de qualquer execução."
+	const actionDetail = active
+		? "Progresso, perfil atual e última atividade aparecem logo abaixo."
+		: !file
+			? "O ZIP fica neste computador e é validado pelo Companion antes de qualquer execução."
 		: fileError
 			? "O arquivo selecionado não atende ao contrato Craig."
 			: !source
@@ -601,7 +605,7 @@ export function ProcessingBenchmark({
 							<span className={styles.eyebrow}>Source</span>
 							<strong>ZIP Craig</strong>
 						</div>
-						{source ? <StatusPill tone="success">Amostra apta</StatusPill> : null}
+						{source && sampleEligible ? <StatusPill tone="success">Amostra apta</StatusPill> : null}
 					</div>
 
 					<div
@@ -695,7 +699,7 @@ export function ProcessingBenchmark({
 					<span>{actionDetail}</span>
 				</div>
 				<div className={styles.primaryActions}>
-					{!file ? (
+					{active ? null : !file ? (
 						<Button
 							type="button"
 							variant="primary"
