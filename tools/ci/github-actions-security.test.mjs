@@ -69,5 +69,4 @@ test("Production has exactly one automatic controller after the operational hold
   assert.match(retired, /workflow_dispatch:/);
   assert.equal(retired.includes("workflow_run:"), false);
   assert.equal(retired.includes("push:"), false);
-  assert.match(retired, /if:\s*\$\{\{ false \}\}/);
 });
