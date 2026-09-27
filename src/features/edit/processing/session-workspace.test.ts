@@ -12,36 +12,69 @@ const sourceB = `craig-${"b".repeat(64)}`;
 const partA = "1".repeat(32);
 const partB = "2".repeat(32);
 
-function workspace(parts = [
-	{
+function recordingPart(overrides: Record<string, unknown> = {}) {
+	return {
 		part_id: partA,
 		source_id: sourceA,
 		ordinal: 0,
 		selected_run_id: null,
 		source_state: "ready",
+		timeline_mode: "manual",
+		session_offset_seconds: 0,
+		trim_start_seconds: 0,
+		trim_end_seconds: null,
+		gap_confirmed: false,
+		overlap_resolution: null,
+		overlap_boundary_seconds: null,
+		source_start_time: "2026-09-27T20:00:00Z",
+		source_start_confidence: "trusted_absolute",
+		source_start_utc: "2026-09-27T20:00:00Z",
+		source_duration_seconds: 3600,
+		effective_start_seconds: 0,
+		effective_end_seconds: 3600,
+		relation_to_previous: "first",
+		relation_seconds: 0,
+		overlap_resolution_valid: false,
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:30:00Z",
-	},
-]) {
+		...overrides,
+	};
+}
+
+function workspace(parts = [recordingPart()]) {
 	return {
 		schema_version: "tda_session_workspace_v1",
 		campaign_id: "yuhara-main",
 		session_id: "session-42",
 		revision: parts.length,
+		ordering_mode: "manual",
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:31:00Z",
 		parts,
+		timeline: {
+			policy_version: "tda_session_timeline_v1",
+			segment_boundary_policy: "segment_start_owner_v1",
+			fingerprint_sha256: "f".repeat(64),
+			state: "ready",
+			all_sources_trusted: true,
+			automatic_order_available: true,
+			gap_count: 0,
+			overlap_count: 0,
+			unresolved_overlap_count: 0,
+			unconfirmed_gap_count: 0,
+		},
 	};
 }
 
 describe("session workspace protocol", () => {
-	it("parses only sanitized ordered recording-part metadata", () => {
+	it("parses sanitized chronology and timing provenance", () => {
 		const parsed = parseSessionWorkspace(workspace());
 		expect(parsed).toMatchObject({
 			schemaVersion: "tda_session_workspace_v1",
 			campaignId: "yuhara-main",
 			sessionId: "session-42",
 			revision: 1,
+			orderingMode: "manual",
 			parts: [
 				{
 					partId: partA,
@@ -49,53 +82,62 @@ describe("session workspace protocol", () => {
 					ordinal: 0,
 					selectedRunId: null,
 					sourceState: "ready",
+					timelineMode: "manual",
+					sessionOffsetSeconds: 0,
+					gapConfirmed: false,
+					sourceStartConfidence: "trusted_absolute",
+					effectiveStartSeconds: 0,
+					effectiveEndSeconds: 3600,
+					relationToPrevious: "first",
 				},
 			],
+			timeline: {
+				policyVersion: "tda_session_timeline_v1",
+				segmentBoundaryPolicy: "segment_start_owner_v1",
+				fingerprintSha256: "f".repeat(64),
+				state: "ready",
+			},
 		});
 		expect(JSON.stringify(parsed)).not.toContain("path");
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
 	});
 
-	it("rejects duplicate sources, non-contiguous order and oversized collections", () => {
+	it("rejects duplicate sources, non-contiguous order and invalid clock confidence", () => {
 		const duplicate = workspace([
-			{
-				...workspace().parts[0],
-				part_id: partA,
-				ordinal: 0,
-			},
-			{
-				...workspace().parts[0],
-				part_id: partB,
-				ordinal: 1,
-			},
+			recordingPart({ part_id: partA, ordinal: 0 }),
+			recordingPart({ part_id: partB, ordinal: 1 }),
 		]);
 		expect(() => parseSessionWorkspace(duplicate)).toThrow();
 
-		const gap = workspace([
-			{
-				...workspace().parts[0],
-				ordinal: 1,
-			},
-		]);
+		const gap = workspace([recordingPart({ ordinal: 1 })]);
 		expect(() => parseSessionWorkspace(gap)).toThrow();
 
+		const badClock = workspace([
+			recordingPart({ source_start_confidence: "probably_fine" }),
+		]);
+		expect(() => parseSessionWorkspace(badClock)).toThrow();
+	});
+
+	it("bounds collections and validates deterministic timeline metadata", () => {
 		const oversized = workspace(
-			Array.from({ length: 65 }, (_, index) => ({
-				part_id: index.toString(16).padStart(32, "0"),
-				source_id: `craig-${(index + 1).toString(16).padStart(64, "0")}`,
-				ordinal: index,
-				selected_run_id: null,
-				source_state: "ready",
-				created_at: "2026-09-27T22:30:00Z",
-				updated_at: "2026-09-27T22:30:00Z",
-			})),
+			Array.from({ length: 65 }, (_, index) =>
+				recordingPart({
+					part_id: index.toString(16).padStart(32, "0"),
+					source_id: `craig-${(index + 1).toString(16).padStart(64, "0")}`,
+					ordinal: index,
+				}),
+			),
 		);
 		expect(() => parseSessionWorkspace(oversized)).toThrow();
+
+		const badFingerprint = workspace();
+		badFingerprint.timeline.fingerprint_sha256 = "not-a-sha";
+		expect(() => parseSessionWorkspace(badFingerprint)).toThrow();
 	});
 });
 
 describe("session workspace bridge", () => {
-	it("uses fixed loopback routes and CAS payloads", async () => {
+	it("uses fixed loopback routes and CAS payloads for chronology", async () => {
 		let current = workspace([]);
 		const request = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
 			const body =
@@ -104,25 +146,23 @@ describe("session workspace bridge", () => {
 					: null;
 			if (body && "source_id" in body) {
 				current = workspace([
-					{
-						...workspace().parts[0],
+					recordingPart({
 						source_id: String(body.source_id),
-					},
+					}),
 				]);
 			}
 			if (body && Array.isArray(body.part_ids)) {
 				current = workspace([
-					{
-						...workspace().parts[0],
+					recordingPart({
 						part_id: String(body.part_ids[0]),
 						source_id: sourceB,
-					},
-					{
-						...workspace().parts[0],
+					}),
+					recordingPart({
 						part_id: String(body.part_ids[1]),
 						source_id: sourceA,
 						ordinal: 1,
-					},
+						relation_to_previous: "contiguous",
+					}),
 				]);
 			}
 			return Response.json(current);
@@ -145,11 +185,32 @@ describe("session workspace bridge", () => {
 			1,
 			signal(),
 		);
+		await bridge.deriveSessionTimeline(
+			"yuhara-main",
+			"session-42",
+			2,
+			signal(),
+		);
+		await bridge.updateSessionPartTiming(
+			"yuhara-main",
+			"session-42",
+			{
+				partId: partA,
+				expectedRevision: 3,
+				sessionOffsetSeconds: 120,
+				trimStartSeconds: 5,
+				trimEndSeconds: 60,
+				gapConfirmed: true,
+				overlapResolution: "prefer_later_from",
+				overlapBoundarySeconds: 125,
+			},
+			signal(),
+		);
 		await bridge.detachSessionPart(
 			"yuhara-main",
 			"session-42",
 			partA,
-			2,
+			4,
 			signal(),
 		);
 
@@ -157,19 +218,22 @@ describe("session workspace bridge", () => {
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline/derive`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timing`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
-		expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toEqual({
-			source_id: sourceA,
-			expected_revision: 0,
-		});
-		expect(JSON.parse(String(request.mock.calls[2][1]?.body))).toEqual({
-			part_ids: [partB, partA],
-			expected_revision: 1,
-		});
 		expect(JSON.parse(String(request.mock.calls[3][1]?.body))).toEqual({
-			part_id: partA,
 			expected_revision: 2,
+		});
+		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
+			part_id: partA,
+			expected_revision: 3,
+			session_offset_seconds: 120,
+			trim_start_seconds: 5,
+			trim_end_seconds: 60,
+			gap_confirmed: true,
+			overlap_resolution: "prefer_later_from",
+			overlap_boundary_seconds: 125,
 		});
 		for (const [, init] of request.mock.calls) {
 			expect(init?.headers).toMatchObject({

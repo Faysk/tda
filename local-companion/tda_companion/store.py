@@ -34,7 +34,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -101,6 +101,50 @@ class Store:
                 db.execute("ALTER TABLE events ADD COLUMN data TEXT")
             if "attempt" not in event_columns:
                 db.execute("ALTER TABLE events ADD COLUMN attempt INTEGER")
+            workspace_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_workspaces)").fetchall()
+            }
+            if "ordering_mode" not in workspace_columns:
+                db.execute(
+                    "ALTER TABLE session_workspaces ADD COLUMN ordering_mode "
+                    "TEXT NOT NULL DEFAULT 'attachment'"
+                )
+            part_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_recording_parts)").fetchall()
+            }
+            if "timeline_mode" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN timeline_mode "
+                    "TEXT NOT NULL DEFAULT 'unresolved'"
+                )
+            if "session_offset_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN session_offset_seconds REAL"
+                )
+            if "trim_start_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN trim_start_seconds "
+                    "REAL NOT NULL DEFAULT 0"
+                )
+            if "trim_end_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN trim_end_seconds REAL"
+                )
+            if "gap_confirmed" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN gap_confirmed "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
+            if "overlap_resolution" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN overlap_resolution TEXT"
+                )
+            if "overlap_boundary_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN overlap_boundary_seconds REAL"
+                )
             job_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()
             }
@@ -130,7 +174,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=10")
+            db.execute("PRAGMA user_version=11")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -195,7 +239,10 @@ class Store:
     def _session_workspace_dto(db, row):
         parts = db.execute(
             """
-            SELECT part_id,source_id,ordinal,selected_run_id,created,updated
+            SELECT part_id,source_id,ordinal,selected_run_id,
+                   timeline_mode,session_offset_seconds,trim_start_seconds,
+                   trim_end_seconds,gap_confirmed,overlap_resolution,
+                   overlap_boundary_seconds,created,updated
             FROM session_recording_parts
             WHERE campaign_id=? AND session_id=?
             ORDER BY ordinal ASC, part_id ASC
@@ -207,6 +254,7 @@ class Store:
             "campaign_id": row["campaign_id"],
             "session_id": row["session_id"],
             "revision": row["revision"],
+            "ordering_mode": row["ordering_mode"] if "ordering_mode" in row.keys() else "attachment",
             "created_at": row["created"],
             "updated_at": row["updated"],
             "parts": [
@@ -215,6 +263,13 @@ class Store:
                     "source_id": part["source_id"],
                     "ordinal": part["ordinal"],
                     "selected_run_id": part["selected_run_id"],
+                    "timeline_mode": part["timeline_mode"],
+                    "session_offset_seconds": part["session_offset_seconds"],
+                    "trim_start_seconds": part["trim_start_seconds"],
+                    "trim_end_seconds": part["trim_end_seconds"],
+                    "gap_confirmed": bool(part["gap_confirmed"]),
+                    "overlap_resolution": part["overlap_resolution"],
+                    "overlap_boundary_seconds": part["overlap_boundary_seconds"],
                     "created_at": part["created"],
                     "updated_at": part["updated"],
                 }
@@ -242,8 +297,8 @@ class Store:
             db.execute(
                 """
                 INSERT OR IGNORE INTO session_workspaces(
-                    campaign_id,session_id,revision,created,updated
-                ) VALUES (?,?,0,?,?)
+                    campaign_id,session_id,revision,created,updated,ordering_mode
+                ) VALUES (?,?,0,?,?,'attachment')
                 """,
                 (campaign_id, session_id, now, now),
             )
@@ -312,8 +367,10 @@ class Store:
                 """
                 INSERT INTO session_recording_parts(
                     part_id,campaign_id,session_id,source_id,ordinal,
-                    selected_run_id,created,updated
-                ) VALUES (?,?,?,?,?,NULL,?,?)
+                    selected_run_id,timeline_mode,session_offset_seconds,
+                    trim_start_seconds,trim_end_seconds,gap_confirmed,
+                    overlap_resolution,overlap_boundary_seconds,created,updated
+                ) VALUES (?,?,?,?,?,NULL,'unresolved',NULL,0,NULL,0,NULL,NULL,?,?)
                 """,
                 (
                     uuid4().hex,
@@ -324,6 +381,11 @@ class Store:
                     now,
                     now,
                 ),
+            )
+            db.execute(
+                "UPDATE session_workspaces SET ordering_mode='attachment' "
+                "WHERE campaign_id=? AND session_id=?",
+                (row["campaign_id"], row["session_id"]),
             )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
@@ -405,6 +467,210 @@ class Store:
                     "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
                     (ordinal, now, part_id),
                 )
+            db.execute(
+                "UPDATE session_workspaces SET ordering_mode='manual' "
+                "WHERE campaign_id=? AND session_id=?",
+                (row["campaign_id"], row["session_id"]),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    @staticmethod
+    def _workspace_seconds(value, field, *, nullable=False):
+        if value is None and nullable:
+            return None
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) < 0
+        ):
+            raise Conflict(f"SESSION_WORKSPACE_{field}_INVALID")
+        return float(value)
+
+    @staticmethod
+    def _workspace_overlap_resolution(value):
+        if value is None:
+            return None
+        if value not in {"prefer_earlier_until", "prefer_later_from"}:
+            raise Conflict("SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID")
+        return value
+
+    def update_session_part_timing(
+        self,
+        campaign_id,
+        session_id,
+        part_id,
+        expected_revision,
+        *,
+        session_offset_seconds,
+        trim_start_seconds=0.0,
+        trim_end_seconds=None,
+        gap_confirmed=False,
+        overlap_resolution=None,
+        overlap_boundary_seconds=None,
+    ):
+        part_id = self._workspace_part_id(part_id)
+        offset = self._workspace_seconds(
+            session_offset_seconds, "SESSION_OFFSET"
+        )
+        trim_start = self._workspace_seconds(trim_start_seconds, "TRIM_START")
+        trim_end = self._workspace_seconds(
+            trim_end_seconds, "TRIM_END", nullable=True
+        )
+        if trim_end is not None and trim_end <= trim_start:
+            raise Conflict("SESSION_WORKSPACE_TRIM_RANGE_INVALID")
+        if not isinstance(gap_confirmed, bool):
+            raise Conflict("SESSION_WORKSPACE_GAP_CONFIRMATION_INVALID")
+        resolution = self._workspace_overlap_resolution(overlap_resolution)
+        boundary = self._workspace_seconds(
+            overlap_boundary_seconds, "OVERLAP_BOUNDARY", nullable=True
+        )
+        if (resolution is None) != (boundary is None):
+            raise Conflict("SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID")
+
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            part = db.execute(
+                """
+                SELECT * FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).fetchone()
+            if part is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            next_values = (
+                "manual",
+                offset,
+                trim_start,
+                trim_end,
+                int(gap_confirmed),
+                resolution,
+                boundary,
+            )
+            current_values = (
+                part["timeline_mode"],
+                part["session_offset_seconds"],
+                part["trim_start_seconds"],
+                part["trim_end_seconds"],
+                int(part["gap_confirmed"]),
+                part["overlap_resolution"],
+                part["overlap_boundary_seconds"],
+            )
+            if current_values == next_values:
+                return self._session_workspace_dto(db, row)
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET timeline_mode=?,session_offset_seconds=?,
+                    trim_start_seconds=?,trim_end_seconds=?,gap_confirmed=?,
+                    overlap_resolution=?,overlap_boundary_seconds=?,updated=?
+                WHERE part_id=?
+                """,
+                (*next_values, utc_now(), part_id),
+            )
+            db.execute(
+                "UPDATE session_workspaces SET ordering_mode='manual' "
+                "WHERE campaign_id=? AND session_id=?",
+                (row["campaign_id"], row["session_id"]),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def apply_automatic_session_timeline(
+        self,
+        campaign_id,
+        session_id,
+        placements,
+        expected_revision,
+    ):
+        if not isinstance(placements, (list, tuple)) or len(placements) > 64:
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+        normalized = []
+        for raw in placements:
+            if not isinstance(raw, dict):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            ordinal = raw.get("ordinal")
+            if (
+                isinstance(ordinal, bool)
+                or not isinstance(ordinal, int)
+                or ordinal < 0
+                or ordinal >= 64
+            ):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            normalized.append(
+                {
+                    "part_id": self._workspace_part_id(raw.get("part_id")),
+                    "source_id": self._workspace_source_id(raw.get("source_id")),
+                    "ordinal": ordinal,
+                    "session_offset_seconds": self._workspace_seconds(
+                        raw.get("session_offset_seconds"), "SESSION_OFFSET"
+                    ),
+                }
+            )
+        if sorted(item["ordinal"] for item in normalized) != list(range(len(normalized))):
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+        if len({item["part_id"] for item in normalized}) != len(normalized):
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            current = db.execute(
+                """
+                SELECT part_id,source_id,timeline_mode
+                FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            if any(part["timeline_mode"] == "manual" for part in current):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE")
+            by_part = {part["part_id"]: part for part in current}
+            if set(by_part) != {item["part_id"] for item in normalized}:
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            for item in normalized:
+                if by_part[item["part_id"]]["source_id"] != item["source_id"]:
+                    raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+
+            db.execute(
+                """
+                UPDATE session_recording_parts SET ordinal=ordinal+1000
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            now = utc_now()
+            for item in normalized:
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET ordinal=?,timeline_mode='automatic',
+                        session_offset_seconds=?,gap_confirmed=0,
+                        overlap_resolution=NULL,overlap_boundary_seconds=NULL,updated=?
+                    WHERE part_id=?
+                    """,
+                    (
+                        item["ordinal"],
+                        item["session_offset_seconds"],
+                        now,
+                        item["part_id"],
+                    ),
+                )
+            db.execute(
+                "UPDATE session_workspaces SET ordering_mode='automatic' "
+                "WHERE campaign_id=? AND session_id=?",
+                (row["campaign_id"], row["session_id"]),
+            )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
