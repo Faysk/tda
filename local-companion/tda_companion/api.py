@@ -57,7 +57,7 @@ LOCAL_JSON_BODY_MAX_BYTES = 4096
 TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 
 _BROWSER_JOB_PATH = re.compile(
-    r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
+    r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result|activity|timings))?$"
 )
 
 
@@ -85,7 +85,7 @@ def _browser_route_allowed(method: str, path: str) -> bool:
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
-    if path.endswith(("/events", "/result")):
+    if path.endswith(("/events", "/result", "/activity", "/timings")):
         return method == "GET"
     if path.endswith(("/cancel", "/retry", "/delete")):
         return method == "POST"
@@ -1248,6 +1248,7 @@ def create_app(
             "synthetic.fixture",
             "job.events",
             "job.events.cursor",
+            "job.timings",
             "job.list.cursor",
             "system.telemetry",
             "worker.subprocess",
@@ -1564,6 +1565,13 @@ def create_app(
             signal_active_worker_cancel(job_id)
             return value
         return store.action(job_id, action)
+
+    @app.get("/api/v1/jobs/{job_id}/timings")
+    def timings(
+        job_id: str,
+        attempt: Annotated[int | None, Query(ge=1)] = None,
+    ):
+        return store.timing(job_id, attempt=attempt)
 
     @app.get("/api/v1/jobs/{job_id}/activity")
     def activity(
