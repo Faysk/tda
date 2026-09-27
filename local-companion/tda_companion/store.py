@@ -74,6 +74,7 @@ class Store:
                     campaign_id TEXT NOT NULL,
                     session_id TEXT NOT NULL,
                     revision INTEGER NOT NULL DEFAULT 0,
+                    order_confirmed INTEGER NOT NULL DEFAULT 0,
                     created TEXT NOT NULL,
                     updated TEXT NOT NULL,
                     PRIMARY KEY(campaign_id, session_id)
@@ -152,6 +153,46 @@ class Store:
                 db.execute("ALTER TABLE jobs ADD COLUMN stage_started_at TEXT")
             if "timing_state" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN timing_state TEXT")
+            workspace_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_workspaces)").fetchall()
+            }
+            if "order_confirmed" not in workspace_columns:
+                db.execute(
+                    "ALTER TABLE session_workspaces "
+                    "ADD COLUMN order_confirmed INTEGER NOT NULL DEFAULT 0"
+                )
+            part_columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(session_recording_parts)").fetchall()
+            }
+            if "session_offset_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN session_offset_seconds REAL"
+                )
+            if "trim_start_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN trim_start_seconds REAL NOT NULL DEFAULT 0"
+                )
+            if "trim_end_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN trim_end_seconds REAL"
+                )
+            if "gap_confirmed" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN gap_confirmed INTEGER NOT NULL DEFAULT 0"
+                )
+            if "overlap_strategy" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts ADD COLUMN overlap_strategy TEXT"
+                )
+            if "overlap_boundary_seconds" not in part_columns:
+                db.execute(
+                    "ALTER TABLE session_recording_parts "
+                    "ADD COLUMN overlap_boundary_seconds REAL"
+                )
             db.execute(
                 "INSERT OR IGNORE INTO idempotency_keys(key,job_id,signature) "
                 "SELECT idem,id,signature FROM jobs"
@@ -276,6 +317,7 @@ class Store:
             "campaign_id": row["campaign_id"],
             "session_id": row["session_id"],
             "revision": row["revision"],
+            "order_confirmed": bool(row["order_confirmed"]),
             "created_at": row["created"],
             "updated_at": row["updated"],
             "parts": [
@@ -404,6 +446,13 @@ class Store:
                     now,
                 ),
             )
+            db.execute(
+                """
+                UPDATE session_workspaces SET order_confirmed=0
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
@@ -437,6 +486,21 @@ class Store:
                     "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
                     (ordinal, utc_now(), part["part_id"]),
                 )
+            db.execute(
+                """
+                UPDATE session_recording_parts
+                SET gap_confirmed=0,overlap_strategy=NULL,overlap_boundary_seconds=NULL
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            db.execute(
+                """
+                UPDATE session_workspaces SET order_confirmed=0
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
             )
@@ -470,7 +534,19 @@ class Store:
             if set(current_ids) != set(normalized) or len(current_ids) != len(normalized):
                 raise Conflict("SESSION_WORKSPACE_ORDER_INVALID")
             if current_ids == normalized:
-                return self._session_workspace_dto(db, row)
+                if bool(row["order_confirmed"]):
+                    return self._session_workspace_dto(db, row)
+                db.execute(
+                    """
+                    UPDATE session_workspaces SET order_confirmed=1
+                    WHERE campaign_id=? AND session_id=?
+                    """,
+                    (row["campaign_id"], row["session_id"]),
+                )
+                bumped = self._bump_session_workspace(
+                    db, row["campaign_id"], row["session_id"], row["revision"]
+                )
+                return self._session_workspace_dto(db, bumped)
             now = utc_now()
             db.execute(
                 """
