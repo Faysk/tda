@@ -305,6 +305,7 @@ def enrich_workspace_timeline(
             "automatic_order_available": automatic_order_available,
             "gap_count": gap_count,
             "overlap_count": overlap_count,
+            "order_conflict_count": order_conflict_count,
             "unresolved_overlap_count": unresolved_overlap_count,
             "unconfirmed_gap_count": unconfirmed_gap_count,
         },
