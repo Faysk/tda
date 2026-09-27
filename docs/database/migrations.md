@@ -1281,3 +1281,38 @@ Validação exigida:
 Candidata #636, não aplicada a Production nesta entrega. Exige `expectedCurrentRevisionId` (UUID ou null explícito) no publish e `p_expected_current_revision_id` em restore/unpublish. Autorização, lock da sessão e replay precedem CAS; `stale_current` não escreve revision/receipt/event/audit. A assinatura de seis UUIDs de restore é removida; a nova assinatura de sete UUIDs mantém SECURITY INVOKER, search_path e EXECUTE exclusivo de service_role. Consumidores: repository Web, scripts operacionais e testes sintéticos. Não há consumidor Web de restore nesta entrega.
 
 Rollout: desativar publicação, validar consumidores/scripts, aplicar migration versionada pelo runbook e publicar Web compatível antes de reativar. Clientes antigos falham fechados. Rollback: manter flag desativada e corrigir adiante; não restaurar função sem CAS nem apagar histórico.
+
+
+## 2026-09-27 — capability de administração do Linguiça no Log
+
+### `20260927201500_activity_bark_management_capability`
+
+**Estado:** migration candidata da #606; rollout remoto condicionado aos gates da PR #797 e ao Production CD governado.
+
+Objetivo:
+
+- registrar a capability técnica `campaign.processing.barks.manage` no catálogo canônico;
+- conceder essa capability somente à role sistêmica `platform_owner`;
+- manter o controle de acesso da UI alinhado ao modelo existente de capabilities exatas, sem inferir autoridade a partir de `campaign.local.process`;
+- habilitar a superfície administrativa de packs browser-local do **Linguiça no Log** sem criar uma nova fronteira SQL ou uma API Web→Companion.
+
+Boundary e segurança:
+
+- a migration não contém email, user id ou profile id e não cria `role_assignments`;
+- o grant é role→permission, reutilizando os assignments já governados de `platform_owner`;
+- packs continuam sendo dados browser-local não confiáveis; a capability controla a superfície administrativa servida pela aplicação, não a capacidade de alguém com DevTools editar o próprio `localStorage`;
+- nenhuma tabela, policy RLS, função RPC, grant de browser, transcript, áudio ou conteúdo privado é criado ou alterado;
+- o `DO` falha fechado se a capability existir com plane incompatível ou se a role sistêmica `platform_owner` não puder ser resolvida de forma única.
+
+Validação e rollout:
+
+- `tools/check-migration-safety.mjs` deve aceitar a migration e `tools/check-database-governance.mjs` exige este registro documental;
+- testes de autorização provam que `campaign.local.process` não implica `campaign.processing.barks.manage`, que o escopo `project/tda` herda para a campaign somente para a action exata e que campaign incorreta continua negada;
+- antes do rollout, o read-back somente leitura de Production confirmou um único profile distinto com assignment ativo de `platform_owner` em `project/tda`; a duplicata histórica observada em `project/dnd-scribe` pertence ao mesmo profile;
+- após o Production CD, confirmar por read-back que a permission existe em plane `technical`, que `platform_owner` possui o grant e que nenhum assignment de usuário foi criado por esta migration.
+
+Rollback lógico:
+
+- retirar primeiro a superfície administrativa da aplicação;
+- revogar a associação role→permission apenas por migration corretiva posterior, se necessário;
+- não apagar assignments existentes de `platform_owner`, pois eles preexistem à #606 e são autoridade compartilhada por outras capabilities.
