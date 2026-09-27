@@ -269,6 +269,15 @@ export type LocalRunCatalogPage = {
 	hasMore: boolean;
 	nextCursor: string | null;
 };
+export type LocalRunDeleteReceipt = {
+	sourceId: string;
+	runId: string;
+	transcriptSha256: string;
+	deleted: true;
+	reviewDeleted: boolean;
+	cloudChanged: false;
+};
+
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
@@ -1134,6 +1143,20 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 		draftRevision: nonNegativeInteger(row.draft_revision),
 		reviewPercent,
 		updatedAt,
+	};
+}
+
+export function parseLocalRunDeleteReceipt(value: unknown): LocalRunDeleteReceipt {
+	const row = record(value);
+	if (row.schema_version !== "tda_local_run_delete_receipt_v1") return invalid();
+	if (row.deleted !== true || row.cloud_changed !== false) return invalid();
+	return {
+		sourceId: identifier(row.source_id),
+		runId: runIdentifier(row.run_id),
+		transcriptSha256: sha256(row.transcript_sha256),
+		deleted: true,
+		reviewDeleted: boolean(row.review_deleted),
+		cloudChanged: false,
 	};
 }
 
