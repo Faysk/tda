@@ -13,6 +13,7 @@ import {
 
 export async function saveTranscriptRevisionFixtureAction(
 	forceConflict: boolean,
+	loseFirstResponse: boolean,
 	input: SaveTranscriptRevisionActionInput,
 ) {
 	if (process.env.TDA_E2E_FIXTURES !== "true") {
@@ -35,6 +36,18 @@ export async function saveTranscriptRevisionFixtureAction(
 	const current = parseTranscriptRevisionFixtureState(
 		store.get(TRANSCRIPT_REVISION_FIXTURE_COOKIE)?.value,
 	);
+	if (
+		current.operationId === input.operationId &&
+		current.parentRevisionId === input.expectedCurrentRevisionId
+	) {
+		return {
+			ok: true as const,
+			status: "updated" as const,
+			revisionId: current.revisionId,
+			revisionNumber: current.revisionNumber,
+			edits: prepared.patches,
+		};
+	}
 	if (input.expectedCurrentRevisionId !== current.revisionId) {
 		return { ok: false as const, reason: "conflict" as const };
 	}
@@ -52,6 +65,8 @@ export async function saveTranscriptRevisionFixtureAction(
 			revisionId,
 			revisionNumber,
 			patches: [...byId.values()],
+			operationId: input.operationId,
+			parentRevisionId: input.expectedCurrentRevisionId,
 		}),
 		{
 			httpOnly: true,
@@ -59,6 +74,10 @@ export async function saveTranscriptRevisionFixtureAction(
 			path: "/e2e-fixtures/transcript-revision-editor",
 		},
 	);
+
+	if (loseFirstResponse && current.revisionNumber === 1) {
+		throw new Error("synthetic lost response after commit");
+	}
 
 	return {
 		ok: true as const,
