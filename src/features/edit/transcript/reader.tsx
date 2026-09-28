@@ -318,6 +318,23 @@ export function TranscriptReader({
 	}, [baseline.length, visibleCount]);
 
 	useEffect(() => {
+		const handleKeyboardShortcut = (event: KeyboardEvent) => {
+			if (
+				editMode &&
+				dirty &&
+				(event.ctrlKey || event.metaKey) &&
+				event.key.toLocaleLowerCase() === "s"
+			) {
+				event.preventDefault();
+				void save();
+			}
+			if (event.key === "Escape" && activeEditId) setActiveEditId(null);
+		};
+		document.addEventListener("keydown", handleKeyboardShortcut);
+		return () => document.removeEventListener("keydown", handleKeyboardShortcut);
+	});
+
+	useEffect(() => {
 		if (!dirty) return;
 		const beforeUnload = (event: BeforeUnloadEvent) => {
 			event.preventDefault();
@@ -349,18 +366,6 @@ export function TranscriptReader({
 			className={styles.reader}
 			role="region"
 			aria-label="Leitor e editor de transcrição"
-			onKeyDown={(event) => {
-				if (
-					editMode &&
-					dirty &&
-					(event.ctrlKey || event.metaKey) &&
-					event.key.toLocaleLowerCase() === "s"
-				) {
-					event.preventDefault();
-					void save();
-				}
-				if (event.key === "Escape" && activeEditId) setActiveEditId(null);
-			}}
 		>
 			<div className={styles.toolbar}>
 				<div className={styles.source}>
