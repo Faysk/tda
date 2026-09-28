@@ -145,7 +145,11 @@ export default async function EditSessionPage({ params }: PageProps) {
 				<div className={draftStyles.transcriptPane}>
 					<TranscriptReader
 						downloadHref={downloadHref}
+						editable={canEdit && snapshot.source === "current_revision"}
+						revisionId={snapshot.revisionId}
+						revisionNumber={snapshot.revisionNumber}
 						segments={snapshot.segments}
+						sessionId={session.id}
 						sourceLabel={sourceLabel}
 					/>
 				</div>
