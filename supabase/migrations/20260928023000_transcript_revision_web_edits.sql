@@ -132,8 +132,8 @@ begin
        or char_length(e.value->>'text') not between 1 and 100000
        -- Mirror isReviewStringV1 at the privileged database boundary.
        -- Speaker rejects every C0 control; text permits TAB/LF/CR only.
-       or (e.value->>'speaker') ~ U&'[\\0001-\\001F\\007F]'
-       or (e.value->>'text') ~ U&'[\\0001-\\0008\\000B\\000C\\000E-\\001F\\007F]'
+       or translate(e.value->>'speaker', U&'\\0001\\0002\\0003\\0004\\0005\\0006\\0007\\0008\\0009\\000A\\000B\\000C\\000D\\000E\\000F\\0010\\0011\\0012\\0013\\0014\\0015\\0016\\0017\\0018\\0019\\001A\\001B\\001C\\001D\\001E\\001F\\007F', '') <> e.value->>'speaker'
+       or translate(e.value->>'text', U&'\\0001\\0002\\0003\\0004\\0005\\0006\\0007\\0008\\000B\\000C\\000E\\000F\\0010\\0011\\0012\\0013\\0014\\0015\\0016\\0017\\0018\\0019\\001A\\001B\\001C\\001D\\001E\\001F\\007F', '') <> e.value->>'text'
        -- count_words_v1 requires at least one non-White_Space token.
        or translate(e.value->>'speaker', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
        or translate(e.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
