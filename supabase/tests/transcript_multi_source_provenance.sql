@@ -190,11 +190,18 @@ begin
 end;
 $security$;
 
-insert into public.role_permissions(role_id, permission_action)
+insert into public.permission_catalog(action, plane, description)
 values (
-  '55555555-5555-4555-8555-555555555555',
-  'campaign.transcript.publish'
+  'campaign.content.edit',
+  'narrative',
+  'Synthetic private transcript correction capability for assembly provenance inheritance.'
 )
+on conflict (action) do nothing;
+
+insert into public.role_permissions(role_id, permission_action)
+values
+  ('55555555-5555-4555-8555-555555555555', 'campaign.transcript.publish'),
+  ('55555555-5555-4555-8555-555555555555', 'campaign.content.edit')
 on conflict do nothing;
 
 insert into public.role_assignments(
@@ -634,5 +641,8 @@ where role_id = '55555555-5555-4555-8555-555555555555'::uuid
   and permission_action = 'campaign.transcript.publish';
 
 delete from public.role_permissions
-where role_id = '66666666-6666-4666-8666-666666666666'::uuid
+where role_id = '55555555-5555-4555-8555-555555555555'::uuid
   and permission_action = 'campaign.content.edit';
+
+delete from public.permission_catalog
+where action = 'campaign.content.edit';
