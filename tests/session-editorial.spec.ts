@@ -359,7 +359,7 @@ test("large 7500-segment transcript stays searchable without mounting every row 
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.goto("/e2e-fixtures/session-editorial?segments=7500");
 
-	const rows = page.locator('[data-testid="transcript-segment"]');
+	const rows = page.locator("[data-transcript-segment]");
 	expect(await rows.count()).toBeLessThan(7500);
 	await page.getByLabel("Buscar fala ou speaker").fill("Segmento sintético 7500");
 	await expect(page.getByText("1 resultado(s)", { exact: true })).toBeVisible();
