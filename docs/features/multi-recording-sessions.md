@@ -1,8 +1,8 @@
 # Sessões compostas por múltiplas gravações Craig
 
-> Status: em desenho
+> Status: em implementação por slices
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-28
 > Fonte de verdade: este documento, ADR-0019 proposto e epic #843
 
 ## Objetivo
@@ -30,7 +30,9 @@ Craig ZIP
 
 O uso real passou a produzir cenários em que uma única sessão possui dois ou mais ZIPs, por exemplo por reconnect, restart, continuação ou interrupção da gravação.
 
-O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source. O gap é a associação e composição desses resultados em **uma timeline editorial da sessão**.
+O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source.
+
+Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly já estão implementados. A entrega Web #849 conecta esses contratos ao processamento com progressive disclosure, seleção de run por part, processamento seletivo das parts sem run, build explícito da assembly e descoberta da assembly em Resultados. Provenance cloud multi-source (#851) e o gate E2E/recovery amplo (#852) continuam separados e não são pressupostos por esta entrega.
 
 ## Escopo
 
@@ -527,6 +529,21 @@ O sistema deve mostrar:
 - selected run;
 - readiness da assembly.
 
+### Implementação Web do composer
+
+O composer é aditivo ao formulário single-source. O operador mantém o `session_id` uma vez, anexa sources já verificadas ao workspace persistente e só vê controles multi-part quando decide compor a sessão.
+
+O primeiro corte Web usa:
+- botões de subir/descer como reorder acessível, sem depender de drag;
+- CAS do workspace para attach, reorder, timing, participant mapping e seleção de run;
+- confirmação explícita de gap e resolução explícita de overlap/boundary;
+- listagem de runs por source e seleção independente por part;
+- `Processar pendentes` somente para parts sem run concluído;
+- readiness fail-closed antes de `Montar transcrição da sessão`;
+- Session Assemblies distintas dos runs-fonte na aba Resultados;
+- base de review carregada pelo `assembly_id`, sem tratar a assembly como run ASR;
+- pointer de recuperação no navegador apenas para reencontrar o workspace; o Agent continua sendo authority do estado persistido.
+
 ## Falhas e recuperação
 
 ### Upload de uma part falha
@@ -581,13 +598,13 @@ Não migrar destrutivamente:
 
 ## Backlog executável
 
-- #844 — persistir recording parts/workspace local;
-- #845 — cronologia, gaps, overlaps e trims;
-- #846 — participant reconciliation entre parts;
-- #848 — Session Assembly imutável + review base;
-- #849 — composer Web multi-recording;
-- #851 — provenance multi-source na publicação cloud;
-- #852 — gate E2E/recovery sintético.
+- #844 — recording parts/workspace local — implementado;
+- #845 — cronologia, gaps, overlaps e trims — implementado;
+- #846 — participant reconciliation entre parts — implementado;
+- #848 — Session Assembly imutável + review base — implementado;
+- #849 — composer Web multi-recording — implementação desta entrega;
+- #851 — provenance multi-source na publicação cloud — pendente;
+- #852 — gate E2E/recovery sintético amplo — pendente.
 
 Epic: #843.
 
