@@ -60,7 +60,7 @@ function freshDraft(): SessionEditorialDraft {
 		draftId: null,
 		revision: 0,
 		baseTranscriptRevisionId: TRANSCRIPT_REVISION_ID,
-		currentTranscriptRevisionId: transcriptRevisionRef.current,
+		currentTranscriptRevisionId: TRANSCRIPT_REVISION_ID,
 		transcriptChanged: false,
 		coverAssetId: "",
 		arc: "",
