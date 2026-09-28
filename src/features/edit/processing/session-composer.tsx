@@ -349,6 +349,9 @@ export function SessionRecordingComposer({
 		setLocalError(null);
 		setReview(null);
 		try {
+			if (workspace && workspace.sessionId !== sessionId) {
+				throw new BridgeError("conflict", "SESSION_WORKSPACE_SESSION_MISMATCH");
+			}
 			let next =
 				workspace ??
 				(await bridge.ensureSessionWorkspace(
