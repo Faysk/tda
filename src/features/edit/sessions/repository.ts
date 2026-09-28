@@ -106,6 +106,24 @@ export async function listEditSessionLibrary(
 	return sessions;
 }
 
+export async function findEditSessionBySourceId(
+	campaignSlug: string,
+	sourceSessionId: string,
+): Promise<EditSessionSummary | null> {
+	if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/u.test(campaignSlug))
+		throw new Error("Invalid campaign");
+	if (!sourceSessionId || sourceSessionId.length > 220) return null;
+	const client = dataClientOrThrow();
+	const { data, error } = await client
+		.from("sessions")
+		.select("id,source_session_id,title,session_date,arc,status,campaigns!inner(slug)")
+		.eq("campaigns.slug", campaignSlug)
+		.eq("source_session_id", sourceSessionId)
+		.maybeSingle();
+	if (error) throw new Error("Edit session lookup unavailable");
+	return data ? toSession(data as unknown as SessionRow) : null;
+}
+
 export async function listUnsafeEditSessions(): Promise<EditSessionSummary[]> {
 	const client = unsafeClientOrThrow();
 	const { data, error } = await client
