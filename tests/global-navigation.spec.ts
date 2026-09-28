@@ -414,11 +414,11 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
-		if (viewport.width >= 1920) {
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(490);
 		}
 		await page.keyboard.press("Escape");
 
