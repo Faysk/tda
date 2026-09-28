@@ -204,7 +204,7 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await expect(panel).toHaveAttribute("data-state", "closing");
 	await expect(panel).toHaveAttribute("aria-hidden", "true");
-	expect(await panel.evaluate((element) => element.inert)).toBeTruthy();
+	expect(await panel.evaluate((element) => element.hasAttribute("inert"))).toBeTruthy();
 
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
