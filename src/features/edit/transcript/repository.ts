@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { editDataClient } from "@/integrations/supabase/server";
 import {
 	normalizeRevisionSegments,
@@ -180,6 +181,14 @@ function legacyTrackNumber(value: unknown): number {
 	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
+function legacySegmentIdentity(row: Record<string, unknown>): string {
+	const source =
+		typeof row.source_segment_id === "string"
+			? row.source_segment_id.trim()
+			: "";
+	return source || String(row.id || "");
+}
+
 function toReaderLegacySegment(row: Record<string, unknown>): TranscriptReaderSegment {
 	if (
 		typeof row.id !== "string" ||
@@ -188,19 +197,52 @@ function toReaderLegacySegment(row: Record<string, unknown>): TranscriptReaderSe
 		typeof row.text !== "string"
 	)
 		throw new Error("Legacy transcript segment is invalid");
+	const trackNumber = legacyTrackNumber(row.track_key);
+	const sourceSegmentId = legacySegmentIdentity(row);
+	if (!sourceSegmentId) throw new Error("Legacy transcript segment identity is invalid");
 	const speaker =
 		(typeof row.character_name === "string" && row.character_name.trim()) ||
 		(typeof row.speaker_name === "string" && row.speaker_name.trim()) ||
 		(typeof row.track_key === "string" && row.track_key.trim()) ||
 		"Mesa";
 	return {
-		id: `l-${row.id}`,
-		trackNumber: legacyTrackNumber(row.track_key),
+		id: `l-${trackNumber}-${sourceSegmentId}`,
+		sourceSegmentId,
+		trackNumber,
 		startMs: row.start_ms,
 		endMs: row.end_ms,
 		speaker,
 		text: row.text,
 	};
+}
+
+function utf8Length(value: string): number {
+	return Buffer.byteLength(value, "utf8");
+}
+
+export function legacyTranscriptSnapshotSha256(
+	segments: readonly TranscriptReaderSegment[],
+): string {
+	const hash = createHash("sha256");
+	for (const segment of segments) {
+		const segmentId = segment.sourceSegmentId;
+		if (!segmentId) throw new Error("Legacy transcript segment identity is missing");
+		hash.update(
+			[
+				String(segment.trackNumber),
+				String(utf8Length(segmentId)),
+				segmentId,
+				String(segment.startMs),
+				String(segment.endMs),
+				String(utf8Length(segment.speaker)),
+				segment.speaker,
+				String(utf8Length(segment.text)),
+				segment.text,
+			].join(":") + "\n",
+			"utf8",
+		);
+	}
+	return hash.digest("hex");
 }
 
 export async function readTranscriptSnapshot(input: {
@@ -252,7 +294,7 @@ export async function readTranscriptSnapshot(input: {
 	for (let from = 0; ; from += READER_BATCH_SIZE) {
 		const { data, error } = await client
 			.from("transcript_segments")
-			.select("id,start_ms,end_ms,text,speaker_name,character_name,track_key")
+			.select("id,start_ms,end_ms,text,speaker_name,character_name,track_key,source_segment_id")
 			.eq("session_id", input.sessionId)
 			.order("start_ms", { ascending: true })
 			.order("end_ms", { ascending: true })
@@ -263,10 +305,12 @@ export async function readTranscriptSnapshot(input: {
 		segments.push(...rows.map(toReaderLegacySegment));
 		if (rows.length < READER_BATCH_SIZE) break;
 	}
+	const sorted = sortLegacySegments(segments);
 	return {
 		source: "legacy_segments",
 		revisionId: null,
 		revisionNumber: null,
-		segments: sortLegacySegments(segments),
+		segments: sorted,
+		legacySnapshotSha256: legacyTranscriptSnapshotSha256(sorted),
 	};
 }
