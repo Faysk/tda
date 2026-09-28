@@ -442,3 +442,12 @@ Contrato candidato:
 - service role e credenciais R2 nunca são enviados ao browser.
 
 Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+
+## RPC server-only de correção imutável da transcrição (#898)
+
+`public.edit_current_transcript_revision_atomic(uuid,text,uuid,uuid,uuid,jsonb)` é um boundary `SECURITY INVOKER` exclusivo do servidor. `PUBLIC`, `anon` e `authenticated` não recebem `EXECUTE`; somente `service_role` chama a função depois que a aplicação resolveu identidade e `campaign.content.edit`.
+
+A RPC revalida sessão/campanha, trava a sessão para serializar escritores, exige CAS sobre `current_transcript_revision_id`, permite alterar apenas `speaker` e `text` de identidades de segmento já existentes, preserva timing e cria uma nova linha imutável em `transcript_revisions`. O ponteiro current e o audit metadata-only são gravados na mesma transação. Conflito stale não sobrescreve trabalho concorrente; replay por `operation_id` exige o mesmo hash de request e que a revisão criada continue current.
+
+O `audit_log` dessa fronteira usa IDs, revision numbers, contagens e SHA-256; texto de transcrição não é copiado para logs. O contrato sintético em `supabase/tests/transcript_inline_edit_atomic.sql` cobre grants, imutabilidade, timing, Unicode, no-op, stale current, replay, operação divergente e rollback quando o audit falha.
