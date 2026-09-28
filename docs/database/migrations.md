@@ -1541,3 +1541,46 @@ Validação e rollout:
 - Production CD deve aplicar a migration no mesmo rollout do código compatível e confirmar o migration history antes da promoção canônica;
 - rollback é forward-only: retirar primeiro o consumidor v2 e preservar revisions/parts/receipts já confirmados.
 
+
+
+## Preparação explícita de transcrição legada para o Edit — #984
+
+### `20260928153000_prepare_legacy_transcript_revision`
+
+**Estado:** migration candidata na PR #997; **não aplicada no Supabase canônico `dmrqnbdvbkfqzctcerbx` nesta etapa**.
+
+Objetivo:
+
+- permitir que uma sessão que ainda lê de `transcript_segments` seja preparada explicitamente para o workspace moderno de `/edit/sessoes/[id]`;
+- materializar exatamente o snapshot legado observado como uma `transcript_revision` privada e imutável;
+- preservar identidade de segmento quando existe, track, timestamps, speaker e texto sem corrigir conteúdo silenciosamente;
+- ligar `sessions.current_transcript_revision_id` somente no mesmo commit da revisão;
+- não alterar `sessions.status`, capa, título, arco, data, descrições, publicação pública ou receipts de publicação de transcript.
+
+Concorrência e idempotência:
+
+- o browser confirma somente `sessionId`, `operationId` e o SHA-256 do snapshot legado já exibido;
+- a RPC recalcula o fingerprint autoritativo diretamente de `transcript_segments` e recusa `stale_legacy` antes de qualquer write;
+- retry da mesma operation retorna replay;
+- uma segunda operação depois que a sessão já possui current revision converge para `already_prepared`, sem criar outra base legada;
+- `operation_id` continua único por sessão.
+
+Segurança:
+
+- boundary `SECURITY INVOKER`, `search_path=pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`; somente `service_role`;
+- identity/profile e `campaign.content.edit` são revalidados antes do lookup da sessão;
+- audit contém somente IDs, hashes, contagens e provenance; nenhuma fala;
+- `source_system='legacy_import'` e `source_id='legacy-<sha256>'` distinguem o legado de Craig sem falsificar provenance.
+
+Validação candidata:
+
+- `supabase/tests/legacy_transcript_prepare.sql` cobre grants, autorização opaca, Unicode/timestamps, replay, duas abas, CAS stale e ausência de texto no audit;
+- `src/features/edit/transcript/legacy-snapshot.test.ts` fixa o mesmo fingerprint entre TypeScript e PostgreSQL;
+- o teste roda no PostgreSQL scratch de `tools/transcript-sync-db.py`.
+
+Rollback lógico:
+
+- antes de aplicação remota, retirar/revisar a migration não toca Production;
+- depois de eventual rollout, desabilitar primeiro o consumidor Web; revisões já preparadas permanecem histórico válido;
+- não apagar revisões ou restaurar `transcript_segments` como current por mutation compensatória silenciosa.

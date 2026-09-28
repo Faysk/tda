@@ -7,19 +7,18 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { SessionEditorialDraftEditor } from "@/features/edit/sessions/editorial-draft-editor";
 import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
-import { TranscriptReader } from "@/features/edit/transcript/reader";
+import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 
 export const metadata: Metadata = {
-	title: "Transcrição · Edit",
-	description: "Leitura privada da transcrição completa da sessão.",
+	title: "Sessão · Edit",
+	description: "Workspace privado para transcrição e edição editorial da sessão.",
 };
 
 type PageProps = Readonly<{
@@ -101,7 +100,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 	const sourceLabel =
 		snapshot.source === "current_revision"
 			? `Revisão privada atual · r${snapshot.revisionNumber ?? "?"}`
-			: "Legado · transcript_segments · ainda não passou pelo handoff moderno";
+			: "Transcrição antiga · leitura preservada";
 	const downloadHref =
 		`/api/edit/${encodeURIComponent(CAMPAIGN_SLUG)}/sessoes/${encodeURIComponent(session.sourceSessionId)}/transcript`;
 
@@ -141,62 +140,68 @@ export default async function EditSessionPage({ params }: PageProps) {
 				</span>
 			</div>
 
-			<div className={draftStyles.sessionWorkspace}>
-				<div className={draftStyles.transcriptPane}>
-					<TranscriptReader
-						key={session.id}
-						downloadHref={downloadHref}
-						editable={
-							canEdit &&
-							snapshot.source === "current_revision" &&
-							Boolean(snapshot.revisionId)
-						}
-						revisionId={snapshot.revisionId}
-						revisionNumber={snapshot.revisionNumber}
-						segments={snapshot.segments}
-						sessionId={session.id}
-						sourceLabel={sourceLabel}
-					/>
-				</div>
-				<aside className={draftStyles.editorialPane}>
-					{snapshot.source !== "current_revision" ? (
-						<div className={draftStyles.editorialUnavailable}>
-							<strong>Draft editorial exige o handoff moderno</strong>
-							<p className={styles.muted}>
-								A transcrição legada continua disponível para leitura, mas não pode
-								virar draft editorial silenciosamente.
-							</p>
-						</div>
-					) : draftUnavailable ? (
-						<div className={draftStyles.editorialUnavailable}>
-							<strong>Draft editorial indisponível</strong>
-							<p className={styles.muted}>
-								A transcrição continua legível. Nenhum campo público foi alterado.
-							</p>
-						</div>
-					) : draft ? (
-						<SessionEditorialDraftEditor
-							editable={canEdit}
-							initial={draft}
-							initialPublication={{
-								currentPublicationId: publication?.currentPublicationId ?? null,
-								currentVersion: publication?.currentVersion ?? 0,
-							}}
-							publicationAvailable={!publicationUnavailable && Boolean(publication)}
-							publishable={canPublish}
-							sessionId={session.id}
-						/>
-					) : (
-						<div className={draftStyles.editorialUnavailable}>
-							<strong>Draft editorial ainda não disponível</strong>
-							<p className={styles.muted}>
-								A sessão precisa de uma revisão de transcrição preparada antes da
-								edição editorial.
-							</p>
-						</div>
-					)}
-				</aside>
-			</div>
+			<SessionEditWorkspace
+				transcript={{
+					downloadHref,
+					editable:
+						canEdit &&
+						snapshot.source === "current_revision" &&
+						Boolean(snapshot.revisionId),
+					revisionId: snapshot.revisionId,
+					revisionNumber: snapshot.revisionNumber,
+					segments: snapshot.segments,
+					sessionId: session.id,
+					sourceLabel,
+				}}
+				editorial={
+					draft
+						? {
+								editable: canEdit,
+								initial: draft,
+								initialPublication: {
+									currentPublicationId:
+										publication?.currentPublicationId ?? null,
+									currentVersion: publication?.currentVersion ?? 0,
+								},
+								publicationAvailable:
+									!publicationUnavailable && Boolean(publication),
+								publishable: canPublish,
+								sessionId: session.id,
+							}
+						: null
+				}
+				legacyPreparation={
+					snapshot.source === "legacy_segments" &&
+					snapshot.legacySnapshotSha256
+						? {
+								editable: canEdit,
+								segmentCount: snapshot.segments.length,
+								sessionId: session.id,
+								sessionTitle: session.title,
+								snapshotSha256: snapshot.legacySnapshotSha256,
+							}
+						: null
+				}
+				editorialUnavailable={
+					snapshot.source !== "current_revision"
+						? {
+								title: "Transcrição antiga",
+								message:
+									"Esta sessão ainda usa a transcrição do formato anterior. Ela continua preservada para leitura e precisa ser preparada explicitamente antes da edição editorial.",
+							}
+						: draftUnavailable
+							? {
+									title: "Edição editorial indisponível",
+									message:
+										"A transcrição continua legível. Nenhum campo público foi alterado.",
+								}
+							: {
+									title: "Edição editorial ainda não disponível",
+									message:
+										"A sessão precisa de uma revisão de transcrição preparada antes da edição editorial.",
+								}
+				}
+			/>
 		</section>
 	);
 }
