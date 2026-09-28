@@ -1477,3 +1477,14 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+
+## Correção inline da revisão privada no Edit
+
+A superfície canônica `/edit/sessoes/[id]` pode corrigir **speaker** e **texto** da revisão privada atual sem mutar o run/ASR bruto nem a linha já gravada em `transcript_revisions`. O fluxo exige `campaign.content.edit`, mantém timestamps/identidade do segmento somente leitura e salva por snapshot de alterações explícito, sem autosave por blur.
+
+O commit usa `edit_current_transcript_revision_atomic(...)`: bloqueia a sessão, compara `expectedCurrentRevisionId`, clona a revisão imutável atual, aplica somente os segmentos alterados e troca `sessions.current_transcript_revision_id` na mesma transação. Operações repetidas usam `operationId`; replay só é aceito enquanto a revisão criada continua current. Um current diferente retorna `stale_current` e o browser preserva a working copy para reconciliação explícita.
+
+A auditoria desta operação registra IDs, números de revisão, contagens e hashes; não grava texto da transcrição. O save privado **não** cria publicação pública nem receipt de publicação. Draft editorial existente continua preservado e passa a sinalizar `transcriptChanged` quando seu `base_transcript_revision_id` aponta para a revisão anterior.
+
+A primeira versão mantém timing somente leitura. O editor monta controles apenas para a fala ativa e pagina visualmente lotes de 300 falas, evitando milhares de textareas simultâneas em sessões longas.
