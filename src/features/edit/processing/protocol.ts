@@ -1387,7 +1387,7 @@ export function parseSessionAssemblyReview(value: unknown): SessionAssemblyRevie
 			partId,
 			sourceId,
 			runId: runIdentifier(segment.run_id),
-			sourceSegmentId: text(segment.source_segment_id, 196),
+			sourceSegmentId: text(segment.source_segment_id, 256),
 			trackNumber,
 			participantId,
 			start,
