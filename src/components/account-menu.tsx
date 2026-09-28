@@ -74,6 +74,8 @@ export function AccountMenu() {
 		}
 	}, []);
 
+	const closeAfterNavigate = useCallback(() => close(false), [close]);
+
 	const toggle = useCallback(() => {
 		setPhase((current) => {
 			if (current === "closed" || current === "closing") {
@@ -235,7 +237,7 @@ export function AccountMenu() {
 							<Link
 								href="/conta"
 								className="account-menu-action"
-								onClick={() => close(false)}
+								onClick={closeAfterNavigate}
 							>
 								Conta e acesso
 							</Link>
@@ -263,7 +265,7 @@ export function AccountMenu() {
 							<NavigationList
 								items={PUBLIC_NAV_ITEMS}
 								pathname={pathname}
-								onNavigate={close}
+								onNavigate={closeAfterNavigate}
 							/>
 						</section>
 
@@ -276,7 +278,7 @@ export function AccountMenu() {
 								<NavigationList
 									items={tools}
 									pathname={pathname}
-									onNavigate={close}
+									onNavigate={closeAfterNavigate}
 								/>
 							</section>
 						) : null}

@@ -214,6 +214,7 @@ test("keyboard, outside click and pathname changes dismiss the unified panel", a
 	await panel.getByRole("link", { name: "Lores", exact: true }).click();
 	await expect(page).toHaveURL(/\/lore$/u);
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(trigger).not.toBeFocused();
 });
 
 test("unified panel motion is reversible, inert while closing and unmounts after transition", async ({ page }) => {
