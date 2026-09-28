@@ -62,6 +62,33 @@ test("edits speaker/text, searches the working copy, saves a new revision and su
 	).toBeVisible();
 });
 
+test("copies the visible working speaker with the immutable timestamp and restores baseline on revert", async ({
+	page,
+	context,
+}) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+		origin: "http://127.0.0.1:3112",
+	});
+	await openFresh(page);
+	const first = await editFirst(
+		page,
+		"Fala temporária para validar referência.",
+		"Speaker temporário",
+	);
+	const timestamp = first.getByRole("button", { name: "00:00:00" });
+
+	await timestamp.click();
+	await expect
+		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+		.toBe("00:00:00.000 · Speaker temporário");
+
+	await first.getByRole("button", { name: "Reverter" }).click();
+	await timestamp.click();
+	await expect
+		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+		.toBe("00:00:00.000 · Speaker 1");
+});
+
 test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
 	page,
 }) => {
