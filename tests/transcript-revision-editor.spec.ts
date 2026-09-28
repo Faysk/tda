@@ -9,6 +9,7 @@ async function openFirstSegment(page: Page) {
 	const speaker = page.getByRole("textbox", { name: "Pessoa desta fala" });
 	const text = page.getByRole("textbox", { name: "Texto desta fala" });
 	await expect(speaker).toBeVisible();
+	await expect(speaker).toBeFocused();
 	await expect(text).toBeVisible();
 	return { speaker, text };
 }
@@ -121,6 +122,8 @@ test("mobile keyboard editing stays contained and Escape closes only the active 
 	).toBeTruthy();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("textbox", { name: "Texto desta fala" })).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "Editada · abrir" })).toBeVisible();
+	const reopen = page.getByRole("button", { name: "Editada · abrir" });
+	await expect(reopen).toBeVisible();
+	await expect(reopen).toBeFocused();
 	await expect(page.getByText("1 alterada(s)", { exact: false })).toBeVisible();
 });
