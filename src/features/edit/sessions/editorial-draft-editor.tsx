@@ -156,6 +156,10 @@ export function SessionEditorialDraftEditor({
 		publishPhase !== "publishing";
 
 	useEffect(() => {
+		setCurrentTranscriptRevisionId(initial.currentTranscriptRevisionId);
+	}, [initial.currentTranscriptRevisionId]);
+
+	useEffect(() => {
 		setCurrentPublicationId(initialPublication.currentPublicationId);
 		setCurrentPublicationVersion(initialPublication.currentVersion);
 	}, [
