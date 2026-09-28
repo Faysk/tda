@@ -544,7 +544,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await page.keyboard.press("Enter");
 
 	await expect(page.getByText("Assemblies da sessão", { exact: true })).toBeVisible();
-	const openReview = page.getByRole("button", { name: "Abrir revisão" });
+	const openReview = composer.getByRole("button", { name: "Abrir revisão" });
 	await openReview.focus();
 	await page.keyboard.press("Enter");
 	await expect(
