@@ -381,6 +381,45 @@ test("navigation semantics keep ordinary links, visible focus and 44px touch tar
 	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
+test("launcher uses icon-first cells with larger glyphs and readable labels", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	const link = navigation.getByRole("link", { name: "Editar sessões", exact: true });
+	const icon = link.locator(".product-launcher-item-icon");
+	const label = link.locator("span");
+
+	const [linkBox, iconBox, labelBox] = await Promise.all([
+		link.boundingBox(),
+		icon.boundingBox(),
+		label.boundingBox(),
+	]);
+	expect(linkBox).not.toBeNull();
+	expect(iconBox).not.toBeNull();
+	expect(labelBox).not.toBeNull();
+	if (!linkBox || !iconBox || !labelBox) return;
+
+	expect(linkBox.height).toBeGreaterThanOrEqual(88);
+	expect(iconBox.width).toBeGreaterThanOrEqual(30);
+	expect(iconBox.height).toBeGreaterThanOrEqual(30);
+	expect(iconBox.y + iconBox.height).toBeLessThanOrEqual(labelBox.y + 2);
+	expect(Math.abs(iconBox.x + iconBox.width / 2 - (linkBox.x + linkBox.width / 2))).toBeLessThanOrEqual(2);
+	expect(Math.abs(labelBox.x + labelBox.width / 2 - (linkBox.x + linkBox.width / 2))).toBeLessThanOrEqual(2);
+
+	const labelStyle = await label.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			whiteSpace: style.whiteSpace,
+			textAlign: style.textAlign,
+		};
+	});
+	expect(labelStyle.whiteSpace).not.toBe("nowrap");
+	expect(labelStyle.textAlign).toBe("center");
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
@@ -414,11 +453,11 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
 		if (viewport.width >= 1920) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
 		}
 		await page.keyboard.press("Escape");
 
