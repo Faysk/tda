@@ -93,7 +93,7 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 - `participants`
 - `recording_files`
 - `transcript_segments`
-- `transcript_revisions` — snapshots completos e imutáveis da transcrição preparada; `sessions.current_transcript_revision_id` aponta para a revisão privada atual.
+- `transcript_revisions` — snapshots completos e imutáveis da transcrição preparada; `sessions.current_transcript_revision_id` aponta para a revisão privada atual e `derived_from_revision_id` registra a derivação de correções humanas sem mutar a revisão base.
 - `session_editorial_drafts` — snapshots editoriais privados e imutáveis (capa/intenção, arco, título, descrições e resumo Markdown); `sessions.current_editorial_draft_id` aponta para o draft atual. Salvar draft não altera campos públicos da sessão.
 - `roll20_events`
 - `session_markers`
