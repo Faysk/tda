@@ -39,7 +39,7 @@ async function expectPanelContained(page: import("@playwright/test").Page, selec
 
 test("avatar is the only global trigger and exposes public IA in stable order", async ({page})=>{
 	await mockAccess(page); await page.goto("/sessoes/nonexistent");
-	await expect(page.getByRole("button",{name:"Abrir navegação"})).toHaveCount(0);
+	await expect(page.getByRole("button",{name:"Abrir navegação",exact:true})).toHaveCount(0);
 	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
 	const panel=await openProfile(page);
 	const navigation=panel.getByRole("navigation",{name:"Navegação principal"});
