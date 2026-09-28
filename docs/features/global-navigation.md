@@ -23,18 +23,18 @@ A marca continua apontando para `/`. O launcher não repete uma entrada `Início
 
 Este documento separa **decisão aprovada** de **implementação/publicação**.
 
-Baseline desta revisão: `main@edc1ea7482c960b72147d2afe108817b98d21ad4`.
+Baseline revalidada desta revisão: `main@08ea4cf0c31e48e827c9da829cfe77dfc15392c1`.
 
 | Slice | Estado nesta baseline | Evidência |
 | --- | --- | --- |
 | projeção privada de identidade + capabilities | integrada à `main` | #881 / PR #886 |
-| launcher global | pendente de integração | #880 |
+| launcher global | integrada à `main` | #880 / PR #890 |
 | avatar/painel de conta | pendente de integração; depende do launcher | #882 |
 | retirada dos hubs `/edit` e `/conta` | pendente de integração | #883 |
 | gate responsivo/teclado/visual completo | pendente | #884 |
 | contrato documental | este documento | #885 |
 
-Enquanto #880/#882/#883 não estiverem integradas, o runtime pode continuar exibindo a navegação textual, o `ThemeToggle` separado e os hubs atuais. Isso é **estado transitório de implementação**, não o contrato final do produto.
+O launcher de #880 já está integrado na `main`. Enquanto #882/#883 não estiverem integradas, o runtime continua com `ThemeToggle` separado e os hubs `/edit`/`/conta` atuais. Isso é **estado transitório de implementação**, não o contrato final do produto.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
