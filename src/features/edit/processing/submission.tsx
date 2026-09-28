@@ -612,10 +612,15 @@ export function ProcessingSubmission({
 		try {
 			const staged = await bridge.craigSource(file, controller.signal);
 			setSource(staged);
+			const attached = await attachSourceToWorkspace(staged, controller);
 			setStatus(
-				`ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
-					staged.audioWorkSeconds ?? 0,
-				)} s de trabalho de áudio.`,
+				attached
+					? `Gravação adicionada à sessão · ${staged.trackCount} tracks · ${Math.round(
+							staged.audioWorkSeconds ?? 0,
+						)} s de áudio.`
+					: `ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
+							staged.audioWorkSeconds ?? 0,
+						)} s de trabalho de áudio.`,
 			);
 		} catch (cause) {
 			setSource(null);
@@ -665,6 +670,7 @@ export function ProcessingSubmission({
 		setStatus("Revalidando a fonte já analisada neste Companion…");
 		try {
 			const staged = source;
+			await attachSourceToWorkspace(staged, controller);
 			setStatus(`Fonte local verificada · ${staged.trackCount} tracks.`);
 
 			// Uploads grandes can take long enough for runtime/model readiness to
@@ -862,7 +868,8 @@ export function ProcessingSubmission({
 			);
 			setFile(null);
 			setSource(null);
-			setSessionId("");
+			if (!capabilities?.capabilities.includes("transcription.session-workspace"))
+				setSessionId("");
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -880,6 +887,103 @@ export function ProcessingSubmission({
 					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
 					: null,
 			);
+		} finally {
+			setBusy(false);
+			setPendingStage(null);
+		}
+	}
+
+	async function queueExistingSource(sourceId: string) {
+		if (
+			busy ||
+			!profile ||
+			!canSubmit ||
+			profileBlocked ||
+			qwenRuntimeUpgradeRequired ||
+			!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)
+		)
+			return;
+		const controller = new AbortController();
+		request.current?.abort();
+		request.current = controller;
+		setBusy(true);
+		setPendingStage("preparing");
+		setError(null);
+		try {
+			const currentCapabilities = await bridge.capabilities(controller.signal);
+			setCapabilities(currentCapabilities);
+			const currentProfiles = currentCapabilities.transcription.catalog.length
+				? currentCapabilities.transcription.catalog
+				: currentCapabilities.transcription.profiles.map((id) => ({
+						id,
+						engine: id.startsWith("qwen-")
+							? ("qwen3" as const)
+							: ("whisper" as const),
+						ready: true,
+						preparationRequired: false,
+						reason: null,
+					}));
+			const selected = currentProfiles.find((item) => item.id === profile);
+			if (!selected) throw new BridgeError("incompatible");
+			if (selected.reason === QWEN_RUNTIME_UPGRADE_REASON) {
+				setError(qwenRuntimeBlockMessage);
+				return;
+			}
+			if (!selected.ready && !selected.preparationRequired) {
+				setError(
+					selected.reason
+						? localOperationMessage(selected.reason)
+						: "O perfil selecionado está indisponível neste Companion.",
+				);
+				return;
+			}
+			if (!selected.ready) {
+				setStatus("Preparando o perfil no Agent local…");
+				let observed = await bridge.prepareProfile(sourceId, profile, controller.signal);
+				setPreparation(observed);
+				const operationId = observed.operationId;
+				if (!operationId) throw new BridgeError("invalid_response");
+				while (observed.state === "running") {
+					await new Promise((resolve) => window.setTimeout(resolve, 1500));
+					if (controller.signal.aborted) return;
+					const next = await bridge.preparation(controller.signal);
+					setPreparation(next);
+					if (next.operationId !== operationId) {
+						setError("A preparação foi substituída por outra operação.");
+						return;
+					}
+					observed = next;
+				}
+				if (observed.state !== "completed") {
+					setError(localOperationMessage(observed.errorCode));
+					return;
+				}
+			}
+			setPendingStage("submitting");
+			setStatus("Enviando gravação selecionada à fila local…");
+			const job = await bridge.transcription(
+				{
+					campaignId: CAMPAIGN_SLUG,
+					sessionId,
+					sourceId,
+					profileId: profile,
+					glossary,
+					context,
+				},
+				crypto.randomUUID(),
+				controller.signal,
+			);
+			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila somente para esta gravação.`);
+		} catch (cause) {
+			if (cause instanceof BridgeError) {
+				setError(
+					cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code),
+				);
+			} else {
+				setError(messageFor("service_error"));
+			}
 		} finally {
 			setBusy(false);
 			setPendingStage(null);
