@@ -422,7 +422,7 @@ test("200% zoom preserves reflow without horizontal overflow", async ({ page }, 
 	await mockAccess(page, { capabilities: fullCapabilities });
 	await page.goto("/");
 	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
+		document.documentElement.style.setProperty("zoom", "2");
 	});
 
 	await openLauncher(page);
