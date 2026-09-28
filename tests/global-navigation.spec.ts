@@ -651,6 +651,7 @@ test("floating shell closed-state receipts capture the reclaimed viewport", asyn
 		{ name: "shell-home-desktop-light", viewport: { width: 1920, height: 1080 }, colorScheme: "light" as const },
 		{ name: "shell-home-mobile-dark", viewport: { width: 390, height: 844 }, colorScheme: "dark" as const },
 		{ name: "shell-home-mobile-light", viewport: { width: 390, height: 844 }, colorScheme: "light" as const },
+		{ name: "shell-home-4k-dark", viewport: { width: 3840, height: 2160 }, colorScheme: "dark" as const },
 	]) {
 		await page.setViewportSize(receipt.viewport);
 		await page.emulateMedia({ colorScheme: receipt.colorScheme });
@@ -674,6 +675,9 @@ test("desktop and mobile unified navigation receipts are captured from synthetic
 		await page.emulateMedia({ colorScheme: receipt.colorScheme });
 		await page.goto("/");
 		await openGlobalMenu(page);
+		await expect(page.locator(".account-menu-panel")).toHaveAttribute("data-state", "open", {
+			timeout: 3_000,
+		});
 		await page.screenshot({ path: testInfo.outputPath(`navigation-${receipt.name}.png`), fullPage: false });
 	}
 });
