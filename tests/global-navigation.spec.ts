@@ -316,6 +316,37 @@ test("keyboard opens launcher with Enter and Space, Escape restores focus", asyn
 	await expect(trigger).toBeFocused();
 });
 
+test("launcher closes when browser history changes the pathname", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/sessoes");
+
+	let navigation = await openLauncher(page);
+	await navigation.getByRole("link", { name: "Lores", exact: true }).click();
+	await expect(page).toHaveURL(/\/lore$/u);
+	await expect(
+		page.getByRole("navigation", { name: "Navegação principal" }),
+	).toHaveCount(0);
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	navigation = await openLauncher(page);
+	await expect(navigation).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(/\/sessoes$/u);
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(
+		page.getByRole("navigation", { name: "Navegação principal" }),
+	).toHaveCount(0);
+
+	navigation = await openLauncher(page);
+	await expect(navigation).toBeVisible();
+	await page.goForward();
+	await expect(page).toHaveURL(/\/lore$/u);
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(
+		page.getByRole("navigation", { name: "Navegação principal" }),
+	).toHaveCount(0);
+});
+
 test("account panel and launcher dismiss independently without leaving hidden controls focusable", async ({
 	page,
 }) => {
