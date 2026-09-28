@@ -181,7 +181,6 @@ export function ProcessingLiveLog({
 	const [code, setCode] = useState("all");
 	const [speaker, setSpeaker] = useState("all");
 	const [track, setTrack] = useState("all");
-	const [grouped, setGrouped] = useState(true);
 	const [paused, setPaused] = useState(false);
 	const [snapshot, setSnapshot] = useState<readonly JobEvent[]>(() => boundedEvents(events));
 	const initialSeq = snapshot.at(-1)?.seq ?? null;
@@ -323,8 +322,8 @@ export function ProcessingLiveLog({
 		],
 	);
 	const rows = useMemo(
-		() => groupRows(filtered, grouped),
-		[filtered, grouped],
+		() => groupRows(filtered, mode === "humanized"),
+		[filtered, mode],
 	);
 	const assistiveAnnouncement = useMemo(() => {
 		for (let index = snapshot.length - 1; index >= 0; index -= 1) {
@@ -501,14 +500,6 @@ export function ProcessingLiveLog({
 						<option key={value} value={value}>Track {value}</option>
 					))}
 				</select>
-				<label className={styles.logToggle}>
-					<input
-						type="checkbox"
-						checked={grouped}
-						onChange={(event) => setGrouped(event.target.checked)}
-					/>
-					Agrupar repetitivos
-				</label>
 				<button type="button" onClick={togglePause}>
 					{paused ? "Retomar visualização" : "Pausar visualização"}
 				</button>
@@ -538,10 +529,6 @@ export function ProcessingLiveLog({
 							const first = row.events[0];
 							const last = row.events.at(-1);
 							if (!first || !last) return null;
-							const speaker =
-								typeof last.data.speaker === "string"
-									? last.data.speaker
-									: null;
 							const animate =
 								live &&
 								!paused &&
@@ -555,17 +542,12 @@ export function ProcessingLiveLog({
 								system,
 								activityCatalog,
 							);
-							const groupTitle =
-								mode === "humanized"
-									? `${humanizedGroup.title} · × ${row.events.length}`
-									: `${row.code} × ${row.events.length}${speaker ? ` · ${speaker}` : ""}`;
+							const groupTitle = `${humanizedGroup.title} · × ${row.events.length}`;
 							return (
 								<button
 									type="button"
 									key={`group-${first.seq}-${last.seq}`}
-									className={`${styles.logEntry} ${
-										mode === "technical" && animate ? styles.logEntryReveal : ""
-									}`}
+									className={styles.logEntry}
 									data-level="info"
 									data-event-seq={last.seq}
 									onClick={() => setSelectedSeq(last.seq)}
@@ -573,15 +555,11 @@ export function ProcessingLiveLog({
 									<time dateTime={last.at}>{formatTime(last.at)}</time>
 									<div>
 										<span>
-											{mode === "humanized" ? (
-												<PacedHumanText
-													text={groupTitle}
-													animate={animate}
-													durationMs={typeDurationMs}
-												/>
-											) : (
-												groupTitle
-											)}
+											<PacedHumanText
+												text={groupTitle}
+												animate={animate}
+												durationMs={typeDurationMs}
+											/>
 										</span>
 										<small>
 											seq {first.seq}–{last.seq} · evento mais recente no
