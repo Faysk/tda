@@ -326,7 +326,7 @@ begin
       jsonb_build_object(
         'trackNumber',2,
         'segmentId','2-0',
-        'speaker',E'Bob\\tInjetado',
+        'speaker','Bob' || chr(9) || 'Injetado',
         'text','Texto válido'
       )
     )
