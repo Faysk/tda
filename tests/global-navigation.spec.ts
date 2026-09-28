@@ -414,11 +414,11 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
-		if (viewport.width >= 1920) {
+			expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
 		}
 		await page.keyboard.press("Escape");
 
@@ -427,6 +427,46 @@ test("navigation stays contained across the required responsive matrix", async (
 		await expectNoHorizontalOverflow(page);
 		await expectPanelContained(page, ".account-menu-panel");
 		await page.keyboard.press("Escape");
+	}
+});
+
+test("launcher cells are icon-first, optically large and keep long labels readable", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+
+	const firstLink = navigation.locator(".product-launcher-link").first();
+	const icon = firstLink.locator(".product-launcher-item-icon");
+	const label = firstLink.locator("span");
+	const [linkBox, iconBox, labelBox] = await Promise.all([
+		firstLink.boundingBox(),
+		icon.boundingBox(),
+		label.boundingBox(),
+	]);
+	expect(linkBox).not.toBeNull();
+	expect(iconBox).not.toBeNull();
+	expect(labelBox).not.toBeNull();
+	if (linkBox && iconBox && labelBox) {
+		expect(linkBox.height).toBeGreaterThanOrEqual(88);
+		expect(iconBox.width).toBeGreaterThanOrEqual(30);
+		expect(iconBox.height).toBeGreaterThanOrEqual(30);
+		expect(labelBox.y).toBeGreaterThanOrEqual(iconBox.y + iconBox.height - 1);
+	}
+
+	for (const text of ["Editar sessões", "Transcrições", "Permissões"]) {
+		const link = navigation.getByRole("link", { name: text, exact: true });
+		await expect(link).toBeVisible();
+		const span = link.locator("span");
+		expect(
+			await span.evaluate(
+				(element) =>
+					element.scrollWidth <= element.clientWidth + 1 &&
+					element.scrollHeight <= element.clientHeight + 1,
+			),
+		).toBeTruthy();
 	}
 });
 
