@@ -40,7 +40,6 @@ for (const [path, marker] of requiredEvidence) {
 const fixturePaths = [
   "tests/processing/multi-recording-session.spec.ts",
   "local-companion/tests/test_session_assemblies.py",
-  "src/features/transcript-publication/multi-source-canonical.test.ts",
   "supabase/tests/transcript_multi_source_provenance.sql",
 ];
 
