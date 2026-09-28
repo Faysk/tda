@@ -111,6 +111,96 @@ test("avatar is the only global trigger and exposes the complete public IA", asy
 	await expect(navigation.getByRole("link", { name: "Sessões", exact: true })).toHaveAttribute("aria-current", "page");
 });
 
+test("floating shell removes the structural top band and stays viewport-bound", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+
+	const shell = page.locator(".site-header");
+	const brand = page.locator(".brand");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	const [mainBox, brandBefore, triggerBefore] = await Promise.all([
+		page.locator("main").boundingBox(),
+		brand.boundingBox(),
+		trigger.boundingBox(),
+	]);
+	expect(mainBox).not.toBeNull();
+	expect(brandBefore).not.toBeNull();
+	expect(triggerBefore).not.toBeNull();
+	if (!mainBox || !brandBefore || !triggerBefore) return;
+
+	expect(mainBox.y).toBeLessThanOrEqual(1);
+	const shellStyle = await shell.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			position: style.position,
+			height: Number.parseFloat(style.height),
+			borderBottomWidth: style.borderBottomWidth,
+			backgroundColor: style.backgroundColor,
+		};
+	});
+	expect(shellStyle.position).toBe("fixed");
+	expect(shellStyle.height).toBeLessThanOrEqual(1);
+	expect(shellStyle.borderBottomWidth).toBe("0px");
+	expect(shellStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+
+	const scrims = await Promise.all([
+		brand.evaluate((element) => getComputedStyle(element, "::before").backgroundImage),
+		page.locator(".header-actions").evaluate(
+			(element) => getComputedStyle(element, "::before").backgroundImage,
+		),
+	]);
+	for (const backgroundImage of scrims) {
+		expect(backgroundImage).toContain("radial-gradient");
+	}
+
+	await page.evaluate(() => window.scrollTo(0, 600));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+	const [brandAfter, triggerAfter] = await Promise.all([
+		brand.boundingBox(),
+		trigger.boundingBox(),
+	]);
+	expect(brandAfter).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (!brandAfter || !triggerAfter) return;
+	expect(Math.abs(brandAfter.y - brandBefore.y)).toBeLessThanOrEqual(1);
+	expect(Math.abs(triggerAfter.y - triggerBefore.y)).toBeLessThanOrEqual(1);
+});
+
+test("home hero occupies the real top viewport below floating chrome", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const hero = page.locator('main section[aria-labelledby="home-title"]').first();
+	const box = await hero.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+	expect(box.y).toBeLessThanOrEqual(1);
+	expect(box.height).toBeGreaterThanOrEqual(767);
+});
+
+test("profile panel stays anchored to the floating avatar after document scroll", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	await page.evaluate(() => window.scrollTo(0, 600));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	const triggerBox = await trigger.boundingBox();
+	expect(triggerBox).not.toBeNull();
+	const panel = await openGlobalMenu(page);
+	const panelBox = await page.locator(".account-menu-panel").boundingBox();
+	expect(panelBox).not.toBeNull();
+	if (!triggerBox || !panelBox) return;
+
+	const gap = panelBox.y - (triggerBox.y + triggerBox.height);
+	expect(gap).toBeGreaterThanOrEqual(6);
+	expect(gap).toBeLessThanOrEqual(16);
+	await expectPanelContained(page);
+	await expectNoHorizontalOverflow(page);
+});
+
 test("unified panel projects only authorized tools", async ({ page }) => {
 	await mockAccess(page, { capabilities: ["campaign.transcript.read", "campaign.local.process", "campaign.permissions.manage"] });
 	await page.goto("/");
@@ -394,6 +484,24 @@ test("appearance control toggles the explicit document theme", async ({ page }) 
 	await expect(theme).toHaveAttribute("aria-checked", "true");
 	await theme.click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
+test("floating shell closed-state receipts capture the reclaimed viewport", async ({ page }, testInfo) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	for (const receipt of [
+		{ name: "shell-home-desktop-dark", viewport: { width: 1920, height: 1080 }, colorScheme: "dark" as const },
+		{ name: "shell-home-desktop-light", viewport: { width: 1920, height: 1080 }, colorScheme: "light" as const },
+		{ name: "shell-home-mobile-dark", viewport: { width: 390, height: 844 }, colorScheme: "dark" as const },
+		{ name: "shell-home-mobile-light", viewport: { width: 390, height: 844 }, colorScheme: "light" as const },
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/");
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
 });
 
 test("desktop and mobile unified navigation receipts are captured from synthetic state", async ({ page }, testInfo) => {
