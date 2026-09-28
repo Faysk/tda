@@ -67,6 +67,8 @@ function errorMessage(cause: unknown): string {
 			"Esta gravação já faz parte da sessão.",
 		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
 			"A gravação local não está disponível ou perdeu integridade.",
+		SESSION_WORKSPACE_SESSION_MISMATCH:
+			"O composer carregado pertence a outra sessão. Feche o composer antes de trocar o alvo.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
 			"Os horários não estabelecem uma ordem segura. Use os botões de ordem e informe o início manualmente.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
