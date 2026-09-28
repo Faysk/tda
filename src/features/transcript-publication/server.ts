@@ -2,8 +2,14 @@ import "server-only";
 import { authConfig } from "@/features/auth/config";
 import { getVerifiedServerIdentity } from "@/features/auth/server";
 import { deniedPublicationDependencies } from "./consumer";
+import { createCurrentPublicationHandler } from "./current";
+import { createCurrentPublicationMutationHandler } from "./current-mutation";
 import { createPublicationHandler } from "./http";
-import { databasePublicationDependencies } from "./repository";
+import {
+	databasePublicationDependencies,
+	readCurrentPublication,
+	setCurrentPublication,
+} from "./repository";
 
 const publication =
 	process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true"
@@ -21,7 +27,12 @@ export const publicationReceiptPost = createPublicationHandler(
 	dependencies,
 	true,
 );
-
-import { createCurrentPublicationHandler } from "./current";
-import { readCurrentPublication } from "./repository";
-export const publicationCurrentPost = createCurrentPublicationHandler({ ...dependencies, read: readCurrentPublication });
+export const publicationCurrentPost = createCurrentPublicationHandler({
+	...dependencies,
+	read: readCurrentPublication,
+});
+export const publicationCurrentMutationPost =
+	createCurrentPublicationMutationHandler({
+		...dependencies,
+		mutate: setCurrentPublication,
+	});
