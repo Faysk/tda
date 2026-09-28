@@ -6,6 +6,7 @@ import type { TranscriptReaderSegment } from "@/features/edit/transcript/reader-
 import type { SessionEditorialDraftEditorTransport } from "./editorial-draft-editor";
 import type { SessionEditorialDraft } from "./editorial-draft-model";
 import { SessionEditWorkspace } from "./session-edit-workspace";
+import workbenchStyles from "../workbench.module.css";
 
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
@@ -258,13 +259,15 @@ export function SessionEditorialE2EFixture() {
 	}
 
 	return (
-		<main style={{ display: "grid", gap: "2rem", padding: "1rem" }}>
-			<header>
-				<h1>Session Editorial E2E</h1>
-				<p>
-					Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
-					carregado.
-				</p>
+		<main className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
+			<header className={workbenchStyles.workbenchHeader}>
+				<div>
+					<h1 className={workbenchStyles.pageTitle}>Session Editorial E2E</h1>
+					<p className={workbenchStyles.muted}>
+						Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
+						carregado.
+					</p>
+				</div>
 			</header>
 
 			<section aria-label="Controles sintéticos de falha">
