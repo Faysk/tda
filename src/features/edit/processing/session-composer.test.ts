@@ -24,10 +24,6 @@ import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 } from "./session-composer-storage";
-import {
-	confirmSessionComposerPendingSubmission,
-	resolveSessionComposerPendingSubmission,
-} from "./session-composer-storage";
 
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
@@ -277,6 +273,14 @@ describe("multi-recording composer model", () => {
 			pendingSourceIds(value, runs, [
 				{
 					status: "running",
+					context: { campaignId: "yuhara-main", sessionId: "session-42", sourceId: sourceB },
+				} as never,
+			]),
+		).toEqual([]);
+		expect(
+			pendingSourceIds(value, runs, [
+				{
+					status: "succeeded",
 					context: { campaignId: "yuhara-main", sessionId: "session-42", sourceId: sourceB },
 				} as never,
 			]),
