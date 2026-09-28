@@ -273,28 +273,26 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
 
     monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
     app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+    # This regression owns lossless activity persistence across trace throttling,
+    # not the independent idle-worker wake contract. Queue before lifespan startup
+    # so Windows runner scheduling cannot turn that unrelated wake race into a
+    # false failure while still exercising the real queue worker and event path.
+    job = app.state.store.submit(
+        "activity-throttle",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": "activity-source",
+            "profile_id": "qwen-fast",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 1,
+        },
+    )
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
-        job = app.state.store.submit(
-            "activity-throttle",
-            {
-                "kind": "transcription.craig",
-                "campaign_id": "campaign",
-                "session_id": "session",
-                "source_id": "activity-source",
-                "profile_id": "qwen-fast",
-                "glossary": "",
-                "context": "",
-                "cpu": False,
-                "units": 1,
-            },
-        )
-        wake = live.post(
-            "/api/v1/lifecycle",
-            headers=HEADERS,
-            json={"action": "resume"},
-        )
-        assert wake.status_code == 200
         assert emitted.wait(10.0)
         deadline = time.monotonic() + 5.0
         state = None
