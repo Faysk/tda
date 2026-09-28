@@ -131,12 +131,14 @@ begin
        or char_length(e.value->>'speaker') not between 1 and 160
        or char_length(e.value->>'text') not between 1 and 100000
        -- Mirror isReviewStringV1 at the privileged database boundary.
-       -- Speaker rejects every C0 control; text permits TAB/LF/CR only.
-       or (e.value->>'speaker') ~ U&'[\\0001-\\001F\\007F]'
-       or (e.value->>'text') ~ U&'[\\0001-\\0008\\000B\\000C\\000E-\\001F\\007F]'
+       -- POSIX cntrl avoids PostgreSQL's locale-sensitive invalid ranges.
+       -- Speaker rejects every C0/DEL control; text permits TAB/LF/CR only.
+       or (e.value->>'speaker') ~ '[[:cntrl:]]'
+       or translate(e.value->>'text', E'\\t\\n\\r', '') ~ '[[:cntrl:]]'
        -- count_words_v1 requires at least one non-White_Space token.
-       or (e.value->>'speaker') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
-       or (e.value->>'text') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
+       -- translate() with explicit code points keeps this independent of locale.
+       or translate(e.value->>'speaker', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
+       or translate(e.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
