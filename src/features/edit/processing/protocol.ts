@@ -731,13 +731,14 @@ export function parseCapabilities(value: unknown): Capabilities {
 		catalog = catalog.map((item) => {
 			if (item.engine !== "qwen3") return item;
 			const gate = qwenGateState.get(item.id);
-			if (!gate) return item;
 
 			// A stale runtime can make the physical gate fail before it is able to
 			// expose its own runtime identity. In that state the catalog still
 			// carries the installed runtime version, so fence it before interpreting
-			// the gate failure as ordinary first-use preparation.
-			const runtimeVersion = gate.runtimeVersion ?? item.runtimeVersion ?? null;
+			// the gate failure as ordinary first-use preparation. The catalog also
+			// remains authoritative enough to fail closed when an older Companion
+			// omits the optional gate snapshot entirely.
+			const runtimeVersion = gate?.runtimeVersion ?? item.runtimeVersion ?? null;
 			if (
 				runtimeVersion !== null &&
 				!supportsQwenAlignmentRuntime(runtimeVersion)
@@ -750,6 +751,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
 				};
 			}
+			if (!gate) return item;
 			if (!gate.ready) {
 				qwenBlocked.add(item.id);
 				return {
