@@ -144,6 +144,10 @@ function localOperationMessage(code: string | null): string {
 			"Não foi possível baixar o modelo Qwen.",
 		QWEN_RUNTIME_UNAVAILABLE:
 			"O runtime Qwen compatível ainda não está disponível.",
+		QWEN_GATE_RUNTIME_NOT_READY:
+			"O Qwen ainda não possui um runtime compatível pronto nesta máquina.",
+		RUNTIME_RC_RELEASE_NOT_PUBLISHED:
+			"O runtime Qwen compatível ainda não foi publicado no canal esperado. Tente novamente quando a atualização estiver disponível ou escolha outro perfil.",
 		WHISPER_RUNTIME_UNAVAILABLE:
 			"O runtime Whisper compatível ainda não está disponível.",
 		WHISPER_MODEL_DOWNLOAD_FAILED:
@@ -501,7 +505,7 @@ export function ProcessingSubmission({
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !source || !profile || !canSubmit || profileBlocked) return;
+		if (busy || !file || !profile || !canSubmit || profileBlocked) return;
 		if (qwenRuntimeUpgradeRequired) {
 			setError(qwenRuntimeBlockMessage);
 			return;
@@ -529,10 +533,19 @@ export function ProcessingSubmission({
 		setPendingStage("validating");
 		setError(null);
 		setFileError(null);
-		setStatus("Revalidando a fonte já analisada neste Companion…");
+		setStatus(
+			source
+				? "Revalidando a fonte já analisada neste Companion…"
+				: "Analisando o ZIP diretamente no Companion local…",
+		);
 		try {
-			const staged = source;
-			setStatus(`Fonte local verificada · ${staged.trackCount} tracks.`);
+			const staged = source ?? (await bridge.craigSource(file, controller.signal));
+			if (!source) setSource(staged);
+			setStatus(
+				source
+					? `Fonte local verificada · ${staged.trackCount} tracks.`
+					: `ZIP analisado localmente · ${staged.trackCount} tracks · continuando automaticamente.`,
+			);
 
 			// Uploads grandes can take long enough for runtime/model readiness to
 			// change. Decide preparation from a fresh Agent snapshot, not from the
@@ -958,18 +971,25 @@ export function ProcessingSubmission({
 							</select>
 						</label>
 						<div className={styles.submitRow}>
-							{source ? (
-								<Button
-									type="submit"
-									variant="primary"
-									disabled={busy || !file || !profile || requestTooLarge || profileBlocked}
-								>
-									{submissionCtaLabel(selectedProfileState, pendingStage)}
-								</Button>
-							) : (
+							<Button
+								type="submit"
+								variant="primary"
+								disabled={
+									busy ||
+									!file ||
+									!profile ||
+									!canSubmit ||
+									requestTooLarge ||
+									profileBlocked ||
+									qwenRuntimeUpgradeRequired
+								}
+							>
+								{submissionCtaLabel(pendingStage)}
+							</Button>
+							{!source ? (
 								<Button
 									type="button"
-									variant="primary"
+									variant="tertiary"
 									disabled={
 										busy ||
 										!file ||
@@ -981,11 +1001,9 @@ export function ProcessingSubmission({
 									}
 									onClick={() => void analyzeSource()}
 								>
-									{busy && pendingStage === "validating"
-										? "Analisando localmente…"
-										: "Analisar ZIP localmente"}
+									Analisar para sessão composta
 								</Button>
-							)}
+							) : null}
 							{requestTooLarge ? (
 								<span className={styles.budgetWarning}>
 									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
