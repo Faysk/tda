@@ -573,8 +573,8 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 
 	await page.reload();
-	const composer = page.locator("section").filter({
-		has: page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u }),
+	const composer = page.getByRole("region", {
+		name: /sessao-42 · 2 gravações$/u,
 	});
 	await expect(composer).toBeVisible();
 	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
