@@ -1,19 +1,17 @@
 import "server-only";
 
 import { getVerifiedServerIdentity } from "@/features/auth/server";
-import {
-	isEffectiveCampaignGrant,
-	type EditAccessContext,
-} from "../access/policy";
+import { loadEditAccessContext } from "../access/repository";
+import { isEffectiveCampaignGrant } from "../access/policy";
 import {
 	mutatePermissions,
 	type PermissionMutationReason,
 } from "./mutation";
+import type { PermissionsDirectory } from "./model";
 import {
 	persistPermissionMutation,
 	readPermissionsDirectory,
 } from "./repository";
-import type { PermissionsDirectory } from "./model";
 
 export type PermissionServerMutationResult =
 	| Readonly<{
@@ -31,29 +29,24 @@ export type PermissionServerMutationResult =
 	  }>;
 
 export async function mutatePermissionsForEdit(
-	request: Omit<
-		Parameters<typeof mutatePermissions>[0],
-		"authUserId"
-	>,
+	request: Omit<Parameters<typeof mutatePermissions>[0], "authUserId">,
 ): Promise<PermissionServerMutationResult> {
 	const identity = await getVerifiedServerIdentity();
 	if (!identity.ok) return identity;
 
-	let resolvedContext: EditAccessContext | null = null;
 	try {
+		const context = await loadEditAccessContext(identity.authUserId);
 		const result = await mutatePermissions(
 			{ ...request, authUserId: identity.authUserId },
 			{
-				resolveAccessContext: async (authUserId) => {
-					resolvedContext = await loadEditAccessContext(authUserId);
-					return resolvedContext;
-				},
+				resolveAccessContext: async (authUserId) =>
+					authUserId === identity.authUserId ? context : null,
 				persist: persistPermissionMutation,
 			},
 		);
 		if (!result.ok) return result;
 
-		if (!resolvedContext?.profileId)
+		if (!context?.profileId)
 			return {
 				ok: false,
 				reason: "reconciliation_required",
@@ -63,7 +56,7 @@ export async function mutatePermissionsForEdit(
 		const now = new Date();
 		const actorEffectiveActions = [
 			...new Set(
-				resolvedContext.grants
+				context.grants
 					.filter((grant) =>
 						isEffectiveCampaignGrant(grant, request.campaignSlug, now),
 					)
@@ -73,7 +66,7 @@ export async function mutatePermissionsForEdit(
 
 		const directory = await readPermissionsDirectory(
 			request.campaignSlug,
-			resolvedContext.profileId,
+			context.profileId,
 			actorEffectiveActions,
 		);
 		const target = directory?.people.find(
