@@ -523,7 +523,11 @@ def build_session_assembly(
         "session_id": session_id,
         "canonicalization_version": ASSEMBLY_CANONICALIZATION_VERSION,
         "inputs_sha256": inputs_sha256,
-        "timeline_fingerprint_sha256": timeline["fingerprint_sha256"],
+        "timing_policy_version": inputs["timing_policy_version"],
+        "segment_boundary_policy": inputs["segment_boundary_policy"],
+        "timeline_fingerprint_sha256": inputs["timeline_fingerprint_sha256"],
+        "participant_mapping_schema_version": inputs["participant_mapping_schema_version"],
+        "participant_mapping_policy": inputs["participant_mapping_policy"],
         "participant_mapping_sha256": mapping_sha,
         "participant_approval_blocked": participant_approval_blocked,
         "transcript_artifact": "transcript.json",
@@ -577,6 +581,15 @@ def load_session_assembly(
         or manifest.get("campaign_id") != campaign_id
         or manifest.get("session_id") != session_id
         or manifest.get("canonicalization_version") != ASSEMBLY_CANONICALIZATION_VERSION
+        or manifest.get("inputs_sha256") != assembly_id
+        or manifest.get("timing_policy_version") != TIMING_POLICY_VERSION
+        or manifest.get("segment_boundary_policy") != SEGMENT_BOUNDARY_POLICY
+        or not isinstance(manifest.get("timeline_fingerprint_sha256"), str)
+        or _SHA256.fullmatch(manifest["timeline_fingerprint_sha256"]) is None
+        or manifest.get("participant_mapping_schema_version") != "tda_session_participant_mapping_v1"
+        or manifest.get("participant_mapping_policy") != "strong_discord_or_manual_v1"
+        or not isinstance(manifest.get("participant_mapping_sha256"), str)
+        or _SHA256.fullmatch(manifest["participant_mapping_sha256"]) is None
         or not isinstance(manifest.get("transcript_sha256"), str)
         or _SHA256.fullmatch(manifest["transcript_sha256"]) is None
         or isinstance(manifest.get("transcript_size_bytes"), bool)

@@ -1502,3 +1502,42 @@ Boundary:
 Validação sintética: `supabase/tests/transcript_revision_web_edits.sql` roda no scratch PostgreSQL de `tools/transcript-sync-db.py` e cobre grants, autorização, preservação da parent, timing read-only, replay, stale current, no-op, rollback e audit metadata-only.
 
 Aplicação remota deve seguir o Production CD/runbook. A presença do arquivo em `main` não substitui migration history pós-deploy nem verificação remota.
+
+## 2026-09-28 — provenance multi-source da publicação de transcrição
+
+### `20260928024500_transcript_multi_source_provenance`
+
+**Estado:** migration candidata da #851; rollout remoto condicionado aos gates da PR #946 e ao Production CD governado.
+
+Objetivo:
+
+- manter a publicação single-source v1 compatível, sem reescrever revisões históricas;
+- adicionar provenance estruturada e ordenada para revisões originadas de Session Assembly;
+- persistir assembly id/schema/hash, políticas de timeline/mapping e cada part com source/run/hash/timing sem armazenar áudio, paths locais, tokens ou duplicar transcript na metadata;
+- usar `transcript_revision_parts` como relação normalizada e imutável, em vez de esconder lineage crítico somente em JSONB;
+- preservar a provenance quando uma revisão Web derivada usa `parent_revision_id`.
+
+Atomicidade, replay e concorrência:
+
+- `publish_transcript_assembly_revision_atomic(...)` autoriza antes de resolver o target e bloqueia a sessão antes do commit;
+- revision, parts ordenadas, receipt v2, current pointer, event e audit metadata-only pertencem à mesma transação;
+- replay da mesma `operation_id` retorna o receipt original antes do CAS e não duplica revision/parts;
+- reutilização divergente da operation falha com `conflict`;
+- `expectedCurrentRevisionId` mantém o CAS editorial: intenção stale não cria evidência parcial;
+- restore/unpublish apenas movem o current pointer e não apagam provenance histórica.
+
+Segurança e compatibilidade:
+
+- `transcript_revision_parts` e `transcript_assembly_publication_receipts` têm RLS habilitado;
+- `public`, `anon` e `authenticated` não recebem acesso nem EXECUTE da RPC de assembly;
+- `service_role` recebe somente as permissões server-side necessárias;
+- o boundary single-source `publish_transcript_revision_atomic(...)` continua separado e compatível;
+- audit/receipt carregam somente ids, hashes, contagens e versões permitidas.
+
+Validação e rollout:
+
+- o scratch PostgreSQL aplica a migration junto da cadeia de publication e precisa executar o contrato sintético multi-source antes do merge;
+- testes cobrem ordered parts, replay, divergência, stale-current, preservação de histórico, compatibilidade v1 e ausência de conteúdo privado em audit;
+- Production CD deve aplicar a migration no mesmo rollout do código compatível e confirmar o migration history antes da promoção canônica;
+- rollback é forward-only: retirar primeiro o consumidor v2 e preservar revisions/parts/receipts já confirmados.
+

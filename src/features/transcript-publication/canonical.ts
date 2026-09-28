@@ -1,3 +1,9 @@
+import {
+	MULTI_SOURCE_PUBLICATION_RECEIPT_VERSION,
+	MULTI_SOURCE_PUBLICATION_REQUEST_VERSION,
+	prepareMultiSourceCanonicalPublication,
+	type CanonicalMultiSourceProvenance,
+} from "./multi-source-canonical";
 import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
 
 export const PUBLICATION_REQUEST_VERSION =
@@ -34,13 +40,11 @@ export type PublicationTarget = Readonly<{
 	sourceSessionId: string;
 }>;
 
-export type CanonicalPreparedPublication = Readonly<{
+type CanonicalPreparedPublicationCommon = Readonly<{
 	operationId: string;
 	expectedCurrentRevisionId: string | null;
 	expectedActorProfileId?: string;
 	target: PublicationTarget;
-	sourceId: string;
-	runId: string;
 	baseTranscriptSha256: string;
 	draftSha256: string;
 	payloadJson: string;
@@ -48,8 +52,23 @@ export type CanonicalPreparedPublication = Readonly<{
 	segmentCount: number;
 }>;
 
-export type PublicationReceipt = Readonly<{
-	schemaVersion: typeof PUBLICATION_RECEIPT_VERSION;
+export type CanonicalPreparedPublication =
+	| (CanonicalPreparedPublicationCommon &
+		Readonly<{
+			publicationKind: "single_source";
+			sourceId: string;
+			runId: string;
+			provenance: null;
+		}>)
+	| (CanonicalPreparedPublicationCommon &
+		Readonly<{
+			publicationKind: "session_assembly";
+			sourceId: null;
+			runId: null;
+			provenance: CanonicalMultiSourceProvenance;
+		}>);
+
+type PublicationReceiptCommon = Readonly<{
 	status: "committed";
 	receiptId: string;
 	campaignId: string;
@@ -57,8 +76,6 @@ export type PublicationReceipt = Readonly<{
 	revisionId: string;
 	revisionNumber: number;
 	operationId: string;
-	sourceId: string;
-	runId: string;
 	baseTranscriptSha256: string;
 	draftSha256: string;
 	payloadSha256: string;
@@ -66,6 +83,20 @@ export type PublicationReceipt = Readonly<{
 	wordCount: number;
 	committedAt: string;
 }>;
+
+export type PublicationReceipt =
+	| (PublicationReceiptCommon &
+		Readonly<{
+			schemaVersion: typeof PUBLICATION_RECEIPT_VERSION;
+			sourceId: string;
+			runId: string;
+		}>)
+	| (PublicationReceiptCommon &
+		Readonly<{
+			schemaVersion: typeof MULTI_SOURCE_PUBLICATION_RECEIPT_VERSION;
+			assemblyId: string;
+			partCount: number;
+		}>);
 
 export type PublicationResult =
 	| Readonly<{ ok: true; receipt: PublicationReceipt }>
@@ -131,7 +162,7 @@ function utf8Bytes(value: string): number {
 	return new TextEncoder().encode(value).byteLength;
 }
 
-export function prepareCanonicalPublication(raw: string): CanonicalPreparePublicationResult {
+function prepareCanonicalSingleSourcePublication(raw: string): CanonicalPreparePublicationResult {
 	if (utf8Bytes(raw) > MAX_PUBLICATION_REQUEST_BYTES)
 		return { ok: false, reason: "too_large" };
 	let input: unknown;
@@ -423,13 +454,33 @@ export function prepareCanonicalPublication(raw: string): CanonicalPreparePublic
 			expectedCurrentRevisionId,
 			...(root.expectedActorProfileId === undefined ? {} : { expectedActorProfileId: root.expectedActorProfileId as string }),
 			target: { campaignSlug, sourceSessionId },
+			publicationKind: "single_source",
 			sourceId,
 			runId,
 			baseTranscriptSha256,
 			draftSha256,
+			provenance: null,
 			payloadJson,
 			payloadBytes,
 			segmentCount: canonicalSegments.length,
 		},
 	};
+}
+
+
+export function prepareCanonicalPublication(
+	raw: string,
+): CanonicalPreparePublicationResult {
+	if (utf8Bytes(raw) > MAX_PUBLICATION_REQUEST_BYTES)
+		return { ok: false, reason: "too_large" };
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return { ok: false, reason: "invalid_payload" };
+	}
+	const root = record(parsed);
+	if (root?.schemaVersion === MULTI_SOURCE_PUBLICATION_REQUEST_VERSION)
+		return prepareMultiSourceCanonicalPublication(raw);
+	return prepareCanonicalSingleSourcePublication(raw);
 }

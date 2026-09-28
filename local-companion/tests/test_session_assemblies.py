@@ -186,6 +186,13 @@ def test_session_assembly_builds_bounded_parts_deterministically(tmp_path, count
     assert repeated["transcript_sha256"] == first["transcript_sha256"]
     assert len(first["parts"]) == count
     assert first["segment_count"] == count
+    assert first["inputs_sha256"] == first["assembly_id"]
+    assert first["timing_policy_version"] == "tda_session_timeline_v1"
+    assert first["segment_boundary_policy"] == "segment_start_owner_v1"
+    assert first["participant_mapping_schema_version"] == "tda_session_participant_mapping_v1"
+    assert first["participant_mapping_policy"] == "strong_discord_or_manual_v1"
+    assert len(first["timeline_fingerprint_sha256"]) == 64
+    assert len(first["participant_mapping_sha256"]) == 64
 
     listing = list_session_assemblies(data_root, "campaign-a", "session-a")
     assert [row["assembly_id"] for row in listing["assemblies"]] == [first["assembly_id"]]

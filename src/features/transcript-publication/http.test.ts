@@ -70,6 +70,8 @@ function dependencies() {
 	const raw = rawRequest();
 	const parsed = preparePublication(raw);
 	if (!parsed.ok) throw new Error(parsed.reason);
+	if (parsed.value.publicationKind !== "single_source")
+		throw new Error("expected single-source publication fixture");
 	const receipt = {
 		schemaVersion: "tda_transcript_publication_receipt_v1" as const,
 		status: "committed" as const,
