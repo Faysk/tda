@@ -15,6 +15,8 @@ import {
 import {
 	WORLD_ENTITY_MEDIA_PRIVATE_BUCKET,
 	WORLD_ENTITY_MEDIA_PREVIEW_BUCKET,
+	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
+	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
 } from "@/features/world-explorer/world-entity-media";
 import {
 	SESSION_COVER_MEDIA_MAX_BYTES,
@@ -118,6 +120,7 @@ async function putImmutableCover(
 	objectKey: string,
 	bytes: Uint8Array,
 	info: ReturnType<typeof inspectWorldEntityImage>,
+	cacheControl = "private, no-store",
 ) {
 	let exists = false;
 	try {
@@ -145,7 +148,7 @@ async function putImmutableCover(
 					ContentType: info.mimeType,
 					ContentLength: info.bytes,
 					Metadata: { sha256: info.sha256 },
-					CacheControl: "private, no-store",
+					CacheControl: cacheControl,
 					IfNoneMatch: "*",
 				}),
 			);
@@ -263,5 +266,104 @@ export async function finalizeSessionCoverPendingUpload(input: {
 		bucket,
 		objectKey,
 		readBackVerified: true,
+	};
+}
+
+
+function publicBucket(): string {
+	if (process.env.R2_PUBLIC_BUCKET !== WORLD_ENTITY_MEDIA_PUBLIC_BUCKET)
+		failure("PUBLIC_BUCKET_MISMATCH");
+	return WORLD_ENTITY_MEDIA_PUBLIC_BUCKET;
+}
+
+function clientForStagedBucket(bucket: string): S3Client {
+	if (bucket === WORLD_ENTITY_MEDIA_PRIVATE_BUCKET) return privateMediaClient();
+	if (bucket === WORLD_ENTITY_MEDIA_PREVIEW_BUCKET) return mediaClient();
+	failure("STAGING_BUCKET_NOT_ALLOWED");
+}
+
+export async function promoteSessionCover(input: {
+	campaignSlug: string;
+	sessionId: string;
+	stagedBucket: string;
+	objectKey: string;
+	sha256: string;
+	mimeType: SessionCoverMediaMime;
+	bytes: number;
+	width: number;
+	height: number;
+}): Promise<{
+	publicBucket: string;
+	publicObjectKey: string;
+	publicUrl: string;
+	verifiedAt: string;
+}> {
+	const extension = input.mimeType === "image/png" ? "png" : "webp";
+	const expectedKey = sessionCoverObjectKey({
+		campaignSlug: input.campaignSlug,
+		sessionId: input.sessionId,
+		sha256: input.sha256,
+		extension,
+	});
+	if (!expectedKey || expectedKey !== input.objectKey)
+		failure("OBJECT_SCOPE_MISMATCH");
+
+	const stagedBytes = await exactObjectBytes(
+		clientForStagedBucket(input.stagedBucket),
+		input.stagedBucket,
+		input.objectKey,
+		input.bytes,
+	);
+	const inspected = inspectWorldEntityImage(stagedBytes);
+	if (
+		inspected.sha256 !== input.sha256 ||
+		inspected.mimeType !== input.mimeType ||
+		inspected.bytes !== input.bytes ||
+		inspected.width !== input.width ||
+		inspected.height !== input.height ||
+		inspected.width * inspected.height > SESSION_COVER_MEDIA_MAX_PIXELS
+	) {
+		failure("STAGED_INTEGRITY_FAILED");
+	}
+
+	const bucket = publicBucket();
+	await putImmutableCover(
+		mediaClient(),
+		bucket,
+		input.objectKey,
+		stagedBytes,
+		inspected,
+		"public, max-age=31536000, immutable",
+	);
+
+	const publicUrl = `${WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN}/${input.objectKey}`;
+	const response = await fetch(publicUrl, {
+		cache: "no-store",
+		redirect: "error",
+		signal: AbortSignal.timeout(15_000),
+	});
+	if (!response.ok) failure("PUBLIC_DELIVERY_FAILED");
+	const contentLength = Number(response.headers.get("content-length"));
+	if (
+		Number.isFinite(contentLength) &&
+		(contentLength < 1 || contentLength > SESSION_COVER_MEDIA_MAX_BYTES)
+	) {
+		failure("PUBLIC_DELIVERY_INVALID_SIZE");
+	}
+	const delivered = new Uint8Array(await response.arrayBuffer());
+	const mime = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
+	if (
+		mime !== input.mimeType ||
+		delivered.length !== input.bytes ||
+		worldEntityMediaSha256(delivered) !== input.sha256
+	) {
+		failure("PUBLIC_DELIVERY_MISMATCH");
+	}
+
+	return {
+		publicBucket: bucket,
+		publicObjectKey: input.objectKey,
+		publicUrl,
+		verifiedAt: new Date().toISOString(),
 	};
 }

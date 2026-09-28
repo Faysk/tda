@@ -10,6 +10,7 @@ import {
 import { SessionEditorialDraftEditor } from "@/features/edit/sessions/editorial-draft-editor";
 import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
+import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findUnsafeEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
@@ -69,6 +70,11 @@ export default async function EditSessionPage({ params }: PageProps) {
 		EDIT_CAPABILITIES.contentEdit,
 		CAMPAIGN_SLUG,
 	).ok;
+	const canPublish = authorizeCampaignCapability(
+		accessContext,
+		EDIT_CAPABILITIES.sessionPublish,
+		CAMPAIGN_SLUG,
+	).ok;
 
 	let session: Awaited<ReturnType<typeof findUnsafeEditSessionBySourceId>>;
 	try {
@@ -90,12 +96,19 @@ export default async function EditSessionPage({ params }: PageProps) {
 	if (!snapshot) return <UnavailableTranscript />;
 
 	let draft: Awaited<ReturnType<typeof readSessionEditorialDraft>> = null;
+	let publication: Awaited<ReturnType<typeof readSessionPublicationContext>> = null;
 	let draftUnavailable = false;
+	let publicationUnavailable = false;
 	if (snapshot.source === "current_revision" && snapshot.revisionId) {
 		try {
 			draft = await readSessionEditorialDraft(session.id);
 		} catch {
 			draftUnavailable = true;
+		}
+		try {
+			publication = await readSessionPublicationContext(session.id);
+		} catch {
+			publicationUnavailable = true;
 		}
 	}
 
@@ -170,6 +183,12 @@ export default async function EditSessionPage({ params }: PageProps) {
 						<SessionEditorialDraftEditor
 							editable={canEdit}
 							initial={draft}
+							initialPublication={{
+								currentPublicationId: publication?.currentPublicationId ?? null,
+								currentVersion: publication?.currentVersion ?? 0,
+							}}
+							publicationAvailable={!publicationUnavailable && Boolean(publication)}
+							publishable={canPublish}
 							sessionId={session.id}
 						/>
 					) : (

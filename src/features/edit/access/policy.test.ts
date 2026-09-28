@@ -136,6 +136,36 @@ describe("authorizeCampaignCapability", () => {
 		).toEqual({ ok: false, reason: "forbidden" });
 	});
 
+	it("keeps session publication authority separate from content editing", () => {
+		const contentEditGrant = grant({ action: EDIT_CAPABILITIES.contentEdit });
+		const sessionPublishGrant = grant({ action: EDIT_CAPABILITIES.sessionPublish });
+
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [contentEditGrant] }),
+				EDIT_CAPABILITIES.sessionPublish,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [sessionPublishGrant] }),
+				EDIT_CAPABILITIES.contentEdit,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [sessionPublishGrant] }),
+				EDIT_CAPABILITIES.sessionPublish,
+				"yuhara-main",
+				now,
+			),
+		).toEqual({ ok: true, profileId: "profile-1" });
+	});
+
 	it("does not treat transcript read as local processing access", () => {
 		expect(
 			authorizeCampaignCapability(
