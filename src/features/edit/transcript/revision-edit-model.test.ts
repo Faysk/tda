@@ -3,7 +3,43 @@ import type { TranscriptReaderSegment } from "./reader-contract";
 import {
 	applyTranscriptRevisionEdits,
 	prepareTranscriptRevisionEdits,
+	retainTranscriptRevisionWorkingPatch,
 } from "./revision-edit-model";
+
+describe("retainTranscriptRevisionWorkingPatch", () => {
+	const segment: TranscriptReaderSegment = {
+		id: "r-1-seg-1",
+		trackNumber: 1,
+		startMs: 0,
+		endMs: 1000,
+		speaker: "Alya",
+		text: "Olá",
+	};
+
+	it("preserves transient whitespace while typing", () => {
+		expect(
+			retainTranscriptRevisionWorkingPatch(segment, {
+				id: segment.id,
+				speaker: segment.speaker,
+				text: "Olá ",
+			}),
+		).toEqual({
+			id: segment.id,
+			speaker: "Alya",
+			text: "Olá ",
+		});
+	});
+
+	it("drops a working patch only when it exactly matches the baseline", () => {
+		expect(
+			retainTranscriptRevisionWorkingPatch(segment, {
+				id: segment.id,
+				speaker: segment.speaker,
+				text: segment.text,
+			}),
+		).toBeNull();
+	});
+});
 
 describe("prepareTranscriptRevisionEdits", () => {
 	it("requires at least one changed segment", () => {

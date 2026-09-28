@@ -5,6 +5,7 @@ import { Button } from "@/components/ui";
 import { saveTranscriptRevisionAction } from "./revision-edit-actions";
 import {
 	applyTranscriptRevisionEdits,
+	retainTranscriptRevisionWorkingPatch,
 	type TranscriptRevisionEditPatch,
 } from "./revision-edit-model";
 import {
@@ -33,17 +34,6 @@ type Props = Readonly<{
 
 function normalizeSearch(value: string): string {
 	return value.trim().toLocaleLowerCase("pt-BR");
-}
-
-function dirtyPatch(
-	segment: TranscriptReaderSegment,
-	patch: TranscriptRevisionEditPatch | undefined,
-): TranscriptRevisionEditPatch | null {
-	if (!patch) return null;
-	const speaker = patch.speaker;
-	const text = patch.text;
-	if (speaker === segment.speaker && text === segment.text) return null;
-	return { id: segment.id, speaker, text };
 }
 
 export function TranscriptRevisionEditor({
@@ -193,7 +183,7 @@ export function TranscriptRevisionEditor({
 				text: segment.text,
 			};
 			const candidate = { ...existing, [field]: value };
-			const normalized = dirtyPatch(segment, candidate);
+			const normalized = retainTranscriptRevisionWorkingPatch(segment, candidate);
 			if (normalized) next.set(segment.id, normalized);
 			else next.delete(segment.id);
 			return next;
