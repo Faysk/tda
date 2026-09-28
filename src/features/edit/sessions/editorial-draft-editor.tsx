@@ -34,6 +34,7 @@ type Props = Readonly<{
 	publicationAvailable: boolean;
 	surface?: "session" | "summary";
 	active?: boolean;
+	onPreview?: () => void;
 	transport?: SessionEditorialDraftEditorTransport;
 }>;
 
@@ -90,6 +91,7 @@ export function SessionEditorialDraftEditor({
 	publicationAvailable,
 	surface = "session",
 	active = true,
+	onPreview,
 	transport,
 }: Props) {
 	const router = useRouter();
@@ -578,7 +580,7 @@ export function SessionEditorialDraftEditor({
 				</div>
 			) : null}
 
-			{surface === "session" && publishIntent ? (
+			{publishIntent ? (
 				<div
 					className={draftStyles.publicationConfirm}
 					role="dialog"
@@ -690,7 +692,7 @@ export function SessionEditorialDraftEditor({
 					</small>
 				</div>
 
-				{surface === "session" && publishMessage ? (
+				{publishMessage ? (
 					<span
 						className={styles.saveState}
 						data-state={publishPhase === "published" ? "saved" : publishPhase}
@@ -712,33 +714,39 @@ export function SessionEditorialDraftEditor({
 						onClick={() => void save()}
 						type="button"
 					>
-						{surface === "summary" ? "Salvar resumo" : "Salvar sessão"}
+						{surface === "summary" ? "Salvar resumo" : "Salvar draft"}
 					</button>
-					{surface === "session" ? (
-						<button
-							className={draftStyles.controlButton}
-							disabled={!publishReady}
-							title={
-								!publicationAvailable
-									? "Autoridade de publicação indisponível."
-									: !publishable
-										? "Sua conta não tem a capability de publicação."
-										: dirty
-											? "Salve o draft antes de publicar."
-											: transcriptChanged
-												? "Revise a transcrição atual antes de publicar."
-												: missing.length
-													? "Complete os campos editoriais obrigatórios."
-													: "Publicação pública explícita."
-							}
-							onClick={openPublicationConfirmation}
-							type="button"
-						>
-							{currentPublicationId || initial.sessionStatus === "published"
-								? "Publicar nova versão"
-								: "Publicar no site"}
-						</button>
-					) : null}
+					<button
+						className={draftStyles.controlButton}
+						disabled={!onPreview}
+						onClick={onPreview}
+						type="button"
+					>
+						Preview
+					</button>
+					<button
+						className={draftStyles.controlButton}
+						disabled={!publishReady}
+						title={
+							!publicationAvailable
+								? "Autoridade de publicação indisponível."
+								: !publishable
+									? "Sua conta não tem a capability de publicação."
+									: dirty
+										? "Salve o draft antes de publicar."
+										: transcriptChanged
+											? "Revise a transcrição atual antes de publicar."
+											: missing.length
+												? "Complete os campos editoriais obrigatórios."
+												: "Publicação pública explícita."
+						}
+						onClick={openPublicationConfirmation}
+						type="button"
+					>
+						{currentPublicationId || initial.sessionStatus === "published"
+							? "Publicar nova versão"
+							: "Publicar no site"}
+					</button>
 				</div>
 			</footer>
 		</section>
