@@ -38,6 +38,18 @@ begin
 
   if not has_column_privilege(
        'service_role',
+       'public.session_editorial_drafts',
+       'session_date',
+       'UPDATE'
+     )
+     or not has_column_privilege(
+       'service_role',
+       'public.session_editorial_drafts',
+       'session_date_captured',
+       'UPDATE'
+     )
+     or not has_column_privilege(
+       'service_role',
        'public.session_publications',
        'session_date',
        'UPDATE'
