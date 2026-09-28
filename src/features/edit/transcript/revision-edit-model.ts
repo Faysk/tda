@@ -77,3 +77,81 @@ export function prepareTranscriptRevisionEditChanges(
 		? { ok: false, issues: [...new Set(issues)] }
 		: { ok: true, value: { changes } };
 }
+
+
+export type TranscriptRevisionEditPersistenceResult =
+	| Readonly<{
+			status: "updated" | "replay" | "no_change";
+			revisionId: string;
+			revisionNumber: number;
+			currentRevisionId: string;
+	  }>
+	| Readonly<{
+			status: "stale_current";
+			currentRevisionId: string | null;
+	  }>
+	| Readonly<{
+			status:
+				| "operation_conflict"
+				| "forbidden"
+				| "not_found"
+				| "invalid_base"
+				| "invalid_change"
+				| "invalid_payload"
+				| "dependency_unavailable";
+	  }>;
+
+type AtomicTranscriptRevisionEditRow = Readonly<{
+	status?: unknown;
+	revision_id?: unknown;
+	revision_number?: unknown;
+	current_revision_id?: unknown;
+}>;
+
+function parseUuid(value: unknown): string | null {
+	return typeof value === "string" && value.length >= 32 && value.length <= 40
+		? value
+		: null;
+}
+
+export function parseTranscriptRevisionEditResult(
+	data: unknown,
+): TranscriptRevisionEditPersistenceResult {
+	if (!Array.isArray(data) || data.length !== 1)
+		return { status: "dependency_unavailable" };
+
+	const row = data[0] as AtomicTranscriptRevisionEditRow;
+	const currentRevisionId = parseUuid(row.current_revision_id);
+	switch (row.status) {
+		case "updated":
+		case "replay":
+		case "no_change": {
+			const revisionId = parseUuid(row.revision_id);
+			const revisionNumber =
+				typeof row.revision_number === "number" &&
+				Number.isSafeInteger(row.revision_number) &&
+				row.revision_number > 0
+					? row.revision_number
+					: null;
+			return revisionId && revisionNumber && currentRevisionId
+				? {
+						status: row.status,
+						revisionId,
+						revisionNumber,
+						currentRevisionId,
+					}
+				: { status: "dependency_unavailable" };
+		}
+		case "stale_current":
+			return { status: "stale_current", currentRevisionId };
+		case "operation_conflict":
+		case "forbidden":
+		case "not_found":
+		case "invalid_base":
+		case "invalid_change":
+		case "invalid_payload":
+			return { status: row.status };
+		default:
+			return { status: "dependency_unavailable" };
+	}
+}
