@@ -253,18 +253,23 @@ begin
     return;
   end if;
 
-  select
-    count(*) filter (where coalesce((value->>'reviewed')::boolean, false)),
-    coalesce(
-      sum(
-        cardinality(
-          regexp_split_to_array(btrim(value->>'text'), E'\\s+')
-        )
-      ),
-      0
-    )
-  into v_reviewed_segments, v_word_count
+  select count(*) filter (
+    where coalesce((value->>'reviewed')::boolean, false)
+  )
+  into v_reviewed_segments
   from jsonb_array_elements(v_segments);
+
+  -- Keep the database metadata on the same count_words_v1 separator contract
+  -- used by the Agent and Web. U+001C..001F and U+FEFF are deliberately not
+  -- separators; no editorial text is normalized.
+  select count(*)::integer
+  into v_word_count
+  from jsonb_array_elements(v_segments) segment(value)
+  cross join lateral regexp_matches(
+    segment.value->>'text',
+    U&'[^\0009-\000D\0020\0085\00A0\1680\2000-\200A\2028\2029\202F\205F\3000]+',
+    'g'
+  );
 
   v_review_summary := jsonb_set(
     jsonb_set(
