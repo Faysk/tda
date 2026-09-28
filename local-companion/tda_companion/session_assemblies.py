@@ -581,6 +581,15 @@ def load_session_assembly(
         or manifest.get("campaign_id") != campaign_id
         or manifest.get("session_id") != session_id
         or manifest.get("canonicalization_version") != ASSEMBLY_CANONICALIZATION_VERSION
+        or manifest.get("inputs_sha256") != assembly_id
+        or manifest.get("timing_policy_version") != TIMING_POLICY_VERSION
+        or manifest.get("segment_boundary_policy") != SEGMENT_BOUNDARY_POLICY
+        or not isinstance(manifest.get("timeline_fingerprint_sha256"), str)
+        or _SHA256.fullmatch(manifest["timeline_fingerprint_sha256"]) is None
+        or manifest.get("participant_mapping_schema_version") != "tda_session_participant_mapping_v1"
+        or manifest.get("participant_mapping_policy") != "strong_discord_or_manual_v1"
+        or not isinstance(manifest.get("participant_mapping_sha256"), str)
+        or _SHA256.fullmatch(manifest["participant_mapping_sha256"]) is None
         or not isinstance(manifest.get("transcript_sha256"), str)
         or _SHA256.fullmatch(manifest["transcript_sha256"]) is None
         or isinstance(manifest.get("transcript_size_bytes"), bool)
