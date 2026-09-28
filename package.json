@@ -20,6 +20,7 @@
     "media:validate": "node tools/media/pipeline.mjs validate",
     "media:publish": "node tools/media/pipeline.mjs publish",
     "media:verify-public": "node tools/media/verify-public.mjs",
+    "smoke:world-media:production": "node tools/world-entity-media-production-smoke.mjs",
     "design:check": "node tools/check-design-system.mjs",
     "docs:check": "node tools/check-docs.mjs",
     "docs:generate": "node tools/documentation-catalog.mjs --write",
