@@ -322,7 +322,22 @@ async function verifyPublicDelivery(asset, attempts = 8) {
 				cache: "no-store",
 				headers: { "cache-control": "no-cache" },
 			});
-			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			if (!response.ok) {
+				const diagnosticHeaders = [
+					"cf-mitigated",
+					"cf-cache-status",
+					"cf-ray",
+					"server",
+					"content-type",
+				]
+					.map((name) => [name, response.headers.get(name)])
+					.filter(([, value]) => value)
+					.map(([name, value]) => `${name}=${value}`)
+					.join(", ");
+				throw new Error(
+					`HTTP ${response.status}${diagnosticHeaders ? ` (${diagnosticHeaders})` : ""}`,
+				);
+			}
 			const actualType = response.headers
 				.get("content-type")
 				?.split(";")[0]
