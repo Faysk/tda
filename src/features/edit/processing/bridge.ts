@@ -39,6 +39,11 @@ import {
 	LOCAL_JSON_BODY_MAX_BYTES,
 	serializedJsonBody,
 } from "./request-budget";
+import {
+	parseSessionAssembly,
+	parseSessionAssemblyList,
+	parseSessionAssemblyReviewSummary,
+} from "./session-composer-protocol";
 
 const LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024;
 
@@ -468,6 +473,90 @@ export class LocalBridge {
 			),
 		);
 	}
+	async selectSessionPartRun(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		runId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/parts/run",
+				signal,
+				{
+					part_id: identifier(partId),
+					run_id: runIdentifier(runId),
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+
+	async sessionAssemblies(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssemblyList(
+			await this.json(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies",
+				signal,
+			),
+		);
+	}
+
+	async buildSessionAssembly(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssembly(
+			await this.json(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies",
+				signal,
+				{ expected_revision: expectedRevision },
+			),
+		);
+	}
+
+	async sessionAssemblyReviewBase(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		if (!/^[0-9a-f]{64}$/u.test(assemblyId))
+			throw new BridgeError("invalid_response");
+		return parseSessionAssemblyReviewSummary(
+			await this.reviewJson(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies/" +
+					assemblyId +
+					"/review/base",
+				signal,
+			),
+			assemblyId,
+		);
+	}
+
 	async preparation(signal: AbortSignal) {
 		return parsePreparationStatus(await this.json("/preparation", signal));
 	}
