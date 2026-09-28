@@ -378,6 +378,7 @@ begin
     jsonb_build_object(
       'currentRevisionId', v_revision_id,
       'revisionNumber', v_revision_number,
+      'operationId', p_operation_id,
       'parentRevisionId', v_parent.id,
       'changedSegments', v_edit_count,
       'editDeltaSha256', v_edit_delta_sha256,
