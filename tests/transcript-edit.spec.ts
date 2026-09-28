@@ -12,7 +12,8 @@ async function editFirst(
 	text: string,
 	speaker = "Álya editada",
 ) {
-	await page.getByRole("button", { name: "Editar transcrição" }).click();
+	const enterEditMode = page.getByRole("button", { name: "Editar transcrição" });
+	if (await enterEditMode.count()) await enterEditMode.click();
 	const first = page.locator("[data-transcript-segment]").first();
 	await first.getByRole("button", { name: "Editar fala" }).click();
 	await first.getByLabel("Speaker").fill(speaker);
@@ -89,8 +90,11 @@ test("stale current preserves the working copy and never retries blindly", async
 	await page
 		.getByRole("button", { name: "Salvar alterações da transcrição" })
 		.click();
-	await expect(page.getByRole("alert")).toContainText("working copy foi preservada");
-	await expect(page.getByRole("alert")).toContainText("Remoto: r2");
+	const readerAlert = page
+		.getByRole("region", { name: "Leitor e editor de transcrição" })
+		.getByRole("alert");
+	await expect(readerAlert).toContainText("working copy foi preservada");
+	await expect(readerAlert).toContainText("Remoto: r2");
 	await expect(
 		page.getByText("Minha correção local", { exact: true }),
 	).toBeVisible();
@@ -112,9 +116,11 @@ test("ambiguous response reuses the operation and reconciles without a duplicate
 	await page
 		.getByRole("button", { name: "Salvar alterações da transcrição" })
 		.click();
-	await expect(page.getByRole("alert")).toContainText(
-		"Não foi possível confirmar o save",
-	);
+	await expect(
+		page
+			.getByRole("region", { name: "Leitor e editor de transcrição" })
+			.getByRole("alert"),
+	).toContainText("Não foi possível confirmar o save");
 	await page
 		.getByRole("button", { name: "Salvar alterações da transcrição" })
 		.click();
@@ -217,7 +223,10 @@ test("read-only and mobile states remain contained and keyboard editing is opera
 	await first
 		.getByRole("button", { name: "Concluir edição da fala" })
 		.click();
-	await page.keyboard.press("Control+s");
+	await expect(
+		page.getByText("1 alteração(ões) não salvas", { exact: true }),
+	).toBeVisible();
+	await page.keyboard.press("Control+KeyS");
 	await expect(
 		page.getByText("Revisão privada r2 salva.", { exact: true }),
 	).toBeVisible();
