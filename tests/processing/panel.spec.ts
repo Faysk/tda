@@ -1257,6 +1257,15 @@ test("processing header exposes one latest Companion download outside the tablis
 	await expect(tooltip).toHaveText(
 		"TDA Companion v0.3.16 · RC · Windows x64 · MSI",
 	);
+	const [downloadBox, tooltipBox] = await Promise.all([
+		download.boundingBox(),
+		tooltip.boundingBox(),
+	]);
+	expect(downloadBox).not.toBeNull();
+	expect(tooltipBox).not.toBeNull();
+	expect((tooltipBox?.x ?? 999) + (tooltipBox?.width ?? 999)).toBeLessThan(
+		downloadBox?.x ?? 0,
+	);
 	await download.focus();
 	await page.keyboard.press("Escape");
 	await expect(tooltip).toBeHidden();
