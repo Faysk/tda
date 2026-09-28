@@ -65,6 +65,7 @@ export function TranscriptRevisionEditor({
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [jumpValue, setJumpValue] = useState("");
+	const [matchCursor, setMatchCursor] = useState(-1);
 	const [visibleCount, setVisibleCount] = useState(() =>
 		Math.min(INITIAL_VISIBLE, segments.length),
 	);
@@ -208,6 +209,13 @@ export function TranscriptRevisionEditor({
 				});
 			});
 		});
+	}
+
+	function moveMatch(delta: number) {
+		if (!matches.length) return;
+		const next = (matchCursor + delta + matches.length) % matches.length;
+		setMatchCursor(next);
+		reveal(matches[next]);
 	}
 
 	function jump() {
@@ -355,11 +363,33 @@ export function TranscriptRevisionEditor({
 						value={query}
 					/>
 				</label>
-				<span className={styles.matchCount}>
-					{normalizedQuery
-						? `${matches.length} ocorrência(s)`
-						: "Busca na working copy"}
-				</span>
+				<div className={styles.searchNav}>
+					<span className={styles.matchCount}>
+						{normalizedQuery
+							? `${matches.length} ocorrência(s)`
+							: "Busca na working copy"}
+					</span>
+					{matches.length ? (
+						<>
+							<Button
+								aria-label="Ocorrência anterior"
+								onClick={() => moveMatch(-1)}
+								size="sm"
+								variant="tertiary"
+							>
+								↑
+							</Button>
+							<Button
+								aria-label="Próxima ocorrência"
+								onClick={() => moveMatch(1)}
+								size="sm"
+								variant="tertiary"
+							>
+								↓
+							</Button>
+						</>
+					) : null}
+				</div>
 				<div className={styles.jump}>
 					<label>
 						<span>Ir para tempo</span>
@@ -406,9 +436,15 @@ export function TranscriptRevisionEditor({
 				>
 					<span>{message}</span>
 					{phase === "conflict" ? (
-						<a href={window.location.href} rel="noreferrer" target="_blank">
+						<button
+							className={styles.inlineLink}
+							onClick={() =>
+								window.open(window.location.href, "_blank", "noopener,noreferrer")
+							}
+							type="button"
+						>
 							Abrir versão atual em outra aba
-						</a>
+						</button>
 					) : null}
 				</div>
 			) : null}
