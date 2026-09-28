@@ -579,6 +579,33 @@ export function SessionRecordingComposer({
 							>
 								{sourceRuns.length ? "Reprocessar" : "Processar"}
 							</Button>
+							<Button
+								size="sm"
+								variant="tertiary"
+								disabled={Boolean(working) || busy || active}
+								onClick={() => {
+									if (
+										!window.confirm(
+											`Remover a gravação ${part.ordinal + 1} desta sessão? A fonte e seus runs locais serão preservados.`,
+										)
+									)
+										return;
+									void mutate(
+										`detach:${part.partId}`,
+										() =>
+											bridge.detachSessionPart(
+												workspace.campaignId,
+												workspace.sessionId,
+												part.partId,
+												workspace.revision,
+												new AbortController().signal,
+											),
+										"Gravação removida da sessão; source e runs foram preservados.",
+									);
+								}}
+							>
+								Remover
+							</Button>
 						</div>
 
 						{supportsTimeline &&
