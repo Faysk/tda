@@ -213,6 +213,33 @@ test("profile panel stays anchored to the floating avatar after document scroll"
 	await expectNoHorizontalOverflow(page);
 });
 
+test("World keeps floating global navigation without the retired header reveal control", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	for (const viewport of [
+		{ width: 1366, height: 768 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/mundo");
+
+		await expect(page.getByRole("button", { name: "Mostrar menu principal" })).toHaveCount(0);
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await expect(trigger).toBeVisible();
+		const workspace = page.getByTestId("world-workspace");
+		const workspaceBox = await workspace.boundingBox();
+		expect(workspaceBox).not.toBeNull();
+		if (workspaceBox) {
+			expect(workspaceBox.y).toBeLessThanOrEqual(1);
+			expect(workspaceBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
+		}
+
+		const panel = await openGlobalMenu(page);
+		await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+		await expectPanelContained(page);
+		await page.keyboard.press("Escape");
+	}
+});
+
 test("unified panel projects only authorized tools", async ({ page }) => {
 	await mockAccess(page, { capabilities: ["campaign.transcript.read", "campaign.local.process", "campaign.permissions.manage"] });
 	await page.goto("/");
