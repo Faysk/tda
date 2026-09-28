@@ -72,6 +72,23 @@ test("representative public surfaces remain clear at the 200% zoom-equivalent vi
 	}
 });
 
+test("Pipipi cinematic hero uses the reclaimed viewport in the shell gate", async ({ page }) => {
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/lore/pipipi");
+		const hero = page.locator("#topo");
+		await expect(hero).toBeVisible();
+		const box = await hero.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.y).toBeLessThanOrEqual(1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+	}
+});
+
 test("Pipipi sticky chapter navigation clears the global chrome on mobile", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/lore/pipipi");
