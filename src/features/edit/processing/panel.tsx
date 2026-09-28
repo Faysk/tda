@@ -28,6 +28,7 @@ import {
 } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
+import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
@@ -982,6 +983,11 @@ export function ProcessingPanel({
 						hidden={view !== "results"}
 					>
 						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
+						{state.capabilities ? (
+							<SessionAssemblyResults
+								capabilities={state.capabilities.capabilities}
+							/>
+						) : null}
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							hasMore={state.localRunsHasMore}

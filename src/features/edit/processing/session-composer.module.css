@@ -1,0 +1,257 @@
+.composer {
+	display: grid;
+	gap: 10px;
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+}
+.header, .attachRow, .timelineSummary, .actions, .assemblies > div, .partMain {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.header > div:first-child, .attachRow > div, .timelineSummary > div, .actions > div:first-child, .partCopy {
+	display: grid;
+	min-width: 0;
+	gap: 3px;
+}
+.header > div:first-child > span, .attachRow span, .timelineSummary span, .actions span, .partCopy span, .partCopy small, .empty, .conflicts p, .reviewLoaded span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+.header h3 {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: 1rem;
+	font-weight: 500;
+}
+.headerActions, .reorder, .actions > div:last-child {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+.reorder {
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.attachRow, .timelineSummary, .actions, .assemblies, .reviewLoaded {
+	padding: 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+.attachRow strong, .timelineSummary strong, .actions strong, .assemblies > strong, .reviewLoaded strong, .partCopy strong {
+	font-size: 0.78rem;
+}
+.timelineSummary[data-state="gap_unconfirmed"], .timelineSummary[data-state="overlap_unresolved"], .timelineSummary[data-state="order_conflict"], .timelineSummary[data-state="needs_timing"] {
+	border-color: color-mix(in srgb, var(--ds-warning) 40%, var(--ds-border));
+}
+.parts {
+	display: grid;
+	gap: 7px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.part {
+	display: grid;
+	gap: 8px;
+	padding: 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+.partIndex {
+	display: grid;
+	width: 26px;
+	height: 26px;
+	flex: 0 0 26px;
+	place-items: center;
+	border: 1px solid var(--ds-border);
+	border-radius: 999px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	font-variant-numeric: tabular-nums;
+}
+.partCopy {
+	flex: 1 1 auto;
+}
+.partCopy small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.partControls {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) auto;
+	align-items: end;
+	gap: 8px;
+	padding-left: 38px;
+}
+.partControls label, .timingControls label, .conflictList label, .overlapControls label {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+}
+.partControls label > span, .timingControls label > span, .conflictList label > span, .overlapControls label > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 700;
+}
+.partControls select, .timingControls select, .timingControls input, .conflictList select, .overlapControls select, .overlapControls input {
+	width: 100%;
+	min-height: 34px;
+	padding: 5px 7px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+.partControls select:focus-visible, .timingControls select:focus-visible, .timingControls input:focus-visible, .conflictList select:focus-visible, .overlapControls select:focus-visible, .overlapControls input:focus-visible, .partControls summary:focus-visible, .conflicts summary:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+.partControls details {
+	align-self: center;
+}
+.partControls summary, .conflicts summary {
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+.timingControls {
+	display: grid;
+	grid-template-columns: minmax(140px, 1fr) auto;
+	align-items: end;
+	gap: 8px;
+	margin-top: 8px;
+	padding: 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+.overlapControls {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: minmax(240px, 1fr) minmax(140px, 0.5fr) auto;
+	align-items: end;
+	gap: 8px;
+}
+.conflicts {
+	padding: 8px 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+.conflictList {
+	display: grid;
+	gap: 8px;
+	padding-top: 8px;
+}
+.conflictList fieldset {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	margin: 0;
+	padding: 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+}
+.conflictList legend {
+	padding: 0 4px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+}
+.actions > div:last-child {
+	justify-content: flex-end;
+}
+.assemblies {
+	display: grid;
+	gap: 6px;
+}
+.assemblies > div {
+	padding-top: 5px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+.assemblies span {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.reviewLoaded {
+	display: grid;
+	gap: 3px;
+	border-color: color-mix(in srgb, var(--ds-success) 40%, var(--ds-border));
+}
+.empty {
+	margin: 0;
+	padding: 7px 2px;
+}
+.error, .live {
+	margin: 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+.error {
+	color: var(--ds-danger);
+}
+.live {
+	min-height: 1em;
+	color: var(--ds-foreground-muted);
+}
+@media (max-width: 720px) {
+	.header, .attachRow, .timelineSummary, .actions, .assemblies > div {
+		align-items: stretch;
+		flex-direction: column;
+	}
+	.headerActions, .actions > div:last-child {
+		width: 100%;
+		flex-wrap: wrap;
+	}
+	.headerActions :global(.ds-action), .actions > div:last-child :global(.ds-action), .attachRow :global(.ds-action), .timelineSummary :global(.ds-action) {
+		flex: 1 1 160px;
+	}
+	.partControls {
+		grid-template-columns: 1fr;
+		padding-left: 0;
+	}
+	.timingControls, .overlapControls, .conflictList fieldset {
+		grid-template-columns: 1fr;
+	}
+	.reorder {
+		align-self: flex-start;
+	}
+	.assemblies span {
+		white-space: normal;
+	}
+}
+@media (max-width: 340px) {
+	.partMain {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+	.partCopy {
+		flex-basis: calc(100% - 40px);
+	}
+	.reorder {
+		margin-left: 38px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.composer {
+		scroll-behavior: auto;
+	}
+}

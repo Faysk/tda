@@ -51,6 +51,7 @@ import {
 	qwenRuntimeReleaseMessage,
 	type QwenRuntimeReleaseAvailability,
 } from "./qwen-runtime-release-availability";
+import { SessionRecordingComposer } from "./session-composer";
 import {
 	chooseSubmissionProfile,
 	formatSubmissionBytes,
@@ -213,6 +214,7 @@ export function ProcessingSubmission({
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
+	const [composerActive, setComposerActive] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -727,7 +729,7 @@ export function ProcessingSubmission({
 			);
 			setFile(null);
 			setSource(null);
-			setSessionId("");
+			if (!composerActive) setSessionId("");
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -930,12 +932,14 @@ export function ProcessingSubmission({
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
 								required
-								disabled={busy}
+								disabled={busy || composerActive}
 								placeholder="sessao-42"
 								aria-describedby="session-id-help"
 							/>
 							<small id="session-id-help">
-								Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável.
+								{composerActive
+									? "Alvo fixado enquanto o composer desta sessão estiver ativo."
+									: "Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável antes de compor."}
 							</small>
 						</label>
 						<label>
@@ -1119,6 +1123,27 @@ export function ProcessingSubmission({
 					) : null}
 				</form>
 			)}
+
+			{capabilities ? (
+				<SessionRecordingComposer
+					bridge={bridge}
+					capabilities={capabilities.capabilities}
+					sessionId={sessionId}
+					currentSource={source}
+					profile={profile}
+					context={context}
+					glossary={glossary}
+					profileReady={selectedProfileState?.ready === true}
+					recoveryScope={recoveryScope}
+					disabled={busy || requestTooLarge}
+					onActiveChange={setComposerActive}
+					onRestoreSessionId={(value) =>
+						setSessionId((current) => current || value)
+					}
+					onStatus={setStatus}
+					onError={setError}
+				/>
+			) : null}
 
 			{preparation?.state === "interrupted" ? (
 				<div className={styles.notice} role="status">
