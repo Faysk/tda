@@ -96,8 +96,12 @@ async function invoke(
 			expectedCurrentRevisionId: input.expectedCurrentRevisionId,
 			sourceSystem: "local_companion",
 			sourceSessionId: input.target.sourceSessionId,
-			sourceId: input.sourceId,
-			runId: input.runId,
+			...(input.publicationKind === "single_source"
+				? { sourceId: input.sourceId, runId: input.runId }
+				: {
+						publicationKind: input.publicationKind,
+						provenance: input.provenance,
+					}),
 			baseTranscriptSha256: input.baseTranscriptSha256,
 			draftSha256: input.draftSha256,
 			payloadSha256: input.payloadSha256,

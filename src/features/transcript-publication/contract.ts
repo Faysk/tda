@@ -1,3 +1,4 @@
+import { MULTI_SOURCE_PUBLICATION_RECEIPT_VERSION } from "./multi-source-canonical";
 import { createHash } from "node:crypto";
 import {
 	PUBLICATION_RECEIPT_VERSION,
@@ -8,6 +9,17 @@ import {
 	type PublicationResult,
 	UUID,
 } from "./canonical";
+
+export {
+	MULTI_SOURCE_PROVENANCE_VERSION,
+	MULTI_SOURCE_PUBLICATION_PAYLOAD_VERSION,
+	MULTI_SOURCE_PUBLICATION_RECEIPT_VERSION,
+	MULTI_SOURCE_PUBLICATION_REQUEST_VERSION,
+} from "./multi-source-canonical";
+export type {
+	CanonicalMultiSourcePart,
+	CanonicalMultiSourceProvenance,
+} from "./multi-source-canonical";
 
 export {
 	MAX_PUBLICATION_PAYLOAD_BYTES,
@@ -57,8 +69,7 @@ export function confirmedPublicationReceipt(
 	receipt: PublicationReceipt,
 	expected: PreparedPublication & { campaignId: string; sessionId: string },
 ): boolean {
-	return (
-		receipt.schemaVersion === PUBLICATION_RECEIPT_VERSION &&
+	const common =
 		receipt.status === "committed" &&
 		UUID.test(receipt.receiptId) &&
 		receipt.campaignId === expected.campaignId &&
@@ -67,14 +78,24 @@ export function confirmedPublicationReceipt(
 		Number.isSafeInteger(receipt.revisionNumber) &&
 		receipt.revisionNumber > 0 &&
 		receipt.operationId === expected.operationId &&
-		receipt.sourceId === expected.sourceId &&
-		receipt.runId === expected.runId &&
 		receipt.baseTranscriptSha256 === expected.baseTranscriptSha256 &&
 		receipt.draftSha256 === expected.draftSha256 &&
 		receipt.payloadSha256 === expected.payloadSha256 &&
 		receipt.segmentCount === expected.segmentCount &&
 		Number.isSafeInteger(receipt.wordCount) &&
 		receipt.wordCount >= 0 &&
-		Number.isFinite(Date.parse(receipt.committedAt))
+		Number.isFinite(Date.parse(receipt.committedAt));
+	if (!common) return false;
+	if (expected.publicationKind === "single_source") {
+		return (
+			receipt.schemaVersion === PUBLICATION_RECEIPT_VERSION &&
+			receipt.sourceId === expected.sourceId &&
+			receipt.runId === expected.runId
+		);
+	}
+	return (
+		receipt.schemaVersion === MULTI_SOURCE_PUBLICATION_RECEIPT_VERSION &&
+		receipt.assemblyId === expected.provenance?.assembly_id &&
+		receipt.partCount === expected.provenance?.parts.length
 	);
 }
