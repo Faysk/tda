@@ -726,7 +726,7 @@ begin
            'reviewed'
          )
        )
-       or coalesce(raw.value->>'assembly_segment_id', '') !~ '^[0-9a-f]{64} '^[0-9a-f]{32}$'
+       or coalesce(raw.value->>'assembly_segment_id', '') !~ '^[0-9a-f]{64}
        or coalesce(raw.value->>'source_id', '') !~ '^craig-[0-9a-f]{64}$'
        or coalesce(raw.value->>'run_id', '') !~ '^[A-Za-z0-9_-]{1,196}$'
        or char_length(raw.value->>'source_segment_id') not between 1 and 256
@@ -1068,7 +1068,347 @@ comment on column public.transcript_revisions.assembly_id is
 'Session Assembly identity; equals the canonical inputs SHA-256 for assembly-backed revisions.';
 
        or raw.value->>'segment_id' is distinct from raw.value->>'assembly_segment_id'
-       or coalesce(raw.value->>'part_id', '') !~ '^[0-9a-f]{32}$'
+       or coalesce(raw.value->>'part_id', '') !~ '^[0-9a-f]{32}
+       or coalesce(raw.value->>'source_id', '') !~ '^craig-[0-9a-f]{64}$'
+       or coalesce(raw.value->>'run_id', '') !~ '^[A-Za-z0-9_-]{1,196}$'
+       or char_length(raw.value->>'source_segment_id') not between 1 and 256
+       or jsonb_typeof(raw.value->'track_number') is distinct from 'number'
+       or coalesce(raw.value->>'track_number', '') !~ '^[0-9]{1,4}$'
+       or (raw.value->>'track_number')::integer < 1
+       or jsonb_typeof(raw.value->'start') is distinct from 'number'
+       or jsonb_typeof(raw.value->'end') is distinct from 'number'
+       or (raw.value->>'start')::numeric < 0
+       or (raw.value->>'end')::numeric < (raw.value->>'start')::numeric
+       or (raw.value->>'end')::numeric > 604800
+       or jsonb_typeof(raw.value->'text') is distinct from 'string'
+       or jsonb_typeof(raw.value->'speaker') is distinct from 'string'
+       or jsonb_typeof(raw.value->'reviewed') is distinct from 'boolean'
+       or char_length(raw.value->>'text') not between 1 and 100000
+       or char_length(raw.value->>'speaker') not between 1 and 160
+       or translate(
+         raw.value->>'speaker',
+         U&'\0001\0002\0003\0004\0005\0006\0007\0008\0009\000A\000B\000C\000D\000E\000F\0010\0011\0012\0013\0014\0015\0016\0017\0018\0019\001A\001B\001C\001D\001E\001F\007F',
+         ''
+       ) <> raw.value->>'speaker'
+       or translate(
+         raw.value->>'text',
+         U&'\0001\0002\0003\0004\0005\0006\0007\0008\000B\000C\000E\000F\0010\0011\0012\0013\0014\0015\0016\0017\0018\0019\001A\001B\001C\001D\001E\001F\007F',
+         ''
+       ) <> raw.value->>'text'
+       or translate(
+         raw.value->>'speaker',
+         U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
+         ''
+       ) = ''
+       or translate(
+         raw.value->>'text',
+         U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
+         ''
+       ) = ''
+       or not exists (
+         select 1
+         from jsonb_array_elements(v_provenance->'parts') part(value)
+         where part.value->>'part_id' = raw.value->>'part_id'
+           and part.value->>'source_id' = raw.value->>'source_id'
+           and part.value->>'run_id' = raw.value->>'run_id'
+       )
+  ) then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+  end if;
+
+  if (
+    select count(*)
+    from (
+      select value->>'assembly_segment_id'
+      from jsonb_array_elements(v_segments)
+      group by 1
+    ) unique_segments
+  ) <> v_segment_count then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+  end if;
+
+  select count(*) filter (
+    where coalesce((value->>'reviewed')::boolean, false)
+  )
+  into v_reviewed_segments
+  from jsonb_array_elements(v_segments);
+
+  select count(*)::integer
+  into v_word_count
+  from jsonb_array_elements(v_segments) segment(value)
+  cross join lateral string_to_table(
+    translate(
+      segment.value->>'text',
+      U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
+      repeat(' ', 25)
+    ),
+    ' '
+  ) token(value)
+  where token.value <> '';
+
+  v_warning_count := (v_review->>'warning_count')::integer;
+  if (v_review->>'reviewed_segments')::integer <> v_reviewed_segments
+     or (v_review->>'word_count')::integer <> v_word_count then
+    return jsonb_build_object('ok', false, 'reason', 'invalid_payload');
+  end if;
+
+  select coalesce(max(r.revision_number), 0) + 1
+  into v_revision_number
+  from public.transcript_revisions r
+  where r.session_id = v_session.id;
+
+  v_revision_id := gen_random_uuid();
+  v_previous_revision_id := v_session.current_transcript_revision_id;
+  v_action := case when v_previous_revision_id is null then 'publish' else 'replace' end;
+
+  insert into public.transcript_revisions (
+    id,
+    campaign_id,
+    session_id,
+    revision_number,
+    operation_id,
+    source_system,
+    source_session_id,
+    source_id,
+    run_id,
+    base_transcript_sha256,
+    draft_sha256,
+    payload_sha256,
+    segment_count,
+    word_count,
+    reviewed_segments,
+    warning_count,
+    lineage,
+    review_summary,
+    segments,
+    actor_profile_id,
+    publication_kind,
+    assembly_id,
+    assembly_schema_version,
+    assembly_inputs_sha256,
+    assembly_transcript_sha256,
+    assembly_canonicalization_version,
+    timing_policy_version,
+    segment_boundary_policy,
+    timeline_fingerprint_sha256,
+    participant_mapping_schema_version,
+    participant_mapping_policy,
+    participant_mapping_sha256
+  ) values (
+    v_revision_id,
+    v_campaign_id,
+    v_session.id,
+    v_revision_number,
+    v_operation_id,
+    'local_companion',
+    v_source_session_id,
+    null,
+    null,
+    v_base_transcript_sha256,
+    v_draft_sha256,
+    v_payload_sha256,
+    v_segment_count,
+    v_word_count,
+    v_reviewed_segments,
+    v_warning_count,
+    v_lineage,
+    v_review,
+    v_segments,
+    p_actor_profile_id,
+    'session_assembly',
+    v_provenance->>'assembly_id',
+    v_provenance->>'assembly_schema_version',
+    v_provenance->>'inputs_sha256',
+    v_provenance->>'transcript_sha256',
+    v_provenance->>'canonicalization_version',
+    v_provenance->>'timing_policy_version',
+    v_provenance->>'segment_boundary_policy',
+    v_provenance->>'timeline_fingerprint_sha256',
+    v_provenance->>'participant_mapping_schema_version',
+    v_provenance->>'participant_mapping_policy',
+    v_provenance->>'participant_mapping_sha256'
+  );
+
+  insert into public.transcript_revision_parts (
+    revision_id,
+    ordinal,
+    part_id,
+    source_id,
+    source_sha256,
+    run_id,
+    run_transcript_sha256,
+    session_offset_seconds,
+    trim_start_seconds,
+    trim_end_seconds,
+    overlap_resolution,
+    overlap_boundary_seconds
+  )
+  select
+    v_revision_id,
+    (raw.value->>'ordinal')::smallint,
+    raw.value->>'part_id',
+    raw.value->>'source_id',
+    raw.value->>'source_sha256',
+    raw.value->>'run_id',
+    raw.value->>'transcript_sha256',
+    (raw.value->>'session_offset_seconds')::double precision,
+    (raw.value->>'trim_start_seconds')::double precision,
+    case
+      when raw.value->'trim_end_seconds' = 'null'::jsonb then null
+      else (raw.value->>'trim_end_seconds')::double precision
+    end,
+    case
+      when raw.value->'overlap_resolution' = 'null'::jsonb then null
+      else raw.value->>'overlap_resolution'
+    end,
+    case
+      when raw.value->'overlap_boundary_seconds' = 'null'::jsonb then null
+      else (raw.value->>'overlap_boundary_seconds')::double precision
+    end
+  from jsonb_array_elements(v_provenance->'parts') raw(value)
+  order by (raw.value->>'ordinal')::integer;
+
+  v_receipt_id := gen_random_uuid();
+  insert into public.transcript_assembly_publication_receipts (
+    id,
+    campaign_id,
+    session_id,
+    revision_id,
+    operation_id,
+    assembly_id,
+    part_count,
+    base_transcript_sha256,
+    draft_sha256,
+    payload_sha256,
+    segment_count,
+    word_count,
+    actor_profile_id
+  ) values (
+    v_receipt_id,
+    v_campaign_id,
+    v_session.id,
+    v_revision_id,
+    v_operation_id,
+    v_provenance->>'assembly_id',
+    v_part_count,
+    v_base_transcript_sha256,
+    v_draft_sha256,
+    v_payload_sha256,
+    v_segment_count,
+    v_word_count,
+    p_actor_profile_id
+  )
+  returning * into v_existing;
+
+  update public.sessions s
+  set current_transcript_revision_id = v_revision_id
+  where s.id = v_session.id
+    and s.campaign_id = v_campaign_id
+    and s.current_transcript_revision_id is not distinct from v_expected_current_revision_id;
+
+  if not found then
+    raise exception 'transcript revision pointer changed while session was locked';
+  end if;
+
+  insert into public.transcript_publication_events (
+    campaign_id,
+    session_id,
+    operation_id,
+    action,
+    revision_id,
+    previous_revision_id,
+    actor_profile_id
+  ) values (
+    v_campaign_id,
+    v_session.id,
+    v_operation_id,
+    v_action,
+    v_revision_id,
+    v_previous_revision_id,
+    p_actor_profile_id
+  );
+
+  insert into public.audit_log (
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_campaign_id,
+    v_session.id,
+    p_actor_profile_id,
+    'transcript_revision.' || v_action,
+    'transcript_revisions',
+    v_revision_id,
+    jsonb_build_object(
+      'current_revision_id', v_previous_revision_id
+    ),
+    jsonb_build_object(
+      'current_revision_id', v_revision_id,
+      'revision_number', v_revision_number,
+      'publication_kind', 'session_assembly',
+      'assembly_id', v_provenance->>'assembly_id',
+      'assembly_inputs_sha256', v_provenance->>'inputs_sha256',
+      'assembly_transcript_sha256', v_provenance->>'transcript_sha256',
+      'participant_mapping_sha256', v_provenance->>'participant_mapping_sha256',
+      'part_count', v_part_count,
+      'payload_sha256', v_payload_sha256,
+      'segment_count', v_segment_count,
+      'word_count', v_word_count
+    )
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'receipt', jsonb_build_object(
+      'schemaVersion', 'tda_transcript_publication_receipt_v2',
+      'status', 'committed',
+      'receiptId', v_existing.id,
+      'campaignId', v_existing.campaign_id,
+      'sessionId', v_existing.session_id,
+      'revisionId', v_existing.revision_id,
+      'revisionNumber', v_revision_number,
+      'operationId', v_existing.operation_id,
+      'assemblyId', v_existing.assembly_id,
+      'partCount', v_existing.part_count,
+      'baseTranscriptSha256', v_existing.base_transcript_sha256,
+      'draftSha256', v_existing.draft_sha256,
+      'payloadSha256', v_existing.payload_sha256,
+      'segmentCount', v_existing.segment_count,
+      'wordCount', v_existing.word_count,
+      'committedAt', v_existing.committed_at
+    )
+  );
+end;
+$$;
+
+revoke all on function public.publish_transcript_assembly_revision_atomic(
+  uuid, uuid, jsonb, boolean
+) from public;
+revoke execute on function public.publish_transcript_assembly_revision_atomic(
+  uuid, uuid, jsonb, boolean
+) from anon;
+revoke execute on function public.publish_transcript_assembly_revision_atomic(
+  uuid, uuid, jsonb, boolean
+) from authenticated;
+grant execute on function public.publish_transcript_assembly_revision_atomic(
+  uuid, uuid, jsonb, boolean
+) to service_role;
+
+comment on function public.publish_transcript_assembly_revision_atomic(
+  uuid, uuid, jsonb, boolean
+) is
+'Server-only SECURITY INVOKER boundary for immutable Session Assembly transcript publication. Authorization precedes target lookup; revision, ordered part provenance, receipt, current pointer, event and metadata-only audit commit atomically.';
+
+comment on column public.transcript_revisions.publication_kind is
+'Discriminates historical/single-source revision provenance from Session Assembly provenance without rewriting older rows.';
+comment on column public.transcript_revisions.assembly_id is
+'Session Assembly identity; equals the canonical inputs SHA-256 for assembly-backed revisions.';
+
        or coalesce(raw.value->>'source_id', '') !~ '^craig-[0-9a-f]{64}$'
        or coalesce(raw.value->>'run_id', '') !~ '^[A-Za-z0-9_-]{1,196}$'
        or char_length(raw.value->>'source_segment_id') not between 1 and 256
