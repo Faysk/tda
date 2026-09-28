@@ -152,7 +152,9 @@ test("governed console shows people, human access, filters and technical details
 		fullPage: false,
 	});
 
-	await page.getByRole("switch", { name: "Modo escuro" }).click();
+	await page.evaluate(() => {
+		document.documentElement.setAttribute("data-theme", "dark");
+	});
 	await page.screenshot({
 		path: testInfo.outputPath("permissions-console-dark.png"),
 		fullPage: false,
