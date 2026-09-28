@@ -20,8 +20,8 @@ const sceneConfig: Record<
 	}
 > = {
 	casa: {
-		background: "/lore/pipipi/casa-bg.avif",
-		subject: "/lore/pipipi/casa-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/a2e400c56b9e18db51f06213d211e7ed81118a2675a89feaf460bb5bdb2a1959/casa-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/a3ea5b4cad8cccbe90ed01ad7306436639995120c6bddee01638ca113f647820/casa-subject.avif",
 		subjectWidth: 541,
 		subjectHeight: 680,
 		title: "A Casa tinha outro nome",
@@ -31,8 +31,8 @@ const sceneConfig: Record<
 		motion: "cinematic",
 	},
 	"super-herois": {
-		background: "/lore/pipipi/super-bg.avif",
-		subject: "/lore/pipipi/super-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/c372648d38ce17fe1dd3eb70fe4d7a038f13278930f8001efca875b57e889a7d/super-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/0613f27dd4dc910835fe293198ba8a04aaa69f06566c05f034154b2d2aeb720b/super-subject.avif",
 		subjectWidth: 544,
 		subjectHeight: 680,
 		title: "Os super-heróis não vieram salvá-la",
@@ -42,8 +42,8 @@ const sceneConfig: Record<
 		motion: "cinematic",
 	},
 	corredores: {
-		background: "/lore/pipipi/corredores-bg.avif",
-		subject: "/lore/pipipi/corredores-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/50b5c88cf596b7f8c6d434abc7065df7af9c458710fce82a6c1fecd4f080cd23/corredores-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/2fb0164a92fd12008f53e42e9433212d4787d3d788dc05cd017c662693235b13/corredores-subject.avif",
 		subjectWidth: 551,
 		subjectHeight: 680,
 		title: "Algumas crianças nunca foram para casa",
@@ -53,8 +53,8 @@ const sceneConfig: Record<
 		motion: "showcase",
 	},
 	cadeira: {
-		background: "/lore/pipipi/cadeira-bg.avif",
-		subject: "/lore/pipipi/cadeira-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/5a5a0f4281b46824c4302a815fafff452734d4e1f2908fb4ac4734c88887a26a/cadeira-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/1b9678741fa029ed6c76c84d91f9abdcdc94b91d7b7c44ab40886f9b367c0752/cadeira-subject.avif",
 		subjectWidth: 631,
 		subjectHeight: 680,
 		title: "A cadeira",
@@ -64,8 +64,8 @@ const sceneConfig: Record<
 		motion: "breath",
 	},
 	"ultimo-dia": {
-		background: "/lore/pipipi/ultimo-dia-bg.avif",
-		subject: "/lore/pipipi/ultimo-dia-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/4f5fdf9203746e4a32592ba924a3ea4a4ec7c98ef8104050a5ec635ea929ae44/ultimo-dia-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/b4be9868ca7af9e31caebe4dfe9939d32c784c8d69455af3fb940b0dfa8cd00a/ultimo-dia-subject.avif",
 		subjectWidth: 544,
 		subjectHeight: 680,
 		title: "O último dia",
@@ -75,8 +75,8 @@ const sceneConfig: Record<
 		motion: "breath",
 	},
 	acordou: {
-		background: "/lore/pipipi/acordou-bg.avif",
-		subject: "/lore/pipipi/acordou-subject.avif",
+		background: "https://media.dnd.faysk.dev/lore/pipipi/39f409991b7ceb198637333153bd457ab9338a6405e54c79974db54bf24cf982/acordou-bg.avif",
+		subject: "https://media.dnd.faysk.dev/lore/pipipi/3db06b2a8216576452e99cc5d485b9d4e5da4fee7f28ff64856b507ef4d1ec9d/acordou-subject.avif",
 		subjectWidth: 551,
 		subjectHeight: 680,
 		title: "Quando Pipipi acordou",
@@ -91,31 +91,31 @@ const ghostAfterSection: Record<
 	{ src: string; position: "left" | "right"; width: number; height: number }
 > = {
 	"o-que-ficou-depois-da-morte": {
-		src: "/lore/pipipi/ghost-soft.avif",
+		src: "https://media.dnd.faysk.dev/lore/pipipi/cd04c7e3fbbc647fbf44d18f9b76778a1d31c3b6f56a447cce99aa0a6a437272/ghost-soft.avif",
 		position: "right",
 		width: 600,
 		height: 597,
 	},
 	"a-ferida-que-pipipi-nunca-nomeou": {
-		src: "/lore/pipipi/ghost-cry.avif",
+		src: "https://media.dnd.faysk.dev/lore/pipipi/381de7c9a2cd8163891c081ee04f2893f2caa82f5f2d9d88b70e350320d4ae92/ghost-cry.avif",
 		position: "left",
 		width: 596,
 		height: 600,
 	},
 	"pipipi-e-dandelion": {
-		src: "/lore/pipipi/ghost-flute.avif",
+		src: "https://media.dnd.faysk.dev/lore/pipipi/135c4fa5a20fd7447d1470944b2a8fc1ce7e8ea69944ae886d9c3bf3d0c23611/ghost-flute.avif",
 		position: "right",
 		width: 589,
 		height: 600,
 	},
 	"a-pulseirinha": {
-		src: "/lore/pipipi/ghost-surprise.avif",
+		src: "https://media.dnd.faysk.dev/lore/pipipi/4b73eff366efc85b47fdaffcca30d99cf392f21e8c498549dc6a2cc7036ac5ce/ghost-surprise.avif",
 		position: "left",
 		width: 600,
 		height: 590,
 	},
 	"o-coracao-de-pipipi": {
-		src: "/lore/pipipi/ghost-hearts.avif",
+		src: "https://media.dnd.faysk.dev/lore/pipipi/38ba8074b24a7cf0fc7448d5b13684eadecd785ec07935568654d15170dec84f/ghost-hearts.avif",
 		position: "right",
 		width: 560,
 		height: 600,
@@ -231,7 +231,7 @@ export function PipipiLorePage() {
 			<header className={styles.hero} id="topo">
 				<Image
 					className={styles.heroBackground}
-					src="/lore/pipipi/stage-bg.avif"
+					src="https://media.dnd.faysk.dev/lore/pipipi/a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816/stage-bg.avif"
 					alt=""
 					fill
 					priority
@@ -256,7 +256,7 @@ export function PipipiLorePage() {
 					aria-hidden="true"
 				>
 					<Image
-						src="/lore/pipipi/ghost-flute.avif"
+						src="https://media.dnd.faysk.dev/lore/pipipi/135c4fa5a20fd7447d1470944b2a8fc1ce7e8ea69944ae886d9c3bf3d0c23611/ghost-flute.avif"
 						alt=""
 						width={589}
 						height={600}
@@ -312,7 +312,7 @@ export function PipipiLorePage() {
 						<h2>Algumas coisas terminaram naquele quarto. Outras continuaram voando com ela.</h2>
 					</div>
 					<Image
-						src="/lore/pipipi/acordou-subject.avif"
+						src="https://media.dnd.faysk.dev/lore/pipipi/3db06b2a8216576452e99cc5d485b9d4e5da4fee7f28ff64856b507ef4d1ec9d/acordou-subject.avif"
 						alt="Pipipi como um pequeno fantasminha verde e luminoso."
 						width={551}
 						height={680}
@@ -331,7 +331,7 @@ export function PipipiLorePage() {
 
 				<section className={styles.finale}>
 					<Image
-						src="/lore/pipipi/ghost-soft.avif"
+						src="https://media.dnd.faysk.dev/lore/pipipi/cd04c7e3fbbc647fbf44d18f9b76778a1d31c3b6f56a447cce99aa0a6a437272/ghost-soft.avif"
 						alt=""
 						width={600}
 						height={597}
