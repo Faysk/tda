@@ -134,5 +134,6 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f family=qwen \
-            -f source_sha="$GITHUB_SHA"
-          echo "QWEN_RUNTIME_RC_DISPATCHED source=$GITHUB_SHA"
+            -f source_sha="$GITHUB_SHA" \
+            -f build_run_id="$GITHUB_RUN_ID"
+          echo "QWEN_RUNTIME_RC_DISPATCHED source=$GITHUB_SHA build_run_id=$GITHUB_RUN_ID"

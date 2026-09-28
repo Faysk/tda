@@ -14,6 +14,10 @@ on:
         description: Exact main SHA with a successful runtime build
         required: true
         type: string
+      build_run_id:
+        description: Optional exact successful build run id for trusted explicit dispatch
+        required: false
+        type: string
   workflow_run:
     workflows: [Whisper Runtime]
     types: [completed]
@@ -38,6 +42,7 @@ jobs:
     env:
       FAMILY: ${{ github.event_name == 'workflow_dispatch' && inputs.family || (github.event.workflow_run.name == 'Whisper Runtime' && 'whisper' || 'qwen') }}
       SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.workflow_run.head_sha }}
+      DISPATCH_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.build_run_id || '' }}
       TRIGGER_WORKFLOW: ${{ github.event.workflow_run.name || '' }}
       TRIGGER_RUN_ID: ${{ github.event.workflow_run.id || '' }}
       TRIGGER_EVENT: ${{ github.event.workflow_run.event || '' }}
@@ -56,7 +61,12 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Runtime RC must be dispatched from main"; exit 1; }
             MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-            [[ "$MAIN_SHA" == "$SOURCE_SHA" ]] || { echo "::error::source_sha must equal current main ($MAIN_SHA)"; exit 1; }
+            if [[ -n "$DISPATCH_RUN_ID" ]]; then
+              [[ "$FAMILY" == "qwen" ]] || { echo "::error::RUNTIME_EXPLICIT_BUILD_RUN_ONLY_QWEN"; exit 1; }
+              [[ "$DISPATCH_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::RUNTIME_EXPLICIT_BUILD_RUN_INVALID"; exit 1; }
+            else
+              [[ "$MAIN_SHA" == "$SOURCE_SHA" ]] || { echo "::error::source_sha must equal current main ($MAIN_SHA)"; exit 1; }
+            fi
           else
             [[ "$TRIGGER_STATUS" == "completed" && "$TRIGGER_CONCLUSION" == "success" ]] || { echo "::error::AUTO_RUNTIME_TRIGGER_NOT_SUCCESSFUL"; exit 1; }
             [[ "$TRIGGER_EVENT" == "push" && "$TRIGGER_BRANCH" == "main" ]] || { echo "::error::AUTO_RUNTIME_TRIGGER_NOT_MAIN_PUSH"; exit 1; }
@@ -79,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]] || { echo "::error::RUNTIME_RC_SOURCE_CHECKOUT_MISMATCH"; exit 1; }
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" || -n "$DISPATCH_RUN_ID" ]]; then
             git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
             git merge-base --is-ancestor "$SOURCE_SHA" origin/main || { echo "::error::AUTO_RUNTIME_SOURCE_NOT_MAIN_ANCESTOR"; exit 1; }
             if [[ "$FAMILY" == "whisper" ]]; then
@@ -171,6 +181,8 @@ jobs:
 
           if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
             RUN_ID="$TRIGGER_RUN_ID"
+          elif [[ -n "$DISPATCH_RUN_ID" ]]; then
+            RUN_ID="$DISPATCH_RUN_ID"
           else
             gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW" --branch main --commit "$SOURCE_SHA" --status success --limit 50 \
               --json databaseId,headSha,status,conclusion,createdAt > runtime-runs.json
