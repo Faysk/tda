@@ -106,6 +106,21 @@ footer {
 	box-shadow: var(--ds-shadow);
 }
 
+.account-menu-panel[data-state="opening"],
+.account-menu-panel[data-state="closing"] {
+	opacity: 0;
+	mask-size: 100% 0%;
+}
+
+.account-menu-panel[data-state="open"] {
+	opacity: 1;
+	mask-size: 100% 100%;
+}
+
+.account-menu-panel[data-state="closing"] {
+	pointer-events: none;
+}
+
 .product-launcher-panel nav,
 .product-launcher-panel section {
 	display: block;
@@ -255,6 +270,10 @@ footer {
 	stroke-width: 1.65;
 }
 
+:root {
+	--nav-profile-panel-motion: 2000ms;
+}
+
 .account-menu-panel {
 	position: absolute;
 	top: calc(100% + 10px);
@@ -271,6 +290,14 @@ footer {
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
 	box-shadow: var(--ds-shadow);
+	transform-origin: top right;
+	mask-image: linear-gradient(#000 0 0);
+	mask-position: top;
+	mask-repeat: no-repeat;
+	transition:
+		opacity var(--nav-profile-panel-motion) var(--ds-ease-soft),
+		mask-size var(--nav-profile-panel-motion) var(--ds-ease-soft);
+	will-change: opacity, mask-size;
 }
 
 .account-menu-account-block {
@@ -436,7 +463,6 @@ footer {
 }
 
 .skip-link:focus {
-	transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -449,8 +475,13 @@ footer {
 	.product-launcher-trigger,
 	.product-launcher-link,
 	.account-menu-trigger,
-	.account-menu-action {
+	.account-menu-action,
+	.account-menu-panel[data-state] {
 		transition: none;
+	}
+
+	.account-menu-panel[data-state] {
+		mask-image: none;
 	}
 }
 
