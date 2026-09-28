@@ -1204,3 +1204,105 @@ test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fo
 	await expect(page.getByText("ID job-second copiado.", { exact: true })).toBeVisible();
 	await expect(page.getByText("ID job-first copiado.", { exact: true })).toHaveCount(0);
 });
+
+test("processing header exposes one latest Companion download outside the tablist", async ({
+	page,
+}) => {
+	const tag = "companion-rc-v0.3.16-abcdef123456";
+	await page.route(
+		"**/api/downloads/companion/windows/manifest?channel=latest",
+		(route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					channel: "rc",
+					version: "0.3.16",
+					tag,
+					minimum_api: "1",
+					minimum_service_version: "0.3.14",
+					asset: {
+						url: `/api/downloads/companion/windows?tag=${tag}`,
+						sha256: "a".repeat(64),
+						size: 83_000_000,
+					},
+				}),
+			}),
+	);
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const download = page.getByRole("link", { name: "Baixar TDA Companion" });
+	await expect(download).toBeVisible();
+	await expect(download).toHaveAttribute(
+		"href",
+		`/api/downloads/companion/windows?tag=${tag}`,
+	);
+	expect(
+		await download.evaluate(
+			(element) => element.closest('[role="tablist"]') === null,
+		),
+	).toBe(true);
+	await expect(
+		page.getByText("Instalação e canais do TDA Companion", { exact: true }),
+	).toHaveCount(0);
+
+	const tooltip = page.locator('[role="tooltip"]');
+	await download.hover();
+	await expect(tooltip).toBeVisible();
+	await expect(tooltip).toHaveText(
+		"TDA Companion v0.3.16 · RC · Windows x64 · MSI",
+	);
+	await download.focus();
+	await page.keyboard.press("Escape");
+	await expect(tooltip).toBeHidden();
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(download).toBeVisible();
+});
+
+test("latest Companion download stays reachable beside horizontally scrollable tabs on mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.route(
+		"**/api/downloads/companion/windows/manifest?channel=latest",
+		(route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					channel: "stable",
+					version: "0.3.15",
+					tag: "companion-v0.3.15",
+					minimum_api: "1",
+					minimum_service_version: "0.3.14",
+					asset: {
+						url:
+							"/api/downloads/companion/windows?tag=companion-v0.3.15",
+						sha256: "a".repeat(64),
+						size: 83_000_000,
+					},
+				}),
+			}),
+	);
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+	});
+	await page.goto("/");
+
+	const download = page.getByRole("link", { name: "Baixar TDA Companion" });
+	await expect(download).toBeVisible();
+	const box = await download.boundingBox();
+	expect(box).not.toBeNull();
+	expect((box?.x ?? 999) + (box?.width ?? 999)).toBeLessThanOrEqual(390);
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBe(true);
+});
+
