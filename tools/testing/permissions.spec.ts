@@ -133,9 +133,9 @@ test("governed console shows people, human access, filters and technical details
 	await expect(page.getByRole("row", { name: /Pessoa reader/u })).toHaveCount(0);
 	await search.fill("");
 
-	await page.getByLabel("Acesso").selectOption("without");
+	await page.getByLabel("Acesso", { exact: true }).selectOption("without");
 	await expect(page.getByRole("row", { name: /Pessoa member/u })).toBeVisible();
-	await page.getByLabel("Acesso").selectOption("all");
+	await page.getByLabel("Acesso", { exact: true }).selectOption("all");
 
 	const technical = page
 		.getByRole("row", { name: /Pessoa technical/u })
@@ -185,9 +185,11 @@ test("person management previews resulting access then grants and revokes an exi
 	});
 	await dialog.getByRole("button", { name: "Aplicar mudanças" }).click();
 
-	await expect(page.getByRole("status")).toContainText(
-		"Acesso atualizado e confirmado",
-	);
+	await expect(
+		page.getByText("Acesso atualizado e confirmado pelo servidor.", {
+			exact: true,
+		}),
+	).toBeVisible();
 	await expect(memberRow).toContainText("Leitura sintética");
 	await expect(memberRow).toContainText("Ler transcrições completas");
 
@@ -197,9 +199,11 @@ test("person management previews resulting access then grants and revokes an exi
 		.getByRole("checkbox", { name: /Leitura sintética/u })
 		.uncheck();
 	await revokeDialog.getByRole("button", { name: "Aplicar mudanças" }).click();
-	await expect(page.getByRole("status")).toContainText(
-		"Acesso atualizado e confirmado",
-	);
+	await expect(
+		page.getByText("Acesso atualizado e confirmado pelo servidor.", {
+			exact: true,
+		}),
+	).toBeVisible();
 	await expect(memberRow).toContainText("Nenhuma");
 
 	await page.getByRole("button", { name: "Histórico" }).click();
