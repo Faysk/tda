@@ -94,7 +94,19 @@ test("mobile navigation remains a non-reserving modal overlay", async ({ page },
 	const workspace = page.getByTestId("world-workspace");
 	const stage = page.getByTestId("world-workspace-stage");
 	const before = await stage.boundingBox();
-	await page.getByRole("button", { name: "Explorar universo" }).click();
+	const navigationToggle = page.getByRole("button", { name: "Explorar universo" });
+	const [brandBox, navigationToggleBox] = await Promise.all([
+		page.locator(".brand").boundingBox(),
+		navigationToggle.boundingBox(),
+	]);
+	expect(brandBox).not.toBeNull();
+	expect(navigationToggleBox).not.toBeNull();
+	if (brandBox && navigationToggleBox) {
+		expect(navigationToggleBox.y).toBeGreaterThanOrEqual(
+			brandBox.y + brandBox.height + 4,
+		);
+	}
+	await navigationToggle.click();
 	await expect(workspace).toHaveAttribute("data-world-navigation", "open");
 	const open = await stage.boundingBox();
 	expect(Math.abs((open?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
