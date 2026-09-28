@@ -178,6 +178,19 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "'head_branch': 'main'" in value
 
 
+def test_qwen_1012_stable_bridge_uses_published_runtime_marker_source_not_dispatch_head():
+    value = _read("qwen-1012-production-validation-stable.yml")
+    assert "TRIGGER_HEAD_SHA:" in value
+    assert "SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}" not in value
+    assert "Resolve exact Qwen Runtime RC publication marker" in value
+    assert "RUNTIME_RC_READY family=qwen" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_MARKER_AMBIGUOUS" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_VERSION_MISMATCH" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_TAG_SOURCE_MISMATCH" in value
+    assert "ref: ${{ steps.qwen.outputs.source_sha }}" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RC_TAG_MISMATCH" in value
+
+
 def test_production_deploy_has_no_retired_statistics_rollout_flag():
     value = _read("production-cd.yml")
     assert "TDA_STATS_READ_MODEL_V2_ENABLED" not in value
