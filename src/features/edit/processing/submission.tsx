@@ -932,12 +932,14 @@ export function ProcessingSubmission({
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
 								required
-								disabled={busy}
+								disabled={busy || composerActive}
 								placeholder="sessao-42"
 								aria-describedby="session-id-help"
 							/>
 							<small id="session-id-help">
-								Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável.
+								{composerActive
+									? "Alvo fixado enquanto o composer desta sessão estiver ativo."
+									: "Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável antes de compor."}
 							</small>
 						</label>
 						<label>
