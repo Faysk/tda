@@ -5,7 +5,7 @@ import { PERMISSIONS_MESSAGES } from "@/features/edit/permissions/model";
 import { getPermissionsForEdit } from "@/features/edit/permissions/server-query";
 import styles from "@/features/edit/permissions/permissions.module.css";
 
-export const metadata: Metadata = { title: "Permissões · Edit" };
+export const metadata: Metadata = { title: "Permissões · Administração" };
 export const dynamic = "force-dynamic";
 
 export default async function PermissionsPage({
