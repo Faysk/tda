@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# #628 release refresh: classify Companion without changing packaged runtime inputs.
+
 import hashlib
 import io
 import threading
