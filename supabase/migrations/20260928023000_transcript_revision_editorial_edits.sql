@@ -194,6 +194,12 @@ begin
   end if;
 
   if v_segments = v_base.segments then
+    if v_current_revision_id is distinct from p_expected_current_revision_id then
+      return query
+        select 'stale_current'::text, null::uuid, null::bigint, v_current_revision_id;
+      return;
+    end if;
+
     return query
       select 'no_change'::text, v_base.id, v_base.revision_number, v_current_revision_id;
     return;
