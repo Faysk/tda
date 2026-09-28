@@ -183,6 +183,93 @@ export type SessionParticipantMapping = {
 	conflicts: SessionParticipantConflict[];
 	manualAssignments: SessionParticipantAssignment[];
 };
+
+export type SessionAssemblyPart = {
+	partId: string;
+	sourceId: string;
+	sourceSha256: string;
+	runId: string;
+	transcriptSha256: string;
+	ordinal: number;
+	sessionOffsetSeconds: number;
+	trimStartSeconds: number;
+	trimEndSeconds: number | null;
+	overlapResolution: SessionOverlapResolution | null;
+	overlapBoundarySeconds: number | null;
+};
+export type SessionAssemblyManifest = {
+	schemaVersion: "tda_session_assembly_v1";
+	assemblyId: string;
+	status: "completed";
+	campaignId: string;
+	sessionId: string;
+	canonicalizationVersion: "tda_session_assembly_canonical_v1";
+	inputsSha256: string;
+	timelineFingerprintSha256: string;
+	participantMappingSha256: string;
+	participantApprovalBlocked: boolean;
+	transcriptSha256: string;
+	transcriptSizeBytes: number;
+	segmentCount: number;
+	createdAt: string;
+	parts: SessionAssemblyPart[];
+};
+export type SessionAssemblySummary = {
+	assemblyId: string;
+	transcriptSha256: string;
+	inputsSha256: string;
+	segmentCount: number;
+	partCount: number;
+	participantApprovalBlocked: boolean;
+	createdAt: string;
+};
+export type SessionAssemblyList = {
+	schemaVersion: "tda_session_assemblies_v1";
+	campaignId: string;
+	sessionId: string;
+	assemblies: SessionAssemblySummary[];
+};
+export type SessionAssemblyReviewSegment = {
+	assemblySegmentId: string;
+	partId: string;
+	sourceId: string;
+	runId: string;
+	sourceSegmentId: string;
+	trackNumber: number;
+	participantId: string;
+	start: number;
+	end: number;
+	text: string;
+	speaker: string;
+	reviewed: boolean;
+};
+export type SessionAssemblyReview = {
+	schemaVersion: "tda_session_assembly_review_v1";
+	snapshotContract: "tda_session_assembly_review_cas_v1";
+	persistence: "persisted" | "ephemeral_base";
+	base: {
+		kind: "session_assembly";
+		assemblyId: string;
+		transcriptSha256: string;
+		inputsSha256: string;
+	};
+	draftRevision: number | null;
+	draftSha256: string | null;
+	status: LocalReviewStatus;
+	approvalCurrent: boolean;
+	approvalBlocked: boolean;
+	approvedAt: string | null;
+	createdAt: string | null;
+	updatedAt: string | null;
+	review: {
+		reviewedSegments: number;
+		totalSegments: number;
+		reviewPercent: number;
+		editedSegments: number;
+		wordCount: number;
+	};
+	segments: SessionAssemblyReviewSegment[];
+};
 export type CraigBenchmarkInput = {
 	campaignId: string;
 	sessionId: string;
@@ -1154,6 +1241,203 @@ export function parseSessionParticipantMapping(
 		participants,
 		conflicts,
 		manualAssignments,
+	};
+}
+
+
+function assemblyId(value: unknown): string {
+	const parsed = text(value, 64);
+	if (!/^[a-f0-9]{64}$/u.test(parsed)) return invalid();
+	return parsed;
+}
+
+function parseSessionAssemblyPart(value: unknown, expectedOrdinal: number): SessionAssemblyPart {
+	const row = record(value);
+	const partId = text(row.part_id, 32);
+	const sourceId = identifier(row.source_id);
+	const sourceSha256 = sha256(row.source_sha256);
+	const ordinal = nonNegativeInteger(row.ordinal);
+	const overlapResolution =
+		row.overlap_resolution === null || row.overlap_resolution === undefined
+			? null
+			: text(row.overlap_resolution, 32);
+	if (!/^[a-f0-9]{32}$/u.test(partId)) return invalid();
+	if (sourceId !== `craig-${sourceSha256}`) return invalid();
+	if (ordinal !== expectedOrdinal) return invalid();
+	if (
+		overlapResolution !== null &&
+		!["prefer_earlier_until", "prefer_later_from"].includes(overlapResolution)
+	)
+		return invalid();
+	return {
+		partId,
+		sourceId,
+		sourceSha256,
+		runId: runIdentifier(row.run_id),
+		transcriptSha256: sha256(row.transcript_sha256),
+		ordinal,
+		sessionOffsetSeconds: nonNegativeNumber(row.session_offset_seconds),
+		trimStartSeconds: nonNegativeNumber(row.trim_start_seconds),
+		trimEndSeconds: nullableNonNegativeNumber(row.trim_end_seconds),
+		overlapResolution: overlapResolution as SessionOverlapResolution | null,
+		overlapBoundarySeconds: nullableNonNegativeNumber(row.overlap_boundary_seconds),
+	};
+}
+
+export function parseSessionAssemblyManifest(value: unknown): SessionAssemblyManifest {
+	const row = record(value);
+	if (
+		row.schema_version !== "tda_session_assembly_v1" ||
+		row.status !== "completed" ||
+		row.canonicalization_version !== "tda_session_assembly_canonical_v1"
+	)
+		return invalid();
+	if (!Array.isArray(row.parts) || row.parts.length < 1 || row.parts.length > 64)
+		return invalid();
+	const parts = row.parts.map((part, index) => parseSessionAssemblyPart(part, index));
+	if (new Set(parts.map((part) => part.partId)).size !== parts.length) return invalid();
+	if (new Set(parts.map((part) => part.sourceId)).size !== parts.length) return invalid();
+	return {
+		schemaVersion: "tda_session_assembly_v1",
+		assemblyId: assemblyId(row.assembly_id),
+		status: "completed",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		canonicalizationVersion: "tda_session_assembly_canonical_v1",
+		inputsSha256: sha256(row.inputs_sha256),
+		timelineFingerprintSha256: sha256(row.timeline_fingerprint_sha256),
+		participantMappingSha256: sha256(row.participant_mapping_sha256),
+		participantApprovalBlocked: boolean(row.participant_approval_blocked),
+		transcriptSha256: sha256(row.transcript_sha256),
+		transcriptSizeBytes: nonNegativeInteger(row.transcript_size_bytes),
+		segmentCount: nonNegativeInteger(row.segment_count),
+		createdAt: isoDate(row.created_at),
+		parts,
+	};
+}
+
+export function parseSessionAssemblyList(value: unknown): SessionAssemblyList {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_assemblies_v1") return invalid();
+	if (!Array.isArray(row.assemblies) || row.assemblies.length > 256) return invalid();
+	const assemblies = row.assemblies.map((raw) => {
+		const item = record(raw);
+		const partCount = nonNegativeInteger(item.part_count);
+		if (partCount < 1 || partCount > 64) return invalid();
+		return {
+			assemblyId: assemblyId(item.assembly_id),
+			transcriptSha256: sha256(item.transcript_sha256),
+			inputsSha256: sha256(item.inputs_sha256),
+			segmentCount: nonNegativeInteger(item.segment_count),
+			partCount,
+			participantApprovalBlocked: boolean(item.participant_approval_blocked),
+			createdAt: isoDate(item.created_at),
+		} satisfies SessionAssemblySummary;
+	});
+	if (new Set(assemblies.map((item) => item.assemblyId)).size !== assemblies.length)
+		return invalid();
+	return {
+		schemaVersion: "tda_session_assemblies_v1",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		assemblies,
+	};
+}
+
+export function parseSessionAssemblyReview(value: unknown): SessionAssemblyReview {
+	const row = record(value);
+	if (
+		row.schema_version !== "tda_session_assembly_review_v1" ||
+		row.snapshot_contract !== "tda_session_assembly_review_cas_v1"
+	)
+		return invalid();
+	const persistence = text(row.persistence, 32);
+	if (!["persisted", "ephemeral_base"].includes(persistence)) return invalid();
+	const status = text(row.status, 32);
+	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
+	const base = record(row.base);
+	if (base.kind !== "session_assembly") return invalid();
+	const draftRevision =
+		row.draft_revision === null ? null : nonNegativeInteger(row.draft_revision);
+	const draftSha256 = row.draft_sha256 === null ? null : sha256(row.draft_sha256);
+	if (
+		(persistence === "ephemeral_base" && (draftRevision !== null || draftSha256 !== null)) ||
+		(persistence === "persisted" && ((draftRevision ?? 0) < 1 || draftSha256 === null))
+	)
+		return invalid();
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
+	const segments = row.segments.map((raw) => {
+		const segment = record(raw);
+		const partId = text(segment.part_id, 32);
+		const sourceId = identifier(segment.source_id);
+		const participantId = text(segment.participant_id, 32);
+		const trackNumber = nonNegativeInteger(segment.track_number);
+		const start = nonNegativeNumber(segment.start);
+		const end = nonNegativeNumber(segment.end);
+		if (!/^[a-f0-9]{32}$/u.test(partId)) return invalid();
+		if (!/^craig-[a-f0-9]{64}$/u.test(sourceId)) return invalid();
+		if (!/^[a-f0-9]{32}$/u.test(participantId)) return invalid();
+		if (trackNumber < 1 || end < start) return invalid();
+		const content = segment.text;
+		const speaker = segment.speaker;
+		if (!isReviewStringV1(content, "text") || !isReviewStringV1(speaker, "speaker"))
+			return invalid();
+		return {
+			assemblySegmentId: assemblyId(segment.assembly_segment_id),
+			partId,
+			sourceId,
+			runId: runIdentifier(segment.run_id),
+			sourceSegmentId: text(segment.source_segment_id, 196),
+			trackNumber,
+			participantId,
+			start,
+			end,
+			text: content,
+			speaker,
+			reviewed: boolean(segment.reviewed),
+		} satisfies SessionAssemblyReviewSegment;
+	});
+	if (new Set(segments.map((segment) => segment.assemblySegmentId)).size !== segments.length)
+		return invalid();
+	const review = record(row.review);
+	const reviewedSegments = nonNegativeInteger(review.reviewed_segments);
+	const totalSegments = nonNegativeInteger(review.total_segments);
+	const editedSegments = nonNegativeInteger(review.edited_segments);
+	const wordCount = nonNegativeInteger(review.word_count);
+	const reviewPercent = nullablePercent(review.review_percent);
+	if (
+		totalSegments !== segments.length ||
+		reviewedSegments > totalSegments ||
+		editedSegments > totalSegments ||
+		reviewPercent === null
+	)
+		return invalid();
+	return {
+		schemaVersion: "tda_session_assembly_review_v1",
+		snapshotContract: "tda_session_assembly_review_cas_v1",
+		persistence: persistence as SessionAssemblyReview["persistence"],
+		base: {
+			kind: "session_assembly",
+			assemblyId: assemblyId(base.assembly_id),
+			transcriptSha256: sha256(base.transcript_sha256),
+			inputsSha256: sha256(base.inputs_sha256),
+		},
+		draftRevision,
+		draftSha256,
+		status: status as LocalReviewStatus,
+		approvalCurrent: boolean(row.approval_current),
+		approvalBlocked: boolean(row.approval_blocked),
+		approvedAt: nullableIsoDate(row.approved_at),
+		createdAt: nullableIsoDate(row.created_at),
+		updatedAt: nullableIsoDate(row.updated_at),
+		review: {
+			reviewedSegments,
+			totalSegments,
+			reviewPercent,
+			editedSegments,
+			wordCount,
+		},
+		segments,
 	};
 }
 
