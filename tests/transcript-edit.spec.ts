@@ -79,13 +79,13 @@ test("copies the visible working speaker in a timestamp reference before save", 
 	await first.getByRole("button", { name: "00:00:00" }).click();
 	await expect
 		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-		.toBe("00:00:00 · Speaker em revisão");
+		.toBe("00:00:00.000 · Speaker em revisão");
 
 	await first.getByRole("button", { name: "Reverter" }).click();
 	await first.getByRole("button", { name: "00:00:00" }).click();
 	await expect
 		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-		.toBe("00:00:00 · Speaker 1");
+		.toBe("00:00:00.000 · Speaker 1");
 });
 
 test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
