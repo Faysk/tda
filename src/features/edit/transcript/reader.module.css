@@ -154,3 +154,142 @@
 		white-space: normal;
 	}
 }
+
+.editActions {
+	display: grid;
+	gap: 6px;
+	align-items: stretch;
+}
+
+.editBar,
+.conflictPanel {
+	display: flex;
+	gap: 16px;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 14px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface-raised);
+}
+
+.editBar > div:first-child {
+	display: grid;
+	gap: 4px;
+}
+
+.editBar span,
+.editStatus,
+.conflictPanel p {
+	color: var(--ds-text-muted);
+	font-size: .82rem;
+}
+
+.editBarActions,
+.conflictActions,
+.segmentActions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.editStatus {
+	max-width: 64ch;
+}
+
+.conflictPanel {
+	align-items: flex-start;
+	flex-direction: column;
+}
+
+.conflictPanel p {
+	margin: 0;
+}
+
+.segmentEditing {
+	background: var(--ds-surface-raised);
+}
+
+.editFields {
+	grid-column: 2 / -1;
+	display: grid;
+	grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+	gap: 10px 14px;
+	min-width: 0;
+}
+
+.editFields label {
+	display: grid;
+	gap: 5px;
+	min-width: 0;
+	color: var(--ds-text-muted);
+	font-size: .78rem;
+}
+
+.editFields input,
+.editFields textarea {
+	width: 100%;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-base);
+	color: var(--ds-text-primary);
+	padding: 9px 10px;
+	font: inherit;
+}
+
+.editFields textarea {
+	resize: vertical;
+	line-height: 1.55;
+}
+
+.editTextField {
+	grid-column: 2;
+}
+
+.editFields .segmentActions {
+	grid-column: 1 / -1;
+}
+
+.textColumn {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.editedBadge {
+	display: inline-flex;
+	margin-left: 8px;
+	padding: 2px 6px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	color: var(--ds-text-muted);
+	font-family: var(--ds-font-ui);
+	font-size: .68rem;
+	font-weight: 600;
+	vertical-align: middle;
+}
+
+@media (max-width: 980px) {
+	.editBar {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}
+
+@media (max-width: 620px) {
+	.editFields {
+		grid-column: 1 / -1;
+		grid-template-columns: 1fr;
+	}
+	.editTextField,
+	.editFields .segmentActions {
+		grid-column: 1;
+	}
+	.editBarActions,
+	.conflictActions {
+		align-items: stretch;
+		flex-direction: column;
+		width: 100%;
+	}
+}
