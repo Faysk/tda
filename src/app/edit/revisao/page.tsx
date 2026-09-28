@@ -101,7 +101,7 @@ export default async function NarrativeReviewPage({
 		<section className={styles.shell}>
 			<nav className={styles.navigation} aria-label="Navegação do Edit">
 				<Link href="/edit">← Ferramentas administrativas</Link>
-				<Link href="/edit/mundo">Mundo</Link>
+				<Link href="/mundo">Mundo</Link>
 			</nav>
 
 			<header className={styles.header}>

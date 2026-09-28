@@ -68,7 +68,7 @@ export const TOOL_NAV_ITEMS: readonly ToolNavigationItem[] = [
 		capability: EDIT_CAPABILITIES.localProcess,
 	},
 	{
-		href: "/edit/mundo",
+		href: "/mundo",
 		label: "Editar mundo",
 		icon: "edit-world",
 		capability: EDIT_CAPABILITIES.worldLayoutEdit,

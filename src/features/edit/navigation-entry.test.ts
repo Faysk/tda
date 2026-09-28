@@ -27,7 +27,7 @@ describe("legacy /edit compatibility destination", () => {
 		expect(EDIT_ENTRY_PRIORITY.map((entry) => entry.href)).toEqual([
 			"/edit/sessoes",
 			"/edit/processamento",
-			"/edit/mundo",
+			"/mundo",
 			"/edit/revisao",
 			"/edit/yuhara-main/permissions",
 		]);
@@ -36,7 +36,7 @@ describe("legacy /edit compatibility destination", () => {
 	it.each([
 		[EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes"],
 		[EDIT_CAPABILITIES.localProcess, "/edit/processamento"],
-		[EDIT_CAPABILITIES.worldLayoutEdit, "/edit/mundo"],
+		[EDIT_CAPABILITIES.worldLayoutEdit, "/mundo"],
 		[EDIT_CAPABILITIES.reviewRead, "/edit/revisao"],
 		[
 			EDIT_CAPABILITIES.permissionsManage,
