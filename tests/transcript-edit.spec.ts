@@ -131,6 +131,72 @@ test("ambiguous response reuses the operation and reconciles without a duplicate
 	).toBeVisible();
 });
 
+test("saves fifty edited utterances in one explicit revision", async ({ page }) => {
+	await openFresh(page);
+	await page.getByRole("button", { name: "Editar transcrição" }).click();
+	const rows = page.locator("[data-transcript-segment]");
+
+	for (let index = 0; index < 50; index += 1) {
+		const row = rows.nth(index);
+		await row.getByRole("button", { name: "Editar fala" }).click();
+		await row
+			.getByLabel("Texto da fala")
+			.fill(`Correção em lote ${index + 1} 🌲`);
+		await row
+			.getByRole("button", { name: "Concluir edição da fala" })
+			.click();
+	}
+
+	await expect(
+		page.getByText("50 alteração(ões) não salvas", { exact: true }),
+	).toBeVisible();
+	await page
+		.getByRole("button", { name: "Salvar alterações da transcrição" })
+		.click();
+	await expect(
+		page.getByText("Revisão privada r2 salva.", { exact: true }),
+	).toBeVisible();
+
+	await page.reload();
+	await expect(page.getByText("Correção em lote 1 🌲", { exact: true })).toBeVisible();
+	await expect(page.getByText("Correção em lote 50 🌲", { exact: true })).toBeVisible();
+});
+
+test("two tabs enforce current-revision CAS and preserve the losing working copy", async ({
+	page,
+	context,
+}) => {
+	await openFresh(page);
+	const other = await context.newPage();
+	await other.goto("/e2e-fixtures/transcript-edit");
+	await expect(
+		other.getByRole("heading", { name: "Transcript Edit E2E" }),
+	).toBeVisible();
+
+	await editFirst(page, "Correção vencedora da aba A");
+	await editFirst(other, "Correção concorrente da aba B");
+
+	await page
+		.getByRole("button", { name: "Salvar alterações da transcrição" })
+		.click();
+	await expect(
+		page.getByText("Revisão privada r2 salva.", { exact: true }),
+	).toBeVisible();
+
+	await other
+		.getByRole("button", { name: "Salvar alterações da transcrição" })
+		.click();
+	await expect(other.getByRole("alert")).toContainText("working copy foi preservada");
+	await expect(other.getByRole("alert")).toContainText("Remoto: r2");
+	await expect(
+		other.getByText("Correção concorrente da aba B", { exact: true }),
+	).toBeVisible();
+	await expect(
+		other.getByText("1 alteração(ões) não salvas", { exact: true }),
+	).toBeVisible();
+	await other.close();
+});
+
 test("read-only and mobile states remain contained and keyboard editing is operable", async ({
 	page,
 }) => {
