@@ -77,7 +77,8 @@ export type SessionPartRelation =
 	| "unknown"
 	| "contiguous"
 	| "gap"
-	| "overlap";
+	| "overlap"
+	| "order_conflict";
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
@@ -112,11 +113,13 @@ export type SessionWorkspaceTimeline = {
 		| "needs_timing"
 		| "gap_unconfirmed"
 		| "overlap_unresolved"
+		| "order_conflict"
 		| "source_invalid";
 	allSourcesTrusted: boolean;
 	automaticOrderAvailable: boolean;
 	gapCount: number;
 	overlapCount: number;
+	orderConflictCount: number;
 	unresolvedOverlapCount: number;
 	unconfirmedGapCount: number;
 };
@@ -851,7 +854,11 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			)
 		)
 			return invalid();
-		if (!["first", "unknown", "contiguous", "gap", "overlap"].includes(relation))
+		if (
+			!["first", "unknown", "contiguous", "gap", "overlap", "order_conflict"].includes(
+				relation,
+			)
+		)
 			return invalid();
 		if (
 			overlapResolution !== null &&
@@ -916,8 +923,48 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			"needs_timing",
 			"gap_unconfirmed",
 			"overlap_unresolved",
+			"order_conflict",
 			"source_invalid",
 		].includes(state)
+	)
+		return invalid();
+
+	if (parts.length > 0 && parts[0].relationToPrevious !== "first") return invalid();
+	if (parts.slice(1).some((part) => part.relationToPrevious === "first"))
+		return invalid();
+
+	const gapCount = nonNegativeInteger(timeline.gap_count);
+	const overlapCount = nonNegativeInteger(timeline.overlap_count);
+	const orderConflictCount =
+		timeline.order_conflict_count === undefined
+			? 0
+			: nonNegativeInteger(timeline.order_conflict_count);
+	const unresolvedOverlapCount = nonNegativeInteger(
+		timeline.unresolved_overlap_count,
+	);
+	const unconfirmedGapCount = nonNegativeInteger(timeline.unconfirmed_gap_count);
+	const observedGapCount = parts.filter(
+		(part) => part.relationToPrevious === "gap",
+	).length;
+	const observedOverlapCount = parts.filter(
+		(part) => part.relationToPrevious === "overlap",
+	).length;
+	const observedOrderConflictCount = parts.filter(
+		(part) => part.relationToPrevious === "order_conflict",
+	).length;
+	const observedUnresolvedOverlapCount = parts.filter(
+		(part) =>
+			part.relationToPrevious === "overlap" && !part.overlapResolutionValid,
+	).length;
+	const observedUnconfirmedGapCount = parts.filter(
+		(part) => part.relationToPrevious === "gap" && !part.gapConfirmed,
+	).length;
+	if (
+		gapCount !== observedGapCount ||
+		overlapCount !== observedOverlapCount ||
+		orderConflictCount !== observedOrderConflictCount ||
+		unresolvedOverlapCount !== observedUnresolvedOverlapCount ||
+		unconfirmedGapCount !== observedUnconfirmedGapCount
 	)
 		return invalid();
 
@@ -937,12 +984,11 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			state: state as SessionWorkspaceTimeline["state"],
 			allSourcesTrusted: boolean(timeline.all_sources_trusted),
 			automaticOrderAvailable: boolean(timeline.automatic_order_available),
-			gapCount: nonNegativeInteger(timeline.gap_count),
-			overlapCount: nonNegativeInteger(timeline.overlap_count),
-			unresolvedOverlapCount: nonNegativeInteger(
-				timeline.unresolved_overlap_count,
-			),
-			unconfirmedGapCount: nonNegativeInteger(timeline.unconfirmed_gap_count),
+			gapCount,
+			overlapCount,
+			orderConflictCount,
+			unresolvedOverlapCount,
+			unconfirmedGapCount,
 		},
 	};
 }
