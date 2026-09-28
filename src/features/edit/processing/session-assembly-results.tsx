@@ -6,8 +6,8 @@ import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
 import {
 	SESSION_COMPOSER_CHANGE_EVENT,
-	SESSION_COMPOSER_RECOVERY_KEY,
-} from "./session-composer";
+	SESSION_COMPOSER_LAST_SESSION_KEY,
+} from "./session-composer-storage";
 import type {
 	SessionAssemblyListItem,
 	SessionAssemblyReviewSummary,
@@ -24,7 +24,7 @@ function short(value: string, size = 12) {
 
 function readSessionId(): string | null {
 	try {
-		const value = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
+		const value = window.localStorage.getItem(SESSION_COMPOSER_LAST_SESSION_KEY);
 		return value && /^[A-Za-z0-9_-]{1,128}$/u.test(value) ? value : null;
 	} catch {
 		return null;
