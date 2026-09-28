@@ -566,11 +566,13 @@ footer {
 @media (max-width: 720px) {
 	.product-launcher-panel {
 		position: fixed;
-		top: 72px;
-		right: 12px;
-		left: 12px;
+		top: var(--site-chrome-panel-top);
+		right: max(12px, env(safe-area-inset-right, 0px));
+		left: max(12px, env(safe-area-inset-left, 0px));
 		width: auto;
-		max-height: calc(100dvh - 84px);
+		max-height: calc(
+			100dvh - var(--site-chrome-panel-top) - var(--site-chrome-bottom-safe)
+		);
 		padding: 16px;
 		border-radius: var(--ds-radius-md);
 	}
@@ -592,11 +594,13 @@ footer {
 
 	.product-launcher-panel {
 		position: fixed;
-		top: 72px;
-		right: 12px;
-		left: 12px;
+		top: var(--site-chrome-panel-top);
+		right: max(12px, env(safe-area-inset-right, 0px));
+		left: max(12px, env(safe-area-inset-left, 0px));
 		width: auto;
-		max-height: calc(100dvh - 84px);
+		max-height: calc(
+			100dvh - var(--site-chrome-panel-top) - var(--site-chrome-bottom-safe)
+		);
 		padding: 16px;
 		border-radius: var(--ds-radius-md);
 	}
@@ -651,10 +655,12 @@ footer {
 	}
 
 	.product-launcher-panel {
-		top: 68px;
-		right: 8px;
-		left: 8px;
-		max-height: calc(100dvh - 76px);
+		top: var(--site-chrome-panel-top);
+		right: max(8px, env(safe-area-inset-right, 0px));
+		left: max(8px, env(safe-area-inset-left, 0px));
+		max-height: calc(
+			100dvh - var(--site-chrome-panel-top) - var(--site-chrome-bottom-safe)
+		);
 		padding: 12px;
 	}
 
