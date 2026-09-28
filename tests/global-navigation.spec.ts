@@ -111,6 +111,33 @@ async function expectPanelContained(
 	expect(box.y).toBeLessThan(viewport.height);
 }
 
+async function expectLauncherLabelsContained(
+	navigation: import("@playwright/test").Locator,
+) {
+	const metrics = await navigation
+		.locator(".product-launcher-item-label")
+		.evaluateAll((elements) =>
+			elements.map((element) => {
+				const style = getComputedStyle(element);
+				const lineHeight = Number.parseFloat(style.lineHeight);
+				return {
+					clientWidth: element.clientWidth,
+					scrollWidth: element.scrollWidth,
+					clientHeight: element.clientHeight,
+					scrollHeight: element.scrollHeight,
+					lineHeight,
+				};
+			}),
+		);
+	for (const metric of metrics) {
+		expect(metric.scrollWidth).toBeLessThanOrEqual(metric.clientWidth + 1);
+		expect(metric.scrollHeight).toBeLessThanOrEqual(metric.clientHeight + 1);
+		if (Number.isFinite(metric.lineHeight) && metric.lineHeight > 0) {
+			expect(metric.clientHeight / metric.lineHeight).toBeLessThanOrEqual(2.2);
+		}
+	}
+}
+
 test("launcher exposes the complete public IA in stable order and marks subroutes", async ({
 	page,
 }) => {
@@ -381,6 +408,50 @@ test("navigation semantics keep ordinary links, visible focus and 44px touch tar
 	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
+test("launcher cells use icon-first geometry with normalized visual size and readable labels", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+
+	const link = navigation.getByRole("link", { name: "Sessões", exact: true });
+	const icon = link.locator(".product-launcher-item-icon");
+	const frame = link.locator(".product-launcher-item-icon-frame");
+	const label = link.locator(".product-launcher-item-label");
+
+	const [linkBox, iconBox, frameBox, labelBox] = await Promise.all([
+		link.boundingBox(),
+		icon.boundingBox(),
+		frame.boundingBox(),
+		label.boundingBox(),
+	]);
+	for (const box of [linkBox, iconBox, frameBox, labelBox]) {
+		expect(box).not.toBeNull();
+	}
+	if (!linkBox || !iconBox || !frameBox || !labelBox) return;
+
+	expect(linkBox.height).toBeGreaterThanOrEqual(94);
+	expect(frameBox.width).toBeGreaterThanOrEqual(40);
+	expect(frameBox.height).toBeGreaterThanOrEqual(40);
+	expect(iconBox.width).toBeGreaterThanOrEqual(30);
+	expect(iconBox.height).toBeGreaterThanOrEqual(30);
+	expect(iconBox.y + iconBox.height).toBeLessThanOrEqual(labelBox.y + 2);
+	expect(
+		Math.abs(
+			iconBox.x + iconBox.width / 2 - (labelBox.x + labelBox.width / 2),
+		),
+	).toBeLessThanOrEqual(2);
+
+	for (const longLabel of ["Transcrições", "Editar sessões", "Permissões"]) {
+		await expect(
+			navigation.getByRole("link", { name: longLabel, exact: true }),
+		).toBeVisible();
+	}
+	await expectLauncherLabelsContained(navigation);
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
@@ -414,11 +485,21 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
-		if (viewport.width >= 1920) {
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		await expectLauncherLabelsContained(navigation);
+		const firstTarget = await navigation
+			.locator(".product-launcher-link")
+			.first()
+			.boundingBox();
+		expect(firstTarget).not.toBeNull();
+		if (firstTarget) {
+			expect(firstTarget.width).toBeGreaterThanOrEqual(44);
+			expect(firstTarget.height).toBeGreaterThanOrEqual(44);
+		}
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
 		}
 		await page.keyboard.press("Escape");
 
@@ -430,6 +511,40 @@ test("navigation stays contained across the required responsive matrix", async (
 	}
 });
 
+test("short mobile viewport scrolls inside the launcher without moving the page shell", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 500 });
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	const triggerBefore = await trigger.boundingBox();
+	const navigation = await openLauncher(page);
+	const panel = page.locator(".product-launcher-panel");
+
+	const scrollState = await panel.evaluate((element) => ({
+		clientHeight: element.clientHeight,
+		scrollHeight: element.scrollHeight,
+		overflowY: getComputedStyle(element).overflowY,
+	}));
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.overflowY).toBe("auto");
+
+	await panel.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	await expect(navigation.getByText("Ferramentas", { exact: true })).toBeVisible();
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+	const triggerAfter = await trigger.boundingBox();
+	expect(triggerBefore).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (triggerBefore && triggerAfter) {
+		expect(Math.abs(triggerBefore.y - triggerAfter.y)).toBeLessThanOrEqual(1);
+	}
+});
+
 test("200 percent layout zoom preserves the header actions and panel containment", async ({
 	page,
 }) => {
@@ -437,13 +552,13 @@ test("200 percent layout zoom preserves the header actions and panel containment
 	await page.setViewportSize({ width: 768, height: 1024 });
 	await page.goto("/");
 	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
+		document.documentElement.style.setProperty("zoom", "2");
 	});
 	const navigation = await openLauncher(page);
 	await expect(navigation).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 	await page.evaluate(() => {
-		document.documentElement.style.zoom = "";
+		document.documentElement.style.removeProperty("zoom");
 	});
 });
 
