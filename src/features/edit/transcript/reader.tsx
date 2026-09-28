@@ -62,6 +62,7 @@ export function TranscriptReader({
 	revisionId = null,
 	revisionNumber = null,
 	saveAction = saveTranscriptRevisionEditsAction,
+	active = true,
 }: Readonly<{
 	segments: readonly TranscriptReaderSegment[];
 	sourceLabel: string;
@@ -71,6 +72,7 @@ export function TranscriptReader({
 	revisionId?: string | null;
 	revisionNumber?: number | null;
 	saveAction?: TranscriptReaderSaveAction;
+	active?: boolean;
 }>) {
 	const router = useRouter();
 	const [baseline, setBaseline] = useState<readonly TranscriptReaderSegment[]>(() => [
@@ -324,6 +326,7 @@ export function TranscriptReader({
 	useEffect(() => {
 		const handleKeyboardShortcut = (event: KeyboardEvent) => {
 			if (
+				active &&
 				editMode &&
 				dirty &&
 				(event.ctrlKey || event.metaKey) &&
