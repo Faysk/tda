@@ -34,6 +34,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $PackSchema = "tda_qwen_recovery_physical_gate_v1"
+$RequiredCompanionVersion = "0.3.16"
 $StartedAt = [DateTimeOffset]::UtcNow
 $OriginalLocalAppData = [string]$env:LOCALAPPDATA
 $AgentProcess = $null
@@ -583,7 +584,7 @@ if ($ExactRcMode) {
     $QwenCandidate = Read-Json $QwenRuntimeCandidateManifest "EXACT_RC_QWEN_CANDIDATE_INVALID"
     if (
         [string]$CompanionPayload.schema -ne "tda_companion_payload_v1" -or
-        [string]$CompanionPayload.version -ne "0.3.14" -or
+        [string]$CompanionPayload.version -ne $RequiredCompanionVersion -or
         [string]$CompanionPayload.source_sha -notmatch '^[a-f0-9]{40}$' -or
         [string]$CompanionPayload.source_tree_sha -notmatch '^[a-f0-9]{40}$'
     ) { Fail-Harness "EXACT_RC_PAYLOAD_IDENTITY_INVALID" }
