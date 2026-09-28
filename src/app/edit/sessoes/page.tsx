@@ -11,6 +11,7 @@ import {
 	type SessionLibraryFilters,
 } from "@/features/edit/sessions/library";
 import { listEditSessionLibrary } from "@/features/edit/sessions/repository";
+import { SessionLibraryThumbnail } from "@/features/edit/sessions/session-library-thumbnail";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 
@@ -194,7 +195,12 @@ export default async function EditSessionsPage({
 				<div className={styles.libraryList}>
 					{visible.map((session) => (
 						<article className={styles.libraryRow} key={session.id}>
+							<SessionLibraryThumbnail
+								src={session.thumbnail?.src ?? null}
+								privateSource={session.thumbnail?.kind === "private"}
+							/>
 							<div className={styles.libraryPrimary}>
+								<h2 className={styles.sessionTitle}>{session.title}</h2>
 								<div className={styles.sessionMeta}>
 									<StatusPill tone={sessionEditorialTone(session)}>
 										{sessionEditorialLabel(session)}
@@ -203,7 +209,6 @@ export default async function EditSessionsPage({
 										<StatusPill tone="accent">{session.arc}</StatusPill>
 									) : null}
 								</div>
-								<h2 className={styles.sessionTitle}>{session.title}</h2>
 								<div className={styles.librarySecondary}>
 									<span>
 										{session.sessionDate
@@ -215,7 +220,10 @@ export default async function EditSessionsPage({
 											? "Transcrição privada preparada"
 											: "Aguardando handoff da transcrição"}
 									</span>
-									<span className={styles.sessionId}>{session.sourceSessionId}</span>
+									<details className={styles.libraryDetails}>
+										<summary>Detalhes</summary>
+										<span className={styles.sessionId}>{session.sourceSessionId}</span>
+									</details>
 								</div>
 							</div>
 							<Link
