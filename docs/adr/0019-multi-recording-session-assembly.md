@@ -1,6 +1,6 @@
 # ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR
 
-> Status: proposed
+> Status: accepted
 > Data: 2026-09-27
 > Decisores: proprietário / maintainers TDA
 > Supersede: —
@@ -182,6 +182,12 @@ A implementação respeita este ADR quando:
 - nenhum áudio/path privado é sincronizado.
 
 O gate completo está em #852.
+
+## Estado de adoção
+
+A decisão foi implementada incrementalmente e integrada à `main` em 2026-09-28 pelos slices #862, #863/#871, #873, #907, #940, #946 e #967. O conjunto cobre workspace/recording parts, cronologia, reconciliação de participantes, Session Assembly imutável, composer Web, provenance multi-source de publicação e gate sintético/E2E/recovery.
+
+A adoção deste ADR não elimina o lifecycle próprio de distribuição do Companion: código integrado à `main` não prova, sozinho, que um binário Stable já contém a capability. Promoção de MSI/runtime continua exigindo os gates de release/aceite do Companion.
 
 ## Referências
 

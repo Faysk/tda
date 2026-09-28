@@ -3,7 +3,7 @@
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
 > Última revisão: 2026-09-28
-> Fonte de verdade: este documento, ADR-0019 proposto e epic #843
+> Fonte de verdade: este documento, ADR-0019 accepted e epic #843
 
 ## Objetivo
 
@@ -32,7 +32,7 @@ O uso real passou a produzir cenários em que uma única sessão possui dois ou 
 
 O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source.
 
-Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly já estão implementados. A entrega Web #849 conecta esses contratos ao processamento com progressive disclosure, seleção de run por part, processamento seletivo das parts sem run, build explícito da assembly e descoberta da assembly em Resultados. Provenance cloud multi-source (#851) e o gate E2E/recovery amplo (#852) continuam separados e não são pressupostos por esta entrega.
+Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly estão integrados à `main` (#862, #863/#871, #873 e #907). O composer Web de #849 foi entregue por #940, a provenance cloud multi-source de #851 foi entregue por #946 e o gate E2E/recovery de #852 foi entregue por #967. O rollout Web/cloud foi promovido pelo fluxo normal de Production; a distribuição de novos bytes do Companion continua sendo um lifecycle separado e exige seus próprios gates de release/aceite.
 
 ## Escopo
 
@@ -614,9 +614,9 @@ Não migrar destrutivamente:
 - #845 — cronologia, gaps, overlaps e trims — implementado;
 - #846 — participant reconciliation entre parts — implementado;
 - #848 — Session Assembly imutável + review base — implementado;
-- #849 — composer Web multi-recording — implementação desta entrega;
-- #851 — provenance multi-source na publicação cloud — pendente;
-- #852 — gate E2E/recovery sintético amplo — pendente.
+- #849 — composer Web multi-recording — implementado via #940;
+- #851 — provenance multi-source na publicação cloud — implementado via #946;
+- #852 — gate E2E/recovery sintético amplo — implementado via #967.
 
 Epic: #843.
 
@@ -637,7 +637,7 @@ Epic: #843.
 ## Referências
 
 - ADR-0016 — runs/review/publicação;
-- ADR-0019 — proposta de multi-recording/session assembly;
+- ADR-0019 — decisão accepted de multi-recording/session assembly;
 - `docs/domains/sessions.md`;
 - `docs/domains/processing.md`;
 - `docs/features/local-processing.md`;

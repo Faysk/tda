@@ -39,7 +39,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-09-15 |
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
 | [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-20 |
-| [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | proposed | Não declarado |
+| [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | accepted | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
