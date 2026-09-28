@@ -170,7 +170,7 @@ export function SessionAssemblyResults({
 		setSaveStatus(null);
 		try {
 			let baseline = review;
-			if (status === "approved_local" && baseline.persistence === "ephemeral_base") {
+			if (status === "approved_local" && (baseline.persistence === "ephemeral_base" || dirty)) {
 				baseline = await bridge.saveSessionAssemblyReview(
 					CAMPAIGN_SLUG,
 					sessionId as string,
