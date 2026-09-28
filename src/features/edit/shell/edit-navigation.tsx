@@ -7,7 +7,7 @@ import styles from "./edit-shell.module.css";
 const items = [
 	{ href: "/edit", label: "Sessões", match: (path: string) => path === "/edit" || path.startsWith("/edit/sessoes/") },
 	{ href: "/edit/processamento", label: "Processamento", match: (path: string) => path.startsWith("/edit/processamento") },
-	{ href: "/edit/mundo", label: "Mundo", match: (path: string) => path.startsWith("/edit/mundo") },
+	{ href: "/mundo", label: "Mundo", match: (path: string) => path === "/mundo" },
 ] as const;
 
 export function EditNavigation() {

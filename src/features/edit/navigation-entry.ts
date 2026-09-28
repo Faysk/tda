@@ -18,7 +18,7 @@ export type EditEntryDestination = Readonly<{
 export const EDIT_ENTRY_PRIORITY: readonly EditEntryDestination[] = [
 	{ href: "/edit/sessoes", capability: EDIT_CAPABILITIES.transcriptRead },
 	{ href: "/edit/processamento", capability: EDIT_CAPABILITIES.localProcess },
-	{ href: "/edit/mundo", capability: EDIT_CAPABILITIES.worldLayoutEdit },
+	{ href: "/mundo", capability: EDIT_CAPABILITIES.worldLayoutEdit },
 	{ href: "/edit/revisao", capability: EDIT_CAPABILITIES.reviewRead },
 	{
 		href: `/edit/${CAMPAIGN_SLUG}/permissions`,

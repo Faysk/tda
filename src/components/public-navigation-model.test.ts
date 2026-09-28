@@ -37,6 +37,12 @@ describe("global navigation model", () => {
 			]).map((item) => item.label),
 		).toEqual(["Transcrições", "Editar sessões", "Processar"]);
 
+		const worldTools = visibleToolNavigationItems([EDIT_CAPABILITIES.worldLayoutEdit]);
+		expect(worldTools.map(({ href, label }) => [href, label])).toEqual([
+			["/mundo", "Editar mundo"],
+		]);
+		expect(worldTools.some((item) => item.href === "/edit/mundo")).toBe(false);
+
 		expect(visibleToolNavigationItems([])).toEqual([]);
 	});
 });
