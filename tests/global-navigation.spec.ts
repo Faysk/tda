@@ -206,13 +206,13 @@ test("authenticated account menu uses identity fallback, POST logout and no-gran
 }) => {
 	await mockAccess(page, {
 		state: "authenticated_linked_no_grants",
-		identity: { displayName: "Renan Teste", avatarUrl: null },
+		identity: { displayName: "Pessoa Teste", avatarUrl: null },
 	});
 	await page.goto("/");
 
-	await expect(page.locator(".account-avatar-initials")).toHaveText("RT");
+	await expect(page.locator(".account-avatar-initials")).toHaveText("PT");
 	const account = await openAccount(page);
-	await expect(account.getByText("Renan Teste", { exact: true })).toBeVisible();
+	await expect(account.getByText("Pessoa Teste", { exact: true })).toBeVisible();
 	await expect(account.getByRole("link", { name: "Conta e acesso" })).toHaveAttribute(
 		"href",
 		"/conta",
@@ -240,6 +240,36 @@ test("authenticated avatar is rendered from the sanitized projection", async ({
 	});
 	await page.goto("/");
 	await expect(page.locator(".account-avatar-image")).toHaveCount(1);
+});
+
+test("public navigation renders before the private auth projection settles", async ({ page }) => {
+	let releaseAuth: (() => void) | undefined;
+	const authReleased = new Promise<void>((resolve) => {
+		releaseAuth = resolve;
+	});
+	await page.route("**/api/auth/me", async (route) => {
+		await authReleased;
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				state: "authenticated_linked",
+				scope: { type: "campaign", id: "yuhara-main" },
+				identity: { displayName: "Pessoa Teste", avatarUrl: null },
+				capabilities: allToolCapabilities,
+			}),
+		});
+	});
+
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	await expect(
+		navigation.getByRole("link", { name: "Sessões", exact: true }),
+	).toBeVisible();
+	await expect(navigation.getByText("Ferramentas", { exact: true })).toHaveCount(0);
+
+	releaseAuth?.();
+	await expect(navigation.getByText("Ferramentas", { exact: true })).toBeVisible();
 });
 
 test("auth failure keeps public navigation usable and exposes an actionable account state", async ({
@@ -320,6 +350,37 @@ test("outside interaction dismisses the launcher", async ({ page }) => {
 	await expect(navigation).toHaveCount(0);
 });
 
+test("navigation semantics keep ordinary links, visible focus and 44px touch targets", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+
+	const launcherTrigger = page.getByRole("button", { name: "Abrir navegação" });
+	const accountTrigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	for (const trigger of [launcherTrigger, accountTrigger]) {
+		const box = await trigger.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.width).toBeGreaterThanOrEqual(44);
+		expect(box.height).toBeGreaterThanOrEqual(44);
+	}
+
+	await launcherTrigger.focus();
+	const focusOutline = await launcherTrigger.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			style: style.outlineStyle,
+			width: Number.parseFloat(style.outlineWidth),
+		};
+	});
+	expect(focusOutline.style).not.toBe("none");
+	expect(focusOutline.width).toBeGreaterThanOrEqual(2);
+
+	const navigation = await openLauncher(page);
+	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
@@ -335,10 +396,30 @@ test("navigation stays contained across the required responsive matrix", async (
 		{ width: 2560, height: 1440 },
 	]) {
 		await page.setViewportSize(viewport);
+		const brandBox = await page.getByLabel("TDA — Tem Dado Aqui — início").boundingBox();
+		const actionsBox = await page.locator(".header-actions").boundingBox();
+		expect(brandBox).not.toBeNull();
+		expect(actionsBox).not.toBeNull();
+		if (brandBox && actionsBox) {
+			expect(brandBox.x + brandBox.width).toBeLessThanOrEqual(actionsBox.x + 1);
+		}
+
 		const navigation = await openLauncher(page);
 		await expect(navigation).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 		await expectPanelContained(page, ".product-launcher-panel");
+		const columnCount = await navigation
+			.locator(".product-launcher-grid")
+			.first()
+			.evaluate((element) =>
+				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
+			);
+		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
+		if (viewport.width >= 1920) {
+			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
+			expect(panelBox).not.toBeNull();
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+		}
 		await page.keyboard.press("Escape");
 
 		const account = await openAccount(page);
