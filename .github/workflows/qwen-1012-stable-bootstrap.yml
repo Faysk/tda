@@ -1,4 +1,5 @@
 name: Qwen 1.0.12 Stable Bootstrap
+# #628 redispatch after enabling workflow_dispatch job execution in the Stable bridge.
 
 on:
   push:
