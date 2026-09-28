@@ -190,7 +190,7 @@ O logo/wordmark continua sendo a ação de início. Por isso `Início` não é r
 
 O contrato canônico do header passou a ser **marca + launcher + avatar** e pertence a [Navegação global do TDA](../features/global-navigation.md). O launcher concentra destinos públicos reais e, quando a projeção privada permitir, ferramentas autorizadas; o avatar concentra conta, autenticação e aparência.
 
-Na baseline `main@c2c27a23017045882b67bbfa1a27439d02645fc0`, a projeção sanitizada de Auth de #881, o launcher de #880 e o avatar/painel de conta de #882 (PR #902) já estão integrados. #883 ainda não; portanto `/edit` e `/conta` permanecem temporariamente como hubs de compatibilidade. O controle de aparência já vive dentro do painel de conta. Esse estado descreve implementação transitória e **não** redefine o contrato canônico.
+Na baseline `main@8855e5de513d5875221a785e8a5cd7b03011d644`, a projeção sanitizada de Auth de #881, o launcher de #880, o avatar/painel de conta de #882 (PR #902) e a retirada dos hubs de #883 (PR #908) já estão integrados. `/edit` funciona como entrypoint de compatibilidade e `/conta` como superfície focada de identidade/acesso. O controle de aparência vive dentro do painel de conta. #884 permanece como gate completo de QA.
 
 O controle de tema:
 
@@ -318,7 +318,7 @@ Playwright cobre, entre outros:
 
 ## O que não foi feito nesta camada
 
-- avatar/painel de conta integrado por #882 / PR #902; a projeção mínima de Auth de #881 e o launcher de #880 também estão na `main`; retirada dos hubs segue em #883;
+- projeção mínima de Auth (#881), launcher (#880), avatar/painel de conta (#882 / PR #902) e retirada dos hubs (#883 / PR #908) estão integrados na `main`; o gate completo de QA segue em #884;
 - Edit;
 - implementação do React Flow;
 - implementação das lores GSAP;
