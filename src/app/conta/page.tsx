@@ -65,13 +65,13 @@ export default async function AccountPage({
 			) : null}
 
 			{authenticated ? (
-				<div className={styles.accountIdentity} aria-label="Identidade e acesso">
+				<section className={styles.accountIdentity} aria-label="Identidade e acesso">
 					<span className={styles.accountIdentityLabel}>Discord</span>
 					<strong>{displayName}</strong>
 					<span className={styles.accountIdentityState}>
 						{accessStateLabel}
 					</span>
-				</div>
+				</section>
 			) : null}
 
 			<div className={styles.actions}>
