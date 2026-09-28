@@ -131,38 +131,30 @@ begin
        or char_length(e.value->>'speaker') not between 1 and 160
        or char_length(e.value->>'text') not between 1 and 100000
        -- Mirror isReviewStringV1 at the privileged database boundary.
-       -- PostgreSQL text cannot contain NUL. Speaker rejects C0 U+0001..001F
-       -- plus DEL; text permits TAB/LF/CR and rejects the remaining C0 + DEL.
-       -- Avoid regex ranges over control codepoints because PostgreSQL's regex
-       -- engine can reject those ranges under UTF-8 collations.
-       or exists (
-         select 1
-         from generate_series(1, 31) control(codepoint)
-         where strpos(e.value->>'speaker', chr(control.codepoint)) > 0
-       )
-       or strpos(e.value->>'speaker', chr(127)) > 0
-       or exists (
-         select 1
-         from generate_series(1, 31) control(codepoint)
-         where control.codepoint not in (9, 10, 13)
-           and strpos(e.value->>'text', chr(control.codepoint)) > 0
-       )
-       or strpos(e.value->>'text', chr(127)) > 0
+       -- PostgreSQL text/jsonb cannot represent NUL. Enumerate every remaining
+       -- forbidden C0 code point explicitly so validation is locale-independent.
+       -- Speaker rejects U+0001..U+001F + DEL; text permits TAB/LF/CR only.
+       or translate(
+         e.value->>'speaker',
+         U&'\0001\0002\0003\0004\0005\0006\0007\0008\0009\000A\000B\000C\000D\000E\000F\0010\0011\0012\0013\0014\0015\0016\0017\0018\0019\001A\001B\001C\001D\001E\001F\007F',
+         ''
+       ) <> e.value->>'speaker'
+       or translate(
+         e.value->>'text',
+         U&'\0001\0002\0003\0004\0005\0006\0007\0008\000B\000C\000E\000F\0010\0011\0012\0013\0014\0015\0016\0017\0018\0019\001A\001B\001C\001D\001E\001F\007F',
+         ''
+       ) <> e.value->>'text'
        -- count_words_v1 uses this exact 25-codepoint Unicode White_Space set.
-       -- Translate each separator to ASCII space, then require a non-space token.
-       or btrim(
-         translate(
-           e.value->>'speaker',
-           U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
-           repeat(' ', 25)
-         )
+       -- Removing only those separators must leave at least one token character.
+       or translate(
+         e.value->>'speaker',
+         U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
+         ''
        ) = ''
-       or btrim(
-         translate(
-           e.value->>'text',
-           U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
-           repeat(' ', 25)
-         )
+       or translate(
+         e.value->>'text',
+         U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
+         ''
        ) = ''
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
