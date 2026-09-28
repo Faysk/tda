@@ -267,17 +267,6 @@ async function installMultiRecordingRoutes(page: Page) {
 					source_id: payload.source_id,
 					profile_id: "whisper-detailed",
 				},
-				timing: {
-					queued_at: NOW,
-					started_at: NOW,
-					finished_at: NOW,
-					queue_seconds: 0,
-					run_seconds: 2,
-					attempt_elapsed_seconds: 2,
-					stage_started_at: NOW,
-					stage_elapsed_seconds: 2,
-					tracks: [],
-				},
 			});
 		}
 		if (path === "/jobs" && request.method() === "GET") {
@@ -297,17 +286,6 @@ async function installMultiRecordingRoutes(page: Page) {
 						session_id: SESSION,
 						source_id: sourceId,
 						profile_id: "whisper-detailed",
-					},
-					timing: {
-						queued_at: NOW,
-						started_at: NOW,
-						finished_at: NOW,
-						queue_seconds: 0,
-						run_seconds: 2,
-						attempt_elapsed_seconds: 2,
-						stage_started_at: NOW,
-						stage_elapsed_seconds: 2,
-						tracks: [],
 					},
 				})),
 			});
@@ -459,6 +437,7 @@ test("duas gravações sobrevivem reload, processam seletivamente e abrem review
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByLabel("ID da sessão").fill(SESSION);
 
 	const input = page.getByLabel("Export do Craig");
 	await input.setInputFiles({
@@ -475,6 +454,17 @@ test("duas gravações sobrevivem reload, processam seletivamente e abrem review
 		buffer: Buffer.from("PK-fixture-b"),
 	});
 	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await expect(page.getByText("2 gravação(ões)", { exact: true })).toBeVisible();
+
+	await input.setInputFiles({
+		name: "sessao-42-parte-2-duplicada.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-fixture-b-duplicate"),
+	});
+	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await expect(
+		page.getByText("Esta gravação já faz parte da sessão. Nenhuma part duplicada foi criada."),
+	).toBeVisible();
 	await expect(page.getByText("2 gravação(ões)", { exact: true })).toBeVisible();
 
 	await page.reload();
