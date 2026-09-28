@@ -98,7 +98,9 @@ test("private transcript -> draft -> publish -> replace keeps transcript out of 
 
 	await expect(page.getByRole("region", { name: "Markdown bruto" })).toBeVisible();
 	await expect(page.getByRole("region", { name: "Preview do Markdown" })).toBeVisible();
-	await expect(page.getByText("Texto público deliberado.")).toBeVisible();
+	await expect(
+		page.getByRole("region", { name: "Preview do Markdown" }),
+	).toContainText("Texto público deliberado.");
 
 	await publish(page);
 	await expect(publicSurface.locator("article")).toHaveAttribute(
@@ -141,7 +143,7 @@ test("draft CAS conflict preserves the local working copy until explicit reconci
 	await title.fill("Minha working copy local");
 	await page.getByRole("button", { name: "Simular save concorrente" }).click();
 	await expect(page.getByTestId("remote-draft-revision")).toHaveText("2");
-	await page.getByRole("button", { name: "Salvar draft" }).click();
+	await page.getByRole("button", { name: "Salvar sessão" }).click();
 
 	await expect(page.getByRole("alert").filter({ hasText: "Conflito de edição" })).toBeVisible();
 	await expect(title).toHaveValue("Minha working copy local");
@@ -168,7 +170,7 @@ test("transcript revision drift updates immediately without discarding editorial
 
 	await expect(
 		page.getByText(
-			"A transcrição foi atualizada desde a base deste draft. O texto foi preservado; revise a diferença antes de publicar.",
+			"A transcrição foi atualizada desde a base deste draft. O conteúdo editorial foi preservado; revise a diferença antes de publicar.",
 			{ exact: true },
 		),
 	).toBeVisible();
