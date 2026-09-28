@@ -713,7 +713,6 @@ begin
          from jsonb_object_keys(raw.value) as k(key_name)
          where k.key_name not in (
            'assembly_segment_id',
-           'segment_id',
            'part_id',
            'source_id',
            'run_id',
