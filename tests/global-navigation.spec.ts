@@ -406,6 +406,29 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	await expect(panel).toHaveCount(0, { timeout: 3_000 });
 });
 
+test("closing global panel does not swallow Escape from the next top-layer interaction", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(page.locator(".account-menu-panel")).toHaveAttribute("data-state", "closing");
+
+	await page.evaluate(() => {
+		const dialog = document.createElement("dialog");
+		dialog.id = "navigation-escape-probe";
+		dialog.textContent = "Escape probe";
+		document.body.append(dialog);
+		dialog.showModal();
+	});
+	const dialog = page.locator("#navigation-escape-probe");
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+});
+
 test("navigation action does not wait for the 2s opening animation", async ({ page }) => {
 	await mockAccess(page);
 	await page.goto("/sessoes");
