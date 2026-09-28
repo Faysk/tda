@@ -1,0 +1,3 @@
+TDA Companion 0.3.16 release refresh marker.
+Purpose: force one exact-source Companion package build on main so the existing RC -> Stable publication pipeline can consume immutable validated bytes.
+Refs: #628
