@@ -8,6 +8,26 @@ const CLASSIFIER_CONTRACT = new Set([
 ]);
 
 const EXACT = {
+	navigation: new Set([
+		".github/workflows/ci.yml",
+		"next.config.ts",
+		"playwright.config.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/foundation.spec.ts",
+		"tests/auth.spec.ts",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/globals.css",
+		"src/app/design-system.css",
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/public-navigation-model.ts",
+		"src/components/theme-toggle.tsx",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"src/features/edit/navigation-entry.ts",
+	]),
 	db: new Set([
 		"tools/transcript-sync-db.py",
 		"tools/world-layout-db.py",
@@ -40,6 +60,12 @@ const EXACT = {
 };
 
 const PREFIX = {
+	navigation: [
+		"src/app/api/auth/me/",
+		"src/app/entrar/",
+		"src/features/auth/",
+		"src/features/edit/access/",
+	],
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
 	processing: [
@@ -76,6 +102,7 @@ export function classifyPaths(inputPaths) {
 	const files = [...new Set(inputPaths.map(normalized).filter(Boolean))].sort();
 	const classes = {
 		web: files.length > 0,
+		navigation: files.some((path) => matches(path, "navigation")),
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
 		processing: files.some((path) => matches(path, "processing")),
@@ -98,7 +125,15 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "db", "companion", "processing", "lembra", "media"])
+	for (const key of [
+		"web",
+		"navigation",
+		"db",
+		"companion",
+		"processing",
+		"lembra",
+		"media",
+	])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -114,6 +149,7 @@ function writeSummary(range, result) {
 			"## Change relevance",
 			`- Range: \`${range}\``,
 			`- web: \`${result.web}\``,
+			`- navigation: \`${result.navigation}\``,
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
 			`- processing: \`${result.processing}\``,
