@@ -12,8 +12,11 @@ async function editFirst(
 	text: string,
 	speaker = "Álya editada",
 ) {
-	const enterEditMode = page.getByRole("button", { name: "Editar transcrição" });
-	if (await enterEditMode.count()) await enterEditMode.click();
+	const enterEditMode = page.getByRole("button", {
+		name: "Editar transcrição",
+		exact: true,
+	});
+	if (await enterEditMode.isVisible().catch(() => false)) await enterEditMode.click();
 	const first = page.locator("[data-transcript-segment]").first();
 	await first.getByRole("button", { name: "Editar fala" }).click();
 	await first.getByLabel("Speaker").fill(speaker);
