@@ -1,8 +1,8 @@
 # Edit — slice server-side de transcrição
 
-> Status: leitura autorizada implementada com revision; mutation canônica preparada; persistence atômica pendente; bypass temporário de UI separado
+> Status: leitura contínua e correção privada por revisions imutáveis implementadas; boundary legado por segmento preservado para compatibilidade
 > Owner: Edit / aplicação + dados
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-28
 
 ## Objetivo
 
@@ -267,3 +267,35 @@ A experiência normal é read-first:
 O download Markdown usa o mesmo boundary privado e a mesma capability `campaign.transcript.read`. Cada request captura uma única revision/snapshot e gera o arquivo somente a partir dela, com `Content-Type: text/markdown; charset=utf-8`, `Content-Disposition: attachment` e `Cache-Control: private, no-store`. Falhas de autorização por capability/scope são colapsadas para `not_found` onde necessário para evitar disclosure cross-campaign; conteúdo da transcript não vira asset público nem entra em rota pública.
 
 A exportação preserva Unicode no corpo, sanitiza apenas o nome do arquivo e não inclui por padrão paths locais, hardware, tokens, operation ids ou lineage técnico irrelevante.
+
+
+## Correção inline da current transcript revision (#898)
+
+A workspace canônica `/edit/sessoes/[id]` continua **read-first**, mas editores com `campaign.content.edit` podem entrar explicitamente em modo de correção. Este fluxo não reutiliza a mutation legada de `transcript_segments`: uma sessão que já possui `current_transcript_revision_id` é editada como snapshot completo versionado.
+
+Contrato do save:
+
+```text
+current revision R3 (imutável)
+  -> browser envia somente deltas {trackNumber, segmentId, speaker, text}
+  -> server reautoriza campaign.content.edit
+  -> RPC bloqueia a sessão e exige expectedCurrent = R3
+  -> timing/provenance são lidos de R3 no banco
+  -> nova revision R4 (imutável, parent=R3)
+  -> sessions.current_transcript_revision_id = R4 na mesma transação
+  -> audit metadata-only
+```
+
+Consequências deliberadas:
+
+- timestamp/start/end não são editáveis neste slice;
+- run bruto, revisão pai e publicação pública nunca são mutados;
+- duas abas não usam last-write-wins: a segunda recebe `stale_current` e mantém sua working copy;
+- retry da mesma `operationId + delta` é idempotente e devolve a revision já criada;
+- alteração sem diferença efetiva retorna `no_change` e não fabrica histórico;
+- o draft editorial existente detecta automaticamente drift porque sua `base_transcript_revision_id` deixa de coincidir com o current pointer;
+- a UI monta controles somente para a fala ativa; o restante da timeline continua texto normal, inclusive em sessões longas;
+- busca opera sobre a working copy e save é explícito; não há autosave em blur;
+- o download Markdown continua privado/no-store e resolve a current revision autoritativa no servidor.
+
+Persistência versionada: `supabase/migrations/20260928023000_transcript_revision_web_edits.sql`. O contrato SQL sintético em `supabase/tests/transcript_revision_web_edits.sql` cobre autorização, imutabilidade, timing read-only, replay, stale current, no-op, rollback atômico e ausência de texto no audit. O contrato TypeScript cobre Unicode, limites e working deltas de 7.500 segmentos.
