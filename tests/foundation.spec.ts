@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+async function openAccountMenu(page: import("@playwright/test").Page) {
+	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	const panel = page.locator("#global-account-menu");
+	await expect(panel).toBeVisible();
+	return panel;
+}
+
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
@@ -88,12 +97,19 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.goto("/");
 
 	const launcher = page.getByRole("button", { name: "Abrir navegação" });
+	const account = page.getByRole("button", { name: "Abrir menu da conta" });
 	await expect(launcher).toBeVisible();
-	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await expect(account).toBeVisible();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveCount(0);
 	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
 
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
+
+	const accountPanel = await openAccountMenu(page);
+	await expect(accountPanel.getByText("Aparência", { exact: true })).toBeVisible();
+	await expect(accountPanel.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await page.keyboard.press("Escape");
 
 	await launcher.click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
@@ -124,6 +140,7 @@ test("theme follows the system by default and persists explicit toggles", async 
 }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
+	await openAccountMenu(page);
 	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	const sun = page.locator(".theme-toggle-glyph--sun");
 	const moon = page.locator(".theme-toggle-glyph--moon");
@@ -147,6 +164,7 @@ test("theme follows the system by default and persists explicit toggles", async 
 	await expect(moon).toHaveCSS("opacity", "1");
 
 	await page.reload();
+	await openAccountMenu(page);
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
 		"aria-checked",
@@ -193,6 +211,7 @@ test("official design tokens and brand variant follow the resolved theme", async
 }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
+	await openAccountMenu(page);
 
 	await expect
 		.poll(() =>
@@ -225,6 +244,7 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 }) => {
 	await page.emulateMedia({ colorScheme: "dark", reducedMotion: "no-preference" });
 	await page.goto("/");
+	await openAccountMenu(page);
 	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	const track = page.locator(".theme-toggle-track");
 	const knob = page.locator(".theme-toggle-knob");
@@ -295,6 +315,8 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 	expect(
 		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0s");
+	await page.keyboard.press("Escape");
+	await openAccountMenu(page);
 	const knob = page.locator(".theme-toggle-knob");
 	expect(
 		await knob.evaluate((element) => getComputedStyle(element).transitionDuration),
