@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+	failedJob,
 	fixtureJob,
 	installCompanionFixture,
 } from "../processing/companion-fixture";
@@ -680,6 +681,85 @@ test("queue overflow actions do not create horizontal overflow at 320px", async 
 	expect(box).not.toBeNull();
 	expect(box?.x ?? -1).toBeGreaterThanOrEqual(8);
 	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(312);
+});
+
+for (const completedCount of [5, 20, 100] as const) {
+	test(`completed queue keeps ${completedCount} terminal jobs dense and action-first`, async ({
+		page,
+	}, testInfo) => {
+		await page.setViewportSize({ width: 1920, height: 1080 });
+		const jobs = Array.from({ length: completedCount }, (_, index) =>
+			fixtureJob("succeeded", {
+				id: `job-completed-${String(index).padStart(3, "0")}`,
+				updated_at: `2026-09-28T18:${String(index % 60).padStart(2, "0")}:00Z`,
+				context: {
+					campaign_id: "yuhara-main",
+					session_id: `sessao-completed-${String(index).padStart(3, "0")}`,
+					source_id: `source-completed-${String(index).padStart(3, "0")}`,
+					profile_id: index % 2 === 0 ? "qwen-quality" : "whisper-turbo",
+				},
+			}),
+		);
+		await installCompanionFixture(page, {
+			profileReady: true,
+			advanceJobs: false,
+			initialJobs: jobs,
+		});
+		await page.goto("/");
+		await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+		await page.getByRole("tab", { name: "Fila" }).click();
+		const queue = page.getByRole("tabpanel", { name: "Fila" });
+		await queue.getByRole("button", { name: /Concluídos/ }).click();
+
+		const table = queue.locator("table[data-density='terminal']");
+		await expect(table).toBeVisible();
+		await expect(table.getByRole("columnheader", { name: "Conclusão" })).toBeVisible();
+		await expect(table.getByRole("columnheader", { name: "Etapa / progresso" })).toHaveCount(0);
+		await expect(table.getByRole("columnheader", { name: "Attempt" })).toHaveCount(0);
+		await expect(table.getByRole("columnheader", { name: "Erro / recuperação" })).toHaveCount(0);
+		await expect(queue.getByText("Resultado preparado", { exact: true })).toHaveCount(0);
+		await expect(queue.getByText("100%", { exact: true })).toHaveCount(0);
+		await expect(queue.getByRole("button", { name: "Abrir resultado" })).toHaveCount(completedCount);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+		).toBeTruthy();
+
+		await page.screenshot({
+			path: testInfo.outputPath(`queue-completed-${completedCount}.png`),
+			fullPage: false,
+		});
+	});
+}
+
+test("terminal failure keeps the warning factual without terminal-success noise", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob({
+			id: "job-terminal-warning",
+			context: {
+				campaign_id: "yuhara-main",
+				session_id: "sessao-terminal-warning",
+				source_id: "source-terminal-warning",
+				profile_id: "qwen-quality",
+			},
+		})],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+	await expect(queue.getByText("Falhou", { exact: true })).toBeVisible();
+	await expect(queue.getByText(/O alinhamento obrigatório falhou/u)).toBeVisible();
+	await expect(queue.getByText("100%", { exact: true })).toHaveCount(0);
+	await page.screenshot({
+		path: testInfo.outputPath("queue-terminal-warning.png"),
+		fullPage: false,
+	});
 });
 
 test("diagnostics mode owns routine aggregation without a grouping preference", async ({
