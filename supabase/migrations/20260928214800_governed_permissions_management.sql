@@ -91,25 +91,11 @@ begin
     return jsonb_build_object('status', 'not_found');
   end if;
 
-  if exists (
-    select 1
-    from public.audit_log al
-    where al.campaign_id = v_campaign_id
-      and al.action in ('permissions.role.grant', 'permissions.role.revoke')
-      and al.new_value ->> 'operationId' = p_operation_id::text
-  ) then
-    select coalesce(cpr.revision, 0)
-      into v_current_revision
-    from public.campaign_permission_revisions cpr
-    where cpr.campaign_id = v_campaign_id
-      and cpr.profile_id = p_target_profile_id;
-
-    return jsonb_build_object(
-      'status', 'replayed',
-      'revision', coalesce(v_current_revision, 0),
-      'operationId', p_operation_id
-    );
-  end if;
+  -- Serialize governed mutations within one campaign so last-admin/delegation
+  -- invariants cannot race across two different target revisions.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('tda:permissions:' || p_campaign_slug, 0)
+  );
 
   if not exists (
     select 1
@@ -134,6 +120,42 @@ begin
       )
   ) then
     return jsonb_build_object('status', 'forbidden');
+  end if;
+
+  if exists (
+    select 1
+    from public.audit_log al
+    where al.campaign_id = v_campaign_id
+      and al.action in ('permissions.role.grant', 'permissions.role.revoke')
+      and al.new_value ->> 'operationId' = p_operation_id::text
+      and (
+        al.actor_id is distinct from p_actor_profile_id
+        or al.new_value ->> 'targetProfileId' is distinct from p_target_profile_id::text
+      )
+  ) then
+    return jsonb_build_object('status', 'validation');
+  end if;
+
+  if exists (
+    select 1
+    from public.audit_log al
+    where al.campaign_id = v_campaign_id
+      and al.actor_id = p_actor_profile_id
+      and al.action in ('permissions.role.grant', 'permissions.role.revoke')
+      and al.new_value ->> 'operationId' = p_operation_id::text
+      and al.new_value ->> 'targetProfileId' = p_target_profile_id::text
+  ) then
+    select coalesce(cpr.revision, 0)
+      into v_current_revision
+    from public.campaign_permission_revisions cpr
+    where cpr.campaign_id = v_campaign_id
+      and cpr.profile_id = p_target_profile_id;
+
+    return jsonb_build_object(
+      'status', 'replayed',
+      'revision', coalesce(v_current_revision, 0),
+      'operationId', p_operation_id
+    );
   end if;
 
   if not exists (
@@ -284,6 +306,38 @@ begin
         select 1
         from public.role_permissions rp
         where rp.role_id = v_role_id
+          and rp.permission_action = 'campaign.permissions.manage'
+      ) and not (
+        exists (
+          select 1
+          from public.role_assignments ra
+          join public.role_permissions rp on rp.role_id = ra.role_id
+          where rp.permission_action = 'campaign.permissions.manage'
+            and ra.status = 'active'
+            and ra.starts_at <= v_now
+            and (ra.ends_at is null or ra.ends_at > v_now)
+            and ra.id <> v_assignment_id
+            and (
+              (ra.scope_type = 'campaign' and ra.scope_id = p_campaign_slug)
+              or (ra.scope_type = 'project' and ra.scope_id = 'tda')
+            )
+        )
+        or exists (
+          select 1
+          from jsonb_array_elements(p_changes) planned
+          join public.role_permissions planned_permission
+            on planned_permission.role_id = (planned ->> 'roleId')::uuid
+          where planned ->> 'operation' = 'grant'
+            and planned_permission.permission_action = 'campaign.permissions.manage'
+        )
+      ) then
+        return jsonb_build_object('status', 'last_admin');
+      end if;
+
+      if exists (
+        select 1
+        from public.role_permissions rp
+        where rp.role_id = v_role_id
           and rp.permission_action = any(v_sensitive_actions)
       ) and not p_confirm_sensitive then
         return jsonb_build_object('status', 'confirmation_required', 'kind', 'sensitive_revoke');
@@ -362,30 +416,6 @@ begin
   loop
     v_role_id := (v_change ->> 'roleId')::uuid;
     v_assignment_id := (v_change ->> 'assignmentId')::uuid;
-
-    if exists (
-      select 1
-      from public.role_permissions rp
-      where rp.role_id = v_role_id
-        and rp.permission_action = 'campaign.permissions.manage'
-    ) then
-      if not exists (
-        select 1
-        from public.role_assignments ra
-        join public.role_permissions rp on rp.role_id = ra.role_id
-        where rp.permission_action = 'campaign.permissions.manage'
-          and ra.status = 'active'
-          and ra.starts_at <= v_now
-          and (ra.ends_at is null or ra.ends_at > v_now)
-          and ra.id <> v_assignment_id
-          and (
-            (ra.scope_type = 'campaign' and ra.scope_id = p_campaign_slug)
-            or (ra.scope_type = 'project' and ra.scope_id = 'tda')
-          )
-      ) then
-        return jsonb_build_object('status', 'last_admin');
-      end if;
-    end if;
 
     select ra.status, ra.starts_at, ra.ends_at
       into v_old_status, v_old_starts_at, v_old_ends_at
