@@ -180,10 +180,10 @@ begin
         <> 'Álya'
      or (select segments->0->>'text' from public.transcript_revisions where id=v_revision)
         <> 'Coração 🌲'
-     or (select segments->0->>'start' from public.transcript_revisions where id=v_revision)
-        <> '1.2500000000000000'
-     or (select segments->1->>'end' from public.transcript_revisions where id=v_revision)
-        <> '3.0000000000000000' then
+     or (select (segments->0->>'start')::numeric from public.transcript_revisions where id=v_revision)
+        <> 1.25
+     or (select (segments->1->>'end')::numeric from public.transcript_revisions where id=v_revision)
+        <> 3 then
     raise exception 'LEGACY_PREPARE_PRESERVATION_INVALID';
   end if;
 
