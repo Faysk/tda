@@ -362,9 +362,8 @@ export function TranscriptReader({
 	const visible = baseline.slice(0, visibleCount);
 
 	return (
-		<div
+		<section
 			className={styles.reader}
-			role="region"
 			aria-label="Leitor e editor de transcrição"
 		>
 			<div className={styles.toolbar}>
@@ -634,6 +633,6 @@ export function TranscriptReader({
 					somente leitura. Ctrl/⌘+S salva a working copy inteira.
 				</p>
 			) : null}
-		</div>
+		</section>
 	);
 }
