@@ -357,7 +357,7 @@ export function TranscriptRevisionEditor({
 						</p>
 					</div>
 					<Button onClick={() => setMode("edit")} size="sm">
-						Corrigir transcrição
+						Editar transcrição
 					</Button>
 				</div>
 				{message ? (
