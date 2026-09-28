@@ -205,6 +205,23 @@ function RunCard({
 	const processingSeconds = measured?.totalProcessingSeconds ?? run.stats.processingSeconds;
 	const measuredAudio = measured ? measured.freshAudioWorkSeconds + measured.reusedAudioWorkSeconds : 0;
 	const rtf = measured ? (measuredAudio > 0 ? measured.totalProcessingSeconds / measuredAudio : null) : run.stats.rtf;
+	const primaryFacts = [
+		{ label: "Duração", value: run.stats.sessionDurationSeconds != null ? formatSeconds(run.stats.sessionDurationSeconds) : null },
+		{ label: "Processamento", value: processingSeconds != null ? formatSeconds(processingSeconds) : null },
+		{ label: "Velocidade", value: rtf != null ? formatRealtime(rtf) : null },
+		{ label: "Palavras", value: run.stats.wordCount != null ? String(run.stats.wordCount) : null },
+		{ label: "Turnos", value: run.stats.turnCount != null ? String(run.stats.turnCount) : null },
+		{ label: "Warnings", value: run.stats.warningCount != null ? String(run.stats.warningCount) : null },
+	].filter((item): item is { label: string; value: string } => item.value !== null);
+	const secondaryFacts = [
+		{ label: "Concluído", value: run.completedAt ? formatDate(run.completedAt) : null },
+		{ label: "Trabalho de áudio", value: run.stats.audioWorkSeconds != null ? formatSeconds(run.stats.audioWorkSeconds) : null },
+		{ label: "RTF", value: rtf != null ? rtf.toFixed(3) : null },
+		{ label: "Segmentos", value: run.stats.segmentCount != null ? String(run.stats.segmentCount) : null },
+		{ label: "Tracks", value: run.stats.trackCount != null ? String(run.stats.trackCount) : null },
+		{ label: "Deduplicados", value: run.stats.deduplicatedSegmentCount != null ? String(run.stats.deduplicatedSegmentCount) : null },
+		{ label: "Execução", value: formatRunExecution(run) },
+	].filter((item): item is { label: string; value: string } => item.value !== null);
 	return (
 		<article className={styles.runCard}>
 			<div className={styles.runHeader}>
@@ -212,31 +229,46 @@ function RunCard({
 					<span className={styles.eyebrow}>Resultado local</span>
 					<h3>{run.profileId}</h3>
 				</div>
-				<StatusPill tone="success">Concluído</StatusPill>
+				<div className={styles.runHeaderActions}>
+					<StatusPill tone="success">Concluído</StatusPill>
+					<div className={styles.runCardActions}>
+						<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
+							Revisar resultado
+						</Button>
+						{onDelete ? (
+							<details className={styles.runOverflow}>
+								<summary aria-label="Mais ações do resultado">•••</summary>
+								<div>
+									<Button size="sm" variant="tertiary" disabled={busy} onClick={onDelete}>
+										Excluir resultado local…
+									</Button>
+								</div>
+							</details>
+						) : null}
+					</div>
+				</div>
 			</div>
 			<p className={styles.runModel}>
 				{model}
 				{run.modelRevision ? ` · rev ${run.modelRevision}` : ""}
-				{" · "}
-				{formatRunExecution(run)}
 			</p>
-			<dl className={styles.runFacts}>
-				<div><dt>Concluído</dt><dd>{formatDate(run.completedAt)}</dd></div>
-				<div><dt>Duração da sessão</dt><dd>{formatSeconds(run.stats.sessionDurationSeconds)}</dd></div>
-				<div><dt>Trabalho de áudio</dt><dd>{formatSeconds(run.stats.audioWorkSeconds)}</dd></div>
-				<div><dt>Processamento</dt><dd>{formatSeconds(processingSeconds)}</dd></div>
-				<div><dt>Velocidade</dt><dd>{formatRealtime(rtf)}</dd></div>
-				<div><dt>RTF</dt><dd>{rtf === null ? "—" : rtf.toFixed(3)}</dd></div>
-				<div><dt>Palavras</dt><dd>{run.stats.wordCount ?? "—"}</dd></div>
-				<div><dt>Segmentos</dt><dd>{run.stats.segmentCount ?? "—"}</dd></div>
-				<div><dt>Turnos</dt><dd>{run.stats.turnCount ?? "—"}</dd></div>
-				<div><dt>Tracks</dt><dd>{run.stats.trackCount ?? "—"}</dd></div>
-				<div><dt>Deduplicados</dt><dd>{run.stats.deduplicatedSegmentCount ?? "—"}</dd></div>
-				<div><dt>Warnings</dt><dd>{run.stats.warningCount ?? "—"}</dd></div>
-				<div><dt>Execução</dt><dd>{formatRunExecution(run)}</dd></div>
-			</dl>
+			{primaryFacts.length ? (
+				<dl className={styles.runFacts} data-run-primary-facts="true">
+					{primaryFacts.map((fact) => (
+						<div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>
+					))}
+				</dl>
+			) : null}
+			<details className={styles.runDisclosure}>
+				<summary>Execução e métricas</summary>
+				<dl className={styles.runFactsSecondary}>
+					{secondaryFacts.map((fact) => (
+						<div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>
+					))}
+				</dl>
+			</details>
 			{measured ? (
-				<details>
+				<details className={styles.runDisclosure}>
 					<summary>Tempo comparável e reaproveitamento</summary>
 					<p>Inclui validação, modelos, transcrição, alinhamento e consolidação dentro da engine. Não inclui preparação externa nem o tempo completo do job.</p>
 					<p>{measured.freshAsrTracks} faixas com ASR novo · {measured.textCheckpointReusedTracks} com texto reaproveitado · {measured.completedCheckpointReusedTracks} concluídas reaproveitadas.</p>
@@ -257,30 +289,12 @@ function RunCard({
 					<span title={run.runId}>Run {run.runId}</span>
 					<span title={run.transcriptSha256}>SHA {run.transcriptSha256}</span>
 					{run.publicationTarget ? (
-						<span>
-							Destino {run.publicationTarget.campaignSlug} · sessão{" "}
-							{run.publicationTarget.sourceSessionId}
-						</span>
+						<span>Destino {run.publicationTarget.campaignSlug} · sessão {run.publicationTarget.sourceSessionId}</span>
 					) : (
 						<span>Sem destino cloud vinculado</span>
 					)}
 				</div>
 			</details>
-			<div className={styles.runCardActions}>
-				<Button size="sm" variant="primary" disabled={busy} onClick={onOpen}>
-					Revisar resultado
-				</Button>
-				{onDelete ? (
-					<details className={styles.runOverflow}>
-						<summary aria-label="Mais ações do resultado">•••</summary>
-						<div>
-							<Button size="sm" variant="tertiary" disabled={busy} onClick={onDelete}>
-								Excluir resultado local…
-							</Button>
-						</div>
-					</details>
-				) : null}
-			</div>
 		</article>
 	);
 }
