@@ -343,6 +343,7 @@ export function SessionRecordingComposer({
 	}, [bridge, runsBySource, supported, workspace]);
 
 	if (!supported) return null;
+	if (!workspace && !currentSource) return null;
 
 	async function attachCurrentSource() {
 		if (!currentSource || !validSessionId(sessionId) || busy || disabled) return;
