@@ -283,3 +283,21 @@
 		border-radius: var(--ds-radius-md);
 	}
 }
+
+
+@container (max-width: 940px) {
+	.toolbar {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.source,
+	.search {
+		grid-column: 1 / -1;
+	}
+
+	.searchNav,
+	.jump,
+	.download {
+		min-width: 0;
+	}
+}
