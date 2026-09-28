@@ -34,20 +34,6 @@ function unavailableSessionMetadata(id: string) {
 	});
 }
 
-function missingSessionMetadata(id: string): Metadata {
-	return {
-		...buildPublicMetadata({
-			title: "Sessão não encontrada",
-			description: "Esta sessão não existe ou não está disponível no arquivo público.",
-			pathname: `/sessoes/${encodeURIComponent(id)}`,
-		}),
-		robots: {
-			index: false,
-			follow: false,
-		},
-	};
-}
-
 export async function generateMetadata({ params }: SessionParams): Promise<Metadata> {
 	const { id } = await params;
 	let session: PublishedSession | null;
@@ -59,7 +45,7 @@ export async function generateMetadata({ params }: SessionParams): Promise<Metad
 		}
 		throw error;
 	}
-	if (!session) return missingSessionMetadata(id);
+	if (!session) notFound();
 	return sessionPublicMetadata(session);
 }
 
