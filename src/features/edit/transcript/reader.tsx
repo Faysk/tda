@@ -154,12 +154,13 @@ export function TranscriptReader({
 		segment: TranscriptReaderSegment,
 		patch: Partial<WorkingEdit>,
 	) {
-		const previous = working[segment.id] ?? {
-			speaker: segment.speaker,
-			text: segment.text,
-		};
-		const next = { ...previous, ...patch };
+		if (savePhase === "saving") return;
 		setWorking((current) => {
+			const previous = current[segment.id] ?? {
+				speaker: segment.speaker,
+				text: segment.text,
+			};
+			const next = { ...previous, ...patch };
 			const updated = { ...current };
 			if (next.speaker === segment.speaker && next.text === segment.text)
 				delete updated[segment.id];
@@ -419,6 +420,7 @@ export function TranscriptReader({
 						<Button
 							size="sm"
 							variant={editMode ? "secondary" : "tertiary"}
+							disabled={savePhase === "saving"}
 							onClick={() => {
 								setEditMode((current) => !current);
 								setActiveEditId(null);
@@ -519,6 +521,7 @@ export function TranscriptReader({
 									<span>Speaker</span>
 									<input
 										autoFocus
+										disabled={savePhase === "saving"}
 										value={segment.speaker}
 										onChange={(event) =>
 											updateWorking(baseSegment, {
@@ -538,6 +541,7 @@ export function TranscriptReader({
 									<label className={styles.inlineField}>
 										<span>Texto da fala</span>
 										<textarea
+											disabled={savePhase === "saving"}
 											rows={4}
 											value={segment.text}
 											onChange={(event) =>
@@ -551,6 +555,7 @@ export function TranscriptReader({
 										<Button
 											size="sm"
 											variant="tertiary"
+											disabled={savePhase === "saving"}
 											onClick={() => setActiveEditId(null)}
 										>
 											Concluir edição da fala
@@ -559,6 +564,7 @@ export function TranscriptReader({
 											<Button
 												size="sm"
 												variant="tertiary"
+												disabled={savePhase === "saving"}
 												onClick={() => revertSegment(baseSegment.id)}
 											>
 												Reverter fala
@@ -578,6 +584,7 @@ export function TranscriptReader({
 									<Button
 										size="sm"
 										variant="tertiary"
+										disabled={savePhase === "saving"}
 										onClick={() => setActiveEditId(baseSegment.id)}
 									>
 										Editar fala
