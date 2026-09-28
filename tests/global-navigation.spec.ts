@@ -154,7 +154,13 @@ test("floating shell removes the structural top band and stays viewport-bound", 
 		expect(backgroundImage).toContain("radial-gradient");
 	}
 
-	await page.evaluate(() => window.scrollTo(0, 600));
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.dataset.testid = "floating-shell-scroll-spacer";
+		spacer.style.height = "1600px";
+		document.querySelector("main")?.append(spacer);
+		window.scrollTo(0, 600);
+	});
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 	const [brandAfter, triggerAfter] = await Promise.all([
 		brand.boundingBox(),
@@ -183,7 +189,13 @@ test("profile panel stays anchored to the floating avatar after document scroll"
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/");
-	await page.evaluate(() => window.scrollTo(0, 600));
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.dataset.testid = "floating-shell-scroll-spacer";
+		spacer.style.height = "1600px";
+		document.querySelector("main")?.append(spacer);
+		window.scrollTo(0, 600);
+	});
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 
 	const trigger = page.getByRole("button", { name: "Abrir menu global" });
