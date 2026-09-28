@@ -23,7 +23,7 @@ A marca continua apontando para `/`. O launcher não repete uma entrada `Início
 
 Este documento separa **decisão aprovada** de **implementação/publicação**.
 
-Baseline revalidada desta revisão: `main@08ea4cf0c31e48e827c9da829cfe77dfc15392c1`.
+Baseline revalidada desta revisão: `main@c2c27a23017045882b67bbfa1a27439d02645fc0`.
 
 | Slice | Estado nesta baseline | Evidência |
 | --- | --- | --- |
