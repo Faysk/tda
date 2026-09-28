@@ -4,7 +4,6 @@ import {
 	createContext,
 	useContext,
 	useEffect,
-	useMemo,
 	useState,
 	type ReactNode,
 } from "react";
@@ -130,13 +129,8 @@ export function NavigationAuthProvider({
 		return () => controller.abort();
 	}, []);
 
-	const value = useMemo(
-		() => projection,
-		[projection],
-	);
-
 	return (
-		<NavigationAuthContext.Provider value={value}>
+		<NavigationAuthContext.Provider value={projection}>
 			{children}
 		</NavigationAuthContext.Provider>
 	);
