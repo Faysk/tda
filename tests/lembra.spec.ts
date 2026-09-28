@@ -91,11 +91,11 @@ test("Lembra mobile sticky toolbar stays below floating global chrome", async ({
 	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
 	await expect(search).toBeVisible();
 
-	await page.evaluate(() => {
+	await search.evaluate((input) => {
 		const spacer = document.createElement("div");
 		spacer.style.height = "1600px";
 		spacer.setAttribute("aria-hidden", "true");
-		document.body.append(spacer);
+		input.parentElement?.parentElement?.parentElement?.append(spacer);
 		window.scrollTo(0, 500);
 	});
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
