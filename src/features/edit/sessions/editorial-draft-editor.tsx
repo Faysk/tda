@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
+import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
@@ -16,6 +17,7 @@ import {
 } from "./session-cover-media";
 import {
 	SESSION_DRAFT_LIMITS,
+	isCanonicalSessionDate,
 	type SessionEditorialDraft,
 	sessionDraftReadiness,
 	sessionDraftScalarLength,
@@ -37,6 +39,7 @@ type Fields = Readonly<{
 	title: string;
 	shortDescription: string;
 	fullSummary: string;
+	sessionDate: string;
 }>;
 
 type PublishIntent = Readonly<{
@@ -55,6 +58,7 @@ function fieldsFromDraft(draft: SessionEditorialDraft): Fields {
 		title: draft.title,
 		shortDescription: draft.shortDescription,
 		fullSummary: draft.fullSummary,
+		sessionDate: draft.sessionDate ?? "",
 	};
 }
 
@@ -64,7 +68,8 @@ function sameFields(left: Fields, right: Fields) {
 		left.arc === right.arc &&
 		left.title === right.title &&
 		left.shortDescription === right.shortDescription &&
-		left.fullSummary === right.fullSummary
+		left.fullSummary === right.fullSummary &&
+		left.sessionDate === right.sessionDate
 	);
 }
 
@@ -121,6 +126,7 @@ export function SessionEditorialDraftEditor({
 				title: fields.title,
 				shortDescription: fields.shortDescription,
 				fullSummary: fields.fullSummary,
+				sessionDate: fields.sessionDate,
 			}),
 		[fields],
 	);
@@ -463,6 +469,27 @@ export function SessionEditorialDraftEditor({
 					</label>
 
 					<label className={styles.fieldLabel}>
+						Data da sessão
+						<input
+							className={styles.control}
+							disabled={!editable}
+							type="date"
+							onChange={(event) =>
+								setFields((current) => ({
+									...current,
+									sessionDate: event.target.value,
+								}))
+							}
+							value={fields.sessionDate}
+						/>
+						{fields.sessionDate && !isCanonicalSessionDate(fields.sessionDate) ? (
+							<small role="alert">Use uma data válida no formato AAAA-MM-DD.</small>
+						) : (
+							<small>Data canônica sem horário ou timezone.</small>
+						)}
+					</label>
+
+					<label className={styles.fieldLabel}>
 						Descrição curta · conteúdo público
 						<textarea
 							className={styles.textarea}
@@ -506,6 +533,7 @@ export function SessionEditorialDraftEditor({
 					<div className={draftStyles.previewCard}>
 						<span>{fields.arc.trim() || "Memória da campanha"}</span>
 						<strong>{fields.title.trim() || "Título ainda não definido"}</strong>
+						<small>{formatSessionDate(fields.sessionDate) || "Data ainda não definida"}</small>
 						<p>
 							{fields.shortDescription.trim() ||
 								"Descrição curta ainda não definida."}
@@ -526,6 +554,7 @@ export function SessionEditorialDraftEditor({
 							)}
 						</div>
 						<h3>{fields.title.trim() || "Título ainda não definido"}</h3>
+						<p className={styles.muted}>{formatSessionDate(fields.sessionDate) || "Data ainda não definida"}</p>
 						<StoryMarkdown
 							source={fields.fullSummary}
 							title={fields.title.trim() || "Sessão"}
@@ -593,6 +622,10 @@ export function SessionEditorialDraftEditor({
 						<div>
 							<dt>Título</dt>
 							<dd>{publishIntent.fields.title.trim()}</dd>
+						</div>
+						<div>
+							<dt>Data</dt>
+							<dd>{formatSessionDate(publishIntent.fields.sessionDate)}</dd>
 						</div>
 						<div>
 							<dt>Descrição</dt>

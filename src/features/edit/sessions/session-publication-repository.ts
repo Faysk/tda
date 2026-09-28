@@ -363,7 +363,7 @@ export async function persistSessionPublication(input: {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 
-	const { data, error } = await client.rpc("publish_session_editorial_atomic", {
+	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
 		p_actor_profile_id: input.actorProfileId,
 		p_campaign_slug: CAMPAIGN_SLUG,
 		p_session_id: input.request.sessionId,

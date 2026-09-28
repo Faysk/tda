@@ -26,6 +26,8 @@ type DraftRow = Readonly<{
 	title: unknown;
 	summary_short: unknown;
 	summary_full: unknown;
+	session_date: unknown;
+	session_date_captured: unknown;
 	created_at: unknown;
 }>;
 
@@ -83,7 +85,7 @@ export async function readSessionEditorialDraft(
 	const { data: draftRaw, error: draftError } = await client
 		.from("session_editorial_drafts")
 		.select(
-			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,created_at",
+			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,session_date,session_date_captured,created_at",
 		)
 		.eq("id", draftId)
 		.eq("session_id", sessionId)
@@ -117,7 +119,10 @@ export async function readSessionEditorialDraft(
 		fullSummary: text(draft.summary_full),
 		updatedAt,
 		sessionStatus: text(session.status) || "unknown",
-		sessionDate: text(session.session_date) || null,
+		sessionDate:
+			draft.session_date_captured === true
+				? text(draft.session_date) || null
+				: text(session.session_date) || null,
 		seededFromPublished: false,
 	};
 }
@@ -129,7 +134,7 @@ export async function persistSessionEditorialDraft(
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 
-	const { data, error } = await client.rpc("save_session_editorial_draft_atomic", {
+	const { data, error } = await client.rpc("save_session_editorial_draft_with_date_atomic", {
 		p_actor_profile_id: actorProfileId,
 		p_campaign_slug: CAMPAIGN_SLUG,
 		p_session_id: input.sessionId,
@@ -140,6 +145,7 @@ export async function persistSessionEditorialDraft(
 		p_title: input.title,
 		p_summary_short: input.shortDescription,
 		p_summary_full: input.fullSummary,
+		p_session_date: input.sessionDate || null,
 	});
 	if (error || !Array.isArray(data) || data.length !== 1)
 		return { ok: false as const, reason: "dependency_unavailable" as const };

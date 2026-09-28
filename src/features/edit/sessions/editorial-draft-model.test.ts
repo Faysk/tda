@@ -15,6 +15,7 @@ const base = {
 	title: "",
 	shortDescription: "",
 	fullSummary: "",
+	sessionDate: "",
 } as const;
 
 describe("session editorial draft contract", () => {
@@ -60,6 +61,20 @@ describe("session editorial draft contract", () => {
 		);
 	});
 
+
+	it.each([
+		["", []],
+		["2026-01-01", []],
+		["2024-02-29", []],
+		["2026-02-29", ["session_date"]],
+		["2026-02-30", ["session_date"]],
+		["19/08/2026", ["session_date"]],
+		["2026-08-19T00:00:00Z", ["session_date"]],
+		[" 2026-08-19 ", ["session_date"]],
+	] as const)("validates canonical date-only input %s", (sessionDate, expected) => {
+		expect(validateSessionEditorialDraftInput({ ...base, sessionDate })).toEqual(expected);
+	});
+
 	it("reports publication readiness from actual required copy", () => {
 		expect(
 			sessionDraftReadiness({
@@ -67,14 +82,16 @@ describe("session editorial draft contract", () => {
 				title: " ",
 				shortDescription: "Card",
 				fullSummary: "# Resumo",
+				sessionDate: "",
 			}),
-		).toEqual(["capa", "título"]);
+		).toEqual(["capa", "data da sessão", "título"]);
 		expect(
 			sessionDraftReadiness({
 				coverAssetId: "session-covers/key.webp",
 				title: "Sessão",
 				shortDescription: "Card",
 				fullSummary: "# Resumo",
+				sessionDate: "2024-02-29",
 			}),
 		).toEqual([]);
 	});
