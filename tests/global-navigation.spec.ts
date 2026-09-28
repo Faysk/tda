@@ -433,6 +433,28 @@ test("launcher uses compact icon-first cells with readable labels", async ({
 	}
 });
 
+test("320px fallback keeps long launcher labels fully readable", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+
+	for (const labelText of ["Transcrições", "Editar sessões", "Permissões"]) {
+		const link = navigation.getByRole("link", { name: labelText, exact: true });
+		await expect(link).toBeVisible();
+		const label = link.locator(".product-launcher-label");
+		expect(
+			await label.evaluate(
+				(element) =>
+					element.scrollWidth <= element.clientWidth + 1 &&
+					element.scrollHeight <= element.clientHeight + 1,
+			),
+		).toBeTruthy();
+	}
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
