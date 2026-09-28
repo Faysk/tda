@@ -10,6 +10,8 @@
 	);
 	--site-chrome-trigger-size: 44px;
 	--site-chrome-gap: 10px;
+	--site-chrome-brand-clearance: 168px;
+	--site-chrome-profile-clearance: 60px;
 	--site-chrome-panel-top: calc(
 		var(--site-chrome-top) + var(--site-chrome-trigger-size) + var(--site-chrome-gap)
 	);
