@@ -181,7 +181,9 @@ try:
         repo / "supabase/migrations/20260927203500_session_editorial_drafts.sql",
         repo / "supabase/migrations/20260927205500_session_cover_media_scope.sql",
         repo / "supabase/migrations/20260928004000_session_publications.sql",
+        repo / "supabase/migrations/20260928011000_session_editorial_date.sql",
         repo / "supabase/tests/session_publication_atomic.sql",
+        repo / "supabase/tests/session_editorial_date_atomic.sql",
     ]
     for path in paths:
         try:
