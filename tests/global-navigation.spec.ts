@@ -173,6 +173,22 @@ test("floating shell removes the structural top band and stays viewport-bound", 
 	expect(Math.abs(triggerAfter.y - triggerBefore.y)).toBeLessThanOrEqual(1);
 });
 
+test("floating chrome stays near viewport corners beyond the content max width", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 3840, height: 2160 });
+	await page.goto("/");
+
+	const brand = await page.locator(".brand").boundingBox();
+	const trigger = await page.getByRole("button", { name: "Abrir menu global" }).boundingBox();
+	expect(brand).not.toBeNull();
+	expect(trigger).not.toBeNull();
+	if (!brand || !trigger) return;
+
+	// The shell is viewport chrome, not a child of the 2160px content column.
+	expect(brand.x).toBeLessThanOrEqual(100);
+	expect(3840 - (trigger.x + trigger.width)).toBeLessThanOrEqual(100);
+});
+
 test("transparent floating shell does not steal pointer input from the free center area", async ({ page }) => {
 	await mockAccess(page);
 	await page.setViewportSize({ width: 1366, height: 768 });
