@@ -1,0 +1,100 @@
+name: Qwen 1.0.12 Stable Bootstrap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/qwen-1012-stable-bootstrap.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: qwen-1012-stable-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: dispatch verified Qwen 1.0.12 Runtime RC to Stable bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUNTIME_RC_RUN_ID: "36495481093"
+      EXPECTED_RC_TAG: "companion-qwen-runtime-rc-v1.0.12-6dc4a7bdc008"
+      EXPECTED_SOURCE_SHA: "6dc4a7bdc0080f0410777ddfa531e36771d04034"
+      STABLE_TAG: "companion-qwen-runtime-v1.0.12"
+      BRIDGE_WORKFLOW: "qwen-1012-production-validation-stable.yml"
+    steps:
+      - name: Verify exact completed Runtime RC and immutable RC release
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUNTIME_RC_RUN_ID" > runtime-rc.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open("runtime-rc.json", encoding="utf-8"))
+          if value.get("name") != "Runtime RC":
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RUNTIME_WORKFLOW_INVALID")
+          if value.get("status") != "completed" or value.get("conclusion") != "success":
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RUNTIME_NOT_SUCCESSFUL")
+          if value.get("head_branch") != "main":
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RUNTIME_NOT_MAIN")
+          PY
+
+          gh run view "$RUNTIME_RC_RUN_ID" --repo "$GITHUB_REPOSITORY" --log > runtime-rc.log
+          grep -F "RUNTIME_RC_READY family=qwen tag=$EXPECTED_RC_TAG source=$EXPECTED_SOURCE_SHA " runtime-rc.log >/dev/null || {
+            echo "::error::QWEN_1012_BOOTSTRAP_RUNTIME_MARKER_MISMATCH"
+            exit 1
+          }
+          gh release view "$EXPECTED_RC_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,targetCommitish > rc.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open("rc.json", encoding="utf-8"))
+          if value.get("tagName") != os.environ["EXPECTED_RC_TAG"]:
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RC_TAG_MISMATCH")
+          if value.get("isDraft") is not False or value.get("isPrerelease") is not True:
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RC_STATE_INVALID")
+          if value.get("targetCommitish") != os.environ["EXPECTED_SOURCE_SHA"]:
+              raise SystemExit("QWEN_1012_BOOTSTRAP_RC_SOURCE_MISMATCH")
+          PY
+
+          if gh release view "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "dispatch=false" >> "$GITHUB_OUTPUT"
+            echo "QWEN_1012_BOOTSTRAP_STABLE_ALREADY_PRESENT tag=$STABLE_TAG"
+          else
+            echo "dispatch=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure Stable bridge is active
+        if: steps.gate.outputs.dispatch == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$BRIDGE_WORKFLOW" --jq .state)"
+          case "$STATE" in
+            active)
+              ;;
+            disabled_manually|disabled_inactivity)
+              gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$BRIDGE_WORKFLOW/enable"
+              RESTORED="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$BRIDGE_WORKFLOW" --jq .state)"
+              [[ "$RESTORED" == "active" ]] || {
+                echo "::error::QWEN_1012_BOOTSTRAP_BRIDGE_RESTORE_FAILED:$RESTORED"
+                exit 1
+              }
+              ;;
+            *)
+              echo "::error::QWEN_1012_BOOTSTRAP_BRIDGE_STATE_UNSAFE:$STATE"
+              exit 1
+              ;;
+          esac
+
+      - name: Dispatch exact Runtime RC to Stable bridge
+        if: steps.gate.outputs.dispatch == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run "$BRIDGE_WORKFLOW"             --repo "$GITHUB_REPOSITORY"             --ref main             -f runtime_rc_run_id="$RUNTIME_RC_RUN_ID"
+          echo "QWEN_1012_BOOTSTRAP_DISPATCHED runtime_rc_run_id=$RUNTIME_RC_RUN_ID"
