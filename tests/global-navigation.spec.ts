@@ -81,6 +81,20 @@ async function openGlobalMenu(page: import("@playwright/test").Page) {
 	return panel;
 }
 
+async function expectGlobalMenuVisuallySettled(page: import("@playwright/test").Page) {
+	const panel = page.locator(".account-menu-panel");
+	await expect(panel).toHaveAttribute("data-state", "open", { timeout: 3_000 });
+	await expect
+		.poll(
+			async () =>
+				Number.parseFloat(
+					await panel.evaluate((element) => getComputedStyle(element).opacity),
+				),
+			{ timeout: 3_000 },
+		)
+		.toBeGreaterThanOrEqual(0.99);
+}
+
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
 }
@@ -738,9 +752,7 @@ test("desktop and mobile unified navigation receipts are captured from synthetic
 		await page.emulateMedia({ colorScheme: receipt.colorScheme });
 		await page.goto("/");
 		await openGlobalMenu(page);
-		await expect(page.locator(".account-menu-panel")).toHaveAttribute("data-state", "open", {
-			timeout: 3_000,
-		});
+		await expectGlobalMenuVisuallySettled(page);
 		await page.screenshot({ path: testInfo.outputPath(`navigation-${receipt.name}.png`), fullPage: false });
 	}
 });
