@@ -48,6 +48,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"src/features/auth/server.ts",
 		"src/features/edit/navigation-entry.ts",
 		"src/app/layout.tsx",
+		"src/app/not-found.tsx",
 		"src/app/public-shell.css",
 		"src/app/api/auth/me/route.ts",
 		"src/app/edit/page.tsx",
