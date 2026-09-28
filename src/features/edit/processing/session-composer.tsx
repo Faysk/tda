@@ -50,7 +50,6 @@ type Props = Readonly<{
 	context: string;
 	glossary: string;
 	profileReady: boolean;
-	recoveryScope?: string | null;
 	recoveryScope: string | null;
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
@@ -154,7 +153,6 @@ export function SessionRecordingComposer({
 	const [sourcesById, setSourcesById] = useState<ReadonlyMap<string, LocalSourceSummary>>(
 		new Map(),
 	);
-	const [localSources, setLocalSources] = useState<readonly LocalSourceSummary[]>([]);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
 	const [lastAssembly, setLastAssembly] = useState<SessionAssembly | null>(null);
 	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
@@ -176,19 +174,6 @@ export function SessionRecordingComposer({
 		? recordingVariantSourceIds(currentSource.sourceId, workspace, sourcesById)
 		: [];
 	const currentVariant = !currentDuplicate && currentVariantSourceIds.length > 0;
-	const currentCatalogSource = currentSource
-		? localSources.find((item) => item.sourceId === currentSource.sourceId) ?? null
-		: null;
-	const recordingVariant =
-		currentCatalogSource?.recordingId && workspace
-			? workspace.parts
-					.map((part) => localSources.find((item) => item.sourceId === part.sourceId) ?? null)
-					.find(
-						(item) =>
-							item?.recordingId === currentCatalogSource.recordingId &&
-							item.sourceId !== currentCatalogSource.sourceId,
-					) ?? null
-			: null;
 	const readiness = useMemo(
 		() => sessionAssemblyReadiness(workspace, mapping),
 		[workspace, mapping],
@@ -235,7 +220,6 @@ export function SessionRecordingComposer({
 			setMapping(nextMapping);
 			setAssemblies(assemblyList.assemblies);
 			setJobs(jobPage.jobs);
-			setLocalSources(sourceCatalog);
 		},
 		[bridge],
 	);
@@ -275,6 +259,7 @@ export function SessionRecordingComposer({
 				setWorkspace(null);
 				setMapping(null);
 				setRunsBySource(new Map());
+				setSourcesById(new Map());
 				setAssemblies([]);
 				onActiveChange?.(false);
 			} else {
@@ -291,7 +276,8 @@ export function SessionRecordingComposer({
 		void bridge
 			.localSources(controller.signal)
 			.then((sources) => {
-				if (!controller.signal.aborted) setLocalSources(sources);
+				if (!controller.signal.aborted)
+					setSourcesById(new Map(sources.map((source) => [source.sourceId, source])));
 			})
 			.catch(() => {
 				// Variant detection is advisory; attach still relies on Agent invariants.
@@ -805,6 +791,7 @@ export function SessionRecordingComposer({
 		setWorkspace(null);
 		setMapping(null);
 		setRunsBySource(new Map());
+		setSourcesById(new Map());
 		setJobs([]);
 		setAssemblies([]);
 		setLastAssembly(null);
