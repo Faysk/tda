@@ -131,39 +131,14 @@ begin
        or char_length(e.value->>'speaker') not between 1 and 160
        or char_length(e.value->>'text') not between 1 and 100000
        -- Mirror isReviewStringV1 at the privileged database boundary.
-       -- PostgreSQL text cannot contain NUL. Speaker rejects C0 U+0001..001F
-       -- plus DEL; text permits TAB/LF/CR and rejects the remaining C0 + DEL.
-       -- Avoid regex ranges over control codepoints because PostgreSQL's regex
-       -- engine can reject those ranges under UTF-8 collations.
-       or exists (
-         select 1
-         from generate_series(1, 31) control(codepoint)
-         where strpos(e.value->>'speaker', chr(control.codepoint)) > 0
-       )
-       or strpos(e.value->>'speaker', chr(127)) > 0
-       or exists (
-         select 1
-         from generate_series(1, 31) control(codepoint)
-         where control.codepoint not in (9, 10, 13)
-           and strpos(e.value->>'text', chr(control.codepoint)) > 0
-       )
-       or strpos(e.value->>'text', chr(127)) > 0
-       -- count_words_v1 uses this exact 25-codepoint Unicode White_Space set.
-       -- Translate each separator to ASCII space, then require a non-space token.
-       or btrim(
-         translate(
-           e.value->>'speaker',
-           U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
-           repeat(' ', 25)
-         )
-       ) = ''
-       or btrim(
-         translate(
-           e.value->>'text',
-           U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
-           repeat(' ', 25)
-         )
-       ) = ''
+       -- POSIX cntrl avoids PostgreSQL's locale-sensitive invalid ranges.
+       -- Speaker rejects every C0/DEL control; text permits TAB/LF/CR only.
+       or (e.value->>'speaker') ~ '[[:cntrl:]]'
+       or translate(e.value->>'text', E'\\t\\n\\r', '') ~ '[[:cntrl:]]'
+       -- count_words_v1 requires at least one non-White_Space token.
+       -- translate() with explicit code points keeps this independent of locale.
+       or translate(e.value->>'speaker', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
+       or translate(e.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
@@ -299,15 +274,11 @@ begin
   select count(*)::integer
   into v_word_count
   from jsonb_array_elements(v_segments) segment(value)
-  cross join lateral string_to_table(
-    translate(
-      segment.value->>'text',
-      U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000',
-      repeat(' ', 25)
-    ),
-    ' '
-  ) token(value)
-  where token.value <> '';
+  cross join lateral regexp_matches(
+    segment.value->>'text',
+    U&'[^\0009-\000D\0020\0085\00A0\1680\2000-\200A\2028\2029\202F\205F\3000]+',
+    'g'
+  );
 
   v_review_summary := jsonb_set(
     jsonb_set(
