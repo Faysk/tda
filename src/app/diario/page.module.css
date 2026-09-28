@@ -2,7 +2,7 @@
 	width: min(1000px, calc(100% - 40px));
 	min-height: 65svh;
 	margin: 0 auto;
-	padding: 56px 0 80px;
+	padding: max(56px, calc(var(--site-chrome-panel-top, 66px) + 8px)) 0 80px;
 }
 .heading {
 	margin-bottom: 32px;
@@ -69,7 +69,7 @@
 }
 @media (max-width: 650px) {
 	.archive {
-		padding-top: 32px;
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
 	.book {
 		padding: 24px 20px;

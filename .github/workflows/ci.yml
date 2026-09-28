@@ -175,10 +175,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
+      - name: World shell interaction contracts
+        run: >-
+          pnpm exec playwright test
+          tests/world-workspace-shell.spec.ts
+          tests/world-workspace-wide-chrome.spec.ts
+          tests/world-authoring-command-palette.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test
           tests/global-navigation.spec.ts
+          tests/floating-shell-public-routes.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           --project=desktop-1080p
@@ -192,6 +201,15 @@ jobs:
             test-results/**/navigation-desktop-light.png
             test-results/**/navigation-mobile-dark.png
             test-results/**/navigation-mobile-light.png
+            test-results/**/shell-home-desktop-dark.png
+            test-results/**/shell-home-desktop-light.png
+            test-results/**/shell-home-mobile-dark.png
+            test-results/**/shell-home-mobile-light.png
+            test-results/**/shell-home-4k-dark.png
+            test-results/**/shell-contrast-dark-theme.png
+            test-results/**/shell-contrast-light-theme.png
+            test-results/**/shell-contrast-mobile-dark.png
+            test-results/**/shell-contrast-mobile-light.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
@@ -398,6 +416,19 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Browser editorial journey
         run: pnpm exec playwright test --config playwright.session-editorial.config.ts
+      - name: Upload sanitized editorial layout receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: session-editorial-layout-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/workbench-1920.png
+            test-results/**/workbench-1366.png
+            test-results/**/workbench-mobile-390.png
+            test-results/**/workbench-mobile-320.png
+            test-results/**/workbench-zoom-200.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Isolated PostgreSQL publication contracts
         run: |
           sudo apt-get update

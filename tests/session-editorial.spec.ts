@@ -243,6 +243,104 @@ test("cover promotion failure and capability loss fail closed without mutating t
 	).toBeDisabled();
 });
 
+test("editorial workbench header never collides with floating global chrome", async ({ page }) => {
+	for (const viewport of [
+		{ width: 1366, height: 768 },
+		{ width: 390, height: 844 },
+		{ width: 320, height: 800 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/session-editorial");
+		const [heading, brand, trigger] = await Promise.all([
+			page.getByRole("heading", { name: "Session Editorial E2E", exact: true }).boundingBox(),
+			page.locator(".brand").boundingBox(),
+			page.locator(".account-menu-trigger").boundingBox(),
+		]);
+		expect(heading).not.toBeNull();
+		expect(brand).not.toBeNull();
+		expect(trigger).not.toBeNull();
+		if (!heading || !brand || !trigger) continue;
+
+		const overlaps = (
+			a: { x: number; y: number; width: number; height: number },
+			b: { x: number; y: number; width: number; height: number },
+		) =>
+			a.x < b.x + b.width &&
+			a.x + a.width > b.x &&
+			a.y < b.y + b.height &&
+			a.y + a.height > b.y;
+
+		expect(overlaps(heading, brand)).toBeFalsy();
+		expect(overlaps(heading, trigger)).toBeFalsy();
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBeTruthy();
+	}
+});
+
+test("desktop transcript toolbar stays clear of floating global chrome while sticky", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/e2e-fixtures/session-editorial");
+
+	const search = page.getByLabel("Buscar fala ou speaker");
+	const toolbar = search.locator("xpath=ancestor::div[1]");
+	await expect(search).toBeVisible();
+	expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.dataset.testid = "session-editorial-floating-shell-spacer";
+		spacer.style.height = "1400px";
+		document
+			.querySelector('section[aria-label="Leitor e editor de transcrição"]')
+			?.append(spacer);
+		window.scrollTo(0, 700);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const chromeBottom = await page.evaluate(() => {
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
+	});
+	const toolbarBox = await toolbar.boundingBox();
+	expect(toolbarBox).not.toBeNull();
+	if (toolbarBox) expect(toolbarBox.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+});
+
+test("session workbench floating-shell receipts cover desktop, mobile and zoom", async ({
+	page,
+}, testInfo) => {
+	for (const receipt of [
+		{ name: "workbench-1920", viewport: { width: 1920, height: 1080 } },
+		{ name: "workbench-1366", viewport: { width: 1366, height: 768 } },
+		{ name: "workbench-mobile-390", viewport: { width: 390, height: 844 } },
+		{ name: "workbench-mobile-320", viewport: { width: 320, height: 800 } },
+		{ name: "workbench-zoom-200", viewport: { width: 683, height: 384 } },
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.goto("/e2e-fixtures/session-editorial");
+		await expect(page.getByRole("tab", { name: "Transcrição" })).toBeVisible();
+		await expect(page.locator(".brand")).toBeVisible();
+		await expect(page.locator(".account-menu-trigger")).toBeVisible();
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBeTruthy();
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
 test("mobile workspace and publication dialog remain inside the viewport", async ({
 	page,
 }) => {

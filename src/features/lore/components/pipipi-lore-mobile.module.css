@@ -1,5 +1,6 @@
 @media (max-width: 650px) {
 	.chapterNav {
+		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 		width: calc(100% - 20px);
 		max-width: none;
 		gap: 2px;

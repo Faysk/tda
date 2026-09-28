@@ -30,8 +30,8 @@
 	}
 
 	:global([data-world-workspace-root] [data-world-authoring-active="true"][data-world-inspector-mode][data-world-edit-state] > aside[aria-live="polite"]) {
-		top: 72px;
-		max-height: calc(100dvh - 84px);
+		top: var(--site-chrome-panel-top, 66px);
+		max-height: calc(100dvh - var(--site-chrome-panel-top, 66px) - 12px);
 	}
 
 	:global([data-world-workspace-root] [data-world-authoring-active][data-world-inspector-mode="closed"][data-world-edit-state] > aside[aria-live="polite"]) {

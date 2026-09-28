@@ -1,6 +1,6 @@
 .shell {
 	max-width: 38rem;
-	margin: 4rem auto;
+	margin: max(4rem, calc(var(--site-chrome-panel-top, 66px) + 12px)) auto 4rem;
 	padding: 2rem;
 	background: var(--ds-surface);
 	border: 1px solid var(--ds-border);
@@ -35,7 +35,7 @@
 }
 @media (max-width: 600px) {
 	.shell {
-		margin: 2rem 1rem;
+		margin: calc(var(--site-chrome-panel-top, 66px) + 12px) 1rem 2rem;
 		padding: 1.5rem;
 	}
 }
@@ -96,7 +96,9 @@
 .accountShell {
 	width: min(calc(100% - 2rem), 68rem);
 	max-width: 68rem;
-	margin-block: clamp(2rem, 5vw, 4.5rem);
+	margin-block:
+		max(clamp(2rem, 5vw, 4.5rem), calc(var(--site-chrome-panel-top, 66px) + 12px))
+		clamp(2rem, 5vw, 4.5rem);
 	padding: 0;
 	border: 0;
 	border-radius: 0;

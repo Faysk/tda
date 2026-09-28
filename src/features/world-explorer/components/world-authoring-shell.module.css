@@ -30,6 +30,15 @@
 .active .publicChrome {
 	flex: 0 0 auto;
 	min-width: 0;
+	padding-inline:
+		var(--site-chrome-brand-clearance, 168px)
+		var(--site-chrome-profile-clearance, 60px);
+}
+
+.active .canvasColumn > :global([data-testid="world-conductor"]) {
+	margin-inline:
+		var(--site-chrome-brand-clearance, 168px)
+		var(--site-chrome-profile-clearance, 60px);
 }
 
 .active :global([data-testid="world-canvas"]) {
@@ -72,7 +81,7 @@
 
 .active[data-world-inspector-mode="overlay"] .inspector {
 	position: fixed;
-	top: 72px;
+	top: var(--site-chrome-panel-top, 66px);
 	right: 12px;
 	bottom: 12px;
 	left: auto;
@@ -144,10 +153,6 @@
 }
 
 @media (min-width: 2560px) {
-	.active .canvasColumn {
-		padding-inline: 16px;
-	}
-
 	.active[data-world-inspector-mode="overlay"] .inspector {
 		right: 16px;
 		bottom: 16px;
@@ -182,7 +187,18 @@
 
 @media (max-width: 700px) {
 	.active .canvasColumn {
-		padding: 7px;
+		padding:
+			calc(var(--site-chrome-panel-top, 66px) + 8px)
+			7px
+			7px;
+	}
+
+	.active .publicChrome {
+		padding-inline: 0;
+	}
+
+	.active .canvasColumn > :global([data-testid="world-conductor"]) {
+		margin-inline: 0;
 	}
 
 	.focusMode .canvasColumn {

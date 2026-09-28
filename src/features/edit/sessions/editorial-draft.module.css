@@ -11,9 +11,9 @@
 
 .editorialPane {
 	position: sticky;
-	top: 10px;
+	top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	min-width: 0;
-	max-height: calc(100vh - 20px);
+	max-height: calc(100dvh - var(--site-chrome-panel-top, 66px) - 20px);
 	overflow: auto;
 	scrollbar-gutter: stable;
 }

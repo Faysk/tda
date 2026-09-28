@@ -212,9 +212,9 @@
 
 .focusRoot {
 	position: fixed;
-	top: max(12px, env(safe-area-inset-top));
-	right: 12px;
-	left: 12px;
+	top: var(--site-chrome-top, max(12px, env(safe-area-inset-top)));
+	right: var(--site-chrome-profile-clearance, 60px);
+	left: var(--site-chrome-brand-clearance, 168px);
 	z-index: 70;
 	display: flex;
 	align-items: center;
@@ -314,6 +314,12 @@
 }
 
 @media (max-width: 620px) {
+	.focusRoot {
+		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+		right: max(8px, env(safe-area-inset-right, 0px));
+		left: max(8px, env(safe-area-inset-left, 0px));
+	}
+
 	.surfaceActive {
 		gap: 7px;
 		padding: 5px;

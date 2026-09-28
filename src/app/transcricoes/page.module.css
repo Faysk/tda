@@ -4,6 +4,24 @@
 	padding: 40px 0 72px;
 	font-family: var(--ds-font-ui);
 }
+
+.shell > header,
+.shell > h1:first-child {
+	padding-inline:
+		var(--site-chrome-brand-clearance, 0px)
+		var(--site-chrome-profile-clearance, 0px);
+}
+
+@media (max-width: 700px) {
+	.shell {
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+	}
+
+	.shell > header,
+	.shell > h1:first-child {
+		padding-inline: 0;
+	}
+}
 .shell h1,
 .shell h2 {
 	font-family: var(--ds-font-display);

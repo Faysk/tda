@@ -91,7 +91,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 
 - [Lores independentes — liberdade visual e catálogo](features/independent-lores.md)
 - [Especificações de features — índice](features/README.md)
-- [Navegação global do TDA](features/global-navigation.md) — marca = início, launcher = produto e avatar = conta/aparência; capabilities privadas continuam subordinadas aos guards server-side.
+- [Navegação global do TDA](features/global-navigation.md) — marca + avatar compõem o chrome flutuante; avatar abre navegação/conta/aparência/ferramentas e capabilities privadas continuam subordinadas aos guards server-side.
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
 - [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato implementado para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.

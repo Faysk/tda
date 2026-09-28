@@ -88,13 +88,57 @@ test("mobile inspector still collapses to a bottom-sheet reopen control", async 
 	expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 });
 
+test("desktop authoring inspector derives its top edge from floating chrome geometry", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop authoring inspector contract.");
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/mundo");
+
+	const explorer = page.locator("[data-world-authoring-active]").first();
+	await expect(explorer).toBeVisible();
+	await explorer.evaluate((element) => {
+		element.setAttribute("data-world-authoring-active", "true");
+		element.setAttribute("data-world-inspector-mode", "overlay");
+	});
+
+	const inspector = explorer.locator('> aside[aria-live="polite"]');
+	await expect(inspector).toBeVisible();
+	const values = await page.evaluate(() => {
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		const inspector = document.querySelector<HTMLElement>(
+			'[data-world-authoring-active="true"][data-world-inspector-mode="overlay"] > aside[aria-live="polite"]',
+		);
+		return {
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+			inspectorTop: inspector?.getBoundingClientRect().top ?? -1,
+			computedTop: inspector ? Number.parseFloat(getComputedStyle(inspector).top) : -1,
+		};
+	});
+	expect(values.inspectorTop).toBeGreaterThanOrEqual(values.chromeBottom + 4);
+	expect(values.computedTop).toBeGreaterThanOrEqual(values.chromeBottom + 4);
+});
+
 test("mobile navigation remains a non-reserving modal overlay", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile navigation contract.");
 	await page.goto("/mundo");
 	const workspace = page.getByTestId("world-workspace");
 	const stage = page.getByTestId("world-workspace-stage");
 	const before = await stage.boundingBox();
-	await page.getByRole("button", { name: "Explorar universo" }).click();
+	const navigationToggle = page.getByRole("button", { name: "Explorar universo" });
+	const [brandBox, navigationToggleBox] = await Promise.all([
+		page.locator(".brand").boundingBox(),
+		navigationToggle.boundingBox(),
+	]);
+	expect(brandBox).not.toBeNull();
+	expect(navigationToggleBox).not.toBeNull();
+	if (brandBox && navigationToggleBox) {
+		expect(navigationToggleBox.y).toBeGreaterThanOrEqual(
+			brandBox.y + brandBox.height + 4,
+		);
+	}
+	await navigationToggle.click();
 	await expect(workspace).toHaveAttribute("data-world-navigation", "open");
 	const open = await stage.boundingBox();
 	expect(Math.abs((open?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);

@@ -81,6 +81,20 @@ async function openGlobalMenu(page: import("@playwright/test").Page) {
 	return panel;
 }
 
+async function expectGlobalMenuVisuallySettled(page: import("@playwright/test").Page) {
+	const panel = page.locator(".account-menu-panel");
+	await expect(panel).toHaveAttribute("data-state", "open", { timeout: 3_000 });
+	await expect
+		.poll(
+			async () =>
+				Number.parseFloat(
+					await panel.evaluate((element) => getComputedStyle(element).opacity),
+				),
+			{ timeout: 3_000 },
+		)
+		.toBeGreaterThanOrEqual(0.99);
+}
+
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
 }
@@ -109,6 +123,239 @@ test("avatar is the only global trigger and exposes the complete public IA", asy
 	const labels = await navigation.locator(".product-launcher-link").allTextContents();
 	expect(labels.slice(0, publicLabels.length)).toEqual(publicLabels);
 	await expect(navigation.getByRole("link", { name: "Sessões", exact: true })).toHaveAttribute("aria-current", "page");
+});
+
+test("floating shell removes the structural top band and stays viewport-bound", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+
+	const shell = page.locator(".site-header");
+	const brand = page.locator(".brand");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	const [mainBox, brandBefore, triggerBefore] = await Promise.all([
+		page.locator("main").boundingBox(),
+		brand.boundingBox(),
+		trigger.boundingBox(),
+	]);
+	expect(mainBox).not.toBeNull();
+	expect(brandBefore).not.toBeNull();
+	expect(triggerBefore).not.toBeNull();
+	if (!mainBox || !brandBefore || !triggerBefore) return;
+
+	expect(mainBox.y).toBeLessThanOrEqual(1);
+	const shellStyle = await shell.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			position: style.position,
+			height: Number.parseFloat(style.height),
+			borderBottomWidth: style.borderBottomWidth,
+			backgroundColor: style.backgroundColor,
+		};
+	});
+	expect(shellStyle.position).toBe("fixed");
+	expect(shellStyle.height).toBeLessThanOrEqual(1);
+	expect(shellStyle.borderBottomWidth).toBe("0px");
+	expect(shellStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+
+	const scrims = await Promise.all([
+		brand.evaluate((element) => getComputedStyle(element, "::before").backgroundImage),
+		page.locator(".header-actions").evaluate(
+			(element) => getComputedStyle(element, "::before").backgroundImage,
+		),
+	]);
+	for (const backgroundImage of scrims) {
+		expect(backgroundImage).toContain("radial-gradient");
+	}
+
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.dataset.testid = "floating-shell-scroll-spacer";
+		spacer.style.height = "1600px";
+		document.querySelector("main")?.append(spacer);
+		window.scrollTo(0, 600);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+	const [brandAfter, triggerAfter] = await Promise.all([
+		brand.boundingBox(),
+		trigger.boundingBox(),
+	]);
+	expect(brandAfter).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (!brandAfter || !triggerAfter) return;
+	expect(Math.abs(brandAfter.y - brandBefore.y)).toBeLessThanOrEqual(1);
+	expect(Math.abs(triggerAfter.y - triggerBefore.y)).toBeLessThanOrEqual(1);
+});
+
+test("floating chrome stays near viewport corners beyond the content max width", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 3840, height: 2160 });
+	await page.goto("/");
+
+	const brand = await page.locator(".brand").boundingBox();
+	const trigger = await page.getByRole("button", { name: "Abrir menu global" }).boundingBox();
+	expect(brand).not.toBeNull();
+	expect(trigger).not.toBeNull();
+	if (!brand || !trigger) return;
+
+	// The shell is viewport chrome, not a child of the 2160px content column.
+	expect(brand.x).toBeLessThanOrEqual(100);
+	expect(3840 - (trigger.x + trigger.width)).toBeLessThanOrEqual(100);
+});
+
+test("transparent floating shell does not steal pointer input from the free center area", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const hit = await page.evaluate(() => {
+		const target = document.elementFromPoint(window.innerWidth / 2, 24);
+		return {
+			exists: target !== null,
+			insideHeader: Boolean(target?.closest(".site-header")),
+		};
+	});
+	expect(hit.exists).toBeTruthy();
+	expect(hit.insideHeader).toBeFalsy();
+});
+
+test("root scroll clearance keeps focused anchors below the floating chrome", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const result = await page.evaluate(() => {
+		const fixture = document.createElement("section");
+		fixture.innerHTML = [
+			'<div style="height: 1000px"></div>',
+			'<button id="floating-shell-focus-probe" type="button">Focus probe</button>',
+			'<div style="height: 1000px"></div>',
+		].join("");
+		const main = document.querySelector("main");
+		if (!main) return null;
+		main.append(fixture);
+
+		const probe = document.getElementById("floating-shell-focus-probe");
+		if (!(probe instanceof HTMLButtonElement)) {
+			fixture.remove();
+			return null;
+		}
+		probe.scrollIntoView({ block: "start" });
+		probe.focus({ preventScroll: true });
+
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		const value = {
+			focused: document.activeElement === probe,
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+			probeTop: probe.getBoundingClientRect().top,
+		};
+		fixture.remove();
+		return value;
+	});
+	expect(result).not.toBeNull();
+	if (!result) return;
+	expect(result.focused).toBeTruthy();
+	expect(result.probeTop).toBeGreaterThanOrEqual(result.chromeBottom + 4);
+});
+
+test("home hero occupies the real top viewport across responsive breakpoints", async ({ page }) => {
+	await mockAccess(page);
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/");
+		const hero = page.locator('main section[aria-labelledby="home-title"]').first();
+		const box = await hero.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.y).toBeLessThanOrEqual(1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+	}
+});
+
+test("profile panel stays anchored to the floating avatar after document scroll", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.dataset.testid = "floating-shell-scroll-spacer";
+		spacer.style.height = "1600px";
+		document.querySelector("main")?.append(spacer);
+		window.scrollTo(0, 600);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	const triggerBox = await trigger.boundingBox();
+	expect(triggerBox).not.toBeNull();
+	const panel = await openGlobalMenu(page);
+	const panelBox = await page.locator(".account-menu-panel").boundingBox();
+	expect(panelBox).not.toBeNull();
+	if (!triggerBox || !panelBox) return;
+
+	const gap = panelBox.y - (triggerBox.y + triggerBox.height);
+	expect(gap).toBeGreaterThanOrEqual(6);
+	expect(gap).toBeLessThanOrEqual(16);
+	await expectPanelContained(page);
+	await expectNoHorizontalOverflow(page);
+});
+
+test("narrow public surfaces keep their first critical content clear of floating chrome", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+
+	for (const route of ["/lore", "/diario", "/lembra"]) {
+		await page.goto(route);
+		const chromeBottom = await page.evaluate(() => {
+			const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+			const trigger = document
+				.querySelector<HTMLElement>(".account-menu-trigger")
+				?.getBoundingClientRect();
+			return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
+		});
+
+		const target =
+			route === "/lembra"
+				? page.getByPlaceholder("Buscar título, descrição, autor ou data...")
+				: page.getByRole("heading", { level: 1 }).first();
+		await expect(target).toBeVisible();
+		const box = await target.boundingBox();
+		expect(box).not.toBeNull();
+		if (box) expect(box.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+		await expectNoHorizontalOverflow(page);
+	}
+});
+
+test("World keeps floating global navigation without the retired header reveal control", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	for (const viewport of [
+		{ width: 1366, height: 768 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/mundo");
+
+		await expect(page.getByRole("button", { name: "Mostrar menu principal" })).toHaveCount(0);
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await expect(trigger).toBeVisible();
+		const workspace = page.getByTestId("world-workspace");
+		const workspaceBox = await workspace.boundingBox();
+		expect(workspaceBox).not.toBeNull();
+		if (workspaceBox) {
+			expect(workspaceBox.y).toBeLessThanOrEqual(1);
+			expect(workspaceBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
+		}
+
+		const panel = await openGlobalMenu(page);
+		await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+		await expectPanelContained(page);
+		await page.keyboard.press("Escape");
+	}
 });
 
 test("unified panel projects only authorized tools", async ({ page }) => {
@@ -249,6 +496,29 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await expect(panel).toHaveAttribute("data-state", "closing");
 	await expect(panel).toHaveCount(0, { timeout: 3_000 });
+});
+
+test("closing global panel does not swallow Escape from the next top-layer interaction", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(page.locator(".account-menu-panel")).toHaveAttribute("data-state", "closing");
+
+	await page.evaluate(() => {
+		const dialog = document.createElement("dialog");
+		dialog.id = "navigation-escape-probe";
+		dialog.textContent = "Escape probe";
+		document.body.append(dialog);
+		dialog.showModal();
+	});
+	const dialog = page.locator("#navigation-escape-probe");
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
 });
 
 test("navigation action does not wait for the 2s opening animation", async ({ page }) => {
@@ -396,6 +666,80 @@ test("appearance control toggles the explicit document theme", async ({ page }) 
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
+test("floating shell closed-state receipts capture the reclaimed viewport", async ({ page }, testInfo) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	for (const receipt of [
+		{ name: "shell-home-desktop-dark", viewport: { width: 1920, height: 1080 }, colorScheme: "dark" as const },
+		{ name: "shell-home-desktop-light", viewport: { width: 1920, height: 1080 }, colorScheme: "light" as const },
+		{ name: "shell-home-mobile-dark", viewport: { width: 390, height: 844 }, colorScheme: "dark" as const },
+		{ name: "shell-home-mobile-light", viewport: { width: 390, height: 844 }, colorScheme: "light" as const },
+		{ name: "shell-home-4k-dark", viewport: { width: 3840, height: 2160 }, colorScheme: "dark" as const },
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/");
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
+test("floating chrome contrast receipts exercise opposing backgrounds without a full-width band", async ({ page }, testInfo) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1920, height: 1080 });
+
+	for (const receipt of [
+		{
+			name: "shell-contrast-dark-theme",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "dark" as const,
+			background:
+				"linear-gradient(90deg, #f4f1e8 0%, #f4f1e8 34%, #777 50%, #090b0e 66%, #090b0e 100%)",
+		},
+		{
+			name: "shell-contrast-light-theme",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "light" as const,
+			background:
+				"linear-gradient(90deg, #090b0e 0%, #090b0e 34%, #777 50%, #f4f1e8 66%, #f4f1e8 100%)",
+		},
+		{
+			name: "shell-contrast-mobile-dark",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "dark" as const,
+			background:
+				"linear-gradient(90deg, #f4f1e8 0%, #f4f1e8 48%, #090b0e 52%, #090b0e 100%)",
+		},
+		{
+			name: "shell-contrast-mobile-light",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "light" as const,
+			background:
+				"linear-gradient(90deg, #090b0e 0%, #090b0e 48%, #f4f1e8 52%, #f4f1e8 100%)",
+		},
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/");
+		await page.evaluate((background) => {
+			const hero = document.querySelector<HTMLElement>(
+				'main section[aria-labelledby="home-title"]',
+			);
+			if (!hero) return;
+			hero.style.background = background;
+			const artwork = hero.querySelector<HTMLElement>(
+				':scope > div[aria-hidden="true"]',
+			);
+			if (artwork) artwork.style.display = "none";
+		}, receipt.background);
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
 test("desktop and mobile unified navigation receipts are captured from synthetic state", async ({ page }, testInfo) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	for (const receipt of [
@@ -408,6 +752,7 @@ test("desktop and mobile unified navigation receipts are captured from synthetic
 		await page.emulateMedia({ colorScheme: receipt.colorScheme });
 		await page.goto("/");
 		await openGlobalMenu(page);
+		await expectGlobalMenuVisuallySettled(page);
 		await page.screenshot({ path: testInfo.outputPath(`navigation-${receipt.name}.png`), fullPage: false });
 	}
 });

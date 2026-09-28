@@ -3,7 +3,7 @@
 > Status: painel global unificado integrado; contrato e QA automatizado ativos  
 > Owner: navigation / frontend / identity-access  
 > Última revisão: 2026-09-28  
-> Fonte de verdade: este documento, decisão #963, motion #964 e guards/capabilities da `main`
+> Fonte de verdade: este documento, decisão #963, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
 
@@ -16,7 +16,7 @@ marca TDA -> início
 avatar    -> navegação + conta + aparência + ferramentas
 ```
 
-A marca continua apontando para `/`. O avatar é o **único trigger global à direita** do header.
+A marca continua apontando para `/`. O avatar é o **único trigger global à direita**. Marca e avatar compõem o **chrome flutuante do shell**: o landmark `header` permanece semanticamente, mas não existe mais uma barra superior visual ou uma faixa reservada no fluxo.
 
 ## Evolução e decisão vigente
 
@@ -54,17 +54,40 @@ A issue #964 adiciona ao painel único uma transição reversível deliberadamen
 | painel global unificado por avatar | integrado | #963 |
 | motion reversível do painel único | integrado pelo slice #964 |
 | contrato/gates do painel único | este documento + #965 |
+| shell flutuante sem barra estrutural | implementado nesta mudança | #995 / #999 |
+| âncora do painel + safe-area/scrims | implementado nesta mudança | #1000 / #1001 |
+| Home full-bleed no topo real | implementado nesta mudança | #1002 |
+| gates do floating chrome | este documento + #996 |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
-## Responsabilidades do header
+## Shell flutuante
+
+O TDA preserva um `<header>` semântico, mas ele **não é uma barra visual** e não reserva altura antes do `main`.
+
+Contrato geométrico:
+
+- marca fixa no canto superior esquerdo;
+- avatar fixo no canto superior direito;
+- ambos acompanham o viewport durante scroll;
+- conteúdo começa no topo real da página;
+- não existe `border-bottom`, background full-width ou spacer equivalente à antiga barra;
+- offsets consideram `safe-area-inset-*` com fallback quando os insets são zero;
+- o wrapper transparente do shell não bloqueia interação com conteúdo fora dos controles;
+- scrims/fades são locais à marca/avatar e não podem reconstruir uma navbar visual;
+- `scroll-padding-block-start` ou estratégia equivalente impede âncoras/foco de terminarem totalmente escondidos sob o chrome.
+
+Superfícies que possuam ações na primeira linha usam **corner clearance**: protegem apenas os cantos ocupados, sem reservar uma faixa horizontal inteira.
+
+A ordem de camadas é deliberada: conteúdo comum fica abaixo do chrome global; marca/avatar e o painel global ficam acima das superfícies ordinárias; dialogs, command palettes e outras top layers modais ficam acima do chrome. A implementação não deve resolver colisões com uma escalada arbitrária de `z-index`.
 
 ### Marca
 
 - ação de início;
 - aponta para `/`;
 - mantém identidade visual oficial;
-- não compete com o avatar.
+- não compete com o avatar;
+- pode usar scrim local para continuar legível sobre artwork ou superfícies variáveis.
 
 ### Avatar / trigger global
 
@@ -98,7 +121,7 @@ O painel aberto pelo avatar reúne, nessa hierarquia semântica:
 
 Links de navegação continuam links comuns dentro de `nav`. Não usar `role="menu"`/`menuitem`: trata-se de navegação de site, não de menu de aplicação.
 
-O painel permanece ancorado ao avatar, limitado à viewport e com scroll interno em altura curta.
+O painel permanece ancorado ao avatar flutuante, limitado à viewport e com scroll interno em altura curta. Em mobile, sua posição deriva do inset do chrome + tamanho real do trigger + gap; não existe dependência conceitual de “altura da navbar”.
 
 ## Destinos públicos
 
@@ -237,7 +260,10 @@ Matriz mínima:
 - 2560×1440;
 - equivalente real de zoom 200% (viewport CSS reduzida);
 - dark/light;
-- reduced motion.
+- reduced motion;
+- documento rolado com marca/avatar ainda viewport-fixed;
+- painel aberto após scroll;
+- Home com hero ocupando o topo real.
 
 ## Acessibilidade
 
@@ -268,7 +294,12 @@ O gate `tests/global-navigation.spec.ts`, executado pelo job `navigation-e2e`, d
 - reduced motion mantiver a transição longa;
 - 320/390/zoom 200% produzirem overflow;
 - labels críticos truncarem;
-- o painel crescer sem limite em viewports grandes.
+- o painel crescer sem limite em viewports grandes;
+- o shell voltar a reservar uma faixa full-width antes do conteúdo;
+- marca/avatar deixarem de acompanhar o viewport;
+- mobile voltar a ancorar o painel em offsets derivados da antiga navbar;
+- skip link ou foco ficarem totalmente obscurecidos pelo floating chrome;
+- a Home voltar a subtrair a altura antiga da barra do hero.
 
 Receipts sintéticos obrigatórios:
 
@@ -293,6 +324,11 @@ Fixtures/receipts usam identidade e avatar sintéticos; nunca dados privados rea
 
 ## Referências
 
+- #995 / #999 — decisão e implementação do shell flutuante sem barra;
+- #1000 — safe-area e scrims locais;
+- #1001 — âncora do painel no avatar flutuante;
+- #1002 — Home full-bleed no topo real;
+- #996 — gates de floating chrome, foco, reflow e receipts;
 - #963 — decisão vigente: painel único aberto pelo avatar;
 - #964 — motion reversível do painel único;
 - #965 — migração do contrato e browser gates;

@@ -17,7 +17,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 	const pathname = usePathname() || "/mundo";
 	const [navigationOpen, setNavigationOpen] = useState(true);
 	const [mobileNavigation, setMobileNavigation] = useState(false);
-	const [siteHeaderOpen, setSiteHeaderOpen] = useState(false);
 	const [authoringActive, setAuthoringActiveState] = useState(false);
 	const navigationPanelRef = useRef<HTMLElement>(null);
 	const navigationCloseRef = useRef<HTMLButtonElement>(null);
@@ -34,9 +33,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 		return () => desktop.removeEventListener("change", syncNavigationToViewport);
 	}, [authoringActive]);
 
-	useEffect(() => {
-		if (authoringActive) setSiteHeaderOpen(false);
-	}, [authoringActive]);
 
 	const closeNavigation = useCallback(() => {
 		const shouldRestoreFocus = window.matchMedia("(max-width: 820px)").matches;
@@ -125,7 +121,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 				className={`${styles.workspace}${navigationOpen ? ` ${styles.navigationOpen}` : ""}`}
 				data-world-workspace-root
 				data-world-navigation={navigationOpen ? "open" : "closed"}
-				data-world-site-header={siteHeaderOpen ? "open" : "closed"}
 				data-world-authoring={authoringActive ? "active" : "inactive"}
 				data-testid="world-workspace"
 			>
@@ -168,16 +163,6 @@ export function WorldWorkspaceShell({ children }: { children: React.ReactNode })
 					tabIndex={-1}
 				/>
 
-				{!authoringActive ? (
-					<WorldEdgeTab
-						edge="top"
-						expanded={siteHeaderOpen}
-						label={siteHeaderOpen ? "Ocultar menu principal" : "Mostrar menu principal"}
-						onToggle={() => setSiteHeaderOpen((value) => !value)}
-						icon={siteHeaderOpen ? "⌃" : "⌄"}
-						className={styles.topNavigationToggle}
-					/>
-				) : null}
 
 				<WorldEdgeTab
 					edge="left"

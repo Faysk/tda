@@ -133,7 +133,7 @@
 	}
 
 	.hero {
-		padding-top: 54px;
+		padding-top: max(54px, calc(var(--site-chrome-panel-top, 66px) + 8px));
 	}
 
 	.hero h1 {

@@ -32,7 +32,7 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
 	const topLembra = navigation.getByRole("link", { name: "Lembra", exact: true });
 	await expect(topLembra).toHaveAttribute("href", "/lembra");
@@ -83,6 +83,36 @@ test("Lembra stays dense, searchable and usable from keyboard", async ({ page })
 			() => document.documentElement.scrollWidth <= window.innerWidth,
 		),
 	).toBe(true);
+});
+
+test("Lembra mobile sticky toolbar stays below floating global chrome", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/lembra");
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await expect(search).toBeVisible();
+
+	await search.evaluate((input) => {
+		const spacer = document.createElement("div");
+		spacer.style.height = "1600px";
+		spacer.setAttribute("aria-hidden", "true");
+		input.parentElement?.parentElement?.parentElement?.append(spacer);
+		window.scrollTo(0, 500);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const geometry = await search.evaluate((input) => {
+		const toolbar = input.parentElement?.parentElement;
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		const box = toolbar?.getBoundingClientRect();
+		return {
+			toolbarTop: box?.top ?? -1,
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+		};
+	});
+	expect(geometry.toolbarTop).toBeGreaterThanOrEqual(geometry.chromeBottom + 4);
 });
 
 test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {

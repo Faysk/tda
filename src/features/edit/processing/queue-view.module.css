@@ -6,7 +6,7 @@
 
 .toolbar {
 	position: sticky;
-	top: 10px;
+	top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	z-index: 4;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) 150px auto;

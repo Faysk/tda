@@ -184,7 +184,7 @@
 .runDetail {
 	min-width: 0;
 	position: sticky;
-	top: 10px;
+	top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	container-type: inline-size;
 }
 
