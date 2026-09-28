@@ -17,6 +17,17 @@ export const PERMISSION_LABELS: Readonly<Record<string, string>> = {
 	"narrative.review.read": "Ler fila de revisão narrativa",
 	"narrative.review.manage": "Classificar candidatos narrativos",
 	"narrative.canon.approve": "Aprovar cânone",
+	"narrative.dm_notes.read": "Ler notas privadas do mestre",
+	"narrative.notes.review": "Revisar notas narrativas",
+	"narrative.roll20.ingest": "Importar material do Roll20",
+	"project.costs.read": "Consultar custos do projeto",
+	"project.deployments.read": "Consultar deployments",
+	"project.jobs.read": "Consultar jobs técnicos",
+	"project.jobs.run": "Executar jobs técnicos",
+	"project.logs.read_redacted": "Consultar logs sanitizados",
+	"project.monitor.read": "Consultar monitoramento",
+	"project.rbac.manage": "Administrar RBAC do projeto",
+	"project.tokens.status.read": "Consultar estado de tokens",
 };
 
 export const SENSITIVE_PERMISSION_ACTIONS = [
