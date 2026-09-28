@@ -1476,3 +1476,33 @@ Segurança e rollout:
 - colunas novas não alteram RLS/grants das tabelas;
 - Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
 - após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
+
+
+## 2026-09-28 — edição privada de transcript por revisão imutável
+
+### `20260928023000_transcript_revision_web_edit`
+
+**Estado:** migration versionada para #898; aplicação remota depende do pipeline de Production e do read-back pós-deploy.
+
+Objetivo:
+
+- permitir editar `speaker` e `text` diretamente no workspace canônico sem mutar run bruto, `transcript_segments` legado ou revision existente;
+- criar uma nova `transcript_revisions` completa para cada save efetivo;
+- preservar identidade/timing e provenance do parent;
+- avançar `sessions.current_transcript_revision_id` atomicamente com optimistic concurrency;
+- registrar `revision_origin` e `parent_revision_id` para lineage explícita.
+
+Boundary:
+
+- `edit_current_transcript_revision_atomic(...)` é `SECURITY INVOKER`, executável somente por `service_role`;
+- identidade profile/auth e `campaign.content.edit` são revalidadas no SQL;
+- patches aceitam somente `id`, `speaker` e `text`; campos de timing não fazem parte do contrato;
+- operação repetida com o mesmo conteúdo retorna a mesma revisão; operação reutilizada com bytes divergentes retorna `operation_conflict`;
+- base que deixou de ser current retorna `stale_current` antes de qualquer write;
+- audit é metadata-only.
+
+Validação:
+
+- PostgreSQL 16 descartável cobre save, parent imutável, timing preservado, replay, operation conflict, stale current, no-op, rejeição de timing e rollback integral quando audit falha;
+- testes Web cobrem working copy esparsa em transcript de 7.500 falas, invariantes de identidade/timing e rebase explícito de conflito;
+- merge não comprova aplicação remota; Production precisa confirmar migration history, grants da função e `/api/version` no SHA integrado.
