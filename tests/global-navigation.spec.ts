@@ -367,6 +367,30 @@ test("account states keep anonymous, linked, no-grants, avatar and fallback beha
 	await expect(page.locator(".account-avatar-image")).toBeVisible();
 });
 
+test("appearance control lives in the account panel and persists the explicit theme", async ({
+	page,
+}) => {
+	await page.emulateMedia({ colorScheme: "dark" });
+	await mockAccess(page, { state: "anonymous" });
+	await page.goto("/");
+
+	let account = await openAccountMenu(page);
+	const toggle = account.getByRole("switch", { name: "Modo escuro" });
+	await expect(toggle).toHaveAttribute("aria-checked", "true");
+	await toggle.click();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
+		"light",
+	);
+
+	await page.reload();
+	account = await openAccountMenu(page);
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	await expect(
+		account.getByRole("switch", { name: "Modo escuro" }),
+	).toHaveAttribute("aria-checked", "false");
+});
+
 test("viewport matrix keeps header, launcher and account controls contained with >=44px targets", async ({
 	page,
 }, testInfo) => {
