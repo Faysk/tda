@@ -350,6 +350,32 @@ test("outside interaction dismisses the launcher", async ({ page }) => {
 	await expect(navigation).toHaveCount(0);
 });
 
+test("launcher dismisses when browser history changes the pathname", async ({
+	page,
+}) => {
+	await mockAccess(page);
+	await page.goto("/");
+
+	let navigation = await openLauncher(page);
+	await navigation.getByRole("link", { name: "Mundo", exact: true }).click();
+	await expect(page).toHaveURL(/\/mundo$/u);
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+	navigation = await openLauncher(page);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/$/u);
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(navigation).toHaveCount(0);
+
+	navigation = await openLauncher(page);
+	await page.goForward();
+	await expect(page).toHaveURL(/\/mundo$/u);
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(navigation).toHaveCount(0);
+});
+
 test("navigation semantics keep ordinary links, visible focus and 44px touch targets", async ({
 	page,
 }) => {
