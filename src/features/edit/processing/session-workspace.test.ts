@@ -103,6 +103,38 @@ describe("session workspace protocol", () => {
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
 	});
 
+	it("parses explicit fail-closed order conflicts", () => {
+		const raw = workspace([
+			recordingPart({
+				part_id: partA,
+				source_id: sourceA,
+				ordinal: 0,
+				session_offset_seconds: 60,
+				effective_start_seconds: 60,
+				effective_end_seconds: 90,
+			}),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 0,
+				effective_start_seconds: 0,
+				effective_end_seconds: 30,
+				relation_to_previous: "order_conflict",
+				relation_seconds: null,
+			}),
+		]);
+		raw.timeline.state = "order_conflict";
+		(raw.timeline as Record<string, unknown>).order_conflict_count = 1;
+
+		const parsed = parseSessionWorkspace(raw);
+
+		expect(parsed.timeline.state).toBe("order_conflict");
+		expect(parsed.parts[1].relationToPrevious).toBe("order_conflict");
+		expect(parsed.parts[1].relationSeconds).toBeNull();
+		expect(parsed.timeline.orderConflictCount).toBe(1);
+	});
+
 	it("rejects duplicate sources, non-contiguous order and invalid clock confidence", () => {
 		const duplicate = workspace([
 			recordingPart({ part_id: partA, ordinal: 0 }),
@@ -117,6 +149,50 @@ describe("session workspace protocol", () => {
 			recordingPart({ source_start_confidence: "probably_fine" }),
 		]);
 		expect(() => parseSessionWorkspace(badClock)).toThrow();
+	});
+
+	it("rejects unknown relations and incoherent relation counters", () => {
+		const conflicted = workspace([
+			recordingPart(),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 0,
+				effective_start_seconds: 0,
+				effective_end_seconds: 30,
+				relation_to_previous: "order_conflict",
+				relation_seconds: null,
+			}),
+		]);
+		conflicted.timeline.state = "order_conflict";
+		conflicted.timeline.automatic_order_available = false;
+		(conflicted.timeline as Record<string, unknown>).order_conflict_count = 1;
+
+		const unknown = structuredClone(conflicted);
+		unknown.parts[1].relation_to_previous = "timey_wimey";
+		expect(() => parseSessionWorkspace(unknown)).toThrow();
+
+		const badCount = structuredClone(conflicted);
+		(badCount.timeline as Record<string, unknown>).order_conflict_count = 0;
+		expect(() => parseSessionWorkspace(badCount)).toThrow();
+
+		const badGapCount = workspace([
+			recordingPart(),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 3601,
+				effective_start_seconds: 3601,
+				effective_end_seconds: 7201,
+				relation_to_previous: "gap",
+				relation_seconds: 1,
+				gap_confirmed: true,
+			}),
+		]);
+		badGapCount.timeline.gap_count = 0;
+		expect(() => parseSessionWorkspace(badGapCount)).toThrow();
 	});
 
 	it("parses participant reconciliation and rejects inferred profiles", () => {
