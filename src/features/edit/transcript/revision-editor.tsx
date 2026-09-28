@@ -30,6 +30,7 @@ type Props = Readonly<{
 	sourceLabel: string;
 	downloadHref: string;
 	editable: boolean;
+	saveAction?: typeof saveTranscriptRevisionAction;
 }>;
 
 function normalizeSearch(value: string): string {
@@ -44,6 +45,7 @@ export function TranscriptRevisionEditor({
 	sourceLabel,
 	downloadHref,
 	editable,
+	saveAction,
 }: Props) {
 	const [mode, setMode] = useState<"read" | "edit">("read");
 	const [baseline, setBaseline] = useState<readonly TranscriptReaderSegment[]>(segments);
@@ -252,7 +254,7 @@ export function TranscriptRevisionEditor({
 				? previousAttempt.operationId
 				: crypto.randomUUID();
 		saveAttemptRef.current = { key: saveKey, operationId };
-		const result = await saveTranscriptRevisionAction({
+		const result = await (saveAction ?? saveTranscriptRevisionAction)({
 			sessionId,
 			expectedCurrentRevisionId: currentRevisionId,
 			operationId,
