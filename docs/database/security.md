@@ -350,6 +350,29 @@ O performance advisor reportou 59 FKs sem covering index e 30 índices sem uso r
 
 Nenhum advisor introduziu blocker de segurança para manter a infraestrutura aplicada com a projection pública canônica desativada.
 
+## Correção versionada da transcrição no Edit (#898)
+
+`public.edit_transcript_revision_atomic(uuid,text,uuid,uuid,uuid,jsonb)` é um
+boundary `SECURITY INVOKER` server-only para criar a próxima revisão privada a
+partir de patches de `speaker/text`. A aplicação resolve identidade/profile e
+`campaign.content.edit` antes da chamada. `PUBLIC`, `anon` e
+`authenticated` não possuem `EXECUTE`; somente `service_role` executa a RPC.
+
+A função:
+- vincula campaign/session/revisão sob row lock;
+- exige CAS de `current_transcript_revision_id`;
+- rejeita campos extras, portanto timestamp/track/segment identity não entram no
+  payload de edição;
+- cria nova linha imutável em `transcript_revisions` e troca somente o ponteiro
+  privado da sessão na mesma transação;
+- preserva a revisão anterior e falha fechado em stale/segmento desconhecido;
+- registra audit metadata-only, sem texto ou speaker da transcrição.
+
+A capability de publicação da transcrição não é reutilizada por esse fluxo:
+correção privada e publicação continuam boundaries separados. O segredo
+`service_role` permanece apenas no servidor e não substitui a autorização de
+aplicação.
+
 ## Secrets e service roles
 
 Nunca versionar:
