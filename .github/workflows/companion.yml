@@ -1,4 +1,5 @@
 name: Companion
+# #628 release refresh: emit one fresh exact-source Windows artifact after RC retry selection hardening.
 on:
   workflow_call:
     inputs:
