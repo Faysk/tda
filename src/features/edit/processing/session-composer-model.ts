@@ -63,7 +63,12 @@ export function pendingSourceIds(
 	if (!workspace) return [];
 	const activeSources = new Set(
 		jobs
-			.filter((job) => job.status === "queued" || job.status === "running")
+			.filter(
+			(job) =>
+				job.status === "queued" ||
+				job.status === "running" ||
+				job.status === "succeeded",
+		)
 			.map((job) => job.context?.sourceId)
 			.filter((sourceId): sourceId is string => Boolean(sourceId)),
 	);
