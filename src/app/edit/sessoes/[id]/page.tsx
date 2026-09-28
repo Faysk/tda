@@ -100,7 +100,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 	const sourceLabel =
 		snapshot.source === "current_revision"
 			? `Revisão privada atual · r${snapshot.revisionNumber ?? "?"}`
-			: "Legado · transcript_segments · ainda não passou pelo handoff moderno";
+			: "Transcrição antiga · leitura preservada";
 	const downloadHref =
 		`/api/edit/${encodeURIComponent(CAMPAIGN_SLUG)}/sessoes/${encodeURIComponent(session.sourceSessionId)}/transcript`;
 
@@ -167,6 +167,18 @@ export default async function EditSessionPage({ params }: PageProps) {
 									!publicationUnavailable && Boolean(publication),
 								publishable: canPublish,
 								sessionId: session.id,
+							}
+						: null
+				}
+				legacyPreparation={
+					snapshot.source === "legacy_segments" &&
+					snapshot.legacySnapshotSha256
+						? {
+								editable: canEdit,
+								segmentCount: snapshot.segments.length,
+								sessionId: session.id,
+								sessionTitle: session.title,
+								snapshotSha256: snapshot.legacySnapshotSha256,
 							}
 						: null
 				}
