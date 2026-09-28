@@ -29,7 +29,27 @@ create table public.sessions(
 create table public.transcript_revisions(
   id uuid primary key,
   campaign_id uuid not null references public.campaigns(id),
-  session_id uuid not null references public.sessions(id)
+  session_id uuid not null references public.sessions(id),
+  revision_number bigint not null default 1,
+  operation_id uuid not null default gen_random_uuid(),
+  source_system text not null default 'local_companion',
+  source_session_id text not null default 'synthetic-source',
+  source_id text not null default ('craig-' || repeat('a', 64)),
+  run_id text not null default 'synthetic-run',
+  base_transcript_sha256 text not null default repeat('b', 64),
+  draft_sha256 text not null default repeat('c', 64),
+  payload_sha256 text not null default repeat('d', 64),
+  segment_count integer not null default 1,
+  word_count integer not null default 2,
+  reviewed_segments integer not null default 1,
+  warning_count integer not null default 0,
+  lineage jsonb not null default '{"engine":"synthetic"}'::jsonb,
+  review_summary jsonb not null default '{"reviewed_segments":1,"word_count":2}'::jsonb,
+  segments jsonb not null default '[{"track_number":1,"segment_id":"seg-1","start":1.25,"end":2.5,"speaker":"Mesa","text":"texto original","reviewed":true}]'::jsonb,
+  actor_profile_id uuid not null references public.profiles(id),
+  created_at timestamptz not null default clock_timestamp(),
+  unique(session_id, revision_number),
+  unique(session_id, operation_id)
 );
 alter table public.sessions
   add constraint sessions_current_transcript_revision_fk
@@ -109,6 +129,7 @@ alter table public.sessions enable row level security;
 alter table public.media_assets enable row level security;
 grant usage on schema public, extensions to service_role, anon, authenticated;
 grant select on public.campaigns, public.profiles, public.sessions, public.transcript_revisions, public.media_assets, public.audit_log, public.permission_catalog, public.role_definitions, public.role_permissions to service_role;
+grant insert on public.transcript_revisions to service_role;
 grant update on public.sessions, public.media_assets to service_role;
 grant insert on public.media_assets, public.audit_log to service_role;
 
@@ -132,11 +153,16 @@ insert into public.sessions(
   'synthetic-public-id',
   '{}'::jsonb
 );
-insert into public.transcript_revisions(id,campaign_id,session_id)
+insert into public.transcript_revisions(
+  id,campaign_id,session_id,revision_number,operation_id,actor_profile_id
+)
 values (
   '44444444-4444-4444-8444-444444444444',
   '11111111-1111-4111-8111-111111111111',
-  '22222222-2222-4222-8222-222222222222'
+  '22222222-2222-4222-8222-222222222222',
+  1,
+  '44444444-4444-4444-8444-444444444445',
+  '33333333-3333-4333-8333-333333333333'
 );
 update public.sessions
 set current_transcript_revision_id='44444444-4444-4444-8444-444444444444'
