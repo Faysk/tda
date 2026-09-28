@@ -32,7 +32,8 @@ export function transcriptScalarLength(value: string): number | null {
 	return length;
 }
 
-function validText(value: string, maximum: number): boolean {
+function validText(value: unknown, maximum: number): value is string {
+	if (typeof value !== "string") return false;
 	const length = transcriptScalarLength(value);
 	return (
 		length !== null &&
@@ -50,25 +51,19 @@ export function validateTranscriptEditRequest(
 	if (!UUID.test(input.expectedCurrentTranscriptRevisionId))
 		issues.push("expected_current_revision_id");
 	if (!UUID.test(input.operationId)) issues.push("operation_id");
-	if (
-		!Array.isArray(input.edits) ||
-		input.edits.length < 1 ||
-		input.edits.length > TRANSCRIPT_EDIT_LIMITS.edits
-	)
+	const edits = Array.isArray(input.edits) ? input.edits : [];
+	if (edits.length < 1 || edits.length > TRANSCRIPT_EDIT_LIMITS.edits)
 		issues.push("edits");
 
 	const seen = new Set<string>();
-	for (const edit of input.edits) {
+	for (const edit of edits) {
 		if (
 			!Number.isSafeInteger(edit.trackNumber) ||
 			edit.trackNumber < 1 ||
 			edit.trackNumber > 9999
 		)
 			issues.push("track_number");
-		if (
-			!validText(edit.segmentId, TRANSCRIPT_EDIT_LIMITS.segmentId) ||
-			edit.segmentId.length > TRANSCRIPT_EDIT_LIMITS.segmentId
-		)
+		if (!validText(edit.segmentId, TRANSCRIPT_EDIT_LIMITS.segmentId))
 			issues.push("segment_id");
 		if (!validText(edit.speaker, TRANSCRIPT_EDIT_LIMITS.speaker))
 			issues.push("speaker");
