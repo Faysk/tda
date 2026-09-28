@@ -1,6 +1,6 @@
 # Navegação global do TDA
 
-> Status: arquitetura aprovada; implementação incremental em andamento
+> Status: arquitetura e implementação integradas; QA automatizado ativo
 > Owner: navigation / frontend / identity-access
 > Última revisão: 2026-09-28
 > Fonte de verdade: este documento, epic #879 e guards/capabilities da `main`
@@ -23,7 +23,7 @@ A marca continua apontando para `/`. O launcher não repete uma entrada `Início
 
 Este documento separa **decisão aprovada** de **implementação/publicação**.
 
-Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d644`.
+Baseline revalidada desta revisão: `main@5ddf57e4c55138cb7642a106957b0aa1b62c9260`.
 
 | Slice | Estado nesta baseline | Evidência |
 | --- | --- | --- |
@@ -31,10 +31,10 @@ Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d6
 | launcher global | integrada à `main` | #880 / PR #890 |
 | avatar/painel de conta | integrada à `main` | #882 / PR #902 |
 | retirada dos hubs `/edit` e `/conta` | integrada à `main` | #883 / PR #908 |
-| gate responsivo/teclado/visual completo | pendente | #884 |
+| gate responsivo/teclado/visual completo | integrado à `main` | #884 / PR #915 / estabilização #920 |
 | contrato documental | este documento | #885 |
 
-O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate completo de QA de #884 permanece pendente e não deve ser inferido apenas pela integração funcional.
+O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate de #884 foi integrado por #915 com matriz responsiva, teclado, estados de autenticação/capabilities, reduced motion, escala 200% e receipts visuais sanitizados; #920 estabilizou a regressão de teste do Lembra exposta no primeiro CI pós-merge.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
