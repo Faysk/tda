@@ -1,6 +1,6 @@
 # Sessões compostas por múltiplas gravações Craig
 
-> Status: em implementação por slices
+> Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
 > Última revisão: 2026-09-28
 > Fonte de verdade: este documento, ADR-0019 proposto e epic #843
@@ -543,6 +543,18 @@ O primeiro corte Web usa:
 - Session Assemblies distintas dos runs-fonte na aba Resultados;
 - base de review carregada pelo `assembly_id`, sem tratar a assembly como run ASR;
 - pointer de recuperação no navegador apenas para reencontrar o workspace; o Agent continua sendo authority do estado persistido.
+
+## Gate sintético de regressão
+
+A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, sem GPU e sem material privado:
+
+- Companion/SQLite: workspace 1..20 parts, CAS/restart, timeline, participants, assembly atômica e review;
+- Web: composer, selective processing/idempotência, variante por `recording_id`, reload/reconnect e assembly review;
+- publication: canonicalização multi-source, payload sanitizado e PostgreSQL scratch para replay, stale-current, replace, restore/unpublish e rollback atômico;
+- `multi-recording-gate`: job focado do CI que executa os contratos Companion/Web/publication relevantes e um guardrail de fixtures/paths privados;
+- `processing-e2e` permanece dono da jornada browser 2 parts e `transcript-import-postgres` permanece dono do scratch PostgreSQL completo.
+
+Esse gate não roda modelo ASR pesado, não usa áudio de campanha e não substitui aceite físico de GPU.
 
 ## Falhas e recuperação
 
