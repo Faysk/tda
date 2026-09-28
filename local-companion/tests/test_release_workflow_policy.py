@@ -49,6 +49,16 @@ def test_rc_workflow_auto_publishes_only_validated_main_artifacts_and_never_rebu
     assert "actions/checkout@v7" not in value
 
 
+def test_0316_production_validation_bridge_noops_when_successful_rc_run_published_no_release():
+    value = _read("companion-0316-production-validation-stable.yml")
+    assert 'RC_TAG="companion-rc-v${VERSION}-${SOURCE_SHA:0:12}"' in value
+    assert 'gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY"' in value
+    assert 'echo "eligible=false" >> "$GITHUB_OUTPUT"' in value
+    assert "Stable bridge is a no-op" in value
+    assert "Verify immutable RC release and bytes" in value
+    assert "if: steps.release.outputs.eligible == 'true'" in value
+
+
 def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_rebuilds():
     value = _read("companion-promote.yml")
     assert "workflow_dispatch:" in value
