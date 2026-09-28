@@ -1,20 +1,46 @@
-.site-header,
+:root {
+	--site-chrome-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));
+	--site-chrome-inline-start: max(
+		var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)),
+		calc(env(safe-area-inset-left, 0px) + 12px)
+	);
+	--site-chrome-inline-end: max(
+		var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)),
+		calc(env(safe-area-inset-right, 0px) + 12px)
+	);
+	--site-chrome-trigger-size: 44px;
+	--site-chrome-gap: 10px;
+	--site-chrome-panel-top: calc(
+		var(--site-chrome-top) + var(--site-chrome-trigger-size) + var(--site-chrome-gap)
+	);
+	--site-chrome-bottom-safe: calc(env(safe-area-inset-bottom, 0px) + 12px);
+	--nav-profile-panel-motion: 2000ms;
+	scroll-padding-block-start: calc(var(--site-chrome-panel-top) + 8px);
+}
+
 footer {
 	width: min(100%, var(--ds-layout-max, 2160px));
 	margin-inline: auto;
 }
 
 .site-header {
-	display: flex;
-	min-height: 82px;
-	align-items: center;
-	justify-content: space-between;
-	gap: clamp(16px, 2vw, 32px);
-	padding: 15px var(--ds-page-gutter, clamp(20px, 3.5vw, 72px));
-	border-bottom: 1px solid var(--ds-border-subtle);
+	position: fixed;
+	top: 0;
+	left: 50%;
+	z-index: 920;
+	width: min(100%, var(--ds-layout-max, 2160px));
+	height: 0;
+	margin: 0;
+	pointer-events: none;
+	transform: translateX(-50%);
 }
 
 .brand {
+	position: absolute;
+	top: var(--site-chrome-top);
+	left: var(--site-chrome-inline-start);
+	z-index: 1;
+	isolation: isolate;
 	display: inline-flex;
 	min-width: 0;
 	align-items: center;
@@ -22,6 +48,23 @@ footer {
 	color: var(--ds-foreground);
 	font-size: clamp(1.72rem, 1.6vw, 2rem);
 	line-height: 1;
+	pointer-events: auto;
+}
+
+.brand::before {
+	position: absolute;
+	inset: -12px -28px -12px -16px;
+	z-index: -1;
+	border-radius: 999px;
+	background: radial-gradient(
+		ellipse at 28% 50%,
+		color-mix(in srgb, var(--ds-canvas) 92%, transparent) 0%,
+		color-mix(in srgb, var(--ds-canvas) 72%, transparent) 42%,
+		color-mix(in srgb, var(--ds-canvas) 32%, transparent) 66%,
+		transparent 82%
+	);
+	content: "";
+	pointer-events: none;
 }
 
 .brand:hover {
@@ -51,10 +94,32 @@ footer {
 }
 
 .header-actions {
+	position: absolute;
+	top: var(--site-chrome-top);
+	right: var(--site-chrome-inline-end);
+	z-index: 2;
+	isolation: isolate;
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
 	gap: 14px;
+	pointer-events: auto;
+}
+
+.header-actions::before {
+	position: absolute;
+	inset: -12px -16px -12px -28px;
+	z-index: -1;
+	border-radius: 999px;
+	background: radial-gradient(
+		ellipse at 72% 50%,
+		color-mix(in srgb, var(--ds-canvas) 92%, transparent) 0%,
+		color-mix(in srgb, var(--ds-canvas) 72%, transparent) 42%,
+		color-mix(in srgb, var(--ds-canvas) 32%, transparent) 66%,
+		transparent 82%
+	);
+	content: "";
+	pointer-events: none;
 }
 
 .product-launcher {
@@ -270,10 +335,6 @@ footer {
 	stroke-width: 1.65;
 }
 
-:root {
-	--nav-profile-panel-motion: 2000ms;
-}
-
 .account-menu-panel {
 	position: absolute;
 	top: calc(100% + 10px);
@@ -449,8 +510,8 @@ footer {
 
 .skip-link {
 	position: fixed;
-	top: 12px;
-	left: 16px;
+	top: var(--site-chrome-top);
+	left: var(--site-chrome-inline-start);
 	z-index: 1000;
 	padding: 10px 14px;
 	border: 1px solid var(--ds-control-border);
@@ -510,12 +571,6 @@ footer {
 }
 
 @media (max-width: 650px) {
-	.site-header {
-		min-height: 72px;
-		gap: 12px;
-		padding-block: 12px;
-	}
-
 	.brand {
 		gap: 10px;
 		font-size: 1.5rem;
@@ -542,11 +597,13 @@ footer {
 
 	.account-menu-panel {
 		position: fixed;
-		top: 72px;
-		right: 12px;
-		left: 12px;
+		top: var(--site-chrome-panel-top);
+		right: max(12px, env(safe-area-inset-right, 0px));
+		left: max(12px, env(safe-area-inset-left, 0px));
 		width: auto;
-		max-height: calc(100dvh - 84px);
+		max-height: calc(
+			100dvh - var(--site-chrome-panel-top) - var(--site-chrome-bottom-safe)
+		);
 		overflow-y: auto;
 	}
 
@@ -575,10 +632,6 @@ footer {
 }
 
 @media (max-width: 360px) {
-	.site-header {
-		gap: 8px;
-	}
-
 	.brand {
 		flex: 0 0 auto;
 		gap: 8px;
@@ -594,11 +647,13 @@ footer {
 	}
 
 	.account-menu-panel {
-		top: 68px;
-		right: 8px;
-		left: 8px;
+		top: var(--site-chrome-panel-top);
+		right: max(8px, env(safe-area-inset-right, 0px));
+		left: max(8px, env(safe-area-inset-left, 0px));
 		width: auto;
-		max-height: calc(100dvh - 76px);
+		max-height: calc(
+			100dvh - var(--site-chrome-panel-top) - var(--site-chrome-bottom-safe)
+		);
 	}
 
 	.product-launcher-grid {
