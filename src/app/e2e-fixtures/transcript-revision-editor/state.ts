@@ -10,6 +10,8 @@ export type TranscriptRevisionFixtureState = Readonly<{
 	revisionId: string;
 	revisionNumber: number;
 	patches: readonly TranscriptRevisionEditPatch[];
+	operationId?: string;
+	parentRevisionId?: string;
 }>;
 
 export function transcriptRevisionFixtureSegments(): TranscriptReaderSegment[] {
@@ -62,6 +64,12 @@ export function parseTranscriptRevisionFixtureState(
 			revisionId: value.revisionId,
 			revisionNumber: value.revisionNumber,
 			patches,
+			operationId:
+				typeof value.operationId === "string" ? value.operationId : undefined,
+			parentRevisionId:
+				typeof value.parentRevisionId === "string"
+					? value.parentRevisionId
+					: undefined,
 		};
 	} catch {
 		return {
