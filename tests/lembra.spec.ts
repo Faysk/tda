@@ -85,6 +85,36 @@ test("Lembra stays dense, searchable and usable from keyboard", async ({ page })
 	).toBe(true);
 });
 
+test("Lembra mobile sticky toolbar stays below floating global chrome", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/lembra");
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await expect(search).toBeVisible();
+
+	await page.evaluate(() => {
+		const spacer = document.createElement("div");
+		spacer.style.height = "1600px";
+		spacer.setAttribute("aria-hidden", "true");
+		document.body.append(spacer);
+		window.scrollTo(0, 500);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const geometry = await search.evaluate((input) => {
+		const toolbar = input.parentElement?.parentElement;
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		const box = toolbar?.getBoundingClientRect();
+		return {
+			toolbarTop: box?.top ?? -1,
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+		};
+	});
+	expect(geometry.toolbarTop).toBeGreaterThanOrEqual(geometry.chromeBottom + 4);
+});
+
 test("Lembra Ctrl/Cmd+K focuses search", async ({ page }) => {
 	await page.goto("/lembra");
 	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
