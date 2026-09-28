@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { prepareTranscriptRevisionEditChanges } from "./revision-edit-model";
-import { parseTranscriptRevisionEditResult } from "./revision-edit-persistence";
+import {
+	parseTranscriptRevisionEditResult,
+	prepareTranscriptRevisionEditChanges,
+} from "./revision-edit-model";
 
 describe("prepareTranscriptRevisionEditChanges", () => {
 	it("canonicalizes Unicode-safe speaker/text deltas", () => {
