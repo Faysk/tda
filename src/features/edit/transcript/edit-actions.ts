@@ -9,6 +9,7 @@ import {
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	type TranscriptEditRequest,
+	type TranscriptEditSaveResult,
 	validateTranscriptEditRequest,
 } from "./edit-model";
 import { persistTranscriptRevisionEdits } from "./edit-repository";
@@ -16,7 +17,7 @@ import { readTranscriptSnapshot } from "./repository";
 
 export async function saveTranscriptRevisionEditsAction(
 	input: TranscriptEditRequest,
-) {
+): Promise<TranscriptEditSaveResult> {
 	const issues = validateTranscriptEditRequest(input);
 	if (issues.length) {
 		return {
