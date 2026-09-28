@@ -207,12 +207,12 @@ test("anonymous account menu keeps login explicit, POST-only and preserves the r
 	page,
 }) => {
 	await mockAuth(page, { state: "anonymous" });
-	await page.goto("/mundo?vista=lista");
+	await page.goto("/sessoes?vista=lista");
 	const panel = await openAccountMenu(page);
 
 	const form = panel.locator('form[action="/auth/discord"]');
 	await expect(form).toHaveAttribute("method", "post");
-	await expect(form.locator('input[name="next"]')).toHaveValue("/mundo?vista=lista");
+	await expect(form.locator('input[name="next"]')).toHaveValue("/sessoes?vista=lista");
 	await expect(
 		panel.getByRole("button", { name: "Entrar com Discord", exact: true }),
 	).toBeVisible();
