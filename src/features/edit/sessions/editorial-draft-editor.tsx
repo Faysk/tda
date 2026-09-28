@@ -153,6 +153,32 @@ export function SessionEditorialDraftEditor({
 	]);
 
 	useEffect(() => {
+		const updateTranscriptRevision = (event: Event) => {
+			if (!(event instanceof CustomEvent)) return;
+			const detail = event.detail as {
+				sessionId?: unknown;
+				revisionId?: unknown;
+			};
+			if (
+				detail.sessionId === sessionId &&
+				typeof detail.revisionId === "string" &&
+				detail.revisionId
+			) {
+				setCurrentTranscriptRevisionId(detail.revisionId);
+			}
+		};
+		window.addEventListener(
+			"tda:transcript-revision-updated",
+			updateTranscriptRevision,
+		);
+		return () =>
+			window.removeEventListener(
+				"tda:transcript-revision-updated",
+				updateTranscriptRevision,
+			);
+	}, [sessionId]);
+
+	useEffect(() => {
 		if (!dirty) return;
 		const guard = (event: BeforeUnloadEvent) => {
 			event.preventDefault();
