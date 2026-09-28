@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
@@ -168,48 +168,60 @@ export function SessionRecordingComposer({
 		[workspace, runsBySource, jobs],
 	);
 
-	function announce(message: string) {
-		setLive(message);
-		onStatus?.(message);
-	}
+	const announce = useCallback(
+		(message: string) => {
+			setLive(message);
+			onStatus?.(message);
+		},
+		[onStatus],
+	);
 
-	function fail(cause: unknown) {
-		const message = errorMessage(cause);
-		setLocalError(message);
-		onError?.(message);
-	}
+	const fail = useCallback(
+		(cause: unknown) => {
+			const message = errorMessage(cause);
+			setLocalError(message);
+			onError?.(message);
+		},
+		[onError],
+	);
 
-	async function loadRelated(next: SessionWorkspace, signal: AbortSignal) {
-		const runPairs = await Promise.all(
-			next.parts.map(async (part) => [
-				part.sourceId,
-				await bridge.localRuns(part.sourceId, signal),
-			] as const),
-		);
-		const [nextMapping, assemblyList, jobPage] = await Promise.all([
-			bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
-			bridge.sessionAssemblies(next.campaignId, next.sessionId, signal),
-			bridge.jobPage("all", signal, { limit: 200 }),
-		]);
-		if (signal.aborted) return;
-		setRunsBySource(new Map(runPairs));
-		setMapping(nextMapping);
-		setAssemblies(assemblyList.assemblies);
-		setJobs(jobPage.jobs);
-	}
+	const loadRelated = useCallback(
+		async (next: SessionWorkspace, signal: AbortSignal) => {
+			const runPairs = await Promise.all(
+				next.parts.map(async (part) => [
+					part.sourceId,
+					await bridge.localRuns(part.sourceId, signal),
+				] as const),
+			);
+			const [nextMapping, assemblyList, jobPage] = await Promise.all([
+				bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
+				bridge.sessionAssemblies(next.campaignId, next.sessionId, signal),
+				bridge.jobPage("all", signal, { limit: 200 }),
+			]);
+			if (signal.aborted) return;
+			setRunsBySource(new Map(runPairs));
+			setMapping(nextMapping);
+			setAssemblies(assemblyList.assemblies);
+			setJobs(jobPage.jobs);
+		},
+		[bridge],
+	);
 
-	async function adopt(next: SessionWorkspace, signal: AbortSignal) {
-		setWorkspace(next);
-		onActiveChange?.(next.parts.length > 0);
-		try {
-			window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
-			window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
-		} catch {
-			// Recovery is best-effort; the Agent workspace remains authoritative.
-		}
-		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
-		await loadRelated(next, signal);
-	}
+	const adopt = useCallback(
+		async (next: SessionWorkspace, signal: AbortSignal) => {
+			setWorkspace(next);
+			onActiveChange?.(next.parts.length > 0);
+			try {
+				window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
+				window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
+			} catch {
+				// Recovery is best-effort; the Agent workspace remains authoritative.
+			}
+			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
+			await loadRelated(next, signal);
+		},
+		[loadRelated, onActiveChange],
+	);
 
 	async function reload(create = false) {
 		if (!supported || !validSessionId(sessionId) || busy) return;
@@ -287,8 +299,7 @@ export function SessionRecordingComposer({
 			controller.abort();
 		};
 		// This intentionally restores only the persisted workspace identity.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [bridge, sessionId, supported]);
+	}, [adopt, bridge, fail, sessionId, supported]);
 
 	useEffect(() => {
 		if (!workspace || !supported) return;
@@ -812,7 +823,11 @@ export function SessionRecordingComposer({
 												{job ? " · job " + short(job.id, 8) + " " + job.status : ""}
 											</small>
 										</div>
-										<div className={styles.reorder} aria-label={"Ordenar gravação " + (index + 1)}>
+										<div
+											className={styles.reorder}
+											role="group"
+											aria-label={"Ordenar gravação " + (index + 1)}
+										>
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === 0} onClick={() => void reorder(part, -1)} aria-label={"Mover gravação " + (index + 1) + " para cima"}>
 												↑
 											</Button>
@@ -914,8 +929,10 @@ export function SessionRecordingComposer({
 							</summary>
 							{unresolvedConflicts.length ? (
 								<div className={styles.conflictList}>
-									{unresolvedConflicts.map((conflict, index) => (
-										<fieldset key={conflict.code + "-" + index}>
+									{unresolvedConflicts.map((conflict) => (
+										<fieldset
+											key={conflict.code + ":" + conflict.observationIds.join("|")}
+										>
 											<legend>{conflict.code.replaceAll("_", " ").toLocaleLowerCase("pt-BR")}</legend>
 											{conflict.observationIds.map((observationId) => {
 												const observation = mapping.observations.find((item) => item.observationId === observationId);
