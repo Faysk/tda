@@ -131,6 +131,7 @@ export function PublicNav() {
 	}, []);
 
 	useEffect(() => {
+		if (pathname === null) return;
 		setOpen(false);
 	}, [pathname]);
 
