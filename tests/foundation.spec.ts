@@ -322,20 +322,17 @@ test("legacy session hashes map to reboot paths", async ({ page }) => {
 	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);
 });
 
-test("not-found state stays non-indexable and uses the public navigation contract", async ({
+test("unavailable published session keeps the public recovery navigation contract", async ({
 	page,
 }) => {
 	const response = await page.goto("/sessoes/nonexistent");
-	const status = response?.status();
-	expect([200, 404]).toContain(status);
-	if (status === 200) {
-		await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-			"content",
-			/noindex/i,
-		);
-	}
+	expect(response?.status()).toBe(200);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"Esta história não foi encontrada.",
+		"Esta sessão está temporariamente indisponível.",
+	);
+	await expect(page.getByRole("link", { name: "Tentar novamente" })).toHaveAttribute(
+		"href",
+		"/sessoes/nonexistent",
 	);
 	await expect(page.getByRole("link", { name: "Voltar às sessões" })).toBeVisible();
 });
