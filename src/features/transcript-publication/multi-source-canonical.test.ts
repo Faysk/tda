@@ -101,8 +101,10 @@ describe("multi-source transcript publication contract", () => {
 		expect(result.value.publicationKind).toBe("session_assembly");
 		expect(result.value.sourceId).toBeNull();
 		expect(result.value.runId).toBeNull();
-		expect(result.value.provenance.parts).toHaveLength(partCount);
-		expect(result.value.provenance.parts.map((part) => part.ordinal)).toEqual(
+		const provenance = result.value.provenance;
+		if (!provenance) throw new Error("expected assembly provenance");
+		expect(provenance.parts).toHaveLength(partCount);
+		expect(provenance.parts.map((part) => part.ordinal)).toEqual(
 			Array.from({ length: partCount }, (_, index) => index),
 		);
 		expect(result.value.payloadSha256).toBe(sha256Utf8(result.value.payloadJson));
