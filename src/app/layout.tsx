@@ -7,7 +7,6 @@ import {
 } from "@/components/global-loading";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
-import { PublicNav } from "@/components/public-nav";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { SITE_NAME } from "@/config/public-metadata";
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
@@ -66,7 +65,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							</span>
 						</Link>
 						<div className="header-actions">
-							<PublicNav />
 							<AccountMenu />
 						</div>
 					</header>
