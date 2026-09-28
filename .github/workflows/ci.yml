@@ -474,6 +474,7 @@ jobs:
           name: session-editorial-layout-receipts-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             test-results/**/workbench-1920.png
+            test-results/**/workbench-1440.png
             test-results/**/workbench-1366.png
             test-results/**/workbench-mobile-390.png
             test-results/**/workbench-mobile-320.png
