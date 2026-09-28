@@ -1458,6 +1458,31 @@ CAS da versão nova sem substituir o editor e fluxo desktop/mobile completo de
 409 → escolha por campo → dirty → save explícito. Não há alteração de schema,
 publicação cloud ou merge textual automático de valores divergentes.
 
+## Correção inline da revisão privada — #898
+
+O workspace canônico `/edit/sessoes/[id]` mantém a leitura como modo padrão e
+permite a quem possui `campaign.content.edit` abrir uma correção explícita da
+transcrição privada atual. Somente `speaker` e `text` entram na working copy;
+identidade da fala, track, timestamps, lineage de origem e o run ASR permanecem
+somente leitura.
+
+Salvar envia apenas os segmentos alterados e exige o UUID da revisão current
+observada. O boundary server-only `edit_transcript_revision_atomic` bloqueia a
+sessão, valida o CAS, clona a revisão imutável atual, aplica os patches e cria
+`R(n+1)` antes de trocar `sessions.current_transcript_revision_id` na mesma
+transação. A revisão anterior continua preservada. No-op não cria revisão; stale
+retorna conflito e a working copy permanece no navegador, sem retry cego.
+
+A correção não publica conteúdo público nem altera campos de `sessions` além do
+ponteiro privado de transcrição. O audit registra IDs, números, contagem e hash,
+nunca texto/speaker. Quando o ponteiro muda, qualquer draft editorial cuja
+`base_transcript_revision_id` ainda aponte para a revisão anterior fica stale e
+a publicação editorial permanece bloqueada até revisão/salvamento explícitos.
+
+A UI continua progressiva (300 falas por lote) e cria controles de texto apenas
+para a fala ativa; busca e salto por timestamp usam a working copy. Dirty state
+protege unload/navegação e Ctrl/⌘+S salva somente uma nova revisão privada.
+
 ## Current concorrente — candidata #636
 
 Antes da confirmação editorial, o Web consulta apenas o UUID current e perfil autorizado, sem segmentos. A confirmação mostra esse UUID (ou nenhuma revisão). O POST congela `expectedCurrentRevisionId`; uma disputa resulta em `stale_current` (HTTP 409), sem retry automático. Nova consulta e nova confirmação humana são necessárias. Resposta perdida mantém operationId e expectativa para read-back/replay; o replay precede CAS e nunca reativa a revisão antiga. Restore/unpublish operacionais seguem o mesmo fence na assinatura de sete UUIDs.
