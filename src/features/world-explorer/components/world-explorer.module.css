@@ -9,7 +9,7 @@
 	--world-inspector-width: 370px;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) var(--world-inspector-width);
-	min-height: calc(100dvh - 82px);
+	min-height: 100dvh;
 	background:
 		radial-gradient(circle at 48% 32%, var(--ds-ambient-cool), transparent 44%),
 		linear-gradient(180deg, var(--ds-canvas-subtle), var(--ds-canvas));
