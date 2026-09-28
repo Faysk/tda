@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       web: ${{ steps.classify.outputs.web }}
+      navigation: ${{ steps.classify.outputs.navigation }}
       db: ${{ steps.classify.outputs.db }}
       companion: ${{ steps.classify.outputs.companion }}
       processing: ${{ steps.classify.outputs.processing }}
@@ -141,6 +142,56 @@ jobs:
         run: pnpm check
       - name: Build application
         run: pnpm build
+
+  navigation-e2e:
+    name: navigation-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.navigation == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Global navigation browser contract
+        run: pnpm test:navigation
+      - name: Upload sanitized navigation visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: navigation-visual-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/navigation-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized navigation failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: navigation-e2e-${{ github.run_id }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
 
   lembra-e2e:
     name: lembra-e2e
@@ -298,6 +349,7 @@ jobs:
       - transcript-import-postgres
       - companion-domain
       - processing-e2e
+      - navigation-e2e
       - lembra-e2e
       - media-domain
     steps:
@@ -312,6 +364,8 @@ jobs:
           COMPANION_RESULT: ${{ needs.companion-domain.result }}
           PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
           PROCESSING_RESULT: ${{ needs.processing-e2e.result }}
+          NAVIGATION_RELEVANT: ${{ needs.classify-changes.outputs.navigation }}
+          NAVIGATION_RESULT: ${{ needs.navigation-e2e.result }}
           LEMBRA_RELEVANT: ${{ needs.classify-changes.outputs.lembra }}
           LEMBRA_RESULT: ${{ needs.lembra-e2e.result }}
           MEDIA_RELEVANT: ${{ needs.classify-changes.outputs.media }}
@@ -339,6 +393,12 @@ jobs:
             test "$PROCESSING_RESULT" = "success"
           else
             test "$PROCESSING_RESULT" = "skipped"
+          fi
+
+          if [[ "$NAVIGATION_RELEVANT" == "true" ]]; then
+            test "$NAVIGATION_RESULT" = "success"
+          else
+            test "$NAVIGATION_RESULT" = "skipped"
           fi
 
           if [[ "$LEMBRA_RELEVANT" == "true" ]]; then
