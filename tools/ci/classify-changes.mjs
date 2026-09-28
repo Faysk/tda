@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 const CLASSIFIER_CONTRACT = new Set([
 	"tools/ci/classify-changes.mjs",
 	"tools/ci/classify-changes.test.mjs",
+	"tools/ci/session-editorial-classifier.test.mjs",
 ]);
 
 const EXACT = {
@@ -105,6 +106,7 @@ function matches(path, domain) {
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
 	if (domain === "companion" && /^tools\/check-companion-.*\.py$/u.test(path))
 		return true;
+	if (domain === "sessions" && /^supabase\/migrations\/\d+_session_(editorial|cover|public)/u.test(path)) return true;
 	return false;
 }
 
@@ -157,6 +159,7 @@ function writeSummary(range, result) {
 			`- companion: \`${result.companion}\``,
 			`- processing: \`${result.processing}\``,
 			`- lembra: \`${result.lembra}\``,
+			`- sessions: \`${result.sessions}\``,
 			`- media: \`${result.media}\``,
 			`- Files (${result.files.length}): ${result.files.map((file) => `\`${file}\``).join(", ") || "none"}`,
 			"",
