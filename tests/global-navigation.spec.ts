@@ -213,6 +213,32 @@ test("profile panel stays anchored to the floating avatar after document scroll"
 	await expectNoHorizontalOverflow(page);
 });
 
+test("narrow public surfaces keep their first critical content clear of floating chrome", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+
+	for (const route of ["/lore", "/diario", "/lembra"]) {
+		await page.goto(route);
+		const chromeBottom = await page.evaluate(() => {
+			const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+			const trigger = document
+				.querySelector<HTMLElement>(".account-menu-trigger")
+				?.getBoundingClientRect();
+			return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
+		});
+
+		const target =
+			route === "/lembra"
+				? page.getByPlaceholder("Buscar título, descrição, autor ou data...")
+				: page.getByRole("heading", { level: 1 }).first();
+		await expect(target).toBeVisible();
+		const box = await target.boundingBox();
+		expect(box).not.toBeNull();
+		if (box) expect(box.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+		await expectNoHorizontalOverflow(page);
+	}
+});
+
 test("World keeps floating global navigation without the retired header reveal control", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	for (const viewport of [
