@@ -105,6 +105,11 @@ function matches(path, domain) {
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
 	if (domain === "companion" && /^tools\/check-companion-.*\.py$/u.test(path))
 		return true;
+	if (
+		domain === "sessions" &&
+		/^supabase\/(?:migrations|tests)\/.*session_(?:editorial|publication|cover)/u.test(path)
+	)
+		return true;
 	return false;
 }
 
