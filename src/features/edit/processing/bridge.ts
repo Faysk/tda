@@ -9,6 +9,8 @@ import {
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	type SessionAssemblyReview,
+	type SessionAssemblyReviewSegment,
 	identifier,
 	LOCAL_API,
 	parseBenchmarkResult,
@@ -29,6 +31,9 @@ import {
 	parseLocalRuns,
 	parseLocalSources,
 	parseResultSummary,
+	parseSessionAssemblyList,
+	parseSessionAssemblyManifest,
+	parseSessionAssemblyReview,
 	parseSessionParticipantMapping,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
@@ -463,6 +468,157 @@ export class LocalBridge {
 					assignments: assignments.map((assignment) => ({
 						observation_id: identifier(assignment.observationId),
 						participant_id: identifier(assignment.participantId),
+					})),
+				},
+			),
+		);
+	}
+
+	async selectSessionPartRun(
+		campaignId: string,
+		sessionId: string,
+		partId: string,
+		runId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/parts/run`,
+				signal,
+				{
+					part_id: identifier(partId),
+					run_id: runIdentifier(runId),
+					expected_revision: expectedRevision,
+				},
+			),
+		);
+	}
+
+	async sessionAssemblies(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssemblyList(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies`,
+				signal,
+			),
+		);
+	}
+
+	async sessionAssembly(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssemblyManifest(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies/${assemblyId}`,
+				signal,
+			),
+		);
+	}
+
+	async buildSessionAssembly(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssemblyManifest(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies`,
+				signal,
+				{ expected_revision: expectedRevision },
+			),
+		);
+	}
+
+	async sessionAssemblyReview(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionAssemblyReview(
+			await this.reviewJson(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies/${assemblyId}/review`,
+				signal,
+			),
+		);
+	}
+
+	async sessionAssemblyReviewBase(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		const review = parseSessionAssemblyReview(
+			await this.reviewJson(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies/${assemblyId}/review/base`,
+				signal,
+			),
+		);
+		if (
+			review.base.assemblyId !== assemblyId ||
+			review.persistence !== "ephemeral_base" ||
+			review.draftRevision !== null ||
+			review.draftSha256 !== null
+		)
+			throw new BridgeError("invalid_response");
+		return review;
+	}
+
+	async saveSessionAssemblyReview(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		baseline: SessionAssemblyReview,
+		status: LocalReviewStatus,
+		segments: readonly SessionAssemblyReviewSegment[],
+		signal: AbortSignal,
+	) {
+		if (
+			baseline.snapshotContract !== "tda_session_assembly_review_cas_v1" ||
+			baseline.base.assemblyId !== assemblyId
+		)
+			throw new BridgeError("conflict", "SESSION_ASSEMBLY_REVIEW_DRAFT_CONFLICT");
+		const expected =
+			baseline.persistence === "ephemeral_base"
+				? {
+						persistence: "ephemeral_base",
+						base_transcript_sha256: baseline.base.transcriptSha256,
+					}
+				: {
+						persistence: "persisted",
+						draft_revision: baseline.draftRevision,
+						draft_sha256: baseline.draftSha256,
+					};
+		return parseSessionAssemblyReview(
+			await this.reviewJson(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/assemblies/${assemblyId}/review`,
+				signal,
+				{
+					snapshot_contract: baseline.snapshotContract,
+					expected,
+					status,
+					segments: segments.map((segment) => ({
+						assembly_segment_id: segment.assemblySegmentId,
+						part_id: segment.partId,
+						source_id: segment.sourceId,
+						run_id: segment.runId,
+						source_segment_id: segment.sourceSegmentId,
+						track_number: segment.trackNumber,
+						participant_id: segment.participantId,
+						start: segment.start,
+						end: segment.end,
+						text: segment.text,
+						speaker: segment.speaker,
+						reviewed: segment.reviewed,
 					})),
 				},
 			),
