@@ -31,10 +31,10 @@ Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d6
 | launcher global | integrada à `main` | #880 / PR #890 |
 | avatar/painel de conta | integrada à `main` | #882 / PR #902 |
 | retirada dos hubs `/edit` e `/conta` | integrada à `main` | #883 / PR #908 |
-| gate responsivo/teclado/visual completo | pendente | #884 |
+| gate responsivo/teclado/visual completo | executado pela CI dedicada em mudanças relevantes | #884 |
 | contrato documental | este documento | #885 |
 
-O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate completo de QA de #884 permanece pendente e não deve ser inferido apenas pela integração funcional.
+O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate de #884 cobre a matriz responsiva, teclado, estados de Auth, tema, reduced motion e receipts visuais sintéticos; a CI o executa somente quando o classificador marca uma mudança como relevante para navegação.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -235,7 +235,7 @@ O rollout completo deve cobrir:
 - regressão de skip-link, header e footer;
 - prova de que falha de `/api/auth/me` não remove destinos públicos.
 
-Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dados privados reais.
+Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dados privados reais. A job `navigation-e2e` publica os receipts desktop/mobile em dark/light como artefato sanitizado e participa do `ci-gate` quando `navigation=true`.
 
 ## Não objetivos
 
