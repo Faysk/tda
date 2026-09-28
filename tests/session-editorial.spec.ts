@@ -243,6 +243,43 @@ test("cover promotion failure and capability loss fail closed without mutating t
 	).toBeDisabled();
 });
 
+test("editorial workbench header never collides with floating global chrome", async ({ page }) => {
+	for (const viewport of [
+		{ width: 1366, height: 768 },
+		{ width: 390, height: 844 },
+		{ width: 320, height: 800 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/session-editorial");
+		const [heading, brand, trigger] = await Promise.all([
+			page.getByRole("heading", { name: "Session Editorial E2E", exact: true }).boundingBox(),
+			page.locator(".brand").boundingBox(),
+			page.locator(".account-menu-trigger").boundingBox(),
+		]);
+		expect(heading).not.toBeNull();
+		expect(brand).not.toBeNull();
+		expect(trigger).not.toBeNull();
+		if (!heading || !brand || !trigger) continue;
+
+		const overlaps = (
+			a: { x: number; y: number; width: number; height: number },
+			b: { x: number; y: number; width: number; height: number },
+		) =>
+			a.x < b.x + b.width &&
+			a.x + a.width > b.x &&
+			a.y < b.y + b.height &&
+			a.y + a.height > b.y;
+
+		expect(overlaps(heading, brand)).toBeFalsy();
+		expect(overlaps(heading, trigger)).toBeFalsy();
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBeTruthy();
+	}
+});
+
 test("desktop transcript toolbar stays clear of floating global chrome while sticky", async ({
 	page,
 }) => {
