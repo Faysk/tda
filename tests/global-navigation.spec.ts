@@ -431,7 +431,7 @@ test("390px launcher keeps long tool labels inside their cells", async ({
 		.locator(".product-launcher-grid")
 		.first()
 		.evaluate((element) =>
-			getComputedStyle(element).gridTemplateColumns.split(/\\s+/u).filter(Boolean).length,
+			getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 		);
 	expect(columnCount).toBe(3);
 
@@ -515,7 +515,7 @@ test("navigation stays contained across the required responsive matrix", async (
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
 		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
-		if (viewport.width >= 1920) {
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
 			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
