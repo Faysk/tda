@@ -19,7 +19,7 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
 
-[Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — proposta para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
+[Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — contrato implementado para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
 
 [Navegação global do TDA](global-navigation.md) — contrato canônico para marca = início, launcher = produto e avatar = conta/aparência; projeção sanitizada de Auth integrada e rollout visual rastreado por #879.
 
@@ -35,7 +35,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
-| Edit / múltiplas gravações por sessão | em desenho; backlog #843 | [Multi-recording sessions](multi-recording-sessions.md) |
+| Edit / múltiplas gravações por sessão | implementado e gated; Web/cloud publicados; rollout do Companion segue lifecycle próprio | [Multi-recording sessions](multi-recording-sessions.md) |
 | Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
