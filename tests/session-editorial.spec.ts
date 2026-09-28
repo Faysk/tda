@@ -43,7 +43,7 @@ test("workspace separates transcript, session metadata and live Markdown preview
 		"true",
 	);
 	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeVisible();
-	await expect(page.getByLabel("Título")).toHaveCount(0);
+	await expect(page.getByLabel("Título")).toBeHidden();
 
 	await page.getByRole("tab", { name: "Sessão" }).click();
 	await page.getByLabel("Título").fill("Working copy entre abas");
