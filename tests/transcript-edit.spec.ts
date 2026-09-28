@@ -62,6 +62,37 @@ test("edits speaker/text, searches the working copy, saves a new revision and su
 	).toBeVisible();
 });
 
+test("timestamp copy follows the visible working speaker and reverts to baseline", async ({
+	page,
+	context,
+}) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+		origin: "http://127.0.0.1:3112",
+	});
+	await openFresh(page);
+
+	const first = await editFirst(
+		page,
+		"Primeira fala sintética para edição.",
+		"Speaker editado",
+	);
+	await expect(first.getByText("Speaker editado", { exact: true })).toBeVisible();
+
+	const timestamp = first.getByRole("button", { name: "00:00:00" });
+	await timestamp.click();
+	await expect
+		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+		.toBe("00:00:00 · Speaker editado");
+
+	await first.getByRole("button", { name: "Reverter" }).click();
+	await expect(first.getByText("Speaker 1", { exact: true })).toBeVisible();
+	await timestamp.click();
+	await expect
+		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+		.toBe("00:00:00 · Speaker 1");
+	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
+});
+
 test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
 	page,
 }) => {
