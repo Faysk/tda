@@ -8,6 +8,9 @@
 }
 .header {
 	margin: 24px 0;
+	padding-inline:
+		var(--site-chrome-brand-clearance, 0px)
+		var(--site-chrome-profile-clearance, 0px);
 }
 .header h1 {
 	font-family: var(--ds-font-display);
@@ -24,6 +27,12 @@
 	flex-wrap: wrap;
 	gap: 12px;
 }
+.navigation {
+	padding-inline:
+		var(--site-chrome-brand-clearance, 0px)
+		var(--site-chrome-profile-clearance, 0px);
+}
+
 .navigation a {
 	padding: 8px 0;
 }
@@ -156,6 +165,15 @@
 	font-size: 0.86rem;
 }
 @media (max-width: 700px) {
+	.shell {
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+	}
+
+	.header,
+	.navigation {
+		padding-inline: 0;
+	}
+
 	.columns {
 		grid-template-columns: 1fr;
 		gap: 0;
