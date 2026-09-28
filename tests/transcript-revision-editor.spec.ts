@@ -14,6 +14,7 @@ async function openFirstSegment(page: Page) {
 }
 
 test("read mode stays progressive and save survives reload", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto(FIXTURE);
 
 	await expect(page.getByRole("button", { name: "Corrigir transcrição" })).toBeVisible();
@@ -21,6 +22,11 @@ test("read mode stays progressive and save survives reload", async ({ page }) =>
 
 	await page.getByRole("button", { name: "Corrigir transcrição" }).click();
 	await expect(page.locator("article")).toHaveCount(300);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
 
 	const editButton = page.getByRole("button", { name: /Editar fala de Pessoa 1 em/ }).first();
 	await editButton.click();
@@ -43,6 +49,22 @@ test("read mode stays progressive and save survives reload", async ({ page }) =>
 	await page.reload();
 	await expect(page.getByText("Fala corrigida com café ☕", { exact: true })).toBeVisible();
 	await expect(page.getByText("Pessoa Revisada", { exact: true })).toBeVisible();
+});
+
+test("reverting one segment restores the baseline and clears its dirty state", async ({
+	page,
+}) => {
+	await page.goto(FIXTURE);
+	const { text } = await openFirstSegment(page);
+	await text.fill("Correção temporária");
+
+	await expect(page.getByText("Alteração não salva", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Reverter fala" }).click();
+
+	await expect(text).toHaveValue("Fala sintética número 1");
+	await expect(page.getByText("Sem alteração", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Reverter fala" })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Salvar nova revisão" })).toBeDisabled();
 });
 
 test("dirty navigation can be cancelled without losing the working copy", async ({ page }) => {
