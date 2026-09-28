@@ -77,7 +77,7 @@ export function pendingSourceIds(
 			(part) =>
 				part.sourceState === "ready" &&
 				runsForPart(runsBySource, part).length === 0 &&
-				!activeSources.has(part.sourceId),
+				!settledOrActiveSources.has(part.sourceId),
 		)
 		.map((part) => part.sourceId);
 }
