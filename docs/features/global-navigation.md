@@ -256,6 +256,9 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - #883 — retirada dos hubs;
 - #884 — gates de QA;
 - #885 — contrato documental;
+- #115 — pesquisa histórica que levantou avatar Discord no header, papel de `/conta` e organização do Edit;
+- PR #269 — implementação histórica relevante para a evolução do shell/navegação;
+- PR #579 — implementação histórica relevante para a evolução do shell/navegação;
 - [Identidade, Auth e autorização](../domains/identity-access.md);
 - [Superfícies públicas](../design-system/public-surfaces.md);
 - [Diretriz geral de UX](../design-system/ux-hierarchy.md).
