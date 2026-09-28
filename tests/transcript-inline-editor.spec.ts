@@ -117,7 +117,7 @@ test.describe("transcript inline revision editor", () => {
 		await expect(
 			page.getByRole("button", { name: "Editar transcrição" }),
 		).toHaveCount(0);
-		await expect(page.locator(".inlineEditor textarea")).toHaveCount(0);
+		await expect(page.locator("textarea")).toHaveCount(0);
 		expect(await page.locator("[data-transcript-segment]").count()).toBeLessThan(
 			7_500,
 		);
