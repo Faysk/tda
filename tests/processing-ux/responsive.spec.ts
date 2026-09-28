@@ -136,6 +136,31 @@ test("healthy desktop command bar stays within the compact height budget", async
 	await expect(commandBar).not.toContainText("Concluídos");
 });
 
+test("queue toolbar sticky offset clears the floating global chrome", async ({ page }) => {
+	await openRunningWorkspace(page, 1366, 768);
+	await page.getByRole("tab", { name: "Fila", exact: true }).click();
+
+	const search = page.getByPlaceholder("Sessão, profile, source ou ID…");
+	await expect(search).toBeVisible();
+	const toolbar = search.locator("xpath=../..");
+	expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+
+	const values = await page.evaluate(() => {
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		const toolbar = document
+			.querySelector<HTMLInputElement>('input[placeholder="Sessão, profile, source ou ID…"]')
+			?.parentElement?.parentElement;
+		return {
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+			stickyTop: toolbar ? Number.parseFloat(getComputedStyle(toolbar).top) : -1,
+		};
+	});
+	expect(values.stickyTop).toBeGreaterThanOrEqual(values.chromeBottom + 4);
+});
+
 test("workspace tabs implement roving keyboard navigation", async ({ page }) => {
 	await openRunningWorkspace(page, 1366, 768);
 	const overview = page.getByRole("tab", { name: "Visão geral" });
