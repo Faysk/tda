@@ -249,6 +249,29 @@ begin
     raise exception 'TRANSCRIPT_WEB_EDIT_TIMING_MUTATION_ACCEPTED:%', v_status;
   end if;
 
+  -- Database-side validation mirrors the canonical review-string control rules.
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision,
+    'a2000000-0000-4000-8000-000000000009',
+    jsonb_build_array(
+      jsonb_build_object(
+        'trackNumber',2,
+        'segmentId','2-0',
+        'speaker','Bob',
+        'text',E'controle\u0001inválido'
+      )
+    )
+  ) e;
+  if v_status <> 'invalid_payload' then
+    raise exception 'TRANSCRIPT_WEB_EDIT_CONTROL_ACCEPTED:%', v_status;
+  end if;
+
   -- No-op save does not manufacture a revision.
   select count(*) into v_before_count from public.transcript_revisions;
   select e.status
