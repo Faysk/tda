@@ -1,42 +1,38 @@
 # Navegação global do TDA
 
-> Status: arquitetura e implementação integradas; QA automatizado ativo
+> Status: contrato canônico do painel global unificado; QA automatizado ativo
 > Owner: navigation / frontend / identity-access
 > Última revisão: 2026-09-28
-> Fonte de verdade: este documento, epic #879 e guards/capabilities da `main`
+> Fonte de verdade: este documento, decisão #963, motion #964 e guards/capabilities da `main`
 
 ## Objetivo
 
-Definir uma única arquitetura de informação para o shell global do TDA, sem manter header textual, `/edit` e `/conta` como três menus concorrentes.
+Definir uma única arquitetura de informação para o shell global do TDA, sem manter launcher, avatar, `/edit` e `/conta` como menus concorrentes.
 
-O contrato é:
+O contrato vigente desde a decisão de 2026-09-28 é:
 
 ```text
 marca TDA -> início
-launcher  -> destinos do produto
-avatar    -> conta, autenticação e aparência
+avatar    -> navegação + conta + aparência + ferramentas
 ```
 
-A marca continua apontando para `/`. O launcher não repete uma entrada `Início`.
+A marca continua apontando para `/`. O avatar é o **único trigger global à direita** do header e abre uma única superfície de disclosure. Não existe trigger 3×3 separado.
 
-## Estado de entrega
+## Relação com o contrato histórico
 
-Este documento separa **decisão aprovada** de **implementação/publicação**.
+#879/#882/#885 continuam sendo histórico válido das entregas anteriores. A decisão #963 as **supersede somente na divisão visual/interativa entre launcher e avatar**.
 
-Baseline revalidada desta revisão: `main@5ddf57e4c55138cb7642a106957b0aa1b62c9260`.
+Continuam preservados:
 
-| Slice | Estado nesta baseline | Evidência |
-| --- | --- | --- |
-| projeção privada de identidade + capabilities | integrada à `main` | #881 / PR #886 |
-| launcher global | integrada à `main` | #880 / PR #890 |
-| avatar/painel de conta | integrada à `main` | #882 / PR #902 |
-| retirada dos hubs `/edit` e `/conta` | integrada à `main` | #883 / PR #908 |
-| gate responsivo/teclado/visual completo | integrado à `main` | #884 / PR #915 / estabilização #920 |
-| contrato documental | este documento | #885 |
+- destinos e ordem pública definidos pelo trabalho anterior;
+- projeção sanitizada de Auth/capabilities de #881;
+- `/edit` como entrypoint de compatibilidade;
+- `/conta` como superfície de identidade/acesso;
+- guards server-side como autoridade;
+- matching de rota e `aria-current="page"`;
+- requisitos de teclado, responsividade, contraste e reduced motion.
 
-O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate de #884 foi integrado por #915 com matriz responsiva, teclado, estados de autenticação/capabilities, reduced motion, escala 200% e receipts visuais sanitizados; #920 estabilizou a regressão de teste do Lembra exposta no primeiro CI pós-merge.
-
-Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
+#964 adiciona a animação reversível do painel único sem alterar essa arquitetura de informação nem autorização.
 
 ## Responsabilidades do header
 
@@ -45,23 +41,27 @@ Merge em `main` também não prova publicação por si só; produção continua 
 - ação de início;
 - aponta para `/`;
 - mantém identidade visual oficial;
-- não compete com launcher ou avatar.
+- não compete com o avatar.
 
-### Launcher
+### Avatar / painel global
 
-É o ponto único para navegar pelo produto.
+É o único ponto de entrada global para:
 
-O trigger é um botão próprio, separado do avatar, com alvo mínimo de 44×44 e nome acessível claro. O painel usa links normais dentro de um `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
+1. identidade/conta;
+2. aparência;
+3. Explorar;
+4. Ferramentas autorizadas;
+5. login/logout.
 
-### Avatar
+O trigger é um `button` com alvo mínimo de 44×44, `aria-expanded` e `aria-controls` apontando para a superfície única.
 
-É o ponto único para identidade, autenticação, estado de acesso e aparência.
+O painel usa links normais dentro de `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
 
-O avatar **não concede autoridade**. Ele apenas apresenta a identidade já sanitizada e ações de conta. Guards server-side continuam sendo a autoridade para cada rota e mutation.
+O avatar **não concede autoridade**. Ele apenas apresenta identidade já sanitizada e ações disponíveis. Guards server-side continuam sendo a autoridade para cada rota e mutation.
 
 ## Destinos públicos
 
-A ordem canônica do launcher é estável entre desktop e mobile:
+A ordem canônica em **Explorar** é estável entre desktop e mobile:
 
 | Rótulo | Rota |
 | --- | --- |
@@ -77,11 +77,11 @@ A ordem canônica do launcher é estável entre desktop e mobile:
 | Músicas | `/musicas` |
 | Diários | `/diario` |
 
-Uma rota inexistente ou apenas planejada não entra no launcher. A lista muda somente quando a superfície correspondente realmente existe e a decisão de produto for atualizada aqui.
+Uma rota inexistente ou apenas planejada não entra no painel. A lista muda somente quando a superfície correspondente realmente existe e a decisão de produto for atualizada aqui.
 
 ## Ferramentas autorizadas
 
-Ferramentas aparecem em grupo separado dos destinos públicos e somente quando a projeção privada informa a capability necessária.
+Ferramentas aparecem em grupo separado de **Explorar** e somente quando a projeção privada informa a capability necessária.
 
 | Ferramenta | Destino | Capability principal para exibição |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ Ferramentas aparecem em grupo separado dos destinos públicos e somente quando a
 
 Essa tabela controla **apresentação/navegação**, não segurança. Uma ferramenta escondida continua protegida pelo guard server-side da rota; conhecer ou digitar a URL nunca substitui capability + scope.
 
-Capabilities adicionais usadas dentro de uma ferramenta, como publicação, revisão de escrita ou gestão de atividade, continuam sendo verificadas no boundary específico e não precisam virar entradas separadas do launcher.
+Capabilities adicionais usadas dentro de uma ferramenta, como publicação, revisão de escrita ou gestão de atividade, continuam sendo verificadas no boundary específico e não precisam virar entradas separadas do painel global.
 
 ## Projeção privada de navegação
 
@@ -108,82 +108,70 @@ O contrato integrado em #881 reutiliza `GET /api/auth/me` como projeção mínim
 - resposta é `private, no-store` e varia por cookie;
 - auth user id, profile id, grants crus, role internals e metadata integral não fazem parte do contrato.
 
-A navegação pública aparece imediatamente e continua utilizável se esse endpoint falhar. Identidade e ferramentas privadas hidratam progressivamente no cliente; não há polling de autorização como requisito do shell.
+**Explorar aparece imediatamente**, inclusive enquanto a projeção privada está pendente ou indisponível. Identidade e Ferramentas hidratam progressivamente; falha de Auth não remove a navegação pública.
 
-### Avatar
+### Estados do avatar
 
-Somente a URL de avatar já sanitizada pelo boundary de Auth pode ser usada pela UI.
-
-Estados esperados:
-
-- anônimo: silhueta/fallback genérico;
+- anônimo: silhueta/fallback genérico + ação Entrar com Discord;
 - autenticado com avatar: imagem sanitizada;
-- autenticado sem avatar ou com falha de imagem: iniciais seguras ou fallback genérico;
-- dependency unavailable: fallback visual + estado recuperável, sem fingir logout.
+- autenticado sem avatar ou com falha de imagem: iniciais seguras/fallback;
+- linked sem grants: identidade/conta, aparência e Explorar, sem Ferramentas;
+- capability parcial: somente as ferramentas autorizadas;
+- capability ampla: conjunto completo autorizado;
+- dependency unavailable: fallback visual + estado recuperável, sem fingir logout nem expor Ferramentas privadas.
 
 Imagem de avatar é apresentação, nunca prova de identidade ou permissão.
 
-## `/edit` deixa de ser menu
+## `/edit` continua sendo entrypoint de compatibilidade
 
-Com #883 integrada pela PR #908, `/edit` é apenas entrypoint de compatibilidade para bookmarks antigos.
+`/edit` não volta a ser hub de aplicações.
 
 Contrato de redirect:
 
 1. anônimo → `/entrar?next=%2Fedit`;
 2. auth/acesso indisponível → `/conta?acesso=indisponivel`;
-3. linked com capabilities → primeira ferramenta autorizada pela prioridade explícita abaixo;
+3. linked com capabilities → primeira ferramenta autorizada pela prioridade explícita;
 4. unlinked ou sem grants úteis → `/conta?acesso=negado`.
-
-Prioridade determinística:
-
-1. `/edit/sessoes`;
-2. `/edit/processamento`;
-3. `/edit/mundo`;
-4. `/edit/revisao`;
-5. `/edit/yuhara-main/permissions`.
-
-A ordem não pode depender de `Object.values()`, ordem de objeto ou outro detalhe acidental de implementação.
 
 Deep links continuam válidos e mantêm seus próprios guards server-side.
 
-## `/conta` é conta e acesso
+## `/conta` continua sendo conta e acesso
 
-`/conta` permanece como destino semântico para:
+`/conta` permanece como destino semântico para identidade, vínculo, permissões efetivas e estados de acesso.
 
-- identidade resumida;
-- conta autenticada ainda não vinculada;
-- linked sem grants;
-- acesso negado a uma ferramenta;
-- dependência de Auth/acesso indisponível;
-- consulta deliberada ao estado da conta.
-
-Ela não repete cards de Transcrições/Edit/Permissões/Processamento. Ferramentas pertencem ao launcher.
-
-Copy de links deve usar **Conta e acesso** quando o objetivo for explicar vínculo/permissão, em vez de tratar `/conta` como um menu de aplicações.
+Ela não repete o painel de ferramentas. O painel global aponta para `/conta` por **Conta e acesso** quando o objetivo é explicar vínculo/permissão.
 
 ## Aparência
 
-Com #882 integrada pela PR #902:
+O `ThemeToggle` vive dentro do painel global:
 
-- o `ThemeToggle` não ocupa mais espaço isolado no header;
-- o controle de aparência vive dentro do painel de conta;
-- a regra existente permanece binária: preferência do sistema apenas antes de existir escolha salva; depois persistir `light` ou `dark`;
+- preferência do sistema vale antes de existir escolha salva;
+- depois persistir `light` ou `dark`;
 - não introduzir opção `Sistema` sem nova decisão de produto.
 
 Mover o controle não altera o contrato de tema nem os tokens do Design System.
 
-## Estado atual e matching de rota
+## Interação e motion
 
-- link da rota atual usa `aria-current="page"`;
-- subrotas pertencem ao destino raiz correspondente;
-- launcher e avatar têm estados abertos independentes;
-- fechar por Escape devolve foco ao trigger que abriu o painel;
-- light-dismiss/click fora fecha quando aplicável;
-- conteúdo fechado não permanece focável.
+Existe uma única máquina de estado visual para o painel do avatar.
 
-## Responsividade e acessibilidade
+Contrato:
 
-Matriz mínima do contrato:
+- click/tap no avatar abre;
+- segundo click/tap no avatar fecha;
+- Enter/Space alternam o disclosure;
+- click fora fecha;
+- Escape fecha e devolve foco ao avatar;
+- mudança de pathname fecha;
+- conteúdo em fechamento deixa de ser interativo/focável;
+- a navegação interna não espera a animação terminar;
+- `prefers-reduced-motion` remove a transição longa.
+
+#964 define a transição reversível de aproximadamente 2 s como exceção deliberada de produto. Ela não muda o contrato semântico deste documento.
+
+## Responsividade, densidade e acessibilidade
+
+Matriz mínima do gate:
 
 - 320×800;
 - 390×844;
@@ -191,51 +179,48 @@ Matriz mínima do contrato:
 - 1366×768;
 - 1920×1080;
 - 2560×1440;
-- zoom 200%;
+- equivalente de layout a zoom 200%;
 - temas claro/escuro;
 - `prefers-reduced-motion`.
 
 Requisitos:
 
 - sem overflow horizontal;
-- trigger com alvo mínimo de 44×44;
-- ícone **e rótulo** visíveis dentro do launcher;
-- não depender de tooltip/hover para explicar destino;
-- foco visível com tokens do TDA;
-- ordem estável entre breakpoints;
-- mobile pode reorganizar a composição e usar painel/sheet amplo; não é um popover desktop espremido;
-- painel com scroll interno quando necessário;
-- Escape, Enter, Space, Tab, toque e ponteiro preservam semântica previsível;
+- target do avatar >=44×44;
+- painel quase full-width com gutters em mobile;
+- 390 px tenta 3 colunas; <=360 px pode usar 2;
+- glyphs permanecem aproximadamente 34 px em desktop;
+- labels visíveis e com até 2 linhas quando necessário;
+- células mais compactas que o contrato histórico de 96 px;
+- painel não cresce proporcionalmente em 2K/4K;
+- viewport curta usa scroll interno;
+- foco visível;
+- `aria-current="page"` na rota atual;
+- conteúdo fechado/closing não permanece focável;
+- links continuam links comuns, sem ARIA application menu;
 - navegação pública não desaparece quando Auth está indisponível.
 
-## Ícones e linguagem visual
+## Testes e receipts
 
-- preferir SVGs locais simples e consistentes;
-- não adicionar pacote de ícones apenas para o launcher;
-- dourado é acento de foco/estado atual, não borda em todos os itens;
-- launcher é navegação compacta; não transformar cada destino em card pesado;
-- identidade visual continua vindo dos tokens, tipografia, ritmo e composição do TDA.
+O gate de browser canônico é `tests/global-navigation.spec.ts`.
 
-## Testes e gates
+Ele deve cobrir:
 
-O rollout completo deve cobrir:
-
-- modelo de destinos e matching de subrotas;
-- combinações de capabilities com fixture sanitizada;
-- anonymous/authenticated/unavailable;
-- desktop/mobile;
-- click/toque/Enter/Space;
-- Escape + retorno de foco;
-- outside click;
-- `aria-current`;
+- ausência do trigger 3×3 e presença de um único avatar global;
+- `aria-expanded` + `aria-controls`;
+- ordem de Explorar e matching de rota;
+- matriz anonymous / authenticated com avatar / authenticated sem avatar / linked sem grants / capability parcial / capability ampla / unavailable;
 - ferramenta sem capability ausente;
-- deep link sem capability negado pelo servidor;
-- 320px e zoom 200% sem overflow;
-- dark/light e reduced motion;
-- regressão de skip-link, header e footer;
-- prova de que falha de `/api/auth/me` não remove destinos públicos.
+- navegação pública disponível antes/depois de falha da projeção privada;
+- click/avatar toggle/Enter/Space/Escape/outside click/pathname;
+- painel closing não interativo;
+- reduced motion;
+- densidade e containment;
+- 320/390/768/1366/1920/2560 + equivalente de layout a 200% sem overflow;
+- receipts desktop/mobile em dark/light;
+- receipts sintéticos de capability ampla, anonymous e unavailable.
 
-Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dados privados reais.
+Screenshots/fixtures usam apenas identidades e avatares sintéticos; nunca dados privados reais.
 
 ## Não objetivos
 
@@ -243,22 +228,22 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - tornar capability client-side autoridade;
 - criar novo endpoint concorrente de Auth;
 - usar `/edit` ou `/conta` como segundo launcher;
-- drag-and-drop/reordenação do launcher;
+- adicionar novos destinos;
+- drag-and-drop/reordenação;
 - introduzir uma terceira opção de tema;
 - transformar navegação comum em ARIA application menu.
 
 ## Referências
 
-- #879 — epic da navegação global;
-- #880 — launcher;
+- #963 — decisão vigente: painel global único pelo avatar;
+- #964 — motion reversível do painel;
+- #965 — migração deste contrato e dos gates;
+- #879/#882/#885 — histórico entregue, superseded apenas na divisão launcher + avatar;
 - #881 / PR #886 — projeção sanitizada de Auth;
-- #882 / PR #902 — avatar/painel de conta;
-- #883 / PR #908 — retirada dos hubs;
+- #883 / PR #908 — `/edit` e `/conta` deixam de ser hubs concorrentes;
 - #884 — gates de QA;
-- #885 — contrato documental;
-- #115 — pesquisa histórica que levantou avatar Discord no header, papel de `/conta` e organização do Edit;
-- PR #269 — implementação histórica relevante para a evolução do shell/navegação;
-- PR #579 — implementação histórica relevante para a evolução do shell/navegação;
+- #926 — compactação icon-first;
+- #947 — fechamento por mudança de pathname;
 - [Identidade, Auth e autorização](../domains/identity-access.md);
 - [Superfícies públicas](../design-system/public-surfaces.md);
 - [Diretriz geral de UX](../design-system/ux-hierarchy.md).
