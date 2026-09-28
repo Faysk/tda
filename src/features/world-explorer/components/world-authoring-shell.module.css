@@ -15,7 +15,11 @@
 	min-height: 0;
 	min-width: 0;
 	flex-direction: column;
-	padding: clamp(8px, 0.7vw, 12px);
+	padding:
+		clamp(8px, 0.7vw, 12px)
+		var(--site-chrome-profile-clearance, 60px)
+		clamp(8px, 0.7vw, 12px)
+		var(--site-chrome-brand-clearance, 168px);
 	overflow: hidden;
 }
 
@@ -139,13 +143,19 @@
 
 @media (min-width: 1920px) {
 	.active .canvasColumn {
-		padding: 10px 14px 14px;
+		padding:
+			10px
+			var(--site-chrome-profile-clearance, 60px)
+			14px
+			var(--site-chrome-brand-clearance, 168px);
 	}
 }
 
 @media (min-width: 2560px) {
 	.active .canvasColumn {
-		padding-inline: 16px;
+		padding-inline:
+			var(--site-chrome-brand-clearance, 168px)
+			var(--site-chrome-profile-clearance, 60px);
 	}
 
 	.active[data-world-inspector-mode="overlay"] .inspector {
@@ -182,7 +192,10 @@
 
 @media (max-width: 700px) {
 	.active .canvasColumn {
-		padding: 7px;
+		padding:
+			calc(var(--site-chrome-panel-top, 66px) + 8px)
+			7px
+			7px;
 	}
 
 	.focusMode .canvasColumn {
