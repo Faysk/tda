@@ -1,9 +1,9 @@
 # Navegação global do TDA
 
-> Status: arquitetura e implementação integradas; QA automatizado ativo
+> Status: painel unificado por avatar implementado; motion e QA automatizado ativos
 > Owner: navigation / frontend / identity-access
 > Última revisão: 2026-09-28
-> Fonte de verdade: este documento, epic #879 e guards/capabilities da `main`
+> Fonte de verdade: este documento, #963/#964/#965 e guards/capabilities da `main`
 
 ## Objetivo
 
@@ -13,11 +13,10 @@ O contrato é:
 
 ```text
 marca TDA -> início
-launcher  -> destinos do produto
-avatar    -> conta, autenticação e aparência
+avatar    -> navegação + conta + aparência + ferramentas
 ```
 
-A marca continua apontando para `/`. O launcher não repete uma entrada `Início`.
+A marca continua apontando para `/`. O avatar é o único trigger global à direita e o painel unificado não repete uma entrada `Início`.
 
 ## Estado de entrega
 
@@ -47,17 +46,11 @@ Merge em `main` também não prova publicação por si só; produção continua 
 - mantém identidade visual oficial;
 - não compete com launcher ou avatar.
 
-### Launcher
+### Avatar e painel unificado
 
-É o ponto único para navegar pelo produto.
+O avatar é o único trigger global para navegação, identidade, autenticação, aparência e ferramentas autorizadas. O alvo permanece com no mínimo 44×44 e usa disclosure (`aria-expanded` + `aria-controls`). O painel usa links normais dentro de um `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
 
-O trigger é um botão próprio, separado do avatar, com alvo mínimo de 44×44 e nome acessível claro. O painel usa links normais dentro de um `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
-
-### Avatar
-
-É o ponto único para identidade, autenticação, estado de acesso e aparência.
-
-O avatar **não concede autoridade**. Ele apenas apresenta a identidade já sanitizada e ações de conta. Guards server-side continuam sendo a autoridade para cada rota e mutation.
+O avatar **não concede autoridade**. Ele apenas apresenta a identidade já sanitizada, destinos públicos, ferramentas filtradas pela projeção de capabilities e ações de conta. Guards server-side continuam sendo a autoridade para cada rota e mutation.
 
 ## Destinos públicos
 
@@ -176,7 +169,7 @@ Mover o controle não altera o contrato de tema nem os tokens do Design System.
 
 - link da rota atual usa `aria-current="page"`;
 - subrotas pertencem ao destino raiz correspondente;
-- launcher e avatar têm estados abertos independentes;
+- existe uma única superfície global aberta pelo avatar;
 - fechar por Escape devolve foco ao trigger que abriu o painel;
 - light-dismiss/click fora fecha quando aplicável;
 - conteúdo fechado não permanece focável.
@@ -199,11 +192,11 @@ Requisitos:
 
 - sem overflow horizontal;
 - trigger com alvo mínimo de 44×44;
-- ícone **e rótulo** visíveis dentro do launcher;
+- ícone **e rótulo** visíveis dentro do painel unificado;
 - não depender de tooltip/hover para explicar destino;
 - foco visível com tokens do TDA;
 - ordem estável entre breakpoints;
-- mobile pode reorganizar a composição e usar painel/sheet amplo; não é um popover desktop espremido;
+- mobile preserva o mesmo painel unificado, com 3 colunas em 390 px e 2 colunas quando necessário em <=360 px;
 - painel com scroll interno quando necessário;
 - Escape, Enter, Space, Tab, toque e ponteiro preservam semântica previsível;
 - navegação pública não desaparece quando Auth está indisponível.
@@ -213,7 +206,7 @@ Requisitos:
 - preferir SVGs locais simples e consistentes;
 - não adicionar pacote de ícones apenas para o launcher;
 - dourado é acento de foco/estado atual, não borda em todos os itens;
-- launcher é navegação compacta; não transformar cada destino em card pesado;
+- o painel unificado usa navegação compacta; não transformar cada destino em card pesado;
 - identidade visual continua vindo dos tokens, tipografia, ritmo e composição do TDA.
 
 ## Testes e gates
@@ -262,3 +255,12 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - [Identidade, Auth e autorização](../domains/identity-access.md);
 - [Superfícies públicas](../design-system/public-surfaces.md);
 - [Diretriz geral de UX](../design-system/ux-hierarchy.md).
+
+
+## Evolução de 2026-09-28 — painel único por avatar
+
+#963 substituiu deliberadamente a divisão visual entregue por #879/#882/#885 sem reabrir aquelas entregas como defeito. O header agora mantém somente marca + avatar. O painel reúne Conta, Aparência, Explorar, Ferramentas capability-aware e Sessão.
+
+#964 define motion local e reversível de aproximadamente 2 s por `--nav-profile-panel-motion`, usando opacity/transform/clip-path sem alterar tokens globais. Durante fechamento a superfície fica `aria-hidden`, `inert` e sem pointer events; `prefers-reduced-motion` remove a transição longa.
+
+#965 migra o gate Playwright para o contrato unificado: ausência do trigger 3×3, auth/capability matrix, Escape/outside/pathname, reversibilidade, reduced motion, densidade, scroll interno, 320/390/200%/desktop amplo e receipts dark/light com fixtures sintéticas.
