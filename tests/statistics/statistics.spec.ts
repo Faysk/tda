@@ -81,7 +81,7 @@ test("invalid campaign input is reported as validation instead of access denial"
 	expect(await response?.text()).not.toContain("A travessia das montanhas");
 });
 
-test("read-only user sees complete totals, missing coverage and responsive session cards", async ({
+test("read-only user sees a compact searchable and sortable session inventory", async ({
 	context,
 	page,
 }, info) => {
@@ -89,19 +89,84 @@ test("read-only user sees complete totals, missing coverage and responsive sessi
 	const errors: string[] = [];
 	page.on("pageerror", (error) => errors.push(error.message));
 	const response = await page.goto("/transcricoes");
-	await expect(
-		page.getByRole("heading", { name: "Palavras e tempo" }),
-	).toBeVisible();
-	const summary = page.getByLabel("Totais das transcrições");
+
+	const heading = page.getByRole("heading", {
+		level: 1,
+		name: /Transcrições/,
+	});
+	await expect(heading).toBeVisible();
+	const [headingBox, brandBox, triggerBox] = await Promise.all([
+		heading.boundingBox(),
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+	]);
+	expect(headingBox).not.toBeNull();
+	expect(brandBox).not.toBeNull();
+	expect(triggerBox).not.toBeNull();
+	if (headingBox && brandBox && triggerBox) {
+		const overlaps = (
+			left: { x: number; y: number; width: number; height: number },
+			right: { x: number; y: number; width: number; height: number },
+		) =>
+			left.x < right.x + right.width &&
+			left.x + left.width > right.x &&
+			left.y < right.y + right.height &&
+			left.y + left.height > right.y;
+		expect(overlaps(headingBox, brandBox)).toBeFalsy();
+		expect(overlaps(headingBox, triggerBox)).toBeFalsy();
+	}
+	const summary = page.getByLabel("Resumo das transcrições");
 	await expect(summary).toContainText("410");
 	await expect(summary).toContainText("1 h 2 min");
-	await expect(summary).toContainText("2 de 3 sessões com contagem");
-	await expect(page.getByRole("status")).toContainText("Cobertura incompleta");
-	await expect(page.getByRole("article")).toHaveCount(3);
-	await expect(page.getByRole("article").nth(1)).toContainText("Não informada");
-	await expect(page.getByRole("article").nth(2)).toContainText(
-		"Não informadas",
-	);
+	await expect(summary).toContainText("Palavras 2/3");
+	await expect(summary).toContainText("duração 2/3");
+	await expect(
+		page.getByText(
+			"Cobertura incompleta: ausência de dados não significa zero.",
+			{ exact: true },
+		),
+	).toBeVisible();
+
+	await page.getByText("Como é calculado?", { exact: true }).click();
+	await expect(
+		page.getByText("Palavras do texto atual, separadas por espaços.", {
+			exact: false,
+		}),
+	).toBeVisible();
+
+	const table = page.getByRole("table", {
+		name: "Inventário de cobertura das transcrições",
+	});
+	await expect(table.locator("th[scope=col]")).toHaveCount(4);
+	await expect(table.locator("tbody tr")).toHaveCount(3);
+	await expect(table).toContainText("Não informada");
+	await expect(table).toContainText("Não informadas");
+
+	const search = page.getByRole("searchbox", { name: "Buscar sessão" });
+	const coverage = page.getByRole("combobox", { name: "Cobertura" });
+	const sort = page.getByRole("combobox", { name: "Ordenar" });
+
+	await search.fill("reencontro a beira");
+	await expect(table.locator("tbody tr")).toHaveCount(1);
+	await expect(table).toContainText("O reencontro à beira do rio");
+	await search.fill("");
+
+	await coverage.selectOption("incomplete");
+	await expect(table.locator("tbody tr")).toHaveCount(2);
+	await coverage.selectOption("all");
+
+	await sort.selectOption("title-asc");
+	const rows = table.locator("tbody tr");
+	await expect(rows.nth(0)).toContainText("A travessia das montanhas");
+	await expect(rows.nth(1)).toContainText("O reencontro à beira do rio");
+	await expect(rows.nth(2)).toContainText("Uma nova jornada");
+
+	await search.focus();
+	await page.keyboard.press("Tab");
+	await expect(coverage).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(sort).toBeFocused();
+
 	const html = await response?.text();
 	expect(html).not.toContain("TRANSCRICAO_PRIVADA");
 	expect(html).not.toContain("synthetic-server-key");
@@ -116,22 +181,37 @@ test("read-only user sees complete totals, missing coverage and responsive sessi
 			() => document.documentElement.scrollWidth <= innerWidth,
 		),
 	).toBe(true);
+
+	if (info.project.name === "desktop-1080p") {
+		const lastRowBox = await rows.nth(2).boundingBox();
+		expect(lastRowBox).not.toBeNull();
+		expect(lastRowBox?.y ?? 1081).toBeLessThan(1080);
+	}
+
 	expect(errors).toEqual([]);
+	await page.evaluate(() => {
+		if (document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
+		window.scrollTo(0, 0);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 	await page.screenshot({
-		path: info.outputPath("statistics.png"),
+		path: info.outputPath("statistics-" + info.project.name + ".png"),
 		fullPage: true,
 	});
+
 	await page.goto("/transcricoes?campanha=other");
 	await expect(
 		page.getByText("Sua conta não tem permissão de leitura", { exact: false }),
 	).toBeVisible();
-	await expect(page.getByRole("article")).toHaveCount(0);
+	await expect(page.getByRole("table")).toHaveCount(0);
 	await context.clearCookies();
 	await page.goto("/transcricoes");
 	await expect(
 		page.getByText("Entre com sua conta do Discord", { exact: false }),
 	).toBeVisible();
-	await expect(page.getByRole("article")).toHaveCount(0);
+	await expect(page.getByRole("table")).toHaveCount(0);
 });
 
 test("public pages do not carry private metrics or transcript payloads", async ({
@@ -154,5 +234,5 @@ test("a reload recomputes metrics after editing the synthetic source", async ({
 	await page.goto("/transcricoes");
 	await context.request.post("http://127.0.0.1:3103/fixture/revise");
 	await page.reload();
-	await expect(page.getByLabel("Totais das transcrições")).toContainText("615");
+	await expect(page.getByLabel("Resumo das transcrições")).toContainText("615");
 });
