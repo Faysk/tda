@@ -50,3 +50,29 @@ export function resolveEditEntryDestination(
 	}
 	return null;
 }
+
+
+export type EditCompatibilityAccessState =
+	| "anonymous"
+	| "unavailable"
+	| "authenticated_unlinked"
+	| "authenticated_linked_no_grants"
+	| "authenticated_linked";
+
+export type EditCompatibilityAccess = Readonly<{
+	state: EditCompatibilityAccessState;
+	context: EditAccessContext | null;
+}>;
+
+export function resolveEditCompatibilityTarget(
+	access: EditCompatibilityAccess,
+): string {
+	if (access.state === "anonymous") return "/entrar?next=%2Fedit";
+	if (access.state === "unavailable") return "/conta?acesso=indisponivel";
+	if (access.state !== "authenticated_linked" || !access.context)
+		return "/conta?acesso=negado";
+
+	return (
+		resolveEditEntryDestination(access.context) ?? "/conta?acesso=negado"
+	);
+}
