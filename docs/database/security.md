@@ -442,3 +442,12 @@ Contrato candidato:
 - service role e credenciais R2 nunca são enviados ao browser.
 
 Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+
+## `SECURITY INVOKER` server-only da edição de revision cloud — #898
+
+`save_transcript_revision_edit_atomic(uuid,text,uuid,uuid,uuid,jsonb)` é o boundary de persistência da correção privada de transcrição no Web. Ele não eleva para owner, fixa `search_path = pg_catalog, public`, revoga `EXECUTE` de `PUBLIC`/`anon`/`authenticated` e concede execução somente a `service_role`.
+
+A Server Action resolve a identidade verificada e `campaign.content.edit` antes da chamada; o RPC revalida também profile, assignment ativo, scope de campanha/projeto, sessão e revisão base. O input contém apenas deltas de speaker/texto e não pode alterar IDs, timestamps, ordem ou review flags. A sessão é bloqueada antes do CAS; stale current não deixa revision nem audit parcial.
+
+A evidência de audit é metadata-only. Texto e speaker não entram em `audit_log` nem nos logs de erro. A função cria uma nova revision imutável, preserva a anterior e não toca em publication receipts/events ou campos públicos de sessão.
