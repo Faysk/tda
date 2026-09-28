@@ -76,8 +76,7 @@ export async function saveTranscriptRevisionEditsAction(
 			sessionId: input.sessionId,
 		});
 		if (
-			!current ||
-			current.source !== "current_revision" ||
+			current?.source !== "current_revision" ||
 			current.revisionId !== result.revisionId ||
 			current.revisionNumber !== result.revisionNumber
 		) {
