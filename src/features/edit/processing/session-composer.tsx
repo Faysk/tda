@@ -823,9 +823,8 @@ export function SessionRecordingComposer({
 												{job ? " · job " + short(job.id, 8) + " " + job.status : ""}
 											</small>
 										</div>
-										<div
+										<fieldset
 											className={styles.reorder}
-											role="group"
 											aria-label={"Ordenar gravação " + (index + 1)}
 										>
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === 0} onClick={() => void reorder(part, -1)} aria-label={"Mover gravação " + (index + 1) + " para cima"}>
@@ -834,7 +833,7 @@ export function SessionRecordingComposer({
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === workspace.parts.length - 1} onClick={() => void reorder(part, 1)} aria-label={"Mover gravação " + (index + 1) + " para baixo"}>
 												↓
 											</Button>
-										</div>
+										</fieldset>
 									</div>
 
 									<div className={styles.partControls}>
