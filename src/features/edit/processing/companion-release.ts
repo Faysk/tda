@@ -280,12 +280,13 @@ export function selectLatestCompanionDownloadRelease(
 			continue;
 		}
 
+		const currentLatest = latest;
 		const sameVersion = version.every(
-			(part, index) => part === latest.version[index],
+			(part, index) => part === currentLatest.version[index],
 		);
 		if (
-			isNewer(version, latest.version) ||
-			(sameVersion && channel === "stable" && latest.channel === "rc")
+			isNewer(version, currentLatest.version) ||
+			(sameVersion && channel === "stable" && currentLatest.channel === "rc")
 		) {
 			latest = { entry, tag, channel, version };
 		}
