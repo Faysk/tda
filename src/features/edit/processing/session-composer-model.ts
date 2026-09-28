@@ -57,13 +57,21 @@ export function runsForPart(
 export function pendingSourceIds(
 	workspace: SessionWorkspace | null,
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>,
+	jobs: readonly LocalJob[] = [],
 ): string[] {
 	if (!workspace) return [];
+	const activeSources = new Set(
+		jobs
+			.filter((job) => job.status === "queued" || job.status === "running")
+			.map((job) => job.context?.sourceId)
+			.filter((sourceId): sourceId is string => Boolean(sourceId)),
+	);
 	return workspace.parts
 		.filter(
 			(part) =>
 				part.sourceState === "ready" &&
-				runsForPart(runsBySource, part).length === 0,
+				runsForPart(runsBySource, part).length === 0 &&
+				!activeSources.has(part.sourceId),
 		)
 		.map((part) => part.sourceId);
 }
