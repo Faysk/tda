@@ -16,6 +16,7 @@ const EXACT = {
 		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
 		"src/app/layout.tsx",
+		"src/app/not-found.tsx",
 		"src/app/public-shell.css",
 		"src/app/api/auth/me/route.ts",
 		"src/app/edit/page.tsx",
