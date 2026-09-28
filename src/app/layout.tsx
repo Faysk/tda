@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { AccountMenu } from "@/components/account-menu";
 import {
 	GlobalFormLoadingBridge,
 	GlobalLoadingProvider,
 } from "@/components/global-loading";
+import { AccountMenu } from "@/components/account-menu";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
+import { NavigationAuthProvider } from "@/components/navigation-auth";
 import { PublicNav } from "@/components/public-nav";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { SITE_NAME } from "@/config/public-metadata";
@@ -66,8 +67,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							</span>
 						</Link>
 						<div className="header-actions">
-							<PublicNav />
-							<AccountMenu />
+							<NavigationAuthProvider>
+								<PublicNav />
+								<AccountMenu />
+							</NavigationAuthProvider>
 						</div>
 					</header>
 					<main id="conteudo">{children}</main>

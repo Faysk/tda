@@ -181,6 +181,7 @@ footer {
 	}
 }
 
+
 .account-menu {
 	position: relative;
 }
@@ -190,7 +191,7 @@ footer {
 	width: 44px;
 	height: 44px;
 	place-items: center;
-	padding: 2px;
+	padding: 0;
 	border: 1px solid var(--ds-control-border);
 	border-radius: 999px;
 	background: var(--ds-surface);
@@ -210,36 +211,36 @@ footer {
 
 .account-avatar {
 	display: grid;
-	width: 38px;
-	height: 38px;
+	width: 34px;
+	height: 34px;
 	place-items: center;
 	overflow: hidden;
-	border-radius: 999px;
-	background: var(--ds-surface-elevated);
+	border-radius: 50%;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
 }
 
-.account-avatar-image {
+.account-avatar img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 }
 
-.account-avatar-initials {
-	font-family: var(--ds-font-ui);
-	font-size: 0.78rem;
-	font-weight: 750;
-	letter-spacing: 0.02em;
-	line-height: 1;
-}
-
-.account-avatar-silhouette {
-	width: 24px;
-	height: 24px;
+.account-avatar svg {
+	width: 21px;
+	height: 21px;
 	fill: none;
-	stroke: currentcolor;
+	stroke: currentColor;
+	stroke-width: 1.7;
 	stroke-linecap: round;
 	stroke-linejoin: round;
-	stroke-width: 1.65;
+}
+
+.account-avatar-initials {
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 750;
+	letter-spacing: 0.04em;
 }
 
 .account-menu-panel {
@@ -247,56 +248,71 @@ footer {
 	top: calc(100% + 10px);
 	right: 0;
 	z-index: 910;
-	display: grid;
-	width: min(320px, calc(100vw - 24px));
-	gap: 10px;
-	padding: 14px;
+	width: min(340px, calc(100vw - 32px));
+	padding: 16px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
 	box-shadow: var(--ds-shadow);
 }
 
-.account-menu-panel form {
-	margin: 0;
-}
-
-.account-menu-status,
 .account-menu-identity {
 	display: grid;
 	gap: 4px;
-	margin: 0;
+	padding: 2px 2px 14px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.account-menu-identity strong {
+	overflow-wrap: anywhere;
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.92rem;
+	line-height: 1.3;
+}
+
+.account-menu-identity small,
+.account-menu-appearance small {
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-ui);
-	font-size: 0.78rem;
-	line-height: 1.45;
-}
-
-.account-menu-status strong,
-.account-menu-identity strong {
-	color: var(--ds-foreground);
-	font-size: 0.875rem;
-	font-weight: 700;
-}
-
-.account-menu-identity span {
-	color: var(--ds-foreground-muted);
 	font-size: 0.72rem;
+	line-height: 1.4;
 }
 
-.account-menu-action {
+.account-menu-kicker {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.account-menu-actions {
+	display: grid;
+	gap: 8px;
+	padding-top: 12px;
+}
+
+.account-menu-form {
+	display: contents;
+}
+
+.account-menu-link,
+.account-menu-primary,
+.account-menu-logout {
 	display: flex;
-	width: 100%;
 	min-height: 44px;
 	align-items: center;
 	justify-content: flex-start;
+	width: 100%;
 	padding: 9px 11px;
-	border: 1px solid var(--ds-control-border);
+	border: 1px solid transparent;
 	border-radius: var(--ds-radius-sm);
-	background: var(--ds-surface);
+	background: transparent;
 	color: var(--ds-foreground-soft);
 	font-family: var(--ds-font-ui);
-	font-size: 0.82rem;
+	font-size: 0.84rem;
 	font-weight: 650;
 	line-height: 1.2;
 	text-align: left;
@@ -308,44 +324,52 @@ footer {
 		color var(--ds-motion-fast) var(--ds-ease-standard);
 }
 
-.account-menu-action--primary {
-	border-color: color-mix(in srgb, var(--ds-accent) 65%, var(--ds-control-border));
-	background: color-mix(in srgb, var(--ds-accent) 9%, var(--ds-surface));
-	color: var(--ds-foreground);
+.account-menu-primary {
+	border-color: var(--ds-action-primary-border);
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
 }
 
-.account-menu-action--quiet {
-	background: transparent;
+.account-menu-logout {
 	color: var(--ds-foreground-muted);
 }
 
 .account-menu-appearance {
 	display: flex;
-	min-height: 52px;
+	min-height: 56px;
 	align-items: center;
 	justify-content: space-between;
-	gap: 16px;
-	margin-top: 2px;
-	padding-top: 8px;
+	gap: 14px;
+	padding: 7px 2px 7px 11px;
 	border-top: 1px solid var(--ds-border-subtle);
-	color: var(--ds-foreground-soft);
-	font-family: var(--ds-font-ui);
-	font-size: 0.78rem;
-	font-weight: 650;
+	border-bottom: 1px solid var(--ds-border-subtle);
 }
 
-.account-menu-trigger:focus-visible,
-.account-menu-action:focus-visible {
-	outline: 2px solid var(--ds-control-focus-ring);
-	outline-offset: 2px;
+.account-menu-appearance > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.account-menu-appearance > div > span {
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.82rem;
+	font-weight: 650;
 }
 
 @media (hover: hover) and (pointer: fine) {
 	.account-menu-trigger:hover,
-	.account-menu-action:hover {
+	.account-menu-link:hover,
+	.account-menu-logout:hover {
 		border-color: var(--ds-accent);
-		background: var(--ds-surface-hover);
+		background: var(--ds-surface);
 		color: var(--ds-foreground);
+	}
+
+	.account-menu-primary:hover {
+		border-color: var(--ds-action-primary-hover);
+		background: var(--ds-action-primary-hover);
 	}
 }
 
@@ -399,7 +423,9 @@ footer {
 	.product-launcher-trigger,
 	.product-launcher-link,
 	.account-menu-trigger,
-	.account-menu-action {
+	.account-menu-link,
+	.account-menu-primary,
+	.account-menu-logout {
 		transition: none;
 	}
 }
@@ -445,15 +471,6 @@ footer {
 		border-radius: var(--ds-radius-md);
 	}
 
-	.account-menu-panel {
-		position: fixed;
-		top: 72px;
-		right: 12px;
-		width: min(320px, calc(100vw - 24px));
-		max-height: calc(100dvh - 84px);
-		overflow-y: auto;
-	}
-
 	.product-launcher-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
@@ -495,13 +512,6 @@ footer {
 		left: 8px;
 		max-height: calc(100dvh - 76px);
 		padding: 12px;
-	}
-
-	.account-menu-panel {
-		top: 68px;
-		right: 8px;
-		width: calc(100vw - 16px);
-		max-height: calc(100dvh - 76px);
 	}
 
 	.product-launcher-grid {

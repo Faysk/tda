@@ -15,7 +15,7 @@ import {
 	type NavigationItem,
 	visibleToolNavigationItems,
 } from "./public-navigation-model";
-import { loadNavigationAuthProjection } from "./navigation-auth";
+import { useNavigationAuth } from "./navigation-auth";
 import { PublicLink as Link } from "./public-link";
 
 const PANEL_ID = "global-product-navigation";
@@ -111,24 +111,14 @@ function NavigationList({
 
 export function PublicNav() {
 	const pathname = usePathname();
+	const { capabilities } = useNavigationAuth();
 	const [open, setOpen] = useState(false);
-	const [capabilities, setCapabilities] = useState<readonly string[]>([]);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const tools = useMemo(
 		() => visibleToolNavigationItems(capabilities),
 		[capabilities],
 	);
-
-	useEffect(() => {
-		let active = true;
-		void loadNavigationAuthProjection().then((projection) => {
-			if (active) setCapabilities(projection.capabilities);
-		});
-		return () => {
-			active = false;
-		};
-	}, []);
 
 
 	useEffect(() => {
