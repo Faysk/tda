@@ -3,10 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import type { TranscriptReaderSegment } from "@/features/edit/transcript/reader-contract";
-import {
-	SessionEditorialDraftEditor,
-	type SessionEditorialDraftEditorTransport,
-} from "./editorial-draft-editor";
+import type { SessionEditorialDraftEditorTransport } from "./editorial-draft-editor";
 import type { SessionEditorialDraft } from "./editorial-draft-model";
 import { SessionEditWorkspace } from "./session-edit-workspace";
 
