@@ -972,7 +972,7 @@ test("Stable 0.3.15 hides completed-run deletion while Results remains usable", 
 	await expect(page.getByLabel("Mais ações do resultado")).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toHaveCount(0);
 });
-test("Results keeps selected-run detail in document flow on Full HD", async ({ page }) => {
+test("Results keeps selected-run detail in document flow on Full HD", async ({ page }, testInfo) => {
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await installCompanionFixture(page, {
 		profileReady: true,
@@ -985,8 +985,22 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	const runCard = page.locator("article").filter({ hasText: "Resultado local" }).first();
-	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+	const reviewAction = page.getByRole("button", { name: "Revisar resultado" });
+	await expect(reviewAction).toBeVisible();
 	await expect(runCard.getByText("Integridade e IDs", { exact: true })).toBeVisible();
+	const [actionBox, primaryFactsBox] = await Promise.all([
+		reviewAction.boundingBox(),
+		runCard.locator("[data-run-primary-facts='true']").boundingBox(),
+	]);
+	expect(actionBox).not.toBeNull();
+	expect(primaryFactsBox).not.toBeNull();
+	if (actionBox && primaryFactsBox) {
+		expect(actionBox.y).toBeLessThan(primaryFactsBox.y);
+	}
+	await page.screenshot({
+		path: testInfo.outputPath("results-selected-run-density.png"),
+		fullPage: false,
+	});
 	const detail = await runCard.evaluate((card) => {
 		const owner = card.parentElement;
 		if (!owner) return null;
