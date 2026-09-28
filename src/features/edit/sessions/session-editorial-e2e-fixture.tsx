@@ -2,13 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
-import { TranscriptReader } from "@/features/edit/transcript/reader";
 import type { TranscriptReaderSegment } from "@/features/edit/transcript/reader-contract";
 import {
 	SessionEditorialDraftEditor,
 	type SessionEditorialDraftEditorTransport,
 } from "./editorial-draft-editor";
 import type { SessionEditorialDraft } from "./editorial-draft-model";
+import { SessionEditWorkspace } from "./session-edit-workspace";
 
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
@@ -313,27 +313,30 @@ export function SessionEditorialE2EFixture() {
 			</section>
 
 			<section aria-label="Workspace editorial privado">
-				<TranscriptReader
-					downloadHref="/e2e-fixtures/session-editorial/transcript"
-					segments={SEGMENTS}
-					sourceLabel="Revisão privada sintética · r1"
-				/>
-				<SessionEditorialDraftEditor
-					editable={editable}
-					initial={{
-						...initialDraft,
-						currentTranscriptRevisionId: transcriptRevisionId,
-						transcriptChanged:
-							initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+				<SessionEditWorkspace
+					transcript={{
+						downloadHref: "/e2e-fixtures/session-editorial/transcript",
+						segments: SEGMENTS,
+						sourceLabel: "Revisão privada sintética · r1",
 					}}
-					initialPublication={{
-						currentPublicationId: null,
-						currentVersion: 0,
+					editorial={{
+						editable,
+						initial: {
+							...initialDraft,
+							currentTranscriptRevisionId: transcriptRevisionId,
+							transcriptChanged:
+								initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+						},
+						initialPublication: {
+							currentPublicationId: null,
+							currentVersion: 0,
+						},
+						publicationAvailable: true,
+						publishable,
+						sessionId: SESSION_ID,
+						transport,
 					}}
-					publicationAvailable
-					publishable={publishable}
-					sessionId={SESSION_ID}
-					transport={transport}
+					editorialUnavailable={null}
 				/>
 			</section>
 
