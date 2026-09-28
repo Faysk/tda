@@ -166,3 +166,32 @@ export function summarizeTranscriptRebase(
 
 	return { compatible: true, remoteChangedSegments, collisions };
 }
+
+
+export function rebaseTranscriptPatches(
+	baseline: readonly TranscriptReaderSegment[],
+	remote: readonly TranscriptReaderSegment[],
+	patches: readonly TranscriptRevisionPatch[],
+): TranscriptRevisionPatch[] {
+	const summary = summarizeTranscriptRebase(baseline, remote, patches);
+	if (!summary.compatible)
+		throw new Error("Transcript revisions are not structurally compatible");
+	const baselineById = new Map(baseline.map((segment) => [segment.id, segment]));
+	const remoteById = new Map(remote.map((segment) => [segment.id, segment]));
+	const result: TranscriptRevisionPatch[] = [];
+	for (const patch of patches) {
+		const original = baselineById.get(patch.id);
+		const next = remoteById.get(patch.id);
+		if (!original || !next)
+			throw new Error("Transcript rebase lost segment identity");
+		const rebased = {
+			id: patch.id,
+			speaker:
+				patch.speaker !== original.speaker ? patch.speaker : next.speaker,
+			text: patch.text !== original.text ? patch.text : next.text,
+		};
+		if (rebased.speaker !== next.speaker || rebased.text !== next.text)
+			result.push(rebased);
+	}
+	return result;
+}
