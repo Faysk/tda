@@ -100,6 +100,7 @@ jobs:
         env:
           TDA_SYNTHETIC_POSTGRES: "1"
       - run: python tools/session-publication-db.py
+      - run: python tools/transcript-revision-edit-db.py
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py
       - run: python tools/lembra-db.py
