@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+
 export default defineConfig({
 	testDir: "tests/statistics",
 	workers: 1,
@@ -26,7 +27,18 @@ export default defineConfig({
 		},
 	],
 	projects: [
-		{ name: "desktop", use: { viewport: { width: 1440, height: 1000 } } },
+		{
+			name: "desktop-1080p",
+			use: { viewport: { width: 1920, height: 1080 } },
+		},
+		{
+			name: "desktop-768",
+			use: { viewport: { width: 1366, height: 768 } },
+		},
 		{ name: "mobile", use: { viewport: { width: 390, height: 844 } } },
+		{
+			name: "zoom-200",
+			use: { viewport: { width: 683, height: 384 } },
+		},
 	],
 });
