@@ -679,7 +679,8 @@ def test_ingest_local_file_requires_zip_extension(tmp_path: Path):
 @pytest.mark.anyio
 async def test_ingest_reports_chronological_duration_and_total_audio_work(tmp_path: Path):
     data_root = tmp_path / "Data"
-    result = await ingest_craig_request(_request(_duration_zip_bytes()), data_root)
+    payload = _duration_zip_bytes()
+    result = await ingest_craig_request(_request(payload), data_root)
 
     assert result["track_count"] == 2
     assert result["session_duration_seconds"] == 300.0
@@ -692,7 +693,7 @@ async def test_ingest_reports_chronological_duration_and_total_audio_work(tmp_pa
     )
     assert [track.duration_seconds for track in package.tracks] == [300.0, 180.0]
 
-    reused = await ingest_craig_request(_request(_duration_zip_bytes()), data_root)
+    reused = await ingest_craig_request(_request(payload), data_root)
     assert reused["reused"] is True
     assert reused["session_duration_seconds"] == 300.0
     assert reused["audio_work_seconds"] == 480.0
