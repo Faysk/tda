@@ -3,12 +3,13 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, processing, lembra, media } = classifyPaths(files);
-	return { web, db, companion, processing, lembra, media };
+	const { web, navigation, db, companion, processing, lembra, media } = classifyPaths(files);
+	return { web, navigation, db, companion, processing, lembra, media };
 }
 
 const fastOnly = {
 	web: true,
+	navigation: false,
 	db: false,
 	companion: false,
 	processing: false,
@@ -32,6 +33,25 @@ test("ordinary web and lore files do not activate heavy domains", () => {
 		]),
 		fastOnly,
 	);
+});
+
+test("navigation shell paths activate only the targeted navigation browser gate", () => {
+	for (const path of [
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/public-navigation-model.ts",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"tests/global-navigation.spec.ts",
+	]) {
+		const result = flags([path]);
+		assert.equal(result.navigation, true);
+		assert.equal(result.processing, false);
+		assert.equal(result.lembra, false);
+	}
 });
 
 test("Processing Web paths activate the Processing E2E contract", () => {
@@ -85,6 +105,7 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 
 test("CI workflow changes exercise the browser gates they define", () => {
 	const result = flags([".github/workflows/ci.yml"]);
+	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
 });
@@ -114,6 +135,7 @@ test("media manifests and tooling activate media domain", () => {
 test("classifier contract changes fail safe into every heavy domain", () => {
 	const expected = {
 		web: true,
+		navigation: true,
 		db: true,
 		companion: true,
 		processing: true,
@@ -134,6 +156,7 @@ test("mixed changes activate each relevant domain", () => {
 		]),
 		{
 			web: true,
+			navigation: false,
 			db: true,
 			companion: true,
 			processing: true,
