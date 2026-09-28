@@ -14,8 +14,9 @@ Este diretório contém procedimentos executáveis. Histórico explica o passado
 4. [Ambientes e configuração](environments.md) — limites Development/Preview/Production.
 5. [Media Storage — runbook](r2-media-runbook.md) — preparação, publicação, diagnóstico e recuperação.
 6. [World Entity Media — smoke de Production](world-entity-media-production-smoke.md) — aceite editorial real para upload/publicação/replace/remove.
-7. [Release, deploy e rollback](release-runbook.md).
-8. [Operação do banco](database-runbook.md).
+7. [Transcript handoff — smoke de Production](transcript-handoff-production-smoke.md) — aceite real de handoff privado, replay, CAS e restore/unpublish.
+8. [Release, deploy e rollback](release-runbook.md).
+9. [Operação do banco](database-runbook.md).
 
 ## Fluxo web
 
@@ -76,6 +77,7 @@ O sucesso operacional de uma publicação continua dependendo do run real e de s
 - [Banco](database-runbook.md)
 - [Media Storage / R2 atual](r2-media-runbook.md)
 - [World Entity Media — smoke de Production](world-entity-media-production-smoke.md)
+- [Transcript handoff — smoke de Production](transcript-handoff-production-smoke.md)
 - [Segurança operacional](security-checklist.md)
 - [Companion](local-companion.md)
 
