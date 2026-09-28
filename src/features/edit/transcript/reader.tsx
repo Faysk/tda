@@ -72,6 +72,7 @@ export function TranscriptReader({
 	revisionNumber?: number | null;
 	saveAction?: TranscriptReaderSaveAction;
 }>) {
+	const router = useRouter();
 	const [baseline, setBaseline] = useState<readonly TranscriptReaderSegment[]>(() => [
 		...segments,
 	]);
