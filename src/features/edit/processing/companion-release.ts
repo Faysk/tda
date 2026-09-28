@@ -245,6 +245,61 @@ export function selectLatestCompanionInstallableRelease(
 	return latest;
 }
 
+export function selectLatestCompanionDownloadRelease(
+	value: unknown,
+): CompanionInstallableRelease | null {
+	if (!Array.isArray(value)) return null;
+	let latest:
+		| {
+				entry: unknown;
+				tag: string;
+				channel: CompanionChannel;
+				version: readonly [number, number, number];
+		  }
+		| null = null;
+
+	for (const entry of value) {
+		if (!entry || typeof entry !== "object") continue;
+		const release = entry as GithubRelease;
+		if (release.draft !== false || typeof release.tag_name !== "string") continue;
+
+		const tag = release.tag_name;
+		const channel = companionChannel(tag);
+		if (!channel) continue;
+		const match =
+			channel === "stable" ? TAG_PATTERN.exec(tag) : COMPANION_RC_TAG_PATTERN.exec(tag);
+		if (!match) continue;
+		const version = [
+			Number(match[1]),
+			Number(match[2]),
+			Number(match[3]),
+		] as const;
+
+		if (!latest) {
+			latest = { entry, tag, channel, version };
+			continue;
+		}
+
+		const sameVersion = version.every(
+			(part, index) => part === latest.version[index],
+		);
+		if (
+			isNewer(version, latest.version) ||
+			(sameVersion && channel === "stable" && latest.channel === "rc")
+		) {
+			latest = { entry, tag, channel, version };
+		}
+	}
+
+	if (!latest) return null;
+
+	// The Web promises the newest published Companion. Select the newest
+	// recognizable release first, then validate that exact release. If its
+	// asset/channel metadata is invalid, fail closed instead of silently
+	// falling back to an older release.
+	return selectCompanionInstallableAssetInfo(latest.entry, latest.tag);
+}
+
 export function selectCompanionAsset(
 	value: unknown,
 	expectedTag: string,
