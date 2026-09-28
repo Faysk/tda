@@ -34,11 +34,14 @@ export default async function AccountPage({
 			"Sua conta está vinculada e possui acesso configurado para esta campanha.",
 	} as const;
 
-	const accessState = {
-		authenticated_unlinked: "Perfil da campanha não vinculado",
-		authenticated_linked_no_grants: "Sem permissões administrativas ativas",
-		authenticated_linked: "Conta vinculada",
-	} as const;
+	const accessStateLabel =
+		access.state === "authenticated_unlinked"
+			? "Perfil da campanha não vinculado"
+			: access.state === "authenticated_linked_no_grants"
+				? "Sem permissões administrativas ativas"
+				: access.state === "authenticated_linked"
+					? "Conta vinculada"
+					: null;
 
 	const accessNotice =
 		query.acesso === "negado"
@@ -66,7 +69,7 @@ export default async function AccountPage({
 					<span className={styles.accountIdentityLabel}>Discord</span>
 					<strong>{displayName}</strong>
 					<span className={styles.accountIdentityState}>
-						{accessState[access.state]}
+						{accessStateLabel}
 					</span>
 				</div>
 			) : null}
