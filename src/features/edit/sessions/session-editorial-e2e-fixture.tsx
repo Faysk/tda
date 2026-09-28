@@ -19,6 +19,7 @@ const PRIVATE_MARKER = "NEVER_PUBLIC_TRANSCRIPT_MARKER_9F3A";
 const SEGMENTS: readonly TranscriptReaderSegment[] = [
 	{
 		id: "synthetic-segment-001",
+		trackNumber: 1,
 		startMs: 0,
 		endMs: 4200,
 		speaker: "Alya",
@@ -26,6 +27,7 @@ const SEGMENTS: readonly TranscriptReaderSegment[] = [
 	},
 	{
 		id: "synthetic-segment-002",
+		trackNumber: 2,
 		startMs: 12500,
 		endMs: 18100,
 		speaker: "Dandelion",
@@ -33,6 +35,7 @@ const SEGMENTS: readonly TranscriptReaderSegment[] = [
 	},
 	{
 		id: "synthetic-segment-003",
+		trackNumber: 3,
 		startMs: 3723000,
 		endMs: 3728600,
 		speaker: "Mestre",
