@@ -328,3 +328,198 @@ footer {
 		font-size: 0.8rem;
 	}
 }
+
+
+.account-menu {
+	position: relative;
+}
+
+.account-menu-trigger {
+	display: inline-grid;
+	width: 44px;
+	height: 44px;
+	place-items: center;
+	overflow: hidden;
+	padding: 0;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 50%;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	transition:
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard),
+		box-shadow var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.account-menu-trigger[aria-expanded="true"] {
+	border-color: var(--ds-accent);
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground);
+	box-shadow: 0 0 0 3px var(--ds-accent-muted);
+}
+
+.account-menu-avatar-image,
+.account-menu-avatar-fallback {
+	display: grid;
+	width: 100%;
+	height: 100%;
+	place-items: center;
+	border-radius: inherit;
+}
+
+.account-menu-avatar-image {
+	object-fit: cover;
+}
+
+.account-menu-avatar-fallback {
+	font-family: var(--ds-font-ui);
+	font-size: 0.78rem;
+	font-weight: 750;
+	letter-spacing: 0.04em;
+}
+
+.account-menu-avatar-fallback svg {
+	width: 23px;
+	height: 23px;
+	fill: none;
+	stroke: currentcolor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 1.65;
+}
+
+.account-menu-panel {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	z-index: 910;
+	width: min(320px, calc(100vw - 32px));
+	padding: 14px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+	box-shadow: var(--ds-shadow);
+}
+
+.account-menu-identity {
+	display: grid;
+	gap: 4px;
+	padding: 4px 6px 14px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.account-menu-identity strong {
+	overflow: hidden;
+	color: var(--ds-foreground);
+	font-size: 0.92rem;
+	font-weight: 700;
+	line-height: 1.25;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.account-menu-identity span,
+.account-menu-status {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.75rem;
+	line-height: 1.45;
+}
+
+.account-menu-status {
+	margin: 0;
+	padding: 4px 6px 12px;
+}
+
+.account-menu-actions {
+	display: grid;
+	gap: 3px;
+	padding-block: 8px;
+}
+
+.account-menu-action {
+	display: flex;
+	width: 100%;
+	min-height: 44px;
+	align-items: center;
+	padding: 9px 10px;
+	border: 1px solid transparent;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.84rem;
+	font-weight: 650;
+	line-height: 1.2;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.account-menu-appearance {
+	display: flex;
+	min-height: 54px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	padding: 6px 4px 6px 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+	border-bottom: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.78rem;
+	font-weight: 650;
+}
+
+.account-menu-logout {
+	margin: 8px 0 0;
+}
+
+.account-menu-trigger:focus-visible,
+.account-menu-action:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.account-menu-trigger:hover,
+	.account-menu-action:hover {
+		border-color: var(--ds-accent);
+		background: var(--ds-surface);
+		color: var(--ds-foreground);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.account-menu-trigger,
+	.account-menu-action {
+		transition: none;
+	}
+}
+
+@media (max-width: 650px) {
+	.account-menu-panel {
+		position: fixed;
+		top: 72px;
+		right: 12px;
+		width: min(320px, calc(100vw - 24px));
+		max-height: calc(100dvh - 84px);
+		overflow-y: auto;
+	}
+}
+
+@media (max-width: 360px) {
+	.account-menu-panel {
+		top: 68px;
+		right: 8px;
+		width: calc(100vw - 16px);
+		max-height: calc(100dvh - 76px);
+	}
+}
