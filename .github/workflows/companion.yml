@@ -1,4 +1,5 @@
 name: Companion
+# #628 refresh after Stable-bridge idempotency fix: emit exact-source 0.3.16 candidate for end-to-end release validation.
 # #628 release refresh: emit one fresh exact-source Windows artifact after RC retry selection hardening.
 on:
   workflow_call:
