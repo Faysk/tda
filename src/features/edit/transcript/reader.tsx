@@ -148,8 +148,12 @@ export function TranscriptReader({
 	}
 
 	async function copyReference(index: number) {
-		const segment = baseline[index];
-		const reference = `${formatTranscriptTimestamp(segment.startMs)} · ${segment.speaker}`;
+		const baseSegment = baseline[index];
+		const segment = applyWorkingEdit(
+			baseSegment,
+			working[baseSegment.id],
+		);
+		const reference = `${formatTranscriptTimestamp(baseSegment.startMs)} · ${segment.speaker}`;
 		try {
 			await navigator.clipboard.writeText(reference);
 		} catch {
