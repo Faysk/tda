@@ -85,6 +85,30 @@ createServer((request, response) => {
 		// Deliberately cap below the requested limit to prove complete traversal.
 		return send(rows.filter((row) => !after || row.id > after).slice(0, 2));
 	}
+	if (table === "transcript_session_statistics") {
+		if (
+			url.searchParams.get("sessions.campaigns.slug") !== "eq.yuhara-main" ||
+			!url.searchParams.has("session_id")
+		) {
+			return send({ message: "Missing aggregate session/campaign scope" }, 400);
+		}
+		const sessionFilter = url.searchParams.get("session_id") ?? "";
+		const rows = [
+			{
+				session_id: id(1),
+				segment_count: 205,
+				complete_text_count: 205,
+				word_count: revision ? 615 : 410,
+			},
+			{
+				session_id: id(2),
+				segment_count: 1,
+				complete_text_count: 1,
+				word_count: 0,
+			},
+		];
+		return send(rows.filter((row) => sessionFilter.includes(row.session_id)));
+	}
 	if (table === "transcript_segments") {
 		if (
 			url.searchParams.get("sessions.campaigns.slug") !== "eq.yuhara-main" ||
