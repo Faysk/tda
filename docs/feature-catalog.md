@@ -19,7 +19,7 @@ Estados:
 
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
-| Navegação global / conta | arquitetura aprovada; projeção mínima de Auth integrada; launcher/avatar/hubs em rollout | [Contrato canônico](features/global-navigation.md), epic #879 e PR #886; runtime textual/hubs atuais permanecem transitórios até os slices visuais integrarem |
+| Navegação global / conta | arquitetura aprovada; projeção mínima de Auth e launcher integrados; avatar/hubs em rollout | [Contrato canônico](features/global-navigation.md), epic #879, PR #886 e PR #890; launcher global já está na `main`, enquanto avatar/hubs continuam transitórios |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
 | Runs/revisão/publicação de transcrição | arquitetura aprovada; implementação pendente | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016: runs imutáveis, comparação A/B, revisão derivada, publish explícito, revisions cloud, restore/unpublish/delete |
