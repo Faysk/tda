@@ -1,18 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
-function release(tag: string, prerelease: boolean) {
+function release(
+  tag: string,
+  prerelease: boolean,
+  options: { draft?: boolean; digest?: string; size?: number } = {},
+) {
   return {
     tag_name: tag,
-    draft: false,
+    draft: options.draft ?? false,
     prerelease,
     assets: [
       {
         name: "TDACompanion-x64.msi",
         browser_download_url:
           `https://github.com/Faysk/tda/releases/download/${tag}/TDACompanion-x64.msi`,
-        digest: `sha256:${"a".repeat(64)}`,
-        size: 83_000_000,
+        digest: options.digest ?? `sha256:${"a".repeat(64)}`,
+        size: options.size ?? 83_000_000,
       },
     ],
   };
@@ -64,6 +68,83 @@ describe("Companion Windows manifest route", () => {
       },
     });
     expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
+  });
+
+  it("returns the newest installable release for explicit channel=latest", async () => {
+    mockGithubReleases();
+
+    const response = await GET(
+      new Request(
+        "https://dnd.faysk.dev/api/downloads/companion/windows/manifest?channel=latest",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      channel: "rc",
+      version: "0.3.10",
+      tag: "companion-rc-v0.3.10-0123456789ab",
+      asset: {
+        url:
+          "/api/downloads/companion/windows?tag=companion-rc-v0.3.10-0123456789ab",
+      },
+    });
+  });
+
+  it("prefers Stable on a latest-channel semantic-version tie", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            release("companion-rc-v0.3.16-0123456789ab", true),
+            release("companion-v0.3.16", false),
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    const response = await GET(
+      new Request(
+        "https://dnd.faysk.dev/api/downloads/companion/windows/manifest?channel=latest",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      channel: "stable",
+      version: "0.3.16",
+      tag: "companion-v0.3.16",
+    });
+  });
+
+  it("fails closed instead of falling back when the newest published release is invalid", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            release("companion-rc-v0.3.16-0123456789ab", true, {
+              digest: "sha256:bad",
+            }),
+            release("companion-v0.3.15", false),
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    const response = await GET(
+      new Request(
+        "https://dnd.faysk.dev/api/downloads/companion/windows/manifest?channel=latest",
+      ),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "COMPANION_RELEASE_NOT_FOUND",
+    });
   });
 
   it("forces the upstream release catalog fetch to bypass the Next data cache", async () => {
