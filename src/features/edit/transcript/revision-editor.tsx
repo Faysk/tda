@@ -40,8 +40,8 @@ function dirtyPatch(
 	patch: TranscriptRevisionEditPatch | undefined,
 ): TranscriptRevisionEditPatch | null {
 	if (!patch) return null;
-	const speaker = patch.speaker.trim();
-	const text = patch.text.trim();
+	const speaker = patch.speaker;
+	const text = patch.text;
 	if (speaker === segment.speaker && text === segment.text) return null;
 	return { id: segment.id, speaker, text };
 }
