@@ -1,8 +1,8 @@
 # Estatísticas privadas de transcrições
 
-> Status: read model bounded em Production; V2 habilitado no CD; benchmark autenticado pendente
+> Status: publicado em Production; read model bounded canônico; benchmark autenticado concluído
 > Owner: transcrições / leitura e estatísticas
-> Última revisão: 2026-09-24
+> Última revisão: 2026-09-28
 > Fonte de verdade: `src/features/transcripts/statistics`, `public.sessions`, `public.transcript_segments` e `public.transcript_session_statistics`
 
 ## Superfície e conjunto
@@ -41,9 +41,10 @@ A leitura usa páginas de até 200 sessões e, por página, no máximo um lote d
 
 ### Observabilidade operacional
 
-`TDA_STATS_READ_MODEL_V2_ENABLED` permanece `false` por default no código. Ambientes que não fazem opt-in preservam exatamente o caminho V1 e a telemetria `TDA_STATS_READ_V1`, evitando dependência acidental de uma migration ausente. No Production CD canônico, depois da migration e do read-back de grants, o build e o deployment staged recebem explicitamente `TDA_STATS_READ_MODEL_V2_ENABLED=true`; o mesmo artifact testado é então promovido ao domínio canônico. O benchmark autenticado continua gate separado. Rollback funcional do read model é feito por um novo deployment com a flag desabilitada, sem precisar remover imediatamente o schema aditivo.
 
-A leitura bounded emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V2`. Ele registra somente outcome, duração total, quantidade de requests/rows de sessões e aggregates e tamanho UTF-8 aproximado dos payloads. Não registra campaign slug, usuário/profile, IDs de sessão, texto de transcrição, detalhes de erro ou credenciais. O benchmark V2 deve ser comparado à baseline V1 confirmada em Production em 2026-09-23: mediana 15,39 s, 30.857 segmentos e 49 requests de segmentos por leitura.
+A leitura bounded emite no runtime server-side o evento sanitizado `TDA_STATS_READ_V2`. Ele registra somente outcome, duração total, quantidade de requests/rows de sessões e aggregates e tamanho UTF-8 aproximado dos payloads. Não registra campaign slug, usuário/profile, IDs de sessão, texto de transcrição, detalhes de erro ou credenciais.
+
+Benchmark autenticado concluído em Production em 2026-09-28, no mesmo volume da baseline: o read model continha 11 rows, `sum(segment_count)=30.857` e `sum(complete_text_count)=30.857`. Um render real de `/transcricoes` registrou `duration_ms=750,71`, 2 requests de sessões, 1 request de aggregates, 11 rows agregadas e ~3.835 bytes de payload. A baseline V1 de 2026-09-23 era mediana 15,39 s, 49 requests de segmentos e ~7.301.892 bytes para os mesmos 30.857 segmentos. Isso representa aproximadamente 20,5x menos latência server-side e ~1.904x menos payload observado, além de eliminar o fan-out por páginas de segmentos.
 
 
 Não há snapshot transacional entre páginas: importação/edição simultânea pode produzir uma leitura durante a mudança. Recarregar após a operação concluída é o contrato atual. Falha de rede/cursor/identidade ambígua nega o resultado integral, sem reaproveitar contagem antiga de outro usuário.
@@ -70,6 +71,6 @@ Inspeção read-only do Supabase canônico em 2026-09-07 confirmou tipos de colu
 
 Validação local concluída em 2026-09-07: `pnpm check` (173 Vitest + 24 testes Node), build otimizado, 75 testes E2E habituais e 8 E2E de estatísticas passaram. Capturas de desktop 1440px e mobile 390px inspecionadas, sem overflow/erro de página. A suíte habitual usou porta local isolada 3117 porque 3101 já estava ocupada por outro processo; nenhum processo alheio foi encerrado. CI permanece gate separado do commit final.
 
-Estado Production revalidado em 2026-09-24: as migrations `20260923152000_transcript_statistics_read_model` e `20260923163000_harden_transcript_statistics_grants` estão aplicadas no Supabase canônico. `service_role` possui somente `SELECT` em `transcript_session_statistics`; `anon` e `authenticated` não possuem grant direto na tabela. O Production CD passou a fazer opt-in explícito do V2. Não alterar permissões para fazer benchmark passar. Login OAuth real e o benchmark de `/transcricoes` continuam gates humanos separados.
+Estado Production revalidado em 2026-09-28: as migrations `20260923152000_transcript_statistics_read_model` e `20260923163000_harden_transcript_statistics_grants` permanecem aplicadas no Supabase canônico. `service_role` possui somente `SELECT` em `transcript_session_statistics`; `anon` e `authenticated` não possuem grant direto na tabela. O benchmark autenticado foi concluído no volume de 30.857 segmentos e confirmou o caminho bounded. O leitor V1 e a flag de rollout foram então aposentados; não alterar permissões para fazer métricas passarem.
 
-Rollback operacional preferido: novo deployment com `TDA_STATS_READ_MODEL_V2_ENABLED=false`, retornando ao leitor V1 sem apagar o read model. A migration é aditiva e pode permanecer instalada durante o rollback de aplicação. Remoção física do schema, se algum dia necessária, exige migration própria e não faz parte do rollback normal.
+Rollback operacional após a aposentadoria do V1 é feito por revert/fix-forward do release, preservando a migration aditiva e os aggregates já mantidos transacionalmente. Reintroduzir full scan de `transcript_segments.text` não é rollback padrão porque recria o custo O(segmentos) já medido; qualquer remoção física do schema continua exigindo migration própria.
