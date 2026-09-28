@@ -52,11 +52,16 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 		if (!enabled) return;
 		const generation = ++refreshGeneration.current;
 		const nextSession = readSessionId();
+		const previousSession = sessionIdRef.current;
 		sessionIdRef.current = nextSession;
 		setSessionId(nextSession);
 		setReviewSelection((current) =>
 			retainSessionAssemblyReview(current, nextSession),
 		);
+		if (previousSession !== nextSession) {
+			reviewGeneration.current += 1;
+			setAssemblies([]);
+		}
 		if (!nextSession) {
 			setAssemblies([]);
 			setError(null);
