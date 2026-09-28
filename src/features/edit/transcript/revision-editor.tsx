@@ -271,12 +271,23 @@ export function TranscriptRevisionEditor({
 				? previousAttempt.operationId
 				: crypto.randomUUID();
 		saveAttemptRef.current = { key: saveKey, operationId };
-		const result = await (saveAction ?? saveTranscriptRevisionAction)({
-			sessionId,
-			expectedCurrentRevisionId: currentRevisionId,
-			operationId,
-			edits,
-		});
+		let result: Awaited<ReturnType<typeof saveTranscriptRevisionAction>>;
+		try {
+			result = await (saveAction ?? saveTranscriptRevisionAction)({
+				sessionId,
+				expectedCurrentRevisionId: currentRevisionId,
+				operationId,
+				edits,
+			});
+		} catch {
+			// Keep saveAttemptRef intact: a lost response may have committed and the
+			// next explicit retry must reuse the same operation id for safe replay.
+			setPhase("error");
+			setMessage(
+				"Não foi possível confirmar o save. Seu rascunho continua aqui; tentar novamente reutiliza a mesma operação com segurança.",
+			);
+			return;
+		}
 		if (!result.ok) {
 			if (result.reason === "conflict") {
 				setPhase("conflict");
