@@ -530,6 +530,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	});
 	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
 	const firstAttach = page.getByRole("button", { name: "Usar composer da sessão" });
+	await expect(firstAttach).toBeEnabled();
 	await firstAttach.focus();
 	await page.keyboard.press("Enter");
 	await expect(page.getByRole("heading", { name: /sessao-42 · 1 gravação$/u })).toBeVisible();
@@ -541,17 +542,20 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	});
 	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
 	const secondAttach = page.getByRole("button", { name: /Adicionar gravação/u });
+	await expect(secondAttach).toBeEnabled();
 	await secondAttach.focus();
 	await page.keyboard.press("Enter");
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 
 	const moveSecondUp = page.getByRole("button", { name: "Mover gravação 2 para cima" });
+	await expect(moveSecondUp).toBeEnabled();
 	await moveSecondUp.focus();
 	await page.keyboard.press("Enter");
 	await expect(
 		page.locator('ol[aria-label="Gravações da sessão"] > li').first().locator("small[title]"),
 	).toHaveAttribute("title", SOURCE_IDS[1]);
 	const restoreOrder = page.getByRole("button", { name: "Mover gravação 1 para baixo" });
+	await expect(restoreOrder).toBeEnabled();
 	await restoreOrder.focus();
 	await page.keyboard.press("Enter");
 	await expect(
@@ -611,9 +615,11 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 
 	const selectors = page.getByLabel("Run desta gravação");
 	await expect(selectors).toHaveCount(2);
+	await expect(selectors.nth(0)).toBeEnabled();
 	await selectors.nth(0).focus();
 	await page.keyboard.press("ArrowDown");
 	await expect(selectors.nth(0)).toHaveValue("run-1");
+	await expect(selectors.nth(1)).toBeEnabled();
 	await selectors.nth(1).focus();
 	await page.keyboard.press("ArrowDown");
 	await expect(selectors.nth(1)).toHaveValue("run-2");
