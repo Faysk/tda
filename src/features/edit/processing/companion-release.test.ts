@@ -4,6 +4,7 @@ import {
 	selectCompanionAsset,
 	selectCompanionAssetInfo,
 	selectCompanionInstallableAssetInfo,
+	selectLatestCompanionDownloadRelease,
 	selectLatestCompanionInstallableRelease,
 	selectLatestCompanionTag,
 	selectLatestWhisperRuntimeTag,
@@ -209,6 +210,89 @@ describe("newest installable Companion release", () => {
 		expect(selectLatestCompanionInstallableRelease([draftNewer, malformed, valid])?.tag).toBe(
 			"companion-v0.3.2",
 		);
+	});
+});
+
+describe("latest Companion Web download release", () => {
+	it("selects the only valid Stable or RC release", () => {
+		expect(
+			selectLatestCompanionDownloadRelease([release("companion-v0.3.15")]),
+		).toMatchObject({
+			channel: "stable",
+			version: "0.3.15",
+		});
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
+			]),
+		).toMatchObject({
+			channel: "rc",
+			version: "0.3.16",
+		});
+	});
+
+	it("chooses the greatest semantic version regardless of channel", () => {
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-v0.3.15"),
+				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
+			]),
+		).toMatchObject({
+			channel: "rc",
+			tag: "companion-rc-v0.3.16-abcdef123456",
+		});
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-v0.3.17"),
+				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
+			]),
+		).toMatchObject({
+			channel: "stable",
+			tag: "companion-v0.3.17",
+		});
+	});
+
+	it("prefers Stable when Stable and RC share the same semantic version", () => {
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
+				release("companion-v0.3.16"),
+			]),
+		).toMatchObject({
+			channel: "stable",
+			tag: "companion-v0.3.16",
+		});
+	});
+
+	it("ignores drafts but fails closed when the newest published tag is not installable", () => {
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-rc-v9.9.9-abcdef123456", {
+					draft: true,
+					prerelease: true,
+				}),
+				release("companion-v0.3.15"),
+			]),
+		).toMatchObject({ tag: "companion-v0.3.15" });
+
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-rc-v0.3.16-abcdef123456", {
+					prerelease: true,
+					digest: "sha256:bad",
+				}),
+				release("companion-v0.3.15"),
+			]),
+		).toBeNull();
+	});
+
+	it("fails closed when the newest recognized release has inconsistent channel metadata", () => {
+		expect(
+			selectLatestCompanionDownloadRelease([
+				release("companion-rc-v0.3.16-abcdef123456", { prerelease: false }),
+				release("companion-v0.3.15"),
+			]),
+		).toBeNull();
 	});
 });
 

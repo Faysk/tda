@@ -11,6 +11,7 @@ import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
+import { CompanionDownload } from "./companion-download";
 import { ActivityPackAdmin } from "./activity-pack-admin";
 import { enabledCustomActivityBarks, subscribeActivityPacks } from "./activity-pack-store";
 import { ProcessingCommandBar } from "./command-bar";
@@ -528,27 +529,30 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
-			<div
-				className={styles.processingTabs}
-				aria-label="Áreas do processamento"
-				role="tablist"
-			>
-				{processingViews.map((item, index) => (
-					<button
-						key={item.id}
-						id={`processing-tab-${item.id}`}
-						type="button"
-						role="tab"
-						aria-selected={view === item.id}
-						aria-controls={`processing-view-${item.id}`}
-						data-active={view === item.id ? "true" : "false"}
-						tabIndex={view === item.id ? 0 : -1}
-						onClick={() => activateView(item.id)}
-						onKeyDown={(event) => selectViewFromKeyboard(event, index)}
-					>
-						{item.label}
-					</button>
-				))}
+			<div className={styles.processingHeader}>
+				<div
+					className={styles.processingTabs}
+					aria-label="Áreas do processamento"
+					role="tablist"
+				>
+					{processingViews.map((item, index) => (
+						<button
+							key={item.id}
+							id={`processing-tab-${item.id}`}
+							type="button"
+							role="tab"
+							aria-selected={view === item.id}
+							aria-controls={`processing-view-${item.id}`}
+							data-active={view === item.id ? "true" : "false"}
+							tabIndex={view === item.id ? 0 : -1}
+							onClick={() => activateView(item.id)}
+							onKeyDown={(event) => selectViewFromKeyboard(event, index)}
+						>
+							{item.label}
+						</button>
+					))}
+				</div>
+				<CompanionDownload className={styles.processingDownloadAction} />
 			</div>
 
 			<ProcessingCommandBar

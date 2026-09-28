@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
 	AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION,
 	supportsAutomaticLoopbackSession,
@@ -12,22 +12,31 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const STABLE_TAG_PATTERN = /^companion-v(\d+\.\d+\.\d+)$/;
 const RC_TAG_PATTERN = /^companion-rc-v(\d+\.\d+\.\d+)-[a-f0-9]{12}$/;
 
-export type CompanionDownloadChannel = "stable" | "rc";
+export type CompanionDownloadChannel = "latest" | "stable" | "rc";
+type CompanionReleaseChannel = Exclude<CompanionDownloadChannel, "latest">;
 
 export type CompanionDownloadInfo = {
 	version: string;
-	channel: CompanionDownloadChannel;
+	channel: CompanionReleaseChannel;
 	tag: string;
 	url: string;
 	minimumServiceVersion: string;
 	compatible: boolean;
 };
 
+type CompanionDownloadState =
+	| { status: "loading"; download: null }
+	| { status: "unavailable"; download: null }
+	| { status: "ready"; download: CompanionDownloadInfo };
+
 export function companionManifestUrl(channel: CompanionDownloadChannel): string {
+	if (channel === "latest") return `${MANIFEST_URL}?channel=latest`;
 	return channel === "rc" ? `${MANIFEST_URL}?channel=rc` : MANIFEST_URL;
 }
 
-export function parseCompanionDownloadManifest(value: unknown): CompanionDownloadInfo | null {
+export function parseCompanionDownloadManifest(
+	value: unknown,
+): CompanionDownloadInfo | null {
 	if (!value || typeof value !== "object") return null;
 	const manifest = value as {
 		version?: unknown;
@@ -37,7 +46,10 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 		minimum_service_version?: unknown;
 		asset?: unknown;
 	};
-	if (typeof manifest.version !== "string" || !VERSION_PATTERN.test(manifest.version)) {
+	if (
+		typeof manifest.version !== "string" ||
+		!VERSION_PATTERN.test(manifest.version)
+	) {
 		return null;
 	}
 	if (manifest.channel !== "stable" && manifest.channel !== "rc") return null;
@@ -46,8 +58,9 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 	if (
 		manifest.minimum_service_version !==
 		AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION
-	)
+	) {
 		return null;
+	}
 
 	const tagMatch =
 		manifest.channel === "stable"
@@ -69,18 +82,42 @@ export function parseCompanionDownloadManifest(value: unknown): CompanionDownloa
 	};
 }
 
+function DownloadGlyph() {
+	return (
+		<svg
+			aria-hidden="true"
+			focusable="false"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.8"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M12 3v12" />
+			<path d="m8 11 4 4 4-4" />
+			<path d="M5 20h14" />
+		</svg>
+	);
+}
+
 export function CompanionDownload({
 	className,
-	channel = "stable",
+	channel = "latest",
 }: {
 	className?: string;
 	channel?: CompanionDownloadChannel;
 }) {
-	const [download, setDownload] = useState<CompanionDownloadInfo | null>(null);
+	const tooltipId = useId();
+	const [tooltipVisible, setTooltipVisible] = useState(false);
+	const [state, setState] = useState<CompanionDownloadState>({
+		status: "loading",
+		download: null,
+	});
 
 	useEffect(() => {
 		const controller = new AbortController();
-		setDownload(null);
+		setState({ status: "loading", download: null });
 		void fetch(companionManifestUrl(channel), {
 			cache: "no-store",
 			signal: controller.signal,
@@ -88,56 +125,77 @@ export function CompanionDownload({
 			.then(async (response) => {
 				if (!response.ok) return null;
 				const value = parseCompanionDownloadManifest(await response.json());
-				return value?.channel === channel ? value : null;
+				if (!value) return null;
+				return channel === "latest" || value.channel === channel ? value : null;
 			})
-			.then((value) => {
-				if (value?.channel === channel) setDownload(value);
+			.then((download) => {
+				setState(
+					download
+						? { status: "ready", download }
+						: { status: "unavailable", download: null },
+				);
 			})
-			.catch(() => undefined);
+			.catch(() => {
+				if (!controller.signal.aborted) {
+					setState({ status: "unavailable", download: null });
+				}
+			});
 		return () => controller.abort();
 	}, [channel]);
 
-	// RC is never a fallback/default download. It only appears after the explicit
-	// RC manifest resolves to a pinned, compatible prerelease tag.
-	if (channel === "rc" && (!download || !download.compatible)) return null;
+	const download = state.status === "ready" ? state.download : null;
+	const channelLabel =
+		download?.channel === "rc" ? "RC" : download ? "Stable" : null;
+	const tooltip =
+		state.status === "loading"
+			? "Verificando TDA Companion…"
+			: download
+				? download.compatible
+					? `TDA Companion v${download.version} · ${channelLabel} · Windows x64 · MSI`
+					: `TDA Companion v${download.version} · ${channelLabel} · requer v${download.minimumServiceVersion}+`
+				: "Download do TDA Companion indisponível.";
 
-	if (!download) {
-		return (
-			<span
-				className={className}
-				aria-disabled="true"
-				title="Não foi possível verificar um instalador Stable compatível."
-			>
-				<span>Stable compatível indisponível</span>
-				<small>Windows x64 · verificação necessária</small>
-			</span>
-		);
-	}
-
-	if (!download.compatible) {
-		return (
-			<span
-				className={className}
-				aria-disabled="true"
-				title={`Stable v${download.version} está abaixo do mínimo v${download.minimumServiceVersion} exigido por esta tela.`}
-			>
-				<span>Atualização do Companion necessária</span>
-				<small>
-					Stable v{download.version} · requer v{download.minimumServiceVersion}+
-				</small>
-			</span>
-		);
-	}
-
-	const channelLabel = download.channel === "rc" ? "RC" : "Stable";
-	const subtitle = `v${download.version} ${channelLabel} · Windows x64 · .msi`;
-	const title = `TDA Companion v${download.version} ${channelLabel} · Windows x64`;
-	const label = channel === "rc" ? "Testar TDA Companion RC" : "Baixar TDA Companion";
+	const onEscape = (key: string) => {
+		if (key === "Escape") setTooltipVisible(false);
+	};
 
 	return (
-		<a className={className} href={download.url} title={title}>
-			<span>{label}</span>
-			<small>{subtitle}</small>
-		</a>
+		<span className={className} data-companion-download="true">
+			{download?.compatible ? (
+				<a
+					href={download.url}
+					aria-label="Baixar TDA Companion"
+					aria-describedby={tooltipId}
+					onMouseEnter={() => setTooltipVisible(true)}
+					onMouseLeave={() => setTooltipVisible(false)}
+					onFocus={() => setTooltipVisible(true)}
+					onBlur={() => setTooltipVisible(false)}
+					onKeyDown={(event) => onEscape(event.key)}
+				>
+					<DownloadGlyph />
+				</a>
+			) : (
+				<button
+					type="button"
+					aria-disabled="true"
+					aria-label={
+						state.status === "loading"
+							? "Verificando TDA Companion"
+							: "Download do TDA Companion indisponível"
+					}
+					aria-describedby={tooltipId}
+					onMouseEnter={() => setTooltipVisible(true)}
+					onMouseLeave={() => setTooltipVisible(false)}
+					onFocus={() => setTooltipVisible(true)}
+					onBlur={() => setTooltipVisible(false)}
+					onKeyDown={(event) => onEscape(event.key)}
+				>
+					<DownloadGlyph />
+				</button>
+			)}
+			<span id={tooltipId} role="tooltip" hidden={!tooltipVisible}>
+				{tooltip}
+			</span>
+		</span>
 	);
 }
