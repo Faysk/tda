@@ -147,3 +147,23 @@ test("Production automatic release eligibility is push-only on main", () => {
     true,
   );
 });
+
+test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () => {
+  const legacyRecovery = readFileSync(
+    join(workflowRoot, "companion-legacy-031-recovery.yml"),
+    "utf8",
+  );
+
+  assert.match(legacyRecovery, /pull_request:/);
+  assert.match(
+    legacyRecovery,
+    /tools\/acceptance\/verify-legacy-031-recovery\.ps1/,
+  );
+  assert.match(
+    legacyRecovery,
+    /\.github\/workflows\/companion-legacy-031-recovery\.yml/,
+  );
+  assert.match(legacyRecovery, /docs\/operations\/local-companion\.md/);
+  assert.equal(legacyRecovery.includes("docs/documentation/catalog.md"), false);
+  assert.match(legacyRecovery, /workflow_dispatch:/);
+});
