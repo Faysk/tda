@@ -148,7 +148,7 @@
 	}
 
 	:global([data-world-workspace-root] [data-world-edge-tab][data-edge="left"]) {
-		top: 12px;
+		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 		left: 0;
 		width: 44px;
 		height: 44px;
