@@ -3,7 +3,7 @@
 > Status: accepted
 > Data: 2026-09-20
 > Owner: arquitetura / operations
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 > Fonte de verdade: esta decisão, os invariantes de arquitetura e os contratos específicos de cada integração
 
 ## Contexto
@@ -21,8 +21,8 @@ O TDA adota o princípio **portable core, replaceable edges**.
 As regras permanentes são:
 
 1. **GitHub é o control plane canônico.** Código, documentação, ADRs, manifests, migrations, workflows e configuração declarativa pertencem ao repositório. GitHub Actions controla operações automatizadas de entrega e infraestrutura.
-2. **Providers externos são substituíveis.** O TDA usa atualmente Vercel para runtime/deploy, Supabase como plataforma de dados e Cloudflare R2 como Media Storage. Esses nomes descrevem a implementação atual, não contratos permanentes do domínio.
-3. **Toda mídia pertence ao Media Storage.** Imagens, backgrounds, portraits, mapas, social cards, áudio, vídeo, assets de marca e demais binários de mídia não têm o Git como storage canônico. O provider atual de Media Storage é Cloudflare R2. Se o provider mudar, a regra de manter mídia fora do repositório permanece.
+2. **Providers externos são substituíveis, mas o estado operacional é explícito.** O TDA usa atualmente Vercel para runtime/deploy, Supabase como plataforma de dados e **Cloudflare R2 como único backend de blob/object storage**. `Media Storage` é o boundary arquitetural desse storage, não um provider paralelo. Portabilidade futura não significa múltiplos backends ativos hoje.
+3. **Todo blob/object storage pertence ao Media Storage e hoje é R2.** Imagens, backgrounds, portraits, mapas, social cards, áudio, vídeo, assets de marca e demais binários persistidos em object storage não têm o Git como storage canônico. **Todos esses blobs usam Cloudflare R2 no estado vigente.** Não há Azure Blob Storage, Amazon S3, Supabase Storage ou outro backend de blobs configurado no TDA. Se um dia o provider mudar, isso exige ADR/migração explícitas e a regra de manter mídia fora do repositório permanece.
 4. **O domínio depende de contratos, não do provider.** Features não devem espalhar chamadas específicas de R2, Supabase ou Vercel quando um boundary pequeno e explícito resolve a integração. A abstração deve existir na fronteira necessária; não criar frameworks genéricos ou adapters hipotéticos sem uso real.
 5. **PostgreSQL é o contrato principal de persistência relacional.** Supabase é o provider atual desse banco e de capacidades auxiliares. SQL/migrations versionadas no Git são a referência de evolução. Uso de capacidade específica do Supabase é permitido quando traz valor, mas deve ser identificado e isolado o suficiente para que o custo de migração seja conhecido.
 6. **GitHub concentra credenciais operacionais sempre que possível.** Secrets usados por GitHub Actions para deploy, migrations, publicação de mídia ou administração ficam em GitHub Environments, não são versionados e não devem depender de outro provider para serem recuperados. Um runtime pode manter localmente apenas os secrets que precisa em execução; esses secrets continuam sendo configuração do provider atual e devem ser provisionáveis/recriáveis a partir do processo controlado pelo GitHub.
@@ -45,7 +45,7 @@ A tabela é estado de implementação, não promessa de permanência dos provide
 
 ## Media Storage
 
-A decisão anterior de usar R2 é generalizada para um boundary de **Media Storage**.
+A decisão anterior de usar R2 é organizada sob o boundary de **Media Storage**. Esse nome abstrai o domínio, mas **não cria um segundo storage**: operacionalmente, todo blob/object storage do TDA é Cloudflare R2.
 
 O contrato permanente preserva as garantias já aprovadas:
 
@@ -59,7 +59,7 @@ O contrato permanente preserva as garantias já aprovadas:
 - credenciais de storage nunca chegam ao browser;
 - features declaram mídia; não criam uploaders ou secrets próprios por lore/projeto.
 
-Cloudflare R2 é a implementação atual desse contrato. Uma migração futura para S3, Azure Blob, Backblaze ou outro object storage deve trocar o adapter/configuração do Media Storage e preservar o contrato acima.
+Cloudflare R2 é a implementação canônica vigente desse contrato e o único backend de blobs configurado. Referências a protocolo S3 significam apenas a API compatível usada pelo R2; não significam Amazon S3 como provider. Uma migração futura para outro object storage só passa a fazer parte da arquitetura após decisão, implementação, migração e atualização documental explícitas, preservando o contrato acima.
 
 Binários de mídia que ainda existam no Git por decisões anteriores são compatibilidade/dívida de migração. Não constituem precedente para nova mídia e devem convergir para Media Storage em trabalho deliberado, sem remoção destrutiva ou quebra de bootstrap.
 
@@ -150,7 +150,7 @@ Evidências datadas permanecem históricas e não devem ser reescritas para pare
 
 ## Relação com ADRs anteriores
 
-- **ADR-0014 é superseded por esta ADR quanto à escolha permanente de R2.** Suas garantias de mídia imutável, integridade, read-back, separação de audience e publicação compartilhada são preservadas e passam a pertencer ao contrato provider-neutral de Media Storage.
+- **ADR-0014 é superseded por esta ADR quanto ao acoplamento do domínio ao provider.** Suas garantias de mídia imutável, integridade, read-back, separação de audience e publicação compartilhada são preservadas. O boundary permanece portável, mas o estado operacional vigente é inequívoco: todo blob/object storage do TDA usa Cloudflare R2.
 - **ADR-0002 continua accepted** como decisão de usar o Supabase existente hoje; esta ADR apenas estabelece que o provider pode ser substituído futuramente.
 - **ADR-0012 continua accepted**: GitHub Actions permanece o controlador da entrega.
 - **ADR-0015 continua accepted**: simplicidade, gates proporcionais e recuperação permanecem princípios da esteira.
