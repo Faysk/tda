@@ -19,8 +19,8 @@ export default async function PermissionsPage({
 	return (
 		<section className={styles.shell}>
 			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/conta">Minha conta</Link>
-				<Link href="/edit">Sessões no Edit</Link>
+				<Link href="/conta">Conta e acesso</Link>
+				<Link href="/edit/sessoes">Sessões no Edit</Link>
 			</nav>
 			<header className={styles.header}>
 				<p>TDA / EDIT</p>

@@ -61,7 +61,6 @@ function ErrorState() {
 			</p>
 			<div className={styles.libraryActions}>
 				<Link href="/edit/sessoes">Tentar novamente</Link>
-				<Link href="/edit">← Voltar ao Edit</Link>
 			</div>
 		</section>
 	);
@@ -95,9 +94,6 @@ export default async function EditSessionsPage({
 		<section className={styles.shell}>
 			<header className={styles.pageHeader}>
 				<div>
-					<Link className={styles.muted} href="/edit">
-						← Visão geral do Edit
-					</Link>
 					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES</p>
 					<h1 className={styles.pageTitle}>Biblioteca editorial</h1>
 					<p className={styles.libraryIntro}>
