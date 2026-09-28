@@ -36,7 +36,7 @@ export function AccountMenu() {
 	const pathname = usePathname();
 	const { state, identity } = useNavigationAuth();
 	const [open, setOpen] = useState(false);
-	const [avatarFailed, setAvatarFailed] = useState(false);
+	const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -45,10 +45,6 @@ export function AccountMenu() {
 	const avatarInitials = authenticated
 		? initials(identity?.displayName ?? null)
 		: null;
-
-	useEffect(() => {
-		setAvatarFailed(false);
-	}, [avatarUrl]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -86,7 +82,7 @@ export function AccountMenu() {
 		}
 		setOpen((value) => !value);
 	};
-	const showImage = Boolean(avatarUrl && !avatarFailed);
+	const showImage = Boolean(avatarUrl && failedAvatarUrl !== avatarUrl);
 
 	return (
 		<div className="account-menu" ref={rootRef}>
@@ -105,7 +101,7 @@ export function AccountMenu() {
 							src={avatarUrl ?? ""}
 							alt=""
 							referrerPolicy="no-referrer"
-							onError={() => setAvatarFailed(true)}
+							onError={() => setFailedAvatarUrl(avatarUrl)}
 						/>
 					) : avatarInitials ? (
 						<span className="account-avatar-initials">{avatarInitials}</span>
