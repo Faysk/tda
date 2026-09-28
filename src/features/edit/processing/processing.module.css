@@ -97,19 +97,23 @@
 
 .processingDownloadAction [role="tooltip"] {
 	position: absolute;
-	top: calc(100% + 6px);
-	right: 0;
+	top: 50%;
+	right: calc(100% + 8px);
 	z-index: 30;
 	width: max-content;
-	max-width: min(320px, calc(100vw - 24px));
+	max-width: min(320px, calc(100vw - 72px));
 	padding: 6px 8px;
+	transform: translateY(-50%);
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-sm);
-	background: var(--ds-canvas-raised);
-	color: var(--ds-foreground-soft);
+	background: var(--ds-surface-elevated);
+	box-shadow: var(--ds-shadow);
+	color: var(--ds-foreground);
 	font-size: 0.6875rem;
 	font-weight: 650;
 	line-height: 1.35;
+	text-align: left;
+	overflow-wrap: anywhere;
 	pointer-events: none;
 	white-space: normal;
 }
