@@ -190,7 +190,7 @@ O logo/wordmark continua sendo a ação de início. Por isso `Início` não é r
 
 O contrato canônico do header passou a ser **marca + launcher + avatar** e pertence a [Navegação global do TDA](../features/global-navigation.md). O launcher concentra destinos públicos reais e, quando a projeção privada permitir, ferramentas autorizadas; o avatar concentra conta, autenticação e aparência.
 
-Na baseline `main@edc1ea7482c960b72147d2afe108817b98d21ad4`, a projeção sanitizada de Auth de #881 já está integrada, mas #880/#882/#883 ainda não. Portanto o runtime pode continuar exibindo temporariamente `PublicNav` textual, `ThemeToggle` isolado e os hubs `/edit`/`/conta`. Esse estado descreve implementação transitória e **não** redefine o contrato canônico.
+Na baseline `main@08ea4cf0c31e48e827c9da829cfe77dfc15392c1`, a projeção sanitizada de Auth de #881 e o launcher de #880 já estão integrados. #882/#883 ainda não; portanto o runtime mantém temporariamente `ThemeToggle` isolado e os hubs `/edit`/`/conta`. Esse estado descreve implementação transitória e **não** redefine o contrato canônico.
 
 O controle de tema:
 
@@ -221,7 +221,7 @@ O Playwright valida este contrato nos projetos `desktop-1080p`, `desktop-2k` e `
 
 A aprovação perceptiva do timing ainda depende de revisão visual do proprietário: testes automatizados conseguem provar interpolação, duração e acessibilidade, mas não substituem julgamento de ritmo/agradabilidade.
 
-Enquanto o launcher de #880 ainda não estiver integrado, o header runtime atual permanece em uma linha inclusive no aceite de `320px`, removendo o subtítulo da marca quando necessário. O contrato alvo já não depende dessa lista textual: mobile deve usar a composição responsiva definida em [Navegação global](../features/global-navigation.md), sem quebrar arbitrariamente em múltiplas linhas.
+O launcher de #880 já usa a composição responsiva definida em [Navegação global](../features/global-navigation.md): no mobile o painel se reorganiza sem voltar a uma lista textual quebrada em múltiplas linhas. O shell continua obrigado a caber no aceite de `320px`, removendo o subtítulo da marca quando necessário.
 
 ## Responsividade e matriz de aceite
 
@@ -318,7 +318,7 @@ Playwright cobre, entre outros:
 
 ## O que não foi feito nesta camada
 
-- launcher global e avatar/painel de conta ainda não integrados nesta baseline; a projeção mínima de Auth de #881 já está na `main`;
+- avatar/painel de conta ainda não integrado nesta baseline; a projeção mínima de Auth de #881 e o launcher de #880 já estão na `main`;
 - Edit;
 - implementação do React Flow;
 - implementação das lores GSAP;
