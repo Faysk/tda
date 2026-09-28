@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PublicLink as Link } from "./public-link";
 import { NavigationList } from "./public-nav";
 import {
@@ -18,6 +18,15 @@ import {
 } from "./navigation-auth";
 
 const PANEL_ID = "global-profile-menu";
+const PANEL_MOTION_SAFETY_MS = 2_250;
+type PanelPhase = "closed" | "opening" | "open" | "closing";
+
+function prefersReducedMotion() {
+	return (
+		typeof window !== "undefined" &&
+		window.matchMedia("(prefers-reduced-motion: reduce)").matches
+	);
+}
 
 function AccountFallback({
 	initials,
@@ -44,7 +53,7 @@ function AccountFallback({
 
 export function AccountMenu() {
 	const pathname = usePathname();
-	const [open, setOpen] = useState(false);
+	const [phase, setPhase] = useState<PanelPhase>("closed");
 	const [projection, setProjection] = useState<NavigationAuthProjection | null>(
 		null,
 	);
@@ -52,6 +61,27 @@ export function AccountMenu() {
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
+	const mounted = phase !== "closed";
+	const expanded = phase === "opening" || phase === "open";
+
+	const close = useCallback((restoreFocus = false) => {
+		setPhase((current) => {
+			if (current === "closed") return current;
+			return prefersReducedMotion() ? "closed" : "closing";
+		});
+		if (restoreFocus) {
+			requestAnimationFrame(() => triggerRef.current?.focus());
+		}
+	}, []);
+
+	const toggle = useCallback(() => {
+		setPhase((current) => {
+			if (current === "closed" || current === "closing") {
+				return prefersReducedMotion() ? "open" : "opening";
+			}
+			return prefersReducedMotion() ? "closed" : "closing";
+		});
+	}, []);
 	const tools = useMemo(
 		() => visibleToolNavigationItems(projection?.capabilities ?? []),
 		[projection],
@@ -68,31 +98,46 @@ export function AccountMenu() {
 	}, []);
 
 	useEffect(() => {
-		setOpen(false);
+		close(false);
 		setAvatarFailed(false);
 		setReturnPath(
 			typeof window === "undefined"
 				? pathname || "/"
 				: `${window.location.pathname}${window.location.search}${window.location.hash}`,
 		);
-	}, [pathname]);
+	}, [pathname, close]);
 
 	useEffect(() => {
-		if (!open) return;
+		if (phase !== "opening" || prefersReducedMotion()) return;
+		const frame = requestAnimationFrame(() => {
+			setPhase((current) => (current === "opening" ? "open" : current));
+		});
+		return () => cancelAnimationFrame(frame);
+	}, [phase]);
+
+	useEffect(() => {
+		if (phase !== "closing" || prefersReducedMotion()) return;
+		const timeout = window.setTimeout(() => {
+			setPhase((current) => (current === "closing" ? "closed" : current));
+		}, PANEL_MOTION_SAFETY_MS);
+		return () => window.clearTimeout(timeout);
+	}, [phase]);
+
+	useEffect(() => {
+		if (!mounted) return;
 
 		const onPointerDown = (event: PointerEvent) => {
 			if (
 				event.target instanceof Node &&
 				!rootRef.current?.contains(event.target)
 			) {
-				setOpen(false);
+				close(false);
 			}
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
 			event.preventDefault();
-			setOpen(false);
-			requestAnimationFrame(() => triggerRef.current?.focus());
+			close(true);
 		};
 
 		document.addEventListener("pointerdown", onPointerDown);
@@ -101,7 +146,7 @@ export function AccountMenu() {
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKeyDown);
 		};
-	}, [open]);
+	}, [mounted, close]);
 
 	const authenticated =
 		projection !== null && isAuthenticatedNavigationState(projection.state);
@@ -109,8 +154,6 @@ export function AccountMenu() {
 	const avatarUrl = authenticated ? projection.identity?.avatarUrl ?? null : null;
 	const initials = navigationInitials(displayName);
 	const showAvatar = Boolean(avatarUrl) && !avatarFailed;
-	const close = () => setOpen(false);
-
 	return (
 		<div className="account-menu" ref={rootRef}>
 			<button
@@ -118,9 +161,9 @@ export function AccountMenu() {
 				type="button"
 				className="account-menu-trigger"
 				aria-label="Abrir menu global"
-				aria-expanded={open}
+				aria-expanded={expanded}
 				aria-controls={PANEL_ID}
-				onClick={() => setOpen((value) => !value)}
+				onClick={toggle}
 			>
 				<span className="account-avatar">
 					{showAvatar && avatarUrl ? (
@@ -139,11 +182,23 @@ export function AccountMenu() {
 				</span>
 			</button>
 
-			{open ? (
+			{mounted ? (
 				<section
 					className="account-menu-panel"
 					id={PANEL_ID}
+					data-state={phase}
 					aria-label="Navegação, conta e aparência"
+					aria-hidden={phase === "closing" ? true : undefined}
+					inert={phase === "closing" ? true : undefined}
+					onTransitionEnd={(event) => {
+						if (
+							event.target === event.currentTarget &&
+							event.propertyName === "opacity" &&
+							phase === "closing"
+						) {
+							setPhase("closed");
+						}
+					}}
 				>
 					<div className="account-menu-account-block">
 						{projection === null ? (
@@ -180,7 +235,7 @@ export function AccountMenu() {
 							<Link
 								href="/conta"
 								className="account-menu-action"
-								onClick={close}
+								onClick={() => close(false)}
 							>
 								Conta e acesso
 							</Link>
