@@ -5,7 +5,7 @@
 	grid-template-columns: var(--world-shell-rail) minmax(0, 1fr);
 	width: 100%;
 	min-width: 0;
-	min-height: calc(100dvh - 82px);
+	min-height: 100dvh;
 	background: var(--ds-canvas);
 	transition: grid-template-columns var(--ds-motion-fast) var(--ds-ease-soft);
 }
@@ -28,7 +28,7 @@
 	position: sticky;
 	top: 0;
 	display: flex;
-	min-height: calc(100dvh - 82px);
+	min-height: 100dvh;
 	max-height: 100dvh;
 	flex-direction: column;
 	padding: clamp(24px, 2.3vw, 34px) 16px 20px;
