@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
 import {
 	BridgeError,
@@ -18,7 +19,6 @@ type Props = Readonly<{
 	refreshKey?: number;
 }>;
 
-const CAMPAIGN_SLUG = "yuhara";
 
 function errorMessage(cause: unknown): string {
 	if (!(cause instanceof BridgeError))
