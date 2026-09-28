@@ -32,6 +32,9 @@
 	justify-content: space-between;
 	gap: 24px;
 	margin-bottom: 28px;
+	padding-inline:
+		var(--site-chrome-brand-clearance, 0px)
+		var(--site-chrome-profile-clearance, 0px);
 }
 
 .pageTitle {
@@ -302,7 +305,14 @@
 }
 
 @media (max-width: 640px) {
-	.shell { width: min(100% - 24px, 1680px); padding-top: 20px; }
+	.shell {
+		width: min(100% - 24px, 1680px);
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 12px);
+	}
+	.pageHeader,
+	.workbenchHeader {
+		padding-inline: 0;
+	}
 	.pageHeader, .workbenchHeader, .unsafeBanner { align-items: stretch; flex-direction: column; }
 	.toolbar { position: static; }
 	.search { width: 100%; }
