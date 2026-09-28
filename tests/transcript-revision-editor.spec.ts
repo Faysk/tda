@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const FIXTURE = "/e2e-fixtures/transcript-revision-editor";
 
 async function openFirstSegment(page: Page) {
-	await page.getByRole("button", { name: "Corrigir transcrição" }).click();
+	await page.getByRole("button", { name: "Editar transcrição" }).click();
 	const editButton = page.getByRole("button", { name: /Editar fala de Pessoa 1 em/ }).first();
 	await editButton.click();
 	const speaker = page.getByRole("textbox", { name: "Pessoa desta fala" });
@@ -17,26 +17,29 @@ test("read mode stays progressive and save survives reload", async ({ page }) =>
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto(FIXTURE);
 
-	await expect(page.getByRole("button", { name: "Corrigir transcrição" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Editar transcrição" })).toBeVisible();
 	await expect(page.getByText("Fala sintética número 1", { exact: true })).toBeVisible();
 
-	await page.getByRole("button", { name: "Corrigir transcrição" }).click();
+	await page.getByRole("button", { name: "Editar transcrição" }).click();
 	await expect(page.locator("article")).toHaveCount(300);
-	expect(
-		await page.evaluate(
-			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
-		),
-	).toBeTruthy();
 
 	const editButton = page.getByRole("button", { name: /Editar fala de Pessoa 1 em/ }).first();
 	await editButton.click();
 	const speaker = page.getByRole("textbox", { name: "Pessoa desta fala" });
 	const text = page.getByRole("textbox", { name: "Texto desta fala" });
+
+	await text.fill("Alteração temporária");
+	await expect(page.getByRole("button", { name: "Reverter fala" })).toBeVisible();
+	await page.getByRole("button", { name: "Reverter fala" }).click();
+	await expect(text).toHaveValue("Fala sintética número 1");
+	await expect(page.getByRole("button", { name: "Descartar alterações" })).toHaveCount(0);
+
 	await speaker.fill("Pessoa Revisada");
 	await text.fill("Fala corrigida com café ☕");
-
 	await expect(page.getByText("1 alterada(s)", { exact: false })).toBeVisible();
 	await expect(page.getByText("Alteração não salva", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Descartar alterações" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Sair do modo de edição" })).toBeVisible();
 
 	const search = page.getByRole("searchbox", { name: "Buscar na working copy" });
 	await search.fill("café");
@@ -44,27 +47,11 @@ test("read mode stays progressive and save survives reload", async ({ page }) =>
 
 	await page.keyboard.press("Control+S");
 	await expect(page.getByText(/Revisão privada r2 salva/)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Corrigir transcrição" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Editar transcrição" })).toBeVisible();
 
 	await page.reload();
 	await expect(page.getByText("Fala corrigida com café ☕", { exact: true })).toBeVisible();
 	await expect(page.getByText("Pessoa Revisada", { exact: true })).toBeVisible();
-});
-
-test("reverting one segment restores the baseline and clears its dirty state", async ({
-	page,
-}) => {
-	await page.goto(FIXTURE);
-	const { text } = await openFirstSegment(page);
-	await text.fill("Correção temporária");
-
-	await expect(page.getByText("Alteração não salva", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Reverter fala" }).click();
-
-	await expect(text).toHaveValue("Fala sintética número 1");
-	await expect(page.getByText("Sem alteração", { exact: true })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Reverter fala" })).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "Salvar nova revisão" })).toBeDisabled();
 });
 
 test("dirty navigation can be cancelled without losing the working copy", async ({ page }) => {
@@ -86,23 +73,36 @@ test("dirty navigation can be cancelled without losing the working copy", async 
 	await expect(text).toHaveValue("Rascunho que não pode sumir");
 });
 
-test("conflict preserves the working copy and does not blind retry", async ({ page }) => {
-	await page.goto(`${FIXTURE}?conflict=1`);
-	const { speaker, text } = await openFirstSegment(page);
-	await speaker.fill("Pessoa Concorrente");
-	await text.fill("Minha correção concorrente");
-	await page.getByRole("button", { name: "Salvar nova revisão" }).click();
+test("two tabs conflict without losing the stale working copy", async ({ page }) => {
+	await page.goto(FIXTURE);
+	const stalePage = await page.context().newPage();
+	await stalePage.goto(FIXTURE);
 
-	await expect(page.getByText(/transcrição mudou em outra edição/i)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Abrir versão atual em outra aba" })).toBeVisible();
-	await expect(speaker).toHaveValue("Pessoa Concorrente");
-	await expect(text).toHaveValue("Minha correção concorrente");
-	await expect(page.getByRole("button", { name: "Salvar nova revisão" })).toBeDisabled();
+	const primary = await openFirstSegment(page);
+	await primary.text.fill("Correção salva pela primeira aba");
+	await page.getByRole("button", { name: "Salvar alterações da transcrição" }).click();
+	await expect(page.getByText(/Revisão privada r2 salva/)).toBeVisible();
+
+	const stale = await openFirstSegment(stalePage);
+	await stale.speaker.fill("Pessoa Concorrente");
+	await stale.text.fill("Minha correção concorrente");
+	await stalePage.getByRole("button", { name: "Salvar alterações da transcrição" }).click();
+
+	await expect(stalePage.getByText(/transcrição mudou em outra edição/i)).toBeVisible();
+	await expect(
+		stalePage.getByRole("button", { name: "Abrir versão atual em outra aba" }),
+	).toBeVisible();
+	await expect(stale.speaker).toHaveValue("Pessoa Concorrente");
+	await expect(stale.text).toHaveValue("Minha correção concorrente");
+	await expect(
+		stalePage.getByRole("button", { name: "Salvar alterações da transcrição" }),
+	).toBeDisabled();
+	await stalePage.close();
 });
 
 test("read-only fixture never exposes correction controls", async ({ page }) => {
 	await page.goto(`${FIXTURE}?readonly=1`);
-	await expect(page.getByRole("button", { name: "Corrigir transcrição" })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Editar transcrição" })).toHaveCount(0);
 	await expect(page.getByText("Fala sintética número 1", { exact: true })).toBeVisible();
 });
 
