@@ -68,7 +68,7 @@ async function installMultiRecordingRoutes(page: Page) {
 	let revision = 0;
 	let expireCapabilitiesOnce = true;
 	let agentOfflineOnce = false;
-	let failNextSourceAEnqueue = false;
+	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
 	let attached: string[] = [];
 	const completed = new Set<string>();
@@ -296,8 +296,8 @@ async function installMultiRecordingRoutes(page: Page) {
 				...(postKeys.get(payload.source_id) ?? []),
 				key,
 			]);
-			if (payload.source_id === SOURCE_IDS[0] && failNextSourceAEnqueue) {
-				failNextSourceAEnqueue = false;
+			if (payload.source_id === SOURCE_IDS[1] && failNextSecondSourceEnqueue) {
+				failNextSecondSourceEnqueue = false;
 				return route.abort("failed");
 			}
 			postedSources.push(payload.source_id);
@@ -499,8 +499,8 @@ async function installMultiRecordingRoutes(page: Page) {
 		dropAgentOnce() {
 			agentOfflineOnce = true;
 		},
-		failNextFirstSourceEnqueue() {
-			failNextSourceAEnqueue = true;
+		failNextSecondSourceEnqueue() {
+			failNextSecondSourceEnqueue = true;
 		},
 		keysFor(sourceId: string) {
 			return [...(postKeys.get(sourceId) ?? [])];
@@ -586,24 +586,25 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(composer.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 	await expect(composer).toContainText("Composer da sessão recarregado.");
 
-	multi.failNextFirstSourceEnqueue();
+	multi.failNextSecondSourceEnqueue();
 	let processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
 	await processPending.focus();
 	await page.keyboard.press("Enter");
-	await expect(
-		page.getByText(/repetir Processar pendentes reutiliza a mesma identidade/u),
-	).toBeVisible();
+	await expect(composer).toContainText(
+		"repetir Processar pendentes reutiliza a mesma identidade",
+	);
+	await expect.poll(() => multi.postedSources).toEqual([SOURCE_IDS[0]]);
 
-	processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
+	processPending = page.getByRole("button", { name: "Processar pendentes (1)" });
 	await expect(processPending).toBeEnabled();
 	await processPending.focus();
 	await page.keyboard.press("Enter");
 	await expect.poll(() => multi.postedSources).toEqual(SOURCE_IDS.slice(0, 2));
-	const sourceAKeys = multi.keysFor(SOURCE_IDS[0]);
-	expect(sourceAKeys).toHaveLength(2);
-	expect(sourceAKeys[0]).toBe(sourceAKeys[1]);
-	expect(sourceAKeys[0]).not.toBe("");
-	expect(multi.keysFor(SOURCE_IDS[1])).toHaveLength(1);
+	expect(multi.keysFor(SOURCE_IDS[0])).toHaveLength(1);
+	const sourceBKeys = multi.keysFor(SOURCE_IDS[1]);
+	expect(sourceBKeys).toHaveLength(2);
+	expect(sourceBKeys[0]).toBe(sourceBKeys[1]);
+	expect(sourceBKeys[0]).not.toBe("");
 
 	await page.reload();
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
