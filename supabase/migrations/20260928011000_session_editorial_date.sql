@@ -19,6 +19,12 @@ is 'Distinguishes legacy drafts that predate editable session dates from a new d
 comment on column public.session_publications.session_date
 is 'Date-only value included in the immutable public editorial snapshot. Legacy publications may be null.';
 
+-- The date-aware publication wrapper reuses the already-audited publication RPC,
+-- then binds only the new snapshot field and its v2 hash inside the same transaction.
+-- Keep the mutation surface column-scoped rather than granting table-wide UPDATE.
+grant update(session_date, payload_sha256) on public.session_publications to service_role;
+grant update(payload_sha256) on public.session_publication_operations to service_role;
+
 create function public.save_session_editorial_draft_with_date_atomic(
   p_actor_profile_id uuid,
   p_campaign_slug text,
@@ -87,12 +93,6 @@ begin
       raise exception 'editorial draft date capture failed';
     end if;
 
-    update public.audit_log a
-    set new_value = coalesce(a.new_value, '{}'::jsonb) ||
-      jsonb_build_object('sessionDate', v_session_date)
-    where a.record_id = v_draft_id
-      and a.session_id = p_session_id
-      and a.action = 'session_editorial_draft.save';
   end if;
 
   return query select v_status, v_draft_id, v_revision;
@@ -236,15 +236,35 @@ begin
   where s.id = p_session_id
     and s.current_session_publication_id = v_publication_id;
 
-  update public.audit_log a
-  set new_value = coalesce(a.new_value, '{}'::jsonb) ||
+  insert into public.audit_log (
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    new_value
+  )
+  select
+    sp.campaign_id,
+    p_session_id,
+    p_actor_profile_id,
+    'session_publication.date_bind',
+    'session_publications',
+    v_publication_id,
     jsonb_build_object(
       'sessionDate', v_session_date,
       'payloadSha256', v_payload_sha256
     )
-  where a.record_id = v_publication_id
-    and a.session_id = p_session_id
-    and a.action = 'session_publication.publish';
+  from public.session_publications sp
+  where sp.id = v_publication_id
+    and not exists (
+      select 1
+      from public.audit_log prior
+      where prior.session_id = p_session_id
+        and prior.record_id = v_publication_id
+        and prior.action = 'session_publication.date_bind'
+    );
 
   return query select
     v_status,
