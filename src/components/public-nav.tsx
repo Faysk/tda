@@ -96,11 +96,18 @@ function NavigationList({
 							aria-current={current ? "page" : undefined}
 							onClick={onNavigate}
 						>
-							<NavigationIconGlyph
-								name={item.icon}
-								className="product-launcher-item-icon"
-							/>
-							<span>{item.label}</span>
+							<span
+								className="product-launcher-item-icon-frame"
+								data-navigation-icon={item.icon}
+							>
+								<NavigationIconGlyph
+									name={item.icon}
+									className="product-launcher-item-icon"
+								/>
+							</span>
+							<span className="product-launcher-item-label">
+								{item.label}
+							</span>
 						</Link>
 					</li>
 				);
