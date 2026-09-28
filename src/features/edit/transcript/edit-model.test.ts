@@ -49,6 +49,27 @@ describe("transcript edit delta contract", () => {
 		).toEqual(expect.arrayContaining(["text", "duplicate_segment"]));
 	});
 
+	it("shares the canonical review-string control contract", () => {
+		expect(
+			validateTranscriptEditRequest({
+				...base,
+				edits: [{ ...base.edits[0], speaker: "Alice\nBob" }],
+			}),
+		).toContain("speaker");
+		expect(
+			validateTranscriptEditRequest({
+				...base,
+				edits: [{ ...base.edits[0], text: "válido\u0001inválido" }],
+			}),
+		).toContain("text");
+		expect(
+			validateTranscriptEditRequest({
+				...base,
+				edits: [{ ...base.edits[0], text: "linha\tválida\noutra linha" }],
+			}),
+		).toEqual([]);
+	});
+
 	it("handles a 7,500-segment working-copy delta without an O(n²) validator", () => {
 		const edits = Array.from({ length: 7_500 }, (_, index) => ({
 			trackNumber: (index % 9) + 1,
