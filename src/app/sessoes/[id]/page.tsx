@@ -45,7 +45,15 @@ export async function generateMetadata({ params }: SessionParams): Promise<Metad
 		}
 		throw error;
 	}
-	if (!session) notFound();
+	if (!session) {
+		return {
+			title: "História não encontrada",
+			robots: {
+				index: false,
+				follow: false,
+			},
+		};
+	}
 	return sessionPublicMetadata(session);
 }
 
