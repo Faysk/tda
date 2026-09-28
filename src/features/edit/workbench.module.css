@@ -412,19 +412,53 @@
 
 .libraryRow {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: 112px minmax(0, 1fr) auto;
 	align-items: center;
-	gap: 18px;
-	padding: 16px 18px;
+	gap: 14px;
+	padding: 10px 12px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
 }
 
+.libraryThumbnail {
+	position: relative;
+	display: grid;
+	width: 112px;
+	aspect-ratio: 16 / 9;
+	place-items: center;
+	overflow: hidden;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background:
+		linear-gradient(135deg, var(--ds-surface-raised), var(--ds-canvas-subtle));
+}
+
+.libraryThumbnailImage {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.libraryThumbnailFallback {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-display);
+	font-size: 0.78rem;
+	font-weight: 650;
+	letter-spacing: 0.12em;
+}
+
 .libraryPrimary {
 	display: grid;
-	gap: 9px;
+	gap: 7px;
 	min-width: 0;
+}
+
+.libraryPrimary .sessionTitle {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
 .librarySecondary {
@@ -436,13 +470,30 @@
 	font-size: 0.78rem;
 }
 
-.librarySecondary .sessionId {
-	margin-top: 0;
-	max-width: 40ch;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	word-break: normal;
+.libraryDetails {
+	position: relative;
+}
+
+.libraryDetails summary {
+	color: var(--ds-foreground-muted);
+	cursor: pointer;
+	font: inherit;
+	font-weight: 650;
+}
+
+.libraryDetails summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.libraryDetails .sessionId {
+	display: block;
+	max-width: min(56ch, 70vw);
+	margin-top: 5px;
+	overflow-wrap: anywhere;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-mono);
+	font-size: 0.72rem;
 }
 
 .libraryActions {
@@ -473,10 +524,16 @@
 		grid-template-columns: 1fr;
 	}
 	.libraryRow {
-		grid-template-columns: 1fr;
-		align-items: stretch;
+		grid-template-columns: 80px minmax(0, 1fr);
+		align-items: start;
+		gap: 10px;
+		padding: 10px;
+	}
+	.libraryThumbnail {
+		width: 80px;
 	}
 	.libraryOpen {
+		grid-column: 1 / -1;
 		width: 100%;
 	}
 	.libraryCount {
@@ -486,7 +543,16 @@
 		display: grid;
 		gap: 5px;
 	}
-	.librarySecondary .sessionId {
+	.libraryDetails .sessionId {
 		max-width: 100%;
+	}
+}
+
+@media (max-width: 360px) {
+	.libraryRow {
+		grid-template-columns: 72px minmax(0, 1fr);
+	}
+	.libraryThumbnail {
+		width: 72px;
 	}
 }

@@ -2,7 +2,12 @@ import "server-only";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { requireUnsafeEdit } from "../unsafe-access";
-import type { EditSessionLibraryItem } from "./library";
+import type { EditSessionLibraryItem, SessionLibraryThumbnail } from "./library";
+import {
+	isExistingPublishedSessionCoverReference,
+	isSessionCoverUuid,
+	sessionCoverPreviewUrl,
+} from "./session-cover-media";
 
 export type EditSessionSummary = Readonly<{
 	id: string;
@@ -21,11 +26,34 @@ type SessionRow = Readonly<{
 	arc: string | null;
 	status: string;
 	current_transcript_revision_id?: string | null;
+	current_editorial_draft_id?: string | null;
+	cover_image_url?: string | null;
+}>;
+
+type EditorialDraftRow = Readonly<{
+	id: string;
+	session_id: string;
+	cover_asset_id: string | null;
+}>;
+
+type CoverAssetRow = Readonly<{
+	id: string;
+	status: string;
+	role_hint: string;
+	read_back_verified: boolean;
+}>;
+
+type SessionLibrarySeed = Readonly<{
+	item: Omit<EditSessionLibraryItem, "thumbnail">;
+	sessionId: string;
+	currentDraftId: string | null;
+	publicCoverReference: string | null;
 }>;
 
 const SUPPORTED_PAGE_SIZE = 200;
+const SUPPORTED_RELATED_PAGE_SIZE = 200;
 const SUPPORTED_LIBRARY_COLUMNS =
-	"id,source_session_id,title,session_date,arc,status,current_transcript_revision_id,campaigns!inner(slug)";
+	"id,source_session_id,title,session_date,arc,status,current_transcript_revision_id,current_editorial_draft_id,cover_image_url:metadata->>coverImageUrl,campaigns!inner(slug)";
 
 function dataClientOrThrow() {
 	const client = editDataClient();
@@ -52,13 +80,37 @@ function toSession(row: SessionRow): EditSessionSummary | null {
 	};
 }
 
-function toLibrarySession(row: SessionRow): EditSessionLibraryItem | null {
+function cleanReference(value: unknown): string | null {
+	if (typeof value !== "string") return null;
+	const reference = value.trim();
+	return reference || null;
+}
+
+function toLibrarySeed(row: SessionRow): SessionLibrarySeed | null {
 	const session = toSession(row);
 	if (!session) return null;
 	return {
-		...session,
-		transcriptPrepared: Boolean(row.current_transcript_revision_id),
+		item: {
+			...session,
+			transcriptPrepared: Boolean(row.current_transcript_revision_id),
+		},
+		sessionId: session.id,
+		currentDraftId: cleanReference(row.current_editorial_draft_id),
+		publicCoverReference: cleanReference(row.cover_image_url),
 	};
+}
+
+function publicThumbnail(reference: string | null): SessionLibraryThumbnail | null {
+	if (!reference || !isExistingPublishedSessionCoverReference(reference)) return null;
+	return { src: reference, kind: "public" };
+}
+
+function privateThumbnail(
+	sessionId: string,
+	assetId: string,
+): SessionLibraryThumbnail | null {
+	const src = sessionCoverPreviewUrl(sessionId, assetId);
+	return src ? { src, kind: "private" } : null;
 }
 
 /**
@@ -75,7 +127,7 @@ export async function listEditSessionLibrary(
 	if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/u.test(campaignSlug))
 		throw new Error("Invalid campaign");
 	const client = dataClientOrThrow();
-	const sessions: EditSessionLibraryItem[] = [];
+	const seeds: SessionLibrarySeed[] = [];
 	let after: string | null = null;
 
 	while (true) {
@@ -95,15 +147,81 @@ export async function listEditSessionLibrary(
 		for (const row of rows) {
 			if (!row.id || (after !== null && row.id <= after))
 				throw new Error("Non-progressing session library cursor");
-			const session = toLibrarySession(row);
-			if (session) sessions.push(session);
+			const seed = toLibrarySeed(row);
+			if (seed) seeds.push(seed);
 			after = row.id;
 		}
 
 		if (rows.length < SUPPORTED_PAGE_SIZE) break;
 	}
 
-	return sessions;
+	const draftIds = Array.from(
+		new Set(
+			seeds
+				.map((seed) => seed.currentDraftId)
+				.filter((id): id is string => Boolean(id)),
+		),
+	);
+	const draftById = new Map<string, EditorialDraftRow>();
+	for (let start = 0; start < draftIds.length; start += SUPPORTED_RELATED_PAGE_SIZE) {
+		const ids = draftIds.slice(start, start + SUPPORTED_RELATED_PAGE_SIZE);
+		const { data, error } = await client
+			.from("session_editorial_drafts")
+			.select("id,session_id,cover_asset_id")
+			.in("id", ids);
+		if (error) throw new Error("Edit session draft thumbnails unavailable");
+		for (const row of (data ?? []) as unknown as EditorialDraftRow[]) {
+			if (row?.id && row?.session_id) draftById.set(row.id, row);
+		}
+	}
+
+	const privateAssetIds = Array.from(
+		new Set(
+			Array.from(draftById.values())
+				.map((draft) => cleanReference(draft.cover_asset_id))
+				.filter((reference): reference is string => Boolean(reference))
+				.filter(isSessionCoverUuid),
+		),
+	);
+	const readablePrivateAssets = new Set<string>();
+	for (
+		let start = 0;
+		start < privateAssetIds.length;
+		start += SUPPORTED_RELATED_PAGE_SIZE
+	) {
+		const ids = privateAssetIds.slice(start, start + SUPPORTED_RELATED_PAGE_SIZE);
+		const { data, error } = await client
+			.from("media_assets")
+			.select("id,status,role_hint,read_back_verified")
+			.in("id", ids);
+		if (error) throw new Error("Edit session cover thumbnails unavailable");
+		for (const row of (data ?? []) as unknown as CoverAssetRow[]) {
+			if (
+				row?.id &&
+				row.role_hint === "session_cover" &&
+				row.read_back_verified === true &&
+				row.status !== "retired"
+			) {
+				readablePrivateAssets.add(row.id);
+			}
+		}
+	}
+
+	return seeds.map((seed) => {
+		let thumbnail: SessionLibraryThumbnail | null = null;
+		const draft = seed.currentDraftId ? draftById.get(seed.currentDraftId) : undefined;
+		if (draft?.session_id === seed.sessionId) {
+			const draftCover = cleanReference(draft.cover_asset_id);
+			if (draftCover && isSessionCoverUuid(draftCover)) {
+				if (readablePrivateAssets.has(draftCover))
+					thumbnail = privateThumbnail(seed.sessionId, draftCover);
+			} else {
+				thumbnail = publicThumbnail(draftCover);
+			}
+		}
+		thumbnail ??= publicThumbnail(seed.publicCoverReference);
+		return { ...seed.item, thumbnail };
+	});
 }
 
 export async function findEditSessionBySourceId(

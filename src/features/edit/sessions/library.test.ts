@@ -17,6 +17,7 @@ const item = (
 	arc: "Arco A",
 	status: "ready_for_review",
 	transcriptPrepared: true,
+	thumbnail: null,
 	...overrides,
 });
 
