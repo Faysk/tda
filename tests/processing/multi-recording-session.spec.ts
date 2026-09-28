@@ -67,6 +67,7 @@ async function installMultiRecordingRoutes(page: Page) {
 	let uploadIndex = 0;
 	let revision = 0;
 	let expireCapabilitiesOnce = true;
+	let agentOfflineOnce = false;
 	const analyzed = new Set<string>();
 	let attached: string[] = [];
 	const completed = new Set<string>();
@@ -203,6 +204,10 @@ async function installMultiRecordingRoutes(page: Page) {
 			});
 		}
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
+			if (request.method() === "GET" && agentOfflineOnce) {
+				agentOfflineOnce = false;
+				return route.abort("failed");
+			}
 			if (request.method() === "GET") return json(route, workspace());
 			if (request.method() === "POST") return json(route, workspace());
 		}
@@ -455,6 +460,9 @@ async function installMultiRecordingRoutes(page: Page) {
 		get postedSources() {
 			return [...postedSources];
 		},
+		dropAgentOnce() {
+			agentOfflineOnce = true;
+		},
 	};
 }
 
@@ -496,8 +504,22 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 
 	await page.reload();
-	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
+	const composer = page.locator("section").filter({
+		has: page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u }),
+	});
+	await expect(composer).toBeVisible();
 	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
+
+	multi.dropAgentOnce();
+	await composer.getByRole("button", { name: "Atualizar" }).click();
+	await expect(composer).toContainText(
+		"O Companion ficou indisponível. O workspace persistido foi preservado.",
+	);
+	await expect(composer.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
+
+	await composer.getByRole("button", { name: "Atualizar" }).click();
+	await expect(composer.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
+	await expect(composer).toContainText("Composer da sessão recarregado.");
 
 	await page.getByRole("button", { name: "Processar pendentes (2)" }).click();
 	await expect.poll(() => multi.postedSources).toEqual(SOURCE_IDS.slice(0, 2));
