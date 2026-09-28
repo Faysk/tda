@@ -381,6 +381,106 @@ test("navigation semantics keep ordinary links, visible focus and 44px touch tar
 	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
+test("launcher uses icon-first cells with larger glyphs and readable labels", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	const link = navigation.getByRole("link", { name: "Editar sessões", exact: true });
+	const icon = link.locator(".product-launcher-item-icon");
+	const label = link.locator("span");
+
+	const [linkBox, iconBox, labelBox] = await Promise.all([
+		link.boundingBox(),
+		icon.boundingBox(),
+		label.boundingBox(),
+	]);
+	expect(linkBox).not.toBeNull();
+	expect(iconBox).not.toBeNull();
+	expect(labelBox).not.toBeNull();
+	if (!linkBox || !iconBox || !labelBox) return;
+
+	expect(linkBox.height).toBeGreaterThanOrEqual(88);
+	expect(iconBox.width).toBeGreaterThanOrEqual(30);
+	expect(iconBox.height).toBeGreaterThanOrEqual(30);
+	expect(iconBox.y + iconBox.height).toBeLessThanOrEqual(labelBox.y + 2);
+	expect(Math.abs(iconBox.x + iconBox.width / 2 - (linkBox.x + linkBox.width / 2))).toBeLessThanOrEqual(2);
+	expect(Math.abs(labelBox.x + labelBox.width / 2 - (linkBox.x + linkBox.width / 2))).toBeLessThanOrEqual(2);
+
+	const labelStyle = await label.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			whiteSpace: style.whiteSpace,
+			textAlign: style.textAlign,
+		};
+	});
+	expect(labelStyle.whiteSpace).not.toBe("nowrap");
+	expect(labelStyle.textAlign).toBe("center");
+});
+
+test("390px launcher keeps long tool labels inside their cells", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	const columnCount = await navigation
+		.locator(".product-launcher-grid")
+		.first()
+		.evaluate((element) =>
+			getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
+		);
+	expect(columnCount).toBe(3);
+
+	for (const labelText of ["Transcrições", "Editar sessões", "Permissões"]) {
+		const link = navigation.getByRole("link", { name: labelText, exact: true });
+		await expect(link).toBeVisible();
+		const label = link.locator("span");
+		expect(
+			await label.evaluate(
+				(element) =>
+					element.scrollWidth <= element.clientWidth + 1 &&
+					element.scrollHeight <= element.clientHeight + 1,
+			),
+		).toBeTruthy();
+	}
+});
+
+test("short mobile viewport keeps launcher scrolling inside the panel", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 500 });
+	await page.goto("/");
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	const triggerBefore = await trigger.boundingBox();
+	await openLauncher(page);
+	const panel = page.locator(".product-launcher-panel");
+	const scrollState = await panel.evaluate((element) => ({
+		clientHeight: element.clientHeight,
+		scrollHeight: element.scrollHeight,
+		overflowY: getComputedStyle(element).overflowY,
+	}));
+
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.overflowY).toBe("auto");
+	await panel.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+	const triggerAfter = await trigger.boundingBox();
+	expect(triggerBefore).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (triggerBefore && triggerAfter) {
+		expect(Math.abs(triggerBefore.y - triggerAfter.y)).toBeLessThanOrEqual(1);
+	}
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
@@ -391,6 +491,8 @@ test("navigation stays contained across the required responsive matrix", async (
 		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
 		{ width: 768, height: 1024 },
+		// 1366×768 desktop at 200% browser zoom => ~683×384 CSS px.
+		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
 		{ width: 2560, height: 1440 },
@@ -414,11 +516,11 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
-		if (viewport.width >= 1920) {
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
 		}
 		await page.keyboard.press("Escape");
 
@@ -430,21 +532,26 @@ test("navigation stays contained across the required responsive matrix", async (
 	}
 });
 
-test("200 percent layout zoom preserves the header actions and panel containment", async ({
+test("200 percent desktop zoom equivalent keeps launcher and account panels contained", async ({
 	page,
 }) => {
+	// Browser zoom reduces the CSS-pixel layout viewport. A 1366×768 desktop at
+	// 200% therefore exercises the responsive shell around 683×384 CSS px.
+	const viewport = { width: 683, height: 384 };
 	await mockAccess(page, { capabilities: allToolCapabilities });
-	await page.setViewportSize({ width: 768, height: 1024 });
+	await page.setViewportSize(viewport);
 	await page.goto("/");
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
-	});
+
 	const navigation = await openLauncher(page);
 	await expect(navigation).toBeVisible();
 	await expectNoHorizontalOverflow(page);
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "";
-	});
+	await expectPanelContained(page, ".product-launcher-panel");
+	await page.keyboard.press("Escape");
+
+	const account = await openAccount(page);
+	await expect(account).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+	await expectPanelContained(page, ".account-menu-panel");
 });
 
 test("reduced motion removes navigation transitions", async ({ page }) => {
@@ -510,3 +617,106 @@ test("desktop and mobile light/dark navigation receipts are captured from synthe
 		});
 	}
 });
+
+test("account overview keeps synthetic identity and access usable across the layout matrix", async ({
+	page,
+	context,
+}, testInfo) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+
+	for (const state of [
+		{
+			query: "anonymous",
+			status: "Não autenticada",
+			body: "Entre com o Discord para consultar seu perfil TDA.",
+		},
+		{
+			query: "unavailable",
+			status: "Acesso indisponível",
+			body: "Não foi possível consultar seu perfil TDA agora.",
+		},
+		{
+			query: "unlinked",
+			status: "Não vinculada",
+			body: "Ainda sem perfil TDA vinculado.",
+		},
+		{
+			query: "no-grants",
+			status: "Sem permissões nesta campanha",
+			body: "Nenhuma permissão efetiva nesta campanha.",
+		},
+	]) {
+		await page.goto(`/e2e-fixtures/account-overview?state=${state.query}`);
+		await expect(page.getByText(state.status, { exact: true })).toBeVisible();
+		await expect(page.getByText(state.body, { exact: false })).toBeVisible();
+		await expect(page.locator("body")).not.toContainText(
+			"auth-synthetic-never-rendered",
+		);
+	}
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 768, height: 1024 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/account-overview");
+		await expect(
+			page.getByRole("heading", { name: "Conta e acesso", exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("Pessoa Sintética", { exact: true })).toBeVisible();
+		await expect(page.getByText("profile-tda-synthetic-927", { exact: true })).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Permissões nesta campanha", exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
+		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
+		await expect(page.locator('form[action="/auth/logout"]')).toHaveAttribute("method", "post");
+		await expectNoHorizontalOverflow(page);
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/account-overview");
+	const copyId = page.getByRole("button", { name: "Copiar ID" });
+	await copyId.focus();
+	await expect(copyId).toBeFocused();
+	await copyId.press("Enter");
+	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
+	await copyId.click();
+	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
+
+	for (const receipt of [
+		{
+			name: "navigation-desktop-dark",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "navigation-desktop-light",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "light" as const,
+		},
+		{
+			name: "navigation-mobile-dark",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "navigation-mobile-light",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "light" as const,
+		},
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/e2e-fixtures/account-overview");
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+

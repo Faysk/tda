@@ -55,6 +55,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"src/app/conta/page.tsx",
 		"src/features/theme/preference.ts",
 		"tests/global-navigation.spec.ts",
+		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
 		"playwright.config.ts",
 	]) {
