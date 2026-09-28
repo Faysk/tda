@@ -851,6 +851,7 @@ export function ProcessingPanel({
 								runs={state.localRuns}
 								benchmarks={state.benchmarkResults}
 								system={state.system}
+								recoveryScope={activityPackScope}
 							/>
 						</div>
 						{latestCompletedRun ? (

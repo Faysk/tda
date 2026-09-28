@@ -39,6 +39,13 @@ import {
 	truncateUnicodeScalars,
 } from "./request-budget";
 import {
+	clearPendingSubmission,
+	loadPendingSubmission,
+	pendingSubmissionRecoveryIdentity,
+	savePendingSubmission,
+	type PendingSubmissionRecoveryIdentity,
+} from "./submission-recovery";
+import {
 	fetchQwenRuntimeReleaseAvailability,
 	qwenRuntimeReleaseLabel,
 	qwenRuntimeReleaseMessage,
@@ -157,6 +164,8 @@ function localOperationMessage(code: string | null): string {
 type PendingSubmission = {
 	key: string;
 	signature: string;
+	recoveryIdentity: PendingSubmissionRecoveryIdentity | null;
+	recoveredFromStorage: boolean;
 };
 
 type PendingStage = "validating" | "preparing" | "submitting";
@@ -176,6 +185,7 @@ const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 export function ProcessingSubmission({
 	className,
 	compact = false,
+	recoveryScope = null,
 	onOpenDiagnostics,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
@@ -183,6 +193,7 @@ export function ProcessingSubmission({
 }: Readonly<{
 	className?: string;
 	compact?: boolean;
+	recoveryScope?: string | null;
 	onOpenDiagnostics?: () => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
@@ -624,10 +635,65 @@ export function ProcessingSubmission({
 				profile,
 				glossary,
 				context,
+				false,
 			]);
-			if (!pending.current || pending.current.signature !== signature) {
-				pending.current = { key: crypto.randomUUID(), signature };
+			let recoveryIdentity: PendingSubmissionRecoveryIdentity | null = null;
+			if (recoveryScope) {
+				try {
+					recoveryIdentity = await pendingSubmissionRecoveryIdentity({
+						profileScope: recoveryScope,
+						campaignId: CAMPAIGN_SLUG,
+						sessionId,
+						sourceId: staged.sourceId,
+						profileId: profile,
+						requestSignature: signature,
+					});
+				} catch {
+					recoveryIdentity = null;
+				}
 			}
+			if (!pending.current || pending.current.signature !== signature) {
+				let recoveredKey: string | null = null;
+				if (recoveryIdentity) {
+					try {
+						recoveredKey =
+							loadPendingSubmission(window.localStorage, recoveryIdentity)
+								?.idempotencyKey ?? null;
+					} catch {
+						recoveredKey = null;
+					}
+				}
+				pending.current = {
+					key: recoveredKey ?? crypto.randomUUID(),
+					signature,
+					recoveryIdentity,
+					recoveredFromStorage: recoveredKey !== null,
+				};
+				if (recoveryIdentity) {
+					try {
+						savePendingSubmission(
+							window.localStorage,
+							recoveryIdentity,
+							pending.current.key,
+						);
+					} catch {
+						// Browser persistence is recovery-only; enqueue remains usable without it.
+					}
+				}
+			} else if (recoveryIdentity && !pending.current.recoveryIdentity) {
+				pending.current = { ...pending.current, recoveryIdentity };
+				try {
+					savePendingSubmission(
+						window.localStorage,
+						recoveryIdentity,
+						pending.current.key,
+					);
+				} catch {
+					// Preserve the same-mount idempotency key even if storage is unavailable.
+				}
+			}
+			const submission = pending.current;
+			if (!submission) return;
 
 			setPendingStage("submitting");
 			setStatus("Enviando o pedido ao Companion local…");
@@ -640,11 +706,25 @@ export function ProcessingSubmission({
 					glossary,
 					context,
 				},
-				pending.current.key,
+				submission.key,
 				controller.signal,
 			);
+			if (submission.recoveryIdentity) {
+				try {
+					clearPendingSubmission(
+						window.localStorage,
+						submission.recoveryIdentity,
+					);
+				} catch {
+					// A confirmed response remains authoritative even if cleanup is unavailable.
+				}
+			}
 			pending.current = null;
-			setStatus(`Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`);
+			setStatus(
+				submission.recoveredFromStorage
+					? `Trabalho ${job.id.slice(0, 8)}… reconciliado com o Companion local.`
+					: `Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`,
+			);
 			setFile(null);
 			setSource(null);
 			setSessionId("");
