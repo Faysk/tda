@@ -3,7 +3,8 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, navigation, db, companion, processing, lembra, media } = classifyPaths(files);
+	const { web, navigation, db, companion, processing, lembra, media } =
+		classifyPaths(files);
 	return { web, navigation, db, companion, processing, lembra, media };
 }
 
@@ -14,7 +15,6 @@ const fastOnly = {
 	companion: false,
 	processing: false,
 	lembra: false,
-	navigation: false,
 	media: false,
 };
 
@@ -36,23 +36,32 @@ test("ordinary web and lore files do not activate heavy domains", () => {
 	);
 });
 
-test("navigation shell paths activate only the targeted navigation browser gate", () => {
+test("navigation shell paths activate only the targeted Navigation E2E contract", () => {
 	for (const path of [
 		"src/components/public-nav.tsx",
 		"src/components/account-menu.tsx",
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
+		"src/components/theme-toggle.tsx",
 		"src/app/layout.tsx",
 		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
 		"src/app/edit/page.tsx",
 		"src/app/conta/page.tsx",
+		"src/features/theme/preference.ts",
 		"tests/global-navigation.spec.ts",
+		"tests/navigation-origin.spec.ts",
+		"playwright.config.ts",
 	]) {
 		const result = flags([path]);
-		assert.equal(result.navigation, true);
-		assert.equal(result.processing, false);
-		assert.equal(result.lembra, false);
+		assert.equal(result.navigation, true, path);
+		assert.equal(result.processing, false, path);
+		assert.equal(result.lembra, false, path);
 	}
+	assert.equal(
+		flags(["src/components/session-share-actions.tsx"]).navigation,
+		false,
+	);
 });
 
 test("Processing Web paths activate the Processing E2E contract", () => {
@@ -77,34 +86,10 @@ test("Lembra paths activate only the targeted Lembra E2E contract", () => {
 	const source = flags(["src/features/lembra/components/lembra-experience.tsx"]);
 	assert.equal(source.lembra, true);
 	assert.equal(source.processing, false);
+	assert.equal(source.navigation, false);
 	assert.equal(flags(["src/app/lembra/page.tsx"]).lembra, true);
 	assert.equal(flags(["src/app/api/lembra/abc/image/route.ts"]).lembra, true);
 	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
-});
-
-test("navigation paths activate the targeted Navigation E2E contract", () => {
-	for (const path of [
-		"src/components/public-nav.tsx",
-		"src/components/account-menu.tsx",
-		"src/components/navigation-auth.ts",
-		"src/components/public-navigation-model.ts",
-		"src/components/theme-toggle.tsx",
-		"src/app/layout.tsx",
-		"src/app/public-shell.css",
-		"src/app/api/auth/me/route.ts",
-		"src/app/edit/page.tsx",
-		"src/app/conta/page.tsx",
-		"src/features/theme/preference.ts",
-		"tests/global-navigation.spec.ts",
-		"tests/navigation-origin.spec.ts",
-		"playwright.config.ts",
-	]) {
-		assert.equal(flags([path]).navigation, true, path);
-	}
-	assert.equal(
-		flags(["src/components/session-share-actions.tsx"]).navigation,
-		false,
-	);
 });
 
 test("Companion source activates Companion and Processing E2E", () => {
@@ -119,7 +104,7 @@ test("Companion source activates Companion and Processing E2E", () => {
 	);
 });
 
-test("specialized runtime workflows do not build generic MSI or Processing E2E by themselves", () => {
+test("specialized runtime workflows do not build generic MSI or browser gates by themselves", () => {
 	for (const path of [
 		".github/workflows/qwen-runtime-package.yml",
 		".github/workflows/runtime-promote.yml",
@@ -136,7 +121,6 @@ test("CI workflow changes exercise the browser gates they define", () => {
 	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
-	assert.equal(result.navigation, true);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -169,7 +153,6 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 		companion: true,
 		processing: true,
 		lembra: true,
-		navigation: true,
 		media: true,
 	};
 	assert.deepEqual(flags(["tools/ci/classify-changes.mjs"]), expected);
@@ -187,12 +170,11 @@ test("mixed changes activate each relevant domain", () => {
 		]),
 		{
 			web: true,
-			navigation: false,
+			navigation: true,
 			db: true,
 			companion: true,
 			processing: true,
 			lembra: false,
-			navigation: true,
 			media: true,
 		},
 	);
