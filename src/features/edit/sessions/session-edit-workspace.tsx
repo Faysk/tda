@@ -55,7 +55,7 @@ export function SessionEditWorkspace({
 
 	return (
 		<div className={styles.workspace}>
-			<nav className={styles.tabs} aria-label="Workspace da sessão" role="tablist">
+			<div className={styles.tabs} aria-label="Workspace da sessão" role="tablist">
 				{TABS.map((tab) => {
 					const active = activeTab === tab.id;
 					return (
@@ -77,7 +77,7 @@ export function SessionEditWorkspace({
 						</button>
 					);
 				})}
-			</nav>
+			</div>
 
 			<section
 				aria-labelledby="session-workspace-tab-transcript"
