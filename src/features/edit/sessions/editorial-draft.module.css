@@ -637,8 +637,8 @@
 	bottom: 0;
 	z-index: 8;
 	align-items: center;
-	margin: 0 -12px -12px;
-	padding: 10px 12px;
+	margin: 0 0 -12px;
+	padding: 10px 0;
 	border-top: 1px solid var(--ds-border);
 	background: color-mix(in srgb, var(--ds-surface) 96%, transparent);
 	box-shadow: 0 -14px 28px color-mix(in srgb, var(--ds-canvas) 28%, transparent);
