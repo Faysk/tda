@@ -137,6 +137,21 @@ test("keeps the three chapter links inside the mobile viewport", async ({ page }
 		expect(box.x).toBeGreaterThanOrEqual(navMetrics.left - 1);
 		expect(box.x + box.width).toBeLessThanOrEqual(navMetrics.right + 1);
 	}
+
+	await nav.evaluate((element) => element.scrollIntoView({ block: "start" }));
+	await page.evaluate(() => window.scrollBy(0, 160));
+	const [stickyNav, brand, trigger] = await Promise.all([
+		nav.boundingBox(),
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+	]);
+	expect(stickyNav).not.toBeNull();
+	expect(brand).not.toBeNull();
+	expect(trigger).not.toBeNull();
+	if (stickyNav && brand && trigger) {
+		const chromeBottom = Math.max(brand.y + brand.height, trigger.y + trigger.height);
+		expect(stickyNav.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+	}
 });
 
 test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
