@@ -68,6 +68,7 @@
 
 .transcriptPanel {
 	--transcript-toolbar-sticky-top: 0px;
+	container-type: inline-size;
 	padding-right: 4px;
 }
 
