@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("public navigation preserves the current origin", async ({ page }) => {
 	await page.goto("/");
 	const origin = new URL(page.url()).origin;
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	const archiveLink = page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true });
