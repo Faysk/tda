@@ -55,6 +55,35 @@ test("read mode stays progressive and save survives reload", async ({ page }) =>
 	await expect(page.getByText("Pessoa Revisada", { exact: true })).toBeVisible();
 });
 
+
+test("bulk edit of 50 segments survives save and reload", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto(FIXTURE);
+	await page.getByRole("button", { name: "Editar transcrição" }).click();
+
+	for (let index = 0; index < 50; index += 1) {
+		const ordinal = index + 1;
+		const trackNumber = (index % 4) + 1;
+		const editButton = page
+			.getByRole("button", {
+				name: new RegExp(`Editar fala de Pessoa ${trackNumber} em`),
+			})
+			.nth(Math.floor(index / 4));
+		await editButton.click();
+		const text = page.getByRole("textbox", { name: "Texto desta fala" });
+		await text.fill(`Fala revisada em lote ${ordinal}`);
+		await page.getByRole("button", { name: "Fechar fala" }).click();
+	}
+
+	await expect(page.getByText("50 alterada(s)", { exact: false })).toBeVisible();
+	await page.getByRole("button", { name: "Salvar alterações da transcrição" }).click();
+	await expect(page.getByText(/Revisão privada r2 salva/)).toBeVisible();
+
+	await page.reload();
+	await expect(page.getByText("Fala revisada em lote 1", { exact: true })).toBeVisible();
+	await expect(page.getByText("Fala revisada em lote 50", { exact: true })).toBeVisible();
+});
+
 test("dirty navigation can be cancelled without losing the working copy", async ({ page }) => {
 	await page.goto(FIXTURE);
 	const { text } = await openFirstSegment(page);
