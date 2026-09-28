@@ -477,6 +477,14 @@ Define classe de retenção, manter original, codec/bitrate preferidos, expiraç
 
 # Edição e publicação de sessões
 
+## `transcript_revisions`
+
+**Propósito:** snapshots privados e imutáveis da transcrição completa. `sessions.current_transcript_revision_id` é o ponteiro mutável para a revisão privada atual; revisões anteriores permanecem preservadas.
+
+A migration `20260928023000_transcript_revision_web_edits` reutiliza esse mesmo domínio para correções no Edit, sem criar um segundo formato. Revisions derivadas usam `source_system = web_edit`, registram `parent_revision_id`, hash do delta e hash do conteúdo resultante. O browser envia somente identidade estável da fala + `speaker/text`; timestamps, ordem, source/run e demais provenance vêm da revisão pai no servidor.
+
+**Concorrência/segurança:** `save_transcript_revision_edit_atomic` exige `campaign.content.edit`, bloqueia a sessão, compara o expected current revision, cria a nova revision e troca o ponteiro na mesma transação. `anon` e `authenticated` não possuem `EXECUTE`; o boundary é server-only via `service_role`. O audit guarda IDs, contagens e hashes, nunca o texto da fala.
+
 ## `session_editorial_drafts`
 
 **Propósito:** snapshots privados e imutáveis do conteúdo editorial preparado para uma sessão. O ponteiro mutável fica em `sessions.current_editorial_draft_id`; cada save cria uma nova revisão sob CAS.
