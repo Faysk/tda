@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-09-07
+> Última revisão: 2026-09-28
 
 ## Objetivo
 
@@ -201,36 +201,47 @@ A implementação desse resolver deve usar a representação física `scopeType=
 
 A convergência futura para resolver RPC/database continua desejável para reduzir privilégio e centralizar autorização, mas não exige duplicar RBAC no login nem bloquear o guard server-only já existente.
 
-## Contexto mínimo devolvido ao web
+## Projeção mínima devolvida ao web
 
-Contrato conceitual:
+A apresentação global não recebe o contexto interno de autorização. A `main` integra em #881 / PR #886 uma projeção mínima em `GET /api/auth/me`, usada por navegação/conta sem tornar o root layout público dependente de cookies/banco.
+
+Shape conceitual:
 
 ```ts
-type AuthorizationContext = {
+type NavigationAccessProjection = {
   state:
     | "anonymous"
     | "authenticated_unlinked"
     | "authenticated_linked_no_grants"
-    | "authenticated_linked";
-  profile?: {
-    id: string;
-    displayName: string;
-  };
-  scope?: {
-    type: "project" | "campaign";
+    | "authenticated_linked"
+    | "unavailable";
+  scope: {
+    type: "campaign";
     id: string;
   };
-  capabilities: string[];
+  identity?: {
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+  capabilities?: string[];
 };
 ```
 
 Regras:
 
-- não devolver role assignments crus para habilitar UI;
-- não devolver email, Discord IDs, metadata ou claims no contexto básico;
-- capabilities são apenas as efetivas no contexto solicitado;
-- endpoint de claim/diretório possui contrato próprio;
-- toda mutation revalida capability e ownership do recurso.
+- `anonymous` não recebe `identity` nem `capabilities`;
+- `unavailable` continua distinto de logout/anônimo e não devolve projeção privada stale;
+- identidade de navegação só deriva de metadata verificada e sanitizada server-side;
+- `displayName` é limitado e remove controles de apresentação perigosos;
+- `avatarUrl` aceita somente origem/path aprovados do provider; URL arbitrária de metadata não vira imagem confiável;
+- ausência/invalidade/falha de avatar é fallback visual, não erro de autenticação;
+- auth user id, profile id, raw grants, role internals, email, Discord IDs e metadata integral não fazem parte da resposta;
+- capabilities são somente as efetivas no contexto solicitado;
+- `Cache-Control: private, no-store` e `Vary: Cookie` impedem uso como conteúdo público cacheável;
+- a UI pode esconder/mostrar ferramentas por capability, mas isso é apresentação: toda rota/mutation revalida capability, scope e ownership no servidor;
+- o shell público precisa continuar navegável se a projeção privada falhar.
+
+O contrato de composição e destinos que consome essa projeção pertence a [Navegação global do TDA](../features/global-navigation.md).
 
 ## Membership legado
 

@@ -8,11 +8,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-27 |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-28 |
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-27 |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-28 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
@@ -83,7 +83,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Design System oficial do TDA](../design-system/README.md) | design-system / frontend | canônico; fundação runtime e superfícies públicas implementadas | 2026-09-12 |
 | [Plano de migração do Design System para o reboot](../design-system/migration-plan.md) | design-system / frontend | DS-1/DS-2/DS-3 concluídas; DS-4 parcial; DS-5 implementada; DS-7 cleanup legado aplicado | 2026-09-07 |
 | [Assets oficiais da marca TDA](../design-system/official-assets.md) | brand / design-system | canônico para marca; integração runtime parcial e verificável | 2026-09-20 |
-| [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; atualizado após Home V2 e shell responsiva | 2026-09-12 |
+| [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; atualizado após Home V2 e shell responsiva | 2026-09-28 |
 | [TDA — Diretriz geral de UX, design e hierarquia visual](../design-system/ux-hierarchy.md) | design-system / frontend | canônico | 2026-09-12 |
 | [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; workspace atual implementado, chrome v3 planejado | 2026-09-12 |
 | [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação planejada | 2026-09-12 |
@@ -104,7 +104,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
-| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-07 |
+| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-28 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
 | [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-06 |
 
@@ -112,7 +112,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-27 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-28 |
 | [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
@@ -124,6 +124,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-08 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
+| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | arquitetura aprovada; implementação incremental em andamento | 2026-09-28 |
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-13 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
@@ -218,4 +219,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-142 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+143 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

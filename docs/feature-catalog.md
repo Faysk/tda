@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-28
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -19,6 +19,7 @@ Estados:
 
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
+| Navegação global / conta | arquitetura aprovada; projeção de Auth, launcher, avatar e retirada dos hubs integrados; gate completo de QA pendente | [Contrato canônico](features/global-navigation.md), epic #879, PR #886, PR #890, PR #902 e PR #908; #884 fecha a matriz responsiva/teclado/visual |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
 | Runs/revisão/publicação de transcrição | arquitetura aprovada; implementação pendente | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016: runs imutáveis, comparação A/B, revisão derivada, publish explícito, revisions cloud, restore/unpublish/delete |

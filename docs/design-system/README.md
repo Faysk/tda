@@ -18,6 +18,7 @@ O fato de o Design System ter sido extraído do legado **não transforma a arqui
 - [Diretriz geral de UX, design e hierarquia](ux-hierarchy.md)
 - [Plano de migração para o reboot](migration-plan.md)
 - [Superfícies públicas — ownership visual](public-surfaces.md)
+- [Navegação global — arquitetura de informação](../features/global-navigation.md)
 - [World Explorer — composição e UX](world-explorer-ui.md)
 - [Feature World Explorer](../features/world-explorer.md)
 - [ADR React Flow](../adr/0006-react-flow-world-explorer.md)

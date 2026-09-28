@@ -2,7 +2,7 @@
 
 > Status: implementado; atualizado após Home V2 e shell responsiva
 > Owner: design-system / frontend público
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-28
 
 ## Objetivo
 
@@ -186,9 +186,11 @@ O parser de Markdown não conhece styling de página.
 
 ## Header e navegação
 
-O logo/wordmark é a ação de início. Por isso `Início` não é repetido na navegação principal.
+O logo/wordmark continua sendo a ação de início. Por isso `Início` não é repetido no launcher.
 
-Na superfície pública atual, `Sessões` é o único link de navegação canônico além da marca. Novas entradas só devem aparecer quando a rota/experiência correspondente existir; a Home não anuncia features fictícias.
+O contrato canônico do header passou a ser **marca + launcher + avatar** e pertence a [Navegação global do TDA](../features/global-navigation.md). O launcher concentra destinos públicos reais e, quando a projeção privada permitir, ferramentas autorizadas; o avatar concentra conta, autenticação e aparência.
+
+Na baseline `main@8855e5de513d5875221a785e8a5cd7b03011d644`, a projeção sanitizada de Auth de #881, o launcher de #880, o avatar/painel de conta de #882 (PR #902) e a retirada dos hubs de #883 (PR #908) já estão integrados. `/edit` funciona como entrypoint de compatibilidade e `/conta` como superfície focada de identidade/acesso. O controle de aparência vive dentro do painel de conta. #884 permanece como gate completo de QA.
 
 O controle de tema:
 
@@ -219,7 +221,7 @@ O Playwright valida este contrato nos projetos `desktop-1080p`, `desktop-2k` e `
 
 A aprovação perceptiva do timing ainda depende de revisão visual do proprietário: testes automatizados conseguem provar interpolação, duração e acessibilidade, mas não substituem julgamento de ritmo/agradabilidade.
 
-O header atual permanece em uma linha inclusive no aceite de `320px`; o subtítulo da marca é removido quando necessário para preservar espaço. Se a navegação crescer no futuro, deve virar um padrão móvel real em vez de voltar a quebrar arbitrariamente em múltiplas linhas.
+O launcher de #880 já usa a composição responsiva definida em [Navegação global](../features/global-navigation.md): no mobile o painel se reorganiza sem voltar a uma lista textual quebrada em múltiplas linhas. O shell continua obrigado a caber no aceite de `320px`, removendo o subtítulo da marca quando necessário.
 
 ## Responsividade e matriz de aceite
 
@@ -316,7 +318,7 @@ Playwright cobre, entre outros:
 
 ## O que não foi feito nesta camada
 
-- UI de Auth/perfil no branch canônico;
+- projeção mínima de Auth (#881), launcher (#880), avatar/painel de conta (#882 / PR #902) e retirada dos hubs (#883 / PR #908) estão integrados na `main`; o gate completo de QA segue em #884;
 - Edit;
 - implementação do React Flow;
 - implementação das lores GSAP;
