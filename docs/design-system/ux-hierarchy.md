@@ -367,6 +367,21 @@ Não reinventar a navegação em cada feature.
 
 Mudanças de composição são permitidas, mas o sistema de navegação e a linguagem de interação devem continuar familiares.
 
+### Chrome global flutuante
+
+O shell global preserva **marca + avatar** como referências persistentes, sem obrigar toda página a pagar por uma barra superior.
+
+- a marca fica no canto superior esquerdo;
+- o avatar fica no canto superior direito e continua sendo o único trigger global;
+- ambos acompanham o viewport;
+- o `header` permanece como landmark semântico, mas não cria faixa visual, `border-bottom` nem altura estrutural;
+- heroes e canvas podem começar no topo real da viewport;
+- páginas operacionais protegem somente os cantos ocupados (**corner clearance**), em vez de reservar uma linha inteira;
+- scrims/fades podem existir localmente para legibilidade, nunca como navbar translúcida full-width;
+- safe-area, foco, skip link, zoom e reflow permanecem requisitos funcionais.
+
+A economia de espaço não autoriza conteúdo crítico a ficar escondido. Elementos focáveis, âncoras e ações essenciais precisam continuar alcançáveis e visíveis sob teclado/zoom.
+
 ---
 
 ## Interface pública e interface operacional
