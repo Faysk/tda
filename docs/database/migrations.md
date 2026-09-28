@@ -1476,3 +1476,43 @@ Segurança e rollout:
 - colunas novas não alteram RLS/grants das tabelas;
 - Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
 - após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
+
+
+## 2026-09-28 — correção privada versionada da transcrição
+
+### `20260928015500_transcript_revision_editor`
+
+**Estado:** migration candidata da #898; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- adicionar `edit_transcript_revision_atomic` como boundary server-only para correções editoriais de `speaker` e `text`;
+- preservar a revisão privada anterior de `transcript_revisions` e criar `R(n+1)` imutável;
+- trocar somente `sessions.current_transcript_revision_id` sob row lock + CAS explícito;
+- manter raw ASR/run, identidade da fala, track e timestamps fora da mutation.
+
+Concorrência, integridade e privacidade:
+
+- o payload aceita apenas `id`, `speaker` e `text`; campos extras falham fechado;
+- stale current retorna `conflict` sem criar revisão parcial;
+- segmento inexistente retorna `not_found` sem write parcial;
+- no-op não cria revisão nova;
+- replay da mesma operation/payload retorna a revisão já confirmada;
+- revisão nova, ponteiro current e audit pertencem à mesma transação;
+- o audit registra somente IDs, números, contagem e hash, nunca texto/speaker;
+- public session fields e publication current não são alterados pelo fluxo.
+
+Segurança e rollout:
+
+- função `SECURITY INVOKER` com `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem `EXECUTE`; somente `service_role`;
+- a Web resolve identidade/profile e exige `campaign.content.edit` antes da RPC;
+- migration safety/governance, unit/type/lint/build e PostgreSQL scratch precisam passar antes do merge;
+- o PostgreSQL sintético da PR cobre R1→R2, preservação de R1, replay, no-op, stale CAS, segmento inexistente, tentativa de alterar timing, audit metadata-only e draft editorial stale;
+- após Production CD, confirmar migration history, assinatura/grants da função, definição física e advisors antes de considerar rollout verificado.
+
+Rollback lógico:
+
+- retirar primeiro o consumidor Web;
+- não apagar revisões privadas já criadas nem reescrever a revisão anterior;
+- qualquer correção de função/grant deve ser uma migration forward-only posterior.
