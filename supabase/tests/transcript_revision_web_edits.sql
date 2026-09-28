@@ -282,7 +282,7 @@ begin
         'trackNumber',2,
         'segmentId','2-0',
         'speaker','Bob',
-        'text',E'controle\u0001inválido'
+        'text','controle' || chr(1) || 'inválido'
       )
     )
   ) e;
@@ -305,7 +305,7 @@ begin
         'trackNumber',2,
         'segmentId','2-0',
         'speaker','Bob',
-        'text',U&'\\00A0\\2007\\202F'
+        'text',chr(160) || chr(8199) || chr(8239)
       )
     )
   ) e;
@@ -326,7 +326,7 @@ begin
       jsonb_build_object(
         'trackNumber',2,
         'segmentId','2-0',
-        'speaker',E'Bob\\tInjetado',
+        'speaker','Bob' || chr(9) || 'Injetado',
         'text','Texto válido'
       )
     )
