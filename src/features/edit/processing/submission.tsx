@@ -1133,7 +1133,6 @@ export function ProcessingSubmission({
 					profile={profile}
 					context={context}
 					glossary={glossary}
-					recoveryScope={recoveryScope}
 					profileReady={selectedProfileState?.ready === true}
 					recoveryScope={recoveryScope}
 					disabled={busy || requestTooLarge}
