@@ -11,7 +11,7 @@ function metric(
 ): SessionMetric {
 	return {
 		id,
-		title: \`Sessão \${id}\`,
+		title: "Sessão " + id,
 		date: "2026-09-01",
 		words: 100,
 		durationMs: 60_000,
@@ -91,7 +91,7 @@ describe("transcript inventory model", () => {
 	it("handles a 250-session inventory without truncation", () => {
 		const sessions = Array.from({ length: 250 }, (_, index) =>
 			metric(String(index), {
-				title: \`Sessão \${String(index).padStart(3, "0")}\`,
+				title: "Sessão " + String(index).padStart(3, "0"),
 			}),
 		);
 
