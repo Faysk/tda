@@ -199,12 +199,12 @@
 }
 
 .saveNotice[data-state="saved"] {
-	border-color: color-mix(in srgb, var(--ds-status-success) 45%, var(--ds-border-subtle));
+	border-color: color-mix(in srgb, var(--ds-success) 45%, var(--ds-border-subtle));
 }
 
 .saveNotice[data-state="error"],
 .saveNotice[data-state="conflict"] {
-	border-color: color-mix(in srgb, var(--ds-status-danger) 45%, var(--ds-border-subtle));
+	border-color: color-mix(in srgb, var(--ds-danger) 45%, var(--ds-border-subtle));
 }
 
 .conflictActions code {
