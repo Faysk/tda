@@ -421,7 +421,11 @@ footer {
 
 @media (prefers-reduced-motion: reduce) {
 	.product-launcher-trigger,
-	.product-launcher-link {
+	.product-launcher-link,
+	.account-menu-trigger,
+	.account-menu-link,
+	.account-menu-primary,
+	.account-menu-logout {
 		transition: none;
 	}
 }
