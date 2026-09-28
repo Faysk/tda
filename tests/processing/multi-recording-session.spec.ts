@@ -68,6 +68,7 @@ async function installMultiRecordingRoutes(page: Page) {
 	let revision = 0;
 	let expireCapabilitiesOnce = true;
 	let agentOfflineOnce = false;
+	let failNextSourceAEnqueue = false;
 	const analyzed = new Set<string>();
 	let attached: string[] = [];
 	const completed = new Set<string>();
@@ -75,6 +76,7 @@ async function installMultiRecordingRoutes(page: Page) {
 	let assemblyBuilt = false;
 	let jobSequence = 0;
 	const postedSources: string[] = [];
+	const postKeys = new Map<string, string[]>();
 
 	const workspace = () => ({
 		schema_version: "tda_session_workspace_v1",
@@ -186,7 +188,9 @@ async function installMultiRecordingRoutes(page: Page) {
 			});
 		}
 		if (path === "/sources/craig" && request.method() === "POST") {
-			const index = Math.min(uploadIndex, SOURCE_IDS.length - 1);
+			const uploadSequence = [0, 1, 1, 2] as const;
+			const index =
+				uploadSequence[Math.min(uploadIndex, uploadSequence.length - 1)]!;
 			const sourceId = SOURCE_IDS[index]!;
 			const sourceSha = SOURCE_SHAS[index]!;
 			uploadIndex += 1;
@@ -230,6 +234,29 @@ async function installMultiRecordingRoutes(page: Page) {
 			return json(route, workspace());
 		}
 		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/parts/reorder` &&
+			request.method() === "POST"
+		) {
+			const payload = request.postDataJSON() as {
+				part_ids: string[];
+				expected_revision: number;
+			};
+			const current = attached.map((sourceId, index) => ({
+				sourceId,
+				partId: PART_IDS[index]!,
+			}));
+			const byPart = new Map(current.map((item) => [item.partId, item.sourceId]));
+			const reordered = payload.part_ids.map((partId) => byPart.get(partId));
+			if (
+				reordered.length !== attached.length ||
+				reordered.some((sourceId) => !sourceId)
+			)
+				return json(route, { error: { code: "INVALID_REQUEST" } }, 422);
+			attached = reordered as string[];
+			revision += 1;
+			return json(route, workspace());
+		}
+		if (
 			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/parts/run` &&
 			request.method() === "POST"
 		) {
@@ -264,6 +291,15 @@ async function installMultiRecordingRoutes(page: Page) {
 		}
 		if (path === "/jobs" && request.method() === "POST") {
 			const payload = request.postDataJSON() as { source_id: string };
+			const key = request.headers()["idempotency-key"] ?? "";
+			postKeys.set(payload.source_id, [
+				...(postKeys.get(payload.source_id) ?? []),
+				key,
+			]);
+			if (payload.source_id === SOURCE_IDS[0] && failNextSourceAEnqueue) {
+				failNextSourceAEnqueue = false;
+				return route.abort("failed");
+			}
 			postedSources.push(payload.source_id);
 			completed.add(payload.source_id);
 			jobSequence += 1;
@@ -463,12 +499,18 @@ async function installMultiRecordingRoutes(page: Page) {
 		dropAgentOnce() {
 			agentOfflineOnce = true;
 		},
+		failNextFirstSourceEnqueue() {
+			failNextSourceAEnqueue = true;
+		},
+		keysFor(sourceId: string) {
+			return [...(postKeys.get(sourceId) ?? [])];
+		},
 	};
 }
 
 test("multi-recording composer survives reload, reconnects, processes selectively and opens assembly review", async ({
 	page,
-}) => {
+}, testInfo) => {
 	const companion = await installCompanionFixture(page, {
 		profileReady: true,
 		reviewEnabled: true,
@@ -503,6 +545,29 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await page.keyboard.press("Enter");
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 
+	const moveSecondUp = page.getByRole("button", { name: "Mover gravação 2 para cima" });
+	await moveSecondUp.focus();
+	await page.keyboard.press("Enter");
+	await expect(
+		page.locator('ol[aria-label="Gravações da sessão"] > li').first().locator("small[title]"),
+	).toHaveAttribute("title", SOURCE_IDS[1]);
+	const restoreOrder = page.getByRole("button", { name: "Mover gravação 1 para baixo" });
+	await restoreOrder.focus();
+	await page.keyboard.press("Enter");
+	await expect(
+		page.locator('ol[aria-label="Gravações da sessão"] > li').first().locator("small[title]"),
+	).toHaveAttribute("title", SOURCE_IDS[0]);
+
+	await input.setInputFiles({
+		name: "sessao-42-parte-2-duplicada.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-fixture-b-duplicate"),
+	});
+	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await expect(page.getByText("Esta gravação já faz parte da sessão.")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Já adicionada" })).toBeDisabled();
+	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
+
 	await page.reload();
 	const composer = page.locator("section").filter({
 		has: page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u }),
@@ -521,10 +586,24 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(composer.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 	await expect(composer).toContainText("Composer da sessão recarregado.");
 
-	const processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
+	multi.failNextFirstSourceEnqueue();
+	let processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
+	await processPending.focus();
+	await page.keyboard.press("Enter");
+	await expect(
+		page.getByText(/repetir Processar pendentes reutiliza a mesma identidade/u),
+	).toBeVisible();
+
+	processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
+	await expect(processPending).toBeEnabled();
 	await processPending.focus();
 	await page.keyboard.press("Enter");
 	await expect.poll(() => multi.postedSources).toEqual(SOURCE_IDS.slice(0, 2));
+	const sourceAKeys = multi.keysFor(SOURCE_IDS[0]);
+	expect(sourceAKeys).toHaveLength(2);
+	expect(sourceAKeys[0]).toBe(sourceAKeys[1]);
+	expect(sourceAKeys[0]).not.toBe("");
+	expect(multi.keysFor(SOURCE_IDS[1])).toHaveLength(1);
 
 	await page.reload();
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
@@ -550,6 +629,27 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(
 		page.getByText(/Base da revisão carregada da assembly/u),
 	).toBeVisible();
+
+	if (testInfo.project.name === "desktop") {
+		for (const viewport of [
+			{ width: 320, height: 800 },
+			{ width: 390, height: 844 },
+			{ width: 1920, height: 1080 },
+			{ width: 2560, height: 1440 },
+			{ width: 3840, height: 2160 },
+		]) {
+			await page.setViewportSize(viewport);
+			await expect(
+				page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u }),
+			).toBeVisible();
+			expect(
+				await page.evaluate(
+					() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+				),
+			).toBeTruthy();
+		}
+		await page.setViewportSize({ width: 1440, height: 1000 });
+	}
 
 	await input.setInputFiles({
 		name: "sessao-42-parte-2-variante.zip",
