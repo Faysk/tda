@@ -82,14 +82,14 @@ test("timestamp copy follows the visible working speaker and reverts to baseline
 	await timestamp.click();
 	await expect
 		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-		.toBe("00:00:00 · Speaker editado");
+		.toBe("00:00:00.000 · Speaker editado");
 
 	await first.getByRole("button", { name: "Reverter" }).click();
 	await expect(first.getByText("Speaker 1", { exact: true })).toBeVisible();
 	await timestamp.click();
 	await expect
 		.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-		.toBe("00:00:00 · Speaker 1");
+		.toBe("00:00:00.000 · Speaker 1");
 	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
 });
 
