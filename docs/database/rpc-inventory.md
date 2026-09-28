@@ -147,6 +147,29 @@ Boundary físico observado/local:
 - cross-campaign retorna `not_found`;
 - nenhuma das 8 funções `SECURITY DEFINER` legadas é modificada por esse slice.
 
+### `edit_transcript_revision_atomic(uuid,text,uuid,uuid,uuid,jsonb)` — candidato #898
+
+Migration `20260928015500_transcript_revision_editor.sql`. Enquanto a PR não
+chegar a Production, este item descreve o contrato versionado, não estado remoto
+comprovado.
+
+- `SECURITY INVOKER`, `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
+- `service_role`: `EXECUTE`;
+- identidade/profile e `campaign.content.edit` são resolvidos pelo server action
+  antes da RPC;
+- a sessão é bloqueada e o UUID de current é validado por CAS;
+- o payload aceita somente `id`, `speaker` e `text`; timing/track não entram
+  na mutation;
+- a revisão privada anterior permanece imutável e a nova revisão + troca do
+  ponteiro + audit metadata-only são atômicos;
+- conflito/no-op não publicam nem sobrescrevem a revisão anterior.
+
+O teste PostgreSQL sintético cobre grants, R1→R2, replay, no-op, stale CAS,
+segmento inexistente, campo de timing rejeitado, rollback, revisão anterior
+preservada e draft editorial stale. Grants/advisors/definição física devem ser
+revalidados depois da aplicação remota.
+
 ## RPCs server-only do World layout — estado remoto
 
 ### `save_world_layout_snapshot_atomic(...)` e sessão exclusiva
