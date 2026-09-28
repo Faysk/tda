@@ -1476,3 +1476,47 @@ Segurança e rollout:
 - colunas novas não alteram RLS/grants das tabelas;
 - Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
 - após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
+
+## 2026-09-28 — edição privada versionada da transcrição no Web
+
+### `20260928023000_transcript_revision_web_edits`
+
+**Estado:** migration candidata da #898; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- permitir que o workspace canônico da sessão derive uma nova `transcript_revision` privada a partir da revisão current sem mutar a revisão-base;
+- registrar `revision_origin` e `parent_revision_id` para provenance explícita da derivação Web;
+- materializar no servidor a revisão completa a partir de deltas restritos a `speaker` e `text`;
+- trocar `sessions.current_transcript_revision_id` na mesma transação, sem publicar ou alterar a projeção pública da sessão.
+
+Concorrência, idempotência e integridade:
+
+- `save_transcript_revision_edit_atomic` bloqueia a row da sessão e exige `expected_current_revision_id`;
+- a mesma `operation_id` pode ser repetida após resposta perdida somente quando parent e snapshot materializado coincidem exatamente;
+- current divergente retorna `stale_current` antes de qualquer nova revisão;
+- payload do browser não aceita timing nem campos adicionais; track/segment identity, `start`, `end` e demais metadata são preservados da revisão-base imutável;
+- save sem alteração retorna `no_change`;
+- revisão-base permanece no histórico e drafts editoriais já salvos continuam vinculados à revisão-base antiga, permitindo detectar drift.
+
+Segurança e privacidade:
+
+- RPC `SECURITY INVOKER` com `search_path = pg_catalog, public`;
+- `public`, `anon` e `authenticated` sem EXECUTE; somente `service_role`;
+- a aplicação revalida identidade e `campaign.content.edit` imediatamente antes do write;
+- `audit_log` recebe somente ids, revisões, contagens e hash do conteúdo materializado; speaker/texto não são copiados para o audit.
+
+Validação e rollout:
+
+- migration safety/governance, TypeScript/unit/build e PostgreSQL scratch precisam passar antes do merge;
+- o scratch sintético cobre no-op, Unicode, tentativa de editar timing, R1→R2, replay, stale current, parent imutável, draft stale e 7.500 segmentos;
+- Production CD aplica migration e Web compatível na mesma promoção;
+- após rollout, confirmar migration history, colunas/FK/índice, assinatura/grants da RPC, advisors e `/api/version`;
+- não fabricar revisão/transcrição em Production para smoke: quando não houver sessão com current revision, o aceite produtivo limita-se ao schema, grants, artefato publicado e read-back não destrutivo.
+
+Rollback lógico:
+
+- retirar/desabilitar primeiro o CTA/Server Action Web;
+- não apagar revisões `web_edit` nem reverter o current por write compensatório;
+- correções de schema/função devem ser forward-only, preservando histórico e lineage.
+
