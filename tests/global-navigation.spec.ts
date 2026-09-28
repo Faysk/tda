@@ -678,24 +678,46 @@ test("floating chrome contrast receipts exercise opposing backgrounds without a 
 	for (const receipt of [
 		{
 			name: "shell-contrast-dark-theme",
+			viewport: { width: 1920, height: 1080 },
 			colorScheme: "dark" as const,
 			background:
 				"linear-gradient(90deg, #f4f1e8 0%, #f4f1e8 34%, #777 50%, #090b0e 66%, #090b0e 100%)",
 		},
 		{
 			name: "shell-contrast-light-theme",
+			viewport: { width: 1920, height: 1080 },
 			colorScheme: "light" as const,
 			background:
 				"linear-gradient(90deg, #090b0e 0%, #090b0e 34%, #777 50%, #f4f1e8 66%, #f4f1e8 100%)",
 		},
+		{
+			name: "shell-contrast-mobile-dark",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "dark" as const,
+			background:
+				"linear-gradient(90deg, #f4f1e8 0%, #f4f1e8 48%, #090b0e 52%, #090b0e 100%)",
+		},
+		{
+			name: "shell-contrast-mobile-light",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "light" as const,
+			background:
+				"linear-gradient(90deg, #090b0e 0%, #090b0e 48%, #f4f1e8 52%, #f4f1e8 100%)",
+		},
 	]) {
+		await page.setViewportSize(receipt.viewport);
 		await page.emulateMedia({ colorScheme: receipt.colorScheme });
 		await page.goto("/");
 		await page.evaluate((background) => {
 			const hero = document.querySelector<HTMLElement>(
 				'main section[aria-labelledby="home-title"]',
 			);
-			if (hero) hero.style.background = background;
+			if (!hero) return;
+			hero.style.background = background;
+			const artwork = hero.querySelector<HTMLElement>(
+				':scope > div[aria-hidden="true"]',
+			);
+			if (artwork) artwork.style.display = "none";
 		}, receipt.background);
 		await page.screenshot({
 			path: testInfo.outputPath(`${receipt.name}.png`),
