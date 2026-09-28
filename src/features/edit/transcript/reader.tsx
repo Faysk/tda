@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { saveTranscriptRevisionEditsAction } from "./revision-edit-actions";
-import { revisionSegmentId } from "./revision-edit-contract";
+import {
+	revisionSegmentId,
+	type TranscriptRevisionEdit,
+} from "./revision-edit-contract";
 import {
 	findTranscriptJumpIndex,
 	formatTranscriptTimestamp,
@@ -203,7 +206,7 @@ export function TranscriptReader({
 		)
 			return;
 
-		const payload = [];
+		const payload: TranscriptRevisionEdit[] = [];
 		for (const [readerId, edit] of edits) {
 			const segment = segmentsById.get(readerId);
 			if (!segment) {
