@@ -2,6 +2,7 @@
 
 import type { ComponentProps } from "react";
 import { useState } from "react";
+import { LegacyTranscriptPrepare } from "@/features/edit/transcript/legacy-transcript-prepare";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { SessionEditorialDraftEditor } from "./editorial-draft-editor";
 import styles from "./session-edit-workspace.module.css";
@@ -19,10 +20,13 @@ type EditorialUnavailable = Readonly<{
 	message: string;
 }>;
 
+type LegacyPreparationProps = ComponentProps<typeof LegacyTranscriptPrepare>;
+
 type Props = Readonly<{
 	transcript: TranscriptProps;
 	editorial: EditorialProps | null;
 	editorialUnavailable: EditorialUnavailable | null;
+	legacyPreparation?: LegacyPreparationProps | null;
 }>;
 
 const TABS: ReadonlyArray<Readonly<{ id: WorkspaceTab; label: string }>> = [
@@ -35,6 +39,7 @@ export function SessionEditWorkspace({
 	transcript,
 	editorial,
 	editorialUnavailable,
+	legacyPreparation = null,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<WorkspaceTab>("transcript");
 	const editorialSurface = activeTab === "summary" ? "summary" : "session";
@@ -46,7 +51,11 @@ export function SessionEditWorkspace({
 					const active = activeTab === tab.id;
 					return (
 						<button
-							aria-controls={`session-workspace-${tab.id}`}
+							aria-controls={
+								tab.id === "transcript"
+									? "session-workspace-transcript"
+									: "session-workspace-editorial"
+							}
 							aria-selected={active}
 							className={active ? styles.tabActive : styles.tab}
 							id={`session-workspace-tab-${tab.id}`}
@@ -75,7 +84,7 @@ export function SessionEditWorkspace({
 				aria-labelledby={`session-workspace-tab-${activeTab === "summary" ? "summary" : "session"}`}
 				className={styles.panel}
 				hidden={activeTab === "transcript"}
-				id={`session-workspace-${activeTab === "summary" ? "summary" : "session"}`}
+				id="session-workspace-editorial"
 				role="tabpanel"
 			>
 				{editorial ? (
@@ -84,10 +93,17 @@ export function SessionEditWorkspace({
 						active={activeTab !== "transcript"}
 						surface={editorialSurface}
 					/>
+				) : legacyPreparation ? (
+					<LegacyTranscriptPrepare {...legacyPreparation} />
 				) : (
 					<div className={styles.unavailable}>
-						<strong>{editorialUnavailable?.title ?? "Edição editorial indisponível"}</strong>
-						<p>{editorialUnavailable?.message ?? "A sessão continua disponível para leitura."}</p>
+						<strong>
+							{editorialUnavailable?.title ?? "Edição editorial indisponível"}
+						</strong>
+						<p>
+							{editorialUnavailable?.message ??
+								"A sessão continua disponível para leitura."}
+						</p>
 					</div>
 				)}
 			</section>
