@@ -15,7 +15,7 @@ on:
         required: true
         type: string
   workflow_run:
-    workflows: [Whisper Runtime, Qwen Runtime Package]
+    workflows: [Whisper Runtime]
     types: [completed]
     branches: [main]
 
