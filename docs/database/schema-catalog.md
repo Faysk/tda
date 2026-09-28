@@ -481,7 +481,7 @@ Define classe de retenção, manter original, codec/bitrate preferidos, expiraç
 
 **Propósito:** snapshots completos e imutáveis da transcrição privada de uma sessão. `sessions.current_transcript_revision_id` é o único ponteiro mutável para a revisão corrente.
 
-Revisões originadas pela publicação do Companion permanecem `revision_origin = local_publication`. A edição segura no workspace cria uma nova row `revision_origin = web_edit`, aponta `parent_revision_id` para a revisão usada como base e preserva IDs, tracks e tempos de cada segmento; somente `speaker` e `text` podem mudar nesse boundary.
+Revisões originadas pela publicação do Companion permanecem `revision_origin = local_publication`. A edição segura no workspace cria uma nova row `revision_origin = web_edit`, aponta `parent_revision_id` para a revisão usada como base e preserva IDs, tracks e tempos de cada segmento; somente `speaker` e `text` podem mudar nesse boundary. `content_sha256` identifica os segmentos completos derivados sem reaproveitar `draft_sha256`/`payload_sha256`, que continuam descrevendo a provenance da publicação local de origem.
 
 **Concorrência:** `edit_current_transcript_revision_atomic(...)` recebe a revisão current observada, serializa pela sessão e recusa base stale. Replay usa `operation_id`; payload divergente com a mesma operação falha fechado.
 
