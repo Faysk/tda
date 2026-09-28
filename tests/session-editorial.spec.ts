@@ -319,7 +319,7 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 	]) {
 		await page.setViewportSize(receipt.viewport);
 		await page.goto("/e2e-fixtures/session-editorial");
-		await expect(page.getByRole("tab", { name: "Transcrição" })).toBeVisible();
+		await expect(page.getByRole("region", { name: "Transcrição da sessão" })).toBeVisible();
 		await expect(page.locator(".brand")).toBeVisible();
 		await expect(page.locator(".account-menu-trigger")).toBeVisible();
 		expect(
