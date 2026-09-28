@@ -491,7 +491,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await page.reload();
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 
-	const selectors = page.getByLabel("Resultado usado na sessão");
+	const selectors = page.getByLabel("Run desta gravação");
 	await expect(selectors).toHaveCount(2);
 	await selectors.nth(0).selectOption("run-1");
 	await selectors.nth(1).selectOption("run-2");
@@ -514,7 +514,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	});
 	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
 	await expect(
-		page.getByText("Variante detectada: mesmo recording_id com bytes diferentes.", {
+		page.getByText("Mesma gravação lógica detectada com bytes diferentes.", {
 			exact: true,
 		}),
 	).toBeVisible();
