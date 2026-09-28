@@ -531,7 +531,7 @@
 .roleChoices input:focus-visible,
 .technical summary:focus-visible,
 .roleCatalog > summary:focus-visible {
-	outline: 2px solid var(--ds-control-focus-ring);
+	outline: 2px solid var(--ds-accent);
 	outline-offset: 2px;
 }
 
