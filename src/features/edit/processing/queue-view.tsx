@@ -177,6 +177,7 @@ export function ProcessingQueueView({
 		() => selectQueueJobs(jobs, filter, query, sort),
 		[jobs, filter, query, sort],
 	);
+	const completedView = filter === "completed";
 
 	function toggleDetails(jobId: string) {
 		setExpanded((current) => {
@@ -283,20 +284,20 @@ export function ProcessingQueueView({
 
 			{rows.length ? (
 				<div className={styles.tableFrame}>
-					<table className={styles.table}>
+					<table className={styles.table} data-density={completedView ? "terminal" : "standard"}>
 						<thead>
 							<tr>
 								<th scope="col">Sessão / source</th>
 								<th scope="col">Profile</th>
-								<th scope="col">Etapa / progresso</th>
-								<th scope="col">Estado</th>
+								{!completedView ? <th scope="col">Etapa / progresso</th> : null}
+								<th scope="col">{completedView ? "Conclusão" : "Estado"}</th>
 								<th scope="col">Atualizado</th>
-								<th scope="col" className={styles.wideColumn}>
-									Attempt
-								</th>
-								<th scope="col" className={styles.wideColumn}>
-									Erro / recuperação
-								</th>
+								{!completedView ? (
+									<>
+										<th scope="col" className={styles.wideColumn}>Attempt</th>
+										<th scope="col" className={styles.wideColumn}>Erro / recuperação</th>
+									</>
+								) : null}
 								<th scope="col" className={styles.actionsHeader}>
 									Ações
 								</th>
@@ -330,14 +331,19 @@ export function ProcessingQueueView({
 													Attempt {job.attempt}
 												</span>
 											</td>
+											{!completedView ? (
+												<td
+													data-label="Etapa / progresso"
+													className={styles.stageCell}
+												>
+													<strong>{stageLabels[job.stage] ?? job.stage}</strong>
+													<QueueProgress job={job} />
+												</td>
+											) : null}
 											<td
-												data-label="Etapa / progresso"
-												className={styles.stageCell}
+												data-label="Estado"
+												className={styles.statusCell}
 											>
-												<strong>{stageLabels[job.stage] ?? job.stage}</strong>
-												<QueueProgress job={job} />
-											</td>
-											<td data-label="Estado" className={styles.statusCell}>
 												<StatusPill tone={jobTone(job.status)}>
 													{jobLabels[job.status]}
 												</StatusPill>
@@ -355,26 +361,27 @@ export function ProcessingQueueView({
 												>
 													{relativeUpdated(job.updated_at)}
 												</time>
-												<small>{exactUpdated(job.updated_at)}</small>
 											</td>
-											<td data-label="Attempt" className={styles.wideColumn}>
-												<span className={styles.attemptWide}>
-													{job.attempt}
-												</span>
-											</td>
-											<td
-												data-label="Erro / recuperação"
-												className={styles.wideColumn}
-											>
-												{error ? (
-													<span className={styles.errorWide} title={error}>
-														{error}
-														{job.error?.recoverable ? " · recuperável" : ""}
-													</span>
-												) : (
-													<span className={styles.muted}>—</span>
-												)}
-											</td>
+											{!completedView ? (
+												<>
+													<td data-label="Attempt" className={styles.wideColumn}>
+														<span className={styles.attemptWide}>{job.attempt}</span>
+													</td>
+													<td
+														data-label="Erro / recuperação"
+														className={styles.wideColumn}
+													>
+														{error ? (
+															<span className={styles.errorWide} title={error}>
+																{error}
+																{job.error?.recoverable ? " · recuperável" : ""}
+															</span>
+														) : (
+															<span className={styles.muted}>—</span>
+														)}
+													</td>
+												</>
+											) : null}
 											<td data-label="Ações" className={styles.actionsCell}>
 												<div className={styles.actions}>
 													{["queued", "running"].includes(job.status) ? (
@@ -476,7 +483,7 @@ export function ProcessingQueueView({
 										</tr>
 										{isExpanded ? (
 											<tr id={detailsId} className={styles.detailsRow}>
-												<td colSpan={8}>
+												<td colSpan={completedView ? 5 : 8}>
 													<dl className={styles.details}>
 														<div>
 															<dt>Job ID</dt>
