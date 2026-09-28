@@ -173,6 +173,63 @@ test("floating shell removes the structural top band and stays viewport-bound", 
 	expect(Math.abs(triggerAfter.y - triggerBefore.y)).toBeLessThanOrEqual(1);
 });
 
+test("transparent floating shell does not steal pointer input from the free center area", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	await page.evaluate(() => {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.id = "floating-shell-pointer-probe";
+		button.textContent = "Pointer probe";
+		button.style.position = "absolute";
+		button.style.top = "18px";
+		button.style.left = "50%";
+		button.style.transform = "translateX(-50%)";
+		button.style.zIndex = "1";
+		button.addEventListener("click", () => {
+			button.dataset.clicked = "true";
+		});
+		document.querySelector("main")?.append(button);
+	});
+	const probe = page.locator("#floating-shell-pointer-probe");
+	await probe.click();
+	await expect(probe).toHaveAttribute("data-clicked", "true");
+});
+
+test("root scroll clearance keeps focused anchors below the floating chrome", async ({ page }) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	await page.evaluate(() => {
+		const fixture = document.createElement("section");
+		fixture.innerHTML = [
+			'<div style="height: 1000px"></div>',
+			'<button id="floating-shell-focus-probe" type="button">Focus probe</button>',
+			'<div style="height: 1000px"></div>',
+		].join("");
+		document.querySelector("main")?.append(fixture);
+		document
+			.getElementById("floating-shell-focus-probe")
+			?.scrollIntoView({ block: "start" });
+	});
+	const probe = page.locator("#floating-shell-focus-probe");
+	await probe.focus();
+	await expect(probe).toBeFocused();
+
+	const chromeBottom = await page.evaluate(() => {
+		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
+		const trigger = document
+			.querySelector<HTMLElement>(".account-menu-trigger")
+			?.getBoundingClientRect();
+		return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
+	});
+	const box = await probe.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+	expect(box.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+});
+
 test("home hero occupies the real top viewport across responsive breakpoints", async ({ page }) => {
 	await mockAccess(page);
 	for (const viewport of [
