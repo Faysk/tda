@@ -1490,7 +1490,7 @@ Objetivo:
 - criar uma nova `transcript_revisions` completa para cada save efetivo;
 - preservar identidade/timing e provenance do parent;
 - avançar `sessions.current_transcript_revision_id` atomicamente com optimistic concurrency;
-- registrar `revision_origin` e `parent_revision_id` para lineage explícita.
+- registrar `revision_origin`, `parent_revision_id` e `content_sha256` para lineage/integridade explícitas sem mudar a semântica dos hashes da publicação local.
 
 Boundary:
 
