@@ -26,10 +26,7 @@ export default async function PermissionsPage({
 				<p>TDA / EDIT</p>
 				<h1>Permissões</h1>
 				{result.ok ? (
-					<p>
-						{result.value.campaign.name} ·{" "}
-						<code>{result.value.campaign.slug}</code>
-					</p>
+					<p>{result.value.campaign.name}</p>
 				) : null}
 			</header>
 			{result.ok ? (
