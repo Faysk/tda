@@ -368,7 +368,18 @@
 	background: rgba(0, 0, 0, 0.48);
 }
 
+.drawerDismissLayer {
+	position: absolute;
+	inset: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	cursor: default;
+}
+
 .drawer {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	width: min(560px, 100%);
 	max-height: 100dvh;
