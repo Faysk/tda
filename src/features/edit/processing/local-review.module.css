@@ -215,8 +215,17 @@
 
 .runHeader {
 	display: flex;
+	align-items: flex-start;
 	justify-content: space-between;
 	gap: 10px;
+}
+
+.runHeaderActions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 7px;
 }
 
 .runHeader h3,
@@ -242,6 +251,28 @@
 
 .runFacts dd {
 	margin: .15rem 0 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.runFactsSecondary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+	gap: 6px 10px;
+	margin: 8px 0 0;
+}
+
+.runFactsSecondary div {
+	min-width: 0;
+}
+
+.runFactsSecondary dt {
+	color: var(--ds-foreground-muted);
+	font-size: .7rem;
+}
+
+.runFactsSecondary dd {
+	margin: .12rem 0 0;
+	font-size: .78rem;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -537,6 +568,14 @@
 }
 
 @media (max-width: 760px) {
+	.runHeader {
+		display: grid;
+	}
+
+	.runHeaderActions {
+		justify-content: flex-start;
+	}
+
 	.libraryCompact {
 		grid-template-columns: 1fr;
 		align-items: start;
