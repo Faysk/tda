@@ -4,6 +4,7 @@ import type {
 	SessionParticipantMapping,
 	SessionWorkspace,
 	SessionWorkspacePart,
+	LocalSourceSummary,
 } from "./protocol";
 
 export type ComposerReadiness = {
@@ -121,4 +122,22 @@ export function partStatusLabel(
 	if (part.selectedRunId) return "Resultado selecionado";
 	if (runs.length > 0) return runs.length === 1 ? "Resultado disponível" : runs.length + " resultados disponíveis";
 	return "Ainda não processada";
+}
+
+
+export function recordingVariantSourceIds(
+	currentSourceId: string,
+	workspace: SessionWorkspace | null,
+	sourcesById: ReadonlyMap<string, LocalSourceSummary>,
+): string[] {
+	if (!workspace) return [];
+	const current = sourcesById.get(currentSourceId);
+	if (!current?.recordingId) return [];
+	return workspace.parts
+		.filter((part) => part.sourceId !== currentSourceId)
+		.filter(
+			(part) =>
+				sourcesById.get(part.sourceId)?.recordingId === current.recordingId,
+		)
+		.map((part) => part.sourceId);
 }
