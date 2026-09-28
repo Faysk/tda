@@ -51,13 +51,6 @@ export function AccountMenu() {
 	}, [avatarUrl]);
 
 	useEffect(() => {
-		setReturnPath(
-			`${window.location.pathname}${window.location.search}${window.location.hash}` ||
-				"/",
-		);
-	}, [pathname]);
-
-	useEffect(() => {
 		if (!open) return;
 
 		const onPointerDown = (event: PointerEvent) => {
@@ -84,6 +77,15 @@ export function AccountMenu() {
 	}, [open]);
 
 	const close = () => setOpen(false);
+	const toggle = () => {
+		if (!open) {
+			setReturnPath(
+				`${window.location.pathname}${window.location.search}${window.location.hash}` ||
+					"/",
+			);
+		}
+		setOpen((value) => !value);
+	};
 	const showImage = Boolean(avatarUrl && !avatarFailed);
 
 	return (
@@ -95,7 +97,7 @@ export function AccountMenu() {
 				aria-label="Abrir menu da conta"
 				aria-expanded={open}
 				aria-controls={PANEL_ID}
-				onClick={() => setOpen((value) => !value)}
+				onClick={toggle}
 			>
 				<span className="account-avatar" aria-hidden="true">
 					{showImage ? (
