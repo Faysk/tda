@@ -86,30 +86,40 @@ async function invoke(
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
-	const { data, error } = await client.rpc("publish_transcript_revision_atomic", {
-		p_auth_user_id: actor.authUserId,
-		p_actor_profile_id: actor.profileId,
-		p_input: {
-			campaignId: actor.campaignId,
-			sessionId: actor.sessionId,
-			operationId: input.operationId,
-			expectedCurrentRevisionId: input.expectedCurrentRevisionId,
-			sourceSystem: "local_companion",
-			sourceSessionId: input.target.sourceSessionId,
-			...(input.publicationKind === "single_source"
-				? { sourceId: input.sourceId, runId: input.runId }
-				: {
-						publicationKind: input.publicationKind,
+	const commonInput = {
+		campaignId: actor.campaignId,
+		sessionId: actor.sessionId,
+		operationId: input.operationId,
+		expectedCurrentRevisionId: input.expectedCurrentRevisionId,
+		sourceSystem: "local_companion",
+		sourceSessionId: input.target.sourceSessionId,
+		baseTranscriptSha256: input.baseTranscriptSha256,
+		draftSha256: input.draftSha256,
+		payloadSha256: input.payloadSha256,
+		payloadJson: input.payloadJson,
+		segmentCount: input.segmentCount,
+	};
+	const { data, error } =
+		input.publicationKind === "single_source"
+			? await client.rpc("publish_transcript_revision_atomic", {
+					p_auth_user_id: actor.authUserId,
+					p_actor_profile_id: actor.profileId,
+					p_input: {
+						...commonInput,
+						sourceId: input.sourceId,
+						runId: input.runId,
+					},
+					p_lookup_only: lookupOnly,
+				})
+			: await client.rpc("publish_transcript_assembly_revision_atomic", {
+					p_auth_user_id: actor.authUserId,
+					p_actor_profile_id: actor.profileId,
+					p_input: {
+						...commonInput,
 						provenance: input.provenance,
-					}),
-			baseTranscriptSha256: input.baseTranscriptSha256,
-			draftSha256: input.draftSha256,
-			payloadSha256: input.payloadSha256,
-			payloadJson: input.payloadJson,
-			segmentCount: input.segmentCount,
-		},
-		p_lookup_only: lookupOnly,
-	});
+					},
+					p_lookup_only: lookupOnly,
+				});
 	if (
 		error ||
 		!data ||
