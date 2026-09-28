@@ -14,6 +14,8 @@ export type TranscriptReaderSnapshot = Readonly<{
 	revisionId: string | null;
 	revisionNumber: number | null;
 	segments: readonly TranscriptReaderSegment[];
+	/** Exact private legacy source snapshot shown to the operator, when applicable. */
+	legacySnapshotSha256?: string;
 }>;
 
 function finiteSeconds(value: unknown): number | null {
