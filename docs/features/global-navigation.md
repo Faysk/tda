@@ -23,18 +23,18 @@ A marca continua apontando para `/`. O launcher não repete uma entrada `Início
 
 Este documento separa **decisão aprovada** de **implementação/publicação**.
 
-Baseline revalidada desta revisão: `main@c2c27a23017045882b67bbfa1a27439d02645fc0`.
+Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d644`.
 
 | Slice | Estado nesta baseline | Evidência |
 | --- | --- | --- |
 | projeção privada de identidade + capabilities | integrada à `main` | #881 / PR #886 |
 | launcher global | integrada à `main` | #880 / PR #890 |
 | avatar/painel de conta | integrada à `main` | #882 / PR #902 |
-| retirada dos hubs `/edit` e `/conta` | pendente de integração | #883 |
+| retirada dos hubs `/edit` e `/conta` | integrada à `main` | #883 / PR #908 |
 | gate responsivo/teclado/visual completo | pendente | #884 |
 | contrato documental | este documento | #885 |
 
-O launcher de #880 e o avatar/painel de conta de #882 já estão integrados na `main`. O `ThemeToggle` deixou de ser um controle isolado do header e passou a viver dentro do painel de conta. Enquanto #883 não estiver integrada, os hubs `/edit`/`/conta` atuais permanecem como estado transitório de implementação; isso **não** redefine o contrato final do produto.
+O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate completo de QA de #884 permanece pendente e não deve ser inferido apenas pela integração funcional.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -125,7 +125,7 @@ Imagem de avatar é apresentação, nunca prova de identidade ou permissão.
 
 ## `/edit` deixa de ser menu
 
-Depois da integração de #883, `/edit` é apenas entrypoint de compatibilidade para bookmarks antigos.
+Com #883 integrada pela PR #908, `/edit` é apenas entrypoint de compatibilidade para bookmarks antigos.
 
 Contrato de redirect:
 
@@ -253,7 +253,7 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - #880 — launcher;
 - #881 / PR #886 — projeção sanitizada de Auth;
 - #882 / PR #902 — avatar/painel de conta;
-- #883 — retirada dos hubs;
+- #883 / PR #908 — retirada dos hubs;
 - #884 — gates de QA;
 - #885 — contrato documental;
 - #115 — pesquisa histórica que levantou avatar Discord no header, papel de `/conta` e organização do Edit;
