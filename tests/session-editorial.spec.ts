@@ -258,7 +258,9 @@ test("desktop transcript toolbar stays clear of floating global chrome while sti
 		const spacer = document.createElement("div");
 		spacer.dataset.testid = "session-editorial-floating-shell-spacer";
 		spacer.style.height = "1400px";
-		document.querySelector("main")?.append(spacer);
+		document
+			.querySelector('section[aria-label="Leitor e editor de transcrição"]')
+			?.append(spacer);
 		window.scrollTo(0, 700);
 	});
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
