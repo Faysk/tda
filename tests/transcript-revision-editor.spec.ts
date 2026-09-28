@@ -63,12 +63,10 @@ test("bulk edit of 50 segments survives save and reload", async ({ page }) => {
 
 	for (let index = 0; index < 50; index += 1) {
 		const ordinal = index + 1;
-		const trackNumber = (index % 4) + 1;
 		const editButton = page
-			.getByRole("button", {
-				name: new RegExp(`Editar fala de Pessoa ${trackNumber} em`),
-			})
-			.nth(Math.floor(index / 4));
+			.locator("article")
+			.nth(index)
+			.getByRole("button", { name: /Editar fala de/ });
 		await editButton.click();
 		const text = page.getByRole("textbox", { name: "Texto desta fala" });
 		await text.fill(`Fala revisada em lote ${ordinal}`);
