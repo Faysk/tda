@@ -43,7 +43,6 @@ function setupSessions(result: {
 	return calls;
 }
 
-
 type TableResult = Readonly<{ data: unknown; error: unknown }>;
 
 function setupTableResults(results: Record<string, TableResult[]>) {
@@ -54,17 +53,15 @@ function setupTableResults(results: Record<string, TableResult[]>) {
 			fromCounts.set(table, (fromCounts.get(table) ?? 0) + 1);
 			const queue = results[table] ?? [];
 			const result = queue.shift() ?? { data: [], error: null };
-			const query: Record<string, unknown> = {};
+			const query = Promise.resolve(result);
 			for (const method of ["select", "eq", "order", "limit", "gt", "in"]) {
-				query[method] = (...args: unknown[]) => {
-					calls.push({ table, method, args });
-					return query;
-				};
+				Object.assign(query, {
+					[method]: (...args: unknown[]) => {
+						calls.push({ table, method, args });
+						return query;
+					},
+				});
 			}
-			query.then = (
-				onFulfilled: (value: TableResult) => unknown,
-				onRejected?: (reason: unknown) => unknown,
-			) => Promise.resolve(result).then(onFulfilled, onRejected);
 			return query;
 		},
 	});
@@ -156,7 +153,6 @@ describe("supported Edit session lookup", () => {
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 });
-
 
 describe("supported Edit session library thumbnails", () => {
 	it("returns an empty library without related lookups", async () => {
