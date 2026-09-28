@@ -92,7 +92,7 @@ def _write_run(
             audio_work_seconds=10.0,
             session_duration_seconds=10.0,
             processing_seconds=1.0,
-            word_count=2,
+            word_count=0,
             segment_count=1,
             track_count=1,
         ),
