@@ -76,9 +76,17 @@ jobs:
             exit 1
           fi
 
+          RC_TAG="companion-rc-v${VERSION}-${SOURCE_SHA:0:12}"
+          STABLE_TAG="companion-v$VERSION"
+          if ! gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "No immutable Companion RC release $RC_TAG was published for this successful RC workflow; Stable bridge is a no-op." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           echo "eligible=true" >> "$GITHUB_OUTPUT"
-          echo "rc_tag=companion-rc-v${VERSION}-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
-          echo "stable_tag=companion-v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "rc_tag=$RC_TAG" >> "$GITHUB_OUTPUT"
+          echo "stable_tag=$STABLE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Verify immutable RC release and bytes
         if: steps.release.outputs.eligible == 'true'
