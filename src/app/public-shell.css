@@ -104,15 +104,6 @@ footer {
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
 	box-shadow: var(--ds-shadow);
-	transform-origin: top right;
-	mask-image: linear-gradient(#000 0 0);
-	mask-position: top;
-	mask-repeat: no-repeat;
-	transition:
-		opacity var(--nav-profile-panel-motion) var(--ds-ease-soft),
-		transform var(--nav-profile-panel-motion) var(--ds-ease-soft),
-		mask-size var(--nav-profile-panel-motion) var(--ds-ease-soft);
-	will-change: opacity, transform, mask-size;
 }
 
 .account-menu-panel[data-state="opening"],
@@ -301,6 +292,15 @@ footer {
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
 	box-shadow: var(--ds-shadow);
+	transform-origin: top right;
+	mask-image: linear-gradient(#000 0 0);
+	mask-position: top;
+	mask-repeat: no-repeat;
+	transition:
+		opacity var(--nav-profile-panel-motion) var(--ds-ease-soft),
+		transform var(--nav-profile-panel-motion) var(--ds-ease-soft),
+		mask-size var(--nav-profile-panel-motion) var(--ds-ease-soft);
+	will-change: opacity, transform, mask-size;
 }
 
 .account-menu-account-block {
