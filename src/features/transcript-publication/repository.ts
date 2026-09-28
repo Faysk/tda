@@ -2,11 +2,15 @@ import "server-only";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
+import { authorizePublicationRequest } from "./access";
 import type {
 	PreparedPublication,
 	PublicationResult,
 } from "./contract";
-import { authorizePublicationRequest } from "./access";
+import type {
+	CurrentMutationInput,
+	CurrentMutationResult,
+} from "./current-mutation";
 import type {
 	AuthorizedPublicationActor,
 	PublicationDependencies,
@@ -145,10 +149,63 @@ async function invoke(
 }
 
 export async function readCurrentPublication(actor: AuthorizedPublicationActor) {
- const client = editDataClient();
- if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
- const { data, error } = await client.from("sessions").select("current_transcript_revision_id").eq("id", actor.sessionId).eq("campaign_id", actor.campaignId).maybeSingle();
- if (error) return { ok: false as const, reason: "dependency_unavailable" as const };
- if (!data) return { ok: false as const, reason: "not_found" as const };
- return { ok: true as const, current: { actorProfileId: actor.profileId, revisionId: data.current_transcript_revision_id as string | null } };
+	const client = editDataClient();
+	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
+	const { data, error } = await client
+		.from("sessions")
+		.select("current_transcript_revision_id")
+		.eq("id", actor.sessionId)
+		.eq("campaign_id", actor.campaignId)
+		.maybeSingle();
+	if (error) return { ok: false as const, reason: "dependency_unavailable" as const };
+	if (!data) return { ok: false as const, reason: "not_found" as const };
+	return {
+		ok: true as const,
+		current: {
+			actorProfileId: actor.profileId,
+			revisionId: data.current_transcript_revision_id as string | null,
+		},
+	};
+}
+
+export async function setCurrentPublication(
+	actor: AuthorizedPublicationActor,
+	input: CurrentMutationInput,
+): Promise<CurrentMutationResult> {
+	const client = editDataClient();
+	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	const { data, error } = await client.rpc(
+		"set_current_transcript_revision_atomic",
+		{
+			p_auth_user_id: actor.authUserId,
+			p_actor_profile_id: actor.profileId,
+			p_campaign_id: actor.campaignId,
+			p_session_id: actor.sessionId,
+			p_operation_id: input.operationId,
+			p_revision_id: input.revisionId,
+			p_expected_current_revision_id: input.expectedCurrentRevisionId,
+		},
+	);
+	if (
+		error ||
+		!data ||
+		typeof data !== "object" ||
+		typeof data.ok !== "boolean"
+	)
+		return { ok: false, reason: "dependency_unavailable" };
+
+	if (
+		!data.ok &&
+		![
+			"forbidden",
+			"publish_capability_undefined",
+			"not_found",
+			"conflict",
+			"stale_current",
+		].includes(data.reason)
+	)
+		return { ok: false, reason: "dependency_unavailable" };
+
+	return data as CurrentMutationResult;
 }
