@@ -1477,3 +1477,43 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+## Edição privada da revisão no workspace Web — candidata #898
+
+O workspace `/edit/sessoes/[id]` mantém leitura-first, mas um operador com
+`campaign.content.edit` pode entrar explicitamente em **Editar transcrição** e
+corrigir somente `speaker` e `text`. Timestamp e identidade permanecem
+read-only neste slice.
+
+O browser mantém uma working copy esparsa em memória e monta controles apenas para
+a fala ativa dentro da paginação progressiva já existente. Busca usa a working copy;
+jump continua usando os timestamps canônicos. Não há autosave por blur nem milhares
+de inputs simultâneos. Dirty state protege unload/navegação e `Ctrl/⌘+S` executa o
+save explícito.
+
+Save envia somente os deltas alterados com `expectedCurrentRevisionId` e
+`operationId`. O servidor:
+
+1. revalida identidade, campaign e `campaign.content.edit`;
+2. bloqueia a sessão e confirma a revisão current esperada;
+3. materializa o snapshot completo a partir da revisão-base imutável;
+4. rejeita campos extras/timing e identidades inexistentes;
+5. cria uma nova `transcript_revision` privada com
+   `revision_origin=web_edit` e `parent_revision_id`;
+6. troca `sessions.current_transcript_revision_id` na mesma transação;
+7. registra somente metadata/hash no audit.
+
+Resposta perdida reutiliza a mesma operation e pode retornar replay exato. Se outro
+editor avançar R3→R4 antes do save, a tentativa baseada em R3 retorna
+`stale_current`: a working copy do browser continua intacta e não existe retry
+cego. A revisão antiga permanece no histórico.
+
+Nenhuma operação desta fatia publica a sessão. Um `session_editorial_draft`
+existente continua apontando para sua `base_transcript_revision_id` original; após
+o current avançar, o workspace detecta e apresenta o drift sem reescrever o resumo.
+
+Validação candidata: contrato Web para Unicode/identidade/duplicatas; PostgreSQL
+descartável para no-op, tentativa de timing, R1→R2, replay, stale current, parent
+imutável, audit sem texto privado, draft stale e um snapshot sintético de 7.500
+segmentos. Merge, migration remota e produção exigem receipts separados.
+
