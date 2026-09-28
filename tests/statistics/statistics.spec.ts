@@ -205,5 +205,5 @@ test("a reload recomputes metrics after editing the synthetic source", async ({
 	await page.goto("/transcricoes");
 	await context.request.post("http://127.0.0.1:3103/fixture/revise");
 	await page.reload();
-	await expect(page.getByLabel("Totais das transcrições")).toContainText("615");
+	await expect(page.getByLabel("Resumo das transcrições")).toContainText("615");
 });
