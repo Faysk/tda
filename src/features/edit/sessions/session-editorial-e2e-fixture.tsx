@@ -15,7 +15,7 @@ const DRAFT_ID = "33333333-3333-4333-8333-333333333333";
 const COVER_REFERENCE = "/assets/sessions/synthetic-editorial-cover.webp";
 const PRIVATE_MARKER = "NEVER_PUBLIC_TRANSCRIPT_MARKER_9F3A";
 
-const SEGMENTS: readonly TranscriptReaderSegment[] = [
+const BASE_SEGMENTS: readonly TranscriptReaderSegment[] = [
 	{
 		id: "synthetic-segment-001",
 		trackNumber: 1,
@@ -41,6 +41,25 @@ const SEGMENTS: readonly TranscriptReaderSegment[] = [
 		text: "Última fala sintética para validar jump e cronologia.",
 	},
 ];
+
+function buildSyntheticSegments(count: number): readonly TranscriptReaderSegment[] {
+	const safeCount = Math.max(0, Math.min(7500, Math.trunc(count)));
+	if (safeCount <= BASE_SEGMENTS.length) return BASE_SEGMENTS.slice(0, safeCount);
+	const generated = [...BASE_SEGMENTS];
+	for (let index = BASE_SEGMENTS.length + 1; index <= safeCount; index += 1) {
+		const startMs = (index - 1) * 4_500;
+		generated.push({
+			id: `synthetic-segment-${String(index).padStart(4, "0")}`,
+			trackNumber: ((index - 1) % 6) + 1,
+			startMs,
+			endMs: startMs + 3_900,
+			speaker: index % 2 === 0 ? "Alya" : "Dandelion",
+			text: `Segmento sintético ${index}`,
+		});
+	}
+	return generated;
+}
+
 
 type PublicSnapshot = Readonly<{
 	version: number;
@@ -96,7 +115,10 @@ function SyntheticCoverEditor({
 	);
 }
 
-export function SessionEditorialE2EFixture() {
+export function SessionEditorialE2EFixture({
+	segmentCount = BASE_SEGMENTS.length,
+}: Readonly<{ segmentCount?: number }>) {
+	const segments = useMemo(() => buildSyntheticSegments(segmentCount), [segmentCount]);
 	const initialDraft = useMemo(() => freshDraft(), []);
 	const draftRef = useRef<SessionEditorialDraft>(initialDraft);
 	const transcriptRevisionRef = useRef(TRANSCRIPT_REVISION_ID);
@@ -312,11 +334,11 @@ export function SessionEditorialE2EFixture() {
 				<output data-testid="remote-draft-revision">{remoteRevision}</output>
 			</section>
 
-			<section aria-label="Workspace editorial privado">
+			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
 				<SessionEditWorkspace
 					transcript={{
 						downloadHref: "/e2e-fixtures/session-editorial/transcript",
-						segments: SEGMENTS,
+						segments,
 						sourceLabel: "Revisão privada sintética · r1",
 					}}
 					editorial={{
