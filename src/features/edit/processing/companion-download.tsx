@@ -175,8 +175,8 @@ export function CompanionDownload({
 					<DownloadGlyph />
 				</a>
 			) : (
-				<span
-					tabIndex={0}
+				<button
+					type="button"
 					aria-disabled="true"
 					aria-label={
 						state.status === "loading"
@@ -191,7 +191,7 @@ export function CompanionDownload({
 					onKeyDown={(event) => onEscape(event.key)}
 				>
 					<DownloadGlyph />
-				</span>
+				</button>
 			)}
 			<span id={tooltipId} role="tooltip" hidden={!tooltipVisible}>
 				{tooltip}
