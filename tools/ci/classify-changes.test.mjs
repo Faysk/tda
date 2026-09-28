@@ -3,9 +3,9 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, navigation, db, companion, processing, lembra, media } =
+	const { web, navigation, db, companion, processing, lembra, sessions, media } =
 		classifyPaths(files);
-	return { web, navigation, db, companion, processing, lembra, media };
+	return { web, navigation, db, companion, processing, lembra, sessions, media };
 }
 
 const fastOnly = {
@@ -15,6 +15,7 @@ const fastOnly = {
 	companion: false,
 	processing: false,
 	lembra: false,
+	sessions: false,
 	media: false,
 };
 
@@ -97,6 +98,22 @@ test("Lembra paths activate only the targeted Lembra E2E contract", () => {
 	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
 });
 
+test("Session editorial paths activate the targeted private-to-public journey gate", () => {
+	for (const path of [
+		"src/features/edit/sessions/editorial-draft-editor.tsx",
+		"src/features/edit/transcript/reader.tsx",
+		"src/app/edit/sessoes/page.tsx",
+		"src/app/sessoes/[id]/page.tsx",
+		"tests/session-editorial.spec.ts",
+		"playwright.session-editorial.config.ts",
+		"tools/session-publication-db.py",
+		"supabase/migrations/20260928004000_session_publications.sql",
+	]) {
+		assert.equal(flags([path]).sessions, true, path);
+	}
+	assert.equal(flags(["src/app/mundo/page.tsx"]).sessions, false);
+});
+
 test("Companion source activates Companion and Processing E2E", () => {
 	const result = flags(["local-companion/tda_companion/app.py"]);
 	assert.equal(result.companion, true);
@@ -126,6 +143,7 @@ test("CI workflow changes exercise the browser gates they define", () => {
 	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
+	assert.equal(result.sessions, true);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -158,6 +176,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 		companion: true,
 		processing: true,
 		lembra: true,
+		sessions: true,
 		media: true,
 	};
 	assert.deepEqual(flags(["tools/ci/classify-changes.mjs"]), expected);
@@ -180,6 +199,7 @@ test("mixed changes activate each relevant domain", () => {
 			companion: true,
 			processing: true,
 			lembra: false,
+			sessions: false,
 			media: true,
 		},
 	);
