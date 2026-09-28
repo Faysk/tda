@@ -179,6 +179,7 @@ jobs:
         run: >-
           pnpm exec playwright test
           tests/global-navigation.spec.ts
+          tests/floating-shell-public-routes.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           --project=desktop-1080p
