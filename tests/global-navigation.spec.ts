@@ -414,7 +414,7 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-			expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
 		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
