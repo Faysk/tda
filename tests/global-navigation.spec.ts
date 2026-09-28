@@ -470,6 +470,38 @@ test("launcher cells are icon-first, optically large and keep long labels readab
 	}
 });
 
+test("short mobile viewport keeps overflow inside the launcher panel", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 500 });
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	const triggerBefore = await trigger.boundingBox();
+	await openLauncher(page);
+	const panel = page.locator(".product-launcher-panel");
+	const scrollState = await panel.evaluate((element) => ({
+		clientHeight: element.clientHeight,
+		scrollHeight: element.scrollHeight,
+		overflowY: getComputedStyle(element).overflowY,
+	}));
+
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.overflowY).toBe("auto");
+	await panel.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+	const triggerAfter = await trigger.boundingBox();
+	expect(triggerBefore).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (triggerBefore && triggerAfter) {
+		expect(Math.abs(triggerBefore.y - triggerAfter.y)).toBeLessThanOrEqual(1);
+	}
+});
+
 test("200 percent layout zoom preserves the header actions and panel containment", async ({
 	page,
 }) => {
