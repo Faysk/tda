@@ -1,3 +1,5 @@
+import { isReviewStringV1 } from "@/features/transcript-review/text-contract";
+
 const UUID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
@@ -32,7 +34,7 @@ export function transcriptScalarLength(value: string): number | null {
 	return length;
 }
 
-function validText(value: unknown, maximum: number): value is string {
+function validIdentityText(value: unknown, maximum: number): value is string {
 	if (typeof value !== "string") return false;
 	const length = transcriptScalarLength(value);
 	return (
@@ -63,12 +65,10 @@ export function validateTranscriptEditRequest(
 			edit.trackNumber > 9999
 		)
 			issues.push("track_number");
-		if (!validText(edit.segmentId, TRANSCRIPT_EDIT_LIMITS.segmentId))
+		if (!validIdentityText(edit.segmentId, TRANSCRIPT_EDIT_LIMITS.segmentId))
 			issues.push("segment_id");
-		if (!validText(edit.speaker, TRANSCRIPT_EDIT_LIMITS.speaker))
-			issues.push("speaker");
-		if (!validText(edit.text, TRANSCRIPT_EDIT_LIMITS.text))
-			issues.push("text");
+		if (!isReviewStringV1(edit.speaker, "speaker")) issues.push("speaker");
+		if (!isReviewStringV1(edit.text, "text")) issues.push("text");
 
 		const identity = `${edit.trackNumber}\u0000${edit.segmentId}`;
 		if (seen.has(identity)) issues.push("duplicate_segment");
