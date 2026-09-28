@@ -3,6 +3,7 @@ import type { EditAccessContext, EditGrant } from "@/features/edit/access/policy
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
 	EDIT_ENTRY_DESTINATIONS,
+	resolveEditCompatibilityTarget,
 	resolveEditEntryDestination,
 } from "./navigation";
 
@@ -72,5 +73,44 @@ describe("Edit compatibility entrypoint", () => {
 				context([EDIT_CAPABILITIES.transcriptRead], null),
 			),
 		).toBeNull();
+	});
+
+	it("keeps anonymous, unavailable and denied recovery distinct", () => {
+		expect(
+			resolveEditCompatibilityTarget({ state: "anonymous", context: null }),
+		).toBe("/entrar?next=%2Fedit");
+		expect(
+			resolveEditCompatibilityTarget({ state: "unavailable", context: null }),
+		).toBe("/conta?acesso=indisponivel");
+		expect(
+			resolveEditCompatibilityTarget({
+				state: "authenticated_unlinked",
+				context: context([], null),
+			}),
+		).toBe("/conta?acesso=negado");
+		expect(
+			resolveEditCompatibilityTarget({
+				state: "authenticated_linked_no_grants",
+				context: context([]),
+			}),
+		).toBe("/conta?acesso=negado");
+	});
+
+	it("redirects linked users to the first supported authorized tool", () => {
+		expect(
+			resolveEditCompatibilityTarget({
+				state: "authenticated_linked",
+				context: context([
+					EDIT_CAPABILITIES.worldLayoutEdit,
+					EDIT_CAPABILITIES.localProcess,
+				]),
+			}),
+		).toBe("/edit/processamento");
+		expect(
+			resolveEditCompatibilityTarget({
+				state: "authenticated_linked",
+				context: context([EDIT_CAPABILITIES.contentEdit]),
+			}),
+		).toBe("/conta?acesso=negado");
 	});
 });
