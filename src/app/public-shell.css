@@ -492,7 +492,10 @@ footer {
 .page-section {
 	width: min(100%, var(--ds-layout-max, 2160px));
 	margin-inline: auto;
-	padding: 56px var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)) 80px;
+	padding:
+		max(56px, calc(var(--site-chrome-panel-top) + 8px))
+		var(--ds-page-gutter, clamp(20px, 3.5vw, 72px))
+		80px;
 }
 
 .page-section > h1 {
@@ -618,7 +621,9 @@ footer {
 	}
 
 	.page-section {
-		padding-block: 42px 64px;
+		padding-block:
+			max(42px, calc(var(--site-chrome-panel-top) + 8px))
+			64px;
 	}
 
 	footer {
