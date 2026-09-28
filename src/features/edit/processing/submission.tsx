@@ -21,12 +21,15 @@ import {
 	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
+	type LocalJob,
 	type LocalRunSummary,
 	type PreparationStatus,
+	type SessionWorkspace,
 	type SystemSnapshot,
 	type TranscriptionProfileId,
 } from "./protocol";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
+import { SessionRecordingComposer } from "./session-recording-composer";
 import {
 	estimateProfileProcessing,
 	formatEstimateProvenance,
@@ -180,14 +183,19 @@ function sourceMustBeRestaged(code: string | null): boolean {
 }
 
 const EMPTY_RUNS: readonly LocalRunSummary[] = [];
+const EMPTY_JOBS: readonly LocalJob[] = [];
 const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
+const SESSION_WORKSPACE_STORAGE_KEY = "tda.processing.session-workspace.v1";
 
 export function ProcessingSubmission({
 	className,
 	compact = false,
 	recoveryScope = null,
 	onOpenDiagnostics,
+	onSessionContextChange,
+	onAssemblyBuilt,
 	runs = EMPTY_RUNS,
+	jobs = EMPTY_JOBS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
 }: Readonly<{
@@ -195,7 +203,10 @@ export function ProcessingSubmission({
 	compact?: boolean;
 	recoveryScope?: string | null;
 	onOpenDiagnostics?: () => void;
+	onSessionContextChange?: (sessionId: string) => void;
+	onAssemblyBuilt?: (sessionId: string, assemblyId: string) => void;
 	runs?: readonly LocalRunSummary[];
+	jobs?: readonly LocalJob[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
 }> = {}) {
@@ -213,6 +224,7 @@ export function ProcessingSubmission({
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
+	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -232,6 +244,55 @@ export function ProcessingSubmission({
 	useEffect(() => {
 		return () => request.current?.abort();
 	}, []);
+
+	useEffect(() => {
+		if (!paired) return;
+		try {
+			const stored = window.localStorage.getItem(SESSION_WORKSPACE_STORAGE_KEY);
+			if (!stored) return;
+			const value = JSON.parse(stored) as { campaignId?: unknown; sessionId?: unknown };
+			if (
+				value.campaignId === CAMPAIGN_SLUG &&
+				typeof value.sessionId === "string" &&
+				/^[A-Za-z0-9_-]{1,128}$/u.test(value.sessionId)
+			)
+				setSessionId((current) => current || value.sessionId as string);
+		} catch {
+			// Browser storage is convenience-only; Agent persistence remains authoritative.
+		}
+	}, [paired]);
+
+	useEffect(() => {
+		if (
+			!paired ||
+			!capabilities?.capabilities.includes("transcription.session-workspace") ||
+			!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)
+		) {
+			setWorkspace(null);
+			return;
+		}
+		const controller = new AbortController();
+		void bridge
+			.sessionWorkspace(CAMPAIGN_SLUG, sessionId, controller.signal)
+			.then((value) => {
+				if (controller.signal.aborted) return;
+				setWorkspace(value);
+				onSessionContextChange?.(value.sessionId);
+			})
+			.catch((cause) => {
+				if (
+					!controller.signal.aborted &&
+					cause instanceof BridgeError &&
+					cause.serverCode !== "SESSION_WORKSPACE_NOT_FOUND"
+				)
+					setError(
+						cause.serverCode
+							? localOperationMessage(cause.serverCode)
+							: messageFor(cause.code),
+					);
+			});
+		return () => controller.abort();
+	}, [bridge, capabilities, onSessionContextChange, paired, sessionId]);
 
 	useEffect(() => {
 		if (!paired) {
