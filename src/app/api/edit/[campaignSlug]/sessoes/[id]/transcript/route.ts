@@ -1,13 +1,12 @@
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { findUnsafeEditSessionBySourceId } from "@/features/edit/sessions/repository";
+import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import {
 	buildTranscriptDownload,
 	transcriptDownloadFailureStatus,
 } from "@/features/edit/transcript/download";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
-import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 
 type RouteContext = Readonly<{
 	params: Promise<{ campaignSlug: string; id: string }>;
@@ -31,8 +30,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 	if (
 		campaignSlug !== CAMPAIGN_SLUG ||
 		!id ||
-		id.length > 220 ||
-		!isUnsafeEditEnabled()
+		id.length > 220
 	)
 		return failure(404);
 
@@ -44,7 +42,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 		return failure(transcriptDownloadFailureStatus(access.reason));
 
 	try {
-		const session = await findUnsafeEditSessionBySourceId(id);
+		const session = await findEditSessionBySourceId(campaignSlug, id);
 		if (!session) return failure(404);
 		const snapshot = await readTranscriptSnapshot({
 			campaignSlug,
