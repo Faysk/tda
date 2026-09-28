@@ -24,6 +24,21 @@ export type TranscriptEditRequest = Readonly<{
 	edits: readonly TranscriptSegmentEdit[];
 }>;
 
+export type TranscriptEditSaveResult =
+	| Readonly<{
+			ok: true;
+			status: "updated" | "replay" | "no_change";
+			revisionId: string;
+			revisionNumber: number;
+	  }>
+	| Readonly<{
+			ok: false;
+			reason: string;
+			issues: readonly string[];
+			currentRevisionId?: string | null;
+			currentRevisionNumber?: number | null;
+	  }>;
+
 export function transcriptScalarLength(value: string): number | null {
 	let length = 0;
 	for (const char of value) {
