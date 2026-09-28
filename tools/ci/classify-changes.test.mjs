@@ -3,12 +3,14 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, processing, lembra, media } = classifyPaths(files);
-	return { web, db, companion, processing, lembra, media };
+	const { web, navigation, db, companion, processing, lembra, media } =
+		classifyPaths(files);
+	return { web, navigation, db, companion, processing, lembra, media };
 }
 
 const fastOnly = {
 	web: true,
+	navigation: false,
 	db: false,
 	companion: false,
 	processing: false,
@@ -34,6 +36,38 @@ test("ordinary web and lore files do not activate heavy domains", () => {
 	);
 });
 
+test("navigation shell paths activate only the targeted Navigation E2E contract", () => {
+	for (const path of [
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/public-navigation-model.ts",
+		"src/components/theme-toggle.tsx",
+		"src/features/auth/config.ts",
+		"src/features/auth/presentation.ts",
+		"src/features/auth/server.ts",
+		"src/features/edit/navigation-entry.ts",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"src/features/theme/preference.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/navigation-origin.spec.ts",
+		"playwright.config.ts",
+	]) {
+		const result = flags([path]);
+		assert.equal(result.navigation, true, path);
+		assert.equal(result.processing, false, path);
+		assert.equal(result.lembra, false, path);
+	}
+	assert.equal(
+		flags(["src/components/session-share-actions.tsx"]).navigation,
+		false,
+	);
+});
+
 test("Processing Web paths activate the Processing E2E contract", () => {
 	assert.equal(
 		flags(["src/features/edit/processing/bridge.ts"]).processing,
@@ -56,6 +90,7 @@ test("Lembra paths activate only the targeted Lembra E2E contract", () => {
 	const source = flags(["src/features/lembra/components/lembra-experience.tsx"]);
 	assert.equal(source.lembra, true);
 	assert.equal(source.processing, false);
+	assert.equal(source.navigation, false);
 	assert.equal(flags(["src/app/lembra/page.tsx"]).lembra, true);
 	assert.equal(flags(["src/app/api/lembra/abc/image/route.ts"]).lembra, true);
 	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
@@ -65,6 +100,7 @@ test("Companion source activates Companion and Processing E2E", () => {
 	const result = flags(["local-companion/tda_companion/app.py"]);
 	assert.equal(result.companion, true);
 	assert.equal(result.processing, true);
+	assert.equal(result.navigation, false);
 	assert.equal(flags([".github/workflows/companion.yml"]).companion, true);
 	assert.equal(
 		flags(["tools/check-companion-model-freshness.py"]).companion,
@@ -72,7 +108,7 @@ test("Companion source activates Companion and Processing E2E", () => {
 	);
 });
 
-test("specialized runtime workflows do not build generic MSI or Processing E2E by themselves", () => {
+test("specialized runtime workflows do not build generic MSI or browser gates by themselves", () => {
 	for (const path of [
 		".github/workflows/qwen-runtime-package.yml",
 		".github/workflows/runtime-promote.yml",
@@ -80,11 +116,13 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 	]) {
 		assert.equal(flags([path]).companion, false);
 		assert.equal(flags([path]).processing, false);
+		assert.equal(flags([path]).navigation, false);
 	}
 });
 
 test("CI workflow changes exercise the browser gates they define", () => {
 	const result = flags([".github/workflows/ci.yml"]);
+	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
 });
@@ -114,6 +152,7 @@ test("media manifests and tooling activate media domain", () => {
 test("classifier contract changes fail safe into every heavy domain", () => {
 	const expected = {
 		web: true,
+		navigation: true,
 		db: true,
 		companion: true,
 		processing: true,
@@ -128,12 +167,14 @@ test("mixed changes activate each relevant domain", () => {
 	assert.deepEqual(
 		flags([
 			"src/features/edit/processing/panel.tsx",
+			"src/components/public-nav.tsx",
 			"supabase/migrations/202609140002_example.sql",
 			"local-companion/tda_companion/app.py",
 			"media/yllith/manifest.json",
 		]),
 		{
 			web: true,
+			navigation: true,
 			db: true,
 			companion: true,
 			processing: true,
@@ -153,4 +194,5 @@ test("normalizes duplicate and Windows-style paths", () => {
 	]);
 	assert.equal(result.companion, true);
 	assert.equal(result.processing, true);
+	assert.equal(result.navigation, false);
 });

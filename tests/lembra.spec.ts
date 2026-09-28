@@ -32,9 +32,12 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
-	const topLembra = page.getByRole("link", { name: "Lembra", exact: true });
+	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
+	const topLembra = navigation.getByRole("link", { name: "Lembra", exact: true });
 	await expect(topLembra).toHaveAttribute("href", "/lembra");
 	await expect(topLembra).toHaveAttribute("aria-current", "page");
+	await page.keyboard.press("Escape");
 	await expect(
 		page.getByPlaceholder("Buscar título, descrição, autor ou data..."),
 	).toBeVisible();
@@ -272,6 +275,7 @@ test("Lembra keeps very long reference names inside the mobile card", async ({ p
 	).toBe(true);
 
 	const titleButton = page.getByRole("button", { name: longTitle, exact: true });
+	await expect(titleButton).toBeVisible();
 	const box = await titleButton.boundingBox();
 	expect(box).not.toBeNull();
 	expect(box?.width ?? 999).toBeLessThan(280);
