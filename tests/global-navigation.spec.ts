@@ -75,7 +75,10 @@ async function openGlobalMenu(page: import("@playwright/test").Page) {
 	const trigger = page.getByRole("button", { name: "Abrir menu global" });
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
-	return page.getByRole("region", { name: "Navegação, conta e aparência" });
+	await expect(trigger).toHaveAttribute("aria-controls", "global-profile-menu");
+	const panel = page.getByRole("region", { name: "Navegação, conta e aparência" });
+	await expect(panel).toHaveAttribute("id", "global-profile-menu");
+	return panel;
 }
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
@@ -99,6 +102,8 @@ test("avatar is the only global trigger and exposes the complete public IA", asy
 	await mockAccess(page);
 	await page.goto("/sessoes/nonexistent");
 	await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCount(0);
+	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Abrir menu global" })).toHaveCount(1);
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
 	const labels = await navigation.locator(".product-launcher-link").allTextContents();
@@ -117,6 +122,23 @@ test("unified panel projects only authorized tools", async ({ page }) => {
 	}
 	await expect(navigation.getByRole("link", { name: "Editar mundo", exact: true })).toHaveCount(0);
 	await expect(navigation.getByRole("link", { name: "Revisão", exact: true })).toHaveCount(0);
+});
+
+test("broad capability projection exposes the complete authorized tool set", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	for (const label of [
+		"Transcrições",
+		"Editar sessões",
+		"Processar",
+		"Editar mundo",
+		"Revisão",
+		"Permissões",
+	]) {
+		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+	}
 });
 
 test("anonymous unified panel keeps public navigation, safe return path and appearance", async ({ page }) => {
@@ -162,6 +184,17 @@ test("public navigation remains usable while auth projection is pending or unava
 	await expect(panel.getByText("Ferramentas", { exact: true })).toBeVisible();
 
 	await page.reload();
+});
+
+test("unavailable auth never removes Explore or exposes private tools", async ({ page }) => {
+	await mockAccess(page, { state: "unavailable", status: 503 });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByText("Conta temporariamente indisponível", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+	await expect(panel.getByRole("link", { name: "Sessões", exact: true })).toBeVisible();
+	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Abrir menu global" })).toHaveCount(1);
 });
 
 test("keyboard, outside click and pathname changes dismiss the unified panel", async ({ page }) => {
@@ -293,6 +326,13 @@ test("unified grid preserves large glyphs while making cells denser", async ({ p
 		expect(iconBox.width).toBeGreaterThanOrEqual(30);
 		expect(iconBox.height).toBeGreaterThanOrEqual(30);
 	}
+	for (const label of ["Editar sessões", "Transcrições", "Permissões"]) {
+		const criticalLink = panel.getByRole("link", { name: label, exact: true });
+		await expect(criticalLink).toBeVisible();
+		expect(
+			await criticalLink.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+		).toBeTruthy();
+	}
 });
 
 test("unified panel stays contained and scrolls internally across the responsive matrix", async ({ page }) => {
@@ -300,7 +340,10 @@ test("unified panel stays contained and scrolls internally across the responsive
 	await page.goto("/");
 	for (const viewport of [
 		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
 		{ width: 390, height: 500 },
+		{ width: 768, height: 1024 },
+		// 1366×768 rendered at 200% browser zoom is approximately this CSS viewport.
 		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
