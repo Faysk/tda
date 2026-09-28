@@ -41,7 +41,29 @@
 }
 
 .accountShell {
-	max-width: 64rem;
+	max-width: 44rem;
+}
+.accountIdentity {
+	display: grid;
+	gap: 0.4rem;
+	margin-top: 1.75rem;
+	padding: 1.25rem;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+}
+.accountIdentityLabel {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+.accountIdentityState {
+	color: var(--ds-foreground-muted);
+	font-size: 0.9rem;
+	line-height: 1.5;
 }
 .taskGrid {
 	display: grid;
