@@ -131,7 +131,7 @@
 	border-radius: var(--ds-radius-lg);
 	background: var(--ds-surface-elevated);
 	position: sticky;
-	top: 10px;
+	top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	z-index: 10;
 	box-shadow: 0 12px 40px color-mix(in srgb, var(--ds-canvas) 40%, transparent);
 }
