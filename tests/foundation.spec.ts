@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+async function openAppearance(page: import("@playwright/test").Page) {
+	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await trigger.click();
+	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	await expect(toggle).toBeVisible();
+	return toggle;
+}
+
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
@@ -89,11 +97,18 @@ test("public shell stays usable at 320px", async ({ page }) => {
 
 	const launcher = page.getByRole("button", { name: "Abrir navegação" });
 	await expect(launcher).toBeVisible();
-	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	const account = page.getByRole("button", { name: "Abrir menu da conta" });
+	await expect(account).toBeVisible();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveCount(0);
 	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
 
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
+
+	await account.click();
+	await expect(page.getByText("Aparência", { exact: true })).toBeVisible();
+	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await page.keyboard.press("Escape");
 
 	await launcher.click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
@@ -124,7 +139,7 @@ test("theme follows the system by default and persists explicit toggles", async 
 }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
-	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	const toggle = await openAppearance(page);
 	const sun = page.locator(".theme-toggle-glyph--sun");
 	const moon = page.locator(".theme-toggle-glyph--moon");
 
@@ -148,17 +163,12 @@ test("theme follows the system by default and persists explicit toggles", async 
 
 	await page.reload();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
-		"aria-checked",
-		"false",
-	);
+	const reloadedToggle = await openAppearance(page);
+	await expect(reloadedToggle).toHaveAttribute("aria-checked", "false");
 
-	await page.getByRole("switch", { name: "Modo escuro" }).click();
+	await reloadedToggle.click();
 	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveAttribute(
-		"aria-checked",
-		"true",
-	);
+	await expect(reloadedToggle).toHaveAttribute("aria-checked", "true");
 	expect(await page.evaluate(() => localStorage.getItem("tda-theme"))).toBe(
 		"dark",
 	);
@@ -206,7 +216,8 @@ test("official design tokens and brand variant follow the resolved theme", async
 	await expect(page.locator(".brand-symbol-image--dark")).toHaveCSS("opacity", "1");
 	await expect(page.locator(".brand-symbol-image--light")).toHaveCSS("opacity", "0");
 
-	await page.getByRole("switch", { name: "Modo escuro" }).click();
+	const toggle = await openAppearance(page);
+	await toggle.click();
 	await expect
 		.poll(() =>
 			page.evaluate(() =>
@@ -225,7 +236,7 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 }) => {
 	await page.emulateMedia({ colorScheme: "dark", reducedMotion: "no-preference" });
 	await page.goto("/");
-	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	const toggle = await openAppearance(page);
 	const track = page.locator(".theme-toggle-track");
 	const knob = page.locator(".theme-toggle-knob");
 	const glyph = page.locator(".theme-toggle-glyph--sun");
@@ -295,6 +306,8 @@ test("reduced motion removes decorative transitions", async ({ page }) => {
 	expect(
 		await action.evaluate((element) => getComputedStyle(element).transitionDuration),
 	).toBe("0s");
+	await page.keyboard.press("Escape");
+	await openAppearance(page);
 	const knob = page.locator(".theme-toggle-knob");
 	expect(
 		await knob.evaluate((element) => getComputedStyle(element).transitionDuration),
@@ -309,16 +322,21 @@ test("legacy session hashes map to reboot paths", async ({ page }) => {
 	await expect(page).toHaveURL(/\/sessoes\/nonexistent$/);
 });
 
-test("not-found state uses the public navigation contract", async ({ page }) => {
+test("unavailable published session keeps the public recovery navigation contract", async ({
+	page,
+}) => {
 	const response = await page.goto("/sessoes/nonexistent");
-	expect(response?.status()).toBe(404);
+	expect(response?.status()).toBe(200);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"Esta história não foi encontrada.",
+		"Esta sessão está temporariamente indisponível.",
+	);
+	await expect(page.getByRole("link", { name: "Tentar novamente" })).toHaveAttribute(
+		"href",
+		"/sessoes/nonexistent",
 	);
 	await expect(page.getByRole("link", { name: "Voltar às sessões" })).toBeVisible();
 });
 
-test("unknown and private routes are not exposed", async ({ request }) => {
+test("private API routes are not exposed", async ({ request }) => {
 	expect((await request.get("/api/transcripts")).status()).toBe(404);
-	expect((await request.get("/sessoes/nonexistent")).status()).toBe(404);
 });

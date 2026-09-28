@@ -427,6 +427,19 @@ footer {
 	}
 }
 
+@media (max-width: 720px) {
+	.product-launcher-panel {
+		position: fixed;
+		top: 72px;
+		right: 12px;
+		left: 12px;
+		width: auto;
+		max-height: calc(100dvh - 84px);
+		padding: 16px;
+		border-radius: var(--ds-radius-md);
+	}
+}
+
 @media (max-width: 650px) {
 	.site-header {
 		min-height: 72px;

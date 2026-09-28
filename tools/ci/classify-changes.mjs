@@ -13,6 +13,7 @@ const EXACT = {
 		"package.json",
 		"playwright.config.ts",
 		"tests/global-navigation.spec.ts",
+		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
 		"src/app/layout.tsx",
 		"src/app/public-shell.css",
