@@ -149,14 +149,13 @@ export function LegacyTranscriptPrepare({
 					</p>
 					<div className={styles.actions}>
 						<Button
-							disabled={phase === "preparing"}
 							onClick={() => setPhase("idle")}
 							variant="tertiary"
 						>
 							Cancelar
 						</Button>
 						<Button
-							disabled={!editable || phase === "preparing"}
+							disabled={!editable}
 							onClick={() => void prepare()}
 						>
 							Preparar para edição
