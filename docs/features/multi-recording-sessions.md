@@ -32,7 +32,7 @@ O uso real passou a produzir cenários em que uma única sessão possui dois ou 
 
 O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source.
 
-Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly já estão implementados. A entrega Web #849 conecta esses contratos ao processamento com progressive disclosure, seleção de run por part, processamento seletivo das parts sem run, build explícito da assembly e descoberta da assembly em Resultados. Provenance cloud multi-source (#851) e o gate E2E/recovery amplo (#852) continuam separados e não são pressupostos por esta entrega.
+Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly já estão implementados. A entrega Web #849 conecta esses contratos ao processamento com progressive disclosure, seleção de run por part, processamento seletivo das parts sem run, build explícito da assembly e descoberta da assembly em Resultados. Provenance cloud multi-source (#851) também está implementada. O gate #852 passa a costurar a jornada sintética em CI: Agent scratch com duas gravações/runs, browser multi-recording, restart/recovery e contrato PostgreSQL multi-source, sem áudio privado ou modelo pesado.
 
 ## Escopo
 
@@ -604,7 +604,7 @@ Não migrar destrutivamente:
 - #848 — Session Assembly imutável + review base — implementado;
 - #849 — composer Web multi-recording — implementação desta entrega;
 - #851 — provenance multi-source na publicação cloud — pendente;
-- #852 — gate E2E/recovery sintético amplo — pendente.
+- #852 — gate E2E/recovery sintético amplo — implementado em CI com Agent scratch, browser sintético e PostgreSQL isolado.
 
 Epic: #843.
 
