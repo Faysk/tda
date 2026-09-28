@@ -24,6 +24,10 @@ const EXACT = {
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
+		"src/features/auth/config.ts",
+		"src/features/auth/presentation.ts",
+		"src/features/auth/server.ts",
+		"src/features/edit/navigation-entry.ts",
 	]),
 	db: new Set([
 		"tools/transcript-sync-db.py",
