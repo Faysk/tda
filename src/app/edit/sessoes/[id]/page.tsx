@@ -144,6 +144,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 			<div className={draftStyles.sessionWorkspace}>
 				<div className={draftStyles.transcriptPane}>
 					<TranscriptReader
+						key={session.id}
 						downloadHref={downloadHref}
 						editable={
 							canEdit &&
