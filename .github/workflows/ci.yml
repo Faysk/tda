@@ -197,6 +197,57 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  permissions-e2e:
+    name: permissions-e2e
+    needs: classify-changes
+    if: ${{ contains(needs.classify-changes.outputs.files_json, 'src/features/edit/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/api/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'tools/testing/permissions') || contains(needs.classify-changes.outputs.files_json, 'playwright.permissions.config.ts') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Governed permissions browser contract
+        run: pnpm exec playwright test --config playwright.permissions.config.ts
+      - name: Upload sanitized permissions visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: permissions-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/permissions-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized permissions failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: permissions-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
   navigation-e2e:
     name: navigation-e2e
     needs: classify-changes
@@ -591,6 +642,7 @@ jobs:
       - validate
       - transcript-import-postgres
       - statistics-e2e
+      - permissions-e2e
       - navigation-e2e
       - companion-domain
       - processing-e2e
@@ -607,6 +659,8 @@ jobs:
           VALIDATE_RESULT: ${{ needs.validate.result }}
           STATISTICS_RELEVANT: ${{ contains(needs.classify-changes.outputs.files_json, 'src/app/transcricoes/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcripts/statistics/') || contains(needs.classify-changes.outputs.files_json, 'tests/statistics/') || contains(needs.classify-changes.outputs.files_json, 'playwright.statistics.config.ts') }}
           STATISTICS_RESULT: ${{ needs.statistics-e2e.result }}
+          PERMISSIONS_RELEVANT: ${{ contains(needs.classify-changes.outputs.files_json, 'src/features/edit/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/api/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'tools/testing/permissions') || contains(needs.classify-changes.outputs.files_json, 'playwright.permissions.config.ts') }}
+          PERMISSIONS_RESULT: ${{ needs.permissions-e2e.result }}
           NAVIGATION_RELEVANT: ${{ needs.classify-changes.outputs.navigation }}
           NAVIGATION_RESULT: ${{ needs.navigation-e2e.result }}
           DB_RELEVANT: ${{ needs.classify-changes.outputs.db }}
@@ -636,6 +690,12 @@ jobs:
             test "$STATISTICS_RESULT" = "success"
           else
             test "$STATISTICS_RESULT" = "skipped"
+          fi
+
+          if [[ "$PERMISSIONS_RELEVANT" == "true" ]]; then
+            test "$PERMISSIONS_RESULT" = "success"
+          else
+            test "$PERMISSIONS_RESULT" = "skipped"
           fi
 
           if [[ "$NAVIGATION_RELEVANT" == "true" ]]; then
