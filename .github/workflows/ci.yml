@@ -182,6 +182,14 @@ jobs:
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           --project=desktop-1080p
+      - name: World shell interaction contracts
+        run: >-
+          pnpm exec playwright test
+          tests/world-workspace-shell.spec.ts
+          tests/world-workspace-wide-chrome.spec.ts
+          tests/world-authoring-command-palette.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
