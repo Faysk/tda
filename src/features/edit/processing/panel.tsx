@@ -32,6 +32,7 @@ import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
+import { SessionAssemblyResults } from "./session-assembly-results";
 import {
 	PROCESSING_REFRESH_POLICY,
 	processingPollMs,
@@ -325,6 +326,8 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [activeAssemblySessionId, setActiveAssemblySessionId] = useState<string | null>(null);
+	const [assemblyRefreshKey, setAssemblyRefreshKey] = useState(0);
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
@@ -982,6 +985,13 @@ export function ProcessingPanel({
 						hidden={view !== "results"}
 					>
 						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
+						<SessionAssemblyResults
+							enabled={
+								state.capabilities?.capabilities.includes("transcription.session-assembly.review") === true
+							}
+							sessionId={activeAssemblySessionId}
+							refreshKey={assemblyRefreshKey}
+						/>
 						<LocalReviewWorkspace
 							runs={state.localRuns}
 							hasMore={state.localRunsHasMore}
